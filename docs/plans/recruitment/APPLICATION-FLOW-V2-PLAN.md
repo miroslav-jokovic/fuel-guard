@@ -891,3 +891,22 @@ Append dated lines at the END.
   most `SMS_MAX_NUMBERS_PER_LINK` = 3 different numbers per link, revoked ones included, counted from the link's
   `created_at`. **Deviation, recorded as Q-AW30:** CANCEL/END/QUIT are whole-message only, the rest still match
   anywhere. Terms page corrected (whole-message words, START). 20 mutants, all killed.
+- 2026-09-27 — **C2d2 merged** (#1076, main `d7b4356`); CI green on the merged head. Q-AW30 (STOP matching) awaits the
+  owner.
+- 2026-09-27 — **C2e built** (`claude/applicant-flow-c2e`): office link management. **G-9:** `POST /authorizations`
+  takes `signed_on` (`YYYY-MM-DD`), required for `wet_signature`/`verbal_documented` and refused for `esign` (0376's
+  CHECK), refused after the carrier's today, audited as `signedOn`; the paper form asks for "Date on the signed page"
+  (never prefilled) and the panel reads "Signed on paper MM/DD/YYYY" instead of the recording instant. **Q-AX5 + Q-AX6,
+  one action** (`applicationLink.ts`, owner 2026-09-27): `POST /recruitment/drivers/:driverId/application-invites/again`
+  replaces the current invitation's token when `canResendApplicationLink` (shared: not revoked, handbook not filed —
+  a FILED application's link is still re-sent, because D-AW1's third visit is the handbook), extending
+  `expires_at` to `max(expires_at, now + 14 d)` by a conditional UPDATE, audited `compliance.application_link_resent`
+  with the ids and expiry only, emailed with `renderApplicationLinkResentEmail` ("the earlier link no longer works");
+  otherwise it opens a new, empty invitation (the owner's ruling). The create moved into the same module unchanged.
+  The applicant's card offers "Send the link again" and hides "Create an application link" while the current link is
+  re-sendable, so a lost link no longer strands a draft behind a second, empty application. **Q-AX6:** `GET
+  /recruitment/applicant-matches` (applicants, archived included, same full name or email, case-insensitive,
+  wildcards escaped); the board's drawer asks it before creating anybody and offers "Send them the link again" on the
+  match, or "This is someone else — add them". `postgrestFixture` gained `ilike` (an unknown operator matched every
+  row). 28 mutants, all killed. **Not built, named:** re-sending to an ARCHIVED applicant leaves them archived (the
+  drawer labels them); changing the email on a re-send (the link is on screen to copy either way).

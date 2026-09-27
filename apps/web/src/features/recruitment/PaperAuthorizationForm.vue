@@ -8,6 +8,7 @@ import {
 import {
   AppButton as BaseButton,
   AppCombobox as ComboSelect,
+  AppDateField,
   AppFormField as FormField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
@@ -24,6 +25,10 @@ import { useRecordPaperAuthorization } from "@/features/recruitment/useAuthoriza
  *
  * ⚠ The scan is required, here and by the server (`paperAuthorization.ts`). What the office types is
  * the name as written; the wording is composed by the server from the carrier's live text, never sent.
+ *
+ * ⚠ G-9: the day written on the page is required too, and it is not defaulted to today — the paper is
+ * usually recorded days after it was signed, and a prefilled today is the wrong answer the office
+ * would accept without reading. The server refuses a day after the carrier's today.
  */
 const props = defineProps<{
   driverId: string;
@@ -40,11 +45,12 @@ const firstUnsigned = (): AuthorizationPurpose =>
 
 const purpose = ref<AuthorizationPurpose>(firstUnsigned());
 const signedName = ref("");
+const signedOn = ref("");
 const scan = ref<File | null>(null);
 watch(() => props.signed, () => (purpose.value = firstUnsigned()));
 
 const options = APPLICATION_RELEASE_ORDER.map((p) => ({ value: p, label: AUTHORIZATION_PURPOSE_LABELS[p] }));
-const ready = computed(() => signedName.value.trim().length > 0 && scan.value !== null);
+const ready = computed(() => signedName.value.trim().length > 0 && signedOn.value !== "" && scan.value !== null);
 
 async function save(): Promise<void> {
   if (!scan.value) return;
@@ -53,10 +59,12 @@ async function save(): Promise<void> {
       driverId: props.driverId,
       purpose: purpose.value,
       signedName: signedName.value.trim(),
+      signedOn: signedOn.value,
       file: scan.value,
     });
     toast.success("Paper signature recorded");
     signedName.value = "";
+    signedOn.value = "";
     scan.value = null;
     emit("done");
   } catch (e) {
@@ -78,6 +86,9 @@ async function save(): Promise<void> {
       </FormField>
       <FormField v-slot="{ id }" label="Name as signed">
         <BaseInput :id="id" v-model="signedName" />
+      </FormField>
+      <FormField v-slot="{ id }" label="Date on the signed page">
+        <AppDateField :id="id" v-model="signedOn" />
       </FormField>
     </div>
     <FileDropzone

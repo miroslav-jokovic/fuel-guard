@@ -2,7 +2,6 @@ import { Router } from "express";
 import {
   INVITE_TTL_DAYS_DEFAULT,
   applicationInviteCreateSchema,
-  renderApplicationInviteEmail,
   type ApplicationInviteCreate,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
@@ -10,8 +9,13 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { mintInvitationToken } from "../applicationIntake.js";
-import { carrierName, deliverApplicationMail } from "../applicationMail.js";
+import {
+  INVITE_COLS,
+  createApplicationInvite,
+  findExistingApplicants,
+  isApplicationLinkError,
+  sendApplicationLinkAgain,
+} from "../applicationLink.js";
 import { ensureApplicationPdf } from "../applicationPdf/file.js";
 import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 
@@ -21,9 +25,9 @@ import { DOCUMENTS_BUCKET } from "@silvicom/shared";
  * ── THE LINK IS RETURNED ONCE AND NEVER AGAIN ──────────────────────────────────────────────────
  * The response carries the only copy of the token that will ever exist outside the applicant's
  * inbox; the table holds a SHA-256. That is the same contract `/api/invites` offers — "the link is
- * always returned when it could be generated, even if the email failed to send" — with one addition
- * it does not have: there is no resend that re-reads the old token, because there is nothing to
- * re-read. A lost link is replaced by a NEW invitation, and the old one is revoked.
+ * always returned when it could be generated, even if the email failed to send". There is nothing to
+ * re-read, so "send the link again" (C2e, Q-AX5) REPLACES the token on the same invitation and the old
+ * link dies — see `applicationLink.ts`, which also holds the create itself since then.
  *
  * ── AND SINCE 2026-08-22, IT IS ALSO SENT ─────────────────────────────────────────────────────
  * ⚠ This route stored `email` in a column from the day it shipped and never imported a mailer. The
@@ -65,8 +69,6 @@ export function recruitmentApplicationInvitesRouter(): Router {
   // only say "Open" for an application waiting on the carrier, or already sent back to be signed.
   // ⚠ ONE string literal, never a concatenation: PostgREST's types are inferred from the select text
   // statically, and a `+` turns every read of it into `GenericStringError`.
-  const INVITE_COLS =
-    "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at";
 
   router.get(
     "/drivers/:driverId/application-invites",
@@ -133,74 +135,61 @@ export function recruitmentApplicationInvitesRouter(): Router {
       const orgId = req.auth!.orgId!;
       const body = res.locals.body as ApplicationInviteCreate;
 
-      const { data: driver } = await admin
-        .from("drivers")
-        .select("id, status")
-        .eq("id", body.driver_id)
-        .eq("org_id", orgId)
-        .maybeSingle();
-      const row = driver as { id: string; status: string } | null;
-      if (!row) {
-        res.status(404).json(apiError("not_found", "Driver not found"));
-        return;
-      }
-      // An application is what somebody submits BEFORE they are hired. Sending the form to a driver
-      // who already works here would collect a §391.21 certification dated after their hire, which
-      // is not the document §391.51(b)(1) is asking for.
-      if (row.status !== "applicant") {
-        res.status(409).json(apiError("not_an_applicant", `This driver is ${row.status}, not an applicant.`));
-        return;
-      }
-
-      const { token, hash } = mintInvitationToken();
-      const days = body.expires_in_days ?? INVITE_TTL_DAYS_DEFAULT;
-      const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
-
-      const { data, error } = await admin
-        .from("application_invitations")
-        .insert({
-          org_id: orgId,
-          driver_id: body.driver_id,
-          token_hash: hash,
-          email: body.email ?? null,
-          expires_at: expiresAt,
-          created_by: req.auth!.userId,
-        })
-        .select(INVITE_COLS)
-        .single();
-      if (error || !data) {
-        res.status(500).json(apiError("db_error", "Could not create the invitation"));
-        return;
-      }
-
-      await writeAudit(admin, {
+      const result = await createApplicationInvite(admin, env, {
         orgId,
-        actorId: req.auth!.userId,
-        action: "compliance.application_invited",
-        entity: "application_invitations",
-        entityId: (data as { id: string }).id,
-        // The id and the expiry. NEVER the token or its hash — an audit log is the last place a
-        // credential should be recoverable from, and the hash is a credential's fingerprint.
-        meta: { driverId: body.driver_id, expiresAt, email: body.email ?? null },
+        userId: req.auth!.userId,
+        driverId: body.driver_id,
+        email: body.email ?? null,
+        days: body.expires_in_days ?? INVITE_TTL_DAYS_DEFAULT,
       });
+      if (isApplicationLinkError(result)) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(201).json({ invitation: result.invitation, link: result.link, delivery: result.delivery });
+    }),
+  );
 
-      // The only copy. Not stored, not re-derivable, not returned again.
-      const link = `${env.WEB_APP_URL}/apply/${token}`;
+  /**
+   * "Send the link again" on the applicant's own record (C2e: Q-AX5, Q-AX6). The server decides whether
+   * that replaces the current invitation's link or opens a new, empty application — `applicationLink.ts`.
+   */
+  router.post(
+    "/drivers/:driverId/application-invites/again",
+    requireOrg,
+    canInvite,
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const result = await sendApplicationLinkAgain(getSupabaseAdmin(env), env, {
+        orgId: req.auth!.orgId!,
+        userId: req.auth!.userId,
+        driverId: String(req.params.driverId ?? ""),
+      });
+      if (isApplicationLinkError(result)) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
+      res.status(result.mode === "created" ? 201 : 200).json(result);
+    }),
+  );
 
-      /**
-       * Send it, if there is anywhere to send it.
-       *
-       * Deliberately AFTER the insert and the audit row: see the header. `delivery.sent === false`
-       * with a reason is an outcome the UI reports beside the link, not an error — the recruiter's
-       * next action ("copy this and text it to them") is the same either way, and only the sentence
-       * above it changes.
-       */
-      const carrier = await carrierName(admin, orgId);
-      const delivery = await deliverApplicationMail(
-        env, body.email ?? null, renderApplicationInviteEmail(carrier, link, days),
-      );
-
-      res.status(201).json({ invitation: data, link, delivery });
+  /**
+   * Is the person the office is about to add already on the board (Q-AX6)? Read before the board's
+   * invite drawer creates anybody, so it can offer "send the link again" on the existing record.
+   */
+  router.get(
+    "/applicant-matches",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const fullName = String(req.query.full_name ?? "").trim();
+      const email = String(req.query.email ?? "").trim() || null;
+      if (fullName.length < 2 || fullName.length > 200 || (email && email.length > 200)) {
+        res.status(400).json(apiError("invalid_request", "A full name is required."));
+        return;
+      }
+      const matches = await findExistingApplicants(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, { fullName, email });
+      res.json({ matches });
     }),
   );
 

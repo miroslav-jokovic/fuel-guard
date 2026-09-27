@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canResendApplicationLink,
   APPLICATION_RELEASE_ORDER,
   INVITE_TTL_DAYS_MAX,
   applicationInviteCreateSchema,
@@ -146,5 +147,15 @@ describe("signing", () => {
     }
     expect(isDraftDisclosure("v1")).toBe(false);
     expect(isDraftDisclosure("v2-2027-revision")).toBe(false);
+  });
+});
+
+/** C2e (Q-AX5, D-AW1): revoked or handbook-filed ends a link; filed or expired does not. */
+describe("canResendApplicationLink", () => {
+  it("re-sends until the office revokes the link or its handbook is filed", () => {
+    expect(canResendApplicationLink({ revoked_at: null })).toBe(true);
+    expect(canResendApplicationLink({ revoked_at: null, handbook_filed_at: null })).toBe(true);
+    expect(canResendApplicationLink({ revoked_at: "2026-09-01T00:00:00Z", handbook_filed_at: null })).toBe(false);
+    expect(canResendApplicationLink({ revoked_at: null, handbook_filed_at: "2026-09-01T00:00:00Z" })).toBe(false);
   });
 });

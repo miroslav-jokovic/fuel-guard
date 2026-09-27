@@ -16,6 +16,8 @@ import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.
  */
 const calls: Array<{ path: string; init?: { method?: string; body?: unknown } }> = [];
 const fail = vi.hoisted(() => ({ invite: false }));
+/** What the board's duplicate check answers (Q-AX6). Empty by default: nobody is on the board yet. */
+const board = vi.hoisted(() => ({ matches: [] as Array<{ id: string; full_name: string; email: string | null; archived: boolean }> }));
 const role = vi.hoisted(() => ({ value: "recruiter" as string | null }));
 
 /**
@@ -33,6 +35,10 @@ vi.mock("@/lib/api", () => ({
     calls.push({ path, init });
     if (path === "/api/roster/drivers") {
       return { ok: true, data: { driver: { id: "d-new", full_name: "Dana Reyes", status: "applicant" } } };
+    }
+    if (path.startsWith("/api/recruitment/applicant-matches?")) return { ok: true, data: { matches: board.matches } };
+    if (path === "/api/recruitment/drivers/d-old/application-invites/again") {
+      return { ok: true, data: { link: "https://fuelguard.test/apply/tok-again", delivery: null, mode: "resent" } };
     }
     if (path === "/api/recruitment/application-invites") {
       if (fail.invite) return { ok: false, error: { message: "Invitation service is down" } };
@@ -79,6 +85,7 @@ describe("inviting an applicant from the board", () => {
     setActivePinia(createPinia());
     calls.length = 0;
     fail.invite = false;
+    board.matches = [];
     role.value = "recruiter";
   });
 
@@ -134,6 +141,49 @@ describe("inviting an applicant from the board", () => {
     // ships should point at where the work is, not at a redirect.
     expect(w.html()).toContain("/recruitment/d-new");
     expect(w.text()).not.toContain("It is shown once");
+  });
+
+  /**
+   * Q-AX6 (C2e): production held four `Marija Varmeda` rows, one per press. The drawer asks the board
+   * first and, on a match, creates NOBODY until the office chooses.
+   */
+  describe("when the person may already be on the board", () => {
+    const MATCH = { id: "d-old", full_name: "Dana Reyes", email: "dana@example.test", archived: true };
+
+    it("asks the board by name first, and creates nobody while there is a match", async () => {
+      board.matches = [MATCH];
+      const w = mountWith("recruiter");
+      await fillAndSubmit(w);
+      expect(calls[0]!.path).toBe("/api/recruitment/applicant-matches?full_name=Dana+Reyes");
+      expect(calls.filter((c) => c.init?.method === "POST")).toEqual([]);
+      expect(w.text()).toContain("Already on the applicant board?");
+      expect(w.text()).toContain("dana@example.test · archived");
+      expect(w.html()).toContain("/recruitment/d-old");
+    });
+
+    it("sends the existing record its link again instead of adding a second them", async () => {
+      board.matches = [MATCH];
+      const w = mountWith("recruiter");
+      await fillAndSubmit(w);
+      await w.findAll("button").find((b) => b.text() === "Send them the link again")!.trigger("click");
+      await settle(w);
+      expect(calls.filter((c) => c.init?.method === "POST").map((c) => c.path)).toEqual([
+        "/api/recruitment/drivers/d-old/application-invites/again",
+      ]);
+      expect(w.text()).toContain("https://fuelguard.test/apply/tok-again");
+    });
+
+    it("still adds them when the office says it is someone else", async () => {
+      board.matches = [MATCH];
+      const w = mountWith("recruiter");
+      await fillAndSubmit(w);
+      await w.findAll("button").find((b) => b.text() === "This is someone else — add them")!.trigger("click");
+      await settle(w);
+      expect(calls.filter((c) => c.init?.method === "POST").map((c) => c.path)).toEqual([
+        "/api/roster/drivers",
+        "/api/recruitment/application-invites",
+      ]);
+    });
   });
 
   it("refuses to submit without both names", async () => {

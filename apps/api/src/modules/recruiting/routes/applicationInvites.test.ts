@@ -56,7 +56,7 @@ const seed = (status = "applicant"): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       drivers: [{ id: DRIVER, status }],
-      application_invitations: [{ id: "inv-1", driver_id: DRIVER, expires_at: "2099-01-01T00:00:00Z" }],
+      application_invitations: [{ id: "inv-1", driver_id: DRIVER, expires_at: "2099-01-01T00:00:00Z", revoked_at: null, handbook_filed_at: null }],
       audit_logs: [],
     },
   });
@@ -258,5 +258,48 @@ describe("revoking", () => {
     const res = await call("/application-invites/inv-1/revoke", { method: "POST", token: "recruiter" });
     expect(res.status).toBe(200);
     expect(rec.writtenRows("audit_logs")[0]!.action).toBe("compliance.application_invite_revoked");
+  });
+});
+
+/** C2e (Q-AX5, Q-AX6): the one button on the applicant's record, and the board's duplicate check. */
+describe("sending the link again", () => {
+  const AGAIN = `/drivers/${DRIVER}/application-invites/again`;
+
+  it("replaces the current invitation's link rather than opening a second application", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(AGAIN, { method: "POST", token: "recruiter" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { mode: string; link: string };
+    expect(body.mode).toBe("resent");
+    expect(body.link).toMatch(/\/apply\/[A-Za-z0-9_-]{43}$/);
+    expect(rec.writes().filter((q) => q.table === "application_invitations").map((q) => q.write?.method)).toEqual(["update"]);
+    expect(rec.writtenRows("audit_logs")[0]!.action).toBe("compliance.application_link_resent");
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("is refused to a dispatcher, an auditor and the unauthenticated", async () => {
+    for (const token of ["dispatcher", "auditor"]) {
+      holder.client = seed().client;
+      expect((await call(AGAIN, { method: "POST", token })).status).toBe(403);
+    }
+    expect((await call(AGAIN, { method: "POST" })).status).toBe(401);
+  });
+
+  it("refuses a driver who is no longer an applicant", async () => {
+    holder.client = seed("active").client;
+    expect((await call(AGAIN, { method: "POST", token: "recruiter" })).status).toBe(409);
+  });
+});
+
+describe("finding an applicant already on the board", () => {
+  it("answers the matches to a viewer, and needs a name", async () => {
+    holder.client = createSupabaseRecorder({
+      tables: { drivers: [{ id: DRIVER, full_name: "Marija Varmeda", email: null, archived_at: null }] },
+    }).client;
+    const res = await call("/applicant-matches?full_name=Marija%20Varmeda", { token: "auditor" });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { matches: Array<{ id: string }> }).matches.map((m) => m.id)).toEqual([DRIVER]);
+    expect((await call("/applicant-matches", { token: "recruiter" })).status).toBe(400);
   });
 });

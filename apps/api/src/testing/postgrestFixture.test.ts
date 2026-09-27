@@ -33,4 +33,18 @@ describe("postgrestFixture", () => {
     expect(await ids((q) => q.select("id").match({ org_id: "o2" }))).toEqual(["c"]);
     expect(await ids((q) => q.select("id").eq("detail->>source", "road_test"))).toEqual(["a"]);
   });
+
+  /** C2e: `ilike` used to be an unknown operator, and an unknown operator matches every row. */
+  it("applies ilike case-insensitively, with % and _ as wildcards and \\ escaping them", async () => {
+    const rec = createSupabaseRecorder({ tables: { d: postgrestFixture([
+      { id: "a", name: "Marija Varmeda" }, { id: "b", name: "Marija_Varmeda" }, { id: "c", name: "Marko" },
+    ]) } });
+    const run = async (p: string) =>
+      (((await rec.client.from("d").select("id").ilike("name", p)).data ?? []) as Array<{ id: string }>).map((r) => r.id);
+    expect(await run("marija varmeda")).toEqual(["a"]);
+    expect(await run("mar%")).toEqual(["a", "b", "c"]);
+    expect(await run("marija_varmeda")).toEqual(["a", "b"]);
+    expect(await run("marija\\_varmeda")).toEqual(["b"]);
+    expect(await run("nobody")).toEqual([]);
+  });
 });

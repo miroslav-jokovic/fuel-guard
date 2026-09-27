@@ -3,6 +3,7 @@ import {
   applicationInviteSubject,
   renderApplicationApprovedEmail,
   renderApplicationInviteEmail,
+  renderApplicationLinkResentEmail,
   renderDigestEmail,
   renderInviteEmail,
 } from "./email.js";
@@ -164,5 +165,19 @@ describe("renderDigestEmail", () => {
     expect(m.html).toContain("4 row(s) of drift repaired");
     expect(m.html).toContain("2 sync failure(s)");
     expect(m.text).toContain("Settings → Data & Sync");
+  });
+});
+
+/** C2e (Q-AX5): the re-sent link says nothing is lost and that the earlier link is dead. */
+describe("renderApplicationLinkResentEmail", () => {
+  it("carries the link, keeps the work, and says the earlier link no longer works", () => {
+    const m = renderApplicationLinkResentEmail("Silvicom Inc", "https://app.test/apply/tok", 14);
+    for (const body of [m.text, m.html]) {
+      expect(body).toContain("https://app.test/apply/tok");
+      expect(body).toContain("saved");
+      expect(body).toContain("no longer works");
+      expect(body).toContain("14 days");
+    }
+    expect(m.subject).toContain("Silvicom Inc");
   });
 });

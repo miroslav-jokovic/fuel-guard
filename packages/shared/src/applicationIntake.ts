@@ -36,6 +36,23 @@ export const applicationInviteCreateSchema = z.object({
 export type ApplicationInviteCreate = z.infer<typeof applicationInviteCreateSchema>;
 
 /**
+ * May the office send this invitation's link again, on the SAME invitation (Q-AX5, C2e)?
+ *
+ * One invitation carries the applicant through three visits (D-AW1): Part 1, the application, and the
+ * handbook after the application is filed. So a filed application is NOT a finished link — the driver
+ * still needs it for the handbook — and re-sending it keeps everything they have done. Only two states
+ * end a link for good: the office revoked it, or the handbook — its last use — is filed. Expired is
+ * not one of them: a re-send revives it, as the handbook's "Extend the driver's link" does (A-2).
+ *
+ * The API refuses by this rule and the office's card offers the button by it, so the two cannot
+ * disagree about which button the office sees.
+ */
+export const canResendApplicationLink = (invitation: {
+  revoked_at: string | null;
+  handbook_filed_at?: string | null;
+}): boolean => invitation.revoked_at === null && !invitation.handbook_filed_at;
+
+/**
  * §391.21(b)(2) requires the Social Security number on the application (D-HIRE6).
  *
  * Nine digits, and nothing clever: no formatting accepted, because a value that arrives three ways

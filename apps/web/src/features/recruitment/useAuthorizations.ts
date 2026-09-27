@@ -41,6 +41,8 @@ export interface AuthorizationDetail {
   esign_consent_at: string | null;
   accepted_at: string;
   evidence_document_id: string | null;
+  /** G-9: the day written beside a paper signature (`YYYY-MM-DD`); null for an electronic one. */
+  signed_on: string | null;
   /** The id of the grant this row revokes. Append-only: a revocation is a new row (D-REC3). */
   revokes: string | null;
   revoke_reason: string | null;
@@ -74,6 +76,8 @@ export interface PaperAuthorizationInput {
   purpose: AuthorizationPurpose;
   /** The name as the driver wrote it on the paper. */
   signedName: string;
+  /** G-9: the day written beside the signature, `YYYY-MM-DD` — not the day it is recorded. */
+  signedOn: string;
   /** The scan of the signed page — required: a paper signature is only as good as the paper (MV3). */
   file: File;
 }
@@ -124,6 +128,7 @@ export function useRecordPaperAuthorization() {
           purpose: input.purpose,
           method: "wet_signature",
           signed_name: input.signedName,
+          signed_on: input.signedOn,
           evidence_document_id: registered.data.documentId,
         },
       });

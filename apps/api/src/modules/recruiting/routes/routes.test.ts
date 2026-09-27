@@ -500,6 +500,7 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     method: "wet_signature",
     signed_name: "A Driver",
     evidence_document_id: SCAN,
+    signed_on: "2026-09-20",
   };
 
   it("scopes the read to the org and the driver", async () => {
@@ -552,7 +553,7 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     const res = await call("/authorizations", {
       method: "POST",
       token: "admin",
-      body: JSON.stringify({ ...grant, method: "esign", esign_consent: true }),
+      body: JSON.stringify({ ...grant, method: "esign", esign_consent: true, signed_on: undefined }),
     });
     expect(res.status).toBe(201);
     const written = rec.writtenRows("driver_authorizations")[0]!;
@@ -606,9 +607,37 @@ describe("authorizations (0215) — the legal basis for a screening pull", () =>
     const res = await call("/authorizations", {
       method: "POST",
       token: "admin",
-      body: JSON.stringify({ ...grant, method: "esign" }),
+      body: JSON.stringify({ ...grant, method: "esign", signed_on: undefined }),
     });
     expect(res.status).toBe(400);
+  });
+
+  /**
+   * G-9 (Q-AW15's default): a paper signature carries the day written on the page; an electronic one
+   * takes none (0376's CHECK, and its day is `accepted_at`). A day after the carrier's today is a typo.
+   */
+  it("records the day a paper signature was written, and audits it", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(grant) });
+    expect(res.status).toBe(201);
+    expect(rec.writtenRows("driver_authorizations")[0]).toMatchObject({ signed_on: "2026-09-20", method: "wet_signature" });
+    expect((rec.writtenRows("audit_logs")[0]!.meta as Record<string, unknown>).signedOn).toBe("2026-09-20");
+  });
+
+  it("refuses a paper signature with no day, a future day, and an e-signature with one (G-9)", async () => {
+    for (const [body, status] of [
+      [{ ...grant, signed_on: undefined }, 400],
+      [{ ...grant, signed_on: "2999-01-01" }, 400],
+      [{ ...grant, signed_on: "20/09/2026" }, 400],
+      [{ ...grant, method: "esign", esign_consent: true }, 400],
+    ] as const) {
+      rec = seed();
+      holder.client = rec.client;
+      const res = await call("/authorizations", { method: "POST", token: "admin", body: JSON.stringify(body) });
+      expect(res.status, JSON.stringify(body)).toBe(status);
+      expect(rec.writtenRows("driver_authorizations")).toHaveLength(0);
+    }
   });
 
   it("audits which instrument was signed, and never its text", async () => {

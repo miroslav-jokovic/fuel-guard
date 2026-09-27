@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
-import { rolesThatManage } from "@silvicom/shared";
+import { canResendApplicationLink, rolesThatManage } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -11,7 +11,9 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {
   inviteState,
+  liveApplicationInvitation,
   useApplicationInvitesQuery,
+  useSendApplicationLinkAgain,
   useCreateApplicationInvite,
   type ApplicationInviteDelivery,
   useRevokeApplicationInvite,
@@ -31,6 +33,13 @@ import { formatDate } from "@/lib/format";
  *
  * ⚠ That saying-so is `ApplicationLinkOnce.vue` since U1, because the applicant board now mints
  * invitations too and the promise has to be identical in both places. Do not re-inline it here.
+ *
+ * ── ONE LINK AT A TIME (C2e: Q-AX5, Q-AX6) ─────────────────────────────────────────────────────
+ * While the applicant's current invitation can still be used, the card offers "Send the link again"
+ * and NOT "Create an application link": a second invitation opens a second, EMPTY application beside
+ * the one they have been filling in, which is how a lost link used to strand a finished draft. The
+ * re-send replaces the current link on the same invitation. Only when the current one is revoked or
+ * finished (`canResendApplicationLink`, the rule the API refuses by) does the card offer a new one.
  */
 const props = defineProps<{ driverId: string; driverStatus: string }>();
 /**
@@ -49,7 +58,14 @@ const session = useSessionStore();
 const toast = useToastStore();
 const invitesQ = useApplicationInvitesQuery(driverId);
 const create = useCreateApplicationInvite();
+const again = useSendApplicationLinkAgain();
 const revoke = useRevokeApplicationInvite();
+
+/** The invitation the applicant is on now — the newest unrevoked — if its link may be sent again. */
+const resendable = computed(() => {
+  const current = liveApplicationInvitation(invitesQ.data.value ?? []);
+  return current && canResendApplicationLink(current) ? current : null;
+});
 
 const canInvite = computed(() => {
   const role = session.role;
@@ -68,6 +84,16 @@ async function invite(): Promise<void> {
     email.value = "";
   } catch (e) {
     toast.error("Could not create the invitation", e instanceof Error ? e.message : undefined);
+  }
+}
+
+async function sendAgain(): Promise<void> {
+  try {
+    const result = await again.mutateAsync({ driverId: driverId.value });
+    link.value = result.link;
+    delivery.value = result.delivery;
+  } catch (e) {
+    toast.error("Could not send the link again", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -120,7 +146,18 @@ const columns: DataTableColumn[] = [
         </div>
       </div>
 
-      <div v-if="canInvite && driverStatus === 'applicant'" class="mt-4 flex flex-wrap items-end gap-3">
+      <div v-if="canInvite && driverStatus === 'applicant' && resendable" class="mt-4 space-y-2">
+        <p class="text-sm text-ink-muted">
+          Lost the link? Sending it again replaces the one sent before — that one stops working — and keeps
+          everything they have done.
+          <span v-if="resendable.email">It is emailed to {{ resendable.email }}.</span>
+        </p>
+        <BaseButton variant="primary" :disabled="again.isPending.value" @click="sendAgain">
+          {{ again.isPending.value ? "Sending…" : "Send the link again" }}
+        </BaseButton>
+      </div>
+      <!-- Not while the invitations load: "Create" flashing first is a press that opens a second link. -->
+      <div v-else-if="canInvite && driverStatus === 'applicant' && !invitesQ.isLoading.value" class="mt-4 flex flex-wrap items-end gap-3">
         <FormField v-slot="{ id }" label="Their email" hint="Optional — the link is emailed to this address. Leave it blank and you send the link yourself.">
           <BaseInput :id="id" v-model="email" type="email" placeholder="Optional" />
         </FormField>
