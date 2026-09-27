@@ -187,11 +187,13 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   /**
    * (b)(10)(iv)(A) and (B) — asked of every (b)(10) employer and filed in the payload since the contract
    * had them, but never PRINTED until C3c1: the document the §391.51 file holds answered two questions
-   * the regulation requires on it only in a JSON column. Printed when answered; a row filed before the
-   * form asked them has null, and says so rather than inventing a "No".
+   * the regulation requires on it only in a JSON column. Printed when answered; null says so rather
+   * than inventing a "No". It said "Not asked" until C3c2b (Q-AW33), when the page began asking both
+   * as Yes/No with nothing chosen: a legacy link may leave them blank, so null now means asked and not
+   * answered as well as never asked, and "Not answered" is true of both.
    */
-  field(doc, "Subject to the FMCSRs", e.subject_to_fmcsr == null ? "Not asked" : yesNo(e.subject_to_fmcsr));
-  field(doc, "DOT drug and alcohol testing", e.safety_sensitive == null ? "Not asked" : yesNo(e.safety_sensitive));
+  field(doc, "Subject to the FMCSRs", e.subject_to_fmcsr == null ? "Not answered" : yesNo(e.subject_to_fmcsr));
+  field(doc, "DOT drug and alcohol testing", e.safety_sensitive == null ? "Not answered" : yesNo(e.safety_sensitive));
   rule(doc);
 }
 

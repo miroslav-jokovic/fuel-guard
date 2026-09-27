@@ -134,11 +134,11 @@ describe("the rendered application", () => {
     expect(text).toContain(squash("Not employed 2025-06-30 — 2026-08-21 Looking for work near home"));
   });
 
-  it("says a (b)(10)(iv) answer was not asked, rather than printing a No nobody gave", async () => {
+  it("says a (b)(10)(iv) answer was not answered, rather than printing a No nobody gave", async () => {
     const legacy = { ...APPLICATION, employment_gaps: undefined, employers: [{ ...APPLICATION.employers[0]!, subject_to_fmcsr: null, safety_sensitive: undefined }] };
     const text = squash(await pdfText(await renderApplicationPdf(input({ application: legacy as unknown as DriverApplication }))));
-    expect(text).toContain(squash("Subject to the FMCSRs Not asked"));
-    expect(text).toContain(squash("DOT drug and alcohol testing Not asked"));
+    expect(text).toContain(squash("Subject to the FMCSRs Not answered"));
+    expect(text).toContain(squash("DOT drug and alcohol testing Not answered"));
     expect(text).not.toContain(squash("Not employed"));
   });
 
