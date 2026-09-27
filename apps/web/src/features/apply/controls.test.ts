@@ -73,7 +73,7 @@ describe("the equipment grid", () => {
 
   it("chooses a class of equipment with the forms control", () => {
     const w = mount(ApplyEmploymentFields, {
-      props: { modelValue: withRow() },
+      props: { modelValue: withRow(), asOf: "2026-09-26" },
       global: { stubs: { SlideOver: SlideOverStub } },
     });
     expect(w.findAll("select")).toHaveLength(0);

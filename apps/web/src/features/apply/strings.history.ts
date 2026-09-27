@@ -70,12 +70,16 @@ export const APPLY_HISTORY_COPY = {
     coverageEmpty: (years: number): string =>
       `Nothing yet. Add the jobs you have had over the last ${years} years.`,
     /**
-     * ⚠ Says what is missing and what happens next — NOT "explain the gap". This form has no way to
-     * record "I was not working then", so telling somebody to explain one would point them at a box
-     * that does not exist.
+     * A stretch with no job, and the box beside it (C3c1, AW1). The earlier wording said "the carrier
+     * may ask you about it" because the form had no box; now it has one, so the line asks here. A job
+     * the driver forgot is still the first thing it suggests — adding it closes the gap and the box goes.
      */
     gap: (from: string, to: string): string =>
-      `${from} to ${to} is not covered. If you were working then, add that job; if you were not, the carrier may ask you about it.`,
+      `${from} to ${to} is not covered. If you were working then, add that job. If not, say what you were doing.`,
+    gapExplanation: "What were you doing then?",
+    /** The review's heading over the explanations (C3c1). */
+    gapsHeading: "Time between jobs",
+    gapExplanationHint: "For example: looking for work, school, medical leave, caring for family.",
     /**
      * ⚠ Says the company name need not be exact. Owner, 2026-09-11: drivers do not remember the
      * exact legal names of carriers they left years ago, and a form that looks like it wants one is

@@ -1,4 +1,5 @@
 import {
+  formatDisplayMonth,
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_SECTION_LABELS,
   APPLICATION_CAPTURE_SLOT_LABELS,
@@ -67,12 +68,8 @@ export function showDate(iso: string | null | undefined): string {
   return m ? `${m[2]}/${m[3]}/${m[1]}` : v;
 }
 
-/** `2024-03` → `03/2024`, the way `AppMonthField` displays a month. */
-export function showMonth(value: string | null | undefined): string {
-  const v = (value ?? "").trim();
-  const m = /^(\d{4})-(\d{2})$/.exec(v);
-  return m ? `${m[2]}/${m[1]}` : v;
-}
+/** `2024-03` → `03/2024`, the way `AppMonthField` displays a month — shared's one definition since C3c1. */
+export const showMonth = (value: string | null | undefined): string => formatDisplayMonth(value, "");
 
 const text = (v: string | null | undefined): string =>
   (v ?? "").trim() === "" ? copy.empty : (v ?? "").trim();
@@ -194,8 +191,21 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
         { label: c.employment.reason, value: text(e.reason_for_leaving) },
         { label: c.employment.operatedCmv, value: yesNo(e.operated_cmv) },
         { label: c.employment.dotRegulated, value: yesNo(e.dot_regulated) },
+        // (b)(10)(iv)(A)/(B) (C3c1): filed, and now printed on the PDF, so shown before it is sent too.
+        { label: c.employment.subjectToFmcsr, value: yesNo(e.subject_to_fmcsr) },
+        { label: c.employment.safetySensitive, value: yesNo(e.safety_sensitive) },
       ],
     }));
+
+  // AW1 (C3c1): what the applicant said about each gap — for them to check, and for the office's drawer,
+  // which reads this same summary. Only the ones written: an empty box is not an answer.
+  const explained = draft.employment_gaps.filter((g) => g.explanation.trim() !== "");
+  if (explained.length > 0) {
+    employment.push({
+      title: c.employment.gapsHeading,
+      entries: explained.map((g) => ({ label: `${showDate(g.from)} — ${showDate(g.to)}`, value: g.explanation.trim() })),
+    });
+  }
 
   employment.push({
     title: c.employment.equipmentHeading,

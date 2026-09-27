@@ -170,3 +170,74 @@ describe("moving between screens", () => {
     expect(w.section.value).toBe("identity");
   });
 });
+
+/**
+ * C3c1 (AW1): a v2 link's form runs filing's own rules (`applicationV2FilingIssues`) on the screens
+ * that own them — so an unexplained gap or a missing (b)(10) answer stops the driver on the employment
+ * screen, not the office at filing. `complete()`'s one job ends 06/30/2025, so on 2026-09-26 the
+ * fifteen months since are a gap to explain.
+ */
+describe("a v2 link's filing rules, on the page", () => {
+  const AS_OF = "2026-09-26";
+
+  it("stops the employment screen on an unexplained gap, keyed to the gap's own box", () => {
+    const issues = validateSection("employment", complete(), AS_OF);
+    expect(issues.map((i) => [i.fieldId, i.say])).toEqual([
+      ["apply-employment_gaps-2025-06-30", "Tell us what you were doing from 06/30/2025 to 09/26/2026"],
+    ]);
+    expect(issues[0]!.section).toBe("employment");
+  });
+
+  it("says nothing of filing's rules while the screen still fails the contract — one message per fix", () => {
+    // (b)(6) unanswered: the contract's own rule fires on this screen, and the unexplained gap waits.
+    const draft = complete();
+    draft.experience = "";
+    const issues = validateSection("employment", draft, AS_OF);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.some((i) => i.key === "employment_gaps")).toBe(false);
+  });
+
+  it("lets it through once the gap is explained", () => {
+    const draft = complete();
+    draft.employment_gaps = [{ from: "2025-06-30", to: "2026-09-26", explanation: "Looking for work" }];
+    expect(validateSection("employment", draft, AS_OF)).toEqual([]);
+  });
+
+  it("asks a legacy link nothing new — filing never does (plan §7)", () => {
+    expect(validateSection("employment", complete(), null)).toEqual([]);
+    expect(validateSection("employment", complete())).toEqual([]);
+  });
+
+  it("puts each rule on the screen that owns it, and nowhere else", () => {
+    const draft = complete();
+    draft.addresses = [{ ...draft.addresses[0]!, from: "2025-02" }];
+    draft.employment_gaps = [{ from: "2025-06-30", to: "2026-09-26", explanation: "Looking for work" }];
+    expect(validateSection("addresses", draft, AS_OF).map((i) => i.say)).toEqual([
+      "Tell us where you lived from 09/2023 to 01/2025",
+    ]);
+    expect(validateSection("employment", draft, AS_OF)).toEqual([]);
+    expect(validateSection("identity", draft, AS_OF)).toEqual([]);
+  });
+
+  it("names a missing reason for leaving on that employer's own field", () => {
+    const draft = complete();
+    draft.employers[0]!.reason_for_leaving = "";
+    draft.employment_gaps = [{ from: "2025-06-30", to: "2026-09-26", explanation: "Looking for work" }];
+    const issues = validateSection("employment", draft, AS_OF);
+    expect(issues.map((i) => i.fieldId)).toEqual(["apply-employers-0-reason_for_leaving"]);
+  });
+
+  it("reads the day from the wizard's source on each Continue", () => {
+    const draft = complete();
+    let asOf: string | null = null;
+    const scope = effectScope();
+    const wizard = scope.run(() => useApplicationWizard(draft, ref(null), () => asOf))!;
+    wizard.goTo("employment");
+    expect(wizard.next()).toBe(true);
+    wizard.goTo("employment");
+    asOf = AS_OF;
+    expect(wizard.next()).toBe(false);
+    expect(wizard.issues.value).toHaveLength(1);
+    scope.stop();
+  });
+});

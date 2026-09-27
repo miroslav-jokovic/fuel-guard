@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { applicationBeforeCertificationSchema, driverApplicationSchema } from "@silvicom/shared";
 import { toApplication, type ApplicationDraft } from "./draft";
-import { issuesFromParse, type SectionIssue } from "./useApplicationWizard";
+import { issuesFromParse, v2FilingIssues, type SectionIssue } from "./useApplicationWizard";
 import { useRequestReview, useSubmitApplication } from "./useApplication";
 import { APPLY_COPY } from "./strings";
 
@@ -42,6 +42,8 @@ export function useApplicationSending(
   draft: ApplicationDraft,
   /** The wizard, for the one thing sending needs from it: somewhere to put what is missing. */
   wizard: { setIssues: (issues: SectionIssue[]) => void },
+  /** The carrier's day on a v2 link, null on a legacy one (C3c1) — filing's own rules run before either act. */
+  v2AsOf: () => string | null = () => null,
 ): ApplicationSending {
   const submit = useSubmitApplication(token);
   const handOff = useRequestReview(token);
@@ -64,8 +66,18 @@ export function useApplicationSending(
     // to — `driverApplicationSchema` requires `certified` to be literally `true`, so checking with it
     // here would refuse every hand-off and tell the driver to tick a box that is not on their screen.
     const parsed = applicationBeforeCertificationSchema.safeParse(candidate);
-    if (parsed.success) return true;
-    wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
+    const found = parsed.success ? v2FilingIssues(draft, v2AsOf()) : issuesFromParse(parsed.error.issues, candidate);
+    return accept(found);
+  }
+
+  /**
+   * Nothing to show, or the list to show. ⚠ C3c1: a v2 application that parses can still be one filing
+   * refuses — at the office, after approval, where the applicant cannot fix it — so filing's own rules
+   * run here too, before the hand-off and again before the certification.
+   */
+  function accept(found: SectionIssue[]): boolean {
+    if (found.length === 0) return true;
+    wizard.setIssues(found);
     globalThis.scrollTo({ top: 0, behavior: "smooth" });
     return false;
   }
@@ -97,11 +109,8 @@ export function useApplicationSending(
     sendError.value = null;
     const candidate = toApplication(draft);
     const parsed = driverApplicationSchema.safeParse(candidate);
-    if (!parsed.success) {
-      wizard.setIssues(issuesFromParse(parsed.error.issues, candidate));
-      globalThis.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
+    if (!accept(parsed.success ? v2FilingIssues(draft, v2AsOf()) : issuesFromParse(parsed.error.issues, candidate))) return;
+    if (!parsed.success) return;
     try {
       await submit.mutateAsync({
         application: parsed.data,

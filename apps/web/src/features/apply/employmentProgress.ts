@@ -5,7 +5,7 @@ import {
   employmentSegments,
   type EmploymentPeriod,
 } from "@silvicom/shared";
-import type { DraftEmployer } from "./draft";
+import type { DraftEmployer, DraftGap } from "./draft";
 
 /**
  * How much of the ten years the driver has accounted for, said to the driver (X5).
@@ -20,10 +20,9 @@ import type { DraftEmployer } from "./draft";
  *
  * ── AND WHY A GAP IS SHOWN TO THE APPLICANT AT ALL ────────────────────────────────────────────
  * Because the recruiter is going to ask about it, and the cheapest moment to answer is while the
- * driver is still holding the form. ⚠ The wording is careful for a reason: this form has no way to
- * record "I was not working then", so telling somebody to *explain* a gap would point them at a box
- * that does not exist. It says what is not covered and what happens next, which is true and is
- * something they can act on.
+ * driver is still holding the form. Since C3c1 the form also records the answer — a box per gap
+ * (`employment_gaps`, AW1) — but those boxes list `applicationEmploymentGaps`, the gaps filing refuses,
+ * not these: this meter reads the rows as typed, the boxes the rows as they would be filed.
  */
 
 export interface EmploymentProgress {
@@ -116,6 +115,24 @@ export function employmentProgress(
     b10,
     b11,
   };
+}
+
+/**
+ * The stored explanations, re-keyed to the gaps as they stand now (C3c1).
+ *
+ * The gaps move whenever a job's dates do, and an explanation is keyed on its gap's exact dates. So the
+ * words for a gap that SHIFTED travel to it (the first stored entry overlapping it), a gap nobody has
+ * written about yet gets an empty entry, and an entry overlapping no gap any more is dropped — it would
+ * otherwise be filed as the answer to a question the form no longer asks.
+ */
+export function reconcileGapExplanations(
+  stored: readonly DraftGap[],
+  gaps: ReadonlyArray<{ from: string; to: string }>,
+): DraftGap[] {
+  return gaps.map((gap) => {
+    const same = stored.find((s) => s.from <= gap.to && s.to >= gap.from);
+    return { from: gap.from, to: gap.to, explanation: same?.explanation ?? "" };
+  });
 }
 
 export { CMV_WINDOW_YEARS, EMPLOYMENT_WINDOW_YEARS };

@@ -65,6 +65,8 @@ const everything = (): ApplicationDraft => ({
   licence_denial_detail: "Suspended for 30 days in 2016.",
   prior_failed_pre_employment_test: true,
   declares_no_employment: false,
+  // A written gap, so "carries every answer" round-trips a real one rather than an empty list (C3c1).
+  employment_gaps: [{ from: "2023-09-26", to: "2024-01-15", explanation: "School" }],
   questionnaire: { proof_of_age: true },
 });
 
@@ -223,6 +225,39 @@ describe("what autosave sends", () => {
   it("writes a payload the office's edit path accepts", () => {
     const parsed = applicationDraftPayloadSchema.safeParse(toDraftPayload(everything()));
     expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+  });
+
+  /**
+   * C3c1 (AW1): a gap's explanation is an answer, so it survives a reload — and a box nobody has written
+   * in yet is NOT saved, because the contract refuses an empty explanation and the office's correction
+   * path parses the whole saved draft with it. One empty box saved would refuse every office correction.
+   */
+  it("saves the gaps written about, and never an empty one the office's edit path would refuse", () => {
+    const draft = everything();
+    draft.employment_gaps = [
+      { from: "2023-09-26", to: "2024-01-15", explanation: "School" },
+      { from: "2025-03-01", to: "2025-06-01", explanation: "  " },
+    ];
+    const payload = toDraftPayload(draft);
+    expect(payload.employment_gaps).toEqual([{ from: "2023-09-26", to: "2024-01-15", explanation: "School" }]);
+    expect(applicationDraftPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(fromDraftPayload(payload).employment_gaps).toEqual([{ from: "2023-09-26", to: "2024-01-15", explanation: "School" }]);
+  });
+
+  it("files only the explanations written, trimmed", () => {
+    const draft = everything();
+    draft.employment_gaps = [
+      { from: "2023-09-26", to: "2024-01-15", explanation: " Medical leave " },
+      { from: "2025-03-01", to: "2025-06-01", explanation: "" },
+    ];
+    expect((toApplication(draft) as { employment_gaps: unknown }).employment_gaps).toEqual([
+      { from: "2023-09-26", to: "2024-01-15", explanation: "Medical leave" },
+    ]);
+  });
+
+  it("drops a saved gap row it cannot read rather than rendering it", () => {
+    const restored = fromDraftPayload({ employment_gaps: [{ from: "2023-09-26", to: 7, explanation: "x" }, "junk"] });
+    expect(restored.employment_gaps).toEqual([]);
   });
 });
 

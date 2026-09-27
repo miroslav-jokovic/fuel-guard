@@ -1,18 +1,35 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   AppButton as BaseButton,
   AppCheckbox as BaseCheckbox,
   AppCombobox as ComboSelect,
   AppInput as BaseInput,
   AppMonthField,
+  AppTextarea as BaseTextarea,
 } from "@silvicom/ui";
-import { EQUIPMENT_CLASSES, EQUIPMENT_CLASS_LABELS } from "@silvicom/shared";
+import {
+  EQUIPMENT_CLASSES,
+  EQUIPMENT_CLASS_LABELS,
+  applicationEmploymentGaps,
+  type ApplicationEmployer,
+} from "@silvicom/shared";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
-import { emptyEmployer, emptyEquipment, type DraftEmployer, type ApplicationDraft } from "@/features/apply/draft";
-import { EMPLOYMENT_WINDOW_YEARS, employmentProgress } from "@/features/apply/employmentProgress";
+import {
+  emptyEmployer,
+  emptyEquipment,
+  toApplication,
+  type DraftEmployer,
+  type ApplicationDraft,
+} from "@/features/apply/draft";
+import {
+  EMPLOYMENT_WINDOW_YEARS,
+  employmentProgress,
+  monthName,
+  reconcileGapExplanations,
+} from "@/features/apply/employmentProgress";
 import { showDate } from "@/features/apply/reviewSummary";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -42,21 +59,48 @@ const EQUIPMENT_OPTIONS = EQUIPMENT_CLASSES.map((value) => ({ value, label: EQUI
  * to get wrong, which is that a hole in years four to ten is NOT a defect. See
  * `employmentProgress.ts`.
  */
+const props = defineProps<{
+  /**
+   * The date the windows end: the application's day on the CARRIER's clock, served by the bundle
+   * (`carrierToday`, C3c1) — the same day filing judges against, so the gaps here are the gaps it asks
+   * about. It was `new Date().toISOString()`, the UTC day, which after 19:00 Central is tomorrow.
+   */
+  asOf: string;
+}>();
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.employment;
 
 const editing = ref<number | null>(null);
 const openDrawer = computed(() => editing.value !== null);
 
+const progress = computed(() => employmentProgress(draft.value.employers, props.asOf));
+
 /**
- * Today, as the date the windows end.
- *
- * §391.21(b) measures from the application, and the application is being filled in now. The server
- * stamps the real `certified_at` at submit (D-APP9) — this is the driver's live feedback, not the
- * filed document's arithmetic, and it does not travel anywhere.
+ * The gaps to explain (C3c1, AW1): exactly the list a v2 filing refuses on, from the employers as they
+ * would be FILED (`toApplication`), through the one shared function — so no box can name a gap the
+ * filing does not, and none the filing asks about is missing. Shown once the driver has a job on the
+ * list or has said they had none; before either, the meter's empty state asks for the jobs first.
  */
-const asOf = new Date().toISOString().slice(0, 10);
-const progress = computed(() => employmentProgress(draft.value.employers, asOf));
+const gaps = computed(() => {
+  const filed = (toApplication(draft.value) as { employers: ApplicationEmployer[] }).employers;
+  if (filed.length === 0 && !draft.value.declares_no_employment) return [];
+  return applicationEmploymentGaps(filed, props.asOf);
+});
+
+/**
+ * One explanation per gap, kept in step with the gaps. Re-keyed whenever they move — a job's dates
+ * changed — so the words follow their gap and a gap that closed takes its words with it. Written only
+ * when something changed, so opening the screen does not dirty an untouched draft.
+ */
+watch(
+  () => gaps.value.map((g) => `${g.from}/${g.to}`).join(","),
+  () => {
+    const next = reconcileGapExplanations(draft.value.employment_gaps, gaps.value);
+    if (JSON.stringify(next) !== JSON.stringify(draft.value.employment_gaps)) draft.value.employment_gaps = next;
+  },
+  { immediate: true },
+);
+const explanationFor = (from: string) => draft.value.employment_gaps.find((g) => g.from === from);
 
 /** Rows worth listing. A blank row from an accidental "Add" is not a job the driver declared. */
 const jobs = computed(() =>
@@ -161,11 +205,24 @@ const removeJob = (index: number): void => {
                 : copy.coverage(progress.percent, EMPLOYMENT_WINDOW_YEARS)
           }}
         </p>
-        <p v-for="gap in progress.gaps" :key="gap.from" class="text-sm text-ink-secondary">
-          {{ copy.gap(gap.from, gap.to) }}
-        </p>
       </div>
     </template>
+
+    <!-- A box per gap (C3c1): the dates are the calculator's, the words the driver's. Outside the jobs
+         block on purpose — a driver who had no job still owes the three years, as one gap. The path is
+         the filing's own (`employment_gaps.<start>`), so its refusal lands on the box. -->
+    <div v-for="gap in gaps" :key="gap.from" class="space-y-2 rounded-surface bg-surface-muted p-4">
+      <p class="text-sm text-ink-secondary">{{ copy.gap(monthName(gap.from), monthName(gap.to)) }}</p>
+      <ApplyField
+        v-if="explanationFor(gap.from)"
+        v-slot="f"
+        :path="['employment_gaps', gap.from]"
+        :label="copy.gapExplanation"
+        :hint="copy.gapExplanationHint"
+      >
+        <BaseTextarea v-bind="f" v-model="explanationFor(gap.from)!.explanation" rows="2" maxlength="500" />
+      </ApplyField>
+    </div>
 
     <!-- §391.21(b)(6) asks for two things in one sentence: "the nature and extent of the applicant's
          experience in the operation of motor vehicles, INCLUDING THE TYPE OF EQUIPMENT ... which

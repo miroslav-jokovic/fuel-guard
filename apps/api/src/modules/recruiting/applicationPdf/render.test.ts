@@ -30,11 +30,14 @@ const APPLICATION = {
     state: "IL", phone: "555-0100", email: null, position_held: "Driver",
     started_on: "2023-01-01", ended_on: "2025-06-30",
     operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
-    subject_to_fmcsr: true, safety_sensitive: true,
+    subject_to_fmcsr: true, safety_sensitive: false,
   }],
   declares_no_employment: false,
+  employment_gaps: [{ from: "2025-06-30", to: "2026-08-21", explanation: "Looking for work near home" }],
   certified: true, signed_name: "Susan Godfrey",
 } as unknown as DriverApplication;
+
+const squash = (t: string): string => t.replace(/\s+/g, "");
 
 const input = (over: Partial<ApplicationPdfInput> = {}): ApplicationPdfInput => ({
   carrier: { name: "Silvicom Inc", address: null },
@@ -116,6 +119,27 @@ describe("the rendered application", () => {
     // between the title and it, so the claim does not depend on a constant written in this file.
     expect(separator!.y - lines[ledeEnd]!.y)
       .toBeGreaterThan(lines[ledeEnd]!.y - lines[ledeEnd - 1]!.y);
+  });
+
+  /**
+   * C3c1: two answers the regulation requires ON the application — (b)(10)(iv)(A)/(B) — and the gap
+   * explanations a v2 filing refuses without, all of which were in the payload and none on the page.
+   * The fixture answers (A) yes and (B) no, so a renderer printing one answer twice cannot pass.
+   */
+  it("prints each employer's (b)(10)(iv) answers and every gap the applicant explained", async () => {
+    // Whitespace removed on both sides: the extractor joins a label to its value with none.
+    const text = squash(await pdfText(await renderApplicationPdf(input())));
+    expect(text).toContain(squash("Subject to the FMCSRs Yes"));
+    expect(text).toContain(squash("DOT drug and alcohol testing No"));
+    expect(text).toContain(squash("Not employed 2025-06-30 — 2026-08-21 Looking for work near home"));
+  });
+
+  it("says a (b)(10)(iv) answer was not asked, rather than printing a No nobody gave", async () => {
+    const legacy = { ...APPLICATION, employment_gaps: undefined, employers: [{ ...APPLICATION.employers[0]!, subject_to_fmcsr: null, safety_sensitive: undefined }] };
+    const text = squash(await pdfText(await renderApplicationPdf(input({ application: legacy as unknown as DriverApplication }))));
+    expect(text).toContain(squash("Subject to the FMCSRs Not asked"));
+    expect(text).toContain(squash("DOT drug and alcohol testing Not asked"));
+    expect(text).not.toContain(squash("Not employed"));
   });
 
   /** A golden test in the sense that matters for a derivative: same evidence in, same bytes out. */

@@ -184,6 +184,14 @@ function employerBlock(doc: PDFKit.PDFDocument, e: ApplicationEmployer): void {
   field(doc, "Drove a CMV", yesNo(e.operated_cmv));
   field(doc, "DOT-regulated", yesNo(e.dot_regulated));
   field(doc, "Reason for leaving", blank(e.reason_for_leaving));
+  /**
+   * (b)(10)(iv)(A) and (B) — asked of every (b)(10) employer and filed in the payload since the contract
+   * had them, but never PRINTED until C3c1: the document the §391.51 file holds answered two questions
+   * the regulation requires on it only in a JSON column. Printed when answered; a row filed before the
+   * form asked them has null, and says so rather than inventing a "No".
+   */
+  field(doc, "Subject to the FMCSRs", e.subject_to_fmcsr == null ? "Not asked" : yesNo(e.subject_to_fmcsr));
+  field(doc, "DOT drug and alcohol testing", e.safety_sensitive == null ? "Not asked" : yesNo(e.safety_sensitive));
   rule(doc);
 }
 
@@ -315,6 +323,14 @@ export async function renderApplicationPdf(input: ApplicationPdfInput): Promise<
     body(doc, a.declares_no_employment ? "The applicant declared no employment." : "Not answered.");
   }
   for (const e of a.employers ?? []) employerBlock(doc, e);
+  /**
+   * The applicant's own account of each stretch of the three years with no employer (AW1, C3c1) — the
+   * answers a v2 filing refuses to file without. Printed with the dates as filed; an application filed
+   * before the form asked has none, and prints nothing, because nothing was asked.
+   */
+  for (const g of a.employment_gaps ?? []) {
+    field(doc, `Not employed ${date(g.from)} — ${date(g.to)}`, blank(g.explanation));
+  }
 
   // (b)(12) — the certification, and the sentence the regulation puts at the end of the form.
   doc.addPage();
