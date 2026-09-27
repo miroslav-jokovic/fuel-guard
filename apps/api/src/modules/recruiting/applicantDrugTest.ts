@@ -20,25 +20,26 @@ import { carrierZone, instantOf } from "./carrierClock.js";
  * older live ones cancelled — so a failure between the two leaves two live rows (the drawer shows the
  * newest) rather than none. Cancelled rows stay: "the history of changes is readable" (0376).
  *
- * ⚠ NOT sent to the driver here. 0376's `sent_to_driver_at` is the stamp of that act, and the text
- * goes through `sms_outbox` (C2d, D-AW12) — a text sent directly would be the held-and-dropped message
- * A-11 records. The office tells the driver itself until C2d ships the send.
+ * ⚠ Sent to the driver only when the office presses Send (`sendDrugTestToDriver`, C2d), through
+ * `sms_outbox` — a text sent directly would be the held-and-dropped message A-11 records, and the
+ * office books collections late in the day for the next morning. 0376's `sent_to_driver_at` is
+ * stamped by the outbox when the text actually leaves, not when it is queued.
  *
  * ⚠ The service role bypasses RLS, and 0376's guard (AI012) refuses every other writer: every query
  * here carries its own `.eq("org_id", …)`, asserted by `expectOrgScoped` in the route test.
  */
 
 export type DrugTestError = {
-  code: "no_invitation" | "not_found" | "write_failed";
+  code: "no_invitation" | "not_found" | "write_failed" | "not_texted";
   message: string;
 };
 
 export const isDrugTestError = (v: object): v is DrugTestError => "code" in v;
 
-const COLS =
+export const COLS =
   "id, site_name, site_address, site_phone, window_start, window_end, donor_reference, created_at, sent_to_driver_at, cancelled_at";
 
-interface Row {
+export interface Row {
   id: string;
   site_name: string;
   site_address: string;
@@ -150,4 +151,30 @@ export async function cancelDrugTest(
     return { code: "not_found", message: "That appointment is not on this applicant's application, or is already cancelled." };
   }
   return { appointment: toAppointment(data as Row), invitationId: invitation.id };
+}
+
+/**
+ * The two facts the outbox needs about an appointment it is texting (C2d), asked of this table's
+ * owner rather than written from the outbox: is the appointment still live — a rebooking or a cancel
+ * after the text was queued must stop it — and stamp `sent_to_driver_at` when the text actually leaves
+ * (the first time only).
+ */
+export async function drugTestStillLive(admin: SupabaseClient, orgId: string, appointmentId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("drug_test_appointments")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("id", appointmentId)
+    .is("cancelled_at", null)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+export async function markDrugTestSent(admin: SupabaseClient, orgId: string, appointmentId: string, at: string): Promise<void> {
+  await admin
+    .from("drug_test_appointments")
+    .update({ sent_to_driver_at: at })
+    .eq("org_id", orgId)
+    .eq("id", appointmentId)
+    .is("sent_to_driver_at", null);
 }

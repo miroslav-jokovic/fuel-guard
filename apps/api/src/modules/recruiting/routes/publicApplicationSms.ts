@@ -3,7 +3,6 @@ import {
   SMS_CONSENT,
   composeSmsConsent,
   smsConsentGrantSchema,
-  smsOptInConfirmation,
   type ApplicantSmsConsent,
   type SmsConfirmation,
   type SmsConsentGrant,
@@ -16,10 +15,10 @@ import { carrierName } from "../applicationMail.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import {
   recordSmsConsent,
-  sendApplicationSms,
   smsConsentStatus,
   withdrawSmsConsent,
 } from "../applicationSms.js";
+import { sendOrQueueSms } from "../smsOutbox.js";
 
 /**
  * The applicant agreeing to be texted, on their own link (SMS-OPT-IN-PLAN SMS1, D-SMS1).
@@ -100,10 +99,13 @@ export function publicApplicationSmsRouter(): Router {
       // and a second confirmation text would be a message nobody asked for.
       let confirmation: SmsConfirmation = null;
       if (result.created) {
-        const sent = await sendApplicationSms(
-          admin, env, invitation.org_id, invitation.driver_id, smsOptInConfirmation(carrier), now,
-        );
-        confirmation = sent.sent ? "sent" : "held" in sent ? "held" : "failed";
+        // Through the outbox (C2d): an opt-in pressed at 22:00 is confirmed at the applicant's morning
+        // rather than never (A-11). `held` now means queued for that morning, which is what it says.
+        const sent = await sendOrQueueSms(admin, env, {
+          orgId: invitation.org_id, driverId: invitation.driver_id, invitationId: invitation.id,
+          template: "consent_confirm", params: {},
+        }, now);
+        confirmation = sent.sent ? "sent" : "queued" in sent || "held" in sent ? "held" : "failed";
       }
       res.status(result.created ? 201 : 200).json({
         ok: true,

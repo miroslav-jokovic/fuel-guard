@@ -1,3 +1,5 @@
+import { stateTimeZone } from "./efsImport/dateTime.js";
+
 /**
  * When a text may be sent (A11b, D-APP13).
  *
@@ -73,6 +75,75 @@ export function canSendSmsAt(at: Date, timeZone: string | null | undefined): boo
     if (!inWindow((utcHour + offset + 24) % 24)) return false;
   }
   return true;
+}
+
+/**
+ * The zones a recipient may be in, from the state they told us they live in (D-AW12, C2d).
+ *
+ * ── WHY A STATE, AND WHY NOT AN AREA CODE ─────────────────────────────────────────────────────
+ * The header above refuses the area code because it says where a number was ISSUED. Part 1's
+ * current address (`application_intakes.state`) says where the applicant LIVES, in their own words on
+ * the day they applied — the one input this product holds that answers the question the regulation
+ * asks ("the called party's location"). It is still an estimate (a driver on the road is not at home),
+ * which is what the hour of margin at each end of 9–20 is for.
+ *
+ * ── A STATE THAT SPANS TWO ZONES ANSWERS WITH BOTH ────────────────────────────────────────────
+ * The dominant zone is `stateTimeZone`'s, the EFS table this product already keeps — read, not
+ * copied. The second zones below are the states that table's own comment says it rounds; for a text,
+ * rounding is not acceptable in one direction, so a split state must be inside the window in EVERY
+ * zone it spans (the strictest reading). No ZIP refinement: it would narrow the answer by at most an
+ * hour for a message the window already delays by that much, and it is a table nobody would maintain.
+ *
+ * ⚠ An unknown or non-US state returns `[]`, and `[]` is the all-US strict window, never "send".
+ */
+const SPLIT_STATE_ZONES: Readonly<Record<string, readonly string[]>> = {
+  AK: ["America/Adak"],
+  AZ: ["America/Denver"], // the Navajo Nation keeps daylight time
+  FL: ["America/Chicago"],
+  ID: ["America/Los_Angeles"],
+  IN: ["America/Chicago"],
+  KS: ["America/Denver"],
+  KY: ["America/Chicago"],
+  MI: ["America/Chicago"],
+  ND: ["America/Denver"],
+  NE: ["America/Denver"],
+  NV: ["America/Denver"], // West Wendover
+  OR: ["America/Denver"],
+  SD: ["America/Denver"],
+  TN: ["America/New_York"],
+  TX: ["America/Denver"],
+};
+
+/** Canadian provinces share `stateTimeZone`'s table and are not US recipients; they read as unknown. */
+const CANADIAN = new Set(["ON", "QC", "NB", "NS", "PE", "NL", "MB", "SK", "AB", "BC", "NT", "NU", "YT"]);
+
+export function smsZonesFor(state: string | null | undefined): string[] {
+  const code = (state ?? "").trim().toUpperCase();
+  if (CANADIAN.has(code)) return [];
+  const dominant = stateTimeZone(code);
+  return dominant ? [dominant, ...(SPLIT_STATE_ZONES[code] ?? [])] : [];
+}
+
+/** May a text go out now to somebody who may be in any of `zones`? Empty means unknown: strict. */
+export function canSendSmsInZones(at: Date, zones: readonly string[]): boolean {
+  if (zones.length === 0) return canSendSmsAt(at, null);
+  return zones.every((z) => canSendSmsAt(at, z));
+}
+
+/**
+ * The next instant, on a quarter hour, at which `canSendSmsInZones` opens — what a queued text's
+ * `not_before` is set to. Searched rather than computed: DST, split states and the all-US fallback
+ * each change the answer, and a search over at most two days of quarter hours asks the ONE predicate
+ * the drain will ask, so the two can never disagree.
+ */
+export function nextSmsWindow(from: Date, zones: readonly string[]): Date {
+  if (canSendSmsInZones(from, zones)) return from;
+  const step = 15 * 60_000;
+  let t = Math.ceil(from.getTime() / step) * step;
+  for (let i = 0; i < 4 * 48; i += 1, t += step) {
+    if (canSendSmsInZones(new Date(t), zones)) return new Date(t);
+  }
+  return new Date(t);
 }
 
 /**

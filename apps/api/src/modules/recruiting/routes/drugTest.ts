@@ -14,6 +14,7 @@ import {
   listDrugTestAppointments,
   type DrugTestError,
 } from "../applicantDrugTest.js";
+import { sendDrugTestToDriver } from "../applicantDrugTestSend.js";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §8.4). `applicantDrugTest.ts` carries
@@ -28,6 +29,7 @@ import {
 
 const STATUS: Record<DrugTestError["code"], number> = {
   no_invitation: 409,
+  not_texted: 409,
   not_found: 404,
   write_failed: 500,
 };
@@ -107,6 +109,41 @@ export function recruitmentDrugTestRouter(): Router {
         meta: { driverId, invitationId: result.invitationId },
       });
       res.json({ appointment: result.appointment });
+    }),
+  );
+
+  /**
+   * Text the appointment to the applicant (C2d). Sent now, or queued for their morning — the answer
+   * says which, so the drawer never claims a text went that is still waiting.
+   */
+  router.post(
+    "/applicants/:driverId/drug-test-appointments/:appointmentId/send",
+    requireOrg,
+    requireSection("recruitment"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const appointmentId = String(req.params.appointmentId ?? "");
+      if (!z.uuid().safeParse(appointmentId).success) {
+        return send(res, { code: "not_found", message: "That appointment is not on this applicant's application." });
+      }
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const result = await sendDrugTestToDriver(admin, env, orgId, driverId, appointmentId, new Date());
+      if (isDrugTestError(result)) return send(res, result);
+      const { outcome } = result;
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "recruiting.drug_test_sent",
+        entity: "drug_test_appointments",
+        entityId: appointmentId,
+        // Never the number or the text: the outbox row holds what was sent, the audit that it was.
+        meta: { driverId, invitationId: result.invitationId, queued: !outcome.sent },
+      });
+      res.status(201).json(outcome.sent
+        ? { sent: true, queuedUntil: null }
+        : { sent: false, queuedUntil: "notBefore" in outcome ? outcome.notBefore : null });
     }),
   );
 

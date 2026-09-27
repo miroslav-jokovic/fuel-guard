@@ -103,3 +103,31 @@ describe("an arranged appointment", () => {
     }]);
   });
 });
+
+describe("texting it to the driver (C2d)", () => {
+  it("posts the live appointment's send, by its id and with no body", async () => {
+    state.appointments = [LIVE];
+    const w = mountPanel();
+    await settle(w);
+    await button(w, "Text it to the driver")!.trigger("click");
+    await settle(w);
+    expect(state.requests).toEqual([{ url: "/api/recruitment/applicants/d1/drug-test-appointments/a-1/send", method: "POST", body: undefined }]);
+  });
+
+  it("says when it was texted, and offers to text it again", async () => {
+    state.appointments = [{ ...LIVE, sentToDriverAt: "2026-10-01T12:00:00.000Z" }];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("Texted to the driver 10/01/2026 7:00 AM");
+    expect(button(w, "Text it again")).toBeTruthy();
+    expect(button(w, "Text it to the driver")).toBeUndefined();
+  });
+
+  it("offers no send to somebody who may only view the section", async () => {
+    state.appointments = [LIVE];
+    state.canManage = false;
+    const w = mountPanel();
+    await settle(w);
+    expect(button(w, "Text it to the driver")).toBeUndefined();
+  });
+});

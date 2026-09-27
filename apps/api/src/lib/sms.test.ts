@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { sendSms, parseTelnyxInboundSms, redactNumber } from "./sms.js";
+import { sendSms, parseTelnyxDeliveryReceipt, parseTelnyxInboundSms, redactNumber } from "./sms.js";
 import { testEnv } from "../testing/testEnv.js";
 
 const configured = testEnv({
@@ -107,5 +107,21 @@ describe("parseTelnyxInboundSms", () => {
     expect(parseTelnyxInboundSms({ data: { event_type: "message.finalized" } }).isInbound).toBe(false);
     expect(parseTelnyxInboundSms(null).isInbound).toBe(false);
     expect(parseTelnyxInboundSms({}).isInbound).toBe(false);
+  });
+});
+
+describe("parseTelnyxDeliveryReceipt (A-11, C2d)", () => {
+  const finalized = (to: unknown, id: unknown = "tx-1") => ({ data: { event_type: "message.finalized", payload: { id, to } } });
+
+  it("reads the message id and the first recipient's final status", () => {
+    expect(parseTelnyxDeliveryReceipt(finalized([{ status: "delivered" }]))).toEqual({ messageId: "tx-1", status: "delivered" });
+  });
+
+  it("is not a receipt for any other event, or without an id or a status", () => {
+    expect(parseTelnyxDeliveryReceipt({ data: { event_type: "message.sent", payload: { id: "tx-1", to: [{ status: "queued" }] } } })).toBeNull();
+    expect(parseTelnyxDeliveryReceipt({ data: { event_type: "message.received", payload: { id: "tx-1" } } })).toBeNull();
+    expect(parseTelnyxDeliveryReceipt(finalized([{ status: "delivered" }], null))).toBeNull();
+    expect(parseTelnyxDeliveryReceipt(finalized([]))).toBeNull();
+    expect(parseTelnyxDeliveryReceipt(null)).toBeNull();
   });
 });

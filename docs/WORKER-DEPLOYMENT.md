@@ -54,6 +54,11 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 | `startEfsCardSyncScheduler` | daily | `api` | WEX guide p11: excessive polling can suspend the account |
 | `startSamsaraScheduler` | minutes | `api` | Samsara's published rate limit, `samsaraFetch` |
 | **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
+| `startSmsOutboxScheduler` | 5 minutes | `api` | Telnyx's account rate limit; at most 50 rows per org per run (`DRAIN_BATCH`) |
+
+`startSmsOutboxScheduler` (C2d, 2026-09-26) sends texts that were queued for their recipient's civil
+hours. A second process running it would not send a row twice — the drain claims each row with a
+conditional `queued → sending` UPDATE — but it would double the reads, so the rule above still holds.
 
 ⚠ **FleetPal (F8, added 2026-09-21) publishes no rate limit and sends no limiter headers at all.**
 94 sequential requests on 2026-09-21 returned not one `X-RateLimit-*` and not one 429, so there is no

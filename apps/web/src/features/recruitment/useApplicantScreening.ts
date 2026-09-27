@@ -76,6 +76,18 @@ export function useCancelDrugTest() {
   });
 }
 
+/** C2d: text the live appointment to the applicant. `queuedUntil` is set when it waits for their morning. */
+export function useSendDrugTest() {
+  return useScreeningWrite(drugTestKey, async (input: { driverId: string; appointmentId: string }) => {
+    const res = await apiFetch<{ sent: boolean; queuedUntil: string | null }>(
+      `${applicant(input.driverId)}/drug-test-appointments/${encodeURIComponent(input.appointmentId)}/send`,
+      { method: "POST" },
+    );
+    if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not text the appointment.");
+    return res.data;
+  });
+}
+
 /** D-AW5. Keyed on the checklist alone: the consent has no list of its own, the row is its reading. */
 export function useRecordPortalConsent() {
   return useScreeningWrite(applicantChecklistKey, async (input: { driverId: string; occurredOn: string }) => {

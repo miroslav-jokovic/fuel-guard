@@ -3,8 +3,8 @@ import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { processSamsaraWebhook } from "../modules/samsara/index.js";
-import { handleInboundSms } from "../modules/recruiting/index.js";
-import { parseTelnyxInboundSms } from "../lib/sms.js";
+import { handleInboundSms, recordDeliveryReceipt } from "../modules/recruiting/index.js";
+import { parseTelnyxDeliveryReceipt, parseTelnyxInboundSms } from "../lib/sms.js";
 import { verifyTelnyxSignature } from "../lib/telnyxSignature.js";
 
 /** Inbound integration webhooks. No user auth — authenticated by provider signature instead. */
@@ -75,9 +75,18 @@ export function webhooksRouter(): Router {
         return;
       }
 
+      const receipt = parseTelnyxDeliveryReceipt(req.body);
+      if (receipt) {
+        // A-11 (C2d): what the carrier did with a text we sent. Answered 200 whether or not the id is
+        // ours — a message sent before the outbox existed has no row, and a retry would not give it one.
+        await recordDeliveryReceipt(getSupabaseAdmin(env), receipt, new Date());
+        res.json({ ok: true });
+        return;
+      }
+
       const { from, text, isInbound } = parseTelnyxInboundSms(req.body);
       if (!isInbound) {
-        // A delivery receipt or a profile event, not a message. Accepted so it is not retried.
+        // A profile event (`message.sent`), not a message. Accepted so it is not retried.
         res.json({ ok: true, ignored: true });
         return;
       }

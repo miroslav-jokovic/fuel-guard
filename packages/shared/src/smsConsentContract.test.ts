@@ -9,6 +9,7 @@ import {
   siteHostOf,
   smsApplicationApproved,
   smsApplicationReady,
+  smsDrugTestSite,
   smsApplicationReminder,
   smsConsentGrantSchema,
   smsHelpReply,
@@ -172,5 +173,26 @@ describe("the opt-in confirmation (D-SMS5)", () => {
     expect(text.length).toBeLessThanOrEqual(160);
     expect(/^[\x20-\x7E]*$/.test(text)).toBe(true);
     for (const needle of ["Silvicom Inc", "rates may apply", "HELP", "STOP"]) expect(text).toContain(needle);
+  });
+});
+
+describe("smsDrugTestSite (D-AW6, C2d)", () => {
+  const params = {
+    site_name: "Concentra Joliet", site_address: "100 Main St, Joliet, IL", site_phone: "815-555-0100",
+    window_start: "2026-09-28T14:00:00Z", window_end: "2026-09-28T16:30:00Z", donor_reference: "D-4471",
+  };
+
+  it("names the carrier, the site, the window on the carrier's clock, the reference and STOP, with no link", () => {
+    const text = smsDrugTestSite("Silvicom Inc", params, "America/Chicago", "CDT");
+    expect(text).toBe(
+      "Silvicom Inc: Your drug test is at Concentra Joliet, 100 Main St, Joliet, IL, 09/28/2026 9:00 AM to 11:30 AM CDT. "
+      + "Site phone 815-555-0100. Give them reference D-4471. Bring your photo ID. Reply STOP to opt out.",
+    );
+    expect(text).not.toMatch(/https?:\/\//);
+  });
+
+  it("leaves out what the office did not write down", () => {
+    const text = smsDrugTestSite("Silvicom Inc", { ...params, site_phone: null, window_end: null, donor_reference: null }, "America/Chicago", "CDT");
+    expect(text).toBe("Silvicom Inc: Your drug test is at Concentra Joliet, 100 Main St, Joliet, IL, 09/28/2026 9:00 AM CDT. Bring your photo ID. Reply STOP to opt out.");
   });
 });

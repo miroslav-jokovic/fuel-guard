@@ -8,6 +8,10 @@ import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery, type Supab
 import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 
+// C2d: the send reaches the transport only through the outbox; the transport itself is stubbed.
+const sms = vi.hoisted(() => ({ fn: vi.fn(async () => ({ ok: true, provider: "telnyx", messageId: "tx-1" })) }));
+vi.mock("../../../lib/sms.js", async (orig) => ({ ...(await orig<object>()), sendSms: sms.fn }));
+
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §6.3, C2b3) through its HTTP door.
  *
@@ -24,6 +28,7 @@ const INVITE = "10000000-0000-4000-8000-000000000001";
 const OLD_INVITE = "10000000-0000-4000-8000-000000000000";
 const LIVE = "30000000-0000-4000-8000-000000000001";
 const NEW = "30000000-0000-4000-8000-000000000009";
+const CANCELLED = "30000000-0000-4000-8000-000000000005";
 
 const ctx = (role: string): AuthContext => ({ userId: `u-${role}`, email: `${role}@x.test`, orgId: ORG, role } as AuthContext);
 const CTX: Record<string, AuthContext> = { recruiter: ctx("recruiter"), auditor: ctx("auditor"), dispatcher: ctx("dispatcher") };
@@ -54,7 +59,7 @@ const row = (id: string, org: string, invitation: string) => ({
   created_at: "2026-09-20T00:00:00Z", sent_to_driver_at: null, cancelled_at: null,
 });
 
-const seed = (over: { invitations?: Array<Record<string, unknown>> } = {}): SupabaseRecorder =>
+const seed = (over: { invitations?: Array<Record<string, unknown>>; appointments?: Array<Record<string, unknown>> } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: postgrestFixture(over.invitations ?? [{
@@ -62,6 +67,7 @@ const seed = (over: { invitations?: Array<Record<string, unknown>> } = {}): Supa
       }]),
       drug_test_appointments: appointmentTable([
         row(LIVE, ORG, INVITE), row("appt-old-app", ORG, OLD_INVITE), row("appt-other-org", OTHER, INVITE),
+        ...(over.appointments ?? []),
       ]),
       organizations: postgrestFixture([{ id: ORG, operating_hours: { tz: "America/Chicago" } }]),
       audit_logs: [],
@@ -171,5 +177,68 @@ describe("reading and cancelling", () => {
     holder.client = seed().client;
     expect((await call("DELETE", "/drug-test-appointments/appt-old-app", "recruiter")).status).toBe(404);
     expect((await call("DELETE", `/drug-test-appointments/${NEW}`, "recruiter")).status).toBe(404);
+  });
+});
+
+describe("texting the appointment to the applicant (C2d)", () => {
+  const texting = (consents: Array<Record<string, unknown>>) => {
+    // A cancelled appointment on the same application: the send must refuse it (C2d).
+    const rec = seed({ appointments: [{ ...row(CANCELLED, ORG, INVITE), cancelled_at: "2026-09-21T00:00:00Z" }] });
+    const base = rec.client;
+    const extra = createSupabaseRecorder({
+      tables: {
+        sms_consents: postgrestFixture(consents),
+        application_intakes: postgrestFixture([{ org_id: ORG, invitation_id: INVITE, state: "IL" }]),
+        sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
+      },
+    });
+    // One client, two fixture sets: the outbox's tables answered by `extra`, the rest by `seed`.
+    const client = new Proxy(base, {
+      get: (t, p) => (p === "from"
+        ? (table: string) => (["sms_consents", "application_intakes", "sms_outbox"].includes(table) ? extra.client.from(table) : t.from(table))
+        : Reflect.get(t, p)),
+    });
+    holder.client = client;
+    return { rec, extra };
+  };
+  const CONSENT = { org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-09-25T10:00:00Z" };
+
+  it("texts the live appointment in the applicant's daytime, stamps it sent and audits without the number", async () => {
+    vi.useFakeTimers({ now: new Date("2027-01-12T16:00:00Z"), toFake: ["Date"] });
+    const { rec, extra } = texting([CONSENT]);
+    const res = await call("POST", `/drug-test-appointments/${LIVE}/send`, "recruiter");
+    vi.useRealTimers();
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ sent: true, queuedUntil: null });
+    expect(extra.writtenRows("sms_outbox")[0]).toMatchObject({ template: "drug_test_site", reason: "drug_test_site", params: { appointment_id: LIVE, site_name: "Old site" } });
+    expect(rec.writtenRows("drug_test_appointments")[0]).toEqual({ sent_to_driver_at: "2027-01-12T16:00:00.000Z" });
+    const audit = rec.writtenRows("audit_logs")[0]!;
+    expect(audit).toMatchObject({ action: "recruiting.drug_test_sent", entity_id: LIVE });
+    expect(JSON.stringify(audit)).not.toContain("7082365732");
+    expectOrgScoped(rec, ORG);
+    expectOrgScoped(extra, ORG);
+  });
+
+  it("queues it for the applicant's morning and says until when", async () => {
+    vi.useFakeTimers({ now: new Date("2027-01-12T09:00:00Z"), toFake: ["Date"] });
+    texting([CONSENT]);
+    const res = await call("POST", `/drug-test-appointments/${LIVE}/send`, "recruiter");
+    vi.useRealTimers();
+    expect(await res.json()).toEqual({ sent: false, queuedUntil: "2027-01-12T15:00:00.000Z" });
+  });
+
+  it("refuses with words when the applicant has not agreed to texts, and queues nothing", async () => {
+    const { extra } = texting([]);
+    const res = await call("POST", `/drug-test-appointments/${LIVE}/send`, "recruiter");
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_texted");
+    expect(extra.writtenRows("sms_outbox")).toEqual([]);
+  });
+
+  it("refuses an id that names no live appointment, and a view-only role cannot send", async () => {
+    texting([CONSENT]);
+    expect((await call("POST", "/drug-test-appointments/appt-other-org/send", "recruiter")).status).toBe(404);
+    expect((await call("POST", `/drug-test-appointments/${CANCELLED}/send`, "recruiter")).status).toBe(404);
+    expect((await call("POST", `/drug-test-appointments/${LIVE}/send`, "auditor")).status).toBe(403);
   });
 });
