@@ -25,6 +25,8 @@ defineProps<{ heading: string; body: string; note: string; token: string; carrie
     <h1 class="text-lg font-semibold text-ink">{{ heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ body }}</p>
     <p class="mt-2 text-sm text-ink-muted">{{ note }}</p>
+    <!-- What the applicant can do while they wait, when there is something (C3a: the Clearinghouse). -->
+    <slot />
     <SmsOptInCard :token="token" :carrier="carrier" />
   </div>
 </template>

@@ -22,6 +22,7 @@ export { default as AppSearchField } from "./components/AppSearchField.vue";
 export { default as AppDateField } from "./components/AppDateField.vue";
 export { default as AppDateTimeField } from "./components/AppDateTimeField.vue";
 export { default as AppMonthField } from "./components/AppMonthField.vue";
+export { default as AppMemorableDate } from "./components/AppMemorableDate.vue";
 export { default as AppDateRangePicker } from "./components/AppDateRangePicker.vue";
 export { default as AppFormField } from "./components/AppFormField.vue";
 export { default as AppCombobox } from "./components/AppCombobox.vue";

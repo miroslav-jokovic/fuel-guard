@@ -15,6 +15,9 @@
   "application_edits": [
     "apps/api/src/modules/recruiting/applicationReview.ts"
   ],
+  "application_intakes": [
+    "apps/api/src/modules/recruiting/applicantIntake.ts"
+  ],
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationLink.ts",

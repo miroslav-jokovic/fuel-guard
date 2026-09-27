@@ -10,6 +10,8 @@ import { isIntakeError, phasesOf, resolveInvitation } from "../applicationIntake
 import { releasesForApplicant, signedReleases } from "../applicationReleases.js";
 import { adoptedPacketMarks, packetStops } from "../applicationPacketMarks.js";
 import { identityOnFile } from "../applicantIdentity.js";
+import { partOneStatus } from "../applicantIntake.js";
+import { FCRA_SUMMARY } from "../fcraSummary.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
 
@@ -77,6 +79,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   const certificate = await latestRoadTestCertificate(admin, invitation.org_id, invitation.driver_id);
   // D-HB1: where the handbook stands, null until the application is filed. Places, never names.
   const handbook = await linkHandbookStatus(admin, invitation);
+  // C3a (§6.2): where Part 1 stands — null for a legacy link, which has none. Booleans and a stamp,
+  // never an answer, for `identityComplete`'s reason.
+  const partOne = await partOneStatus(admin, invitation.org_id, invitation);
 
   res.json({
     // The carrier's name and nothing else about them. An application link is not a directory.
@@ -105,5 +110,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     identityComplete,
     roadTestCertificate: certificate ? { testedOn: certificate.occurred_on } : null,
     handbook,
+    partOne,
+    // The FCRA summary Part 1 ends on (AW3), served — like the instruments — so the version the page
+    // posts back names text the server holds. Only to a link that has a Part 1 still to walk.
+    fcraSummary: partOne && !partOne.completedAt ? FCRA_SUMMARY : null,
   });
 });

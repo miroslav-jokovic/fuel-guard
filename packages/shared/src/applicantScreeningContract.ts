@@ -96,11 +96,12 @@ const jurisdictionCodeSchema = z
 /**
  * `POST /api/public/application/:token/intake` — one Part 1 screen's answers.
  *
- * ⚠ The FCRA summary acknowledgement is NOT here yet. `complete_applicant_intake` refuses (AI007)
- * until `fcra_summary_shown_at` is stamped, and that stamp records WHICH text was shown — a version
- * that has to name text in this repository. The text is AW3's (C3), pending Q-AW13 (CFPB Appendix K
- * meanwhile); it arrives with its version and a field here in the same merge, never as a version
- * string for text nobody can read.
+ * `fcra_summary_version` is the FCRA summary acknowledgement (C3a, AW3). `complete_applicant_intake`
+ * refuses (AI007) until `fcra_summary_shown_at` is stamped, and 0376 stamps it — with the server's
+ * clock — only when this key arrives, so the key names WHICH text the screen showed. The server
+ * refuses any version but the one it serves (`fcra_summary_changed`), so a page loaded before the text
+ * changed cannot record the new text as read. The text is CFPB Appendix K pending Q-AW13, held in
+ * `apps/api/src/modules/recruiting/fcraSummary.ts` and SERVED like every other instrument.
  */
 export const applicantIntakeSchema = z
   .object({
@@ -133,6 +134,8 @@ export const applicantIntakeSchema = z
      * first reading, decided here: it stays a declaration until the office verifies it on the MVR).
      */
     endorsements: z.array(z.enum(ENDORSEMENT_CODES)).max(ENDORSEMENT_CODES.length).optional(),
+    /** The version of the FCRA summary the screen showed — see this schema's header. */
+    fcra_summary_version: z.string().trim().min(1).max(80).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, "Nothing to save");
@@ -183,6 +186,49 @@ export type ApplicantIntakeLicences = z.infer<typeof applicantIntakeLicencesSche
  * selfie is not here and never will be: it is never promoted (0376), and it is AW6's, after Q-AW5.
  */
 export const INTAKE_CAPTURE_SLOTS = ["cdl_front", "cdl_back", "medical_card"] as const;
+
+/**
+ * Where Part 1 stands, as `GET /api/public/application/:token` serves it (C3a) — null for a legacy link.
+ * Booleans and a stamp, never an answer (D-APP16: the bare link does not read back a date of birth).
+ * Each flag says a screen's answers are on file, so a returning applicant resumes past it.
+ */
+export interface PartOneStatus {
+  completedAt: string | null;
+  contact: boolean;
+  address: boolean;
+  licences: boolean;
+  /** §40.25(j) answered — the first write, so this is also "Part 1 has begun" (AI009). */
+  screening: boolean;
+  medicalCardPending: boolean;
+  /** The CURRENT summary was shown; one read under an older version is read again. */
+  rights: boolean;
+}
+
+/**
+ * The FCRA summary Part 1 ends on, as served (AW3). The words live in the API
+ * (`apps/api/src/modules/recruiting/fcraSummary.ts`, checked against the Bureau's form) and are served
+ * like every instrument; this is only their shape. A block is a paragraph, or a list of items.
+ */
+export type FcraSummaryBlock = string | readonly string[];
+export interface FcraSummaryRight {
+  heading: string;
+  blocks: readonly FcraSummaryBlock[];
+}
+export interface FcraSummaryContact {
+  business: string;
+  contact: readonly string[];
+}
+export interface FcraSummary {
+  version: string;
+  sourceUrl: string;
+  spanishNote: string;
+  title: string;
+  intro: readonly string[];
+  rights: readonly FcraSummaryRight[];
+  closing: string;
+  contactsHeading: { business: string; contact: string };
+  contacts: readonly FcraSummaryContact[];
+}
 
 // ── the office's acts (C2b2) ─────────────────────────────────────────────────
 

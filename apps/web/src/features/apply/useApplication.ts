@@ -6,8 +6,10 @@ import type {
   ApplicationCaptureView,
   AuthorizationPurpose,
   DriverApplication,
+  FcraSummary,
   LinkHandbookStatus,
   PacketPlacement,
+  PartOneStatus,
 } from "@silvicom/shared";
 
 /**
@@ -164,6 +166,13 @@ export interface ApplyInvitation {
    * filed. Places, never names. ⚠ Optional, for `identityComplete`'s reason.
    */
   handbook?: LinkHandbookStatus | null;
+  /**
+   * Where Part 1 stands (C3a, §6.2): null for a legacy link, which has no Part 1. ⚠ Optional, for
+   * `identityComplete`'s reason — and `undefined` reads as legacy, never as a Part 1 to walk.
+   */
+  partOne?: PartOneStatus | null;
+  /** The FCRA summary Part 1 ends on, served while Part 1 is still to finish (AW3). */
+  fcraSummary?: FcraSummary | null;
 }
 
 /**

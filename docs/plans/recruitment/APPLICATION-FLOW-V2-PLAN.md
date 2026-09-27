@@ -910,3 +910,38 @@ Append dated lines at the END.
   match, or "This is someone else — add them". `postgrestFixture` gained `ilike` (an unknown operator matched every
   row). 28 mutants, all killed. **Not built, named:** re-sending to an ARCHIVED applicant leaves them archived (the
   drawer labels them); changing the email on a re-send (the link is on screen to copy either way).
+- 2026-09-27 — **C2e merged** (#1077, main `b166cb8`). The whole of C2 is done.
+- 2026-09-27 — **C3 split into four PRs**, for the reason C2 was (8–9 days in one diff hides every change in it):
+  **C3a** the Part 1 shell — AW3 (screens 1–10, 12, 20, the FCRA summary, the three-box date) + minting the Part 1
+  row with every new invitation; **C3b** AW5 (PDF417 reader + AAMVA parser, shared, fixture-tested) then AW4 (the
+  scanner wizard + server confirm, CPU per photo measured first), which replaces C3a's plain photo screens behind the
+  same seam; **C3c** AW9 (the Part 2 task-list hub) + the Part-1 nudge; **C3d** AW10 (local draft replay, resumable
+  uploads) + AW14 (screen events, Lighthouse CI, the 44 px sweep, the offline test). AW6 waits for Q-AW5.
+- 2026-09-27 — **C3a built** (`claude/applicant-flow-c3a`). **The intake row, and no cutover date:**
+  `createApplicationInvite` mints the new invitation's empty `application_intakes` row (`mintIntakeRow`, a direct
+  INSERT — `record_applicant_intake` cannot write an empty row, AI009 — `on conflict` read as minted; a row that does
+  not land revokes the invitation before its link is shown), so "has a row" stays the WHOLE legacy test and §7's
+  "created before C3's merge" is true by construction. A re-sent link keeps its invitation and so its kind: the eight
+  production links stay legacy. `applicantIntake.ts` is a new writer of `application_intakes` (table-writers.json). A
+  row no longer means "begun": the office's list returns `intake_begun` (§40.25(j) answered) and the card reads an
+  untouched v2 link "open". **FCRA summary (AW3, Q-AW13 default):** CFPB Appendix K, served in the bundle while Part 1
+  is open (`fcraSummary.ts`), transcribed from the Bureau's PDF (committed with its extraction under
+  `docs/plans/recruitment/fcra-summary/`, checked paragraph by paragraph and counted, `pspDisclosure.test.ts`'s bar).
+  **Verified current:** the eCFR carries the model only as images (88 FR 58066); page 1 matches word for word, and
+  the PDF already has both corrections of the only later amendment (88 FR 58065, effective 2023-09-25). Version
+  `cfpb-appendix-k-2023-09-25`, pinned to a hash of the text; `POST /intake` takes `fcra_summary_version` and refuses
+  any other (`fcra_summary_changed`, 409), so `/intake/complete` no longer answers AI007 for want of a summary. **The
+  screens:** `partOne/` — a linear stepper, "Step N of 9", after the consent and in place of the legacy identity
+  screen (a v2 link never sees it); screens 3–7 typed, 8–10 one photograph each (medical card or "I don't have one
+  yet"), 12 the summary, whose Continue records the version and then ends Part 1; screen 20 is the
+  permissions-received screen with the Clearinghouse registration added for v2 links. `AppMemorableDate` in
+  `@silvicom/ui` (Q-AW12). **Found at the call site, not in the plan:** 0376 writes the date of birth only through
+  `record_applicant_identity`, and only once licence position 0 exists — a date of birth sent first is dropped without
+  an error — so screen 7's first write is three calls in one order (answers with §40.25(j), the licences, the date of
+  birth), pinned by a test and two mutants. The licence list is replaced whole, so a RETURNING applicant's licence
+  screens are read-only (the page cannot see the list it would overwrite; the office corrects it). 29 mutants, all
+  killed. **Not built, named:** screen 3's legal-name confirm (no Part 1 writer for the name — it is asked in Part 2 as
+  today); ZIP → city/state (Q-AW10's static table); a reload before screen 7 loses screens 3–6 until AW10's local replay
+  (C3d) — the order is the owner's and §40.25(j) must come first, so it is recorded rather than reordered; the Part-1
+  nudge (C3c); 44 px targets beyond the new date boxes (AW14, C3d); the scanner, "Upload a photo instead" and the desktop
+  QR handoff (AW4, C3b).

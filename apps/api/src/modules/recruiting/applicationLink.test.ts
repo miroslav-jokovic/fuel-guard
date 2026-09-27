@@ -13,7 +13,7 @@ import { hashInvitationToken } from "./applicationIntake.js";
 const mailer = vi.hoisted(() => ({ fn: vi.fn(async () => ({ ok: true, provider: "resend", status: 200 })) }));
 vi.mock("../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
 
-const { findExistingApplicants, sendApplicationLinkAgain } = await import("./applicationLink.js");
+const { createApplicationInvite, findExistingApplicants, sendApplicationLinkAgain } = await import("./applicationLink.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -144,6 +144,65 @@ describe("sending the link again", () => {
     expect(await again(rec)).toMatchObject({ status: 409, code: "link_changed" });
     expect(rec.writtenRows("audit_logs")).toEqual([]);
     expect(mailer.fn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * C3a: every invitation created from now on is a v2 invitation — it carries its Part 1 row from the first
+ * second, because "has a row" is the whole legacy test (plan §7) and a fresh link without one would be read
+ * as legacy by the fold, the filing and the page. A re-sent link keeps its invitation, and so its kind.
+ */
+describe("a new invitation is a v2 invitation (C3a)", () => {
+  const create = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+    createApplicationInvite(rec.client, env, { orgId: ORG, userId: USER, driverId: DRIVER, email: "driver@example.test" });
+
+  it("mints the new invitation's empty Part 1 row, in its org, and nothing else on it", async () => {
+    const rec = seed([]);
+    expect(await create(rec)).toMatchObject({ mode: "created" });
+    expect(rec.writtenRows("application_intakes")).toEqual([{ org_id: ORG, invitation_id: "inv-new" }]);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("mints one through \"send the link again\" when that opens a new invitation, and none when it re-sends", async () => {
+    const created = seed([invitation({ revoked_at: "2026-09-21T00:00:00Z" })]);
+    await again(created);
+    expect(created.writtenRows("application_intakes")).toEqual([{ org_id: ORG, invitation_id: "inv-new" }]);
+
+    const resent = seed([invitation()]);
+    await again(resent);
+    expect(resent.writtenRows("application_intakes")).toEqual([]);
+  });
+
+  it("revokes the invitation, sends nothing and answers 500 when the row does not land", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, status: "applicant", email: null }]),
+        application_invitations: (q: RecordedQuery) =>
+          q.write?.method === "insert" ? [{ id: "inv-new", ...(q.write.payload as object) }] : [],
+        application_intakes: { data: [], writeError: { code: "42501", message: "denied" } },
+        organizations: [{ name: "Silvicom Inc" }],
+        audit_logs: [],
+      },
+    });
+    expect(await create(rec)).toMatchObject({ status: 500, code: "db_error" });
+    const revoke = rec.writes().find((q) => q.table === "application_invitations" && q.write?.method === "update")!;
+    expect(revoke.write!.payload).toMatchObject({ revoked_at: expect.any(String) });
+    expect(revoke.filters()).toEqual(expect.arrayContaining([{ col: "id", val: "inv-new" }, { col: "org_id", val: ORG }]));
+    expect(mailer.fn).not.toHaveBeenCalled();
+  });
+
+  it("treats a row that is already there as minted — a retried create does not fail on its first attempt", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, status: "applicant", email: null }]),
+        application_invitations: (q: RecordedQuery) =>
+          q.write?.method === "insert" ? [{ id: "inv-new", ...(q.write.payload as object) }] : [],
+        application_intakes: { data: [], writeError: { code: "23505", message: "duplicate key" } },
+        organizations: [{ name: "Silvicom Inc" }],
+        audit_logs: [],
+      },
+    });
+    expect(await create(rec)).toMatchObject({ mode: "created" });
   });
 });
 

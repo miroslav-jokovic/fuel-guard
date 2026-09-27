@@ -20,6 +20,12 @@ export interface ApplicationInvitation {
    * Optional: absent from an older API, which reads as a legacy link.
    */
   has_intake?: boolean;
+  /**
+   * Has the applicant BEGUN Part 1 — answered its first question? Since C3a every new link is minted
+   * its Part 1 row, so `has_intake` alone says "v2" and no longer "started". Optional: absent from an
+   * older API, which reads as the old meaning (a row = started).
+   */
+  intake_begun?: boolean;
   /** AF4 (0365): when the office sent the application form. Optional: absent from an older API. */
   application_sent_at?: string | null;
   /** The two the OFFICE owns (0336) — the application is with us, or back with the driver to sign. */
@@ -238,7 +244,12 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
   // §7 (D-AW1): a v2 link's first visit is Part 1, and its permissions come after it. A legacy link
   // (no Part 1 row) never enters these two, which is §7's legacy rule read from the link's side.
   if (invite.has_intake === true && !invite.releases_completed_at) {
-    if (!invite.intake_completed_at) return "part1";
+    // C3a: an untouched v2 link has its row from the start. Neither agreed nor begun is "open", as a
+    // legacy link reads; agreeing to sign electronically is Part 1's second screen, so from there on
+    // it is Part 1 in progress.
+    if (!invite.intake_completed_at) {
+      return invite.intake_begun === false && !invite.consented_at ? "open" : "part1";
+    }
     if (!invite.consented_at) return "part1_done";
   }
   // AF4: the permissions are in and the office has not sent the form — the next move is the office's

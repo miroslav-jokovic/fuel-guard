@@ -8,6 +8,7 @@ import {
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "./applicationIntake.js";
+import { mintIntakeRow } from "./applicantIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
 
 /**
@@ -107,6 +108,18 @@ export async function createApplicationInvite(
   if (error || !data) return { status: 500, code: "db_error", message: "Could not create the invitation" };
 
   const invitation = data as Record<string, unknown> & { id: string };
+  // C3a: a new invitation is a v2 invitation, and "has a Part 1 row" is how every reader tells (plan
+  // §7). Two statements, because PostgREST cannot insert into two tables in one — so a row that did
+  // not land takes the invitation with it: revoked before its link is shown or sent, rather than left
+  // alive to be read as legacy by the fold, the filing and the page.
+  if (!(await mintIntakeRow(admin, input.orgId, invitation.id))) {
+    await admin
+      .from("application_invitations")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("id", invitation.id)
+      .eq("org_id", input.orgId);
+    return { status: 500, code: "db_error", message: "Could not create the invitation" };
+  }
   await writeAudit(admin, {
     orgId: input.orgId,
     actorId: input.userId,

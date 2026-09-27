@@ -6,6 +6,7 @@ import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { hashInvitationToken } from "../applicationIntake.js";
+import { FCRA_SUMMARY_VERSION } from "../fcraSummary.js";
 
 /**
  * Part 1 of the link, end to end over HTTP (APPLICATION-FLOW-V2-PLAN §6.2, AW2).
@@ -152,6 +153,29 @@ describe("Part 1 answers", () => {
     const res = await post("/intake", { prior_positive_2y: false });
     expect(res.status).toBe(404);
     expect((await read(res)).error?.code).toBe("invalid_link");
+  });
+});
+
+describe("the FCRA summary acknowledgement (C3a, AW3)", () => {
+  it("records the version of the summary the server serves, for 0376 to stamp with its own clock", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await post("/intake", { fcra_summary_version: FCRA_SUMMARY_VERSION });
+    expect(res.status).toBe(201);
+    expect(rec.rpcs()[0]!.args).toMatchObject({ p_intake: { fcra_summary_version: FCRA_SUMMARY_VERSION } });
+  });
+
+  /**
+   * The version says which text was READ. A page loaded before the text changed posts the old one, and
+   * recording the new version for it would claim a screen the applicant never saw.
+   */
+  it("refuses any other version, without reaching the function", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await post("/intake", { fcra_summary_version: "cfpb-appendix-k-2018-09" });
+    expect(res.status).toBe(409);
+    expect((await read(res)).error?.code).toBe("fcra_summary_changed");
+    expect(rec.rpcs()).toHaveLength(0);
   });
 });
 
