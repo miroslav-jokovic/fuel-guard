@@ -118,7 +118,25 @@ export const APPLY_HISTORY_COPY = {
   },
 
   safety: {
-    intro: "These three questions cover the last three years.",
+    intro: "Three questions about your driving record. The lists open only when the answer is yes.",
+    /**
+     * The three gates (C3c2c1, §6.4 item 6: "yes/no gates first; loops only on Yes"), asked with nothing
+     * chosen. Plain words for (b)(7), (b)(8) and (b)(9); `SafetyHistoryFields.test.ts` holds each against
+     * the committed text (cfr-391-21/391.21.txt):
+     *   (b)(7) "all motor vehicle accidents in which the applicant was involved during the 3 years"
+     *   (b)(8) "all violations of motor vehicle laws or ordinances (other than violations involving only
+     *          parking) of which the applicant was convicted or forfeited bond or collateral during the
+     *          3 years"
+     *   (b)(9) "any denial, revocation, or suspension of any license, permit, or privilege to operate a
+     *          motor vehicle" — with no time limit, so the question has none either.
+     * The "no" answers still print under the old statements below (`noAccidents`, …) on the review.
+     */
+    accidentsQuestion: "In the last 3 years, were you involved in any motor vehicle accident?",
+    violationsQuestion:
+      "In the last 3 years, were you convicted of breaking a traffic law, or did you forfeit bond or collateral for one?",
+    violationsQuestionHint: "Parking tickets do not count.",
+    deniedQuestion:
+      "Has any licence, permit or privilege of yours to drive a motor vehicle ever been denied, revoked or suspended?",
     accidentsHeading: "Accidents",
     noAccidents: "I have had no accidents in the last 3 years",
     accidentDate: "Date",

@@ -131,7 +131,13 @@ export interface ApplicationDraft {
   declares_no_accidents: boolean;
   violations: DraftViolation[];
   declares_no_violations: boolean;
-  licence_ever_denied: boolean;
+  /**
+   * §391.21(b)(9): "a statement ... of any denial, revocation, or suspension ... or a statement that no
+   * such denial, revocation, or suspension has occurred". `null` until the applicant answers (C3c2c1):
+   * it started `false` behind an unticked box, which made the "none has occurred" statement for them —
+   * Q-AW33's defect, on a different paragraph. A saved `true` or `false` is kept.
+   */
+  licence_ever_denied: boolean | null;
   licence_denial_detail: string;
   /** §40.25(j)'s two-year question (P8). Boolean in the draft — the contract's null means "the form
    *  never asked", which is true of payloads filed before P8 and false of every draft this creates. */
@@ -210,7 +216,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   equipment_experience: [],
   accidents: [], declares_no_accidents: false,
   violations: [], declares_no_violations: false,
-  licence_ever_denied: false, licence_denial_detail: "",
+  licence_ever_denied: null, licence_denial_detail: "",
   prior_failed_pre_employment_test: false,
   employers: [emptyEmployer()], declares_no_employment: false,
   employment_gaps: [],

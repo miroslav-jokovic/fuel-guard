@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { emptyDraft } from "./draft";
 import ApplySection from "./ApplySection.vue";
 import EmployerDrawer from "./EmployerDrawer.vue";
+import AddressHistoryFields from "./AddressHistoryFields.vue";
 import { APPLY_COPY } from "./strings";
 
 /** The review screen opens with the §391.21(d) notice (C3c2a); no other screen carries it. */
@@ -25,5 +26,14 @@ describe("ApplySection", () => {
     expect(panelDay("2026-09-26")).toBe("2026-09-26");
     expect(panelDay(null)).toBeNull();
     expect(panelDay()).toBeNull();
+  });
+
+  it("hands the address screen the v2 day too, so a v2 link gets one address per screen (C3c2c1)", () => {
+    const day = (v2AsOf?: string | null) =>
+      mount(ApplySection, {
+        props: { modelValue: emptyDraft(), section: "addresses", token: "t", captures: [], asOf: "2026-09-26", v2AsOf, identityLockedBy: null },
+      }).findComponent(AddressHistoryFields).props("v2AsOf");
+    expect(day("2026-09-26")).toBe("2026-09-26");
+    expect(day(null)).toBeNull();
   });
 });

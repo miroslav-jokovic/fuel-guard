@@ -154,6 +154,16 @@ describe("everything the driver typed is on the page they certify", () => {
     expect(entries.find((e) => e.label === APPLY_COPY.employment.safetySensitive)?.value).toBe("No");
   });
 
+  it("says an unanswered (b)(9) question is not answered, never No (C3c2c1)", () => {
+    const entry = (v: boolean | null) =>
+      summary({ ...filled(), licence_ever_denied: v, licence_denial_detail: "Unpaid ticket" })
+        .flatMap((sec) => sec.groups).flatMap((g) => g.entries)
+        .find((e) => e.label === APPLY_COPY.safety.everDenied)?.value;
+    expect(entry(null)).toBe(APPLY_COPY.review.empty);
+    expect(entry(false)).toBe("No");
+    expect(entry(true)).toBe("Unpaid ticket");
+  });
+
   it("says an unanswered (b)(10)(iv) question is not answered, never No (Q-AW33)", () => {
     const d = filled();
     d.employers[0]!.subject_to_fmcsr = null;
