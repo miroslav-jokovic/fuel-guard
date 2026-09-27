@@ -186,7 +186,7 @@ describe("the licence list", () => {
     const res = await post("/intake/licences", {
       licences: [
         { state_code: "il", licence_number: " D123-4567-8901 ", expires_on: "2029-05-01" },
-        { state_code: "IN", licence_number: "1234-56-7890", agency: "Indiana BMV" },
+        { state_code: "IN", licence_number: "1234-56-7890", agency: "Indiana BMV", expires_on: "2021-02-28" },
       ],
     });
     expect(res.status).toBe(201);
@@ -195,17 +195,29 @@ describe("the licence list", () => {
     expect(args.p_intake).toEqual({});
     expect(args.p_licences).toEqual([
       { position: 0, state_code: "IL", agency: null, licence_number: "D123-4567-8901", expires_on: "2029-05-01", source: "intake" },
-      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "1234-56-7890", expires_on: null, source: "intake" },
+      { position: 1, state_code: "IN", agency: "Indiana BMV", licence_number: "1234-56-7890", expires_on: "2021-02-28", source: "intake" },
     ]);
   });
 
   it("refuses a jurisdiction that is not one, and the same licence twice", async () => {
     holder.client = seed().client;
-    expect((await post("/intake/licences", { licences: [{ state_code: "ZZ", licence_number: "1" }] })).status).toBe(400);
+    const EXP = "2029-01-01";
+    expect((await post("/intake/licences", { licences: [{ state_code: "ZZ", licence_number: "1", expires_on: EXP }] })).status).toBe(400);
     const twice = await post("/intake/licences", {
-      licences: [{ state_code: "IL", licence_number: "abc" }, { state_code: "il", licence_number: "ABC" }],
+      licences: [{ state_code: "IL", licence_number: "abc", expires_on: EXP }, { state_code: "il", licence_number: "ABC", expires_on: EXP }],
     });
     expect(twice.status).toBe(400);
+  });
+
+  /** Q-AW35 (a): filing refuses a licence with no date, and nothing after Part 1 can supply one. */
+  it("refuses a licence with no expiry date, and writes nothing", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await post("/intake/licences", {
+      licences: [{ state_code: "IL", licence_number: "D1", expires_on: "2029-01-01" }, { state_code: "OH", licence_number: "OH-1" }],
+    });
+    expect(res.status).toBe(400);
+    expect(rec.rpcs()).toHaveLength(0);
   });
 });
 

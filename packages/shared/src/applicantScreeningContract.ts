@@ -151,7 +151,14 @@ export const applicantIntakeLicenceSchema = z
     /** The issuing authority's name, for a licence that is not a US state's (A-3's one ceiling). */
     agency: z.string().trim().min(1).max(LICENSING_AUTHORITY_MAX_LENGTH).nullish(),
     licence_number: z.string().trim().min(1).max(INTAKE_LICENCE_NUMBER_MAX_LENGTH),
-    expires_on: isoDateSchema,
+    /**
+     * REQUIRED, every licence, expired or given up included (Q-AW35 (a), owner 2026-09-27). Filing
+     * cannot place a licence without its date — (b)(5) lists the unexpired ones, so
+     * `composeFiledApplication` refuses a blank — and after Part 1 no screen and no office act can
+     * supply it, so an optional date here was an application nobody could file. Refused at the door,
+     * not only on the page, because the page is not the only client this route will ever have.
+     */
+    expires_on: isoDateSchema.pipe(z.string({ error: "Give the expiry date printed on the licence" })),
   })
   .strict();
 export type ApplicantIntakeLicence = z.infer<typeof applicantIntakeLicenceSchema>;
