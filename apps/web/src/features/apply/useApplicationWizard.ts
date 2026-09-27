@@ -220,14 +220,20 @@ export function useApplicationWizard(
   /** Move the cursor to one issue's control, wherever it is. Used by the send summary. */
   const focusIssue = (issue: SectionIssue): void => focusFirstIssue([issue]);
 
-  /** Try to advance. Returns false and shows what is missing when the screen is not complete. */
-  function next(): boolean {
+  /**
+   * Is the screen in front of the driver complete? Shows what is missing when it is not. The half of
+   * `next` that does not move — Part 2's task list (C3c2a) closes a task with it and returns to the list.
+   */
+  function check(): boolean {
     const found = validateSection(section.value, draft, v2AsOf());
     issues.value = found;
-    if (found.length > 0) {
-      focusFirstIssue(found);
-      return false;
-    }
+    if (found.length > 0) focusFirstIssue(found);
+    return found.length === 0;
+  }
+
+  /** Try to advance. Returns false and shows what is missing when the screen is not complete. */
+  function next(): boolean {
+    if (!check()) return false;
     if (!isLast.value) {
       moveTo(index.value + 1);
       scrollToTop();
@@ -295,6 +301,7 @@ export function useApplicationWizard(
     resume,
     goTo,
     focusIssue,
+    check,
     next,
     back,
     sectionOwning,
