@@ -3,6 +3,7 @@ import { computed, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCheckbox } from "@silvicom/ui";
 import type { ApplicationCaptureSlot, ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
+import PartOneHandoff from "./PartOneHandoff.vue";
 import type { PartOneAnswers, PhotoScreen, ScreenErrors } from "./partOneScreens";
 import type { BarcodeState } from "./usePartOne";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -24,18 +25,25 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * On the CDL's back the original photograph is handed up (`staged`) for its barcode (AW5) — after "Use
  * this photo", once it is in the bucket, never on the preview; what the read filled is said here.
  *
+ * On a computer (`desktop`, a pointer media query — never the user agent) the QR handoff comes first
+ * (§6.6.6, C3b2b2, `PartOneHandoff`) while the slot is still empty, and the two buttons stay beneath it
+ * for a driver whose photo is already on this computer. The flow polls for the phone's photo.
+ *
  * What the screen REQUIRES is unchanged by any of this: Continue asks the server whether the slot is
  * filled (`photoDone`). A photograph held and not sent is not filled, so the flow is told (`holding`) and
  * says "press Use this photo" rather than "take the photo".
  */
 const props = defineProps<{
   token: string;
+  carrier: string;
   photo: PhotoScreen;
   captures: ApplicationCaptureView[];
   errors: ScreenErrors;
   /** AW5: hand the original of this screen's photograph to `usePartOne`, whose barcode read it starts. */
   readsBarcode?: boolean;
   barcode?: BarcodeState;
+  /** A computer: offer the phone first (§6.6.6). */
+  desktop?: boolean;
 }>();
 const emit = defineEmits<{ staged: [original: Blob]; holding: [held: boolean] }>();
 const answers = defineModel<PartOneAnswers>("answers", { required: true });
@@ -56,6 +64,8 @@ const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "cap
 // `only` is one slot, so there is exactly one view.
 const slot = computed(() => captures.slots.value[0]!);
 const working = computed(() => slot.value.state === "working");
+/** The handoff is for a slot nobody has filled — not one on file, not a photo this browser holds. */
+const handoff = computed(() => Boolean(props.desktop) && !slot.value.pending && slot.value.state !== "done");
 watch(() => slot.value.pending, (held) => emit("holding", held), { immediate: true });
 
 /**
@@ -92,6 +102,9 @@ const barcodeNote = computed(() => {
       <p>{{ copy[photo].hint }}</p>
       <p>{{ copy.howTo }}</p>
     </div>
+
+    <PartOneHandoff v-if="handoff" :token="token" :carrier="carrier" />
+    <p v-if="handoff" class="text-sm text-ink-muted">{{ copy.handoff.orHere }}</p>
 
     <!-- The picture when this browser holds one (taken, or sent this visit — X6); the outline otherwise. -->
     <figure

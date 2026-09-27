@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicantSmsConsent, SmsConfirmation, SmsConsentStatus } from "@silvicom/shared";
+import type { ApplicantSmsConsent, SmsConfirmation, SmsConsentStatus, TextLinkAnswer } from "@silvicom/shared";
 import { publicFetch } from "@/features/apply/useApplication";
 
 /**
@@ -45,3 +45,10 @@ export function useSmsOptIn(token: Ref<string>) {
 
   return { query, agree, withdraw };
 }
+
+/**
+ * "Text me the link" (§6.6.6, C3b2b2). The body is empty on purpose: the server texts THIS link, which
+ * it composes from the path, to the number already agreed on — the page names neither.
+ */
+export const textMeTheLink = (token: string): Promise<TextLinkAnswer> =>
+  publicFetch<TextLinkAnswer>(`/${token}/text-link`, { method: "POST", body: "{}" });

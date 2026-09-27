@@ -75,9 +75,16 @@ afterEach(() => {
 const copy = APPLY_COPY.partOne.photo;
 const ANSWERS = { medical_card_pending: false } as never;
 
-const mountPhoto = (props: { captures?: ApplicationCaptureView[]; photo?: "cdl_front" | "cdl_back" | "medical_card" } = {}) =>
+const mountPhoto = (
+  props: { captures?: ApplicationCaptureView[]; photo?: "cdl_front" | "cdl_back" | "medical_card"; desktop?: boolean } = {},
+) =>
   mount(PartOnePhoto, {
-    props: { token: "t", photo: props.photo ?? "cdl_front", captures: props.captures ?? [], errors: {}, answers: ANSWERS },
+    props: {
+      token: "t", carrier: "Silvicom Inc", photo: props.photo ?? "cdl_front", captures: props.captures ?? [],
+      errors: {}, answers: ANSWERS, desktop: props.desktop ?? false,
+    },
+    // The handoff has its own test (PartOneHandoff.test.ts); here only WHEN it shows is asserted.
+    global: { stubs: { PartOneHandoff: { template: "<div data-test='handoff' />" } } },
   });
 
 const button = (w: VueWrapper, label: string) => {
@@ -176,7 +183,7 @@ describe("the scanner screen (§6.6.1)", () => {
 
   it("hands the CDL back's original up for its barcode only after Use this photo", async () => {
     const w = mount(PartOnePhoto, {
-      props: { token: "t", photo: "cdl_back", captures: [], errors: {}, answers: ANSWERS, readsBarcode: true },
+      props: { token: "t", carrier: "Silvicom Inc", photo: "cdl_back", captures: [], errors: {}, answers: ANSWERS, readsBarcode: true },
     });
     await button(w, copy.take).trigger("click");
     await flushPromises();
@@ -184,5 +191,28 @@ describe("the scanner screen (§6.6.1)", () => {
     await button(w, copy.use).trigger("click");
     await flushPromises();
     expect(w.emitted("staged")).toHaveLength(1);
+  });
+});
+
+describe("on a computer (§6.6.6)", () => {
+  const shown = (w: VueWrapper) => w.find("[data-test=handoff]").exists();
+
+  it("offers the phone first while the slot is empty, and keeps both buttons beneath it", () => {
+    const w = mountPhoto({ desktop: true });
+    expect(shown(w)).toBe(true);
+    expect(labels(w)).toEqual([copy.take, copy.upload]);
+  });
+
+  it("offers nothing extra on a phone", () => {
+    expect(shown(mountPhoto())).toBe(false);
+  });
+
+  it("stops offering it once a photo is held here, or the slot is on file", async () => {
+    const w = mountPhoto({ desktop: true });
+    await button(w, copy.upload).trigger("click");
+    await flushPromises();
+    expect(shown(w)).toBe(false);
+    const filed = mountPhoto({ desktop: true, captures: [{ slot: "cdl_front", contentType: "image/webp", bytes: 1, capturedAt: "2026-09-20T00:00:00Z" }] });
+    expect(shown(filed)).toBe(false);
   });
 });

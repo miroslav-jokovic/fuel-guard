@@ -13,6 +13,7 @@ import {
   smsApplicationReady,
   smsDrugTestSite,
   smsApplicationReminder,
+  smsApplicationPhoneLink,
   smsConsentGrantSchema,
   smsHelpReply,
   smsOptInConfirmation,
@@ -173,6 +174,7 @@ describe("every message the programme sends (the verification's sample set)", ()
     confirmation: smsOptInConfirmation("Silvicom Inc"),
     ready: smsApplicationReady("Silvicom Inc", LINK),
     reminder: smsApplicationReminder("Silvicom Inc", LINK),
+    phoneLink: smsApplicationPhoneLink("Silvicom Inc", LINK),
     approved: smsApplicationApproved("Silvicom Inc"),
     help: smsHelpReply("360.silvicominc.com"),
   };
@@ -191,6 +193,9 @@ describe("every message the programme sends (the verification's sample set)", ()
     expect(messages.help.length).toBeLessThanOrEqual(160);
     expect(messages.ready).toContain(LINK);
     expect(messages.reminder).toContain(LINK);
+    expect(messages.phoneLink).toContain(LINK);
+    // It rotates nothing (§6.6.6): telling the driver an earlier link died would be false.
+    expect(messages.phoneLink).not.toMatch(/earlier|replaces/);
   });
 
   it("points HELP at the terms page on the host it is given, whatever form the URL came in", () => {

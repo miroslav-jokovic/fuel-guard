@@ -148,6 +148,29 @@ export const APPLY_PART_ONE_COPY = {
       /** D-AW9: the server re-hashed the object and it was not the photo sent (422 `capture_not_intact`). */
       notIntact: "That photo did not arrive intact. Take it again.",
       required: "Take the photo to continue.",
+      /**
+       * §6.6.6, the desktop handoff (C3b2b2). A computer has no camera worth photographing a licence
+       * with, so the same link is offered to the phone — by QR code first, by text only to a number the
+       * applicant already agreed to be texted on. This page moves on by itself once the photo arrives.
+       */
+      handoff: {
+        heading: "Easier on your phone",
+        body: "Scan this code with your phone's camera. It opens this same application, where you can take the photos. This page moves on by itself once they arrive.",
+        qrLabel: "QR code that opens this application on your phone",
+        waiting: "Waiting for the photo from your phone…",
+        textMe: "Text me the link",
+        texting: "Sending…",
+        sent: (last4: string): string => `Sent to the number ending ${last4}. Open the link on your phone.`,
+        held: {
+          quiet_hours: "It is outside texting hours, so we did not send it. Scan the QR code instead.",
+          no_consent: "Texts are off for this application, so we did not send it. Scan the QR code instead.",
+          consent_revoked: "Texts are off for this application, so we did not send it. Scan the QR code instead.",
+          suppressed: "You replied STOP to our texts, so we cannot send it. Scan the QR code instead.",
+          no_number: "We have no number to text. Scan the QR code instead.",
+        },
+        failed: "The text did not go. Scan the QR code instead.",
+        orHere: "Or, on this computer:",
+      },
       noMedicalCard: "I don't have a medical card yet",
       noMedicalCardHint: "You can carry on. You will need one before you travel.",
     },

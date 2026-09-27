@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { formatDisplayDateTime } from "./displayDate.js";
+import type { SmsHoldReason } from "./smsQuietHours.js";
 
 /**
  * Consent to be texted (A11b, D-APP13).
@@ -291,6 +292,24 @@ export const smsOptInConfirmation = (carrier: string): string =>
 export const smsApplicationReady = (carrier: string, link: string): string =>
   `${carrier}: Your driver application is ready. Fill it in here: ${link} `
   + "Your earlier link no longer works. Reply STOP to opt out.";
+
+/**
+ * The applicant's own link, to their phone, from their own desktop page (§6.6.6, C3b2b2).
+ *
+ * ⚠ No "your earlier link no longer works": unlike the two above, this rotates nothing — it is the
+ * very link open on the desktop, so the driver finishes on whichever screen they like.
+ */
+export const smsApplicationPhoneLink = (carrier: string, link: string): string =>
+  `${carrier}: Here is your driver application link, to take the photos on your phone: ${link} `
+  + "Reply STOP to opt out.";
+
+/**
+ * What "Text me the link" answered (§6.6.6). `held` names why nothing went, so the page can say
+ * what to do instead — quiet hours is "use the QR code", not "try again".
+ */
+export type TextLinkAnswer =
+  | { outcome: "sent" }
+  | { outcome: "held"; held: SmsHoldReason };
 
 /** The 48-hour reminder (A10) — the same link rotation as above, so the same warning. */
 export const smsApplicationReminder = (carrier: string, link: string): string =>
