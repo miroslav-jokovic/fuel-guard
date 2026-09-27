@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { APPLY_COPY } from "./strings";
 import {
   EQUIPMENT_CLASS_LABELS,
   questionnaireForApplicant,
@@ -37,6 +38,8 @@ function filled(): ApplicationDraft {
   d.email = "susan@example.test";
   d.phone = "555-0111";
   d.ssn = "123-45-6789";
+  // C3c1: a written gap, so the walk below proves its dates and words reach the page too.
+  d.employment_gaps = [{ from: "2023-09-26", to: "2024-01-15", explanation: "Caring for my father" }];
   d.addresses = [
     { ...emptyAddress(), line1: "14 Kestrel Road", line2: "Apt 3", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
     { ...emptyAddress(), line1: "2 Foundry Lane", city: "Gary", state: "IN", postal_code: "46402", from: "2017-06", to: "2019-12" },
@@ -139,6 +142,16 @@ describe("everything the driver typed is on the page they certify", () => {
     const d = filled();
     expect(asText(summary(d))).not.toContain("123-45-6789");
     expect(asText(summary(d))).not.toContain("6789");
+  });
+
+  /** C3c1: the two (b)(10)(iv) answers are filed and printed, so the page before sending shows both. */
+  it("shows each employer's two (b)(10)(iv) answers, each under its own question", () => {
+    const d = filled();
+    d.employers[0]!.subject_to_fmcsr = true;
+    d.employers[0]!.safety_sensitive = false;
+    const entries = summary(d).flatMap((sec) => sec.groups).flatMap((g) => g.entries);
+    expect(entries.find((e) => e.label === APPLY_COPY.employment.subjectToFmcsr)?.value).toBe("Yes");
+    expect(entries.find((e) => e.label === APPLY_COPY.employment.safetySensitive)?.value).toBe("No");
   });
 
   it("shows the SECOND employer, not a count of employers", () => {

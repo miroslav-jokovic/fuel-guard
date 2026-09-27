@@ -5,14 +5,29 @@ import {
   AppInput as BaseInput,
   AppMonthField,
 } from "@silvicom/ui";
-import { jurisdictionOptions } from "@silvicom/shared";
-import { emptyAddress, type ApplicationDraft } from "@/features/apply/draft";
+import { computed } from "vue";
+import { addressCoverage, formatDisplayMonth, jurisdictionOptions, type ApplicationAddress } from "@silvicom/shared";
+import { emptyAddress, toApplication, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
-/** §391.21(b)(3) — every address for the three years preceding the application. */
+/**
+ * §391.21(b)(3) — every address for the three years preceding the application.
+ *
+ * C3c1: with the months the list does not yet cover, from `addressCoverage` — the arithmetic a v2 filing
+ * refuses on (`applicationV2FilingIssues`), over the addresses as they would be FILED (`toApplication`
+ * drops a row with no street and no city), so this list and that refusal cannot disagree.
+ */
+const props = defineProps<{
+  /** The application's day on the carrier's clock (`carrierToday`), the one filing measures from. */
+  asOf: string;
+}>();
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.addresses;
+
+const coverage = computed(() =>
+  addressCoverage((toApplication(draft.value) as { addresses: ApplicationAddress[] }).addresses, props.asOf),
+);
 
 /** One catalogue, three fields (D-AX5). Computed once here rather than per address row. */
 const JURISDICTIONS = jurisdictionOptions();
@@ -60,5 +75,13 @@ const JURISDICTIONS = jurisdictionOptions();
     </div>
 
     <BaseButton @click="draft.addresses.push(emptyAddress())">{{ copy.add }}</BaseButton>
+
+    <div class="space-y-1 rounded-surface bg-surface p-4 ring-1 ring-inset ring-edge" aria-live="polite">
+      <h3 class="text-sm font-semibold text-ink">{{ copy.coverageHeading }}</h3>
+      <p v-if="coverage.covered" class="text-sm text-ink-secondary">{{ copy.coverageComplete }}</p>
+      <p v-for="gap in coverage.gaps" v-else :key="gap.from" class="text-sm text-ink-secondary">
+        {{ copy.gap(formatDisplayMonth(gap.from), formatDisplayMonth(gap.to)) }}
+      </p>
+    </div>
   </section>
 </template>

@@ -1,7 +1,8 @@
 import type { DriverApplicationFields } from "./applicationContract.js";
 import { employmentSegments, type ApplicationEmployer } from "./applicationEmployerContract.js";
+import { addressCoverage } from "./addressCoverage.js";
 import { employmentCoverage, type EmploymentGap, type EmploymentPeriod } from "./employmentCoverage.js";
-import { formatDisplayDate } from "./displayDate.js";
+import { formatDisplayDate, formatDisplayMonth } from "./displayDate.js";
 
 /**
  * What a v2 filing must carry that the base contract leaves optional (AW1, D-AW13, plan §4).
@@ -24,7 +25,7 @@ import { formatDisplayDate } from "./displayDate.js";
  */
 
 export interface ApplicationFilingIssue {
-  /** A dotted path into the application — `employers.2.reason_for_leaving`, `employment_gaps`. */
+  /** A dotted path — `employers.2.reason_for_leaving`, `addresses`, `employment_gaps.2023-09-26` (the gap's start). */
   path: string;
   message: string;
 }
@@ -42,6 +43,18 @@ const asPeriod = (e: ApplicationEmployer, i: number): EmploymentPeriod => ({
   inquiryStatus: "not_required",
 });
 
+/**
+ * The (b)(10) gaps an application must explain — over 30 days (`GAP_TOLERANCE_DAYS`, Q-AW22), in the
+ * three years before `asOf`. Exported so the applicant's screen shows one box per gap THIS returns:
+ * the boxes and the refusal below are the same list, never two computations of it (C3c1).
+ */
+export function applicationEmploymentGaps(
+  employers: readonly ApplicationEmployer[],
+  asOf: string,
+): EmploymentGap[] {
+  return employmentCoverage(employers.map(asPeriod), asOf).segmentA.gaps;
+}
+
 /** Is this computed gap inside one explanation the applicant gave? */
 const explained = (gap: EmploymentGap, given: DriverApplicationFields["employment_gaps"]): boolean =>
   (given ?? []).some((g) => g.from <= gap.from && g.to >= gap.to && g.explanation.trim() !== "");
@@ -54,7 +67,7 @@ const explained = (gap: EmploymentGap, given: DriverApplicationFields["employmen
  * chose.
  */
 export function applicationV2FilingIssues(
-  application: Pick<DriverApplicationFields, "employers" | "employment_gaps">,
+  application: Pick<DriverApplicationFields, "employers" | "employment_gaps" | "addresses">,
   asOf: string,
 ): ApplicationFilingIssue[] {
   const issues: ApplicationFilingIssue[] = [];
@@ -83,11 +96,26 @@ export function applicationV2FilingIssues(
     }
   });
 
-  const gaps = employmentCoverage(employers.map(asPeriod), asOf).segmentA.gaps;
-  for (const gap of gaps) {
+  /**
+   * (b)(3): "The addresses at which the applicant has resided during the 3 years preceding" (C3c1). The
+   * base contract asks for one address and nothing checked the three years (plan §4), so this is the
+   * rule, for new filings only, for the reason the employer fields are.
+   */
+  for (const gap of addressCoverage(application.addresses ?? [], asOf).gaps) {
+    issues.push({
+      path: "addresses",
+      message: gap.from === gap.to
+        ? `Tell us where you lived in ${formatDisplayMonth(gap.from)}`
+        : `Tell us where you lived from ${formatDisplayMonth(gap.from)} to ${formatDisplayMonth(gap.to)}`,
+    });
+  }
+
+  for (const gap of applicationEmploymentGaps(employers, asOf)) {
     if (!explained(gap, application.employment_gaps)) {
       issues.push({
-        path: "employment_gaps",
+        // Keyed on the gap's own start date, not an index: the gaps are computed, not a list anybody
+        // typed, and the applicant's screen keys each explanation box the same way (C3c1).
+        path: `employment_gaps.${gap.from}`,
         message: `Tell us what you were doing from ${formatDisplayDate(gap.from)} to ${formatDisplayDate(gap.to)}`,
       });
     }

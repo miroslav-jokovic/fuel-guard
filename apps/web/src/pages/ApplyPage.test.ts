@@ -782,6 +782,32 @@ describe("the applicant's page", () => {
    * same page with the identity not on file must leave the field editable, or a field that was always
    * disabled would pass.
    */
+  /**
+   * §391.21(b)(1) (C3c1): "The name and address of the employing motor carrier" is ON the application —
+   * the form shows the carrier's legal address the filed PDF prints, and says nothing where none is on file.
+   */
+  it("names the employing carrier and its address on the form", async () => {
+    const formPage = (carrierAddress: string | null) => ok({
+      carrier: "Silvicom Inc", carrierAddress, expiresAt: "2099-01-01T00:00:00Z",
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: [...APPLICATION_RELEASE_ORDER],
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
+      draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+      esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+      identityComplete: false,
+    });
+    fetchMock.mockResolvedValue(formPage("1301 Armitage Ave, Melrose Park, IL 60160"));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain(APPLY_COPY.page.employingCarrier("Silvicom Inc", "1301 Armitage Ave, Melrose Park, IL 60160"));
+    w.unmount();
+
+    fetchMock.mockResolvedValue(formPage(null));
+    const none = mountPage();
+    await settle(none);
+    expect(none.text()).not.toContain("Employing carrier:");
+  });
+
   it("shows the date of birth on the form and does not let it be retyped once on file", async () => {
     const formPage = (identityComplete: boolean) => ok({
       carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",

@@ -149,6 +149,7 @@ export * from "./psp/parse.js";
 export * from "./psp/employment.js";
 export * from "./psp/import.js";
 export * from "./employmentCoverage.js";
+export * from "./addressCoverage.js";
 export * from "./idleRollup.js";
 export * from "./idleBreakdown.js";
 export * from "./idleCostBasis.js";

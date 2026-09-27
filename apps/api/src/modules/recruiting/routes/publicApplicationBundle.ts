@@ -1,3 +1,4 @@
+import { todayInZone } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -14,6 +15,7 @@ import { partOneStatus } from "../applicantIntake.js";
 import { FCRA_SUMMARY } from "../fcraSummary.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
+import { carrierZone } from "../carrierClock.js";
 
 /**
  * `GET /api/public/apply/:token` — the bundle a link opens on.
@@ -41,9 +43,12 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
 
   const { data: org } = await admin
     .from("organizations")
-    .select("name")
+    .select("name, legal_address")
     .eq("id", invitation.org_id)
     .maybeSingle();
+  // C3c1: the day the application is being made, on the CARRIER's clock — the `asOf` filing judges the
+  // three-year windows against (`applicationSubmit.ts`), so the page and the filing count the same days.
+  const carrierToday = todayInZone(new Date(), await carrierZone(admin, invitation.org_id));
 
   // The carrier's own published instruments (0338), or the code's placeholders for anything they
   // have not published. Loaded once and used for both the releases and the consent below, so the
@@ -84,8 +89,12 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   const partOne = await partOneStatus(admin, invitation.org_id, invitation);
 
   res.json({
-    // The carrier's name and nothing else about them. An application link is not a directory.
+    // The carrier's name, and — since C3c1 — the one address §391.21(b)(1) puts on the application
+    // itself ("The name and address of the employing motor carrier"), the same `legal_address` the filed
+    // PDF prints (`carrierOf`). Nothing else about them: an application link is not a directory.
     carrier: (org as { name?: string } | null)?.name ?? "the carrier",
+    carrierAddress: (org as { legal_address?: string | null } | null)?.legal_address ?? null,
+    carrierToday,
     expiresAt: invitation.expires_at,
     releases: releasesForApplicant(wording),
     releasesSigned: signed,

@@ -66,6 +66,8 @@ export const APPLY_COPY = {
      * places on one screen made the page read as if it were reassuring itself.
      */
     subtitle: (carrier: string): string => `For ${carrier}.`,
+    /** §391.21(b)(1) (C3c1): the employing carrier's name and address, on the application itself. */
+    employingCarrier: (carrier: string, address: string): string => `Employing carrier: ${carrier}, ${address}`,
     opening: "Opening your application…",
     stepOf: (n: number, total: number): string => `Step ${n} of ${total}`,
   },
@@ -208,6 +210,11 @@ export const APPLY_COPY = {
     add: "Add another address",
     remove: "Remove",
     optional: "Optional.",
+    /** §391.21(b)(3)'s three years, counted in months like the boxes above (C3c1, `addressCoverage`). */
+    coverageHeading: "The last three years",
+    coverageComplete: "Every month of the last three years has an address.",
+    gap: (from: string, to: string): string =>
+      from === to ? `No address for ${from}. Add where you lived then.` : `No address from ${from} to ${to}. Add where you lived then.`,
   },
 
   licence: {
@@ -309,8 +316,14 @@ export const APPLY_COPY = {
   certify: {
     heading: "Your certification",
     intro: "Typing your name is your signature.",
+    /**
+     * §391.21(b)(12)'s certification, word for word (C3c1): the regulation prescribes the sentence, and
+     * the printed application already carries it (`render.ts`). This box said "I certify that all
+     * entries…", which dropped "this application was completed by me". Source committed in
+     * docs/plans/recruitment/cfr-391-21/ and read back by "certifies in §391.21(b)(12)'s own words".
+     */
     statement:
-      "I certify that all entries on this application are true and complete to the best of my knowledge.",
+      "This certifies that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge.",
     signedName: "Your full name",
     dateNote: "The date is recorded for you when you sign.",
   },

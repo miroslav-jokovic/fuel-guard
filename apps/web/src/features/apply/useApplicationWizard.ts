@@ -3,6 +3,7 @@ import {
   APPLICATION_CROSS_FIELD_RULES,
   APPLICATION_FILLING_SECTIONS,
   APPLICATION_SECTION_KEYS,
+  applicationV2FilingIssues,
   driverApplicationObject,
   isApplicationSection,
   sectionOwning,
@@ -74,8 +75,31 @@ function toSectionIssue(
   };
 }
 
-/** Validate exactly one screen's fields against the contract. */
-export function validateSection(section: ApplicationSection, draft: ApplicationDraft): SectionIssue[] {
+/**
+ * A v2 filing's own rules, run on the page (C3c1, AW1): what `applicationSubmit.ts` refuses a v2 link
+ * with — the (b)(3) address years, the (b)(10) employer answers, every gap explained — asked while the
+ * driver still holds the form instead of at filing, in the office, after the office approved it.
+ *
+ * `asOf` is the carrier's day (`carrierToday`), the one filing judges against; null for a legacy link,
+ * which filing never asks (plan §7), and so neither does this. The issue's dotted path becomes the
+ * form's own path, so its message lands on the box that answers it.
+ */
+export function v2FilingIssues(draft: ApplicationDraft, asOf: string | null): SectionIssue[] {
+  if (!asOf) return [];
+  const candidate = toApplication(draft) as Parameters<typeof applicationV2FilingIssues>[0];
+  return applicationV2FilingIssues(candidate, asOf).map((issue) => {
+    const path = issue.path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) as FieldPath;
+    const key = String(path[0]) as keyof DriverApplicationFields;
+    return toSectionIssue({ code: "custom", message: issue.message, path }, sectionOwning(key), candidate);
+  });
+}
+
+/** Validate exactly one screen's fields against the contract — and, on a v2 link, filing's own rules. */
+export function validateSection(
+  section: ApplicationSection,
+  draft: ApplicationDraft,
+  v2AsOf: string | null = null,
+): SectionIssue[] {
   const keys = APPLICATION_SECTION_KEYS[section];
   if (keys.length === 0) return [];
 
@@ -109,6 +133,9 @@ export function validateSection(section: ApplicationSection, draft: ApplicationD
       );
     }
   }
+  // Only once the contract is satisfied: "Enter the city" and "Say why you left" about the same blank
+  // box would be two messages for one fix.
+  if (issues.length === 0) issues.push(...v2FilingIssues(draft, v2AsOf).filter((i) => i.section === section));
   return issues;
 }
 
@@ -135,7 +162,12 @@ export function issuesFromParse(
   });
 }
 
-export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<string | null>) {
+export function useApplicationWizard(
+  draft: ApplicationDraft,
+  resumeAt: Ref<string | null>,
+  /** The carrier's day on a v2 link, null on a legacy one — see `v2FilingIssues`. Read on each Continue. */
+  v2AsOf: () => string | null = () => null,
+) {
   const index = ref(0);
   /**
    * The furthest screen reached, which is NOT the current one.
@@ -190,7 +222,7 @@ export function useApplicationWizard(draft: ApplicationDraft, resumeAt: Ref<stri
 
   /** Try to advance. Returns false and shows what is missing when the screen is not complete. */
   function next(): boolean {
-    const found = validateSection(section.value, draft);
+    const found = validateSection(section.value, draft, v2AsOf());
     issues.value = found;
     if (found.length > 0) {
       focusFirstIssue(found);

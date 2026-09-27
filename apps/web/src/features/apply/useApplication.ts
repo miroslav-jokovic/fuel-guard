@@ -115,6 +115,17 @@ export interface ApplyEsignConsent {
 
 export interface ApplyInvitation {
   carrier: string;
+  /**
+   * §391.21(b)(1): "The name and address of the employing motor carrier" (C3c1) — the carrier's
+   * `legal_address`, the one the filed PDF prints. Null where none is recorded; absent from an API
+   * older than C3c1.
+   */
+  carrierAddress?: string | null;
+  /**
+   * The application's date on the CARRIER's clock (C3c1) — what filing judges the three-year windows
+   * against, so the page counts the same days. Absent from an API older than C3c1.
+   */
+  carrierToday?: string;
   expiresAt: string;
   releases: ApplyRelease[];
   /** Which instruments this link has already collected, so a resumed ceremony skips them (A5). */

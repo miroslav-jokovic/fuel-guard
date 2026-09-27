@@ -145,6 +145,20 @@ export function formatDisplayDate(value: string | Date | null | undefined, fallb
 }
 
 /**
+ * `MM/YYYY` — a month, the way `AppMonthField` shows one (§391.21(b)(3)'s address history is kept in
+ * months). Moved here from the apply form's `showMonth` on 2026-09-27 (C3c1), when the filing's own
+ * refusal first needed to name a month: one definition, read by both.
+ *
+ * Unparseable input comes back trimmed, for `formatDisplayDate`'s reason.
+ */
+export function formatDisplayMonth(value: string | null | undefined, fallback = EM_DASH): string {
+  const v = (value ?? "").trim();
+  if (v === "") return fallback;
+  const m = /^(\d{4})-(\d{2})$/.exec(v);
+  return m ? `${m[2]}/${m[1]}` : v;
+}
+
+/**
  * `MM/DD/YYYY h:mm AM/PM` — a date that also needs its moment: audit rows, sync stamps, message times.
  *
  * The clock is 12-hour and the hour is NOT zero-padded, because that is how the reader writes it; the

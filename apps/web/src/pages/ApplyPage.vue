@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { DEFAULT_ORG_TIMEZONE, todayInZone } from "@silvicom/shared";
 import {
   AppButton as BaseButton,
   AppCallout,
@@ -119,13 +120,23 @@ const restored = ref(false);
 const autosaveEnabled = ref(false);
 const furthestSection = ref<string | null>(null);
 
-const wizard = useApplicationWizard(draft, furthestSection);
+/**
+ * C3c1: on a v2 link, the carrier's day, so the form runs filing's own rules (`v2FilingIssues`) and judges
+ * the three-year windows on the day filing does. Read lazily — `isPartOneLink` is set up further down.
+ * ⚠ A bundle from an API older than C3c1 (the deploy window) has none: then the zone every carrier with no
+ * `operating_hours` runs on, as the server would — never this device's, which is the viewer's day.
+ */
+const carrierToday = computed(
+  () => invitation.data.value?.carrierToday ?? todayInZone(new Date(), DEFAULT_ORG_TIMEZONE),
+);
+const v2AsOf = (): string | null => (isPartOneLink.value ? carrierToday.value : null);
+const wizard = useApplicationWizard(draft, furthestSection, v2AsOf);
 /**
  * The two acts that end an application, and the validation in front of each (`useApplicationSending`).
  * It takes the wizard because a refused document has to land on the screen that owns the field.
  */
 const { sendError, justSent, handedOver, sending, handingOver, sendForReview, send } =
-  useApplicationSending(token, draft, wizard);
+  useApplicationSending(token, draft, wizard, v2AsOf);
 /**
  * Every control on every screen reads this to mark itself (D-AX3). Provided once here rather than
  * threaded through seven components as a prop — see `issues.ts` for why.
@@ -323,6 +334,10 @@ watch(
         </AppCallout>
       </div>
 
+      <!-- §391.21(b)(1): "The name and address of the employing motor carrier" belongs ON the application. -->
+      <p v-if="invitation.data.value.carrierAddress" class="text-sm text-ink-muted">
+        {{ APPLY_COPY.page.employingCarrier(invitation.data.value.carrier, invitation.data.value.carrierAddress) }}
+      </p>
       <ApplyProgress
         :index="wizard.index.value"
         :furthest="wizard.furthestIndex.value"
@@ -339,9 +354,9 @@ watch(
 
       <BaseCard>
         <ApplicantDetailsFields v-if="wizard.section.value === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
-        <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" />
+        <AddressHistoryFields v-else-if="wizard.section.value === 'addresses'" v-model="draft" :as-of="carrierToday" />
         <LicenceFields v-else-if="wizard.section.value === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
-        <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" />
+        <ApplyEmploymentFields v-else-if="wizard.section.value === 'employment'" v-model="draft" :as-of="carrierToday" />
         <SafetyHistoryFields v-else-if="wizard.section.value === 'safety'" v-model="draft" />
         <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
         <QuestionnaireFields v-else-if="wizard.section.value === 'questions'" v-model="draft" />

@@ -95,6 +95,16 @@ export interface DraftLicence {
   kind: string;
 }
 
+/**
+ * One stretch of the (b)(10) three years with no job, and what the applicant was doing (AW1, C3c1).
+ * The dates are the gap's own, as `employmentCoverage` computed it — the applicant types the words only.
+ */
+export interface DraftGap {
+  from: string;
+  to: string;
+  explanation: string;
+}
+
 export interface ApplicationDraft {
   first_name: string;
   middle_name: string;
@@ -122,6 +132,7 @@ export interface ApplicationDraft {
   prior_failed_pre_employment_test: boolean;
   employers: DraftEmployer[];
   declares_no_employment: boolean;
+  employment_gaps: DraftGap[];
   certified: boolean;
   signed_name: string;
   additional_licences: DraftLicence[];
@@ -194,6 +205,7 @@ export const emptyDraft = (): ApplicationDraft => ({
   licence_ever_denied: false, licence_denial_detail: "",
   prior_failed_pre_employment_test: false,
   employers: [emptyEmployer()], declares_no_employment: false,
+  employment_gaps: [],
   certified: false, signed_name: "",
   // Empty by default: §383.21 forbids a CMV driver holding more than one licence, so the normal
   // answer to "any others?" is none, and a pre-added blank row would invite an invented one.

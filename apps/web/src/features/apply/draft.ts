@@ -13,6 +13,7 @@ import {
   type DraftAddress,
   type DraftEmployer,
   type DraftEquipment,
+  type DraftGap,
   type DraftLicence,
   type DraftViolation,
 } from "./draftShape";
@@ -160,6 +161,11 @@ export function toApplication(draft: ApplicationDraft): unknown {
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     employers: draft.employers.filter((e) => e.employer_name.trim()).map(toEmployerPayload),
     declares_no_employment: draft.declares_no_employment,
+    // AW1 (C3c1): only explanations the applicant actually wrote. Which gaps exist is the employment
+    // screen's to keep current (`reconcileGapExplanations`); a box left empty is not an answer.
+    employment_gaps: draft.employment_gaps
+      .filter((g) => g.explanation.trim() !== "")
+      .map((g) => ({ from: g.from, to: g.to, explanation: g.explanation.trim() })),
     /**
      * The carrier's questions (A9). The version is stamped only when something was actually answered:
      * an application nobody answered a carrier question on should not claim to have been filed
@@ -231,6 +237,12 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     prior_failed_pre_employment_test: draft.prior_failed_pre_employment_test,
     employers: draft.employers,
     declares_no_employment: draft.declares_no_employment,
+    // ⚠ Listed, for `prior_failed_pre_employment_test`'s reason above: a key missing here is an answer
+    // the driver loses on reload, silently. And ONLY the gaps written about (C3c1): the office's
+    // correction path parses the whole saved draft with the contract (`applicationDraftPayloadSchema`),
+    // where an explanation cannot be empty — one empty box saved would refuse every correction the office
+    // then tried to make. The screen puts the empty boxes back from the gaps themselves on reload.
+    employment_gaps: draft.employment_gaps.filter((g) => g.explanation.trim() !== ""),
     additional_licences: draft.additional_licences,
     // A9: the carrier's answers autosave like every other answer. They hold no Social Security
     // number and no field D-APP3 protects — the definition is fixed in code, so nothing the driver
@@ -309,6 +321,11 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       state: state(e.state),
     })),
     declares_no_employment: bool("declares_no_employment"),
+    // Only rows whose three fields are strings: a gap row is dates the form computed plus words, and
+    // anything else in the payload is from a form that never wrote this key.
+    employment_gaps: rows<DraftGap>("employment_gaps", base.employment_gaps).filter(
+      (g) => typeof g?.from === "string" && typeof g.to === "string" && typeof g.explanation === "string",
+    ),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
     questionnaire:
       payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)

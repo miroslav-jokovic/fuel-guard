@@ -112,7 +112,7 @@ const SlideOverStub = {
 
 const screen = (draft: ApplicationDraft) =>
   mount(ApplyEmploymentFields, {
-    props: { modelValue: draft, "onUpdate:modelValue": (v: ApplicationDraft) => Object.assign(draft, v) },
+    props: { modelValue: draft, asOf: ASOF, "onUpdate:modelValue": (v: ApplicationDraft) => Object.assign(draft, v) },
     global: { stubs: { SlideOver: SlideOverStub } },
   });
 
@@ -273,5 +273,45 @@ describe("the hub, and one job at a time", () => {
     const w = screen(d);
     expect(button(w, "Add your first job")).toBeUndefined();
     expect(w.text()).not.toContain("How much you have accounted for");
+  });
+});
+
+/**
+ * C3c1 (AW1): a box per gap filing would refuse on — the same `applicationEmploymentGaps`, over the jobs
+ * as they would be filed — so the screen can never ask about a gap the filing does not, or miss one.
+ * `job()` starts 01/01/2024; on 09/11/2026 the window opens 09/11/2023, so four months before it are a gap.
+ */
+describe("explaining a gap (C3c1)", () => {
+  const draftWith = (over: Partial<ApplicationDraft>): ApplicationDraft => ({ ...emptyDraft(), ...over });
+  const boxes = (w: ReturnType<typeof screen>) => w.findAll("textarea");
+
+  it("shows one box per gap the filing would ask about, and keeps what is typed in the draft", async () => {
+    const draft = draftWith({ employers: [job()] });
+    const w = screen(draft);
+    await w.vm.$nextTick();
+    expect(boxes(w)).toHaveLength(1);
+    expect(w.text()).toContain(`${monthName("2023-09-11")} to ${monthName("2024-01-01")} is not covered`);
+    await boxes(w)[0]!.setValue("Looking for work");
+    expect(draft.employment_gaps).toEqual([{ from: "2023-09-11", to: "2024-01-01", explanation: "Looking for work" }]);
+  });
+
+  it("gives a driver who had no job one box for the whole three years", async () => {
+    const draft = draftWith({ employers: [emptyEmployer()], declares_no_employment: true });
+    const w = screen(draft);
+    await w.vm.$nextTick();
+    expect(boxes(w)).toHaveLength(1);
+    expect(draft.employment_gaps.map((g) => [g.from, g.to])).toEqual([["2023-09-11", "2026-09-11"]]);
+  });
+
+  it("asks for the jobs first — no box before any job is listed or none declared", async () => {
+    const w = screen(draftWith({ employers: [emptyEmployer()] }));
+    await w.vm.$nextTick();
+    expect(boxes(w)).toHaveLength(0);
+  });
+
+  it("shows no box when the three years are covered", async () => {
+    const w = screen(draftWith({ employers: [job({ started_on: "2020-01-01", ended_on: "" })] }));
+    await w.vm.$nextTick();
+    expect(boxes(w)).toHaveLength(0);
   });
 });

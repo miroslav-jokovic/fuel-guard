@@ -261,6 +261,24 @@ describe("opening the link", () => {
       .toContain("Federal Motor Carrier Safety Administration (FMCSA)");
   });
 
+  /**
+   * C3c1: §391.21(b)(1) puts "the name and address of the employing motor carrier" on the application,
+   * and the page judges the three-year windows against the CARRIER's day — the one filing uses — never
+   * the phone's. 03:30 UTC on 2026-09-27 is still 09/26 in Chicago, the zone a carrier with no
+   * `operating_hours` runs on.
+   */
+  it("serves the carrier's address and the carrier's calendar day, not the server's", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-27T03:30:00Z"), toFake: ["Date"] });
+    try {
+      holder.client = seed({}, { organizations: [{ name: "Silvicom Inc", legal_address: "1301 Armitage Ave, Melrose Park, IL 60160" }] }).client;
+      const body = (await (await call(`/${TOKEN}`)).json()) as { carrierAddress: string | null; carrierToday: string };
+      expect(body.carrierAddress).toBe("1301 Armitage Ave, Melrose Park, IL 60160");
+      expect(body.carrierToday).toBe("2026-09-26");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("hands back the phase stamps, and nothing else about the session", async () => {
     holder.client = seed({ consented_at: "2026-08-20T09:00:00Z" }).client;
     const res = await call(`/${TOKEN}`);
