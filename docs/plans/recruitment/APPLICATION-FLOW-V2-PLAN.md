@@ -816,3 +816,7 @@ Append dated lines at the END.
   MVR's jurisdictions from `application_intake_licences` and the 30-day freshness (AW7) go to C2b3 — no v2 link exists
   until C3; **C3 must mint the `application_intakes` row when a v2 invitation is created** (or state the cutover date),
   because "no row" is the whole legacy test and a new link that has not begun Part 1 would otherwise read legacy.
+- 2026-09-26 — **#1059 (D-PKT21 fines, D-HB7 receipts) was merged by mistake** (`7824337`) against this plan's hold
+  (§8.5 C2: "merges here only after Q-AW2 and Q-AW17 are ruled"), and **reverted** the same evening on the owner's
+  word. `f2b142e4` (20 marks, unfiled) was never filed while it was live. It re-merges after Q-AW2 and Q-AW17 are
+  ruled and A-5 (C2c) has landed.
