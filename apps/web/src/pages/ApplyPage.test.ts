@@ -629,7 +629,8 @@ describe("the applicant's page", () => {
     fetchMock.mockResolvedValue(partOnePage({}));
     const w = mountPage();
     await settle(w);
-    expect(w.text()).toContain(APPLY_COPY.partOne.about.heading);
+    // Step 1 is the CDL's front: its barcode (on the back) fills the typed screens after it (Q-AW31).
+    expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
     expect(w.text()).toContain(APPLY_COPY.partOne.step(1, 9));
     expect(w.text()).not.toContain("Your driver's licence");
     expect(w.text()).not.toContain("Your signature");
@@ -640,7 +641,7 @@ describe("the applicant's page", () => {
     const w = mountPage();
     await settle(w);
     expect(w.text()).toContain("Your signature");
-    expect(w.text()).not.toContain(APPLY_COPY.partOne.about.heading);
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
     expect(w.text()).not.toContain("Your driver's licence");
   });
 

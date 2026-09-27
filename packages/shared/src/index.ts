@@ -163,6 +163,8 @@ export * from "./applicantDisposition.js";
 export * from "./packetPlacements.js";
 export * from "./permissionInstrument.js";
 export * from "./jurisdictions.js";
+export * from "./aamvaBarcode.js";
+export * from "./aamvaIssuers.js";
 export * from "./savedViewContract.js";
 export * from "./dqFleetFilter.js";
 export * from "./driverEditMeaning.js";

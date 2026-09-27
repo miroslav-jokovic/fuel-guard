@@ -8,6 +8,7 @@ import {
   usMobilePhoneSchema,
   type ApplicantIntake,
   type ApplicantIntakeLicence,
+  type AamvaLicence,
   type ApplicationCaptureView,
   type PartOneStatus,
 } from "@silvicom/shared";
@@ -33,14 +34,23 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * including §40.25(j); (2) the licences; (3) the date of birth. Any other order loses a fact.
  */
 
+/**
+ * ⚠ **The CDL's two photographs come FIRST** (Q-AW31, default built in C3b1). §6.2's table put them at
+ * 8–9, after the typed licence screens, while the same table says those screens are "prefilled from
+ * the barcode on screen 9" — which no order but this can do: a prefill that never overwrites typed
+ * input (§6.6.4) has nothing left to fill once screens 3–5 are typed, and the date of birth, once
+ * written, is fill-only for the applicant (0376 → `record_applicant_identity`), so a later "correction"
+ * from the barcode would be dropped. Captures are open from the 7001(c) consent onward (AF3), so
+ * photographing first needs nothing from the server. The medical card stays after the questions.
+ */
 export const PART_ONE_SCREENS = [
+  "cdl_front",
+  "cdl_back",
   "about",
   "address",
   "licence",
   "otherLicences",
   "screening",
-  "cdl_front",
-  "cdl_back",
   "medical_card",
   "rights",
 ] as const;
@@ -278,11 +288,64 @@ export function resumeScreen(
   identityComplete: boolean,
   captures: readonly ApplicationCaptureView[],
 ): PartOneScreen {
+  for (const screen of ["cdl_front", "cdl_back"] as const) {
+    if (!photoDone(screen, captures, status.medicalCardPending)) return screen;
+  }
   if (!status.screening || !status.contact || !identityComplete) return "about";
   if (!status.address) return "address";
   if (!status.licences) return "licence";
-  for (const screen of PHOTO_SCREENS) {
-    if (!photoDone(screen, captures, status.medicalCardPending)) return screen;
-  }
+  if (!photoDone("medical_card", captures, status.medicalCardPending)) return "medical_card";
   return "rights";
+}
+
+// ── what the licence's barcode fills in (AW5, §6.6.4) ─────────────────────────────────────────
+
+/** The answers a barcode can fill, grouped by the screen that shows them. Part 1 has no name box. */
+export const PREFILL_FIELDS = {
+  about: ["date_of_birth"],
+  address: ["address_line1", "address_line2", "city", "state", "postal_code"],
+  licence: ["cdl.state_code", "cdl.licence_number", "cdl.expires_on"],
+} as const satisfies Partial<Record<PartOneScreen, readonly string[]>>;
+export type PrefilledField = (typeof PREFILL_FIELDS)[keyof typeof PREFILL_FIELDS][number];
+
+const blankAll = (...values: string[]): boolean => values.every((v) => v.trim() === "");
+
+/**
+ * Fill what the driver has not typed from what their licence says, and name what was filled.
+ *
+ * ⚠ **Blanks only, and a block only when the WHOLE block is blank.** The address and the current
+ * licence each fill as one piece or not at all: a typed street beside the barcode's city, or a typed
+ * number beside the barcode's issuing state, would be a record that is neither the driver's answer nor
+ * the licence's. The date of birth stands alone. Nothing is ever replaced — the driver's own typing
+ * wins, including typing done on a screen they then came back from.
+ *
+ * The filled values are shown in their boxes for the driver to check before Continue; nothing is
+ * written from here. The first write's order (`firstWrite`) is unchanged, because this only changes
+ * what the boxes hold before it runs.
+ */
+export function prefillFromLicence(a: PartOneAnswers, l: AamvaLicence): PrefilledField[] {
+  const filled: PrefilledField[] = [];
+  if (l.dateOfBirth && blankAll(a.date_of_birth)) {
+    a.date_of_birth = l.dateOfBirth;
+    filled.push("date_of_birth");
+  }
+  const addr = l.address;
+  if (addr.line1 && addr.city && blankAll(a.address_line1, a.address_line2, a.city, a.state, a.postal_code)) {
+    a.address_line1 = addr.line1;
+    a.address_line2 = addr.line2 ?? "";
+    a.city = addr.city;
+    a.state = addr.state ?? "";
+    a.postal_code = addr.postalCode ?? "";
+    filled.push(...PREFILL_FIELDS.address.filter((k) => a[k] !== ""));
+  }
+  const cdl = a.cdl;
+  if (l.licenceNumber && blankAll(cdl.state_code, cdl.licence_number, cdl.expires_on)) {
+    cdl.licence_number = l.licenceNumber;
+    cdl.state_code = l.issuingState ?? "";
+    cdl.expires_on = l.expiresOn ?? "";
+    filled.push("cdl.licence_number");
+    if (cdl.state_code) filled.push("cdl.state_code");
+    if (cdl.expires_on) filled.push("cdl.expires_on");
+  }
+  return filled;
 }

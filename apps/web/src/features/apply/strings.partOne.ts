@@ -26,6 +26,8 @@ export const APPLY_PART_ONE_COPY = {
     failed: "That did not save. Check your signal and try again.",
     /** A screen whose answers are already on file, reached again with Back. */
     onFile: "You have already given these. Leave them blank to keep them, or type them again to change them.",
+    /** A screen some of whose boxes were filled from the licence's barcode (AW5) — the driver confirms them. */
+    fromLicence: "Some answers below were read from your licence. Check them, and change anything that is wrong.",
     kept: (carrier: string): string =>
       `${carrier} already had some of these on file, so those were kept. If anything is wrong, tell ${carrier}.`,
     yes: "Yes",
@@ -117,6 +119,10 @@ export const APPLY_PART_ONE_COPY = {
     photo: {
       cdl_front: { heading: "Photo of the front of your CDL", hint: "Flat surface, no flash, all four corners in the picture." },
       cdl_back: { heading: "Photo of the back of your CDL", hint: "The side with the barcode. Flat surface, no flash." },
+      /** AW5: the barcode is read in the phone, after the photo is saved. Reading it never blocks Continue. */
+      reading: "Reading the barcode on your licence…",
+      readFilled: "We read your licence's barcode and filled in some of the next screens. Check each answer before you continue.",
+      readNothing: "The barcode could not be read. That's fine — you'll type your details on the next screens.",
       medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate." },
       required: "Take the photo to continue.",
       noMedicalCard: "I don't have a medical card yet",

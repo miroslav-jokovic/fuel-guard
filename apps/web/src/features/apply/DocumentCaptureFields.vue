@@ -27,11 +27,14 @@ const props = defineProps<{
    * the identity step). The screen's own introduction is about the whole set, so it is left out.
    */
   only?: readonly ApplicationCaptureSlot[];
+  /** Passed through to `useApplicationCaptures` — the original of each photograph once it is staged (AW5). */
+  onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
 }>();
 
 const copy = APPLY_COPY.documents;
 const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"), {
   ...(props.only ? { only: props.only } : {}),
+  ...(props.onStaged ? { onStaged: props.onStaged } : {}),
 });
 const anyBusy = computed(() => captures.busy.value !== null);
 </script>

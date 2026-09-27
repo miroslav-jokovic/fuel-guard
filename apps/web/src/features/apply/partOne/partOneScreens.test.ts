@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ApplicationCaptureView, PartOneStatus } from "@silvicom/shared";
+import type { AamvaLicence, ApplicationCaptureView, PartOneStatus } from "@silvicom/shared";
 import {
   emptyPartOneAnswers,
   firstWrite,
   licenceList,
+  PART_ONE_SCREENS,
+  prefillFromLicence,
   resumeScreen,
   screeningPayload,
   validateAbout,
@@ -123,19 +125,81 @@ describe("each screen's check", () => {
 });
 
 describe("where a returning applicant resumes", () => {
-  it("starts from the beginning until §40.25(j) is on file — nothing before it could be saved", () => {
-    expect(resumeScreen(status({ screening: false }), false, [])).toBe("about");
+  const both = [cap("cdl_front"), cap("cdl_back")];
+
+  it("photographs the CDL first — its barcode fills the typed screens after it (Q-AW31)", () => {
+    expect(PART_ONE_SCREENS.slice(0, 3)).toEqual(["cdl_front", "cdl_back", "about"]);
+    expect(resumeScreen(status({ screening: false }), false, [])).toBe("cdl_front");
+    expect(resumeScreen(status({ screening: false }), false, [cap("cdl_front")])).toBe("cdl_back");
+  });
+
+  it("starts at screen 3 until §40.25(j) is on file — nothing typed before it could be saved", () => {
+    expect(resumeScreen(status({ screening: false }), false, both)).toBe("about");
   });
 
   it("goes back to screen 3 when the date of birth did not land", () => {
-    expect(resumeScreen(status(), false, [])).toBe("about");
+    expect(resumeScreen(status(), false, both)).toBe("about");
   });
 
-  it("opens on the first photograph still owed, then the rights", () => {
+  it("asks for a CDL photo still owed before anything else, then the medical card, then the rights", () => {
     expect(resumeScreen(status(), true, [])).toBe("cdl_front");
     expect(resumeScreen(status(), true, [cap("cdl_front")])).toBe("cdl_back");
-    expect(resumeScreen(status(), true, [cap("cdl_front"), cap("cdl_back")])).toBe("medical_card");
-    expect(resumeScreen(status({ medicalCardPending: true }), true, [cap("cdl_front"), cap("cdl_back")])).toBe("rights");
-    expect(resumeScreen(status(), true, [cap("cdl_front"), cap("cdl_back"), cap("medical_card")])).toBe("rights");
+    expect(resumeScreen(status(), true, both)).toBe("medical_card");
+    expect(resumeScreen(status({ medicalCardPending: true }), true, both)).toBe("rights");
+    expect(resumeScreen(status(), true, [...both, cap("medical_card")])).toBe("rights");
+  });
+});
+
+describe("what the licence's barcode fills in (AW5)", () => {
+  const licence = (over: Partial<AamvaLicence> = {}): AamvaLicence => ({
+    aamvaVersion: 10, iin: "636035", issuingState: "IL", licenceNumber: "J12345678901",
+    familyName: "KOWALSKI", firstName: "ANNA", middleName: null,
+    dateOfBirth: "1979-11-30", expiresOn: "2027-11-30",
+    address: { line1: "123 N STATE ST", line2: "APT 4B", city: "CHICAGO", state: "IL", postalCode: "60601" },
+    ...over,
+  });
+
+  it("fills every blank box it can, and names each one", () => {
+    const a = emptyPartOneAnswers();
+    expect(prefillFromLicence(a, licence()).sort()).toEqual([
+      "address_line1", "address_line2", "cdl.expires_on", "cdl.licence_number", "cdl.state_code",
+      "city", "date_of_birth", "postal_code", "state",
+    ]);
+    expect(a).toMatchObject({
+      date_of_birth: "1979-11-30", address_line1: "123 N STATE ST", address_line2: "APT 4B", city: "CHICAGO",
+      state: "IL", postal_code: "60601",
+      cdl: { state_code: "IL", licence_number: "J12345678901", expires_on: "2027-11-30", cdl_class: "" },
+    });
+  });
+
+  it("never replaces what the driver typed", () => {
+    const a = { ...emptyPartOneAnswers(), date_of_birth: "1985-03-07" };
+    expect(prefillFromLicence(a, licence())).not.toContain("date_of_birth");
+    expect(a.date_of_birth).toBe("1985-03-07");
+  });
+
+  it("fills the address and the CDL each as a whole or not at all — one typed box keeps the block the driver's", () => {
+    const a = emptyPartOneAnswers();
+    a.postal_code = "60432";
+    a.cdl.licence_number = "D123";
+    expect(prefillFromLicence(a, licence())).toEqual(["date_of_birth"]);
+    expect(a).toMatchObject({ address_line1: "", city: "", postal_code: "60432" });
+    expect(a.cdl).toMatchObject({ state_code: "", licence_number: "D123", expires_on: "" });
+  });
+
+  it("names only what the barcode actually held", () => {
+    const a = emptyPartOneAnswers();
+    const filled = prefillFromLicence(a, licence({
+      issuingState: null, expiresOn: null, dateOfBirth: null,
+      address: { line1: "1 MAIN ST", line2: null, city: "JOLIET", state: null, postalCode: null },
+    }));
+    expect(filled.sort()).toEqual(["address_line1", "cdl.licence_number", "city"]);
+    expect(a).toMatchObject({ address_line2: "", state: "", postal_code: "", cdl: { state_code: "", expires_on: "" } });
+  });
+
+  it("leaves an address with no street or no city for the driver to type", () => {
+    const a = emptyPartOneAnswers();
+    prefillFromLicence(a, licence({ address: { line1: null, line2: null, city: "CHICAGO", state: "IL", postalCode: "60601" } }));
+    expect(a).toMatchObject({ city: "", state: "", postal_code: "" });
   });
 });

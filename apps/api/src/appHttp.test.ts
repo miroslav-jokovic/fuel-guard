@@ -85,7 +85,9 @@ describe("the page's own content-security-policy", () => {
 
   it("does not let a script come from anywhere but this origin", async () => {
     const csp = await cspOf();
-    // The directive the two above are most likely to be widened by accident alongside.
-    expect(csp["script-src"]).toEqual(["'self'"]);
+    // The directive the two above are most likely to be widened by accident alongside. The one addition
+    // compiles WebAssembly (the licence-barcode decoder, AW5) and admits no origin and no `eval`.
+    expect(csp["script-src"]).toEqual(["'self'", "'wasm-unsafe-eval'"]);
+    expect(csp["script-src"]).not.toContain("'unsafe-eval'");
   });
 });

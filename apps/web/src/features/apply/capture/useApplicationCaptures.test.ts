@@ -6,6 +6,29 @@ import type { CaptureIo } from "./stageCapture";
 import { useApplicationCaptures } from "./useApplicationCaptures";
 
 /**
+ * The DEFAULT provider, replaced by one that runs the picker it is given and accepts what it returns —
+ * so the `onStaged` test below can see which file the composable hands on (the original, AW5). Every
+ * other test here injects its own provider and never reaches this.
+ */
+const ORIGINAL = new File(["the phone's own photograph"], "IMG_0001.jpg", { type: "image/jpeg" });
+vi.mock("./webImageIo", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./webImageIo")>()),
+  pickPhotoFromCamera: async () => ORIGINAL,
+}));
+vi.mock("./webFileProvider", () => ({
+  createWebFileProvider: (_config: unknown, options: { pick: () => Promise<File | null> }): CaptureProvider => ({
+    id: "default",
+    version: "0",
+    isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
+    scan: async () => {
+      await options.pick();
+      return { ok: true, pages: [page()] };
+    },
+    cancel: () => {},
+  }),
+}));
+
+/**
  * The capture screen's state machine (A8).
  *
  * The property this file exists for is A7's, one layer up: **a photograph the gate refused never
@@ -247,5 +270,35 @@ describe("the picture the driver just sent", () => {
 
     expect(slotState(captures.slots.value, "cdl_front")).toBe("done");
     expect(held(captures, "cdl_front")).toBeNull();
+  });
+});
+
+describe("handing on the photograph once it is staged (AW5)", () => {
+  it("hands on the ORIGINAL the driver took — not the downscaled upload — and only after the confirm", async () => {
+    const io = spyIo();
+    const onStaged = vi.fn(() => io.calls.push("onStaged"));
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io, onStaged });
+    await captures.capture("cdl_back");
+    expect(io.calls).toEqual(["start", "upload", "confirm", "onStaged"]);
+    expect(onStaged).toHaveBeenCalledWith("cdl_back", ORIGINAL);
+  });
+
+  it("hands on the staged bytes when an injected provider has no original", async () => {
+    const onStaged = vi.fn();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: true, pages: [page()] }), io: spyIo(), onStaged });
+    await captures.capture("cdl_back");
+    expect(onStaged).toHaveBeenCalledWith("cdl_back", expect.any(Blob));
+    expect(onStaged.mock.calls[0]![1]).not.toBe(ORIGINAL);
+  });
+
+  it("says nothing when the photograph never reached the bucket", async () => {
+    const onStaged = vi.fn();
+    const failing = spyIo({ upload: async () => { throw new Error("offline"); } });
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io: failing, onStaged });
+    await captures.capture("cdl_back");
+    expect(onStaged).not.toHaveBeenCalled();
+    const refused = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: false, reason: "IMAGE_BLURRED" }), io: spyIo(), onStaged });
+    await refused.capture("cdl_back");
+    expect(onStaged).not.toHaveBeenCalled();
   });
 });
