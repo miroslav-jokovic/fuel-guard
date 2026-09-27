@@ -23,6 +23,7 @@ import { submitApplication } from "./applicationSubmit.js";
 import { recordRelease } from "./applicationReleases.js";
 import { PSP_VERSION } from "./defaultWording.js";
 import { PSP_MANDATED_INTENT, pspDisclosure } from "./pspDisclosure.js";
+import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
 
 /**
  * The unauthenticated intake. The token is the ENTIRE access-control story here, so most of what is
@@ -111,14 +112,17 @@ const submittableInvitation = (over: Record<string, unknown> = {}) =>
  * rather than an abbreviation of the first — so a fixture that put the full name on all twenty-two
  * would agree with a gate that could not tell the two apart.
  */
+/** A-5 (C2c): every place signed under the text that prints now — filing refuses any other. */
+const PRINTED = await packetTextVersion();
+
 const signedPacket = (
   name = "Susan Godfrey",
   ids: string[] = driverPlacementIds(null),
   initials = "SG",
-): Array<{ placement_id: string; mark: string; signed_name: string }> =>
+): Array<{ placement_id: string; mark: string; signed_name: string; packet_version: string }> =>
   ids.map((placement_id) => {
     const mark = packetPlacementById(placement_id)?.mark ?? "signature";
-    return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
+    return { placement_id, mark, signed_name: mark === "initials" ? initials : name, packet_version: PRINTED };
   });
 
 /**

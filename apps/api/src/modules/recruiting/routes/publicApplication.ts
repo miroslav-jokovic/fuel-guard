@@ -102,6 +102,12 @@ export function publicApplicationRouter(): Router {
               // world the request conflicts with, and something the driver can still put right.
               || result.code === "packet_not_signed"
               || result.code === "packet_name_mismatch"
+              // A-5 (C2c): marks made under another text, or under no recorded text (Q-AW2); and
+              // AW1's v2 rules on the composed payload. Each is the state of the application, and
+              // none is the link's fault.
+              || result.code === "packet_text_changed"
+              || result.code === "packet_signed_before_versioning"
+              || result.code === "application_incomplete"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -323,6 +329,8 @@ export function publicApplicationRouter(): Router {
                 || result.code === "packet_mark_already_made"
                 || result.code === "packet_mark_name_changed"
                 || result.code === "packet_mark_not_their_capacity"
+                // A-5: the text moved under a half-signed packet — the state of the world, not the request.
+                || result.code === "packet_text_changed"
                 || result.code === "esign_consent_required"
               ? 409
               // A stop that is not the driver's is a bad request rather than a conflict: nothing

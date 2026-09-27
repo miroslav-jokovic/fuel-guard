@@ -38,7 +38,7 @@ export type FixtureRow = Record<string, unknown>;
  */
 export function postgrestFixture(rows: readonly FixtureRow[]): (q: RecordedQuery) => FixtureRow[] {
   return (q: RecordedQuery) => {
-    let out = rows.filter((row) => q.filters().every((f) => matches(row[f.col], f.val)));
+    let out = rows.filter((row) => q.filters().every((f) => matches(cellOf(row, f.col), f.val)));
 
     // ⚠ The projection is the half that caught B3's missing `revokes`: a service that never selects
     // a column must not be handed it, or the test cannot tell reading from not reading.
@@ -92,6 +92,15 @@ function project(row: FixtureRow, item: string): [string, unknown] | null {
   }
   return [alias ?? key, value];
 }
+
+/**
+ * The cell a filter names — a column, or a JSON path (`.eq("detail->>source", …)`), evaluated the way
+ * `project` evaluates a select item. ⚠ Read as a plain key, a path is a column no row has, so every
+ * row reads null and a filter on it matches nothing — the shape of a test that passes by returning
+ * nothing (A-10's road-test read, C2c).
+ */
+const cellOf = (row: FixtureRow, col: string): unknown =>
+  col.includes("->") ? (project(row, col)?.[1] ?? null) : row[col];
 
 /**
  * One filter, against one cell.

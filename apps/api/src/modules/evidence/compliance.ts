@@ -76,7 +76,9 @@ export async function insertQualificationRecord(
     reference: req.reference ?? null, document_id: req.documentId ?? null,
     detail: req.detail ?? {}, created_by: userId,
   });
-  if (error) return err("insert_failed", error.message);
+  // A-10 (0376): the ceremonies' one-record-per-invitation indexes answer 23505, which a caller must be
+  // able to tell from a write that failed — "it is already on file" is not an outage.
+  if (error) return err((error as { code?: string }).code === "23505" ? "duplicate" : "insert_failed", error.message);
   return { id: req.id };
 }
 

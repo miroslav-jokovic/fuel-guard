@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   applicationAwaitsSignature,
+  applicationV2FilingIssues,
   applicationWordingIsDraft,
+  composeFiledApplication,
+  todayInZone,
+  type ApplicationFilingIssue,
   planApplicationIntake,
   type ApplicationSubmit,
   type ApplyingAs,
@@ -25,6 +29,9 @@ import {
 } from "./applicationIntake.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { uncopiedCallSummaries } from "./applicantEmployerCalls.js";
+import { partOneForFiling } from "./applicantIntake.js";
+import { carrierZone } from "./carrierClock.js";
+import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
 
 /**
  * Filing the certified §391.21 application — the last act on the link, and the only irreversible one.
@@ -123,6 +130,44 @@ export const PACKET_NAME_MISMATCH: IntakeError = {
 };
 
 /**
+ * A place was signed under packet text that is no longer the text this filing would print (A-5, C2c).
+ *
+ * ⚠ Refused, never filed under the new words: the marks are append-only, so a packet filed now would
+ * put wording the driver never saw above their signature for good — A-5's finding, and the reason
+ * #1059 was reverted. Which text such a packet IS filed under is Q-AW2's question.
+ */
+export const PACKET_FILED_TEXT_CHANGED: IntakeError = {
+  code: "packet_text_changed",
+  message:
+    "The carrier changed the wording of this form after you signed it, so it cannot be sent under your "
+    + "signature. Nothing is lost — contact the carrier's office.",
+};
+
+/**
+ * Places signed before marks recorded their text at all (A-5): production's 20 marks on `f2b142e4`,
+ * made 2026-09-17, before even D-PKT20's spelling corrections changed the printed words.
+ *
+ * ── WHY THIS REFUSES RATHER THAN FILES (plan §11 Q-AW2, unruled) ──────────────────────────────
+ * Q-AW2's recommended answer (b) is to file such a packet under the text it was signed under. That
+ * needs the renderer to print an EARLIER text — a register per version and a way to pick it — which is
+ * the "versioned packet templates" §8.3 holds until Q-AW2 is answered. Filing under today's text
+ * instead would be answer (c) by default, chosen by nobody; refusing is the one reversible choice, and
+ * it lifts itself when the ruling's code lands. Recorded as C2c's blocker in §11.
+ */
+export const PACKET_SIGNED_BEFORE_VERSIONING: IntakeError = {
+  code: "packet_signed_before_versioning",
+  message:
+    "Some of this form was signed before the carrier's wording was tracked, so it cannot be sent yet. "
+    + "Nothing is lost — the carrier's office will contact you.",
+};
+
+/** AW1's v2 rules, and Part 1's own, unmet on the composed application — each named for the applicant. */
+const applicationIncomplete = (issues: readonly ApplicationFilingIssue[]): IntakeError => ({
+  code: "application_incomplete",
+  message: `Before this can be sent: ${issues.map((i) => i.message).join("; ")}.`,
+});
+
+/**
  * May this session file? — the packet's half of the answer (D-PKT15).
  *
  * ⚠ **Written HERE rather than imported from `applicationPacketMarks.ts`, and the reason survived
@@ -146,10 +191,12 @@ export async function packetIsSignedThrough(
 ): Promise<IntakeError | null> {
   const { data } = await admin
     .from("application_packet_marks")
-    .select("placement_id, mark, signed_name")
+    .select("placement_id, mark, signed_name, packet_version")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId);
-  const rows = (data ?? []) as Array<{ placement_id: string; mark: string; signed_name: string }>;
+  const rows = (data ?? []) as Array<{
+    placement_id: string; mark: string; signed_name: string; packet_version: string | null;
+  }>;
 
   // ⚠ DISTINCT placements, not rows. The unique index makes a duplicate impossible today; counting
   // rows would still be the wrong question, because what has to be true is that every PLACE carries
@@ -158,6 +205,11 @@ export async function packetIsSignedThrough(
   const missing = driverPlacementIds(applyingAs).filter((id) => !marked.has(id));
   if (missing.length > 0) return PACKET_NOT_SIGNED;
   if (marked.size < packetDriverMarkCount(applyingAs)) return PACKET_NOT_SIGNED;
+  // A-5: every place under the text this filing prints. A mark with NO version is refused first, so a
+  // packet mixing the two says what the office has to rule on rather than what changed.
+  if (rows.some((r) => !r.packet_version)) return PACKET_SIGNED_BEFORE_VERSIONING;
+  const printing = await packetTextVersion();
+  if (rows.some((r) => r.packet_version !== printing)) return PACKET_FILED_TEXT_CHANGED;
 
   /**
    * The SIGNATURE the driver adopted, which `record_packet_mark` has pinned to one value per link
@@ -242,8 +294,24 @@ export async function submitApplication(
    * the body here, the same overlay the draft save applies (`identityOnRecord`); columns still null
    * — an applicant from before AF3 — leave what they typed alone, for the 0231 projection to file.
    */
+  /**
+   * D-AW3 / AW2 (C2c): a v2 invitation files the certified application with Part 1's facts laid over
+   * it (`composeFiledApplication`), and must meet AW1's rules on that COMPOSED document — the one that
+   * is filed, so the rules and the file cannot judge two different texts. A legacy invitation (no Part
+   * 1 row) is asked nothing new and files what it certified, as before.
+   */
+  let certified = body.application;
+  const partOne = await partOneForFiling(admin, invitation.org_id, invitation.id);
+  if (partOne) {
+    const asOf = todayInZone(now, await carrierZone(admin, invitation.org_id));
+    const composed = composeFiledApplication(body.application, partOne.intake, partOne.licences, asOf);
+    const issues = [...composed.issues, ...applicationV2FilingIssues(composed.application, asOf)];
+    if (issues.length > 0) return applicationIncomplete(issues);
+    certified = composed.application;
+  }
+
   const application = {
-    ...body.application,
+    ...certified,
     ...(await identityOnRecord(admin, invitation.org_id, invitation.driver_id)),
   };
 

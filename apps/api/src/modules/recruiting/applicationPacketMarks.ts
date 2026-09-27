@@ -11,6 +11,7 @@ import {
 } from "@silvicom/shared";
 import { draftApplyingAs } from "./applicantApplyingAs.js";
 import { loadCarrierWording } from "./carrierWording.js";
+import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
 import {
   isIntakeError,
   requireEsignConsent,
@@ -116,6 +117,18 @@ export const PACKET_MARK_WITHDRAWN: IntakeError = {
 export const PACKET_MARK_NOT_THEIR_CAPACITY: IntakeError = {
   code: "packet_mark_not_their_capacity",
   message: "You are applying as a company driver, so you do not sign this one. Carry on with the next.",
+};
+
+/**
+ * The packet's printed text changed between this driver's earlier places and this one (A-5, 0376's
+ * DR037). Nothing already signed is touched; which text the finished packet is filed under is the
+ * office's question (Q-AW2), so the driver is told to stop rather than to carry on.
+ */
+export const PACKET_TEXT_CHANGED: IntakeError = {
+  code: "packet_text_changed",
+  message:
+    "The carrier changed the wording of this form after you started signing it. Stop here and contact "
+    + "the carrier's office — nothing you signed is lost.",
 };
 
 export const PACKET_MARK_NAME_CHANGED: IntakeError = {
@@ -288,6 +301,15 @@ export async function recordPacketMark(
     // and the reason counsel ruling on page 19's duplicate moves one array rather than a constant
     // in a migration nobody remembers to open.
     p_expected_count: packetDriverMarkCount(applyingAs),
+    /**
+     * A-5 (C2c): the text this place was signed under, which selects 0376's thirteen-argument overload
+     * — the eleven-argument one stamps nothing, which is how production's 20 marks came to carry no
+     * version at all. Stamped by the server, like `p_page` and `p_affirmed`: the driver's screen shows
+     * the place, not the page's words, so the text in force is the one this process prints.
+     * `p_adoption_id` stays null until D-AW15's adoption screen (C3s) exists to name one.
+     */
+    p_packet_version: await packetTextVersion(),
+    p_adoption_id: null,
   });
   if (error) {
     if (error.code === "DR034" || /packet_mark_already_made/.test(error.message)) {
@@ -295,6 +317,9 @@ export async function recordPacketMark(
     }
     if (error.code === "DR035" || /packet_mark_name_changed/.test(error.message)) {
       return refused(PACKET_MARK_NAME_CHANGED);
+    }
+    if (error.code === "DR037" || /packet_version_changed/.test(error.message)) {
+      return refused(PACKET_TEXT_CHANGED);
     }
     if (error.code === "DR032" || /packet_not_yet_approved/.test(error.message)) {
       return refused(PACKET_NOT_APPROVED);
