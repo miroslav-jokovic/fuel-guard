@@ -34,6 +34,8 @@ const seed = (opts: {
   authorizations?: Array<Record<string, unknown>>;
   intakes?: Array<Record<string, unknown>>;
   trips?: Array<Record<string, unknown>>;
+  licences?: Array<Record<string, unknown>>;
+  drafts?: Array<Record<string, unknown>>;
 }) => {
   const org = (rows: Array<Record<string, unknown>>) => rows.map((r) => ({ org_id: ORG, ...r }));
   return createSupabaseRecorder({
@@ -44,12 +46,14 @@ const seed = (opts: {
       qualification_records: postgrestFixture(org(opts.records ?? [])),
       psp_requests: postgrestFixture([]),
       application_packet_marks: postgrestFixture([]),
-      application_drafts: postgrestFixture(org([{ id: "dr1", invitation_id: INVITE, payload: {} }])),
+      application_drafts: postgrestFixture(org(opts.drafts ?? [{ id: "dr1", invitation_id: INVITE, payload: {} }])),
       driver_employment_history: postgrestFixture([]),
       employer_inquiries: postgrestFixture([]),
       handbook_marks: postgrestFixture([]),
       application_intakes: postgrestFixture(org(opts.intakes ?? [])),
       applicant_travel: postgrestFixture(org(opts.trips ?? [])),
+      application_intake_licences: postgrestFixture(org(opts.licences ?? [])),
+      organizations: postgrestFixture([{ id: ORG, operating_hours: { tz: "America/Chicago" } }]),
     },
   });
 };
@@ -78,7 +82,7 @@ describe("the board and the drawer fold the same input", () => {
     const { drawer, board } = await bothDoors({
       invitation: { intake_completed_at: "2026-09-01T06:00:00Z", application_sent_at: "2026-09-03T00:00:00Z", review_requested_at: "2026-09-04T00:00:00Z" },
       intakes: [{ id: "in1", invitation_id: INVITE }],
-      records: gates.map((kind, i) => ({ id: `r${i}`, driver_id: DRIVER, kind, created_at: "2026-09-10T00:00:00Z" })),
+      records: gates.map((kind, i) => ({ id: `r${i}`, driver_id: DRIVER, kind, created_at: "2026-09-10T00:00:00Z", occurred_on: "2026-09-10" })),
       trips: [{ id: "t1", invitation_id: INVITE, cancelled_at: "2026-09-20T00:00:00Z" }],
     });
     expect(drawer.steps.find((s) => s.key === "intake_completed")!.state).toBe("done");
@@ -92,7 +96,7 @@ describe("the board and the drawer fold the same input", () => {
     const gates = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "psp_report"];
     const { drawer, board } = await bothDoors({
       records: [
-        ...gates.map((kind, i) => ({ id: `r${i}`, driver_id: DRIVER, kind, created_at: "2026-09-10T00:00:00Z" })),
+        ...gates.map((kind, i) => ({ id: `r${i}`, driver_id: DRIVER, kind, created_at: "2026-09-10T00:00:00Z", occurred_on: "2026-09-10" })),
         // Recorded by the generic door before A-9 closed it: a result, and not a pass.
         { id: "rt", driver_id: DRIVER, kind: "road_test", created_at: "2026-09-11T00:00:00Z", detail: { passed: false } },
       ],
@@ -117,12 +121,54 @@ describe("the board and the drawer fold the same input", () => {
     expect(board.waiting_on).toBe("us");
   });
 
+  /**
+   * AW7 (C2b3): the licences an MVR is owed for come from Part 1's list first — never pruned, and the
+   * applicant's own answer to "every licence in three years" — so a draft that names only Illinois
+   * cannot talk the step out of Wisconsin's record. On both doors.
+   */
+  it("AW7: owes an MVR for every Part 1 licence, whatever the draft says, on both", async () => {
+    const { drawer, board } = await bothDoors({
+      invitation: { intake_completed_at: "2026-09-10T15:00:00Z" },
+      intakes: [{ id: "in1", invitation_id: INVITE }],
+      licences: [
+        { id: "l2", invitation_id: INVITE, position: 1, state_code: "WI" },
+        { id: "l1", invitation_id: INVITE, position: 0, state_code: "IL" },
+      ],
+      drafts: [{ id: "dr1", invitation_id: INVITE, payload: { cdl_state: "IL" } }],
+      records: [{ id: "m1", driver_id: DRIVER, kind: "mvr", created_at: "2026-09-12T00:00:00Z", occurred_on: "2026-09-12", detail: { jurisdiction: "IL" } }],
+    });
+    const mvr = drawer.steps.find((s) => s.key === "mvr")!;
+    expect(mvr.state).toBe("waiting_on_us");
+    expect(mvr.outstandingJurisdictions).toEqual(["WI"]);
+    expect(board.done).toBe(drawer.done);
+    expect(board.next).toBe(drawer.next);
+  });
+
+  /**
+   * G-3 (C2b3): an MVR dated more than thirty carrier days before Part 1 finished is somebody else's
+   * hire. Part 1 finished at 03:00 UTC on 09-11 — still 09-10 in Chicago — so the floor is 08-11, and
+   * a UTC reading would have put it a day later and refused the 08-11 record.
+   */
+  it("G-3: counts an MVR from the thirty carrier days before Part 1, and not one older, on both", async () => {
+    const at = (occurred_on: string) => bothDoors({
+      invitation: { intake_completed_at: "2026-09-11T03:00:00Z" },
+      intakes: [{ id: "in1", invitation_id: INVITE }],
+      records: [{ id: "m1", driver_id: DRIVER, kind: "mvr", created_at: "2026-09-12T00:00:00Z", occurred_on }],
+    });
+    const stale = await at("2026-08-10");
+    expect(stale.drawer.steps.find((s) => s.key === "mvr")!.state).not.toBe("done");
+    expect(stale.board.done).toBe(stale.drawer.done);
+    const fresh = await at("2026-08-11");
+    expect(fresh.drawer.steps.find((s) => s.key === "mvr")!.state).toBe("done");
+    expect(fresh.board.done).toBe(fresh.drawer.done);
+  });
+
   it("reads past PostgREST's 1,000-row answer, and scopes every page to the org", async () => {
     // 1,000 unrelated rows first, then the MVR: an unpaged read stops at row 1,000 and never sees it.
     const noise = Array.from({ length: 1000 }, (_, i) => ({
       id: `n${String(i).padStart(4, "0")}`, org_id: ORG, driver_id: DRIVER, kind: "annual_mvr_review", created_at: "2026-09-01T00:00:00Z",
     }));
-    const mvr = { id: "z-mvr", org_id: ORG, driver_id: DRIVER, kind: "mvr", created_at: "2026-09-12T00:00:00Z" };
+    const mvr = { id: "z-mvr", org_id: ORG, driver_id: DRIVER, kind: "mvr", created_at: "2026-09-12T00:00:00Z", occurred_on: "2026-09-12" };
     const all = [...noise, mvr];
     const paged = createSupabaseRecorder({
       tables: {

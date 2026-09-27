@@ -63,7 +63,11 @@ const seed = (over: {
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
       driver_authorizations: [],
       qualification_records: (q: RecordedQuery) =>
-        q.filters().some((f) => f.col === "driver_id") ? (over.kinds ?? []).map((kind) => ({ driver_id: DRIVER, kind })) : [],
+        q.filters().some((f) => f.col === "driver_id") ? (over.kinds ?? []).map((kind) => ({
+          driver_id: DRIVER, kind, occurred_on: "2026-09-18",
+          // AW7: the driver's row says Illinois, so that is the MVR owed.
+          ...(kind === "mvr" ? { jurisdiction: "IL" } : {}),
+        })) : [],
       application_drafts: [{ invitation_id: INV, payload: { first_name: "Susan" }, furthest_section: null, updated_at: "2026-09-20T10:00:00Z" }],
       application_packet_marks: [],
       driver_employment_history: [],

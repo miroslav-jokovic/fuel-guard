@@ -24,6 +24,7 @@ import {
   type SubmitContext,
 } from "./applicationIntake.js";
 import { identityOnRecord } from "./applicantIdentity.js";
+import { uncopiedCallSummaries } from "./applicantEmployerCalls.js";
 
 /**
  * Filing the certified §391.21 application — the last act on the link, and the only irreversible one.
@@ -261,6 +262,20 @@ export async function submitApplication(
   );
   if (isIntakeError(captures)) return captures;
 
+  /**
+   * D-AW8 (C2b3): the office's phone calls to previous employers, each copied by the filing into an
+   * `employer_inquiries` row against the employment row made from the same draft key, with the summary
+   * rendered here as its `body_sent`. Passing `p_call_summaries` selects 0376's thirteen-argument
+   * overload, which does the copying; with no call on file the call keeps its old shape and resolves
+   * exactly as before, so nothing changes for an application nobody rang about.
+   *
+   * ⚠ Why this lands with the call's writer and not later with C2c's composed payload: a call recorded
+   * against an application that then filed through the old overload would never be copied — the
+   * filing runs once — and the office's §391.23 work would be stranded in a table nothing reads after.
+   */
+  const callSummaries = await uncopiedCallSummaries(admin, invitation.org_id, invitation.id);
+  const copiesCalls = Object.keys(callSummaries).length > 0;
+
   const { data, error } = await admin.rpc("submit_driver_application", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
@@ -282,7 +297,8 @@ export async function submitApplication(
      * photographs can only come from a client the new API served, and if the migration is somehow
      * behind it fails loudly rather than dropping a driver's licence on the floor.
      */
-    ...(captures.length > 0 ? { p_captures: captures } : {}),
+    ...(captures.length > 0 || copiesCalls ? { p_captures: captures } : {}),
+    ...(copiesCalls ? { p_call_summaries: callSummaries } : {}),
   });
   if (error) {
     // DA022 is the race the FOR UPDATE lock caught — a second submission arrived between this

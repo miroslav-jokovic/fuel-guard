@@ -820,3 +820,25 @@ Append dated lines at the END.
   (§8.5 C2: "merges here only after Q-AW2 and Q-AW17 are ruled"), and **reverted** the same evening on the owner's
   word. `f2b142e4` (20 marks, unfiled) was never filed while it was live. It re-merges after Q-AW2 and Q-AW17 are
   ruled and A-5 (C2c) has landed.
+- 2026-09-26 — **C2b3 built** (`claude/applicant-flow-c2b3`): AW7's remainder, AW8, AW12. **AW7:** the MVR is owed per
+  licence from, in order, Part 1's list (`application_intake_licences`), else the live draft, else `drivers.cdl_state` —
+  the first that has any, never a union. **The plan's legacy copy into `application_intake_licences` is NOT built:**
+  measured on production, every draft names one state and no additional licence, so source 3 already holds what a copy
+  would carry. **G-3:** an MVR counts only if `occurred_on` ≥ 30 carrier days before Part 1 finished (legacy: before the
+  invitation) — `mvrFreshSince`, `MVR_FRESH_DAYS`; the fold's input `mvrJurisdictions` became `mvrs` (jurisdiction +
+  date). Production held 0 MVR rows, so no row changed colour. **AW8:** `drug_test_appointments` writer
+  (`applicantDrugTest.ts`, `GET/POST/DELETE …/drug-test-appointments`, `DrugTestPanel.vue`) — operational, never read by
+  the fold (the step already rests on "them"); **not sent to the driver** — `sent_to_driver_at` is C2d's, through
+  `sms_outbox`. **D-AW5:** `clearinghouse_portal_consent` in `QUALIFICATION_RECORD_KINDS` + `TESTING_RECORD_KINDS`;
+  `POST …/clearinghouse-portal-consent` (safety manager/admin, same-day replay); the Clearinghouse row now reads
+  **"waiting on them" until a consent is on file**, then "waiting on us"; the drawer warns (never refuses) when the drug
+  result is not in. **AW12:** `employer_verification_calls` writer (`applicantEmployerCalls.ts`, `…/employer-calls`,
+  `EmployerCallsPanel.vue`), keyed on the draft's employer `key`, name read from the draft, refused after filing;
+  **filing copies the calls now, not in C2c** — `submitApplication` passes `p_call_summaries` (rendered by
+  `verificationCallSummary`, `PHONE_CALL_WORDING_VERSION` pinned to 0376's `'phone-call-v1'`) and so selects 0376's
+  thirteen-argument overload whenever a call is uncopied, because a call filed through the old overload would never be
+  copied. The apply form mints employer keys (`newEmployerKey`; `fromDraftPayload` mints for a keyless entry;
+  `AddEmployerForm`). `carrierClock.ts` holds the one wall-time reading (travel moved onto it). `expectOrgScoped` learned
+  that `organizations` read by `id` = org is scoped. 13 mutants, all killed. **Owed, named:** an employer typed before keys
+  (`f2b142e4`'s, unless its draft is saved again) cannot take a call before filing — after filing it is on the inquiry
+  list; C2c still owes the composed payload, A-5, A-10; C2d the sends.

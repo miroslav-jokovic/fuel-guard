@@ -224,12 +224,16 @@ function evidenceFor(
       // ⚠ §391.23(a)(1): one record per state that licensed the driver, not one record (AF7). Before
       // anything is declared the list is empty and the rule is what it always was — one MVR. An MVR
       // recorded without a jurisdiction covers no declared state; `mvrJurisdictions.ts` says why.
+      // ⚠ G-3: only an MVR dated on or after `mvrFreshSince` is evidence for THIS application; an older
+      // one neither ticks the step nor covers a state, so its state is named as still needed.
+      const floor = input.mvrFreshSince ?? null;
+      const fresh = input.mvrs?.filter((m) => floor === null || m.occurredOn >= floor);
       const outstanding = mvrJurisdictionsOutstanding(
         input.licenceJurisdictions ?? [],
-        input.mvrJurisdictions ?? [],
+        (fresh ?? []).map((m) => m.jurisdiction),
       );
       return {
-        done: hasKind(input, "mvr") && outstanding.length === 0,
+        done: (fresh ? fresh.length > 0 : hasKind(input, "mvr")) && outstanding.length === 0,
         inFlight: false,
         outstandingJurisdictions: outstanding,
       };
@@ -243,8 +247,18 @@ function evidenceFor(
         inFlight: input.psp?.requested === true,
       };
     case "clearinghouse":
-      return { done: hasKind(input, "clearinghouse_full"), inFlight: false };
+      // D-AW5: the full query needs the driver's §382.703 consent, which only the driver can give, in
+      // FMCSA's portal. Until the office records seeing it (`clearinghouse_portal_consent`) the next
+      // move is theirs — register and consent — and after it, ours: run the query. `requires: []`
+      // stays; the order after the drug result is a warning in the drawer, never an edge.
+      return {
+        done: hasKind(input, "clearinghouse_full"),
+        inFlight: !hasKind(input, "clearinghouse_portal_consent"),
+      };
     case "drug_test":
+      // ⚠ D-AW6's appointment is NOT read here. The step already rests on the driver ("them" — they go
+      // to the site), an appointment arranged outside the product is as good as one recorded in it, and
+      // the evidence is the result, never the booking. The drawer shows the appointment instead.
       return { done: hasKind(input, "drug_test"), inFlight: false };
     case "medical_certificate":
       return { done: hasKind(input, "medical_registry_verification"), inFlight: false };

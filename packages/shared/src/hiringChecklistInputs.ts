@@ -62,20 +62,32 @@ export interface HiringChecklistInputs {
    */
   handbook?: { openedAt: string | null; driverComplete: boolean } | null;
   /**
-   * The jurisdiction each MVR on file was recorded for — `detail.jurisdiction`, null where none was
-   * written (AF7). One entry per MVR row, not deduped: the fold only asks which are covered.
-   */
-  mvrJurisdictions?: readonly (string | null)[];
-  /**
-   * Every licensing jurisdiction the applicant has declared on the live invitation's draft
-   * (`declaredLicenceJurisdictions`). Empty while none is known, which is when one MVR is enough.
+   * Every MVR on file: the jurisdiction it was recorded for (`detail.jurisdiction`, null where none
+   * was written — AF7) and the date on the record (`occurred_on`). One entry per row, not deduped.
    *
-   * ⚠ The DRAFT, not the filed application: an application files at the very end, in the office,
-   * and the MVR is a `beforeTravel` gate — a rule that waited for the filing would learn about the
-   * second state after the plane ticket. Since AF3 the draft holds `cdl_state` from the permissions
-   * step onward, so this is known before the MVR is ordered.
+   * ⚠ Absent reads as the evidence before this field existed: an `mvr` KIND, covering no declared
+   * jurisdiction. A caller that forgets it leaves a declared state outstanding, the failure that shows.
+   */
+  mvrs?: readonly { jurisdiction: string | null; occurredOn: string }[];
+  /**
+   * G-3 (APPLICATION-FLOW-V2-PLAN §7, C2b3): the first calendar day an MVR may be dated and still
+   * count — thirty days before Part 1 finished (a legacy link: before the invitation), on the
+   * carrier's calendar. An MVR from an EARLIER application is a record about somebody else's hire.
+   * Absent or null: no floor, the rule before §7.
+   */
+  mvrFreshSince?: string | null;
+  /**
+   * Every licensing jurisdiction the applicant has declared for THIS application, in the builder's
+   * order of trust (`applicantChecklistInputs.ts`): Part 1's licence list, else the live draft
+   * (`declaredLicenceJurisdictions`), else the licence state on the driver's own row. Empty while
+   * none is known, which is when one MVR is enough.
+   *
+   * ⚠ Never the filed application: it files at the very end, in the office, and the MVR is a
+   * `beforeTravel` gate — a rule that waited for the filing would learn about the second state after
+   * the plane ticket.
    */
   licenceJurisdictions?: readonly string[];
+
   /**
    * When the link's permission ceremony closed (`application_invitations.releases_completed_at`). A
    * closed ceremony asks for nothing more, so a purpose still missing after it is the office's to

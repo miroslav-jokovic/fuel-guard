@@ -273,6 +273,11 @@ export interface ApplicationDriverPatch {
 }
 
 export interface ApplicationEmploymentRow {
+  /**
+   * The draft entry's stable key (AW1). Not a column: `submit_driver_application` (0376's overload)
+   * matches the office's phone calls to the row it creates by it (D-AW8), and 0231's reads past it.
+   */
+  key: string | null;
   employer_name: string;
   usdot_number: string | null;
   /** §391.23(c)(2) requires the previous employer's name AND address in the record of the inquiry. */
@@ -297,6 +302,7 @@ export interface ApplicationEmploymentRow {
 }
 
 const employmentRow = (e: ApplicationEmployer): ApplicationEmploymentRow => ({
+  key: e.key ?? null,
   employer_name: e.employer_name,
   usdot_number: e.usdot_number ?? null,
   // The contract names these for the FORM the applicant fills in; the table names them for the

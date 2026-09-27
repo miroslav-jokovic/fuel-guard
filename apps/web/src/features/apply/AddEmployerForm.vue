@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, ref } from "vue";
 import { applicationEmployerSchema } from "@silvicom/shared";
+import { newEmployerKey } from "@/features/apply/draftShape";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -57,7 +58,11 @@ const form = reactive({
 });
 
 /** The contract's own object, with the keys this form does not ask for left empty rather than absent. */
+const key = ref(newEmployerKey());
+
 const candidate = computed(() => ({
+  // AW1: the new entry's stable reference, so the office can record a phone call against it (D-AW8).
+  key: key.value,
   employer_name: form.employer_name.trim(),
   usdot_number: "",
   address_line1: "",
@@ -84,6 +89,7 @@ const problem = computed(() => {
 function submit(): void {
   if (problem.value || props.pending) return;
   emit("add", ["employers", props.nextIndex], candidate.value);
+  key.value = newEmployerKey();
   Object.assign(form, {
     employer_name: "", city: "", state: "", phone: "", position_held: "",
     started_on: "", ended_on: "", operated_cmv: "yes", dot_regulated: "yes", reason_for_leaving: "",

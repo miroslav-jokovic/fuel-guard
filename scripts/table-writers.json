@@ -523,5 +523,11 @@
   ],
   "applicant_travel": [
     "apps/api/src/modules/recruiting/applicantTravel.ts"
+  ],
+  "drug_test_appointments": [
+    "apps/api/src/modules/recruiting/applicantDrugTest.ts"
+  ],
+  "employer_verification_calls": [
+    "apps/api/src/modules/recruiting/applicantEmployerCalls.ts"
   ]
 }

@@ -309,6 +309,8 @@ export const TESTING_RECORD_KINDS = [
    * lets hold the file.
    */
   "return_to_duty",
+  // §382.703 portal consent to the full query (0376, D-AW5) — in 0376's two restrictive policies too.
+  "clearinghouse_portal_consent",
 ] as const;
 
 /** §391.53(a)(1) investigation history. */

@@ -547,6 +547,51 @@ describe("the carrier's form has to be signed through", () => {
   });
 
   /**
+   * D-AW8 (C2b3): a phone call the office recorded before filing is copied into §391.23's record BY the
+   * filing — which only 0376's thirteen-argument overload does, and only with a summary per call
+   * (DA043). With no call on file the call keeps its old shape, so the old overload still answers it.
+   */
+  it("hands the filing each uncopied call's summary and the employer keys, and only when there is one", async () => {
+    const KEY = "40000000-0000-4000-8000-00000000000a";
+    const withEmployer = {
+      ...APPLICATION,
+      application: {
+        ...(APPLICATION as { application: Record<string, unknown> }).application,
+        declares_no_employment: false,
+        employers: [{
+          key: KEY, employer_name: "Kowlage Haulage", started_on: "2023-01-01", ended_on: "2025-06-30",
+          operated_cmv: true, dot_regulated: true,
+        }],
+      },
+    } as unknown as Parameters<typeof submitApplication>[3];
+    const call = {
+      id: "call-1", employer_key: KEY, employer_name: "Kowlage Haulage", answered_by: "Dana Whitfield",
+      called_at: "2026-09-24T15:15:00Z", copied_inquiry_id: null,
+      outcomes: { dates: "confirmed", position: "confirmed", reason: "confirmed", cmv: "confirmed", dot_tested: "confirmed" },
+      corrections: null,
+    };
+    const args = async (calls: unknown[]) => {
+      const rec = seed(invitation({ approved_at: "2026-09-11T09:00:00Z" }), signedPacket(), {
+        employer_verification_calls: calls,
+        organizations: [{ id: "org-1", name: "Silvicom", operating_hours: { tz: "America/Chicago" } }],
+      });
+      expect(isIntakeError(await submitApplication(rec.client, env(), TOKEN, withEmployer, CTX, NOW))).toBe(false);
+      return rec.rpcs().find((r) => r.fn === "submit_driver_application")!.args as Record<string, unknown>;
+    };
+
+    const copying = await args([call]);
+    expect(Object.keys(copying.p_call_summaries as object)).toEqual(["call-1"]);
+    expect((copying.p_call_summaries as Record<string, string>)["call-1"]).toContain("2026-09-24 10:15 (America/Chicago)");
+    // The thirteen-argument overload takes both with no defaults, so `p_captures` travels even empty.
+    expect(copying.p_captures).toEqual([]);
+    expect((copying.p_employment as Array<{ key: string }>)[0]!.key).toBe(KEY);
+
+    const plain = await args([]);
+    expect(plain).not.toHaveProperty("p_call_summaries");
+    expect(plain).not.toHaveProperty("p_captures");
+  });
+
+  /**
    * ⚠ Q-HM14: the places demanded are THIS applicant's, read from the payload being FILED — the one
    * document whose page 31 the overlay then prints. A company driver's twenty file; the same twenty
    * under an owner-operator's answer are one short, because p31b is theirs to sign.

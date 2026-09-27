@@ -107,6 +107,11 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     ],
     ...over,
   };
+  // `occurred_on` is NOT NULL in production and G-3 reads it: a record's own day, from its filing
+  // instant unless a test dates it itself.
+  rows.qualification_records = rows.qualification_records!.map((r) => ({
+    occurred_on: String(r.created_at).slice(0, 10), ...r,
+  }));
   return createSupabaseRecorder({
     tables: Object.fromEntries(
       Object.entries(rows).map(([name, list]) => [name, postgrestFixture(list.map(own))]),
@@ -359,6 +364,8 @@ describe("what it reads, and how much", () => {
         // §7 (C2b2): which links are v2, which have a live trip, and — for the legacy rule — whose
         // identity is on their own row.
         "application_intakes", "applicant_travel", "drivers",
+        // AW7 (C2b3): Part 1's licence list, and the carrier's zone G-3's thirty days are counted in.
+        "application_intake_licences", "organizations",
       ]),
     );
   });
@@ -374,7 +381,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same ten queries for six applicants as for one", async () => {
+  it("costs the same twelve queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -387,8 +394,9 @@ describe("what it reads, and how much", () => {
     );
     expect(many.queries.length).toBe(one.queries.length);
     // Seven since G-7 moved the draft read into the one builder (one `.in()` for all of them); ten
-    // since §7 added Part 1, the trip and the identity (C2b2) — each one `.in()` for the whole board.
-    expect(many.queries.length).toBe(10);
+    // since §7 added Part 1, the trip and the identity (C2b2) — each one `.in()` for the whole board;
+    // twelve since AW7 added Part 1's licences and the carrier's zone (C2b3), one each for the board.
+    expect(many.queries.length).toBe(12);
   });
 
   /**

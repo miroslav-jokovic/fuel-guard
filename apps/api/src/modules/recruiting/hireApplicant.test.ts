@@ -46,7 +46,7 @@ const seed = (over: { drivers?: unknown[]; employment?: unknown[]; records?: unk
         // ⚠ Keyed on the checklist's OWN read — the only one that selects the MVR's `jurisdiction`.
         // Every other read (the file's gaps, §40.25(j)'s return-to-duty check) gets the test's rows:
         // two earlier discriminators each handed one read the other's answer, found by probing.
-        selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ driver_id: DRIVER, kind, ...ceremonyProvenance(kind) })) : (over.records ?? []),
+        selectOf(q).includes("jurisdiction") ? (over.evidence ?? READY_KINDS).map((kind) => ({ driver_id: DRIVER, kind, occurred_on: "2026-08-05", ...ceremonyProvenance(kind) })) : (over.records ?? []),
       application_invitations: [{ id: "inv-1", created_at: "2026-08-01T00:00:00Z", submitted_at: "2026-08-10T00:00:00Z" }],
       audit_logs: [],
     },

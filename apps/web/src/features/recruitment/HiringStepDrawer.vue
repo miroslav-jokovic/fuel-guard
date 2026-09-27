@@ -24,6 +24,9 @@ import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 import TravelPanel from "@/features/recruitment/TravelPanel.vue";
+import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
+import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
+import EmployerCallsPanel from "@/features/recruitment/EmployerCallsPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -220,13 +223,24 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <!-- ⚠ D1. The step key is passed to a prop typed as the three steps this panel can file, so a
            row wired to `"record"` without a kind behind it is a TYPE error here rather than a form
            that posts and 400s. `recordedActStep` is where that narrowing happens. -->
-      <RecordedActPanel
-        v-else-if="body === 'record' && recordedActStep"
-        :driver-id="driverId"
-        :step="recordedActStep"
-        :done="step.state === 'done'"
-        :outstanding-jurisdictions="step.outstandingJurisdictions"
-      />
+      <template v-else-if="body === 'record' && recordedActStep">
+        <RecordedActPanel
+          :driver-id="driverId"
+          :step="recordedActStep"
+          :done="step.state === 'done'"
+          :outstanding-jurisdictions="step.outstandingJurisdictions"
+        />
+        <!-- C2b3: what the office arranges around two of the acts — never what proves them. The
+             Clearinghouse row rests on the driver until their portal consent is recorded (D-AW5), so
+             the row's own state is the consent's reading. -->
+        <DrugTestPanel v-if="step.key === 'drug_test'" :driver-id="driverId" :done="step.state === 'done'" />
+        <ClearinghouseConsentPanel
+          v-if="step.key === 'clearinghouse'"
+          :driver-id="driverId"
+          :consented="step.state !== 'waiting_on_them'"
+          :done="step.state === 'done'"
+        />
+      </template>
 
       <RoadTestPanel v-else-if="body === 'road_test'" :driver-id="driverId" :done="step.state === 'done'" />
       <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />
@@ -235,7 +249,11 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now
            COUNTED: it blocks Hired, so nobody reaches the end of the checklist with it untouched. -->
-      <EmployerInquirySection v-else-if="body === 'investigation'" :driver-id="driverId" />
+      <!-- D-AW8 (C2b3): the calls made before filing sit above the list filing copies them onto. -->
+      <template v-else-if="body === 'investigation'">
+        <EmployerCallsPanel :driver-id="driverId" />
+        <EmployerInquirySection :driver-id="driverId" />
+      </template>
 
       <!-- ⚠ The five recorded acts (D-HM6) and the packet. No affordance in this drawer yet, and
            saying so plainly is the point: D1, D2 and C1 build them. What it CAN do is take the

@@ -496,7 +496,19 @@ describe("what each step actually reads", () => {
    */
   it("never blocks the Clearinghouse query on anything we hold", () => {
     const c = hiringChecklist(input());
-    expect(stateOf(c, "clearinghouse")).toBe("waiting_on_us");
+    expect(stateOf(c, "clearinghouse")).not.toBe("blocked");
+  });
+
+  /**
+   * D-AW5 (C2b3): the full query needs the driver's §382.703 consent, given in FMCSA's portal — the
+   * driver's move until the office records seeing it, the office's after.
+   */
+  it("waits on the driver's portal consent, then on the office's query", () => {
+    expect(stateOf(hiringChecklist(input()), "clearinghouse")).toBe("waiting_on_them");
+    const consented = hiringChecklist(input({ qualificationKinds: ["clearinghouse_portal_consent"] }));
+    expect(stateOf(consented, "clearinghouse")).toBe("waiting_on_us");
+    // The consent is not the query: it never ticks the step.
+    expect(consented.steps.find((s) => s.key === "clearinghouse")!.artifact).toBeNull();
   });
 });
 
@@ -601,7 +613,8 @@ describe("the one next action", () => {
    */
   it("does not send the office off to buy a Clearinghouse query for a stranger", () => {
     const c = hiringChecklist(input({ invitedAt: "2026-09-01T00:00:00Z" }));
-    expect(stateOf(c, "clearinghouse")).toBe("waiting_on_us");
+    // D-AW5: and it is not even the office's move yet — the driver consents in the portal first.
+    expect(stateOf(c, "clearinghouse")).toBe("waiting_on_them");
     // §7: Part 1 is the applicant's first move now, and it is still theirs, not a paid query.
     expect(c.next).toBe("intake_completed");
   });
@@ -664,6 +677,10 @@ describe("the count", () => {
   });
 });
 
+/** MVR rows as the builder hands them over — one per jurisdiction, dated inside any freshness floor. */
+const mvrs = (...jurisdictions: (string | null)[]) =>
+  jurisdictions.map((jurisdiction) => ({ jurisdiction, occurredOn: "2026-09-20" }));
+
 describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () => {
   const mvrOf = (c: ReturnType<typeof hiringChecklist>) => c.steps.find((s) => s.key === "mvr")!;
 
@@ -676,7 +693,7 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
   it("stays the office's move, naming the state, while a second declared licence has no record", () => {
     const step = mvrOf(
       hiringChecklist(
-        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrJurisdictions: ["IL"] }),
+        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrs: mvrs("IL") }),
       ),
     );
     expect(step.state).toBe("waiting_on_us");
@@ -687,7 +704,7 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
   it("is done once every declared jurisdiction has one, across rows and whatever the case", () => {
     const step = mvrOf(
       hiringChecklist(
-        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrJurisdictions: ["indiana bmv", "IL"] }),
+        complete({ licenceJurisdictions: ["IL", "Indiana BMV"], mvrs: mvrs("indiana bmv", "IL") }),
       ),
     );
     expect(step.state).toBe("done");
@@ -695,7 +712,7 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
   });
 
   it("does not count an MVR recorded without a jurisdiction once a licence is declared", () => {
-    const step = mvrOf(hiringChecklist(complete({ licenceJurisdictions: ["IL"], mvrJurisdictions: [null] })));
+    const step = mvrOf(hiringChecklist(complete({ licenceJurisdictions: ["IL"], mvrs: mvrs(null) })));
     expect(step.state).toBe("waiting_on_us");
     expect(step.outstandingJurisdictions).toEqual(["IL"]);
   });
@@ -711,8 +728,37 @@ describe("an MVR from every licensing jurisdiction (AF7, §391.23(a)(1))", () =>
     expect(c.readyToTravel.outstanding).toContain("mvr");
   });
 
+  describe("only a fresh one counts (G-3, APPLICATION-FLOW-V2-PLAN §7)", () => {
+    const dated = (occurredOn: string) => [{ jurisdiction: "IL", occurredOn }];
+
+    it("counts an MVR dated on the floor itself", () => {
+      const step = mvrOf(hiringChecklist(complete({
+        licenceJurisdictions: ["IL"], mvrs: dated("2026-08-27"), mvrFreshSince: "2026-08-27",
+      })));
+      expect(step.state).toBe("done");
+    });
+
+    it("does not count one dated the day before, and names its state as still needed", () => {
+      const step = mvrOf(hiringChecklist(complete({
+        licenceJurisdictions: ["IL"], mvrs: dated("2026-08-26"), mvrFreshSince: "2026-08-27",
+      })));
+      expect(step.state).toBe("waiting_on_us");
+      expect(step.outstandingJurisdictions).toEqual(["IL"]);
+    });
+
+    it("does not count a stale one even when no licence is declared", () => {
+      const c = hiringChecklist(complete({ mvrs: dated("2025-01-10"), mvrFreshSince: "2026-08-27" }));
+      expect(mvrOf(c).state).not.toBe("done");
+      expect(c.readyToTravel.outstanding).toContain("mvr");
+    });
+
+    it("has no floor when none is given, the rule before §7", () => {
+      expect(mvrOf(hiringChecklist(complete({ mvrs: dated("2019-03-01") }))).state).toBe("done");
+    });
+  });
+
   it("leaves every other step's list empty", () => {
-    const c = hiringChecklist(complete({ licenceJurisdictions: ["IL", "WI"], mvrJurisdictions: [] }));
+    const c = hiringChecklist(complete({ licenceJurisdictions: ["IL", "WI"], mvrs: [] }));
     for (const s of c.steps.filter((s) => s.key !== "mvr")) expect(s.outstandingJurisdictions).toEqual([]);
   });
 });
@@ -873,3 +919,4 @@ describe("travel booked (D-AW7)", () => {
     expect(row.artifact).toEqual({ table: "applicant_travel", label: "Itinerary" });
   });
 });
+
