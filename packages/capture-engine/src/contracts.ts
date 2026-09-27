@@ -11,8 +11,13 @@
  * preserves the received image as the evidentiary record.
  */
 
-/** How the original-of-record was produced. `expo_camera` is the JS fallback provider (no OS scanner). */
-export type CaptureMode = "system_scanner" | "raw_capture" | "expo_camera";
+/**
+ * How the original-of-record was produced. `expo_camera` is the driver app's JS fallback provider (no OS
+ * scanner); `web_file_input` is the applicant's browser (`apps/web/.../webFileProvider.ts`) — the phone's own
+ * camera app or a picked file, through a file input. The web provider said `expo_camera` until C3b2a
+ * (APPLICATION-FLOW-V2-PLAN.md §6.6.7), which named an app the applicant never had.
+ */
+export type CaptureMode = "system_scanner" | "raw_capture" | "expo_camera" | "web_file_input";
 
 export interface ImageRef {
   /** Local file URI (file://…) or an opaque handle the owning provider understands. */

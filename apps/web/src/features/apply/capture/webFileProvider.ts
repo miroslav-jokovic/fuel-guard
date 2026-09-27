@@ -30,10 +30,12 @@ import { browserImageIo, pickPhotoFromCamera, type WebImageIo } from "./webImage
  * circular: everything would pass, because everything is resized to the same long edge.
  *
  * ── WHAT IT DOES NOT MEASURE, AND WHY THAT IS SAID OUT LOUD ───────────────────────────────────
- * Blur, glare, coverage, contrast: all `na`. The browser could compute a Laplacian variance on a
- * canvas, but a number computed differently from the server's would be a second opinion about the
- * same photograph, and §5's rule is that an unmeasured check is `na` and never a silent pass. The
- * server's usability gate stays the authoritative backstop for everything this cannot see.
+ * Blur, glare, coverage, contrast: all `na`. The arithmetic is no longer the obstacle — `computeMetrics`
+ * is shared with the server since D-SCAN8, and the server now records it on every capture (D-AW9,
+ * `captureVerification.ts`). The obstacle is that every floor it would be compared against is `null`
+ * until thresholds come from recorded samples (D-SCAN10), so a browser number would be read by nothing:
+ * APPLICATION-FLOW-V2-PLAN.md Q-AW32 holds the advisory until they do. §5's rule stands meanwhile — an
+ * unmeasured check is `na` and never a silent pass.
  */
 
 export interface WebCaptureOptions {
@@ -88,7 +90,8 @@ export async function processPhoto(
         device: "web",
       },
       integrityHash,
-      provenance: { captureMode: "expo_camera", osEnhanced: false },
+      // The phone's camera app or a picked file, through a file input — never Expo (§6.6.7).
+      provenance: { captureMode: "web_file_input", osEnhanced: false },
     };
   } finally {
     decoded.close();

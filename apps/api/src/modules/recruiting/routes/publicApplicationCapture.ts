@@ -27,12 +27,13 @@ import { isIntakeError } from "../applicationIntake.js";
  * `capture_upload_failed` is 422 and not 404: the link is fine, the slot is fine, and the one thing
  * that is wrong — no object at that key — is something the driver fixes by taking the photograph
  * again. A 404 here would read as "your link is dead" to a page whose whole vocabulary for 404 is
- * exactly that.
+ * exactly that. `capture_not_intact` (D-AW9, the bytes are not the ones sent) is the same answer for the
+ * same reason — a 500 would say the server broke, when what the driver does is retake it.
  */
 function captureStatus(code: string): number {
   if (code === "invalid_link") return 404;
   if (code === "already_submitted" || code === "esign_consent_required" || code === "application_not_sent") return 409;
-  if (code === "capture_upload_failed") return 422;
+  if (code === "capture_upload_failed" || code === "capture_not_intact") return 422;
   return 500;
 }
 

@@ -90,6 +90,11 @@ describe("what the gate can see", () => {
     expect(page.metadata.device).toBe("web");
     expect(page.integrityHash).toMatch(/^[0-9a-f]{64}$/);
   });
+
+  it("says the photo came through a file input — not Expo, which the applicant never had (§6.6.7)", async () => {
+    const page = await processPhoto(photo(), CONFIG, fakeIo());
+    expect(page.provenance).toEqual({ captureMode: "web_file_input", osEnhanced: false });
+  });
 });
 
 describe("a photograph that fails the gate", () => {

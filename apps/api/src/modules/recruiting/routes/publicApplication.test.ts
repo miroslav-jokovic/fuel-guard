@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
@@ -853,7 +855,7 @@ describe("photographing a document from the link", () => {
   });
 
   it("returns 422 — not 404 — when the bytes never arrived", async () => {
-    const rec = capturing({ list: () => ({ data: [], error: null }) });
+    const rec = capturing({ download: () => ({ data: null, error: { message: "Object not found" } }) });
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/capture/${DRIVER}`, {
       method: "PUT",
@@ -865,13 +867,26 @@ describe("photographing a document from the link", () => {
     expect(rec.rpcs()).toEqual([]);
   });
 
-  it("records the slot once the object is in the bucket", async () => {
+  it("answers 422 when the bytes in the bucket are not the ones sent — the driver retakes it (D-AW9)", async () => {
+    const photo = await sharp({ create: { width: 64, height: 48, channels: 3, background: { r: 200, g: 180, b: 160 } } }).webp().toBuffer();
     holder.client = capturing({
-      list: () => ({ data: [{ name: `${DRIVER}.webp`, id: "o", metadata: { size: 4096 } }], error: null }),
+      download: () => ({ data: new Blob([new Uint8Array(photo)]), error: null }),
+      remove: () => ({ data: [], error: null }),
     }).client;
     const res = await call(`/${TOKEN}/capture/${DRIVER}`, {
       method: "PUT",
       body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp", sha256: "a1".repeat(32) }),
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("capture_not_intact");
+  });
+
+  it("records the slot once the object is in the bucket", async () => {
+    const photo = await sharp({ create: { width: 64, height: 48, channels: 3, background: { r: 200, g: 180, b: 160 } } }).webp().toBuffer();
+    holder.client = capturing({ download: () => ({ data: new Blob([new Uint8Array(photo)]), error: null }) }).client;
+    const res = await call(`/${TOKEN}/capture/${DRIVER}`, {
+      method: "PUT",
+      body: JSON.stringify({ slot: "cdl_front", content_type: "image/webp", sha256: createHash("sha256").update(photo).digest("hex") }),
     });
     expect(res.status).toBe(201);
     expect((await res.json()) as { slot: string }).toMatchObject({ ok: true, slot: "cdl_front" });
