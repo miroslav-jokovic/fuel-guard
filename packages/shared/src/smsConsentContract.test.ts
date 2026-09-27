@@ -4,8 +4,10 @@ import {
   composeSmsConsent,
   isDraftSmsConsent,
   isHelpMessage,
+  isStartMessage,
   isStopMessage,
   normalisePhone,
+  normaliseUsPhone,
   siteHostOf,
   smsApplicationApproved,
   smsApplicationReady,
@@ -25,17 +27,28 @@ import {
  */
 
 describe("the opt-out", () => {
-  it("honours the keywords every US carrier requires", () => {
-    for (const word of ["STOP", "stop", "  Stop  ", "STOPALL", "unsubscribe", "CANCEL", "end", "quit"]) {
+  it("honours the keywords every US carrier requires, and the two the FCC's 2024 order adds", () => {
+    for (const word of ["STOP", "stop", "  Stop  ", "Stop.", "STOPALL", "unsubscribe", "CANCEL", "end", "Quit!", "revoke", "Opt-out", "opt out"]) {
       expect(isStopMessage(word), word).toBe(true);
     }
   });
 
-  /** ⚠ The asymmetry, made explicit: a sentence containing a keyword is an opt-out. */
+  /** ⚠ The asymmetry, made explicit: a sentence containing an unambiguous keyword is an opt-out. */
   it("honours a sentence that plainly means stop, not just the bare keyword", () => {
     expect(isStopMessage("please stop")).toBe(true);
     expect(isStopMessage("STOP texting me")).toBe(true);
-    expect(isStopMessage("can you cancel these")).toBe(true);
+    expect(isStopMessage("unsubscribe me please")).toBe(true);
+    expect(isStopMessage("I want to opt out")).toBe(true);
+  });
+
+  /**
+   * G-2 (C2d2): "cancel", "end" and "quit" are everyday words in a reply about a job, so they count only
+   * as the whole message. Each of these revoked a consent before 2026-09-26.
+   */
+  it("does not read cancel, end or quit inside a sentence as an opt-out", () => {
+    expect(isStopMessage("I'll quit my job Friday")).toBe(false);
+    expect(isStopMessage("cancel Tuesday, I can come Wednesday")).toBe(false);
+    expect(isStopMessage("I can be there at the end of the week")).toBe(false);
   });
 
   /** And does not fire on a word that merely contains one — `stopped` is not `stop`. */
@@ -44,6 +57,14 @@ describe("the opt-out", () => {
     expect(isStopMessage("yes I am still interested")).toBe(false);
     expect(isStopMessage("")).toBe(false);
     expect(isStopMessage(null)).toBe(false);
+  });
+
+  /** START undoes a STOP, and only as the whole message: "can I start Monday" is about the job. */
+  it("recognises START and UNSTOP as the whole message only", () => {
+    for (const word of ["START", "start", " Start. ", "unstop"]) expect(isStartMessage(word), word).toBe(true);
+    expect(isStartMessage("can I start Monday")).toBe(false);
+    expect(isStartMessage("")).toBe(false);
+    expect(isStopMessage("START")).toBe(false);
   });
 
   it("recognises HELP, which carriers require to be answered too", () => {
@@ -74,6 +95,21 @@ describe("the number", () => {
 
   it("keeps an international number that already says what it is", () => {
     expect(normalisePhone("+447700900123")).toBe("+447700900123");
+  });
+
+  /**
+   * G-2 (C2d2): agreeing takes a dialable US number only. Matching stays permissive (above), because an
+   * inbound STOP must find its row whatever shape it arrives in.
+   */
+  it("accepts only a dialable US number for agreeing to texts", () => {
+    for (const typed of ["7082365732", "(708) 236-5732", "+17082365732"]) {
+      expect(normaliseUsPhone(typed), typed).toBe("+17082365732");
+    }
+    expect(normaliseUsPhone("+447700900123")).toBeNull();
+    // NANP: neither an area code nor an exchange starts with 0 or 1.
+    expect(normaliseUsPhone("(123) 456-7890")).toBeNull();
+    expect(normaliseUsPhone("(708) 136-5732")).toBeNull();
+    expect(normaliseUsPhone(null)).toBeNull();
   });
 });
 

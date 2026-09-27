@@ -26,6 +26,10 @@ export const APPLY_SMS_COPY = {
     action: "Turn on texts",
     working: "Saving…",
     failed: "That did not save. Check your signal and try again.",
+    // The server's two refusals of a number (G-2, C2d2); every other failure reads as `failed`.
+    numberStopped: "This number texted STOP to us. Reply START to any text we sent it, then turn texts on here again.",
+    tooManyNumbers: (max: number): string =>
+      `Texts can be turned on for ${max} different numbers on one application. Tell the office if your number has changed.`,
     onHeading: "Texts are on",
     onBody: (last4: string): string => `We will text the number ending ${last4} about your application.`,
     confirmationSent: "We just sent you a confirmation text.",

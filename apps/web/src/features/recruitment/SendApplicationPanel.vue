@@ -65,7 +65,7 @@ const textLine = computed(() => {
   if (!text || text.reason === "no_consent") return null;
   if (text.sent) return "Also texted to the applicant.";
   if (text.reason === "quiet_hours") return "Not texted: it is outside daytime hours somewhere in the US. The email and the link above carry it.";
-  if (text.reason === "consent_revoked" || text.reason === "no_number") return null;
+  if (text.reason === "consent_revoked" || text.reason === "no_number" || text.reason === "suppressed") return null;
   return "The text did not go through. The email and the link above carry it.";
 });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { loadEnv } from "../../env.js";
 import { handleInboundSms, sendApplicationSms } from "./applicationSms.js";
 
@@ -19,6 +20,9 @@ vi.mock("../../lib/sms.js", async (orig) => ({
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
+const OTHER_ORG = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+const NEW_NUMBER = "+17082365732";
+const OLD_NUMBER = "+13125550100";
 /** Inside the all-US window (16:00 Eastern, 10:00 Hawaii). */
 const CIVIL = new Date("2026-08-21T20:00:00Z");
 const env = () => loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv);
@@ -90,6 +94,25 @@ describe("sending", () => {
       expect(sms.fn).not.toHaveBeenCalled();
     });
 
+    /** C2d2: a number that texted STOP is refused whatever the consent rows say. */
+    it("refuses a number that texted STOP, and sends again once it is lifted", async () => {
+      const spy = await publish();
+      sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx", messageId: "msg-1" });
+      const suppressed = (lifted_at: string | null) => createSupabaseRecorder({
+        tables: {
+          sms_consents: [{ id: "c-1", phone: NEW_NUMBER, driver_id: DRIVER }],
+          sms_suppressions: postgrestFixture([{ id: "s-1", org_id: ORG, phone: NEW_NUMBER, reason: "stop", lifted_at }]),
+        },
+      });
+      const held = suppressed(null);
+      expect(await sendApplicationSms(held.client, env(), ORG, DRIVER, "hello", CIVIL)).toEqual({ sent: false, held: "suppressed" });
+      expect(sms.fn).not.toHaveBeenCalled();
+      expectOrgScoped(held, ORG);
+      const lifted = suppressed("2026-09-27T10:00:00Z");
+      expect(await sendApplicationSms(lifted.client, env(), ORG, DRIVER, "hello", CIVIL)).toEqual({ sent: true, messageId: "msg-1" });
+      spy.mockRestore();
+    });
+
     it("refuses a stored number it cannot turn into something dialable", async () => {
       const spy = await publish();
       sms.fn.mockReset();
@@ -102,38 +125,140 @@ describe("sending", () => {
   });
 });
 
+/**
+ * The opt-out and the way back (A11b; G-2 and A-11 in C2d2). `postgrestFixture` rather than flat arrays:
+ * the property is which consents a STOP reaches, and a flat fixture hands every row to every read.
+ */
+const consentRow = (over: Record<string, unknown>) =>
+  ({ id: "c", org_id: ORG, driver_id: DRIVER, phone: NEW_NUMBER, revoked_at: null, granted_at: "2026-09-25T10:00:00Z", ...over });
+
+const inbound = (opts: { consents?: Record<string, unknown>[]; suppressions?: Record<string, unknown>[]; insertError?: unknown } = {}) =>
+  createSupabaseRecorder({
+    tables: {
+      sms_consents: postgrestFixture(opts.consents ?? [consentRow({})]),
+      sms_suppressions: (q: RecordedQuery) =>
+        q.write?.method === "insert"
+          ? { data: [], error: null, writeError: opts.insertError }
+          : postgrestFixture(opts.suppressions ?? [])(q),
+    },
+    rpc: { revoke_sms_consent: 1 },
+  });
+const revokedPhones = (rec: ReturnType<typeof inbound>) =>
+  rec.rpcs().filter((r) => r.fn === "revoke_sms_consent").map((r) => (r.args as Record<string, unknown>).p_phone);
+
 describe("the opt-out", () => {
-  it("revokes every live consent on the number that texted STOP", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
+  it("revokes the consent on the number that texted STOP, resolving the org from the number", async () => {
+    const rec = inbound();
     const result = await handleInboundSms(rec.client, env(), "(708) 236-5732", "STOP");
-    expect(result.revoked).toBe(1);
+    expect(result).toEqual({ revoked: 1, helped: false, resumed: 0 });
     const call = rec.rpcs().find((r) => r.fn === "revoke_sms_consent");
     // Normalised on the way in — a stored E.164 and a typed number must match, or the STOP does
     // nothing at all.
-    expect((call?.args as Record<string, unknown>).p_phone).toBe("+17082365732");
+    expect((call?.args as Record<string, unknown>).p_phone).toBe(NEW_NUMBER);
     // ⚠ The org is resolved FROM the number, never accepted from the request.
     expect((call?.args as Record<string, unknown>).p_org).toBe(ORG);
   });
 
+  /**
+   * G-2: the applicant agreed on an old number, then on a new one, and texted STOP from the new one.
+   * Before C2d2 the old consent became the newest live one and the next text went there.
+   */
+  it("revokes every live consent the applicant holds, not only the number that texted", async () => {
+    const rec = inbound({
+      consents: [
+        consentRow({ id: "c-new" }),
+        consentRow({ id: "c-old", phone: OLD_NUMBER, granted_at: "2026-09-20T10:00:00Z" }),
+        // Another applicant's consent on another number in the same org is not theirs to revoke.
+        consentRow({ id: "c-else", driver_id: "88888888-8888-4999-8aaa-bbbbbbbbbbbb", phone: "+13125550199" }),
+      ],
+    });
+    const result = await handleInboundSms(rec.client, env(), NEW_NUMBER, "stop");
+    expect(result.revoked).toBe(2);
+    expect(revokedPhones(rec).sort()).toEqual([OLD_NUMBER, NEW_NUMBER].sort());
+  });
+
+  it("suppresses the number in the org, naming the applicant, as a STOP", async () => {
+    const rec = inbound();
+    await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
+    expect(rec.writtenRows("sms_suppressions")).toEqual([{ org_id: ORG, driver_id: DRIVER, phone: NEW_NUMBER, reason: "stop" }]);
+  });
+
+  /** A consent already withdrawn on the page: nothing to revoke, and the STOP still stands (G-2). */
+  it("suppresses the number even when no consent on it was live", async () => {
+    const rec = inbound({ consents: [consentRow({ revoked_at: "2026-09-26T10:00:00Z" })] });
+    const result = await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP");
+    expect(result.revoked).toBe(0);
+    expect(rec.writtenRows("sms_suppressions")).toHaveLength(1);
+  });
+
+  /** 0376 holds one live suppression per (org, phone); a second STOP is already done, not an error. */
+  it("treats a second STOP as already suppressed", async () => {
+    const rec = inbound({ insertError: { code: "23505", message: "duplicate key" } });
+    await expect(handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP")).resolves.toMatchObject({ revoked: 1 });
+  });
+
+  it("suppresses nothing for a number no org holds a consent on", async () => {
+    const rec = inbound({ consents: [] });
+    expect(await handleInboundSms(rec.client, env(), NEW_NUMBER, "STOP")).toEqual({ revoked: 0, helped: false, resumed: 0 });
+    expect(rec.writes()).toEqual([]);
+  });
+
   it("records what was actually texted, so the file shows why consent ended", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
-    await handleInboundSms(rec.client, env(), "+17082365732", "please stop");
+    const rec = inbound();
+    await handleInboundSms(rec.client, env(), NEW_NUMBER, "please stop");
     const call = rec.rpcs().find((r) => r.fn === "revoke_sms_consent");
     expect(String((call?.args as Record<string, unknown>).p_reason)).toContain("please stop");
   });
 
   it("does nothing for a message that is not an opt-out", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
-    expect(await handleInboundSms(rec.client, env(), "+17082365732", "yes still interested")).toEqual({
+    const rec = inbound();
+    expect(await handleInboundSms(rec.client, env(), NEW_NUMBER, "yes still interested")).toEqual({
       revoked: 0,
       helped: false,
+      resumed: 0,
     });
+    // G-2: "quit" inside a sentence about the job is not the keyword.
+    expect(await handleInboundSms(rec.client, env(), NEW_NUMBER, "I'll quit my job Friday")).toMatchObject({ revoked: 0 });
     expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
   });
 
   it("does nothing for a number it cannot normalise", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
-    expect(await handleInboundSms(rec.client, env(), "garbage", "STOP")).toEqual({ revoked: 0, helped: false });
+    const rec = inbound();
+    expect(await handleInboundSms(rec.client, env(), "garbage", "STOP")).toEqual({ revoked: 0, helped: false, resumed: 0 });
+  });
+});
+
+/**
+ * START (C2d2): lifts the suppression a STOP wrote, in each org holding one, and nothing else — the
+ * revoked consents stay revoked (0233), and a carrier's block or the office's hold is not the
+ * applicant's to lift by text.
+ */
+describe("the way back", () => {
+  const T = new Date("2026-09-27T15:00:00Z");
+
+  it("lifts the STOP suppression through each org that holds one", async () => {
+    const rec = inbound({
+      suppressions: [
+        { id: "s-1", org_id: ORG, phone: NEW_NUMBER, reason: "stop", lifted_at: null },
+        { id: "s-2", org_id: OTHER_ORG, phone: NEW_NUMBER, reason: "manual", lifted_at: null },
+      ],
+    });
+    const result = await handleInboundSms(rec.client, env(), NEW_NUMBER, "START", T);
+    expect(result).toEqual({ revoked: 0, helped: false, resumed: 1 });
+    const lifts = rec.writes().filter((q) => q.table === "sms_suppressions");
+    expect(lifts).toHaveLength(1);
+    expect(lifts[0]!.write?.payload).toEqual({ lifted_at: T.toISOString() });
+    expect(lifts[0]!.filters()).toEqual(expect.arrayContaining([
+      { col: "org_id", val: ORG }, { col: "phone", val: NEW_NUMBER }, { col: "reason", val: "stop" },
+    ]));
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("does not read a sentence that mentions starting as a START", async () => {
+    const rec = inbound({ suppressions: [{ id: "s-1", org_id: ORG, phone: NEW_NUMBER, reason: "stop", lifted_at: null }] });
+    expect(await handleInboundSms(rec.client, env(), NEW_NUMBER, "can I start Monday", T)).toEqual({ revoked: 0, helped: false, resumed: 0 });
+    expect(rec.writes()).toEqual([]);
   });
 });
 
@@ -159,7 +284,7 @@ describe("the HELP keyword", () => {
     );
     spy.mockRestore();
 
-    expect(result).toEqual({ revoked: 0, helped: true });
+    expect(result).toEqual({ revoked: 0, helped: true, resumed: 0 });
     expect(sms.fn).toHaveBeenCalledOnce();
     const sent = sms.fn.mock.calls[0]![1] as { to: string; body: string };
     expect(sent.to).toBe("+17082365732");
@@ -176,12 +301,13 @@ describe("the HELP keyword", () => {
   });
 
   it("does not revoke anything — HELP is a question, not an opt-out", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
+    const rec = inbound();
     sms.fn.mockReset().mockResolvedValue({ ok: true, provider: "telnyx" });
 
     await handleInboundSms(rec.client, env(), "+17082365732", "help");
 
     expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
   });
 
   it("reports a failed HELP reply rather than claiming it answered", async () => {
@@ -198,7 +324,7 @@ describe("the HELP keyword", () => {
   // The line between the two keywords, which `isStopMessage`'s word-boundary match makes worth
   // pinning: "help me stop these texts" contains STOP and must revoke, not answer HELP.
   it("treats a message that asks to stop as an opt-out even when it says help", async () => {
-    const rec = withConsent([{ org_id: ORG }]);
+    const rec = inbound();
     sms.fn.mockReset();
 
     const result = await handleInboundSms(rec.client, env(), "+17082365732", "help me stop these texts");

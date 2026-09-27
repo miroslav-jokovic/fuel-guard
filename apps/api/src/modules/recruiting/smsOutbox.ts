@@ -16,6 +16,7 @@ import { redactNumber, sendSms } from "../../lib/sms.js";
 import { readCarrierZone } from "./applicantBoardReads.js";
 import { carrierName } from "./applicationMail.js";
 import { drugTestStillLive, markDrugTestSent } from "./applicantDrugTest.js";
+import { isSuppressed } from "./smsSuppressions.js";
 
 /**
  * Texts that may wait — the outbox (A-11, D-AW12, C2d).
@@ -143,8 +144,9 @@ async function afterSent(admin: SupabaseClient, orgId: string, template: SmsTemp
 /**
  * Send a text now if its recipient's window is open, otherwise queue it for the drain.
  *
- * The gates are `sendApplicationSms`'s, in its order — draft wording, a live consent, a usable number —
- * and the answer to "not now" is a queued row, never a hold that nothing retries.
+ * The gates are `sendApplicationSms`'s, in its order — draft wording, a live consent, a usable number,
+ * a number that has not texted STOP (C2d2) — and the answer to "not now" is a queued row, never a hold
+ * that nothing retries. A suppressed number is not "not now": nothing is queued for it.
  */
 export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: SmsMessage, now: Date): Promise<OutboxOutcome> {
   if (isDraftSmsConsent()) return { sent: false, held: "no_consent" };
@@ -152,6 +154,7 @@ export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: S
   if (!consented) return { sent: false, held: "no_consent" };
   const phone = normalisePhone(consented);
   if (!phone) return { sent: false, held: "no_number" };
+  if (await isSuppressed(admin, message.orgId, phone)) return { sent: false, held: "suppressed" };
 
   const zones = await recipientZones(admin, message.orgId, message.invitationId);
   const open = canSendSmsInZones(now, zones);
@@ -200,8 +203,9 @@ export interface DrainResult { sent: number; failed: number; cancelled: number; 
 
 /**
  * One org's due texts. For each: too old → cancelled; the consent it was queued under withdrawn or
- * moved to another number → cancelled (the STOP is the newer fact); the window shut again (a split
- * state, DST) → deferred; otherwise claimed and sent.
+ * moved to another number → cancelled (the STOP is the newer fact); the number suppressed since it was
+ * queued → cancelled (C2d2); the window shut again (a split state, DST) → deferred; otherwise claimed
+ * and sent.
  *
  * ⚠ The claim is a conditional UPDATE (`queued` → `sending`), not 0376's `for update skip locked`:
  * this runs in exactly one process fleet-wide (the api service, `docs/WORKER-DEPLOYMENT.md`), so a
@@ -232,6 +236,11 @@ export async function drainSmsOutboxForOrg(admin: SupabaseClient, env: Env, orgI
     const live = await liveConsentPhone(admin, orgId, row.driver_id);
     if (isDraftSmsConsent() || !live || normalisePhone(live) !== row.phone) {
       await set(row.id, { status: "cancelled", last_error: "consent withdrawn while queued" });
+      out.cancelled += 1;
+      continue;
+    }
+    if (await isSuppressed(admin, orgId, row.phone)) {
+      await set(row.id, { status: "cancelled", last_error: "number texted STOP while queued" });
       out.cancelled += 1;
       continue;
     }

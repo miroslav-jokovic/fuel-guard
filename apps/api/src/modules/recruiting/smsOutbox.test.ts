@@ -29,7 +29,7 @@ afterEach(() => vi.restoreAllMocks());
 const consent = (over: Record<string, unknown> = {}) =>
   ({ org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-09-25T10:00:00Z", ...over });
 
-const seed = (over: { consents?: unknown[]; state?: string | null; outbox?: unknown[]; appointments?: unknown[] } = {}) =>
+const seed = (over: { consents?: unknown[]; state?: string | null; outbox?: unknown[]; appointments?: unknown[]; suppressions?: unknown[] } = {}) =>
   createSupabaseRecorder({
     tables: {
       sms_consents: postgrestFixture((over.consents ?? [consent()]) as Record<string, unknown>[]),
@@ -43,6 +43,7 @@ const seed = (over: { consents?: unknown[]; state?: string | null; outbox?: unkn
         return postgrestFixture((over.outbox ?? []) as Record<string, unknown>[])(q);
       },
       drug_test_appointments: postgrestFixture((over.appointments ?? []) as Record<string, unknown>[]),
+      sms_suppressions: postgrestFixture((over.suppressions ?? []) as Record<string, unknown>[]),
       organizations: [{ name: "Silvicom Inc", operating_hours: { tz: "America/Chicago" } }],
     },
   });
@@ -83,6 +84,22 @@ describe("sendOrQueueSms", () => {
     const rec = seed({ consents: [consent({ revoked_at: "2026-09-26T00:00:00Z" })] });
     expect(await sendOrQueueSms(rec.client, env, message(), OPEN)).toEqual({ sent: false, held: "no_consent" });
     expect(rec.writtenRows("sms_outbox")).toEqual([]);
+  });
+
+  /** C2d2: a number that texted STOP is not "not now" — nothing is queued for it. */
+  it("holds a number that texted STOP, and queues nothing for it", async () => {
+    const rec = seed({ suppressions: [
+      { id: "s-1", org_id: ORG, phone: "+17082365732", reason: "stop", lifted_at: null },
+      // Another org's suppression is that org's; a lifted one is no suppression at all.
+      { id: "s-2", org_id: OTHER, phone: "+13125550100", reason: "stop", lifted_at: null },
+    ] });
+    expect(await sendOrQueueSms(rec.client, env, message(), SHUT)).toEqual({ sent: false, held: "suppressed" });
+    expect(rec.writtenRows("sms_outbox")).toEqual([]);
+    expect(sms.fn).not.toHaveBeenCalled();
+    expectOrgScoped(rec, ORG);
+
+    const lifted = seed({ suppressions: [{ id: "s-1", org_id: ORG, phone: "+17082365732", reason: "stop", lifted_at: "2027-01-12T08:00:00Z" }] });
+    expect(await sendOrQueueSms(lifted.client, env, message(), OPEN)).toEqual({ sent: true, outboxId: "o-new" });
   });
 
   it("stamps the appointment when a drug-test text leaves, through the appointment's owner", async () => {
@@ -134,6 +151,14 @@ describe("drainSmsOutboxForOrg", () => {
       const rec = seed({ consents, outbox: [queued()] });
       expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ cancelled: 1 });
     }
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  /** C2d2: the STOP arrived while the text waited for its window. */
+  it("cancels a row whose number texted STOP while it waited", async () => {
+    const rec = seed({ outbox: [queued()], suppressions: [{ id: "s-1", org_id: ORG, phone: "+17082365732", reason: "stop", lifted_at: null }] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ cancelled: 1, sent: 0 });
+    expect(updates(rec)).toEqual([{ status: "cancelled", last_error: "number texted STOP while queued" }]);
     expect(sms.fn).not.toHaveBeenCalled();
   });
 

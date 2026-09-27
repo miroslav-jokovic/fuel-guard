@@ -86,11 +86,11 @@ export function publicApplicationSmsRouter(): Router {
       const carrier = await carrierName(admin, invitation.org_id);
       const grant = res.locals.body as SmsConsentGrant;
       const result = await recordSmsConsent(
-        admin, invitation.org_id, invitation.driver_id, grant.phone, carrier,
+        admin, invitation, grant.phone, carrier,
         { ip: req.ip ?? null, userAgent: req.get("user-agent") ?? null },
       );
       if ("code" in result) {
-        const status = result.code === "invalid_phone" ? 400 : result.code === "sms_consent_not_final" ? 409 : 500;
+        const status = result.code === "invalid_phone" ? 400 : result.code === "consent_failed" ? 500 : 409;
         res.status(status).json(apiError(result.code, result.message));
         return;
       }

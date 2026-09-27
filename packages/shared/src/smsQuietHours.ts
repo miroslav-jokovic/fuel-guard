@@ -153,5 +153,8 @@ export function nextSmsWindow(from: Date, zones: readonly string[]): Date {
  * away and the window is five hours wide, so a nudge held at 03:00 goes out the same day. It is never
  * dropped: dropping would mean a driver who consented to a text silently getting nothing, which is
  * the failure mode a consent regime is least able to explain.
+ *
+ * `suppressed` (C2d2): the number texted STOP and has not texted START since — `sms_suppressions`
+ * holds it, whatever the consent rows say.
  */
-export type SmsHoldReason = "quiet_hours" | "no_consent" | "consent_revoked" | "no_number";
+export type SmsHoldReason = "quiet_hours" | "no_consent" | "consent_revoked" | "no_number" | "suppressed";

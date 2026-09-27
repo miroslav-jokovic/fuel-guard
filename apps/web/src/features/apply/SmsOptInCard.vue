@@ -9,7 +9,7 @@ import {
   AppInput as BaseInput,
 } from "@silvicom/ui";
 import { CheckCircleIcon } from "@silvicom/ui/icons";
-import { normalisePhone, type SmsConfirmation } from "@silvicom/shared";
+import { SMS_MAX_NUMBERS_PER_LINK, normaliseUsPhone, type SmsConfirmation } from "@silvicom/shared";
 import { SMS_PRIVACY_PATH, SMS_TERMS_PATH } from "@/lib/legalPaths";
 import { useSmsOptIn } from "@/features/apply/useSmsOptIn";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -46,31 +46,39 @@ const phone = ref("");
 const ticked = ref(false);
 const touched = ref(false);
 const confirmation = ref<SmsConfirmation>(null);
-const failed = ref(false);
+/** What went wrong, in the card's words — null while nothing has. */
+const failed = ref<string | null>(null);
 
-const phoneValid = computed(() => normalisePhone(phone.value) !== null);
+/** The server refuses a number for two reasons worth naming (G-2); anything else is the generic line. */
+const REFUSALS: Record<string, string> = {
+  number_stopped: copy.numberStopped,
+  too_many_numbers: copy.tooManyNumbers(SMS_MAX_NUMBERS_PER_LINK),
+};
+
+// The same US-only rule the server applies when agreeing (`normaliseUsPhone`, G-2).
+const phoneValid = computed(() => normaliseUsPhone(phone.value) !== null);
 const phoneError = computed(() => (touched.value && phone.value !== "" && !phoneValid.value ? copy.phoneInvalid : undefined));
 const canSubmit = computed(() => ticked.value && phoneValid.value && !agree.isPending.value);
 
 async function turnOn(): Promise<void> {
   touched.value = true;
   if (!canSubmit.value) return;
-  failed.value = false;
+  failed.value = null;
   try {
     confirmation.value = (await agree.mutateAsync(phone.value)).confirmation;
     [phone.value, ticked.value, touched.value] = ["", false, false];
-  } catch {
-    failed.value = true;
+  } catch (e) {
+    failed.value = REFUSALS[(e as { code?: string }).code ?? ""] ?? copy.failed;
   }
 }
 
 async function turnOff(): Promise<void> {
-  failed.value = false;
+  failed.value = null;
   try {
     await withdraw.mutateAsync();
     confirmation.value = null;
   } catch {
-    failed.value = true;
+    failed.value = copy.failed;
   }
 }
 </script>
@@ -89,7 +97,7 @@ async function turnOff(): Promise<void> {
           <p class="text-xs text-ink-muted">{{ copy.stopHint }}</p>
         </div>
       </div>
-      <p v-if="failed" class="text-sm text-danger-700" role="alert">{{ copy.failed }}</p>
+      <p v-if="failed" class="text-sm text-danger-700" role="alert">{{ failed }}</p>
       <div class="flex justify-end">
         <BaseButton variant="secondary" size="sm" :disabled="withdraw.isPending.value" @click="turnOff">
           {{ withdraw.isPending.value ? copy.stopping : copy.stop }}
@@ -135,7 +143,7 @@ async function turnOff(): Promise<void> {
 
       <BaseCheckbox v-model="ticked">{{ card.document.intent }}</BaseCheckbox>
 
-      <p v-if="failed" class="text-sm text-danger-700" role="alert">{{ copy.failed }}</p>
+      <p v-if="failed" class="text-sm text-danger-700" role="alert">{{ failed }}</p>
       <div class="flex justify-end">
         <BaseButton variant="secondary" size="sm" :disabled="!canSubmit" @click="turnOn">
           {{ agree.isPending.value ? copy.working : copy.action }}
