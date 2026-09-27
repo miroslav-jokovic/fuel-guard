@@ -11,9 +11,19 @@ import { useApplicationCaptures } from "./useApplicationCaptures";
  * other test here injects its own provider and never reaches this.
  */
 const ORIGINAL = new File(["the phone's own photograph"], "IMG_0001.jpg", { type: "image/jpeg" });
+/** "Upload a photo instead" (§6.6.6) returns a different file, so a test can tell which picker ran. */
+const UPLOADED = new File(["a photo already on the phone"], "IMG_0002.jpg", { type: "image/jpeg" });
+const pickers = vi.hoisted(() => ({ camera: vi.fn(), file: vi.fn() }));
 vi.mock("./webImageIo", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./webImageIo")>()),
-  pickPhotoFromCamera: async () => ORIGINAL,
+  pickPhotoFromCamera: async () => {
+    pickers.camera();
+    return ORIGINAL;
+  },
+  pickImageFile: async (...args: unknown[]) => {
+    pickers.file(...args);
+    return UPLOADED;
+  },
 }));
 vi.mock("./webFileProvider", () => ({
   createWebFileProvider: (_config: unknown, options: { pick: () => Promise<File | null> }): CaptureProvider => ({
@@ -91,6 +101,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  pickers.camera.mockClear();
+  pickers.file.mockClear();
 });
 
 const slotState = (slots: { slot: string; state: string }[], slot: string): string | undefined =>
@@ -300,5 +312,139 @@ describe("handing on the photograph once it is staged (AW5)", () => {
     const refused = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: false, reason: "IMAGE_BLURRED" }), io: spyIo(), onStaged });
     await refused.capture("cdl_back");
     expect(onStaged).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The scanner screen's two presses (§6.6.1, C3b2b): `take` holds the photograph and shows it; only `use`
+ * sends it. The property is the one this file opened with, one step further: **a photograph the driver
+ * has not accepted never reaches the network either.**
+ */
+describe("take, look, then send (§6.6.1)", () => {
+  const view = (c: ReturnType<typeof useApplicationCaptures>, slot = "cdl_front") =>
+    c.slots.value.find((s) => s.slot === slot)!;
+
+  it("holds the photograph and shows it large, and asks the network nothing until Use this", async () => {
+    const io = spyIo();
+    const onStaged = vi.fn();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: true, pages: [page()] }), io, onStaged });
+    await captures.take("cdl_front");
+    expect(io.calls).toEqual([]);
+    expect(view(captures).state).toBe("review");
+    expect(view(captures).pending).toBe(true);
+    expect(view(captures).previewUrl).toBe("blob:fake");
+    // The barcode is read from what is in the bucket, never from a preview the driver may retake.
+    expect(onStaged).not.toHaveBeenCalled();
+
+    await captures.use("cdl_front");
+    expect(io.calls).toEqual(["start", "upload", "confirm"]);
+    expect(view(captures).state).toBe("done");
+    expect(view(captures).pending).toBe(false);
+    // Sent, and still the picture on the screen (X6).
+    expect(view(captures).previewUrl).toBe("blob:fake");
+    expect(onStaged).toHaveBeenCalledTimes(1);
+  });
+
+  it("Retake replaces the held photograph and lets go of the old one, still without a request", async () => {
+    let n = 0;
+    const two: CaptureProvider = {
+      ...provider({ ok: true, pages: [page()] }),
+      scan: async () => {
+        const p = page();
+        (p.originalOfRecord as { uri: string }).uri = `blob:shot-${++n}`;
+        return { ok: true, pages: [p] };
+      },
+    };
+    const io = spyIo();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: two, io });
+    await captures.take("cdl_front");
+    await captures.take("cdl_front");
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:shot-1");
+    expect(view(captures).previewUrl).toBe("blob:shot-2");
+    expect(io.calls).toEqual([]);
+  });
+
+  it("a Retake the driver closes leaves the photograph they had on the screen", async () => {
+    let result: ScanResult = { ok: true, pages: [page()] };
+    const flip: CaptureProvider = { ...provider(result), scan: async () => result };
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: flip, io: spyIo() });
+    await captures.take("cdl_front");
+    result = { ok: false, reason: "CAPTURE_CANCELLED" };
+    await captures.take("cdl_front");
+    expect(view(captures).state).toBe("review");
+    expect(view(captures).pending).toBe(true);
+    expect(view(captures).previewUrl).toBe("blob:fake");
+    expect(URL.revokeObjectURL).not.toHaveBeenCalledWith("blob:fake");
+  });
+
+  it("keeps the photograph after a network failure, so Use this works again once the signal is back", async () => {
+    let offline = true;
+    const io = spyIo();
+    io.upload = async () => {
+      io.calls.push("upload");
+      if (offline) throw new Error("no signal");
+    };
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: true, pages: [page()] }), io });
+    await captures.take("cdl_front");
+    await captures.use("cdl_front");
+    expect(view(captures).state).toBe("failed");
+    expect(view(captures).failure).toBe("network");
+    expect(view(captures).pending).toBe(true);
+    expect(view(captures).previewUrl).toBe("blob:fake");
+
+    offline = false;
+    await captures.use("cdl_front");
+    expect(view(captures).state).toBe("done");
+    expect(io.calls).toEqual(["start", "upload", "start", "upload", "confirm"]);
+  });
+
+  it("lets go of a photograph the server says did not arrive intact, and offers only a retake (D-AW9)", async () => {
+    const io = spyIo({
+      confirm: async () => {
+        throw Object.assign(new Error("That photo did not arrive intact. Take it again."), { code: "capture_not_intact" });
+      },
+    });
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: true, pages: [page()] }), io });
+    await captures.take("cdl_front");
+    await captures.use("cdl_front");
+    expect(view(captures).state).toBe("failed");
+    expect(view(captures).failure).toBe("not_intact");
+    // Sending the same bytes again would get the same answer, so there is nothing left to send.
+    expect(view(captures).pending).toBe(false);
+    expect(view(captures).previewUrl).toBeNull();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
+  });
+
+  it("Use this does nothing when nothing is held", async () => {
+    const io = spyIo();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: provider({ ok: true, pages: [page()] }), io });
+    await captures.use("cdl_front");
+    expect(io.calls).toEqual([]);
+    expect(view(captures).state).toBe("empty");
+  });
+});
+
+describe("Upload a photo instead (§6.6.6)", () => {
+  it("opens the file picker WITHOUT `capture`, and hands on the file it returned", async () => {
+    const onStaged = vi.fn();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io: spyIo(), onStaged });
+    await captures.take("cdl_back", "file");
+    expect(pickers.camera).not.toHaveBeenCalled();
+    // One argument: the accept list. A second would be the `capture` attribute, which opens the camera
+    // — the very thing a driver pressing this button was refused.
+    expect(pickers.file).toHaveBeenCalledWith("image/*");
+    expect(captures.slots.value.find((s) => s.slot === "cdl_back")?.source).toBe("file");
+    await captures.use("cdl_back");
+    expect(onStaged).toHaveBeenCalledWith("cdl_back", UPLOADED);
+  });
+
+  it("the camera is the default, and a later camera press does not reuse the uploaded file", async () => {
+    const onStaged = vi.fn();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io: spyIo(), onStaged });
+    await captures.take("cdl_back", "file");
+    await captures.take("cdl_back");
+    expect(pickers.camera).toHaveBeenCalledTimes(1);
+    await captures.use("cdl_back");
+    expect(onStaged).toHaveBeenCalledWith("cdl_back", ORIGINAL);
   });
 });

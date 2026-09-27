@@ -39,7 +39,7 @@ describe("AppButton size='row'", () => {
 
   // ⚠ And the ordinary sizes are untouched by the branch that makes `row` possible.
   it("leaves every other size the control it was", () => {
-    for (const size of ["sm", "md", "icon"] as const) {
+    for (const size of ["sm", "md", "icon", "touch"] as const) {
       const cls = classesOf({ size });
       expect(cls, `${size} is still a control`).toContain("justify-center");
       expect(cls).toContain("rounded-control");
@@ -52,5 +52,15 @@ describe("AppButton size='row'", () => {
     const wrapper = mount(AppButton, { props: { size: "row" }, slots: { default: "Unit 1207" } });
     expect(wrapper.element.tagName).toBe("BUTTON");
     expect(wrapper.attributes("type")).toBe("button");
+  });
+});
+
+describe("AppButton size='touch'", () => {
+  // §6.8's bar on `/apply`: every tap target at least 44 × 44 CSS px. h-11 is 2.75rem = 44 px.
+  it("is 44 px tall, the phone tap target, and a control like any other", () => {
+    const cls = mount(AppButton, { props: { size: "touch", block: true }, slots: { default: "Take photo" } }).classes();
+    expect(cls).toContain("h-11");
+    expect(cls).toContain("w-full");
+    expect(cls).not.toContain("h-9");
   });
 });

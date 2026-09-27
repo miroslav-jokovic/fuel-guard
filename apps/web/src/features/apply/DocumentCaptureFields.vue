@@ -74,7 +74,9 @@ const anyBusy = computed(() => captures.busy.value !== null);
           <p v-else-if="slot.state === 'rejected' && slot.reason" class="mt-1 text-sm text-ink-secondary">
             {{ copy.rejected[slot.reason] }}
           </p>
-          <p v-else-if="slot.state === 'failed'" class="mt-1 text-sm text-ink-secondary">{{ copy.failed }}</p>
+          <p v-else-if="slot.state === 'failed'" class="mt-1 text-sm text-ink-secondary">
+            {{ slot.failure === "not_intact" ? copy.notIntact : copy.failed }}
+          </p>
         </div>
         <BaseButton
           :variant="slot.state === 'done' ? 'ghost' : 'secondary'"
