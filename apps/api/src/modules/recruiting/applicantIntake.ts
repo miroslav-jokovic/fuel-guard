@@ -5,9 +5,11 @@ import {
   type ApplicantIntakeLicence,
   type PartOneFacts,
   type PartOneLicence,
+  type PartOneStatus,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
+import { FCRA_SUMMARY_VERSION } from "./fcraSummary.js";
 import { promoteCaptures } from "./applicationCapture.js";
 import {
   ALREADY_SUBMITTED,
@@ -34,11 +36,13 @@ import {
  * at 90 days (§2.3.2) and screening outlives that. After it, the applicant's writes are refused
  * (AI008): the office screened on those answers, and only the office corrects them now.
  *
- * ── LEGACY INVITATIONS ────────────────────────────────────────────────────────────────────────
+ * ── LEGACY INVITATIONS, AND WHERE THE ROW COMES FROM ─────────────────────────────────────────
  * All eight production invitations predate Part 1 and have no `application_intakes` row (plan §7's
- * legacy rule). Nothing here creates one for them: a row appears only when an applicant posts to
- * these routes, which only C3's Part 1 screens do. `intakeState` is how every other path asks which
- * kind of invitation it is looking at.
+ * legacy rule). Since C3a every NEW invitation is given its (empty) row the moment it is created
+ * (`mintIntakeRow`, called by `createApplicationInvite`), so "has a row" and "is v2" are the same
+ * fact from the first second — no cutover date, and nothing that reads the row has to learn one. An
+ * invitation created before C3a's deploy never gets one: re-sending its link keeps the invitation,
+ * and so keeps it legacy. `intakeState` is how every other path asks which kind it is looking at.
  *
  * ⚠ Every query org-filters itself: the service role bypasses RLS, and the org comes from a resolved
  * token, never from the request.
@@ -61,6 +65,16 @@ export const INTAKE_INCOMPLETE: IntakeError = {
   message:
     "Before you go on: photograph both sides of your licence, photograph your medical card or say you "
     + "don't have one yet, and read the summary of your rights.",
+};
+
+/**
+ * The page showed a summary other than the one this server holds — it was loaded before the text
+ * changed. Refused rather than recorded: the version says which text was READ, and recording the new
+ * one would be a claim about a screen the applicant never saw.
+ */
+export const FCRA_SUMMARY_CHANGED: IntakeError = {
+  code: "fcra_summary_changed",
+  message: "The summary of your rights has been updated. Reload the page to read the current one.",
 };
 
 const INVALID_LINK: IntakeError = {
@@ -122,6 +136,8 @@ export async function recordIntake(
 ): Promise<{ keptExisting: string[]; licenceCount: number } | IntakeError> {
   const invitation = await openIntake(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
+  const shown = body.intake?.fcra_summary_version;
+  if (shown !== undefined && shown !== FCRA_SUMMARY_VERSION) return FCRA_SUMMARY_CHANGED;
 
   const { data, error } = await admin.rpc("record_applicant_intake", {
     p_org: invitation.org_id,
@@ -196,11 +212,13 @@ export async function completeIntake(
 }
 
 /**
- * Which kind of invitation is this — v2 (it has a Part 1 row) or legacy — and is Part 1 finished?
+ * Which kind of invitation is this — v2 (it has a Part 1 row) or legacy?
  *
- * ⚠ "Has an `application_intakes` row" is the whole of the legacy test until C3 merges: plan §7 adds
- * "created before C3's merge", and until then no invitation can have a row without its applicant
- * having begun Part 1 on these routes. C3 widens this, in this one place.
+ * "Has an `application_intakes` row" is the whole of the legacy test, and since C3a it stays the whole
+ * of it: plan §7's second half ("created before C3's merge") is made true by construction, because
+ * every invitation created since is minted its row (`mintIntakeRow`). A row therefore no longer means
+ * the applicant has BEGUN Part 1 — `prior_positive_2y` answered is that fact (AI009 refuses every
+ * other first write), which is what `partOneStatus` and the office's list read.
  */
 export async function intakeState(
   admin: SupabaseClient,
@@ -239,4 +257,67 @@ export async function partOneForFiling(
     .eq("invitation_id", invitationId)
     .order("position", { ascending: true });
   return { intake: data as PartOneFacts, licences: (licences ?? []) as PartOneLicence[] };
+}
+
+/**
+ * Give a new invitation its Part 1 row (C3a) — empty, so it says "this link is v2" and nothing else.
+ *
+ * ⚠ A direct INSERT and not `record_applicant_intake`, which cannot write an empty row: AI009 refuses
+ * any write that leaves §40.25(j) unanswered, and at creation nobody has answered anything. The row
+ * holds no fact, so the "one writer of Part 1's facts" rule (D-AW3) is untouched — every answer still
+ * arrives through the function. `on conflict do nothing` (never an upsert, `lint:upserts`): the row is
+ * one per invitation, and a retried create must not fail on its own first attempt.
+ */
+export async function mintIntakeRow(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+): Promise<boolean> {
+  const { error } = await admin
+    .from("application_intakes")
+    .insert({ org_id: orgId, invitation_id: invitationId });
+  // 23505: the row is already there, which is the state this exists to reach.
+  return !error || error.code === "23505";
+}
+
+/**
+ * Where Part 1 stands, for the page that walks it — booleans and the stamp, never a value (D-APP16:
+ * the bare link does not read back a date of birth, and an address is no different). Null for a legacy
+ * invitation, which has no Part 1.
+ *
+ * `rights` is true only for the text served now — a summary read under an older version is read again.
+ */
+export async function partOneStatus(
+  admin: SupabaseClient,
+  orgId: string,
+  invitation: { id: string; intake_completed_at?: string | null },
+): Promise<PartOneStatus | null> {
+  const { data } = await admin
+    .from("application_intakes")
+    .select("phone, postal_code, prior_positive_2y, medical_card_pending, fcra_summary_version")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitation.id)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as {
+    phone: string | null;
+    postal_code: string | null;
+    prior_positive_2y: boolean | null;
+    medical_card_pending: boolean | null;
+    fcra_summary_version: string | null;
+  };
+  const { count } = await admin
+    .from("application_intake_licences")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitation.id);
+  return {
+    completedAt: invitation.intake_completed_at ?? null,
+    contact: row.phone !== null,
+    address: row.postal_code !== null,
+    licences: (count ?? 0) > 0,
+    screening: row.prior_positive_2y !== null,
+    medicalCardPending: row.medical_card_pending === true,
+    rights: row.fcra_summary_version === FCRA_SUMMARY_VERSION,
+  };
 }

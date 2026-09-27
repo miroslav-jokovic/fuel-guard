@@ -107,19 +107,26 @@ export function recruitmentApplicationInvitesRouter(): Router {
       const started = new Set(
         ((drafts ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
       );
-      // §7 (C2b2): which links are v2 — have a Part 1 row — by the row's existence alone, for the same
-      // reason as the drafts: the address and licences have their own surface.
+      // §7 (C2b2): which links are v2 — have a Part 1 row — and, since C3a mints that row with the
+      // invitation, which of them have BEGUN Part 1: `prior_positive_2y` answered, the one fact every
+      // first write must carry (AI009). Two booleans, never the answers, for the drafts' reason: the
+      // address and licences have their own surface.
       const { data: intakes } = await admin
         .from("application_intakes")
-        .select("invitation_id")
+        .select("invitation_id, prior_positive_2y")
         .eq("org_id", orgId)
         .in("invitation_id", rows.map((r) => r.id));
-      const partOne = new Set(
-        ((intakes ?? []) as Array<{ invitation_id: string }>).map((d) => d.invitation_id),
-      );
+      const intakeRows = (intakes ?? []) as Array<{ invitation_id: string; prior_positive_2y: boolean | null }>;
+      const partOne = new Set(intakeRows.map((d) => d.invitation_id));
+      const begun = new Set(intakeRows.filter((d) => d.prior_positive_2y !== null).map((d) => d.invitation_id));
 
       res.json({
-        invitations: rows.map((r) => ({ ...r, has_draft: started.has(r.id), has_intake: partOne.has(r.id) })),
+        invitations: rows.map((r) => ({
+          ...r,
+          has_draft: started.has(r.id),
+          has_intake: partOne.has(r.id),
+          intake_begun: begun.has(r.id),
+        })),
       });
     }),
   );

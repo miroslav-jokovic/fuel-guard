@@ -72,6 +72,19 @@ describe("an invitation's state", () => {
     expect(inviteState(invite({ has_intake: false }), NOW)).toBe("open");
   });
 
+  /**
+   * C3a mints the Part 1 row with the invitation, so a row no longer means "started". An untouched v2
+   * link reads "open" like any other; agreeing to sign electronically (Part 1's second screen) or a
+   * first answer is "Part 1 in progress". An older API sends no `intake_begun` and keeps its meaning.
+   */
+  it("reads an untouched v2 link as open, not as Part 1 in progress", () => {
+    expect(inviteState(invite({ has_intake: true, intake_begun: false }), NOW)).toBe("open");
+    expect(inviteState(invite({ has_intake: true, intake_begun: false, consented_at: "2026-08-19T09:00:00Z" }), NOW))
+      .toBe("part1");
+    expect(inviteState(invite({ has_intake: true, intake_begun: true }), NOW)).toBe("part1");
+    expect(inviteState(invite({ has_intake: true }), NOW)).toBe("part1");
+  });
+
   /** A spent link stays "submitted" even past its expiry — what happened outranks what lapsed. */
   it("reports a used link as used even after it would have expired", () => {
     expect(inviteState(invite({ submitted_at: "2026-08-19T10:00:00Z", expires_at: "2026-08-01T00:00:00Z" }), NOW)).toBe("used");

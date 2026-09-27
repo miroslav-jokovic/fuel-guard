@@ -21,6 +21,7 @@ import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
 import { linkHasBeenUsed, useApplyInvitationQuery } from "@/features/apply/useApplication";
 import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
+import { usePartOneStep } from "@/features/apply/partOne/usePartOneStep";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
@@ -43,8 +44,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * them swear the entries are true and complete, and nobody can swear to what they cannot see.
  *
  * ── WHICH SCREEN, IN WHAT ORDER (B7, A4, A5) ─────────────────────────────────────────────────
- * The expectations screen, the 7001(c) consent, the identity step, the permissions and the waiting
- * screens come before the form, in an order `ApplyPhaseRouter.vue` holds and explains since C1
+ * The expectations screen, the 7001(c) consent, Part 1 (a v2 link, C3a) or the identity step (a legacy
+ * one), the permissions and the waiting screens come before the form, in an order `ApplyPhaseRouter.vue` holds and explains since C1
  * (2026-09-26). This page computes every condition that chain reads and performs every act it
  * reports; the router only chooses.
  * ── THE PHOTOGRAPHS ARE STAGED, NOT SAVED (A8, D-APP10) ───────────────────────────────────────
@@ -169,7 +170,9 @@ const autosave = useApplicationDraft(token, draft, {
   // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
   // the driver has not been allowed to reach yet would be a lie about their signal.
   enabled: computed(
-    () => autosaveEnabled.value && !consentNeeded.value && !ceremonyNeeded.value && !waitingForApplication.value,
+    () =>
+      autosaveEnabled.value && !consentNeeded.value && !partOneNeeded.value && !ceremonyNeeded.value
+      && !waitingForApplication.value,
   ),
   section: computed(() => wizard.furthestSection.value),
 });
@@ -224,7 +227,14 @@ const ceremonyNeeded = computed(
 // (D-APP16), so it is re-read through the unlock like any resumed draft.
 const identityDone = ref(false);
 const identityComplete = computed(() => Boolean(invitation.data.value?.identityComplete));
-const identityNeeded = computed(() => ceremonyNeeded.value && !identityComplete.value && !identityDone.value);
+// ── Part 1 (C3a, §6.2) — a v2 link's identity, address, licences, photographs and rights summary, before
+// the permissions. The server refuses a v2 link's permissions until it is finished, so on a v2 link the
+// legacy identity screen never shows: Part 1 is what writes the identity now (D-AW3).
+const { isPartOneLink, partOneNeeded, partOneInputs, refreshPartOne, partOneFinished } =
+  usePartOneStep(invitation, consentNeeded);
+const identityNeeded = computed(
+  () => ceremonyNeeded.value && !isPartOneLink.value && !identityComplete.value && !identityDone.value,
+);
 const identityLockedBy = computed(() => (identityComplete.value ? invitation.data.value!.carrier : null));
 // AF4: the permissions are in and the office has not sent the form. Only an explicit null counts —
 // see `ApplyPhases.applicationSentAt` — and a ceremony just finished in this tab counts as "in".
@@ -275,6 +285,10 @@ watch(
     :consent-needed="consentNeeded"
     :consenting="consenting"
     :consent-failed="consentFailed"
+    :part-one-needed="partOneNeeded"
+    :part-one-inputs="partOneInputs"
+    :refresh-part-one="refreshPartOne"
+    :is-part-one-link="isPartOneLink"
     :identity-needed="identityNeeded"
     :ceremony-needed="ceremonyNeeded"
     :releases="releases"
@@ -288,6 +302,7 @@ watch(
     :send-error="sendError"
     @begin="begun = true"
     @agree="agree"
+    @part-one-done="partOneFinished"
     @identity-recorded="identityRecorded"
     @ceremony-done="ceremonyDone = true"
     @unlocked="released = $event"

@@ -16,6 +16,7 @@ import {
   packetPlacementById,
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
+import { FCRA_SUMMARY, FCRA_SUMMARY_VERSION } from "../fcraSummary.js";
 import { packetTextVersion } from "../applicationPdf/packet/packetTextVersion.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
 import { CLEARINGHOUSE_VERSION, ESIGN_VERSION, PACKET_VERSION } from "../defaultWording.js";
@@ -308,6 +309,58 @@ describe("opening the link", () => {
       editedAt: "2026-09-11T08:00:00Z",
     });
     expect(JSON.stringify(body.edits)).not.toContain("cccccccc");
+  });
+
+  /**
+   * C3a (§6.2): a v2 link — one with a Part 1 row — is told where Part 1 stands, in booleans, and is
+   * served the FCRA summary it ends on. ⚠ Never an answer: the phone, the ZIP and §40.25(j) are on the
+   * row and must not ride on the bare link (D-APP16).
+   */
+  it("serves a v2 link where Part 1 stands, and the summary it ends on — booleans, never answers", async () => {
+    holder.client = seed({}, {
+      application_intakes: [{
+        phone: "+17082365732", postal_code: "60601", prior_positive_2y: false,
+        medical_card_pending: true, fcra_summary_version: null,
+      }],
+      application_intake_licences: { data: [], count: 2 },
+    }).client;
+    const res = await call(`/${TOKEN}`);
+    const body = (await res.json()) as { partOne: unknown; fcraSummary: { version: string; title: string } | null };
+    expect(body.partOne).toEqual({
+      completedAt: null, contact: true, address: true, licences: true, screening: true,
+      medicalCardPending: true, rights: false,
+    });
+    expect(body.fcraSummary).toMatchObject({ version: FCRA_SUMMARY_VERSION, title: FCRA_SUMMARY.title });
+    const text = JSON.stringify(body.partOne);
+    for (const answer of ["7082365732", "60601"]) expect(text).not.toContain(answer);
+  });
+
+  /** Each flag reads its own column: §40.25(j) can be on file with nothing else yet. */
+  it("reads each flag from its own answer", async () => {
+    holder.client = seed({}, {
+      application_intakes: [{
+        phone: null, postal_code: null, prior_positive_2y: true, medical_card_pending: false, fcra_summary_version: null,
+      }],
+    }).client;
+    const body = (await (await call(`/${TOKEN}`)).json()) as { partOne: Record<string, unknown> };
+    expect(body.partOne).toMatchObject({ screening: true, contact: false, address: false, licences: false });
+  });
+
+  it("stops serving the summary once Part 1 is finished, and serves a legacy link no Part 1 at all", async () => {
+    holder.client = seed({ intake_completed_at: "2026-09-27T10:00:00Z" }, {
+      application_intakes: [{
+        phone: "+17082365732", postal_code: "60601", prior_positive_2y: false,
+        medical_card_pending: false, fcra_summary_version: FCRA_SUMMARY_VERSION,
+      }],
+    }).client;
+    const done = (await (await call(`/${TOKEN}`)).json()) as { partOne: { completedAt: string; rights: boolean }; fcraSummary: unknown };
+    expect(done.partOne).toMatchObject({ completedAt: "2026-09-27T10:00:00Z", rights: true });
+    expect(done.fcraSummary).toBeNull();
+
+    holder.client = seed().client;
+    const legacy = (await (await call(`/${TOKEN}`)).json()) as { partOne: unknown; fcraSummary: unknown };
+    expect(legacy.partOne).toBeNull();
+    expect(legacy.fcraSummary).toBeNull();
   });
 
   it("tells an anonymous caller nothing about who exists", async () => {

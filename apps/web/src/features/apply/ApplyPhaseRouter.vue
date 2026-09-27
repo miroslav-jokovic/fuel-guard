@@ -4,6 +4,9 @@ import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
 import EsignConsentGate from "@/features/apply/EsignConsentGate.vue";
 import IdentityFields from "@/features/apply/IdentityFields.vue";
+import PartOneClearinghouse from "@/features/apply/partOne/PartOneClearinghouse.vue";
+import PartOneFlow from "@/features/apply/partOne/PartOneFlow.vue";
+import type { PartOneInputs } from "@/features/apply/partOne/usePartOne";
 import ApplyWaitScreen from "@/features/apply/ApplyWaitScreen.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
@@ -42,6 +45,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * still draft nothing is asked and the link behaves as it did before — the server says which, and
  * the page does not decide it for itself.
  *
+ * ── A v2 LINK WALKS PART 1 WHERE A LEGACY ONE WAS ASKED ITS IDENTITY (C3a, §6.2) ─────────────
+ * Part 1 sits exactly where the identity screen sat — after the consent, before the permissions —
+ * because it is what writes the identity now (D-AW3), and the server refuses a v2 link's permissions
+ * until it is finished. A link has one or the other, never both (`usePartOneStep`).
+ *
  * ── THE AUTHORIZATIONS ARE SIGNED BEFORE THE FORM, NOT AFTER (A5, D-APP4) ─────────────────────
  * §391.21(b)'s certification is the LAST act of an application, and submitting is what makes the
  * application exist — so anything that has to happen with it has to happen before it. The order on
@@ -62,6 +70,10 @@ defineProps<{
   consentNeeded: boolean;
   consenting: boolean;
   consentFailed: boolean;
+  partOneNeeded: boolean;
+  partOneInputs: PartOneInputs | null;
+  refreshPartOne: () => Promise<PartOneInputs | null>;
+  isPartOneLink: boolean;
   identityNeeded: boolean;
   ceremonyNeeded: boolean;
   releases: ApplyRelease[];
@@ -78,6 +90,7 @@ const draft = defineModel<ApplicationDraft>("draft", { required: true });
 const emit = defineEmits<{
   begin: [];
   agree: [];
+  partOneDone: [];
   identityRecorded: [];
   ceremonyDone: [];
   unlocked: [payload: Record<string, unknown>];
@@ -137,6 +150,11 @@ const emit = defineEmits<{
     />
   </BaseCard>
 
+  <BaseCard v-else-if="partOneNeeded && partOneInputs">
+    <PartOneFlow :token="token" :carrier="invitation.data.value?.carrier ?? ''" :inputs="partOneInputs"
+      :refresh="refreshPartOne" @done="emit('partOneDone')" />
+  </BaseCard>
+
   <BaseCard v-else-if="identityNeeded">
     <IdentityFields :token="token" :carrier="invitation.data.value?.carrier ?? ''"
       :captures="invitation.data.value?.captures ?? []" @done="emit('identityRecorded')" />
@@ -158,7 +176,10 @@ const emit = defineEmits<{
   <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
   <BaseCard v-else-if="waitingForApplication">
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
-      :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')" />
+      :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')">
+      <!-- §6.2 screen 20: a v2 link's "done" — and what the driver can do meanwhile. -->
+      <PartOneClearinghouse v-if="isPartOneLink" :carrier="invitation.data.value?.carrier ?? ''" />
+    </ApplyWaitScreen>
   </BaseCard>
 
   <!-- AF5 (plan §3.1 row 9): approved, and signing happens in the office. Before the unlock gate: it

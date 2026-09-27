@@ -604,6 +604,63 @@ describe("the applicant's page", () => {
   });
 
   /**
+   * C3a (§6.2): a v2 link — the server serves it a `partOne` — walks Part 1 where a legacy link is asked
+   * its identity, because Part 1 writes the identity now. The discriminator is the legacy test above: the
+   * same bundle without `partOne` still opens on the identity screen.
+   */
+  const partOnePage = (partOne: Record<string, unknown>, extra: Record<string, unknown> = {}) => ok({
+    carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z",
+    releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+    releasesSigned: [],
+    phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: null, submittedAt: null, applicationSentAt: null },
+    draft: { locked: false, payload: null, furthestSection: null, updatedAt: null },
+    esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+    identityComplete: false,
+    captures: [],
+    partOne: {
+      completedAt: null, contact: false, address: false, licences: false, screening: false,
+      medicalCardPending: false, rights: false, ...partOne,
+    },
+    fcraSummary: null,
+    ...extra,
+  });
+
+  it("walks a v2 link through Part 1 instead of the identity screen, before any permission", async () => {
+    fetchMock.mockResolvedValue(partOnePage({}));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain(APPLY_COPY.partOne.about.heading);
+    expect(w.text()).toContain(APPLY_COPY.partOne.step(1, 9));
+    expect(w.text()).not.toContain("Your driver's licence");
+    expect(w.text()).not.toContain("Your signature");
+  });
+
+  it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }));
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain("Your signature");
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.about.heading);
+    expect(w.text()).not.toContain("Your driver's licence");
+  });
+
+  /** §6.2 screen 20: the v2 "done" screen offers the Clearinghouse registration; a legacy one does not. */
+  it("offers the Clearinghouse registration on a v2 link's permissions-received screen only", async () => {
+    const received = { phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null, applicationSentAt: null } };
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, received));
+    const v2 = mountPage();
+    await settle(v2);
+    expect(v2.text()).toContain(APPLY_COPY.permissionsReceived.heading);
+    expect(v2.text()).toContain(APPLY_COPY.partOne.clearinghouse.heading);
+
+    fetchMock.mockResolvedValue(partOnePage({}, { ...received, partOne: null }));
+    const legacy = mountPage();
+    await settle(legacy);
+    expect(legacy.text()).toContain(APPLY_COPY.permissionsReceived.heading);
+    expect(legacy.text()).not.toContain(APPLY_COPY.partOne.clearinghouse.heading);
+  });
+
+  /**
    * ⚠ And once it is on file the form SHOWS it and does not let it be retyped (D-AF8): the licence
    * PSP ran against is the licence the application must name. The discriminator is the pair — the
    * same page with the identity not on file must leave the field editable, or a field that was always

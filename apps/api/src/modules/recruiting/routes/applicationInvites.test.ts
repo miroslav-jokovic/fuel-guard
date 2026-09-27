@@ -6,6 +6,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { postgrestFixture } from "../../../testing/postgrestFixture.js";
 
 /**
  * Inviting an applicant. The interesting assertions are all about the token: it is returned exactly
@@ -231,6 +232,38 @@ describe("creating an invitation", () => {
     });
   });
 
+});
+
+/**
+ * §7 + C3a: the list says which links are v2 (`has_intake`) and, since every new link is minted its Part 1
+ * row, which of those have BEGUN Part 1 (`intake_begun`: §40.25(j) answered, the one fact every first write
+ * carries). Booleans only — the list never carries a Part 1 answer.
+ */
+describe("listing a driver's invitations", () => {
+  it("says which links are v2 and which have begun Part 1, and nothing of the answers", async () => {
+    const invitation = (id: string) => ({ id, org_id: ORG, driver_id: DRIVER, expires_at: "2099-01-01T00:00:00Z", created_at: "2026-09-27T00:00:00Z" });
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_invitations: postgrestFixture([invitation("inv-new"), invitation("inv-begun"), invitation("inv-legacy")]),
+        application_drafts: postgrestFixture([]),
+        application_intakes: postgrestFixture([
+          { org_id: ORG, invitation_id: "inv-new", prior_positive_2y: null, phone: null },
+          { org_id: ORG, invitation_id: "inv-begun", prior_positive_2y: false, phone: "+17082365732" },
+        ]),
+      },
+    });
+    holder.client = rec.client;
+    const res = await call(`/drivers/${DRIVER}/application-invites`, { token: "recruiter" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { invitations: Array<{ id: string; has_intake: boolean; intake_begun: boolean }> };
+    expect(body.invitations.map((i) => [i.id, i.has_intake, i.intake_begun])).toEqual([
+      ["inv-new", true, false],
+      ["inv-begun", true, true],
+      ["inv-legacy", false, false],
+    ]);
+    expect(JSON.stringify(body)).not.toContain("7082365732");
+    expectOrgScoped(rec, ORG);
+  });
 });
 
 describe("who may invite", () => {

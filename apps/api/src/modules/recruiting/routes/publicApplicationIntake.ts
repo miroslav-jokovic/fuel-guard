@@ -30,6 +30,7 @@ function statusOf(result: IntakeError): number {
       return 400;
     case "already_submitted":
     case "esign_consent_required":
+    case "fcra_summary_changed":
     case "intake_frozen":
     case "intake_incomplete":
     case "prior_positive_required":
