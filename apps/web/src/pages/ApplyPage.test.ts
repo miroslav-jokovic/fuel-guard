@@ -673,6 +673,84 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
   });
 
+  /**
+   * §6.6.6 (C3b2b2): on a computer the photo comes from the phone, through the same link. The desktop
+   * tab re-reads the bundle while the slot is empty and moves on when the phone's photo is on it.
+   */
+  it("on a computer, moves on by itself when the phone's photo arrives", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      fetchMock.mockResolvedValue(partOnePage({}));
+      const w = mountPage();
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.handoff.heading);
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      await flushPromises();
+      // Nothing yet: still waiting on the same screen.
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+
+      fetchMock.mockResolvedValue(partOnePage({}, {
+        captures: [{ slot: "cdl_front", contentType: "image/webp", bytes: 1, capturedAt: "2026-09-27T12:00:00Z" }],
+      }));
+      await vi.advanceTimersByTimeAsync(10_000);
+      await flushPromises();
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_back.heading);
+      expect(w.text()).toContain(APPLY_COPY.partOne.step(2, 9));
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.stubGlobal("fetch", fetchMock);
+    }
+  });
+
+  it("on a computer, follows the phone past a screen whose photo already arrived", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      fetchMock.mockResolvedValue(partOnePage({}));
+      const w = mountPage();
+      await settle(w);
+      const both = ["cdl_front", "cdl_back"].map((slot) => ({ slot, contentType: "image/webp", bytes: 1, capturedAt: "2026-09-27T12:00:00Z" }));
+      fetchMock.mockResolvedValue(partOnePage({}, { captures: both }));
+      await vi.advanceTimersByTimeAsync(10_000);
+      await flushPromises();
+      // Both sides came from the phone: the desktop is carried past the CDL's back to the typed screens.
+      expect(w.text()).toContain(APPLY_COPY.partOne.step(3, 9));
+      expect(w.text()).toContain(APPLY_COPY.partOne.about.heading);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.stubGlobal("fetch", fetchMock);
+    }
+  });
+
+  it("on a computer, a filled photo screen reached with Back stays put", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const front = [{ slot: "cdl_front", contentType: "image/webp", bytes: 1, capturedAt: "2026-09-27T12:00:00Z" }];
+      fetchMock.mockResolvedValue(partOnePage({}, { captures: front }));
+      const w = mountPage();
+      await settle(w);
+      // Resumed on the first screen still owed: the CDL's back.
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_back.heading);
+      await w.findAll("button").find((b) => b.text() === APPLY_COPY.partOne.back)!.trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await flushPromises();
+      // The driver went back to look; the page does not push them forward again.
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
+      expect(w.text()).toContain(APPLY_COPY.partOne.photo.receivedEarlier);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.stubGlobal("fetch", fetchMock);
+    }
+  });
+
   it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {
     fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }));
     const w = mountPage();

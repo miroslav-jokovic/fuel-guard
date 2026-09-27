@@ -185,3 +185,25 @@ export function packetCeremonyLimiter(): RequestHandler {
     ),
   });
 }
+
+/**
+ * "Text me the link" (§6.6.6, C3b2b2): three texts per link per ten minutes.
+ *
+ * ⚠ Its own bucket, keyed by the LINK, because the thing being protected is the applicant's phone, not
+ * the server: the intake's 20 a minute would let one desktop tab text the same number twenty times in a
+ * minute. Three covers a text that did not arrive and a second try; a fourth inside ten minutes is not
+ * somebody who needs the link.
+ */
+export const TEXT_LINK_LIMIT = 3;
+
+export function textLinkLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 10 * 60_000,
+    limit: TEXT_LINK_LIMIT,
+    keyGenerator: applicationLinkKey,
+    // The intake limiter owns the `RateLimit` headers on this prefix (see `packetCeremonyLimiter`).
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler: refuse("text-link", "We have already texted this link a few times. Use the QR code, or try again in ten minutes."),
+  });
+}

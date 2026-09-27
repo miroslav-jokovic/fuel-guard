@@ -1014,3 +1014,29 @@ Append dated lines at the END.
   slot empty and say "Take the photo" to a driver looking at it — the flow now names "Use this photo" and asks nothing.
   No blur advisory (Q-AW32). 18 mutants, all killed — one ("take sends at once") first written as a `use` call under
   `take`'s own busy lock changed nothing, and was rewritten as a real one before it counted.
+- 2026-09-27 — **C3b2b1 merged** (#1081, main `dd29b9c`); CI green on the merged head.
+- 2026-09-27 — **C3b2b2 built** (`claude/applicant-flow-c3b2b2`): §6.6.6's desktop half. **"Desktop"** is
+  `(hover: hover) and (pointer: fine)` (`useIsDesktop`), never the user agent; no `matchMedia` reads as a phone. On a
+  desktop photo screen whose slot is empty, `PartOneHandoff` comes first: a QR code of THIS link drawn in the page from
+  the route's token by `@silvicom/qr` (the link is a bearer credential — never sent to a QR service), black on white,
+  `crispEdges`, pinned `scheme-light` — **found in CI:** hex fills fail `apps/web`'s own `lint:tokens` (ci.yml runs it by
+  filter, so a root `lint:*` sweep misses it), and the tokens that replace them are `light-dark()` pairs under a LIVE
+  dark-mode toggle, which would have drawn an inverted code. **"Text me the link", the owner-accepted default:** offered only on a LIVE consent; otherwise the
+  existing optional `SmsOptInCard` sits beside the code (never a step, §64.1200(f)(9)(i)(B)), and agreeing there turns
+  the button on. `POST /apply/:token/text-link` takes an empty body, composes the link from its own `:token`
+  (`smsApplicationPhoneLink`, no "earlier link" line — nothing rotates), stores it nowhere, and goes through
+  `sendApplicationSms` **directly — send-now-or-never, never `sms_outbox`** (Q-AW29's default); every hold answers
+  `{ outcome: "held", held }` and the page says so, each ending at the QR code (quiet hours → "use the QR code"). The
+  zone is the strict all-US window (Part 1 asks the address after the photos). **Its own limiter**, 3 per link per 10
+  minutes (`textLinkLimiter`, keyed like the ceremony's): the intake's 20 a minute protects the server, not the
+  applicant's phone. **The desktop moves on by itself:** `useHandoffPoll` re-reads the bundle every 10 s (6 a minute
+  against the intake's 20), not while the tab is hidden, and advances through `next` (so `photoDone` decides).
+  **Found by a test:** "waiting" read from `inputs` live turned itself off in the tick that found the photo — the
+  poll's own refresh is what puts it there — so the page never moved; it is now decided on arrival at the screen. A
+  screen reached by that automatic move with its photo already there moves on again (the phone took both sides);
+  one reached by Back waits. No new realtime channel, no migration. 25 mutants, all killed — three survived the first
+  pass and each was closed: an unused-constant mutant rewritten as a real one, a poll-interval test that read the
+  constant back now uses the literal, and a missing "Back to a filled screen stays put" test. **Not built, named:** the
+  new text is a new sample under the toll-free verification submitted 2026-09-25 (`14c37df3…`) — same programme and
+  purpose as the reminder, which already carries the link, so no re-submission is assumed; the owner should say if
+  Telnyx wants the sample set updated.

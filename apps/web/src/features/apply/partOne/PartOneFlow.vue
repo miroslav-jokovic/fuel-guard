@@ -5,7 +5,8 @@ import PartOneAnswerFields from "./PartOneAnswerFields.vue";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import PartOnePhoto from "./PartOnePhoto.vue";
 import PartOneRights from "./PartOneRights.vue";
-import { isPhotoScreen, type PartOneScreen } from "./partOneScreens";
+import { isPhotoScreen, photoDone, type PartOneScreen } from "./partOneScreens";
+import { useHandoffPoll, useIsDesktop } from "./useDesktopHandoff";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -78,6 +79,52 @@ watch(flow.screen, () => {
 watch(holding, (held) => {
   if (!held) unsent.value = false;
 });
+/**
+ * §6.6.6 (C3b2b2): on a computer, the photo usually comes from the phone, through the same link. While
+ * this screen's slot is empty and nothing is held here, re-read the bundle; when the phone's photo is
+ * on it, move on — through `next`, so the server's own answer (`photoDone`) is what advances the page.
+ *
+ * ⚠ "Empty" is decided ON ARRIVAL at the screen (`emptyOnArrival`), not from `inputs` live: the poll's
+ * own read is what puts the photo into `inputs`, so a live test turned itself off in the same tick that
+ * found the photo, and the page never moved (caught by ApplyPage's "moves on by itself" test).
+ *
+ * A screen reached by that automatic move whose slot is ALREADY filled — the phone took both sides of
+ * the CDL before this tab noticed the first — moves on again, so the desktop follows the phone. A screen
+ * reached any other way (Back, a resumed visit) with its slot filled waits for Continue, as anywhere.
+ */
+const desktop = useIsDesktop();
+const photoScreen = computed(() => (isPhotoScreen(flow.screen.value) ? flow.screen.value : null));
+const hasSlot = (s: PartOneScreen): boolean => props.inputs.captures.some((c) => c.slot === s);
+const emptyOnArrival = ref(false);
+let followingPhone = false;
+watch(
+  flow.screen,
+  (s) => {
+    emptyOnArrival.value = isPhotoScreen(s) && !hasSlot(s);
+    if (followingPhone && desktop.value && isPhotoScreen(s) && hasSlot(s)) {
+      void flow.next();
+      return;
+    }
+    followingPhone = false;
+  },
+  { immediate: true },
+);
+const awaitingPhone = computed(
+  () => desktop.value && emptyOnArrival.value && !holding.value && !flow.working.value,
+);
+useHandoffPoll(
+  awaitingPhone,
+  async () => {
+    const s = photoScreen.value;
+    const fresh = await props.refresh();
+    return s !== null && fresh !== null && photoDone(s, fresh.captures, false);
+  },
+  () => {
+    followingPhone = true;
+    void flow.next();
+  },
+);
+
 function onContinue(): void {
   if (flow.kept.value) return flow.acknowledgeKept();
   if (isPhotoScreen(flow.screen.value) && holding.value) {
@@ -111,6 +158,8 @@ function onContinue(): void {
         :key="flow.screen.value"
         v-model:answers="answers"
         :token="token"
+        :carrier="carrier"
+        :desktop="desktop"
         :photo="flow.screen.value"
         :captures="[...inputs.captures]"
         :errors="flow.errors.value"

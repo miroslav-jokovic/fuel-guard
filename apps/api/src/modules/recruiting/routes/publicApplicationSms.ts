@@ -2,19 +2,23 @@ import { Router } from "express";
 import {
   SMS_CONSENT,
   composeSmsConsent,
+  smsApplicationPhoneLink,
   smsConsentGrantSchema,
   type ApplicantSmsConsent,
   type SmsConfirmation,
   type SmsConsentGrant,
+  type TextLinkAnswer,
 } from "@silvicom/shared";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { textLinkLimiter } from "../../../middleware/applicationLimits.js";
 import { isIntakeError, requireEsignConsent, resolveInvitation } from "../applicationIntake.js";
 import { carrierName } from "../applicationMail.js";
 import { loadCarrierWording } from "../carrierWording.js";
 import {
   recordSmsConsent,
+  sendApplicationSms,
   smsConsentStatus,
   withdrawSmsConsent,
 } from "../applicationSms.js";
@@ -132,6 +136,55 @@ export function publicApplicationSmsRouter(): Router {
         admin, invitation.org_id, invitation.driver_id, "withdrawn by the applicant on the application page",
       );
       res.json({ ok: true, status: await smsConsentStatus(admin, invitation.org_id, invitation.driver_id) });
+    }),
+  );
+
+  /**
+   * "Text me the link" (§6.6.6, C3b2b2) — the desktop page sending ITS OWN link to the phone the
+   * applicant agreed to be texted on, so the photographs are taken with a camera.
+   *
+   * ⚠ **Send now or never, never through `sms_outbox`** (Q-AW29's default): 0376 refuses a URL in a
+   * queued text's params, and minting one at drain would rotate the token under the tab that asked. So
+   * `sendApplicationSms` directly — every gate it holds (draft wording, a live consent, a number, a
+   * suppression, quiet hours) answers `held`, and the page says what to do instead ("use the QR code").
+   *
+   * ⚠ **The link is composed here from this request's own `:token`, and stored nowhere.** The client
+   * sends no URL and no number: a body the server texted would be a way to text anything to anybody.
+   * Nothing is rotated — it is the link already open on the desktop.
+   *
+   * The zone is the strict all-US window (`timeZone` null): Part 1 asks for the address after the
+   * photographs, so on these screens there is usually none to read, and `sendApplicationSms` takes one
+   * zone where C2d1's split-state rule needs several. The strict window is never wrong, only narrower.
+   */
+  router.post(
+    "/:token/text-link",
+    textLinkLimiter(),
+    asyncHandler(async (req, res) => {
+      const { env } = getAppLocals(req);
+      const admin = getSupabaseAdmin(env);
+      const now = new Date();
+      const token = String(req.params.token ?? "");
+      const invitation = await resolveInvitation(admin, token, now);
+      if (isIntakeError(invitation)) {
+        res.status(404).json(apiError(invitation.code, invitation.message));
+        return;
+      }
+      const unconsented = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
+      if (unconsented) {
+        res.status(409).json(apiError(unconsented.code, unconsented.message));
+        return;
+      }
+      const carrier = await carrierName(admin, invitation.org_id);
+      const link = `${env.WEB_APP_URL}/apply/${encodeURIComponent(token)}`;
+      const sent = await sendApplicationSms(
+        admin, env, invitation.org_id, invitation.driver_id, smsApplicationPhoneLink(carrier, link), now,
+      );
+      if ("failed" in sent) {
+        res.status(502).json(apiError("sms_failed", "The text did not go. Use the QR code instead."));
+        return;
+      }
+      const body: TextLinkAnswer = sent.sent ? { outcome: "sent" } : { outcome: "held", held: sent.held };
+      res.json(body);
     }),
   );
 
