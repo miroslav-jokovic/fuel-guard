@@ -60,18 +60,22 @@ async function textMe(): Promise<void> {
       <h2 id="handoff-heading" class="text-sm font-semibold text-ink">{{ copy.heading }}</h2>
       <p class="text-sm text-ink-muted">{{ copy.body }}</p>
     </div>
-    <!-- Black on white whatever the theme: a QR symbol wants contrast, not brand colour (svg.ts), and
-         some phone scanners cannot read an inverted one. `crispEdges` for LabelSheetPreview's reason:
-         antialiased module edges read as grey to a camera pointed at a screen. -->
+    <!-- Dark modules on a light ground, from the tokens (`lint:tokens` refuses a hex), coloured through
+         `currentColor` as LabelSheetPreview's symbols are. A QR symbol wants contrast, not brand colour
+         (svg.ts), and some phone scanners cannot read an inverted one. ⚠ The page's dark mode is live
+         (`useColorScheme` writes `color-scheme` on <html>, and every token is a `light-dark()` pair), so
+         without `scheme-light` this pair would resolve to light modules on a dark ground in dark mode.
+         `scheme-light` pins THIS element's `color-scheme`, so both tokens resolve to their light values.
+         `crispEdges` for LabelSheetPreview's reason: antialiased module edges read as grey to a camera
+         pointed at a screen. -->
     <svg
       viewBox="0 0 100 100"
       shape-rendering="crispEdges"
       role="img"
       :aria-label="copy.qrLabel"
-      class="mx-auto size-48 rounded-detail"
+      class="mx-auto size-48 rounded-detail bg-surface text-ink scheme-light"
     >
-      <rect width="100" height="100" fill="#ffffff" />
-      <path :d="qrPath" fill="#000000" />
+      <path :d="qrPath" fill="currentColor" />
     </svg>
     <p class="text-center text-xs text-ink-tertiary" aria-live="polite">{{ copy.waiting }}</p>
 

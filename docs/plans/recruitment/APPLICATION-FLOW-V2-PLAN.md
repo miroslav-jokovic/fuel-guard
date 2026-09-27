@@ -1019,7 +1019,9 @@ Append dated lines at the END.
   `(hover: hover) and (pointer: fine)` (`useIsDesktop`), never the user agent; no `matchMedia` reads as a phone. On a
   desktop photo screen whose slot is empty, `PartOneHandoff` comes first: a QR code of THIS link drawn in the page from
   the route's token by `@silvicom/qr` (the link is a bearer credential — never sent to a QR service), black on white,
-  `crispEdges`. **"Text me the link", the owner-accepted default:** offered only on a LIVE consent; otherwise the
+  `crispEdges`, pinned `scheme-light` — **found in CI:** hex fills fail `apps/web`'s own `lint:tokens` (ci.yml runs it by
+  filter, so a root `lint:*` sweep misses it), and the tokens that replace them are `light-dark()` pairs under a LIVE
+  dark-mode toggle, which would have drawn an inverted code. **"Text me the link", the owner-accepted default:** offered only on a LIVE consent; otherwise the
   existing optional `SmsOptInCard` sits beside the code (never a step, §64.1200(f)(9)(i)(B)), and agreeing there turns
   the button on. `POST /apply/:token/text-link` takes an empty body, composes the link from its own `:token`
   (`smsApplicationPhoneLink`, no "earlier link" line — nothing rotates), stores it nowhere, and goes through

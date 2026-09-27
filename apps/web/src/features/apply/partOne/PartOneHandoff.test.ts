@@ -47,6 +47,9 @@ describe("the QR code", () => {
     const expected = toSvgPath(encode(`${window.location.origin}/apply/${TOKEN}`), { size: 100 });
     expect(w.find("svg path").attributes("d")).toBe(expected);
     expect(w.find("svg").attributes("aria-label")).toBe(copy.qrLabel);
+    // Dark on light in either colour scheme: the tokens are light-dark() pairs, so the element pins its own.
+    expect(w.find("svg").classes()).toEqual(expect.arrayContaining(["scheme-light", "bg-surface", "text-ink"]));
+    expect(w.find("svg path").attributes("fill")).toBe("currentColor");
   });
 });
 
