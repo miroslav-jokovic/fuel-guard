@@ -315,6 +315,9 @@ export const driverApplicationObject = z
 
 export type DriverApplicationFields = z.infer<typeof driverApplicationObject>;
 
+/** The longest "Something wrong? Tell us" note a draft may hold (C3c2c2). */
+export const APPLICATION_CORRECTION_NOTE_MAX = 1000;
+
 /**
  * The autosaved DRAFT, as it actually sits in `application_drafts.payload`.
  *
@@ -340,6 +343,13 @@ export type DriverApplicationFields = z.infer<typeof driverApplicationObject>;
  */
 export const applicationDraftPayloadSchema = driverApplicationObject.partial().extend({
   questionnaire: z.record(z.string(), z.unknown()).nullish(),
+  /**
+   * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's message to the office about a Part 1
+   * fact they are shown read-only. The DRAFT's and never the certified document's — it is a note to the
+   * office, not an answer the applicant certifies, and `driverApplicationObject` is strict, so it cannot
+   * reach a filing. Shown on the office's drawer; never offered as a correctable answer (`editableFields`).
+   */
+  correction_note: z.string().max(APPLICATION_CORRECTION_NOTE_MAX).nullish(),
 });
 export type ApplicationDraftPayload = z.infer<typeof applicationDraftPayloadSchema>;
 

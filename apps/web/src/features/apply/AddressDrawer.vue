@@ -8,6 +8,9 @@ import { provideApplyIssues } from "@/features/apply/issues";
 import { describeField, fieldId, messageFor, valueAt } from "@/features/apply/fieldLabels";
 import type { SectionIssue } from "@/features/apply/useApplicationWizard";
 import { emptyAddress, toAddressPayload, type DraftAddress } from "@/features/apply/draft";
+import { isCurrentAddress } from "@/features/apply/partOneFacts";
+
+type StreetOnly = Pick<DraftAddress, "line1" | "line2" | "city" | "state" | "postal_code">;
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -23,12 +26,30 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * The three years (`addressCoverage`) are the screen's, not the panel's: whether a month is covered is
  * a question about the whole list, and the meter beside it answers it.
  */
-const props = defineProps<{ open: boolean; index: number; address: DraftAddress | null }>();
+const props = defineProps<{
+  open: boolean;
+  index: number;
+  address: DraftAddress | null;
+  /**
+   * Part 1's street, on a v2 link whose facts are released (C3c2c2, Q-AW34) — `partOneStreet`, the street
+   * filing lays over the CURRENT address. While this address is the current one (no end month) the
+   * street is that one, shown and not asked, and only the months are the driver's to give.
+   */
+  currentStreet?: StreetOnly | null;
+}>();
 const emit = defineEmits<{ save: [DraftAddress]; remove: []; close: [] }>();
 
 const copy = APPLY_COPY.addresses;
 
 const local = ref<DraftAddress>(emptyAddress());
+/** Composition's test, on the address as it stands in the panel: blanking "Until" makes it the current one. */
+const streetLocked = computed(() => Boolean(props.currentStreet) && isCurrentAddress(local.value));
+/** The address as it would be saved — with Part 1's street while it is the current one. */
+const asSaved = (): DraftAddress => ({ ...local.value, ...(streetLocked.value ? props.currentStreet! : {}) });
+const shownStreet = computed(() => {
+  const s = props.currentStreet;
+  return s ? [s.line1, s.line2, `${s.city}, ${s.state} ${s.postal_code}`].filter((p) => p.trim() !== "").join("\n") : "";
+});
 const issues = ref<SectionIssue[]>([]);
 provideApplyIssues(issues);
 
@@ -47,7 +68,7 @@ const savedAlready = computed(() => Boolean(props.address && (props.address.line
 const title = computed(() => (savedAlready.value ? props.address!.line1.trim() || props.address!.city.trim() : copy.drawerNew));
 
 function save(): void {
-  const candidate = toAddressPayload(local.value);
+  const candidate = toAddressPayload(asSaved());
   const parsed = applicationAddressSchema.safeParse(candidate);
   if (!parsed.success) {
     issues.value = parsed.error.issues.map((issue) => {
@@ -68,13 +89,20 @@ function save(): void {
     first?.focus?.();
     return;
   }
-  emit("save", { ...local.value });
+  emit("save", asSaved());
 }
 </script>
 
 <template>
   <SlideOver :open="open" :title="title" :description="copy.drawerIntro" size="lg" @close="emit('close')">
-    <AddressFields v-if="open" v-model="local" :index="index" />
+    <div v-if="open" class="space-y-4">
+      <div v-if="streetLocked" class="space-y-1 rounded-surface bg-surface-muted p-4" data-current-street>
+        <p class="text-xs text-ink-muted">{{ APPLY_COPY.partOneFacts.currentAddress }}</p>
+        <p class="whitespace-pre-line text-sm text-ink">{{ shownStreet }}</p>
+        <p class="text-xs text-ink-muted">{{ APPLY_COPY.partOneFacts.currentAddressNote }}</p>
+      </div>
+      <AddressFields v-model="local" :index="index" :street-locked="streetLocked" />
+    </div>
 
     <template #footer>
       <!-- Remove in the panel, away from Change — `EmployerDrawer`'s reason: the two are not equally undoable. -->

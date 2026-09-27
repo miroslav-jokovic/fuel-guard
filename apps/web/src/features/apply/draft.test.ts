@@ -70,6 +70,8 @@ const everything = (): ApplicationDraft => ({
   // A written gap, so "carries every answer" round-trips a real one rather than an empty list (C3c1).
   employment_gaps: [{ from: "2023-09-26", to: "2024-01-15", explanation: "School" }],
   questionnaire: { proof_of_age: true },
+  // A written note (C3c2c2), so the round trip carries a real one, not the empty default.
+  correction_note: "My phone number ends in 42, not 24.",
 });
 
 describe("what the form sends", () => {
@@ -320,6 +322,19 @@ describe("what autosave sends", () => {
     expect(fromDraftPayload({ licence_ever_denied: false }).licence_ever_denied).toBe(false);
     expect(fromDraftPayload({ licence_ever_denied: "no" }).licence_ever_denied).toBeNull();
     expect(toDraftPayload({ ...everything(), licence_ever_denied: false }).licence_ever_denied).toBe(false);
+  });
+
+  /**
+   * C3c2c2 (Q-AW34): "Something wrong? Tell us" is saved like an answer and never filed — a note to the
+   * office, not something the applicant certifies. The contract is strict, so filing it would refuse the
+   * whole document; the draft schema takes it, so the office's correction path still parses the draft.
+   */
+  it("saves the note to the office, and never files it", () => {
+    const draft = everything();
+    expect(toDraftPayload(draft).correction_note).toBe("My phone number ends in 42, not 24.");
+    expect(applicationDraftPayloadSchema.safeParse(toDraftPayload(draft)).success).toBe(true);
+    expect("correction_note" in (toApplication(draft) as Record<string, unknown>)).toBe(false);
+    expect(fromDraftPayload({ correction_note: 7 }).correction_note).toBe("");
   });
 
   it("drops a saved gap row it cannot read rather than rendering it", () => {

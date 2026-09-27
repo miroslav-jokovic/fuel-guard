@@ -5,7 +5,10 @@ import {
   AppInput as BaseInput,
   AppDateField,
 } from "@silvicom/ui";
-import { jurisdictionOptions } from "@silvicom/shared";
+import { computed } from "vue";
+import { jurisdictionOptions, type PartOneFactsView } from "@silvicom/shared";
+import PartOneFactsCard from "@/features/apply/PartOneFactsCard.vue";
+import { licenceRows } from "@/features/apply/partOneFacts";
 import { emptyLicence, type ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -28,7 +31,17 @@ const draft = defineModel<ApplicationDraft>({ required: true });
  * are then shown and not editable: PSP was ordered against them, and one writer — the identity step,
  * or the office's correction — is what keeps the filed application naming that same licence.
  */
-defineProps<{ lockedBy?: string | null }>();
+const props = defineProps<{
+  lockedBy?: string | null;
+  /**
+   * A v2 link's Part 1 facts (C3c2c2, Q-AW34, §6.4 item 3: "from Part 1, confirm only"). Given, the whole
+   * screen is Part 1's licences, shown: the MVR was ordered per licence on that list and PSP matched on
+   * the first, filing files them from Part 1 (`composeFiledApplication`) — and a box here could only
+   * have been thrown away. A mistake is reported with "Tell us".
+   */
+  partOne?: PartOneFactsView | null;
+}>();
+const factRows = computed(() => (props.partOne ? licenceRows(props.partOne) : []));
 const copy = APPLY_COPY.licence;
 const lockedHint = APPLY_COPY.identityStep.lockedHint;
 
@@ -44,7 +57,11 @@ const JURISDICTIONS = jurisdictionOptions();
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section v-if="partOne" class="space-y-4">
+    <PartOneFactsCard v-model="draft" :rows="factRows" />
+  </section>
+
+  <section v-else class="space-y-4">
     <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">

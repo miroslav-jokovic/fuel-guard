@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateField } from "@silvicom/ui";
+import type { PartOneFactsView } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import ApplyField from "@/features/apply/ApplyField.vue";
 import QuestionnaireFields from "@/features/apply/QuestionnaireFields.vue";
+import PartOneFactsCard from "@/features/apply/PartOneFactsCard.vue";
+import { aboutYouRows } from "@/features/apply/partOneFacts";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -25,15 +29,24 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * abandonment spike.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
-/** The carrier's name once the date of birth is on file (AF3, D-AF8) — see `LicenceFields.vue`. */
-defineProps<{ lockedBy?: string | null }>();
+const props = defineProps<{
+  /** The carrier's name once the date of birth is on file (AF3, D-AF8) — see `LicenceFields.vue`. */
+  lockedBy?: string | null;
+  /**
+   * A v2 link's Part 1 facts (C3c2c2, Q-AW34, §6.4 item 1). Given, the date of birth and the phone are
+   * SHOWN — Part 1 asked them and filing takes them from Part 1 — and the name, other names and email,
+   * which Part 1 never asked, are asked here as before.
+   */
+  partOne?: PartOneFactsView | null;
+}>();
+const factRows = computed(() => (props.partOne ? aboutYouRows(draft.value, props.partOne) : []));
 const copy = APPLY_COPY.identity;
 const lockedHint = APPLY_COPY.identityStep.lockedHint;
 </script>
 
 <template>
   <section class="space-y-4">
-    <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
+    <p class="text-sm text-ink-muted">{{ partOne ? copy.introPartOne : copy.intro }}</p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <ApplyField v-slot="f" :path="['first_name']" :label="copy.first_name">
@@ -62,7 +75,13 @@ const lockedHint = APPLY_COPY.identityStep.lockedHint;
       </BaseButton>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div v-if="partOne" class="space-y-4">
+      <ApplyField v-slot="f" :path="['email']" :label="copy.email">
+        <BaseInput v-bind="f" v-model="draft.email" type="email" autocomplete="email" />
+      </ApplyField>
+      <PartOneFactsCard v-model="draft" :rows="factRows" />
+    </div>
+    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <ApplyField v-slot="f" :path="['date_of_birth']" :label="copy.date_of_birth" :hint="lockedBy ? lockedHint(lockedBy) : undefined">
         <AppDateField v-bind="f" v-model="draft.date_of_birth" :disabled="Boolean(lockedBy)" />
       </ApplyField>

@@ -178,6 +178,8 @@ export const APPLY_COPY = {
   identity: {
     intro:
       "Your name and date of birth are matched against your driving record, so enter them exactly as they appear on your licence.",
+    /** A v2 link (C3c2c2): the date of birth is Part 1's and shown, so only the name is entered here. */
+    introPartOne: "Your name is matched against your driving record, so enter it exactly as it appears on your licence.",
     first_name: "First name",
     middle_name: "Middle name",
     last_name: "Last name",
@@ -229,6 +231,32 @@ export const APPLY_COPY = {
     drawerIntro: "One address at a time. You can change it later.",
     drawerSave: "Save this address",
     drawerCancel: "Cancel",
+  },
+
+  /**
+   * Part 1's facts, shown read-only in Part 2 on a v2 link (C3c2c2, Q-AW34, §6.4 items 1 and 3), and the
+   * one way to say one is wrong. The driver gave these at the start; the office checked them — so they
+   * are shown, not asked again, and a correction is a note to the office rather than a retyped box.
+   */
+  partOneFacts: {
+    heading: "From the start of your application",
+    intro: "You gave us these at the start, and we checked your record with them.",
+    dateOfBirth: "Date of birth",
+    phone: "Mobile phone",
+    cdl: "Your CDL",
+    otherLicences: "Other licences",
+    noOtherLicences: "None",
+    classLabel: (cdlClass: string): string => `Class ${cdlClass}`,
+    expires: (date: string): string => `expires ${date}`,
+    /** A licence Part 1 recorded without an expiry: filing cannot place it on the application (Q-AW35). */
+    noExpiry: "no expiry date given",
+    /** (b)(5) lists unexpired licences only; an expired one is still checked (the MVR), just not listed. */
+    expired: "expired — checked, but not listed on the application",
+    currentAddress: "Where you live now",
+    currentAddressNote: "This is the address you gave at the start. Tell us below if it is wrong.",
+    tellUs: "Something wrong? Tell us",
+    tellUsLabel: "What is wrong, and what it should be",
+    tellUsHint: "We read this before we send your application on. We may call you about it.",
   },
 
   licence: {

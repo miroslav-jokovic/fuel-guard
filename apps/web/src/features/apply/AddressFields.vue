@@ -12,7 +12,10 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * screen, as it always was, and in the one-address panel (`AddressDrawer`) on a v2 link. One block of
  * fields, placed twice, rather than two copies that could drift on the next field.
  */
-defineProps<{ index: number }>();
+/**
+ * `streetLocked` (C3c2c2): the street is Part 1's and shown by the panel, so only the months are asked.
+ */
+defineProps<{ index: number; streetLocked?: boolean }>();
 const address = defineModel<DraftAddress>({ required: true });
 const copy = APPLY_COPY.addresses;
 /** One catalogue, three fields (D-AX5). */
@@ -21,7 +24,7 @@ const JURISDICTIONS = jurisdictionOptions();
 
 <template>
   <div class="space-y-4">
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div v-if="!streetLocked" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <ApplyField v-slot="f" :path="['addresses', index, 'line1']" :label="copy.line1">
         <BaseInput v-bind="f" v-model="address.line1" autocomplete="address-line1" />
       </ApplyField>
@@ -29,7 +32,7 @@ const JURISDICTIONS = jurisdictionOptions();
         <BaseInput v-bind="f" v-model="address.line2" placeholder="Optional" autocomplete="address-line2" />
       </ApplyField>
     </div>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div v-if="!streetLocked" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <ApplyField v-slot="f" :path="['addresses', index, 'city']" :label="copy.city">
         <BaseInput v-bind="f" v-model="address.city" autocomplete="address-level2" />
       </ApplyField>

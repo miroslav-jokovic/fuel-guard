@@ -158,6 +158,12 @@ export interface ApplicationDraft {
    */
   questionnaire: Record<string, unknown>;
   /**
+   * "Something wrong? Tell us" (C3c2c2, Q-AW34): a v2 applicant's note to the office about a Part 1 fact
+   * they are shown and cannot edit. Autosaved like an answer, never filed (`toApplication` leaves it out;
+   * the contract is strict), shown on the office's drawer.
+   */
+  correction_note: string;
+  /**
    * §391.21(b)(2)'s Social Security number — the one field that is NOT part of the application
    * payload and NOT autosaved (D-APP3).
    *
@@ -225,5 +231,6 @@ export const emptyDraft = (): ApplicationDraft => ({
   // answer to "any others?" is none, and a pre-added blank row would invite an invented one.
   additional_licences: [],
   questionnaire: {},
+  correction_note: "",
   ssn: "",
 });

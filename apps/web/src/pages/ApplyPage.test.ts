@@ -4,6 +4,7 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
 import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
+import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -802,6 +803,54 @@ describe("the applicant's page", () => {
     await w.findAll("button").find((b) => b.text().includes("Where you have worked"))!.trigger("click");
     await flushPromises();
     expect(w.findComponent(EmployerDrawer).props("v2AsOf")).toBe("2026-09-26");
+  });
+
+  /**
+   * C3c2c2 (Q-AW34): a v2 link's Part 2 is behind the unlock, and the unlock is what releases Part 1's
+   * facts — so after it the draft carries them (the document filing will compose) and "About you" shows
+   * them rather than asking. The bare bundle carries none of them (D-APP16).
+   */
+  it("releases Part 1's facts with the unlock, lays them into the draft and shows them read-only", async () => {
+    const FACTS = {
+      intake: {
+        phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+        postal_code: "60431", prior_positive_2y: false, cdl_class: "A",
+      },
+      licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
+      asOf: "2026-09-26",
+    };
+    const bundle = partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, {
+      phases: {
+        consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+        submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+      },
+      releasesSigned: [...APPLICATION_RELEASE_ORDER], carrierToday: "2026-09-26",
+      draft: { locked: true, payload: null, furthestSection: null, updatedAt: null },
+    });
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).endsWith("/unlock")
+        ? ok({ draft: { locked: false, payload: { ...COMPLETE_DRAFT, phone: "555-0000" }, furthestSection: "safety", updatedAt: null, partOne: FACTS } })
+        : bundle);
+    const w = mountPage();
+    await settle(w);
+    expect(w.text()).toContain(APPLY_COPY.unlock.heading);
+    expect(w.text()).not.toContain("555-0142");
+
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    await settle(w);
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+    await settle(w);
+    expect(w.text()).toContain(APPLY_COPY.hub.heading);
+
+    await w.findAll("button").find((b) => b.text().includes("About you"))!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-part-one-facts]").text()).toContain("(312) 555-0142");
+    expect(w.find("#apply-phone").exists()).toBe(false);
+    // The draft is Part 1's now — the phone typed long ago replaced — so every screen, the review and
+    // the send act read what filing will file.
+    const section = w.findComponent(ApplySection);
+    expect(section.props("modelValue").phone).toBe("+13125550142");
+    expect(section.props("partOne")).toEqual(FACTS);
   });
 
   it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {

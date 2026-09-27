@@ -32,6 +32,12 @@ export interface PartOneFacts {
   state: string | null;
   postal_code: string | null;
   prior_positive_2y: boolean | null;
+  /**
+   * Part 1's CDL class (§6.2 screen 5), which `record_applicant_intake` writes to `drivers.cdl_class`,
+   * not to the intake row. Composed since C3c2c2: until then the filed class was whatever Part 2 typed,
+   * and once Part 2 stopped asking it (Q-AW34) nothing would have carried it.
+   */
+  cdl_class: string | null;
 }
 
 /** One `application_intake_licences` row. Position 0 is the current CDL. */
@@ -43,11 +49,29 @@ export interface PartOneLicence {
   expires_on: string | null;
 }
 
-type Composable = Pick<
-  DriverApplicationFields,
-  "phone" | "addresses" | "cdl_number" | "cdl_state" | "cdl_expires_at" | "additional_licences"
-  | "prior_failed_pre_employment_test"
->;
+/**
+ * Part 1's facts as a v2 applicant's page and the office's drawer are served them (C3c2c2, Q-AW34) — the
+ * inputs `composeFiledApplication` takes, and the day it cuts the licences on (the carrier's, as filing
+ * uses). Behind the date-of-birth unlock on the applicant's link (D-APP16); the office reads it signed in.
+ */
+export interface PartOneFactsView {
+  intake: PartOneFacts;
+  licences: PartOneLicence[];
+  asOf: string;
+}
+
+/**
+ * The keys composition lays Part 1 over — and so the keys whose draft value a v2 filing does not file
+ * (C3c2c2): the office's correction list hides them, because a correction there would be thrown away.
+ * `addresses` is only its CURRENT entry's street (`PART_ONE_STREET_KEYS`); the history is the applicant's.
+ */
+export const PART_ONE_COMPOSED_KEYS = [
+  "phone", "addresses", "cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "additional_licences",
+  "prior_failed_pre_employment_test",
+] as const;
+export const PART_ONE_STREET_KEYS = ["line1", "line2", "city", "state", "postal_code"] as const;
+
+type Composable = Pick<DriverApplicationFields, (typeof PART_ONE_COMPOSED_KEYS)[number]>;
 
 const filled = (v: string | null): v is string => v !== null && v.trim() !== "";
 
@@ -85,6 +109,7 @@ export function composeFiledApplication<T extends Composable>(
     out.cdl_state = current.state_code;
     if (current.expires_on) out.cdl_expires_at = current.expires_on;
   }
+  if (filled(intake.cdl_class)) out.cdl_class = intake.cdl_class;
   /**
    * (b)(5) asks for each UNEXPIRED licence or permit, so the list Part 1 took — every licence held in
    * three years, because the MVR needs the expired ones too — is cut to those still valid on the

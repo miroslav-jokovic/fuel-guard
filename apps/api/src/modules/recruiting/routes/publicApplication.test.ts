@@ -383,6 +383,24 @@ describe("opening the link", () => {
     expect(legacy.fcraSummary).toBeNull();
   });
 
+  /**
+   * C3c2c2 (Q-AW34): once Part 1 is finished, a v2 link's form is behind the unlock even with no date of
+   * birth in the draft — the unlock is what releases Part 1's facts, so the page must always meet it.
+   * Before Part 1 is finished, and on a legacy link, the draft reads exactly as it did.
+   */
+  it("locks a v2 link's draft once Part 1 is finished, and only then", async () => {
+    const intake = { phone: "+17082365732", postal_code: "60601", prior_positive_2y: false, medical_card_pending: false, fcra_summary_version: FCRA_SUMMARY_VERSION };
+    const draft = [{ payload: { first_name: "Susan" }, furthest_section: "identity", updated_at: "2026-09-27T10:00:00Z" }];
+    const read = async (inv: Record<string, unknown>, extra: Record<string, unknown>) => {
+      holder.client = seed(inv, { application_drafts: draft, ...extra }).client;
+      return ((await (await call(`/${TOKEN}`)).json()) as { draft: { locked: boolean; payload: unknown } }).draft;
+    };
+    expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, { application_intakes: [intake] }))
+      .toMatchObject({ locked: true, payload: null });
+    expect(await read({}, { application_intakes: [intake] })).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
+    expect(await read({ intake_completed_at: "2026-09-27T10:00:00Z" }, {})).toMatchObject({ locked: false, payload: { first_name: "Susan" } });
+  });
+
   it("tells an anonymous caller nothing about who exists", async () => {
     holder.client = seed(null).client;
     const res = await call(`/${TOKEN}`);

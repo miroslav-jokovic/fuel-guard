@@ -40,12 +40,21 @@ const draftRow = (payload: Record<string, unknown>, over: Record<string, unknown
 });
 
 const seed = (
-  opts: { inv?: Record<string, unknown> | null; draft?: Record<string, unknown> | null } = {},
+  opts: {
+    inv?: Record<string, unknown> | null;
+    draft?: Record<string, unknown> | null;
+    /** A v2 link (C3c2c2): its Part 1 row, licences, and the `drivers` row Part 1 wrote. */
+    partOne?: { intake: Record<string, unknown>; licences: Record<string, unknown>[]; driver: Record<string, unknown> };
+  } = {},
 ) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: opts.inv === null ? [] : [opts.inv ?? invitation()],
       application_drafts: opts.draft === undefined ? [] : opts.draft === null ? [] : [opts.draft],
+      application_intakes: opts.partOne ? [opts.partOne.intake] : [],
+      application_intake_licences: opts.partOne?.licences ?? [],
+      drivers: opts.partOne ? [opts.partOne.driver] : [],
+      organizations: [{ id: ORG, operating_hours: null }],
     },
     rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" } },
   });
@@ -205,5 +214,67 @@ describe("unlocking", () => {
     const result = await unlockDraft(rec.client, TOKEN, "1980-04-01", NOW);
     expect(isIntakeError(result) && result.code).toBe("invalid_link");
     expect(rec.forTable("application_drafts")).toHaveLength(0);
+  });
+});
+
+/**
+ * C3c2c2 (Q-AW34): a v2 link's Part 1 facts are released by the unlock and by nothing else — the bare
+ * link serves booleans (D-APP16). The same answer that opens the draft opens them; with no draft the
+ * date of birth Part 1 recorded on `drivers` is the one checked.
+ */
+describe("unlocking a v2 link", () => {
+  const INTAKE = {
+    org_id: ORG, invitation_id: "inv-1", phone: "+13125550142",
+    address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL", postal_code: "60431",
+    prior_positive_2y: false,
+  };
+  const LICENCE = { org_id: ORG, invitation_id: "inv-1", position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" };
+  const partOne = { intake: INTAKE, licences: [LICENCE], driver: { org_id: ORG, id: DRIVER, date_of_birth: "1980-04-01", cdl_class: "A" } };
+  const facts = (r: Awaited<ReturnType<typeof unlockDraft>>) => (isIntakeError(r) ? undefined : r.partOne);
+
+  it("releases Part 1's facts with the body, the class from drivers and the carrier's day", async () => {
+    const result = await unlockDraft(seed({ draft: draftRow({ date_of_birth: "1980-04-01" }), partOne }).client, TOKEN, "1980-04-01", NOW);
+    expect(isIntakeError(result) ? null : result.locked).toBe(false);
+    // `toMatchObject` for the intake: the recorder hands back whole rows, where PostgREST projects the select.
+    expect(facts(result)?.intake).toMatchObject({
+      phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+      postal_code: "60431", prior_positive_2y: false, cdl_class: "A",
+    });
+    expect(facts(result)?.licences).toEqual([LICENCE]);
+    // 00:00 UTC on 08/21 is still 08/20 in Chicago, the zone a carrier with no hours runs on.
+    expect(facts(result)?.asOf).toBe("2026-08-20");
+  });
+
+  it("releases nothing for a wrong date of birth", async () => {
+    const result = await unlockDraft(seed({ draft: draftRow({ date_of_birth: "1980-04-01" }), partOne }).client, TOKEN, "1980-04-02", NOW);
+    expect(isIntakeError(result) ? null : result.locked).toBe(true);
+    expect(facts(result)).toBeUndefined();
+  });
+
+  it("checks the date of birth Part 1 recorded when there is no draft yet, and opens an empty one", async () => {
+    const right = await unlockDraft(seed({ draft: null, partOne }).client, TOKEN, "1980-04-01", NOW);
+    expect(isIntakeError(right) ? null : [right.locked, right.payload]).toEqual([false, {}]);
+    expect(facts(right)?.intake.phone).toBe("+13125550142");
+
+    const wrong = await unlockDraft(seed({ draft: null, partOne }).client, TOKEN, "1999-01-01", NOW);
+    expect(isIntakeError(wrong) ? null : wrong.locked).toBe(true);
+    expect(facts(wrong)).toBeUndefined();
+  });
+
+  it("releases nothing when no date of birth is recorded anywhere", async () => {
+    const bare = { ...partOne, driver: { ...partOne.driver, date_of_birth: null } };
+    const result = await unlockDraft(seed({ draft: null, partOne: bare }).client, TOKEN, "1980-04-01", NOW);
+    expect(facts(result)).toBeUndefined();
+  });
+
+  it("gives a legacy link no Part 1 facts", async () => {
+    const result = await unlockDraft(seed({ draft: draftRow({ date_of_birth: "1980-04-01" }) }).client, TOKEN, "1980-04-01", NOW);
+    expect(isIntakeError(result) ? null : "partOne" in result).toBe(false);
+  });
+
+  it("scopes every read to the org the token resolved to", async () => {
+    const rec = seed({ draft: null, partOne });
+    await unlockDraft(rec.client, TOKEN, "1980-04-01", NOW);
+    expectOrgScoped(rec, ORG, { exempt: ["application_invitations", "organizations"] });
   });
 });

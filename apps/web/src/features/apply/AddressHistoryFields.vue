@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { computed, ref } from "vue";
-import { addressCoverage, formatDisplayMonth, type ApplicationAddress } from "@silvicom/shared";
+import { addressCoverage, formatDisplayMonth, type ApplicationAddress, type PartOneFactsView } from "@silvicom/shared";
 import { emptyAddress, toApplication, type ApplicationDraft, type DraftAddress } from "@/features/apply/draft";
 import AddressFields from "@/features/apply/AddressFields.vue";
 import AddressDrawer from "@/features/apply/AddressDrawer.vue";
+import CorrectionNote from "@/features/apply/CorrectionNote.vue";
+import { partOneStreet } from "@/features/apply/partOneFacts";
 import { useApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -29,9 +31,12 @@ const props = withDefaults(
     asOf: string;
     /** That day on a v2 link, null on a legacy one — which of the two screens this is (C3c2c1). */
     v2AsOf?: string | null;
+    /** A v2 link's Part 1 facts (C3c2c2): the current address is Part 1's — see `AddressDrawer`. */
+    partOne?: PartOneFactsView | null;
   }>(),
-  { v2AsOf: null },
+  { v2AsOf: null, partOne: null },
 );
+const currentStreet = computed(() => (props.partOne ? partOneStreet(props.partOne) : null));
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.addresses;
 const { hasIssueWithin, idFor } = useApplyIssues();
@@ -112,10 +117,13 @@ function remove(): void {
       <BaseButton :variant="rows.length ? 'secondary' : 'primary'" size="touch" @click="add">
         {{ rows.length ? copy.add : copy.addFirst }}
       </BaseButton>
+      <!-- One note for every Part 1 fact (C3c2c2), here for the current address the panel shows locked. -->
+      <CorrectionNote v-if="currentStreet" v-model="draft" />
       <AddressDrawer
         :open="editing !== null"
         :index="editing ?? 0"
         :address="editing === null ? null : (draft.addresses[editing] ?? null)"
+        :current-street="currentStreet"
         @save="save"
         @remove="remove"
         @close="editing = null"

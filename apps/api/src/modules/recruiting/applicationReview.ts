@@ -7,10 +7,12 @@ import {
   type ApplicationPath,
   type ApplicationPhases,
   type ApplicationReviewState,
+  type PartOneFactsView,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { notifyApplicationApproved, type ApprovalNotice } from "./applicationApprovalNotice.js";
+import { partOneFactsView } from "./applicantIntake.js";
 
 /**
  * The office's review of an application before the driver certifies it (F4, D-AX11–13).
@@ -109,6 +111,11 @@ export interface ApplicationForReview {
   state: ApplicationReviewState;
   editable: boolean;
   payload: Record<string, unknown> | null;
+  /**
+   * A v2 invitation's Part 1 facts (C3c2c2, Q-AW34), null for a legacy one — so the drawer composes the
+   * document filing will (`composeFiledApplication`) rather than showing the draft's retyped copy.
+   */
+  partOne: PartOneFactsView | null;
   edits: Array<{ path: ApplicationPath; before: unknown; after: unknown; editedAt: string; editedBy: string | null }>;
 }
 
@@ -142,6 +149,7 @@ export async function applicationForReview(
     state: applicationReviewState(phases),
     editable: applicationIsEditable(phases),
     payload: ((draft as { payload?: Record<string, unknown> } | null)?.payload) ?? null,
+    partOne: await partOneFactsView(admin, orgId, inv, new Date()),
     edits: (edits ?? []).map((e) => {
       const row = e as { path: ApplicationPath; before: unknown; after: unknown; edited_at: string; edited_by: string | null };
       return { path: row.path, before: row.before, after: row.after, editedAt: row.edited_at, editedBy: row.edited_by };

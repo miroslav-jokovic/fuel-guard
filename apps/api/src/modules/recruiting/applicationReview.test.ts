@@ -102,9 +102,20 @@ const invitation = (over: Record<string, unknown> = {}) => ({
  * proves nothing about the filter; it proves the fake ignores filters. The function reads the
  * recorded filters and answers the way Postgres would.
  */
-const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unknown } = {}) =>
+/** A v2 invitation's Part 1 (C3c2c2): its row, one licence, and the class Part 1 wrote to `drivers`. */
+const PART_ONE = {
+  application_intakes: [{
+    phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+    postal_code: "60431", prior_positive_2y: true,
+  }],
+  application_intake_licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
+  drivers: [{ cdl_class: "A" }],
+};
+
+const seed = (over: { invitation?: Record<string, unknown> | null; payload?: unknown; v2?: boolean } = {}) =>
   createSupabaseRecorder({
     tables: {
+      ...(over.v2 ? PART_ONE : { application_intakes: [] }),
       application_invitations: (q) => {
         if (over.invitation === null) return [];
         const row = over.invitation ?? invitation();
@@ -129,6 +140,28 @@ describe("reading an application for review", () => {
     expect(result.state).toBe("awaiting_review");
     expect(result.editable).toBe(true);
     expect((result.payload as { first_name?: string })?.first_name).toBe("Susan");
+  });
+
+  /**
+   * C3c2c2 (Q-AW34): the office reads a v2 application as filing will compose it, so it is handed Part
+   * 1's facts and the carrier's day beside the draft — and a legacy application none.
+   */
+  it("hands the office a v2 application's Part 1 facts, and a legacy one none", async () => {
+    const v2 = await applicationForReview(seed({ v2: true }).client, ORG, INV);
+    if (isReviewError(v2)) throw new Error(v2.message);
+    expect(v2.partOne?.intake).toMatchObject({ phone: "+13125550142", prior_positive_2y: true, cdl_class: "A" });
+    expect(v2.partOne?.licences).toHaveLength(1);
+    expect(v2.partOne?.asOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const legacy = await applicationForReview(seed().client, ORG, INV);
+    if (isReviewError(legacy)) throw new Error(legacy.message);
+    expect(legacy.partOne).toBeNull();
+  });
+
+  it("scopes a v2 application's Part 1 reads to the reader's own org", async () => {
+    const rec = seed({ v2: true });
+    await applicationForReview(rec.client, ORG, INV);
+    expectOrgScoped(rec, ORG);
   });
 
   it("scopes every read to the reader's own org", async () => {

@@ -3,7 +3,9 @@ import {
   INTAKE_CAPTURE_SLOTS,
   type ApplicantIntake,
   type ApplicantIntakeLicence,
+  todayInZone,
   type PartOneFacts,
+  type PartOneFactsView,
   type PartOneLicence,
   type PartOneStatus,
 } from "@silvicom/shared";
@@ -11,6 +13,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { FCRA_SUMMARY_VERSION } from "./fcraSummary.js";
 import { promoteCaptures } from "./applicationCapture.js";
+import { carrierZone } from "./carrierClock.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -237,26 +240,50 @@ export async function intakeState(
 /**
  * Part 1's facts as the filed application reads them (D-AW3, C2c) — null for a legacy invitation, which
  * files what it certified exactly as before. The same "has a row" test as `intakeState`, in one read.
+ *
+ * C3c2c2: also what a v2 applicant's page is shown behind the unlock and the office's drawer reads
+ * (`partOneFactsView`) — one read of Part 1 for all three, so none of them composes a different
+ * document. The CDL class is `record_applicant_intake`'s write to `drivers.cdl_class` (0376), read here.
  */
 export async function partOneForFiling(
   admin: SupabaseClient,
   orgId: string,
-  invitationId: string,
+  invitation: { id: string; driver_id: string },
 ): Promise<{ intake: PartOneFacts; licences: PartOneLicence[] } | null> {
-  const { data } = await admin
+  const invitationId = invitation.id;
+  const { data: row } = await admin
     .from("application_intakes")
     .select("phone, address_line1, address_line2, city, state, postal_code, prior_positive_2y")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .maybeSingle();
-  if (!data) return null;
+  if (!row) return null;
+  const { data: driver } = await admin
+    .from("drivers")
+    .select("cdl_class")
+    .eq("org_id", orgId)
+    .eq("id", invitation.driver_id)
+    .maybeSingle();
+  const data = { ...(row as Omit<PartOneFacts, "cdl_class">), cdl_class: (driver as { cdl_class?: string | null } | null)?.cdl_class ?? null };
   const { data: licences } = await admin
     .from("application_intake_licences")
     .select("position, state_code, agency, licence_number, expires_on")
     .eq("org_id", orgId)
     .eq("invitation_id", invitationId)
     .order("position", { ascending: true });
-  return { intake: data as PartOneFacts, licences: (licences ?? []) as PartOneLicence[] };
+  return { intake: data, licences: (licences ?? []) as PartOneLicence[] };
+}
+
+/** `partOneForFiling` with the carrier's day it is judged on, as the page and the drawer are served it. */
+export async function partOneFactsView(
+  admin: SupabaseClient,
+  orgId: string,
+  invitation: { id: string; driver_id: string },
+  now: Date,
+): Promise<PartOneFactsView | null> {
+  const facts = await partOneForFiling(admin, orgId, invitation);
+  if (!facts) return null;
+  return { ...facts, asOf: todayInZone(now, await carrierZone(admin, orgId)) };
 }
 
 /**

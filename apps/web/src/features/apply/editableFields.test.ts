@@ -89,6 +89,50 @@ describe("which answers the office is offered", () => {
   });
 });
 
+/**
+ * C3c2c2 (Q-AW34): on a v2 application filing takes the phone, the current street, the licences and
+ * §40.25(j) from Part 1 — so a correction to the draft's copy would be filed over. They are not offered;
+ * everything Part 1 never asked still is. And the applicant's note is theirs, never a correctable answer.
+ */
+describe("a v2 application's Part 1 answers", () => {
+  const v2 = (): Record<string, unknown> => toDraftPayload({
+    ...filled(),
+    phone: "555-0111",
+    addresses: [
+      { line1: "9 Old Rd", line2: "", city: "Gary", state: "IN", postal_code: "46402", from: "2018-01", to: "2019-12" },
+      { line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" },
+    ],
+    cdl_number: "IL123", cdl_state: "IL", cdl_class: "A", cdl_expires_at: "2029-03-01",
+    additional_licences: [{ issuing_authority: "OH", number: "OH55", expires_at: "2028-06-30", kind: "" }],
+    prior_failed_pre_employment_test: true,
+    correction_note: "My phone is wrong.",
+  });
+  const keys = (partOne: boolean) => editableFields(v2(), questionnaire, partOne).map((f) => pathKey(f.path));
+
+  it("offers none of what filing takes from Part 1", () => {
+    const offered = keys(true);
+    for (const k of [
+      "phone", "cdl_number", "cdl_state", "cdl_class", "cdl_expires_at", "prior_failed_pre_employment_test",
+      "additional_licences.0.number", "addresses.1.line1", "addresses.1.city", "addresses.1.postal_code",
+    ]) expect(offered, k).not.toContain(k);
+  });
+
+  it("still offers what Part 1 never asked — an earlier address, the current one's months, the name", () => {
+    const offered = keys(true);
+    for (const k of ["addresses.0.line1", "addresses.1.from", "first_name", "employers.0.city"]) expect(offered, k).toContain(k);
+  });
+
+  it("offers a legacy application everything it did before", () => {
+    const offered = keys(false);
+    for (const k of ["phone", "cdl_number", "addresses.1.line1", "additional_licences.0.number"]) expect(offered, k).toContain(k);
+  });
+
+  it("never offers the applicant's note to the office", () => {
+    expect(keys(false)).not.toContain("correction_note");
+    expect(keys(true)).not.toContain("correction_note");
+  });
+});
+
 describe("finding one field among sixty", () => {
   it("matches on any word of the label, because that is what the office has to go on", () => {
     const found = fieldsOf(filled());

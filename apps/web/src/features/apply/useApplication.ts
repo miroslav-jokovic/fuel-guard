@@ -9,6 +9,7 @@ import type {
   FcraSummary,
   LinkHandbookStatus,
   PacketPlacement,
+  PartOneFactsView,
   PartOneStatus,
 } from "@silvicom/shared";
 
@@ -95,6 +96,20 @@ export interface ApplyDraft {
   payload: Record<string, unknown> | null;
   furthestSection: string | null;
   updatedAt: string | null;
+  /**
+   * A v2 link's Part 1 facts (C3c2c2, Q-AW34) — only ever on the UNLOCK's answer, never on the bundle's
+   * draft: the bare link serves booleans (D-APP16). Absent from an API older than C3c2c2 as well.
+   */
+  partOne?: PartOneFactsView;
+}
+
+/**
+ * What an unlock released (C3c2c2): the body, and — on a v2 link — Part 1's facts, which ride only on the
+ * unlock's answer. An empty body is a real answer on a v2 link whose Part 2 is still untouched.
+ */
+export interface Released {
+  payload: Record<string, unknown>;
+  partOne: PartOneFactsView | null;
 }
 
 /**
