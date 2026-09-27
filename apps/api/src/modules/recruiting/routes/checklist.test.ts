@@ -113,8 +113,9 @@ describe("what comes back", () => {
         steps: Array<{ key: string; state: string }>;
         done: number;
         total: number;
-        readyToTravel: { ok: boolean; unmeasured: string[] };
+        readyToTravel: { ok: boolean; unmeasured: string[]; outstanding: string[] };
         readyToHire: { ok: boolean };
+        unbuilt: string[];
         next: string | null;
       };
     };
@@ -122,10 +123,12 @@ describe("what comes back", () => {
     expect(body.checklist.steps.length).toBe(body.checklist.total);
     expect(body.checklist.done).toBe(0);
     expect(body.checklist.next).toBe("invitation_sent");
-    // ⚠ The readiness answer names what it could not see rather than quietly saying yes — the one
-    // thing about this response a client must not have to infer.
+    // ⚠ The readiness answer names what is outstanding rather than quietly saying no — the one thing
+    // about this response a client must not have to infer.
     expect(body.checklist.readyToTravel.ok).toBe(false);
-    expect(body.checklist.readyToTravel.unmeasured).toContain("orientation_videos");
+    expect(body.checklist.readyToTravel.outstanding).toContain("intake_completed");
+    // §7 (Q-AW23's default): the unbuilt orientation rows left both ranges and are named instead.
+    expect(body.checklist.unbuilt).toEqual(["orientation_videos", "live_orientation"]);
   });
 
   /**

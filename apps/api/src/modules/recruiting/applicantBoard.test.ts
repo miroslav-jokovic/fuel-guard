@@ -58,6 +58,9 @@ const applicant = (n: number, over: Partial<BoardApplicantInput> = {}): BoardApp
   invitation: {
     id: inviteId(n),
     created_at: "2026-09-01T00:00:00Z",
+    // §7: a v2 link whose Part 1 is finished (its row is seeded below), so the rows under test are
+    // the later steps.
+    intake_completed_at: "2026-09-01T06:00:00Z",
     application_sent_at: "2026-09-01T12:00:00Z",
     review_requested_at: "2026-09-02T00:00:00Z",
     approved_at: "2026-09-03T00:00:00Z",
@@ -80,6 +83,9 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     // G-7: the draft is read by the board's builder now (it was the pipeline's, org-wide). Every
     // applicant here has typed something; a test that needs the draft to SAY something overrides it.
     application_drafts: [1, 2, 3, 4, 5, 6].map((n) => ({ id: `dr${n}`, invitation_id: inviteId(n), payload: {} })),
+    application_intakes: [1, 2, 3, 4, 5, 6].map((n) => ({ id: `in${n}`, invitation_id: inviteId(n) })),
+    // D-AW7: driver 1's trip is booked, so the rows under test are the office day's.
+    applicant_travel: [{ id: "trip-1", invitation_id: inviteId(1), cancelled_at: null }],
     // ⚠ Q-HM9, and seeded for driver 1 ONLY on purpose. The six-applicant test folds these same
     // rows, so a service that forgot to group by driver — or that handed every applicant the whole
     // org's employment history — gives drivers 2–6 an investigation they do not owe. A fixture that
@@ -111,6 +117,8 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
 /** The same state as `seed` + `applicant(1)`, expressed as what the fold takes. */
 const asInputs = (over: Record<string, unknown> = {}) => ({
   invitedAt: "2026-09-01T00:00:00Z",
+  intake: { v2: true, completedAt: "2026-09-01T06:00:00Z" },
+  travelBooked: true,
   phases: {
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
@@ -348,6 +356,9 @@ describe("what it reads, and how much", () => {
         "handbook_marks",
         // G-7: the draft, by the live invitations' ids — it was the pipeline's, with no `.in()` at all.
         "application_drafts",
+        // §7 (C2b2): which links are v2, which have a live trip, and — for the legacy rule — whose
+        // identity is on their own row.
+        "application_intakes", "applicant_travel", "drivers",
       ]),
     );
   });
@@ -363,7 +374,7 @@ describe("what it reads, and how much", () => {
    * a set-based read and an N+1. Six applicants folding the §391.23 investigation per driver would
    * read thirteen.
    */
-  it("costs the same seven queries for six applicants as for one", async () => {
+  it("costs the same ten queries for six applicants as for one", async () => {
     const one = seed();
     await boardChecklists(one.client, ORG, [applicant(1)], NOW);
 
@@ -375,8 +386,9 @@ describe("what it reads, and how much", () => {
       NOW,
     );
     expect(many.queries.length).toBe(one.queries.length);
-    // Seven since G-7 moved the draft read into the one builder (one `.in()` for all of them).
-    expect(many.queries.length).toBe(7);
+    // Seven since G-7 moved the draft read into the one builder (one `.in()` for all of them); ten
+    // since §7 added Part 1, the trip and the identity (C2b2) — each one `.in()` for the whole board.
+    expect(many.queries.length).toBe(10);
   });
 
   /**
@@ -399,6 +411,8 @@ describe("what it reads, and how much", () => {
       // the marks if the marks are the only one. It cost a real failure here, not a hypothetical.
       driver_employment_history: [],
       employer_inquiries: [],
+      // §7: the default seed books driver 1's trip only — a second difference, so neither has one here.
+      applicant_travel: [],
       application_packet_marks: [
         ...driverPlacementIds(null).map((placement_id, i) => ({
           invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`, placement_id,
@@ -426,6 +440,8 @@ describe("what it reads, and how much", () => {
       psp_requests: [],
       driver_employment_history: [],
       employer_inquiries: [],
+      // §7: the default seed books driver 1's trip only — a second difference, so neither has one here.
+      applicant_travel: [],
       application_packet_marks: [
         ...current.map((placement_id, i) => ({
           invitation_id: inviteId(1), created_at: "2026-09-07T00:00:00Z", id: `a${i}`, placement_id,
@@ -447,12 +463,14 @@ describe("what it reads, and how much", () => {
         ]),
         psp_requests: postgrestFixture([]),
         application_packet_marks: postgrestFixture([]),
+        // This org's Part 1 row, so the MVR — not Part 1 — is what the other org's record decides.
+        application_intakes: postgrestFixture([{ org_id: ORG, id: "in1", invitation_id: inviteId(1) }]),
       },
     });
     const board = await boardChecklists(rec.client, ORG, [applicant(1)], NOW);
     // The MVR belongs to another org, so this applicant's MVR step is still outstanding — and since
     // the Clearinghouse query has no prerequisite it is nominated first, MVR second.
-    const fold = hiringChecklist(asInputs({ qualificationKinds: [], psp: { requested: false, reportReceived: false } }));
+    const fold = hiringChecklist(asInputs({ qualificationKinds: [], psp: { requested: false, reportReceived: false }, travelBooked: false }));
     expect(board.checklists.get(driverId(1))!.next).toBe(fold.next);
   });
 

@@ -183,3 +183,73 @@ export type ApplicantIntakeLicences = z.infer<typeof applicantIntakeLicencesSche
  * selfie is not here and never will be: it is never promoted (0376), and it is AW6's, after Q-AW5.
  */
 export const INTAKE_CAPTURE_SLOTS = ["cdl_front", "cdl_back", "medical_card"] as const;
+
+// ── the office's acts (C2b2) ─────────────────────────────────────────────────
+
+/** 0376's `applicant_travel_mode_check`, in its order. */
+export const TRAVEL_MODES = ["air", "bus", "train", "drive", "other"] as const;
+export type TravelMode = (typeof TRAVEL_MODES)[number];
+
+export const TRAVEL_MODE_LABELS: Record<TravelMode, string> = {
+  air: "Flight",
+  bus: "Bus",
+  train: "Train",
+  drive: "Driving",
+  other: "Other",
+};
+
+/**
+ * A time as the office reads it off an itinerary: `YYYY-MM-DDTHH:MM`, what `<input
+ * type="datetime-local">` produces.
+ *
+ * ⚠ **The CARRIER's clock, never the viewer's, and never an instant from the browser.** The server
+ * turns it into an instant with `wallClockToUtc` in `organizationTimezone` — the rule every date in
+ * this product follows (`calendarDay.ts`, D-PREC6) — so an office working from a laptop set to another
+ * zone books the same trip as one at the desk. The form says which zone it means.
+ */
+export const carrierWallTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Expected a date and time as YYYY-MM-DDTHH:MM");
+
+/** 0376 holds `confirmation_ref` as free text; a booking reference is short, and this is a body ceiling. */
+export const TRAVEL_CONFIRMATION_MAX_LENGTH = 100;
+
+/**
+ * Recording the applicant's trip to the office (D-AW7, AW11) — `POST
+ * /recruitment/applicants/:driverId/travel`. The writer refuses until every step before travel is done
+ * (`TRAVEL_REFUSES_WITHOUT`); a second booking replaces the live one (a changed flight is a new trip).
+ *
+ * ⚠ Arrival not before departure is 0376's `applicant_travel_order_check`, checked here on the wall
+ * times so the office is told which field, instead of a 500 from the CHECK. Both are read in the one
+ * zone, so the comparison is the same one the database makes.
+ */
+export const applicantTravelSchema = z
+  .object({
+    mode: z.enum(TRAVEL_MODES),
+    depart_at: carrierWallTimeSchema,
+    arrive_at: carrierWallTimeSchema,
+    confirmation_ref: z.string().trim().max(TRAVEL_CONFIRMATION_MAX_LENGTH).nullish(),
+  })
+  .strict()
+  .refine((t) => t.arrive_at >= t.depart_at, {
+    path: ["arrive_at"],
+    message: "The arrival can't be before the departure.",
+  });
+export type ApplicantTravelBooking = z.infer<typeof applicantTravelSchema>;
+
+/** One trip as the office's drawer reads it. Instants, with the zone they were entered in. */
+export interface ApplicantTravel {
+  id: string;
+  mode: TravelMode;
+  departAt: string;
+  arriveAt: string;
+  confirmationRef: string | null;
+  bookedAt: string;
+  cancelledAt: string | null;
+}
+
+/** `GET …/travel`: the live invitation's trips, newest first, and the zone the times are shown in. */
+export interface ApplicantTravelList {
+  trips: ApplicantTravel[];
+  timeZone: string;
+}

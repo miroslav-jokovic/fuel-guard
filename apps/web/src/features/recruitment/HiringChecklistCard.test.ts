@@ -35,12 +35,17 @@ async function mountWith(input: HiringChecklistInputs) {
   });
 }
 
-/** Just invited: the link is out, the applicant has signed nothing. */
-const JUST_INVITED: HiringChecklistInputs = { invitedAt: "2026-09-01T00:00:00Z" };
+/** Just invited, and Part 1 finished (§7): the permissions are the applicant's next move. */
+const JUST_INVITED: HiringChecklistInputs = {
+  invitedAt: "2026-09-01T00:00:00Z",
+  intake: { v2: true, completedAt: "2026-09-01T06:00:00Z" },
+};
 
 /** Everything this schema can see is done. */
 const COMPLETE: HiringChecklistInputs = {
   invitedAt: "2026-09-01T00:00:00Z",
+  intake: { v2: true, completedAt: "2026-09-01T06:00:00Z" },
+  travelBooked: true,
   phases: {
     applicationSentAt: "2026-09-01T12:00:00Z",
     reviewRequestedAt: "2026-09-02T00:00:00Z",
@@ -155,14 +160,17 @@ describe("state is never colour alone (D-HUI4)", () => {
   /**
    * ⚠ *"A board where everything shouts is a board nobody reads."* Only `waiting_on_us` is toned at
    * all, and the number of rows in that state is bounded by the catalogue's `requires` rather than
-   * by taste: a freshly invited applicant has exactly ONE, the Clearinghouse query, which is the
-   * only measurable step with no prerequisite.
+   * by taste: an applicant who has just finished Part 1 has exactly TWO — the Clearinghouse query,
+   * the one measurable step with no prerequisite, and (since §7, D-AW4) the medical certificate,
+   * whose card came in with Part 1.
    */
   it("shouts on exactly the rows that are the office's own move", async () => {
     const wrapper = await mountWith(JUST_INVITED);
     const loud = wrapper.findAll("li").filter((row) => row.html().includes("bg-warning-50"));
-    expect(loud).toHaveLength(1);
-    expect(loud[0]!.text()).toContain("Clearinghouse query");
+    expect(loud.map((row) => row.text())).toEqual([
+      expect.stringContaining("Clearinghouse query"),
+      expect.stringContaining("Medical certificate verified"),
+    ]);
   });
 });
 
@@ -249,16 +257,21 @@ describe("the header and the summary", () => {
   });
 
   /**
-   * ⚠ The most important assertion in this file. `readyToTravel.ok` is false for EVERYBODY until D4
-   * ships, because step 9 has no evidence table — and a card that answered "ready" would be
-   * reporting a gate nobody has checked. So the unmeasured step is named on screen, not swallowed.
+   * ⚠ Until §7 (2026-09-26) this was "refuses to call an applicant ready to travel while a step
+   * cannot be checked at all": the orientation videos sat in the travel range with no evidence table,
+   * so NOBODY could be ready — and D-AW7's writer refuses on this answer, so no trip could ever be
+   * recorded. They left the range (Q-AW23's default). What must not change is that they do not
+   * vanish: a step nobody can tick is named on screen, never swallowed.
    */
-  it("refuses to call an applicant ready to travel while a step cannot be checked at all", async () => {
+  it("calls a screened applicant ready to travel, and still names the steps not built yet", async () => {
     const wrapper = await mountWith(COMPLETE);
-    const c = hiringChecklist(COMPLETE);
-    expect(c.readyToTravel.ok).toBe(false);
-    expect(c.readyToTravel.outstanding).toHaveLength(0);
-    expect(wrapper.text()).toContain("Not ready to travel");
-    expect(wrapper.text()).toContain("orientation videos cannot be checked yet");
+    expect(hiringChecklist(COMPLETE).readyToTravel.ok).toBe(true);
+    expect(wrapper.text()).toContain("Everything before the office day is done.");
+    expect(wrapper.text()).toContain("Not built yet: Orientation videos, Live orientation.");
+  });
+
+  it("names what is still open before travel, by count", async () => {
+    const wrapper = await mountWith({ ...COMPLETE, qualificationKinds: ["mvr"] });
+    expect(wrapper.text()).toContain("Not ready to travel — 3 steps outstanding.");
   });
 });

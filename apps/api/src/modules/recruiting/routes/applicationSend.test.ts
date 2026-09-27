@@ -204,11 +204,12 @@ describe("the office sends the application", () => {
     holder.client = seed({ kinds: ["mvr", "drug_test"] }).client;
     const res = await send();
     expect(res.status).toBe(201);
-    expect(((await res.json()) as { warnings: string[] }).warnings).toEqual(["psp", "clearinghouse"]);
+    // §7: the medical certificate is screening now (Part 1 brings the card), so Send names it too.
+    expect(((await res.json()) as { warnings: string[] }).warnings).toEqual(["psp", "clearinghouse", "medical_certificate"]);
   });
 
   it("warns about nothing once screening is done", async () => {
-    holder.client = seed({ kinds: ["mvr", "drug_test", "clearinghouse_full", "psp_report"] }).client;
+    holder.client = seed({ kinds: ["mvr", "drug_test", "clearinghouse_full", "psp_report", "medical_registry_verification"] }).client;
     expect(((await (await send()).json()) as { warnings: string[] }).warnings).toEqual([]);
   });
 

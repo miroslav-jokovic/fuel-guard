@@ -136,7 +136,7 @@ export const applicantPipelineHandler = asyncHandler(async (req, res) => {
     admin
       .from("application_invitations")
       // `releases_completed_at` for A-4: a closed ceremony's missing permission is the office's (G-7).
-      .select("id, driver_id, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at, handbook_signing_opened_at")
+      .select("id, driver_id, releases_completed_at, intake_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, created_at, handbook_signing_opened_at")
       .eq("org_id", orgId)
       .in("driver_id", ids)
       .order("created_at", { ascending: false }),

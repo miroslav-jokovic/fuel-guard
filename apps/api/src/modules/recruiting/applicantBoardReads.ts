@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  APPLICANT_IDENTITY_KEYS,
   asApplyingAs,
   declaredLicenceJurisdictions,
   type ApplyingAs,
@@ -223,6 +224,76 @@ export async function readDraftFacts(
     d.invitation_id,
     { applyingAs: asApplyingAs(d.applying_as), licenceJurisdictions: declaredLicenceJurisdictions(d) },
   ]));
+}
+
+/**
+ * The invitations that have a Part 1 row — the v2 links (`intakeState`'s test, set-based). §7's
+ * legacy rule reads a link WITHOUT one as legacy.
+ */
+export async function readIntakeInvitations(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationIds: readonly string[],
+): Promise<Set<string>> {
+  if (invitationIds.length === 0) return new Set();
+  const rows = await paged<{ invitation_id: string }>((from, to) =>
+    admin
+      .from("application_intakes")
+      .select("invitation_id")
+      .eq("org_id", orgId)
+      .in("invitation_id", invitationIds)
+      .order("id")
+      .range(from, to),
+  );
+  return new Set(rows.map((r) => r.invitation_id));
+}
+
+/**
+ * The invitations with a live trip — an `applicant_travel` row not cancelled (D-AW7). A cancelled
+ * trip stays as a row (0376: operational, cancelled, never deleted) and proves nothing.
+ */
+export async function readLiveTravel(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationIds: readonly string[],
+): Promise<Set<string>> {
+  if (invitationIds.length === 0) return new Set();
+  const rows = await paged<{ invitation_id: string }>((from, to) =>
+    admin
+      .from("applicant_travel")
+      .select("invitation_id")
+      .eq("org_id", orgId)
+      .in("invitation_id", invitationIds)
+      .is("cancelled_at", null)
+      .order("id")
+      .range(from, to),
+  );
+  return new Set(rows.map((r) => r.invitation_id));
+}
+
+/**
+ * The drivers whose §391.21(b)(4) identity is whole on their own row (`APPLICANT_IDENTITY_KEYS`) —
+ * read only by §7's legacy rule, for which 0365's identity screen was Part 1. Filtered in memory
+ * rather than with three `.not(…, "is", null)`: an empty string is "not given" too (`identityOnRecord`).
+ */
+export async function readIdentityOnFile(
+  admin: SupabaseClient,
+  orgId: string,
+  driverIds: readonly string[],
+): Promise<Set<string>> {
+  if (driverIds.length === 0) return new Set();
+  const rows = await paged<Record<string, unknown>>((from, to) =>
+    admin
+      .from("drivers")
+      .select(`id, ${APPLICANT_IDENTITY_KEYS.join(", ")}`)
+      .eq("org_id", orgId)
+      .in("id", driverIds)
+      .order("id")
+      .range(from, to),
+  );
+  const whole = (r: Record<string, unknown>) =>
+    APPLICANT_IDENTITY_KEYS.every((k) => typeof r[k] === "string" && (r[k] as string).trim() !== "");
+  return new Set(rows.filter(whole).map((r) => String(r.id)));
 }
 
 /**

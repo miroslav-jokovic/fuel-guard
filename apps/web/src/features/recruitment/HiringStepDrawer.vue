@@ -23,6 +23,7 @@ import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
 import RecordedActPanel from "@/features/recruitment/RecordedActPanel.vue";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
+import TravelPanel from "@/features/recruitment/TravelPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -149,6 +150,21 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         @review="emit('review', $event)"
       />
 
+      <!-- §7 (D-AW1): Part 1 is the applicant's, on their link, so the office's levers are the link's. -->
+      <template v-else-if="body === 'intake'">
+        <p class="text-xs text-ink-secondary">
+          Part 1 is the applicant's first visit on their link: identity, phone, address, every licence
+          held in the last three years, and photos of the CDL and the medical card. Their permissions
+          open once it is finished. A link sent before Part 1 existed counts it done once their
+          identity or permissions are in.
+        </p>
+        <ApplicationInviteCard
+          :driver-id="driverId"
+          :driver-status="driverStatus"
+          @review="emit('review', $event)"
+        />
+      </template>
+
       <template v-else-if="body === 'authorizations'">
         <AuthorizationsPanel
           :invitation-id="invitationId"
@@ -214,6 +230,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
 
       <RoadTestPanel v-else-if="body === 'road_test'" :driver-id="driverId" :done="step.state === 'done'" />
       <HandbookPanel v-else-if="body === 'handbook'" :driver-id="driverId" :done="step.state === 'done'" />
+      <TravelPanel v-else-if="body === 'travel'" :driver-id="driverId" :blocked="step.state === 'blocked'" />
 
       <!-- ⚠ Q-HM9's step. The section is unchanged — it was already the whole §391.23(c)(2) record,
            it simply had no row to open it. What the row adds is that the investigation is now

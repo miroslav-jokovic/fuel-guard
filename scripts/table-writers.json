@@ -520,5 +520,8 @@
   ],
   "carrier_representatives": [
     "apps/api/src/modules/recruiting/representatives.ts"
+  ],
+  "applicant_travel": [
+    "apps/api/src/modules/recruiting/applicantTravel.ts"
   ]
 }

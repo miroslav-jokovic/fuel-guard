@@ -13,6 +13,13 @@ export interface ApplicationInvitation {
   /** The three dated phases 0225 replaced the single-use fuse with (D-APP1). */
   consented_at: string | null;
   releases_completed_at: string | null;
+  /** §7 (0376): when Part 1 was finished. Optional: absent from an older API. */
+  intake_completed_at?: string | null;
+  /**
+   * Does this link have a Part 1 row — is it a v2 link (§7)? The row's existence only, like `has_draft`.
+   * Optional: absent from an older API, which reads as a legacy link.
+   */
+  has_intake?: boolean;
   /** AF4 (0365): when the office sent the application form. Optional: absent from an older API. */
   application_sent_at?: string | null;
   /** The two the OFFICE owns (0336) — the application is with us, or back with the driver to sign. */
@@ -139,6 +146,8 @@ export function useRevokeApplicationInvite() {
  */
 export type InviteState =
   | "open"
+  | "part1"
+  | "part1_done"
   | "signing"
   | "permissions_signed"
   | "application_sent"
@@ -183,6 +192,12 @@ export function inviteState(invite: ApplicationInvitation, now: Date): InviteSta
   // and the applicant's after. ⚠ A MISSING stamp (an older API) reads as opened, as it did there.
   if (progress === "approved") return invite.signing_opened_at === null ? "approved" : "signing_open";
   if (progress === "filling") return "filling";
+  // §7 (D-AW1): a v2 link's first visit is Part 1, and its permissions come after it. A legacy link
+  // (no Part 1 row) never enters these two, which is §7's legacy rule read from the link's side.
+  if (invite.has_intake === true && !invite.releases_completed_at) {
+    if (!invite.intake_completed_at) return "part1";
+    if (!invite.consented_at) return "part1_done";
+  }
   // AF4: the permissions are in and the office has not sent the form — the next move is the office's
   // (screen them, then send it), and "signing" would say the applicant still owes something.
   if (invite.releases_completed_at && !invite.application_sent_at) return "permissions_signed";

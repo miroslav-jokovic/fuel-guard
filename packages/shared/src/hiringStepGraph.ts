@@ -13,6 +13,7 @@
 
 export type HiringStepKey =
   | "invitation_sent"
+  | "intake_completed"
   | "permissions_signed"
   | "application_sent"
   | "application_filled"
@@ -28,6 +29,7 @@ export type HiringStepKey =
   | "handbook"
   | "application_signed"
   | "employment_investigation"
+  | "travel_booked"
   | "hired";
 
 /** Where the step physically happens. The seam that D-HM9 organises everything around. */
@@ -84,6 +86,8 @@ export type HiringEvidenceTable =
   | "application_invitations"
   | "application_invitations.approved_at"
   | "application_invitations.application_sent_at"
+  | "application_invitations.intake_completed_at"
+  | "applicant_travel"
   | "driver_authorizations"
   | "driver_applications"
   | "qualification_records.mvr"
@@ -139,6 +143,11 @@ export interface HiringStepSpec {
    * made "step 5" mean the MVR in one plan and nothing in the product. `APPLICANT-FLOW-PLAN.md` §3.3 is
    * the order now; a reference in an older plan to "step N" means D-HM9's list, which that plan
    * reproduces. `HIRING_STEPS.length` is the count, and nothing restates it.
+   *
+   * ⚠ **Derived from the array index since 2026-09-26 (APPLICATION-FLOW-V2-PLAN §7, C2b2).** The two
+   * steps §7 inserts — "Part 1 finished" second, "Travel booked" before the hire — would have
+   * renumbered fifteen hand-written strings, and a string typed beside its own position is a copy of
+   * that position with a delay fuse. `hiringSteps.ts` stamps it; a catalogue entry never carries one.
    */
   ordinal: string;
   /** Plain words, the first of D-HUI3's three columns. Never a regulation — that goes in the drawer. */
@@ -186,3 +195,6 @@ export interface HiringStepSpec {
    */
   evidence: HiringEvidence | null;
 }
+
+/** A catalogue entry as written: everything but the number, which its position decides. */
+export type HiringStepDefinition = Omit<HiringStepSpec, "ordinal">;

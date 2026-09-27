@@ -45,6 +45,14 @@ import type { HiringStepKey } from "@silvicom/shared";
 export type HiringDrawerBody =
   /** `ApplicationInviteCard` — the invitation, its state, and the resend/revoke acts. */
   | "invitation"
+  /**
+   * Part 1 (§7, D-AW1): the applicant's first visit, on their link. Nothing for the office to perform
+   * here until C3 builds the Part 1 review — so the body says what Part 1 collects and opens the same
+   * invitation card, whose resend and state are the office's only levers on a step that is theirs.
+   */
+  | "intake"
+  /** `TravelPanel` (D-AW7): record the trip, refused until every step before travel is done. */
+  | "travel"
   /** `AuthorizationsPanel` — the five releases and the wording version each was signed against. */
   | "authorizations"
   /**
@@ -113,6 +121,7 @@ export type HiringDrawerBody =
 
 const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   invitation_sent: "invitation",
+  intake_completed: "intake",
   permissions_signed: "authorizations",
   application_sent: "send_application",
   // ⚠ Both land on the application, and that is right rather than lazy: the office's act at step 4
@@ -125,6 +134,7 @@ const DRAWERS: Record<HiringStepKey, HiringDrawerBody> = {
   clearinghouse: "record",
   drug_test: "record",
   medical_certificate: "recorded_act",
+  travel_booked: "travel",
   road_test: "road_test",
   application_signed: "packet",
   employment_investigation: "investigation",

@@ -32,6 +32,8 @@ const seed = (opts: {
   records?: Array<Record<string, unknown>>;
   invitation?: Record<string, unknown>;
   authorizations?: Array<Record<string, unknown>>;
+  intakes?: Array<Record<string, unknown>>;
+  trips?: Array<Record<string, unknown>>;
 }) => {
   const org = (rows: Array<Record<string, unknown>>) => rows.map((r) => ({ org_id: ORG, ...r }));
   return createSupabaseRecorder({
@@ -46,6 +48,8 @@ const seed = (opts: {
       driver_employment_history: postgrestFixture([]),
       employer_inquiries: postgrestFixture([]),
       handbook_marks: postgrestFixture([]),
+      application_intakes: postgrestFixture(org(opts.intakes ?? [])),
+      applicant_travel: postgrestFixture(org(opts.trips ?? [])),
     },
   });
 };
@@ -64,6 +68,26 @@ async function bothDoors(opts: Parameters<typeof seed>[0]) {
 }
 
 describe("the board and the drawer fold the same input", () => {
+  /**
+   * §7 (C2b2): Part 1 and the trip, read once for both doors. A v2 link whose Part 1 is finished, and
+   * a trip that was CANCELLED — 0376 keeps the row, and a read that dropped the `cancelled_at` filter
+   * would book this applicant on both doors at once, which parity alone could never catch.
+   */
+  it("§7: reads Part 1 from its row and stamp, and a cancelled trip counts on neither", async () => {
+    const gates = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "psp_report"];
+    const { drawer, board } = await bothDoors({
+      invitation: { intake_completed_at: "2026-09-01T06:00:00Z", application_sent_at: "2026-09-03T00:00:00Z", review_requested_at: "2026-09-04T00:00:00Z" },
+      intakes: [{ id: "in1", invitation_id: INVITE }],
+      records: gates.map((kind, i) => ({ id: `r${i}`, driver_id: DRIVER, kind, created_at: "2026-09-10T00:00:00Z" })),
+      trips: [{ id: "t1", invitation_id: INVITE, cancelled_at: "2026-09-20T00:00:00Z" }],
+    });
+    expect(drawer.steps.find((s) => s.key === "intake_completed")!.state).toBe("done");
+    expect(drawer.steps.find((s) => s.key === "travel_booked")!.state).toBe("waiting_on_us");
+    expect(board.done).toBe(drawer.done);
+    expect(board.next).toBe(drawer.next);
+  });
+
+
   it("A-8: a road test recorded as FAILED counts on neither", async () => {
     const gates = ["mvr", "clearinghouse_full", "drug_test", "medical_registry_verification", "psp_report"];
     const { drawer, board } = await bothDoors({

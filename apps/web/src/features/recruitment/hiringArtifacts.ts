@@ -67,6 +67,9 @@ const DESTINATIONS: Record<HiringEvidenceTable, (driverId: string) => HiringArti
   "application_invitations": () => onThisPage("The invitation"),
   "application_invitations.approved_at": () => onThisPage("The approved application"),
   "application_invitations.application_sent_at": () => onThisPage("The sent application"),
+  // §7: Part 1 and the trip are both read in their own drawer on this page (C2b2).
+  "application_invitations.intake_completed_at": () => onThisPage("Part 1"),
+  "applicant_travel": () => onThisPage("The itinerary"),
   "driver_applications": () => onThisPage("The application"),
   // ⚠ Was the one real gap. **Q-HUI6 was CLOSED by B6**: `AuthorizationsPanel` is the drawer behind
   // the Permissions row, so the releases now have a screen and this entry stops claiming otherwise.
