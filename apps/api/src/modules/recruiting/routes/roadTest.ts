@@ -30,7 +30,7 @@ import {
  * signature is added from the same drawer (Q-RT2).
  */
 const statusOf = (e: RoadTestError): number =>
-  e.code === "not_found" ? 404 : e.code === "invalid_request" ? 400 : 500;
+  e.code === "not_found" ? 404 : e.code === "invalid_request" ? 400 : e.code === "already_passed" ? 409 : 500;
 
 export function recruitmentRoadTestRouter(): Router {
   const router = Router();

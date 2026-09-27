@@ -3,6 +3,8 @@ import {
   INTAKE_CAPTURE_SLOTS,
   type ApplicantIntake,
   type ApplicantIntakeLicence,
+  type PartOneFacts,
+  type PartOneLicence,
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
@@ -212,4 +214,29 @@ export async function intakeState(
     .eq("invitation_id", invitationId)
     .maybeSingle();
   return { v2: Boolean(data) };
+}
+
+/**
+ * Part 1's facts as the filed application reads them (D-AW3, C2c) — null for a legacy invitation, which
+ * files what it certified exactly as before. The same "has a row" test as `intakeState`, in one read.
+ */
+export async function partOneForFiling(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+): Promise<{ intake: PartOneFacts; licences: PartOneLicence[] } | null> {
+  const { data } = await admin
+    .from("application_intakes")
+    .select("phone, address_line1, address_line2, city, state, postal_code, prior_positive_2y")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .maybeSingle();
+  if (!data) return null;
+  const { data: licences } = await admin
+    .from("application_intake_licences")
+    .select("position, state_code, agency, licence_number, expires_on")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .order("position", { ascending: true });
+  return { intake: data as PartOneFacts, licences: (licences ?? []) as PartOneLicence[] };
 }

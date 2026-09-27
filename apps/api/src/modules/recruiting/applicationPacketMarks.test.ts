@@ -263,6 +263,7 @@ describe("what the transaction refuses", () => {
     ["DR032", "packet_not_yet_approved", "packet_not_yet_approved"],
     ["DR033", "packet_already_filed", "already_submitted"],
     ["DR036", "packet_not_opened", "packet_not_opened"],
+    ["DR037", "packet_version_changed", "packet_text_changed"],
     ["DR030", "application_invitation_not_found", "invalid_link"],
     ["DR031", "application_invitation_unusable", "invalid_link"],
   ])("turns %s into %s", async (code, message, expected) => {

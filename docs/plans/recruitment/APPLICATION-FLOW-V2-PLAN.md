@@ -707,6 +707,8 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW27** | Legacy invitations (all 8 in production) under the new rules | — | The legacy rule in §7 and §8.3's (M2) `OR submitted_at`; stated, not left to each batch. |
 | **Q-AX5** | Staff re-send of a lost link | (a) rotate on the same invitation / (b) new invitation | (a), audited, in C2 (one token now spans weeks and three visits). |
 | **Q-AX6** | Re-inviting from the board duplicates the applicant | (a) "invite them again" on the existing record / (b) merge later | (a), in C2. |
+| **Q-AW2 — C2c's blocker** (2026-09-26) | Filing now refuses a packet with any unversioned mark (`packet_signed_before_versioning`) — production's only such packet is `f2b142e4`'s 20 marks of 2026-09-17, which predate even D-PKT20's spelling. Filing it under today's text would be (c) chosen by nobody. (b) does **not** need M2's migration: the marks already say which text they were made under (NULL = the carrier's file with no register for every NULL mark in production on 2026-09-26, all of which predate #1058 — ⚠ a NULL mark made between #1058 and C2c's deploy was made under the corrected text, so re-measure `signed_at` before building), so the renderer can pick the text from the marks at render time. What it needs is a register per text version kept in code and `correctedPacketTemplate(version)`. | (b) in code: a `PACKET_TEXT_REGISTERS` map keyed by `packetTextVersion`, NULL → the empty register; ~½ day, a C2c follow-up once the owner rules | **(b)**, built the day the owner rules. Until then `f2b142e4` cannot file — its link lapses 2026-10-01 22:14 UTC and needs extending. |
+| **Q-AW28** | A-10's road test: two presses in the same second can each file a form and a certificate; 0376's index lets only one record cite them. A claim before the form is filed needs a column, as the handbook has. | (a) `application_invitations.road_test_filing_claimed_at` (M2); (b) accept the orphan documents | (a) in M2; the read-before-filing C2c added closes every case but the same-second race. |
 
 ---
 
@@ -842,3 +844,19 @@ Append dated lines at the END.
   that `organizations` read by `id` = org is scoped. 13 mutants, all killed. **Owed, named:** an employer typed before keys
   (`f2b142e4`'s, unless its draft is saved again) cannot take a call before filing — after filing it is on the inquiry
   list; C2c still owes the composed payload, A-5, A-10; C2d the sends.
+- 2026-09-26 — **C2c built** (`claude/applicant-flow-c2c`). **Item 5 checked first — none of it existed:** G-9's
+  `signed_on` writer, Q-AX5 (re-send link) and Q-AX6 ("invite them again") are named **C2e** (office link management),
+  after C2d. **D-AW3/AW2:** a v2 invitation (a Part 1 row) files `composeFiledApplication` — the certified application
+  with Part 1's phone, current street (the move-in month kept), licence position 0, the unexpired others as (b)(5)'s
+  list (replacing the draft's, never a union; a licence with no expiry is an issue, never a drop) and §40.25(j) — and
+  `applicationV2FilingIssues()` is enforced on that composed document (`application_incomplete`, 409, each issue named);
+  a legacy invitation files what it certified. **A-5:** `packetTextVersion()` is a hash of every printed run of
+  `correctedPacketTemplate()`, so a register entry (#1059's fines) moves it by itself — `PACKET_VERSION` did not, and is
+  the instruments' version only. **Found:** the mark writer still called the 11-argument `record_packet_mark`, so no mark
+  carried a version; it now stamps one through 0376's 13-argument overload (DR037 → 409 `packet_text_changed`). Filing
+  refuses a mark under another text, and any unversioned mark pending Q-AW2 (the blocker is in §11: (b) needs no
+  migration). **A-10:** the countersign claims `handbook_filing_claimed_at` by conditional UPDATE before the carrier's mark,
+  hands it back on any failure, and takes over a claim older than 10 minutes; the road test records the live invitation
+  (`readLiveInvitation`), refuses a second pass on it before filing anything, and answers 0376's indexes (23505, now
+  `duplicate` from `insertQualificationRecord`) in words — the same-second race is Q-AW28. `postgrestFixture` now
+  evaluates JSON-path filters (it read `detail->>source` as a column no row had). 22 mutants, all killed.

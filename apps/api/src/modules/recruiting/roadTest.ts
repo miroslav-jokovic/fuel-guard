@@ -12,6 +12,7 @@ import {
 import { fileGeneratedDocument, insertQualificationRecord } from "../evidence/index.js";
 import { displayNameFor } from "../../lib/memberLabels.js";
 import { carrierOf } from "./applicationPdf/sources.js";
+import { readLiveInvitation } from "./applicantChecklist.js";
 import {
   roadTestCertificatePdf,
   roadTestFormPdf,
@@ -38,7 +39,7 @@ import {
  */
 
 export interface RoadTestError {
-  code: "not_found" | "invalid_request" | "storage_failed" | "insert_failed";
+  code: "not_found" | "invalid_request" | "storage_failed" | "insert_failed" | "already_passed";
   message: string;
   issues?: Array<{ field: string; message: string }>;
 }
@@ -129,16 +130,7 @@ interface DriverRow {
  * FILED (it is given in the office, before the packet), so the draft is where the street is. Only
  * `address_history` is selected — never the payload (A11, D-APP16).
  */
-async function streetOnDraft(admin: SupabaseClient, orgId: string, driverId: string): Promise<string | null> {
-  const { data: invites } = await admin
-    .from("application_invitations")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("driver_id", driverId)
-    .is("revoked_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1);
-  const invitationId = ((invites ?? []) as Array<{ id: string }>)[0]?.id;
+async function streetOnDraft(admin: SupabaseClient, orgId: string, invitationId: string | null): Promise<string | null> {
   if (!invitationId) return null;
   const { data } = await admin
     .from("application_drafts")
@@ -152,6 +144,25 @@ async function streetOnDraft(admin: SupabaseClient, orgId: string, driverId: str
     | { line1?: unknown }
     | undefined;
   return typeof current?.line1 === "string" && current.line1.trim() ? current.line1.trim() : null;
+}
+
+export const ROAD_TEST_ALREADY_PASSED: RoadTestError = {
+  code: "already_passed",
+  message: "A passed road test is already on file for this application. Nothing was filed.",
+};
+
+/** Is a ceremony pass already on file for this invitation? The read the index backs up. */
+async function passOnFile(admin: SupabaseClient, orgId: string, driverId: string, invitationId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("qualification_records")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("kind", "road_test")
+    .eq("detail->>source", "road_test")
+    .eq("detail->>invitation_id", invitationId)
+    .limit(1);
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 async function examinerForPrint(
@@ -181,6 +192,7 @@ async function gather(
   userId: string,
   role: string | null,
   driverId: string,
+  invitationId: string | null,
   body: RoadTestRecord,
 ): Promise<RoadTestDocumentInput | RoadTestError> {
   const [{ data: driverRow }, { data: vehicleRow }, examiner] = await Promise.all([
@@ -209,7 +221,7 @@ async function gather(
     driver: {
       fullName: driver.full_name,
       address: {
-        line1: await streetOnDraft(admin, orgId, driverId),
+        line1: await streetOnDraft(admin, orgId, invitationId),
         city: driver.city,
         state: driver.state,
         zip: driver.postal_code,
@@ -238,7 +250,26 @@ export async function recordRoadTest(
   const issues = validateRoadTest(body, today);
   if (issues.length > 0) return { code: "invalid_request", message: issues[0]!.message, issues };
 
-  const input = await gather(admin, orgId, userId, role, driverId, body);
+  /**
+   * A-10 (C2c): the test is recorded against the applicant's LIVE invitation — the one the checklist
+   * folds (`readLiveInvitation`) — and a pass on that invitation is on file at most once. Asked HERE,
+   * before anything is filed, because the form and certificate are append-only: a second press used to
+   * file both again and a second record with them. 0376's partial unique index on `qualification_records`
+   * is the database's backstop for two presses that both pass this read.
+   *
+   * ⚠ That backstop covers the RECORD, not the two documents before it: two presses landing within the
+   * same second can each file a form and a certificate, and only one record cites them. Closing that
+   * needs a claim taken before the form is filed, as the handbook has (0376's
+   * `handbook_filing_claimed_at`), and there is no such column for the road test — recorded in plan §11
+   * (Q-AW28) rather than invented here. A driver with no invitation (a roster driver re-tested) is not
+   * an applicant, and files exactly as before.
+   */
+  const invitationId = (await readLiveInvitation(admin, orgId, driverId))?.id ?? null;
+  if (invitationId && roadTestPassed(body) && (await passOnFile(admin, orgId, driverId, invitationId))) {
+    return ROAD_TEST_ALREADY_PASSED;
+  }
+
+  const input = await gather(admin, orgId, userId, role, driverId, invitationId, body);
   if (isRoadTestError(input)) return input;
 
   // A-12 (APPLICATION-FLOW-V2-PLAN.md), both BEFORE anything is filed — the form and certificate are
@@ -288,6 +319,8 @@ export async function recordRoadTest(
     detail: {
       source: "road_test",
       hiring_step: "road_test",
+      // A-10: what 0376's one-pass-per-invitation index reads. Absent for a driver with no invitation.
+      ...(invitationId ? { invitation_id: invitationId } : {}),
       examiner_id: body.examiner_id,
       recorded_by: userId,
       form_document_id: form.documentId,
@@ -298,6 +331,6 @@ export async function recordRoadTest(
       items: body.items,
     },
   });
-  if ("error" in inserted) return { code: "insert_failed", message: "Could not record the road test." };
+  if ("error" in inserted) return inserted.code === "duplicate" ? ROAD_TEST_ALREADY_PASSED : { code: "insert_failed", message: "Could not record the road test." };
   return { passed, formDocumentId: form.documentId, certificateDocumentId: certificate.documentId, recordId };
 }

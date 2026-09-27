@@ -120,6 +120,7 @@ export * from "./applicantIdentity.js";
 export * from "./applicantScreeningContract.js";
 export * from "./employerVerificationContract.js";
 export * from "./applicationFilingRules.js";
+export * from "./applicationComposition.js";
 export * from "./sevenDayStatement.js";
 export * from "./applicationCaptureContract.js";
 export * from "./applicationSections.js";

@@ -181,8 +181,11 @@ describe("countersigning and filing", () => {
     expect(record).toMatchObject({ kind: "handbook", driver_id: DRIVER, document_id: doc.id, reference: HANDBOOK_VERSION });
     expect(record.detail).toMatchObject({ invitation_id: "inv-1", representative_id: REP, recorded_by: "u-1" });
 
-    const stamp = rec.writtenRows("application_invitations")[0]!;
-    expect(typeof stamp.handbook_filed_at).toBe("string");
+    // A-10: the claim is the FIRST write to the invitation, before any document; the stamp is the last.
+    const [claim, stamp] = rec.writtenRows("application_invitations");
+    expect(typeof claim!.handbook_filing_claimed_at).toBe("string");
+    expect(rec.writes()[0]!.table).toBe("application_invitations");
+    expect(typeof stamp!.handbook_filed_at).toBe("string");
     expectOrgScoped(rec, ORG, { exempt: ["organizations", "memberships", "user_profiles"] });
   });
 

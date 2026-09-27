@@ -16,6 +16,7 @@ import {
   packetPlacementById,
 } from "@silvicom/shared";
 import { packetWording } from "../packetWording.js";
+import { packetTextVersion } from "../applicationPdf/packet/packetTextVersion.js";
 import { PSP_DISCLOSURE_TITLE, PSP_MANDATED_INTENT, missingPspParagraphs, pspDisclosure } from "../pspDisclosure.js";
 import { CLEARINGHOUSE_VERSION, ESIGN_VERSION, PACKET_VERSION } from "../defaultWording.js";
 
@@ -126,10 +127,12 @@ const publishAll = (): void => {
  * it at all, and a fixture that put the full name on `p05` would agree with a gate that could not
  * tell D-PKT6's two adopted marks apart.
  */
+// A-5 (C2c): signed under the text that prints now, or filing refuses it.
+const PRINTED = await packetTextVersion();
 const signedPacket = (name = "Susan Godfrey", initials = "SG") =>
   driverPlacementIds(null).map((placement_id) => {
     const mark = packetPlacementById(placement_id)?.mark ?? "signature";
-    return { placement_id, mark, signed_name: mark === "initials" ? initials : name };
+    return { placement_id, mark, signed_name: mark === "initials" ? initials : name, packet_version: PRINTED };
   });
 
 /**
