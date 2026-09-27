@@ -17,6 +17,7 @@ import type {
   ApplyPacketStop,
   ApplyRelease,
   useApplyInvitationQuery,
+  Released,
 } from "@/features/apply/useApplication";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -93,7 +94,7 @@ const emit = defineEmits<{
   partOneDone: [];
   identityRecorded: [];
   ceremonyDone: [];
-  unlocked: [payload: Record<string, unknown>];
+  unlocked: [released: Released];
   send: [];
 }>();
 </script>

@@ -301,7 +301,7 @@ export async function submitApplication(
    * 1 row) is asked nothing new and files what it certified, as before.
    */
   let certified = body.application;
-  const partOne = await partOneForFiling(admin, invitation.org_id, invitation.id);
+  const partOne = await partOneForFiling(admin, invitation.org_id, invitation);
   if (partOne) {
     const asOf = todayInZone(now, await carrierZone(admin, invitation.org_id));
     const composed = composeFiledApplication(body.application, partOne.intake, partOne.licences, asOf);

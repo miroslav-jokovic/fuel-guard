@@ -10,7 +10,7 @@ const application = () => ({
     { line1: "9 Old Rd", line2: null, city: "Gary", state: "IN", postal_code: "46402", from: "2020-01", to: "2024-05" },
     { line1: "typed street", line2: "Apt 1", city: "typed city", state: "XX", postal_code: "00000", from: "2024-06", to: null },
   ],
-  cdl_number: "TYPED1", cdl_state: "WI", cdl_expires_at: "2027-01-01",
+  cdl_number: "TYPED1", cdl_state: "WI", cdl_class: "B" as string | null, cdl_expires_at: "2027-01-01",
   additional_licences: [{ issuing_authority: "Ohio", number: "DRAFT9", expires_at: "2030-01-01", kind: "permit" }],
   prior_failed_pre_employment_test: null as boolean | null,
 });
@@ -19,6 +19,7 @@ const intake = (over: Partial<PartOneFacts> = {}): PartOneFacts => ({
   phone: "+13125550142",
   address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL", postal_code: "60431",
   prior_positive_2y: false,
+  cdl_class: "A",
   ...over,
 });
 
@@ -46,6 +47,8 @@ describe("composeFiledApplication", () => {
       licence({ position: 1, state_code: "OH", agency: "Ohio BMV", licence_number: "OH55", expires_on: "2028-06-30" }),
     ], AS_OF);
     expect([out.cdl_number, out.cdl_state, out.cdl_expires_at]).toEqual(["IL123", "IL", "2029-03-01"]);
+    // C3c2c2: Part 1's class (on `drivers`), not the one typed in Part 2 — which stops asking it.
+    expect(out.cdl_class).toBe("A");
     expect(out.additional_licences).toEqual([
       { issuing_authority: "Ohio BMV", number: "OH55", expires_at: "2028-06-30", kind: null },
     ]);
@@ -59,7 +62,7 @@ describe("composeFiledApplication", () => {
   });
 
   it("leaves what Part 1 never answered as the applicant certified it", () => {
-    const blank = intake({ phone: null, address_line1: null, prior_positive_2y: null });
+    const blank = intake({ phone: null, address_line1: null, prior_positive_2y: null, cdl_class: null });
     const { application: out } = composeFiledApplication(application(), blank, [], AS_OF);
     expect(out).toEqual(application());
   });

@@ -13,6 +13,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import { fromDraftPayload } from "./draft";
+import { applyPartOne } from "./partOneFacts";
 import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { editableFields, pathKey } from "./editableFields";
@@ -67,15 +68,27 @@ const edits = computed(() => review.data.value?.edits ?? []);
 const summary = computed(() => {
   if (!payload.value) return [];
   // Through the same converter the driver's own page uses on resume, so a draft saved before the
-  // state picker existed is normalised the same way for both of them.
+  // state picker existed is normalised the same way for both of them — and, on a v2 application, with
+  // Part 1's facts laid over it the same way too (C3c2c2), so the office reads what filing will file.
+  const draft = fromDraftPayload(payload.value);
+  const facts = review.data.value?.partOne;
+  if (facts) applyPartOne(draft, facts);
   return buildReviewSummary({
-    draft: fromDraftPayload(payload.value),
+    draft,
     questionnaire: questionnaireForApplicant(),
     captures: [],
   });
 });
 
-const fields = computed(() => editableFields(payload.value, questionnaireForApplicant()));
+// C3c2c2: on a v2 application, the answers filing takes from Part 1 are not offered — a correction
+// there would be filed over. The date of birth and CDL are corrected through the identity path instead.
+const fields = computed(() =>
+  editableFields(payload.value, questionnaireForApplicant(), Boolean(review.data.value?.partOne)));
+/** "Something wrong? Tell us" (C3c2c2): the applicant's note about a Part 1 fact they could only read. */
+const correctionNote = computed(() => {
+  const note = (payload.value as { correction_note?: unknown } | null)?.correction_note;
+  return typeof note === "string" && note.trim() !== "" ? note.trim() : null;
+});
 
 /**
  * How many employers the driver declared — the index an added one takes.
@@ -237,6 +250,13 @@ async function approveIt(): Promise<void> {
       </AppCallout>
       <AppCallout v-else-if="state === 'certified'" tone="success">
         Signed and filed. These answers are part of the qualification file.
+      </AppCallout>
+
+      <!-- C3c2c2: before the answers — it may say one of them is wrong. ⚠ Only the date of birth and the
+           CDL's number and state can be corrected from here today; the rest is Q-AW36. -->
+      <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
+        <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
+        <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
       </AppCallout>
 
       <template v-if="summary.length">

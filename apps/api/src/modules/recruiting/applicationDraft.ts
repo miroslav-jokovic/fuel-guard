@@ -5,6 +5,7 @@ import {
   draftDateOfBirth,
   draftIsLocked,
   type ApplicationDraftSave,
+  type PartOneFactsView,
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
@@ -16,6 +17,7 @@ import {
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { identityOnRecord } from "./applicantIdentity.js";
+import { partOneFactsView } from "./applicantIntake.js";
 
 /**
  * The applicant's saved draft (A2) — the other half of what 0225 started.
@@ -56,6 +58,11 @@ export interface DraftView {
   payload: Record<string, unknown> | null;
   furthestSection: string | null;
   updatedAt: string | null;
+  /**
+   * C3c2c2 (Q-AW34): a v2 link's Part 1 facts, released with the body and on the same answer — never on
+   * the bare link, where `GET /:token` serves booleans only. Absent on every other view.
+   */
+  partOne?: PartOneFactsView;
 }
 
 const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null };
@@ -184,13 +191,37 @@ export async function unlockDraft(
   if (isIntakeError(invitation)) return invitation;
 
   const row = await readDraft(admin, invitation.org_id, invitation.id);
-  const stored = row ? draftDateOfBirth(row.payload) : null;
-  // No draft, or no date of birth in it: there is nothing gated, so unlocking is a no-op that
-  // returns the same view the plain read would have. It must not become a way to ask whether a
-  // draft exists.
-  if (!row || !stored) return viewDraft(row);
+  // C3c2c2: a v2 link has Part 1's facts to release too, and they are gated whether or not a draft
+  // exists — so the date of birth to check is the draft's, or, with none there, the one Part 1 recorded
+  // on `drivers` (the same value: `record_applicant_identity` writes both, and every save re-lays it).
+  const partOne = await partOneFactsView(admin, invitation.org_id, invitation, now);
+  const stored = (row ? draftDateOfBirth(row.payload) : null)
+    ?? (partOne ? await driverDateOfBirth(admin, invitation.org_id, invitation.driver_id) : null);
+  // Nothing recorded to check against: there is nothing gated, so unlocking is a no-op that returns
+  // the same view the plain read would have — and no Part 1 facts. It must not become a way to ask
+  // whether a draft exists.
+  if (!stored) return viewDraft(row);
   if (!dobMatches(dateOfBirth, stored)) {
-    return { locked: true, payload: null, furthestSection: row.furthest_section, updatedAt: row.updated_at };
+    return { locked: true, payload: null, furthestSection: row?.furthest_section ?? null, updatedAt: row?.updated_at ?? null };
   }
-  return { locked: false, payload: row.payload, furthestSection: row.furthest_section, updatedAt: row.updated_at };
+  return {
+    locked: false,
+    // An empty body when Part 1 was answered and nothing of Part 2 yet: unlocked, with nothing to resume.
+    payload: row?.payload ?? {},
+    furthestSection: row?.furthest_section ?? null,
+    updatedAt: row?.updated_at ?? null,
+    ...(partOne ? { partOne } : {}),
+  };
+}
+
+/** The date of birth on `drivers`, as PostgREST serves a `date`: `YYYY-MM-DD`. */
+async function driverDateOfBirth(admin: SupabaseClient, orgId: string, driverId: string): Promise<string | null> {
+  const { data } = await admin
+    .from("drivers")
+    .select("date_of_birth")
+    .eq("org_id", orgId)
+    .eq("id", driverId)
+    .maybeSingle();
+  const value = (data as { date_of_birth?: string | null } | null)?.date_of_birth;
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }

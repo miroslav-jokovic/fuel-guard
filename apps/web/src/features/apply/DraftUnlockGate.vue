@@ -6,7 +6,7 @@ import {
   AppDateField,
   AppFormField as FormField,
 } from "@silvicom/ui";
-import { unlockApplicationDraft } from "./useApplication";
+import { unlockApplicationDraft, type Released } from "./useApplication";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -25,7 +25,7 @@ import { APPLY_COPY } from "./strings";
  * rather than reporting them upward — the page needs the payload, not the attempt.
  */
 const props = defineProps<{ token: string; carrier: string }>();
-const emit = defineEmits<{ unlocked: [payload: Record<string, unknown>] }>();
+const emit = defineEmits<{ unlocked: [released: Released] }>();
 
 const dateOfBirth = ref("");
 const failed = ref(false);
@@ -37,8 +37,8 @@ async function unlock(): Promise<void> {
   failed.value = false;
   try {
     const res = await unlockApplicationDraft(props.token, dateOfBirth.value);
-    if (res.draft.locked || !res.draft.payload) failed.value = true;
-    else emit("unlocked", res.draft.payload);
+    if (res.draft.locked) failed.value = true;
+    else emit("unlocked", { payload: res.draft.payload ?? {}, partOne: res.draft.partOne ?? null });
   } catch {
     failed.value = true;
   } finally {

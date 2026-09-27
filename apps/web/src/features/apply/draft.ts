@@ -257,6 +257,8 @@ export function toDraftPayload(draft: ApplicationDraft): Record<string, unknown>
     // number and no field D-APP3 protects — the definition is fixed in code, so nothing the driver
     // types here can name a key the questionnaire did not ask for.
     questionnaire: draft.questionnaire,
+    // C3c2c2: the note to the office. A message, not an answer — so it is saved and never filed.
+    correction_note: draft.correction_note,
     // `certified` and `signed_name` are deliberately absent too, for a different reason: §391.21(b)'s
     // certification is an act performed once, at submit, on the whole finished document. A saved
     // "I certify" checkbox would restore a certification the driver made about answers they have
@@ -344,6 +346,7 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       (g) => typeof g?.from === "string" && typeof g.to === "string" && typeof g.explanation === "string",
     ),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
+    correction_note: str("correction_note"),
     questionnaire:
       payload.questionnaire && typeof payload.questionnaire === "object" && !Array.isArray(payload.questionnaire)
         ? (payload.questionnaire as Record<string, unknown>)

@@ -15,7 +15,8 @@ import ApplyProgress from "@/features/apply/ApplyProgress.vue";
 import ApplyIssueList from "@/features/apply/ApplyIssueList.vue";
 import ApplyPhaseRouter from "@/features/apply/ApplyPhaseRouter.vue";
 import { emptyDraft, fromDraftPayload, type ApplicationDraft } from "@/features/apply/draft";
-import { linkHasBeenUsed, useApplyInvitationQuery } from "@/features/apply/useApplication";
+import { linkHasBeenUsed, useApplyInvitationQuery, type Released } from "@/features/apply/useApplication";
+import { applyPartOne } from "@/features/apply/partOneFacts";
 import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
 import { usePartOneStep } from "@/features/apply/partOne/usePartOneStep";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
@@ -109,7 +110,9 @@ const packetAdopted = computed(() => invitation.data.value?.packetAdopted ?? nul
 
 
 // ── Resuming (A2) ─────────────────────────────────────────────────────────────────────────────
-const released = ref<Record<string, unknown> | null>(null);
+const released = ref<Released | null>(null);
+/** A v2 link's Part 1 facts, released by the unlock (C3c2c2, Q-AW34) — shown read-only, laid into the draft. */
+const partOneFacts = computed(() => released.value?.partOne ?? null);
 const locked = computed(() => Boolean(invitation.data.value?.draft?.locked) && released.value === null);
 const restored = ref(false);
 const autosaveEnabled = ref(false);
@@ -163,8 +166,9 @@ watch(
     // Still gated: nothing to restore and nothing to save over. Autosave stays off, so a stranger
     // holding the link cannot overwrite the draft they are not allowed to read.
     if (inv.draft?.locked && !body) return;
-    const payload = body ?? inv.draft?.payload ?? null;
+    const payload = body?.payload ?? inv.draft?.payload ?? null;
     if (payload) Object.assign(draft, fromDraftPayload(payload));
+    if (body?.partOne) applyPartOne(draft, body.partOne);
     furthestSection.value = inv.draft?.furthestSection ?? null;
     wizard.resume();
     restored.value = true;
@@ -371,6 +375,7 @@ watch(
             :captures="invitation.data.value.captures ?? []"
             :as-of="carrierToday"
             :v2-as-of="v2AsOf()"
+            :part-one="partOneFacts"
             :identity-locked-by="identityLockedBy"
             @go-to="goToSection"
           />

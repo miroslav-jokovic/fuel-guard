@@ -1,4 +1,9 @@
-import type { ApplicationPath, QuestionnaireDefinition } from "@silvicom/shared";
+import {
+  PART_ONE_COMPOSED_KEYS,
+  PART_ONE_STREET_KEYS,
+  type ApplicationPath,
+  type QuestionnaireDefinition,
+} from "@silvicom/shared";
 import { describeField } from "./fieldLabels";
 
 /**
@@ -46,6 +51,8 @@ const NOT_AN_ANSWER = new Set([
   "ssn",
   "questionnaire_version",
   "questionnaire_answers",
+  // C3c2c2: the applicant's note to the office. Theirs to write; the drawer shows it, never corrects it.
+  "correction_note",
 ]);
 
 /** The carrier's own answers, which live under one key and are labelled by their question. */
@@ -84,9 +91,26 @@ function questionnaireFields(
   return out;
 }
 
+/**
+ * Is this path one a v2 filing takes from Part 1 rather than from the draft (C3c2c2, Q-AW34)? Composition's
+ * own key lists, so the two cannot disagree: every composed key, except that of `addresses` only the
+ * CURRENT entry's street is Part 1's (its months, and every earlier address, are the applicant's).
+ *
+ * ⚠ Unconditional: composition skips a key Part 1 left blank, but Part 1 cannot finish with the phone,
+ * the address, the CDL or §40.25(j) blank, so on a finished Part 1 each of these is Part 1's.
+ */
+function composedFromPartOne(key: string, row?: Record<string, unknown>, column?: string): boolean {
+  if (!(PART_ONE_COMPOSED_KEYS as readonly string[]).includes(key)) return false;
+  if (key !== "addresses") return true;
+  const current = row !== undefined && (row.to === null || row.to === undefined || String(row.to).trim() === "");
+  return current && (PART_ONE_STREET_KEYS as readonly string[]).includes(column ?? "");
+}
+
 export function editableFields(
   payload: Record<string, unknown> | null | undefined,
   questionnaire: QuestionnaireDefinition,
+  /** A v2 application whose Part 1 facts filing composes over the draft — see `composedFromPartOne`. */
+  partOne = false,
 ): EditableField[] {
   if (!payload || typeof payload !== "object") return [];
   const out: EditableField[] = [];
@@ -103,6 +127,8 @@ export function editableFields(
       continue;
     }
 
+    if (partOne && key !== "addresses" && composedFromPartOne(key)) continue;
+
     if (scalar(value)) {
       out.push(field([key], value));
       continue;
@@ -118,6 +144,7 @@ export function editableFields(
       if (!row || typeof row !== "object") return;
       for (const [column, cell] of Object.entries(row as Record<string, unknown>)) {
         if (!scalar(cell)) continue;
+        if (partOne && composedFromPartOne(key, row as Record<string, unknown>, column)) continue;
         out.push(field([key, i, column], cell));
       }
     });

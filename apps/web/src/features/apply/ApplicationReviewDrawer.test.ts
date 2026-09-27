@@ -112,6 +112,37 @@ describe("what the office reads", () => {
     expect(w.text()).toContain("Employer 1 · City");
   });
 
+  /**
+   * C3c2c2 (Q-AW34): a v2 application is read as filing will compose it — Part 1's phone, not the draft's
+   * retyped copy — with the applicant's note above the answers, and no box offered for an answer filing
+   * takes from Part 1 (the correction would be filed over).
+   */
+  it("reads a v2 application as filing composes it, shows the note, and offers no Part 1 answer to correct", async () => {
+    const FACTS = {
+      intake: {
+        phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+        postal_code: "60431", prior_positive_2y: false, cdl_class: "A",
+      },
+      licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
+      asOf: "2026-09-26",
+    };
+    const payload = { ...PAYLOAD, phone: "555-0000", correction_note: "My phone ends in 42." };
+    apiFetch.mockResolvedValue({ ok: true, data: review({ payload, partOne: FACTS }) });
+    const w = drawer();
+    await settle(w);
+    expect(w.text()).toContain("+13125550142");
+    expect(w.text()).not.toContain("555-0000");
+    expect(w.find("[data-correction-note]").text()).toContain("My phone ends in 42.");
+    expect(w.find("input#apply-phone").exists()).toBe(false);
+
+    apiFetch.mockResolvedValue({ ok: true, data: review({ payload: { ...PAYLOAD, phone: "555-0000" } }) });
+    const legacy = drawer();
+    await settle(legacy);
+    expect(legacy.text()).toContain("555-0000");
+    expect(legacy.find("[data-correction-note]").exists()).toBe(false);
+    expect(legacy.find("input#apply-phone").exists()).toBe(true);
+  });
+
   it("says where the application has got to", async () => {
     const w = drawer();
     await settle(w);

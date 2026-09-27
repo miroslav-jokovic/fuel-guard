@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ApplicationCaptureView, ApplicationSection } from "@silvicom/shared";
+import type { ApplicationCaptureView, ApplicationSection, PartOneFactsView } from "@silvicom/shared";
 import ApplicantDetailsFields from "@/features/apply/ApplicantDetailsFields.vue";
 import AddressHistoryFields from "@/features/apply/AddressHistoryFields.vue";
 import LicenceFields from "@/features/apply/LicenceFields.vue";
@@ -25,6 +25,11 @@ defineProps<{
   asOf: string;
   /** That day on a v2 link, null on a legacy one — v2's job panel asks more (C3c2b), its addresses loop (C3c2c1). */
   v2AsOf?: string | null;
+  /**
+   * A v2 link's Part 1 facts, once the unlock released them (C3c2c2, Q-AW34): "About you" and "Your
+   * licences" show them read-only, the current address is Part 1's, and §40.25(j) is not asked again.
+   */
+  partOne?: PartOneFactsView | null;
   identityLockedBy: string | null;
 }>();
 const draft = defineModel<ApplicationDraft>({ required: true });
@@ -32,11 +37,11 @@ const emit = defineEmits<{ goTo: [ApplicationSection] }>();
 </script>
 
 <template>
-  <ApplicantDetailsFields v-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
-  <AddressHistoryFields v-else-if="section === 'addresses'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" />
-  <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
+  <ApplicantDetailsFields v-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />
+  <AddressHistoryFields v-else-if="section === 'addresses'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" :part-one="partOne" />
+  <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" :part-one="partOne" />
   <ApplyEmploymentFields v-else-if="section === 'employment'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" />
-  <SafetyHistoryFields v-else-if="section === 'safety'" v-model="draft" />
+  <SafetyHistoryFields v-else-if="section === 'safety'" v-model="draft" :ask-prior-test="!partOne" />
   <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
   <QuestionnaireFields v-else-if="section === 'questions'" v-model="draft" />
   <!-- A8: photographs, not answers. They are staged against the invitation rather than saved into

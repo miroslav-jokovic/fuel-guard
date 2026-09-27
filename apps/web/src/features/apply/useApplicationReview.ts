@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationPath, ApplicationReviewState } from "@silvicom/shared";
+import type { ApplicationPath, ApplicationReviewState, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -28,6 +28,11 @@ export interface ApplicationReview {
   /** Only while it is waiting for review. Approval is what tells the driver to sign THAT document. */
   editable: boolean;
   payload: Record<string, unknown> | null;
+  /**
+   * A v2 application's Part 1 facts (C3c2c2, Q-AW34), null for a legacy one — so the drawer reads the
+   * document filing will compose, not the draft's copy. Optional: an API older than C3c2c2 sends none.
+   */
+  partOne?: PartOneFactsView | null;
   edits: ApplicationEditRow[];
 }
 

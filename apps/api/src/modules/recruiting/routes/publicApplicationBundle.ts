@@ -101,7 +101,10 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // Where this driver stopped (D-APP1). Three dates and nothing else — the page opens on the
     // step they had reached instead of on a blank form they have already filled in once.
     phases: phasesOf(invitation),
-    draft,
+    // C3c2c2 (Q-AW34): once Part 1 is finished a v2 link's form is behind the unlock whether or not the
+    // draft holds a date of birth yet — the unlock is what releases Part 1's facts to the page, and a
+    // page that never met the gate would never be given them.
+    draft: partOne?.completedAt && !draft.locked ? { ...draft, locked: true, payload: null } : draft,
     // The 15 U.S.C. 7001(c) consent, served like every other instrument — the exact text, from
     // the server, so what somebody agreed to is a fact we can prove (A4).
     esignConsent: esignConsentForApplicant(wording.esignConsent),

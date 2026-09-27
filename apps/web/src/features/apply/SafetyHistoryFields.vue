@@ -34,6 +34,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * a misclick that has to be retyped.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
+/**
+ * False on a v2 link once Part 1's facts are released (C3c2c2, Q-AW34): Part 1 asked §40.25(j) (D-AW13)
+ * and filing files that answer, so the box here is not shown — the review prints Part 1's answer.
+ */
+withDefaults(defineProps<{ askPriorTest?: boolean }>(), { askPriorTest: true });
 const copy = APPLY_COPY.safety;
 // The screen's issues, so a cross-field refusal ("List every accident … or confirm there were none")
 // lands under the question that answers it.
@@ -176,11 +181,9 @@ const everDenied = computed<boolean | null>({
          of the driving-record screen, because a wizard step exists per REGULATION-shaped group of
          answers and an eighth screen for one checkbox is a step somebody abandons on. The intro says
          what a yes means before the box is offered — see the copy's own note.
-         ⚠ On a v2 link Part 1 asked it (D-AW13) and filing lays that answer over this one
-         (`composeFiledApplication`), so this box is dead there. Not removed in C3c2c1: without it the
-         review would print the draft's untouched "No" beside a Part 1 answer it cannot read — the
-         read path §11's Q-AW34 asks for fixes both, in C3c2c2. -->
-    <div class="space-y-3">
+         Not on a v2 link whose Part 1 facts are released (C3c2c2): Part 1 asked it, and the draft
+         already holds Part 1's answer (`applyPartOne`). -->
+    <div v-if="askPriorTest" class="space-y-3">
       <h3 class="text-sm font-semibold text-ink">{{ copy.priorTestHeading }}</h3>
       <p class="text-sm text-ink-muted">{{ copy.priorTestIntro }}</p>
       <BaseCheckbox v-model="draft.prior_failed_pre_employment_test" size="touch">{{ copy.priorTest }}</BaseCheckbox>
