@@ -25,7 +25,7 @@ const filled = (): ApplicationDraft => ({
   ],
   employers: [
     {
-      employer_name: "Old Carrier", usdot_number: "", address_line1: "", city: "Jolliet", state: "IL",
+      key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "", address_line1: "", city: "Jolliet", state: "IL",
       phone: "", email: "", position_held: "Driver", started_on: "2023-01-01", ended_on: "2025-06-30",
       operated_cmv: true, dot_regulated: true, reason_for_leaving: "", subject_to_fmcsr: true,
       safety_sensitive: true,

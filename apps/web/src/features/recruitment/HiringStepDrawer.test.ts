@@ -42,6 +42,11 @@ const STUBS = {
   // ⚠ Declares the one prop AF7 hands it, so a test can read what the drawer passed rather than
   // only that the panel rendered.
   RecordedActPanel: { ...stub("record"), props: ["outstandingJurisdictions"] },
+  // C2b3: what the office arranges around two of the acts, and the calls before filing.
+  DrugTestPanel: stub("drug-test"),
+  // No declared props: `consented` falls through as an attribute, so a test can read what was passed.
+  ClearinghouseConsentPanel: stub("consent"),
+  EmployerCallsPanel: stub("calls"),
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -182,7 +187,8 @@ describe("a row opens the work behind the step", () => {
    * moved or not. That is this file's own teleport lesson met from a different direction.
    */
   it("opens the inquiries for the investigation step, and no longer for the application", async () => {
-    expect(bodyOf(await openOn("employment_investigation"))).toBe("inquiry");
+    // D-AW8 (C2b3): the calls made before filing sit above the list filing copies them onto.
+    expect(bodies(await openOn("employment_investigation"))).toEqual(["calls", "inquiry"]);
     expect(bodies(await openOn("application_filled"))).toEqual(["employment"]);
   });
 });
@@ -197,6 +203,24 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
     for (const key of ["mvr", "clearinghouse", "drug_test"]) {
       expect(bodyOf(await openOn(key)), key).toBe("record");
     }
+  });
+
+  /**
+   * C2b3: two of the three carry what the office arranges around the act — the drug test's appointment
+   * (D-AW6) and the driver's portal consent (D-AW5) — under the form that records the act itself, and
+   * the MVR carries neither.
+   */
+  it("adds the appointment to the drug test and the portal consent to the Clearinghouse query only", async () => {
+    expect(bodies(await openOn("drug_test"))).toEqual(["record", "drug-test"]);
+    expect(bodies(await openOn("clearinghouse"))).toEqual(["record", "consent"]);
+    expect(bodies(await openOn("mvr"))).toEqual(["record"]);
+  });
+
+  /** The consent's reading IS the row's state: "waiting on them" is no consent on file (D-AW5). */
+  it("tells the consent panel whether the row says the consent is on file", async () => {
+    const root = await openOn("clearinghouse");
+    expect(stepOf("clearinghouse").state).toBe("waiting_on_them");
+    expect(root.querySelector("[data-body='consent']")?.getAttribute("consented")).toBe("false");
   });
 
   /**
@@ -331,7 +355,7 @@ describe("what the drawer says about the step itself", () => {
       })),
       qualificationKinds: ["mvr"],
       licenceJurisdictions: ["IL", "WI"],
-      mvrJurisdictions: ["IL"],
+      mvrs: [{ jurisdiction: "IL", occurredOn: "2026-09-10" }],
     }).steps.find((s) => s.key === "mvr")!;
     wrapper = mount(HiringStepDrawer, {
       props: { open: true, step: owed, driverId: DRIVER, driverStatus: "applicant", invitationId: null },

@@ -16,6 +16,8 @@ import { recruitmentHandbookRouter } from "./handbook.js";
 import { recruitmentSmsConsentRouter } from "./smsConsent.js";
 import { recruitmentTemplatesRouter } from "./templates.js";
 import { recruitmentTravelRouter } from "./travel.js";
+import { recruitmentDrugTestRouter } from "./drugTest.js";
+import { recruitmentEmployerCallsRouter } from "./employerCalls.js";
 
 /**
  * Everything mounted at `/api/recruitment`, composed in one place.
@@ -45,5 +47,7 @@ export function recruitmentRouter(): Router {
   router.use(recruitmentSmsConsentRouter()); // whether a text reaches an applicant, and recording a stop asked for off-text (SMS4)
   router.use(recruitmentTemplatesRouter()); // blank documents to print when the electronic path fails (MV2)
   router.use(recruitmentTravelRouter()); // the applicant's trip to the office, refused until screening is done (D-AW7)
+  router.use(recruitmentDrugTestRouter()); // where and when the applicant goes for the drug test (D-AW6)
+  router.use(recruitmentEmployerCallsRouter()); // previous employers verified by phone before filing (D-AW8)
   return router;
 }

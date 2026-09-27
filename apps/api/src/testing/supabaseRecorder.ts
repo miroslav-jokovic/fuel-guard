@@ -321,7 +321,7 @@ export function expectOrgScoped(
     .filter((q) => !q.table.startsWith("rpc:") && !exempt.has(q.table))
     .filter(
       (q) =>
-        !q.filters().some((f) => f.col === "org_id" && matchesOrg(f.val, orgId)) &&
+        !q.filters().some((f) => (f.col === "org_id" || isOrgsOwnKey(q.table, f.col)) && matchesOrg(f.val, orgId)) &&
         !writeNamesOrg(q, orgId),
     );
 
@@ -335,6 +335,13 @@ export function expectOrgScoped(
     );
   }
 }
+
+/**
+ * `organizations` has no `org_id`: its own `id` IS the org, so a read of it by `.eq("id", orgId)` is as
+ * scoped as a read can be. Said once here, where the rule lives, rather than as an `exempt` in every
+ * test whose code reads the carrier's zone — an exemption would also admit an UNfiltered read.
+ */
+const isOrgsOwnKey = (table: string, col: string): boolean => table === "organizations" && col === "id";
 
 /** True when this is a row write and EVERY row it carries names this org. */
 function writeNamesOrg(q: RecordedQuery, orgId: string): boolean {

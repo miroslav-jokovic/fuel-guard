@@ -91,6 +91,7 @@ export const DQ_KIND_LABELS: Record<string, string> = {
   // Carrier records filed beside the §391.51 set (0373), never DQ requirements themselves.
   orientation: "Driver safety training (orientation)",
   handbook: "Signed driver handbook",
+  clearinghouse_portal_consent: "Clearinghouse consent (portal)",
   other: "Other document",
 };
 

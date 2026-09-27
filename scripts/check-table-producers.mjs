@@ -53,11 +53,8 @@ const WAIVERS = new Map([
   // reader never share a merge. The other four tables 0376 creates are written by its own functions and
   // need no entry. Each leaves in the merge that ships its writer, named per entry. applicant_travel left
   // on 2026-09-26 (C2b2): recruiting/applicantTravel.ts writes it behind POST /recruitment/applicants/:driverId/travel.
-  [
-    "drug_test_appointments",
-    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's AW8 writes it behind " +
-      "POST /recruiting/applicants/:driverId/drug-test-appointments; the entry leaves in that merge.",
-  ],
+  // drug_test_appointments left on 2026-09-26 (C2b3): recruiting/applicantDrugTest.ts writes it behind
+  // POST /recruitment/applicants/:driverId/drug-test-appointments.
   [
     "sms_outbox",
     "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C2's A-11/G-2 enqueue and runSmsOutboxOnce " +

@@ -1,3 +1,4 @@
+import { shiftDay, todayInZone } from "./calendarDay.js";
 import { jurisdictionName, jurisdictionOptions, toJurisdictionCode } from "./jurisdictions.js";
 
 /**
@@ -136,4 +137,27 @@ export function mvrJurisdictionOptions(
   });
   const taken = new Set(owed.map((o) => o.value));
   return [...owed, ...jurisdictionOptions().filter((j) => !taken.has(j.value))];
+}
+
+/**
+ * G-3 (APPLICATION-FLOW-V2-PLAN §7, C2b3): how old an MVR may be, in days, and still be evidence for
+ * THIS application. §391.23(a) has the carrier make its inquiries within 30 days of employment
+ * beginning; the plan's reading measures the thirty back from the applicant's start rather than
+ * forward from a hire date that does not exist yet, so that an MVR pulled for an EARLIER application —
+ * a rehire's, or last spring's abandoned one — cannot tick this one's step.
+ */
+export const MVR_FRESH_DAYS = 30;
+
+/**
+ * The first calendar day an MVR may be dated (`qualification_records.occurred_on`) and still count:
+ * `MVR_FRESH_DAYS` before the anchor, on the CARRIER's calendar — `occurred_on` is a day, the anchor an
+ * instant, and a day is only comparable with a day in one zone (`calendarDay.ts`).
+ *
+ * The anchor is when Part 1 finished (`intake_completed_at`), or for a legacy link — which never had a
+ * Part 1 — when the invitation was created: the application's own start. Null when neither exists (no
+ * invitation), which is no floor.
+ */
+export function mvrFreshSince(anchor: string | null | undefined, zone: string): string | null {
+  if (!anchor) return null;
+  return shiftDay(todayInZone(new Date(anchor), zone), -MVR_FRESH_DAYS);
 }

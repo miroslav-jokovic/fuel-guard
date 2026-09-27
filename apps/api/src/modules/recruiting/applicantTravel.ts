@@ -1,9 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   hiringStep,
-  organizationTimezone,
   travelBlockers,
-  wallClockToUtc,
   type ApplicantTravel,
   type ApplicantTravelBooking,
   type ApplicantTravelList,
@@ -11,6 +9,7 @@ import {
   type TravelMode,
 } from "@silvicom/shared";
 import { applicantChecklist, isChecklistError, readLiveInvitation } from "./applicantChecklist.js";
+import { carrierZone, instantOf } from "./carrierClock.js";
 
 /**
  * The applicant's trip to the office — D-AW7, AW11 (APPLICATION-FLOW-V2-PLAN §7, C2b2).
@@ -70,20 +69,6 @@ const toTrip = (r: TravelRow): ApplicantTravel => ({
   bookedAt: r.created_at,
   cancelledAt: r.cancelled_at,
 });
-
-/** The carrier's zone — the one a wall time on the form means (`carrierWallTimeSchema`). */
-async function carrierZone(admin: SupabaseClient, orgId: string): Promise<string> {
-  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-  return organizationTimezone((data as { operating_hours?: unknown } | null)?.operating_hours as object | null);
-}
-
-/** `YYYY-MM-DDTHH:MM` on the carrier's clock, as an instant. */
-function instantOf(wall: string, zone: string): string {
-  const [day, time] = wall.split("T") as [string, string];
-  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
-  const [hour, minute] = time.split(":").map(Number) as [number, number];
-  return new Date(wallClockToUtc({ year, month, day: date, hour, minute, second: 0 }, zone)).toISOString();
-}
 
 /** The live invitation's trips, newest first — cancelled ones included, so a moved trip has a history. */
 export async function listTravel(

@@ -2,9 +2,11 @@ import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import {
   canReadRestrictedKind,
+  clearinghousePortalConsentSchema,
   hiringEvidenceFileSchema,
   hiringEvidenceUploadSchema,
   hiringRecordedActKind,
+  type ClearinghousePortalConsent,
   type HiringEvidenceFiling,
   type HiringEvidenceUpload,
 } from "@silvicom/shared";
@@ -16,6 +18,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import {
   fileHiringEvidence,
   isHiringEvidenceError,
+  recordPortalConsent,
   registerHiringEvidenceDocument,
 } from "../hiringEvidence.js";
 
@@ -142,6 +145,55 @@ export function recruitmentHiringEvidenceRouter(): Router {
         },
       });
       res.status(201).json(result);
+    }),
+  );
+
+  /**
+   * D-AW5: the driver's portal consent. A testing record (`auth.ts`, 0376's policies), so it takes the
+   * same intersection as the drug test: the section, then the kind's own reader test — a fixed kind
+   * here, so the marker gate is fixed too.
+   */
+  const canReadConsent = Object.assign(
+    (req: Request, res: Response, next: NextFunction): void => {
+      if (!canReadRestrictedKind("clearinghouse_portal_consent", req.auth?.role ?? null)) {
+        res.status(403).json(apiError("forbidden", "Drug & alcohol records require a safety manager or admin."));
+        return;
+      }
+      next();
+    },
+    { gateKind: "role" as const },
+  );
+
+  router.post(
+    "/applicants/:driverId/clearinghouse-portal-consent",
+    requireOrg,
+    requireSection("recruitment"),
+    canReadConsent,
+    validateBody(clearinghousePortalConsentSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const body = res.locals.body as ClearinghousePortalConsent;
+      const result = await recordPortalConsent(
+        admin, orgId, req.auth!.userId, driverId, body.occurred_on, new Date().toISOString().slice(0, 10),
+      );
+      if (isHiringEvidenceError(result)) {
+        const status = result.code === "not_found" ? 404 : result.code === "insert_failed" ? 500 : 400;
+        res.status(status).json(apiError(result.code, result.issues?.[0]?.message ?? result.message));
+        return;
+      }
+      if (result.created) {
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "compliance.clearinghouse_portal_consent_recorded",
+          entity: "qualification_records",
+          entityId: result.recordId,
+          meta: { driverId, occurredOn: body.occurred_on },
+        });
+      }
+      res.status(result.created ? 201 : 200).json(result);
     }),
   );
 

@@ -97,6 +97,18 @@ const inquiryRows = () => [
     contacted_on: "2026-09-06", outcome: "responded" },
 ];
 
+/**
+ * One filed record, as production holds it: `occurred_on` is NOT NULL (G-3 reads it), and an MVR names
+ * the state it came from — the seed's driver is licensed in Illinois on their own row, which since AW7
+ * (C2b3) is a licence the MVR is owed for.
+ */
+const record = (kind: string, extra: Record<string, unknown> = {}) => ({
+  driver_id: DRIVER, kind, occurred_on: "2026-09-04",
+  ...(kind === "mvr" ? { detail: { source: "recorded_act", jurisdiction: "IL" } } : {}),
+  ...(kind === "road_test" ? { detail: { source: "road_test" } } : {}),
+  ...extra,
+});
+
 /** One applicant, mid-flow: approved, three screening records in, packet half-signed. */
 const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
   const rows: Record<string, Array<Record<string, unknown>>> = {
@@ -116,11 +128,7 @@ const seed = (over: Record<string, Array<Record<string, unknown>>> = {}) => {
     ],
     application_drafts: [{ invitation_id: INVITE }],
     driver_authorizations: authRows().map((r) => ({ ...r, driver_id: DRIVER })),
-    qualification_records: [
-      { driver_id: DRIVER, kind: "mvr" },
-      { driver_id: DRIVER, kind: "drug_test" },
-      { driver_id: DRIVER, kind: "psp_report" },
-    ],
+    qualification_records: [record("mvr"), record("drug_test"), record("psp_report")],
     psp_requests: [{ id: "psp-1", driver_id: DRIVER }],
     application_packet_marks: markRows(3),
     driver_employment_history: employmentRows(),
@@ -149,6 +157,11 @@ const asInputs = (over: Record<string, unknown> = {}) => ({
   hasDraft: true,
   authorizations: authRows(),
   qualificationKinds: ["mvr", "drug_test", "psp_report"],
+  // AW7: the legacy link's draft declares nothing, so the licence on the driver's row is the one owed;
+  // G-3: thirty carrier days before the invitation (2026-09-01, 19:00 on 08-31 in Chicago).
+  licenceJurisdictions: ["IL"],
+  mvrs: [{ jurisdiction: "IL", occurredOn: "2026-09-04" }],
+  mvrFreshSince: "2026-08-01",
   psp: { requested: true, reportReceived: true },
   packetMarks: 3,
   // ⚠ `outstanding: 1` is `emp-open` — the employer nobody has written to. `emp-answered` is closed
@@ -188,6 +201,9 @@ describe("the endpoint answers exactly what the fold answers", () => {
         // The identity on the driver's row is read, and must not finish a Part 1 nobody was sent.
         identityOnFile: true,
         phases: null,
+        // AW7: the driver's row still says where they are licensed, invitation or not.
+        licenceJurisdictions: ["IL"],
+        mvrs: [],
         hasDraft: false,
         authorizations: [],
         qualificationKinds: [],
@@ -206,7 +222,7 @@ describe("the endpoint answers exactly what the fold answers", () => {
     const rec = seed({
       drivers: [{ id: DRIVER, hire_date: "2026-09-10", date_of_birth: "1985-04-12", cdl_number: "D1234567", cdl_state: "IL" }],
       // A road test as its ceremony files it: only on a pass, with its source (A-8).
-      qualification_records: kinds.map((kind) => ({ driver_id: DRIVER, kind, ...(kind === "road_test" ? { detail: { source: "road_test" } } : {}) })),
+      qualification_records: kinds.map((kind) => record(kind)),
       application_packet_marks: markRows(packetDriverMarkCount(null)),
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
@@ -245,6 +261,8 @@ describe("what it reads, and from where", () => {
       // §7 (C2b2): Part 1's row and a live trip, by the invitation. (`drivers` is read twice now — the
       // membership check and the legacy rule's identity — and is already in this set.)
       "application_intakes", "applicant_travel",
+      // AW7 (C2b3): Part 1's licence list, and the carrier's zone G-3's thirty days are counted in.
+      "application_intake_licences", "organizations",
     ]));
   });
 
@@ -381,9 +399,7 @@ describe("what it reads, and from where", () => {
         additional_licences: [{ issuing_authority: "Indiana BMV", number: "IN-99", expires_at: "2027-01-01" }],
       },
     };
-    const mvr = (jurisdiction: string) => ({
-      driver_id: DRIVER, kind: "mvr", detail: { source: "recorded_act", jurisdiction },
-    });
+    const mvr = (jurisdiction: string) => record("mvr", { detail: { source: "recorded_act", jurisdiction } });
     const mvrStep = async (records: Array<Record<string, unknown>>) => {
       const r = await applicantChecklist(
         seed({ application_drafts: [draft], qualification_records: records }).client,
@@ -403,7 +419,7 @@ describe("what it reads, and from where", () => {
     expect(both.state).toBe("done");
 
     // An MVR recorded with no jurisdiction (every one before AF7) covers no declared state.
-    const unnamed = await mvrStep([{ driver_id: DRIVER, kind: "mvr", detail: { source: "recorded_act" } }]);
+    const unnamed = await mvrStep([record("mvr", { detail: { source: "recorded_act" } })]);
     expect(unnamed.outstandingJurisdictions).toEqual(["IL", "Indiana BMV"]);
   });
 
@@ -431,7 +447,7 @@ describe("what it reads, and from where", () => {
   /** An order with nothing back yet is the middle state — chase it, do not do it again. */
   it("shows an ordered PSP with no report as outstanding", async () => {
     const rec = seed({
-      qualification_records: [{ driver_id: DRIVER, kind: "mvr" }, { driver_id: DRIVER, kind: "drug_test" }],
+      qualification_records: [record("mvr"), record("drug_test")],
     });
     const result = await applicantChecklist(rec.client, ORG, DRIVER, TODAY);
     const steps = (result as { steps: Array<{ key: string; state: string }> }).steps;

@@ -60,6 +60,13 @@ export const QUALIFICATION_RECORD_KINDS = [
    * D-HB5, enforced by the hire, not a DQ requirement.
    */
   "handbook",
+  /**
+   * The driver's §382.703 consent to the pre-employment FULL query, given in FMCSA's Clearinghouse
+   * portal (0376, D-AW5). The carrier never holds the consent itself — the portal does — so the row is
+   * the office recording that the portal shows it, dated. A testing record in `auth.ts`, as 0376's two
+   * restrictive policies say, and in no DQ requirement list: the full query's own record is the item.
+   */
+  "clearinghouse_portal_consent",
 ] as const;
 export const qualificationRecordKindSchema = z.enum(QUALIFICATION_RECORD_KINDS);
 export type QualificationRecordKind = (typeof QUALIFICATION_RECORD_KINDS)[number];

@@ -475,7 +475,7 @@ describe("the pipeline lists applicants, and derives their stage", () => {
           releases_completed_at: "2026-09-09T10:30:00Z",
         }],
         drafts: [{ invitation_id: "inv-1", cdl_state: "IL", additional_licences: additional }],
-        records: [{ driver_id: DRIVER, kind: "mvr", created_at: "2026-09-10T00:00:00Z", jurisdiction: "IL" }],
+        records: [{ driver_id: DRIVER, kind: "mvr", created_at: "2026-09-10T00:00:00Z", occurred_on: "2026-09-10", jurisdiction: "IL" }],
       });
       holder.client = rec.client;
       return ((await body()).applicants[0]!.checklist as { next: string | null }).next;

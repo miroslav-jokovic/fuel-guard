@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AUTHORIZATION_PURPOSE_LABELS,
   DOCUMENT_CONTENT_TYPES,
+  HIRING_EVIDENCE_SOURCE,
   HIRING_RECORDED_ACT_PREREQUISITE,
   hiringEvidenceDetail,
   missingAuthorizations,
@@ -282,4 +283,58 @@ async function checkDocument(
     return { code: "invalid_request", message: "That document was not filed for this step." };
   }
   return null;
+}
+
+/**
+ * The driver's §382.703 consent to the full query, as the office saw it in FMCSA's portal (D-AW5,
+ * APPLICATION-FLOW-V2-PLAN §6.3 item 5, C2b3) — a `clearinghouse_portal_consent` record, dated the day
+ * the portal shows.
+ *
+ * ⚠ Not a recorded act of D1's: no step is proved by it (the step is the query), so it has no place in
+ * `HIRING_RECORDED_ACT_STEPS` and no document. It moves the Clearinghouse row from the driver's move to
+ * the office's (`hiringChecklist`), and that is all it does.
+ *
+ * ⚠ A second press on the same day answers with the first row rather than filing a twin — the file is
+ * append-only, and a §391.51 review counts rows. A later date is a later consent and is filed.
+ */
+export async function recordPortalConsent(
+  admin: SupabaseClient,
+  orgId: string,
+  userId: string,
+  driverId: string,
+  occurredOn: string,
+  today: string,
+): Promise<{ recordId: string; created: boolean } | HiringEvidenceError> {
+  const issues = validateHiringEvidence({ occurred_on: occurredOn }, today);
+  if (issues.length > 0) {
+    return { code: "invalid_request", message: "That date cannot be filed as it stands.", issues };
+  }
+  if (!(await driverInOrg(admin, orgId, driverId))) {
+    return { code: "not_found", message: "That applicant is not in this organization." };
+  }
+  const { data: existing } = await admin
+    .from("qualification_records")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("driver_id", driverId)
+    .eq("kind", "clearinghouse_portal_consent")
+    .eq("occurred_on", occurredOn)
+    .limit(1);
+  const first = ((existing ?? []) as Array<{ id: string }>)[0];
+  if (first) return { recordId: first.id, created: false };
+
+  const inserted = await insertQualificationRecord(admin, orgId, userId, {
+    id: randomUUID(),
+    driverId,
+    kind: "clearinghouse_portal_consent",
+    occurredOn,
+    coversUntil: null,
+    result: null,
+    performedBy: null,
+    reference: null,
+    documentId: null,
+    detail: { source: HIRING_EVIDENCE_SOURCE, structured: false, recorded_by: userId },
+  });
+  if (isServiceError(inserted)) return { code: inserted.code, message: inserted.error };
+  return { recordId: inserted.id, created: true };
 }

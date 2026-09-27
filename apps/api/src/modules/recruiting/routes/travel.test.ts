@@ -76,6 +76,7 @@ const seed = (over: { kinds?: string[]; intakeDone?: boolean; trips?: Array<Reco
       }))),
       qualification_records: postgrestFixture((over.kinds ?? SCREENED).map((kind, i) => ({
         id: `qr-${i}`, org_id: ORG, driver_id: DRIVER, kind, created_at: "2026-09-04T00:00:00Z",
+        occurred_on: "2026-09-04",
       }))),
       psp_requests: postgrestFixture([]),
       application_packet_marks: postgrestFixture([]),

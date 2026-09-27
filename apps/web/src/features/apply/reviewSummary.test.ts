@@ -100,6 +100,8 @@ function answersIn(node: unknown, key = ""): string[] {
   }
   // ⚠ Q-HM14's keyed answer: the driver chose "Owner-operator" and must see that, never the key.
   if (key === "applying_as" && node === "owner_operator") return ["Owner-operator"];
+  // AW1: an employer's `key` is a reference the form minted, not something the driver typed.
+  if (key === "key") return [];
   if (typeof node === "string") return node.trim() === "" ? [] : [node.trim()];
   if (typeof node === "number") return [String(node)];
   if (Array.isArray(node)) return node.flatMap((v) => answersIn(v, key));

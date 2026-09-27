@@ -29,6 +29,13 @@ export interface DraftAddress {
 }
 
 export interface DraftEmployer {
+  /**
+   * The entry's stable reference (AW1, D-AW8): the office's phone call to this employer is recorded
+   * against it before filing, and filing copies the call onto the employment row made from it. Minted
+   * once, when the entry is created or first loaded without one, and never changed — an index would
+   * re-point every call when an entry above it is removed.
+   */
+  key: string;
   employer_name: string;
   usdot_number: string;
   address_line1: string;
@@ -143,7 +150,11 @@ export const emptyAddress = (): DraftAddress => ({
   line1: "", line2: "", city: "", state: "", postal_code: "", from: "", to: "",
 });
 
+/** A fresh employer reference — `crypto.randomUUID`, which `applicationEmployerSchema.key` checks is a UUID. */
+export const newEmployerKey = (): string => crypto.randomUUID();
+
 export const emptyEmployer = (): DraftEmployer => ({
+  key: newEmployerKey(),
   employer_name: "", usdot_number: "", address_line1: "", city: "", state: "", phone: "", email: "",
   position_held: "", started_on: "", ended_on: "",
   // Both default TRUE because the applicant is being asked about driving jobs, and the cost of the

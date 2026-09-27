@@ -253,3 +253,67 @@ export interface ApplicantTravelList {
   trips: ApplicantTravel[];
   timeZone: string;
 }
+
+// ── the drug test's appointment and the Clearinghouse consent (C2b3) ─────────
+
+/** Body ceilings for an appointment. 0376 holds free text; these keep a pasted page out of a row. */
+export const DRUG_TEST_SITE_NAME_MAX_LENGTH = 200;
+export const DRUG_TEST_SITE_ADDRESS_MAX_LENGTH = 300;
+export const DRUG_TEST_DONOR_REFERENCE_MAX_LENGTH = 100;
+
+/**
+ * The site and window the office arranged for the pre-employment test (D-AW6, AW8) — `POST
+ * /recruitment/applicants/:driverId/drug-test-appointments`. A manual record, no lab integration
+ * (Q-AW7): the office books with its TPA and writes down what the driver needs to get there.
+ *
+ * ⚠ Operational, not evidence. The §382.301 fact is the RESULT (`drug_test`, the recorded-act door);
+ * this row never ticks the step. A second arrangement replaces the live one, as a changed trip does.
+ *
+ * ⚠ The window end after its start is 0376's `drug_test_appointments_window_check`, checked here on
+ * the wall times in the one zone, so the office is told which field instead of getting a 500.
+ */
+export const drugTestAppointmentSchema = z
+  .object({
+    site_name: z.string().trim().min(1).max(DRUG_TEST_SITE_NAME_MAX_LENGTH),
+    site_address: z.string().trim().min(1).max(DRUG_TEST_SITE_ADDRESS_MAX_LENGTH),
+    site_phone: z.string().trim().max(40).nullish(),
+    window_start: carrierWallTimeSchema,
+    window_end: carrierWallTimeSchema.nullish(),
+    donor_reference: z.string().trim().max(DRUG_TEST_DONOR_REFERENCE_MAX_LENGTH).nullish(),
+  })
+  .strict()
+  .refine((a) => !a.window_end || a.window_end > a.window_start, {
+    path: ["window_end"],
+    message: "The window has to end after it starts.",
+  });
+export type DrugTestAppointmentBooking = z.infer<typeof drugTestAppointmentSchema>;
+
+/** One appointment as the office's drawer reads it. Instants, with the zone they were entered in. */
+export interface DrugTestAppointment {
+  id: string;
+  siteName: string;
+  siteAddress: string;
+  sitePhone: string | null;
+  windowStart: string;
+  windowEnd: string | null;
+  donorReference: string | null;
+  arrangedAt: string;
+  sentToDriverAt: string | null;
+  cancelledAt: string | null;
+}
+
+/** `GET …/drug-test-appointments`: the live invitation's, newest first, and the zone they are shown in. */
+export interface DrugTestAppointmentList {
+  appointments: DrugTestAppointment[];
+  timeZone: string;
+}
+
+/**
+ * The office saw the driver's §382.703 consent to the full query in FMCSA's portal (D-AW5) — `POST
+ * /recruitment/applicants/:driverId/clearinghouse-portal-consent`. The date is the day the portal shows,
+ * typed off the screen, so it passes the recorded-act door's date rules (`validateHiringEvidence`).
+ */
+export const clearinghousePortalConsentSchema = z
+  .object({ occurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD") })
+  .strict();
+export type ClearinghousePortalConsent = z.infer<typeof clearinghousePortalConsentSchema>;

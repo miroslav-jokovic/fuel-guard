@@ -131,7 +131,7 @@ describe("a row answers D-HUI3's three questions", () => {
     const wrapper = await mountWith({
       ...COMPLETE,
       licenceJurisdictions: ["IL", "Indiana BMV"],
-      mvrJurisdictions: ["IL"],
+      mvrs: [{ jurisdiction: "IL", occurredOn: "2026-09-10" }],
     });
     const row = wrapper.findAll("li").find((li) => li.text().includes("Driving record"))!;
     expect(row.text()).toContain("Still needed from: Indiana BMV");
@@ -160,15 +160,15 @@ describe("state is never colour alone (D-HUI4)", () => {
   /**
    * ⚠ *"A board where everything shouts is a board nobody reads."* Only `waiting_on_us` is toned at
    * all, and the number of rows in that state is bounded by the catalogue's `requires` rather than
-   * by taste: an applicant who has just finished Part 1 has exactly TWO — the Clearinghouse query,
-   * the one measurable step with no prerequisite, and (since §7, D-AW4) the medical certificate,
-   * whose card came in with Part 1.
+   * by taste: an applicant who has just finished Part 1 has exactly ONE — (since §7, D-AW4) the
+   * medical certificate, whose card came in with Part 1. The Clearinghouse query, the one measurable
+   * step with no prerequisite, was the second until C2b3: it now waits on the driver's own portal
+   * consent (D-AW5), which is their move, not ours.
    */
   it("shouts on exactly the rows that are the office's own move", async () => {
     const wrapper = await mountWith(JUST_INVITED);
     const loud = wrapper.findAll("li").filter((row) => row.html().includes("bg-warning-50"));
     expect(loud.map((row) => row.text())).toEqual([
-      expect.stringContaining("Clearinghouse query"),
       expect.stringContaining("Medical certificate verified"),
     ]);
   });

@@ -326,6 +326,9 @@ describe("restricted qualification records (Phase G)", () => {
   it("pins the restricted set", () => {
     expect([...RESTRICTED_QUALIFICATION_KINDS].sort()).toEqual([
       "alcohol_test", "clearinghouse_full", "clearinghouse_limited",
+      // 0376 (D-AW5). The driver's §382.703 consent to the full query — restricted with the query it
+      // permits, as 0376's two restrictive policies have it.
+      "clearinghouse_portal_consent",
       "drug_test", "previous_employer_inquiry", "previous_employer_response",
       // 0217. Investigation history, not a testing record — so the recruiter who ordered it can
       // read it, which is the whole reason the split exists.

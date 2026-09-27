@@ -24,7 +24,7 @@ const complete = (): ApplicationDraft => ({
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "PA", cdl_expires_at: "2029-01-01",
   employers: [{
-    employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
+    key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
     phone: "555-0100", email: "", position_held: "Driver", started_on: "2023-01-01", ended_on: "2025-06-30",
     operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
     subject_to_fmcsr: true, safety_sensitive: true,

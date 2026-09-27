@@ -7,6 +7,7 @@ import {
 } from "@silvicom/shared";
 import {
   emptyDraft,
+  newEmployerKey,
   type ApplicationDraft,
   type DraftAccident,
   type DraftAddress,
@@ -52,6 +53,10 @@ export function cleanQuestionnaire(answers: Record<string, unknown>): Record<str
 }
 
 const text = (v: string): string | null => (v.trim() === "" ? null : v.trim());
+
+const EMPLOYER_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A stored `key` the contract will accept (`z.uuid()`); anything else is re-minted, never sent. */
+const isEmployerKey = (v: unknown): v is string => typeof v === "string" && EMPLOYER_KEY.test(v);
 const num = (v: string): number => {
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : 0;
@@ -74,6 +79,7 @@ const num = (v: string): number => {
  */
 export function toEmployerPayload(e: DraftEmployer): Record<string, unknown> {
   return {
+    key: isEmployerKey(e.key) ? e.key : null,
     employer_name: e.employer_name.trim(),
     usdot_number: text(e.usdot_number),
     address_line1: text(e.address_line1),
@@ -296,7 +302,12 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
     licence_ever_denied: bool("licence_ever_denied"),
     licence_denial_detail: str("licence_denial_detail"),
     prior_failed_pre_employment_test: bool("prior_failed_pre_employment_test"),
-    employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({ ...e, state: state(e.state) })),
+    // AW1: an entry saved before keys existed gets one now, and keeps it from the next save on.
+    employers: rows<DraftEmployer>("employers", base.employers).map((e) => ({
+      ...e,
+      key: isEmployerKey(e.key) ? e.key : newEmployerKey(),
+      state: state(e.state),
+    })),
     declares_no_employment: bool("declares_no_employment"),
     additional_licences: rows<DraftLicence>("additional_licences", base.additional_licences),
     questionnaire:

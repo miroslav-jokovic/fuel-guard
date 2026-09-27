@@ -3,18 +3,21 @@ import {
   countedPacketMarks,
   driverInquiryQueue,
   handbookStatus,
+  mvrFreshSince,
   roadTestCounts,
   type AuthorizationRow,
   type HiringChecklistInputs,
 } from "@silvicom/shared";
 import { driversWithPspRequest } from "../psp/index.js";
 import {
+  readCarrierZone,
   readDraftFacts,
+  readDriverRowFacts,
   readEmploymentHistory,
   readHandbookMarks,
-  readIdentityOnFile,
   readInquiries,
   readIntakeInvitations,
+  readIntakeLicences,
   readLiveTravel,
   readPacketMarks,
   readQualificationRecords,
@@ -97,7 +100,8 @@ export async function checklistInputs(
   const invitationIds = subjects.map((s) => s.invitation?.id).filter((id): id is string => Boolean(id));
 
   const [
-    records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, identity,
+    records, pspRequested, marks, drafts, employment, inquiries, handbookMarks, intakes, travel, driverRows,
+    intakeLicences, zone,
   ] = await Promise.all([
     readQualificationRecords(admin, orgId, driverIds),
     // ⚠ Through the psp module's own interface, never `psp_requests` directly: that table is its
@@ -110,7 +114,9 @@ export async function checklistInputs(
     readHandbookMarks(admin, orgId, invitationIds),
     readIntakeInvitations(admin, orgId, invitationIds),
     readLiveTravel(admin, orgId, invitationIds),
-    readIdentityOnFile(admin, orgId, driverIds),
+    readDriverRowFacts(admin, orgId, driverIds),
+    readIntakeLicences(admin, orgId, invitationIds),
+    readCarrierZone(admin, orgId),
   ]);
 
   for (const s of subjects) {
@@ -119,6 +125,8 @@ export async function checklistInputs(
     const inv = s.invitation;
     const markRows = inv ? (marks.get(inv.id) ?? []) : [];
     const draft = inv ? drafts.get(inv.id) : undefined;
+    const row = driverRows.get(s.driverId);
+    const v2 = inv ? intakes.has(inv.id) : false;
     // `driverInquiryQueue` owns which employers are owed an inquiry and which are open — the window,
     // the DOT filter, and that a DOCUMENTED non-response is done (§391.23(c)(1)). Nothing here
     // second-guesses it.
@@ -141,17 +149,24 @@ export async function checklistInputs(
           }
         : null,
       // §7: a v2 link is one with a Part 1 row; the fold applies the legacy rule to the rest.
-      intake: inv ? { v2: intakes.has(inv.id), completedAt: inv.intake_completed_at ?? null } : null,
-      identityOnFile: identity.has(s.driverId),
+      intake: inv ? { v2, completedAt: inv.intake_completed_at ?? null } : null,
+      identityOnFile: row?.identityWhole === true,
       travelBooked: inv ? travel.has(inv.id) : false,
       hasDraft: draft !== undefined,
       authorizations: s.authorizations,
       releasesCompletedAt: inv?.releases_completed_at ?? null,
       qualificationKinds: kinds,
-      mvrJurisdictions: own.filter((r) => r.kind === "mvr").map((r) => r.jurisdiction ?? null),
+      mvrs: own
+        .filter((r) => r.kind === "mvr")
+        .map((r) => ({ jurisdiction: r.jurisdiction ?? null, occurredOn: r.occurred_on })),
+      // G-3: thirty days before Part 1 finished — or, on a legacy link, before it was sent. A v2 link
+      // whose Part 1 is still open has no floor yet, and its MVR is not orderable before Part 1 anyway.
+      mvrFreshSince: mvrFreshSince(v2 ? inv?.intake_completed_at : inv?.created_at, zone),
       // A-8: a road test counts when the ceremony filed it or it says it was passed — on the board too.
       roadTestPassed: own.some((r) => r.kind === "road_test" && roadTestCounts(r)),
-      licenceJurisdictions: draft?.licenceJurisdictions ?? [],
+      licenceJurisdictions: licenceJurisdictionsOf(
+        inv ? intakeLicences.get(inv.id) : undefined, draft?.licenceJurisdictions, row?.cdlState ?? null,
+      ),
       psp: {
         requested: pspRequested.has(s.driverId),
         // ⚠ The REPORT, not the order: `/psp-imports` files one bought on FMCSA's portal and it ticks
@@ -183,4 +198,28 @@ export async function checklistInputs(
     out.set(s.driverId, { inputs, records: own, marks: markRows });
   }
   return out;
+}
+
+/**
+ * AW7: which licences this application owes an MVR for, from the most durable source that has any.
+ *
+ * 1. **Part 1's list** (`application_intake_licences`) — typed for exactly this, never pruned.
+ * 2. **The live draft** — a legacy link's only list, pruned at 90 days (§2.3.2).
+ * 3. **The licence state on the driver's row** — so a legacy applicant whose draft has been pruned, or
+ *    who never had one, still owes the MVR of the state that licensed them rather than "any one MVR".
+ *
+ * ⚠ The first that has anything wins, never a union: Part 1's list is the applicant's answer to "every
+ * licence in three years", and topping it up from an older draft would owe an MVR for a licence the
+ * applicant has since corrected away. Measured 2026-09-26: every production draft names one state and
+ * no additional licence, so the plan's legacy copy into `application_intake_licences` (§7) has nothing
+ * to carry that source 3 does not already hold, and is not built.
+ */
+function licenceJurisdictionsOf(
+  intake: readonly string[] | undefined,
+  draft: readonly string[] | undefined,
+  driverRowState: string | null,
+): string[] {
+  if (intake && intake.length > 0) return [...intake];
+  if (draft && draft.length > 0) return [...draft];
+  return driverRowState ? [driverRowState] : [];
 }

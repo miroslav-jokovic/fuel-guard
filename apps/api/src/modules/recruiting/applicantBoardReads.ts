@@ -3,6 +3,7 @@ import {
   APPLICANT_IDENTITY_KEYS,
   asApplyingAs,
   declaredLicenceJurisdictions,
+  organizationTimezone,
   type ApplyingAs,
   type QueueAttempt,
   type QueueEmployment,
@@ -36,6 +37,8 @@ export interface QualificationRow {
   driver_id: string;
   kind: string;
   created_at: string;
+  /** The date on the record itself — G-3's freshness is measured on it, never on `created_at`. */
+  occurred_on: string;
   /** AF7: `detail.jurisdiction`, by path. Null on anything but a recorded MVR that named one. */
   jurisdiction?: string | null;
   /** A-8: `detail.source` and `detail.passed`, by path — whether a road test was PASSED (`roadTestCounts`). */
@@ -71,7 +74,7 @@ export async function readQualificationRecords(
   const rows = await paged<QualificationRow>((from, to) =>
     admin
       .from("qualification_records")
-      .select(`driver_id, kind, created_at, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
+      .select(`driver_id, kind, created_at, occurred_on, ${RECORD_JURISDICTION_SELECT}, source:detail->>source, passed:detail->>passed`)
       .eq("org_id", orgId)
       .in("driver_id", driverIds)
       .order("id")
@@ -272,16 +275,58 @@ export async function readLiveTravel(
 }
 
 /**
- * The drivers whose §391.21(b)(4) identity is whole on their own row (`APPLICANT_IDENTITY_KEYS`) —
- * read only by §7's legacy rule, for which 0365's identity screen was Part 1. Filtered in memory
- * rather than with three `.not(…, "is", null)`: an empty string is "not given" too (`identityOnRecord`).
+ * Part 1's licence list per invitation, as state codes in the applicant's order (position 0 = the
+ * current CDL) — AW7: the MVR is owed per licence, and these rows are never pruned where the draft is
+ * (§2.3.2). Every source counts (`intake`, and `legacy_draft` should one ever be written).
  */
-export async function readIdentityOnFile(
+export async function readIntakeLicences(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  if (invitationIds.length === 0) return new Map();
+  const rows = await paged<{ invitation_id: string; position: number; state_code: string }>((from, to) =>
+    admin
+      .from("application_intake_licences")
+      .select("invitation_id, position, state_code")
+      .eq("org_id", orgId)
+      .in("invitation_id", invitationIds)
+      .order("id")
+      .range(from, to),
+  );
+  const out = new Map<string, string[]>();
+  for (const [inv, list] of groupBy(rows, (r) => r.invitation_id)) {
+    out.set(inv, [...list].sort((a, b) => a.position - b.position).map((r) => r.state_code));
+  }
+  return out;
+}
+
+/** The carrier's zone — the calendar an MVR's `occurred_on` is a day on (`organizationTimezone`). */
+export async function readCarrierZone(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  return organizationTimezone((data as { operating_hours?: unknown } | null)?.operating_hours as object | null);
+}
+
+/** What the driver's own row says, for §7's legacy rule and AW7's last licence source. */
+export interface DriverRowFacts {
+  /** The §391.21(b)(4) identity is whole on the row (`APPLICANT_IDENTITY_KEYS`). */
+  identityWhole: boolean;
+  /** `drivers.cdl_state`, blank read as none. */
+  cdlState: string | null;
+}
+
+/**
+ * The drivers' own rows: whether the §391.21(b)(4) identity is whole there (`APPLICANT_IDENTITY_KEYS`)
+ * — read by §7's legacy rule, for which 0365's identity screen was Part 1 — and the licence state,
+ * AW7's last source of a jurisdiction. Filtered in memory rather than with three `.not(…, "is", null)`:
+ * an empty string is "not given" too (`identityOnRecord`).
+ */
+export async function readDriverRowFacts(
   admin: SupabaseClient,
   orgId: string,
   driverIds: readonly string[],
-): Promise<Set<string>> {
-  if (driverIds.length === 0) return new Set();
+): Promise<Map<string, DriverRowFacts>> {
+  if (driverIds.length === 0) return new Map();
   const rows = await paged<Record<string, unknown>>((from, to) =>
     admin
       .from("drivers")
@@ -291,9 +336,11 @@ export async function readIdentityOnFile(
       .order("id")
       .range(from, to),
   );
-  const whole = (r: Record<string, unknown>) =>
-    APPLICANT_IDENTITY_KEYS.every((k) => typeof r[k] === "string" && (r[k] as string).trim() !== "");
-  return new Set(rows.filter(whole).map((r) => String(r.id)));
+  const given = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
+  return new Map(rows.map((r) => [String(r.id), {
+    identityWhole: APPLICANT_IDENTITY_KEYS.every((k) => given(r[k])),
+    cdlState: given(r.cdl_state) ? r.cdl_state.trim() : null,
+  }]));
 }
 
 /**

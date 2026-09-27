@@ -4,6 +4,7 @@ import {
   emptyDraft,
   fromDraftPayload,
   toApplication,
+  emptyEmployer,
   toDraftPayload,
   type ApplicationDraft,
 } from "./draft";
@@ -22,7 +23,7 @@ const complete = (): ApplicationDraft => ({
   addresses: [{ line1: "1 Road", line2: "", city: "Joliet", state: "IL", postal_code: "60432", from: "2020-01", to: "" }],
   cdl_number: "PA334554", cdl_state: "pa", cdl_expires_at: "2029-01-01",
   employers: [{
-    employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
+    key: "40000000-0000-4000-8000-00000000000a", employer_name: "Old Carrier", usdot_number: "123456", address_line1: "12 Depot Rd", city: "Joliet", state: "IL",
     phone: "555-0100", email: "hr@oldcarrier.test", position_held: "Driver",
     started_on: "2023-01-01", ended_on: "2025-06-30",
     operated_cmv: true, dot_regulated: true, reason_for_leaving: "Better route",
@@ -255,8 +256,33 @@ describe("coming back to a saved draft", () => {
     expect(restored.declares_no_accidents).toBe(false);
   });
 
+  /**
+   * AW1 (C2b3): the office records phone calls against an employer's key before filing, so the key
+   * must survive every save — and an entry saved before keys existed gets one on load, kept from then on.
+   */
+  it("keeps an employer's key across the round trip, and mints one for an entry saved without", () => {
+    // An entry as a pre-AW1 draft stored it: every field, and no key.
+    const { key: _minted, ...unkeyed } = emptyEmployer();
+    const saved = (over: Record<string, unknown>) => ({ ...unkeyed, started_on: "2023-01-01", ...over });
+    const kept = fromDraftPayload(toDraftPayload(fromDraftPayload({
+      employers: [saved({ key: "40000000-0000-4000-8000-00000000000a", employer_name: "A" })],
+    })));
+    expect(kept.employers[0]!.key).toBe("40000000-0000-4000-8000-00000000000a");
+    const legacy = fromDraftPayload({ employers: [saved({ employer_name: "A" }), saved({ employer_name: "B", key: "not-a-uuid" })] });
+    const [a, b] = legacy.employers;
+    expect(a!.key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(b!.key).not.toBe("not-a-uuid");
+    expect(a!.key).not.toBe(b!.key);
+    expect(toApplicationEmployerKeys(legacy)).toEqual([a!.key, b!.key]);
+  });
+
   it("treats no draft at all as a blank form", () => {
-    expect(fromDraftPayload(null)).toEqual(emptyDraft());
+    // The blank employer's key is minted per call (AW1), so it is the one field compared by shape.
+    const blank = emptyDraft();
+    expect(fromDraftPayload(null)).toEqual({
+      ...blank,
+      employers: blank.employers.map((e) => ({ ...e, key: expect.stringMatching(/^[0-9a-f-]{36}$/) })),
+    });
   });
 });
 
@@ -357,3 +383,8 @@ describe("a draft saved before the state fields had a picker", () => {
     expect(saved({ cdl_state: "I1" }).cdl_state).toBe("");
   });
 });
+
+/** The keys the filed payload carries, in order — what `submit_driver_application` matches calls by. */
+function toApplicationEmployerKeys(d: ReturnType<typeof fromDraftPayload>): unknown[] {
+  return ((toApplication(d) as { employers: Array<{ key: unknown }> }).employers).map((e) => e.key);
+}

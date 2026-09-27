@@ -3,6 +3,8 @@ import { applicationLicenceSchema } from "./applicationContract.js";
 import { hiringEvidenceFileSchema } from "./hiringEvidence.js";
 import {
   LICENSING_AUTHORITY_MAX_LENGTH,
+  MVR_FRESH_DAYS,
+  mvrFreshSince,
   declaredLicenceJurisdictions,
   mvrJurisdictionOptions,
   mvrJurisdictionsOutstanding,
@@ -108,5 +110,18 @@ describe("one length for a licensing authority, on both doors (APPLICATION-FLOW-
     expect(applicationLicenceSchema.shape.issuing_authority.safeParse(longest).success).toBe(true);
     expect(hiringEvidenceFileSchema.shape.jurisdiction.safeParse(longest).success).toBe(true);
     expect(hiringEvidenceFileSchema.shape.jurisdiction.safeParse(`${longest}A`).success).toBe(false);
+  });
+});
+
+describe("how fresh an MVR must be (G-3, C2b3)", () => {
+  it("is thirty carrier days before the anchor, on the carrier's calendar", () => {
+    // 03:00 UTC on 09-11 is still 09-10 in Chicago, so the floor is 08-11 — a UTC reading says 08-12.
+    expect(mvrFreshSince("2026-09-11T03:00:00Z", "America/Chicago")).toBe("2026-08-11");
+    expect(mvrFreshSince("2026-09-11T03:00:00Z", "UTC")).toBe("2026-08-12");
+    expect(MVR_FRESH_DAYS).toBe(30);
+  });
+
+  it("has no floor without an anchor", () => {
+    expect(mvrFreshSince(null, "America/Chicago")).toBeNull();
   });
 });

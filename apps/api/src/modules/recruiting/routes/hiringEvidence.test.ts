@@ -446,3 +446,62 @@ describe("the scan it cites", () => {
     expect(rec.forTable("documents")).toHaveLength(0);
   });
 });
+
+describe("the driver's Clearinghouse portal consent (D-AW5, C2b3)", () => {
+  const CONSENT = { occurred_on: "2026-09-22" };
+
+  /** A recorder whose `qualification_records` answers the same-day lookup by kind AND date. */
+  const consentSeed = (existing: Array<{ id: string; occurred_on: string }> = []) =>
+    createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: DRIVER, org_id: ORG }],
+        qualification_records: (q: RecordedQuery) => {
+          if (q.write) return [];
+          const f = (col: string) => q.filters().find((x) => x.col === col)?.val;
+          return f("kind") === "clearinghouse_portal_consent"
+            ? existing.filter((r) => r.occurred_on === f("occurred_on"))
+            : [];
+        },
+        audit_logs: [],
+      },
+    });
+
+  it("files it for a safety manager, with no document, and audits it", async () => {
+    const rec = consentSeed();
+    holder.client = rec.client;
+    const res = await call(`/applicants/${DRIVER}/clearinghouse-portal-consent`, { token: "safety", body: CONSENT });
+    expect(res.status).toBe(201);
+    expect(rec.writtenRows("qualification_records")[0]).toMatchObject({
+      org_id: ORG, driver_id: DRIVER, kind: "clearinghouse_portal_consent", occurred_on: "2026-09-22", document_id: null,
+    });
+    expect(rec.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({ action: "compliance.clearinghouse_portal_consent_recorded" }),
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  /** §382.401(a): it is a testing record (0376's policies), so the recruiter is refused as for the query. */
+  it("refuses a recruiter, as the query itself does", async () => {
+    const rec = consentSeed();
+    holder.client = rec.client;
+    expect((await call(`/applicants/${DRIVER}/clearinghouse-portal-consent`, { token: "recruiter", body: CONSENT })).status).toBe(403);
+    expect(rec.writtenRows("qualification_records")).toHaveLength(0);
+  });
+
+  it("answers a second press on the same day with the first row, filing no twin", async () => {
+    const rec = consentSeed([{ id: "consent-1", occurred_on: "2026-09-22" }]);
+    holder.client = rec.client;
+    const res = await call(`/applicants/${DRIVER}/clearinghouse-portal-consent`, { token: "safety", body: CONSENT });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { recordId: string }).recordId).toBe("consent-1");
+    expect(rec.writtenRows("qualification_records")).toHaveLength(0);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+
+  it("refuses a date in the future, naming it", async () => {
+    holder.client = consentSeed().client;
+    const res = await call(`/applicants/${DRIVER}/clearinghouse-portal-consent`, { token: "safety", body: { occurred_on: "2099-01-01" } });
+    expect(res.status).toBe(400);
+    expect(await message(res)).toContain("future");
+  });
+});
