@@ -31,6 +31,7 @@ import {
   reconcileGapExplanations,
 } from "@/features/apply/employmentProgress";
 import { showDate } from "@/features/apply/reviewSummary";
+import { useApplyIssues } from "@/features/apply/issues";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /** The classes §391.21(b)(6) and FMCSA's own form name, in the order that form lists them. */
@@ -59,16 +60,26 @@ const EQUIPMENT_OPTIONS = EQUIPMENT_CLASSES.map((value) => ({ value, label: EQUI
  * to get wrong, which is that a hole in years four to ten is NOT a defect. See
  * `employmentProgress.ts`.
  */
-const props = defineProps<{
-  /**
-   * The date the windows end: the application's day on the CARRIER's clock, served by the bundle
-   * (`carrierToday`, C3c1) — the same day filing judges against, so the gaps here are the gaps it asks
-   * about. It was `new Date().toISOString()`, the UTC day, which after 19:00 Central is tomorrow.
-   */
-  asOf: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    /**
+     * The date the windows end: the application's day on the CARRIER's clock, served by the bundle
+     * (`carrierToday`, C3c1) — the same day filing judges against, so the gaps here are the gaps it asks
+     * about. It was `new Date().toISOString()`, the UTC day, which after 19:00 Central is tomorrow.
+     */
+    asOf: string;
+    /**
+     * The same day on a v2 link, null on a legacy one (C3c2b) — what tells the job panel to ask, and
+     * check, what a v2 filing requires of each job. `asOf` alone cannot say: every link has a day.
+     */
+    v2AsOf?: string | null;
+  }>(),
+  { v2AsOf: null },
+);
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.employment;
+/** The page's issues: a job whose answers are refused says so on its row — its boxes are in the panel. */
+const { hasIssueWithin } = useApplyIssues();
 
 const editing = ref<number | null>(null);
 const openDrawer = computed(() => editing.value !== null);
@@ -177,12 +188,15 @@ const removeJob = (index: number): void => {
               <p class="text-xs text-ink-muted">
                 {{ [row.employer.position_held, period(row.employer)].filter(Boolean).join(" · ") }}
               </p>
+              <p v-if="hasIssueWithin(['employers', row.index])" class="mt-1 text-sm text-danger-700">
+                {{ copy.jobNeedsAnswers }}
+              </p>
             </div>
-            <BaseButton variant="ghost" size="sm" @click="editing = row.index">{{ copy.editJob }}</BaseButton>
+            <BaseButton variant="ghost" size="touch" @click="editing = row.index">{{ copy.editJob }}</BaseButton>
           </li>
         </ul>
 
-        <BaseButton :variant="jobs.length ? 'secondary' : 'primary'" @click="addJob">
+        <BaseButton :variant="jobs.length ? 'secondary' : 'primary'" size="touch" @click="addJob">
           {{ jobs.length ? copy.addJob : copy.addFirstJob }}
         </BaseButton>
       </div>
@@ -300,6 +314,7 @@ const removeJob = (index: number): void => {
       :open="openDrawer"
       :index="editing ?? 0"
       :employer="editing === null ? null : (draft.employers[editing] ?? null)"
+      :v2-as-of="v2AsOf"
       @save="saveJob"
       @remove="removeJob(editing ?? 0); editing = null"
       @close="closeDrawer"

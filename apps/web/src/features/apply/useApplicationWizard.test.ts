@@ -227,6 +227,31 @@ describe("a v2 link's filing rules, on the page", () => {
     expect(issues.map((i) => i.fieldId)).toEqual(["apply-employers-0-reason_for_leaving"]);
   });
 
+  /**
+   * Q-AW33 (C3c2b): an unanswered (b)(10)(iv) question reaches filing's rule as `null` — the draft no
+   * longer starts it at `false` — so the rule fires on the page, on that question's own box. Only for a
+   * job in the last three years; a legacy link is not asked.
+   */
+  it("stops on an unanswered (b)(10)(iv) question, on its own box, for a job in the last three years", () => {
+    const draft = complete();
+    draft.employers[0] = { ...draft.employers[0]!, subject_to_fmcsr: null, safety_sensitive: null };
+    draft.employment_gaps = [{ from: "2025-06-30", to: "2026-09-26", explanation: "Looking for work" }];
+    expect(validateSection("employment", draft, AS_OF).map((i) => [i.fieldId, i.say])).toEqual([
+      ["apply-employers-0-subject_to_fmcsr", "Say whether the Federal Motor Carrier Safety Regulations applied to you in this job"],
+      ["apply-employers-0-safety_sensitive", "Say whether this job was subject to DOT drug and alcohol testing"],
+    ]);
+    expect(validateSection("employment", draft, null)).toEqual([]);
+  });
+
+  it("does not ask (b)(10)(iv) of a job from years four to ten", () => {
+    const draft = complete();
+    draft.employers[0] = {
+      ...draft.employers[0]!, started_on: "2018-01-01", ended_on: "2023-06-30", subject_to_fmcsr: null, safety_sensitive: null,
+    };
+    draft.employment_gaps = [{ from: "2023-09-26", to: "2026-09-26", explanation: "Looking for work" }];
+    expect(validateSection("employment", draft, AS_OF)).toEqual([]);
+  });
+
   it("reads the day from the wizard's source on each Continue", () => {
     const draft = complete();
     let asOf: string | null = null;

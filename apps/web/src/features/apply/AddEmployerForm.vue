@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import { applicationEmployerSchema } from "@silvicom/shared";
 import { newEmployerKey } from "@/features/apply/draftShape";
+import { APPLY_COPY } from "@/features/apply/strings";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -35,9 +36,21 @@ import {
  * but any element present must satisfy `applicationEmployerSchema` in full. A blank row saved now and
  * filled in later would be refused by the server, so the form validates with the shared schema before
  * it emits and the recruiter sees the problem beside the field rather than in a toast.
+ *
+ * ── AND WHY THE TWO (b)(10)(iv) QUESTIONS ARE ASKED, WITH NOTHING CHOSEN (C3c2b, Q-AW33) ─────
+ * They were DERIVED — "subject to the FMCSRs" copied from "DOT-regulated employer", "safety-sensitive"
+ * from "drove a commercial vehicle" — so the office filed two answers nobody gave, and a v2 filing's
+ * rule that refuses a blank could never see it. They are asked here as the driver's panel asks them,
+ * and REQUIRED before the row is added: the office's correction list offers only answers the payload
+ * already holds as a value (`editableFields` skips a null cell), so a blank added here could never be
+ * filled in afterwards, and a v2 filing would refuse it for good. Asked of every row, including one
+ * from years four to ten that the regulation does not ask about — this form does not know the
+ * application's day, and one more answer from a driver sitting across the desk costs nothing.
  */
 const props = defineProps<{ nextIndex: number; pending: boolean }>();
 const emit = defineEmits<{ add: [path: (string | number)[], value: Record<string, unknown>] }>();
+
+const EMPLOYMENT = APPLY_COPY.employment;
 
 const YES_NO = [
   { value: "yes", label: "Yes" },
@@ -55,7 +68,12 @@ const form = reactive({
   operated_cmv: "yes",
   dot_regulated: "yes",
   reason_for_leaving: "",
+  subject_to_fmcsr: "",
+  safety_sensitive: "",
 });
+
+/** A choice not yet made is `null` — unanswered — never a "No". */
+const yesNo = (v: string): boolean | null => (v === "" ? null : v === "yes");
 
 /** The contract's own object, with the keys this form does not ask for left empty rather than absent. */
 const key = ref(newEmployerKey());
@@ -76,8 +94,8 @@ const candidate = computed(() => ({
   operated_cmv: form.operated_cmv === "yes",
   dot_regulated: form.dot_regulated === "yes",
   reason_for_leaving: form.reason_for_leaving.trim(),
-  subject_to_fmcsr: form.dot_regulated === "yes",
-  safety_sensitive: form.operated_cmv === "yes",
+  subject_to_fmcsr: yesNo(form.subject_to_fmcsr),
+  safety_sensitive: yesNo(form.safety_sensitive),
 }));
 
 /** The shared schema, so the browser refuses exactly what the API would refuse. */
@@ -86,13 +104,17 @@ const problem = computed(() => {
   return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Something here is not right.");
 });
 
+/** Both (iv) questions answered — see the header for why this form refuses a blank the schema allows. */
+const unanswered = computed(() => form.subject_to_fmcsr === "" || form.safety_sensitive === "");
+
 function submit(): void {
-  if (problem.value || props.pending) return;
+  if (problem.value || unanswered.value || props.pending) return;
   emit("add", ["employers", props.nextIndex], candidate.value);
   key.value = newEmployerKey();
   Object.assign(form, {
     employer_name: "", city: "", state: "", phone: "", position_held: "",
     started_on: "", ended_on: "", operated_cmv: "yes", dot_regulated: "yes", reason_for_leaving: "",
+    subject_to_fmcsr: "", safety_sensitive: "",
   });
 }
 </script>
@@ -135,8 +157,16 @@ function submit(): void {
       <FormField id="apply-add-employer-reason" v-slot="{ id }" label="Reason for leaving">
         <BaseInput :id="id" v-model="form.reason_for_leaving" autocomplete="off" />
       </FormField>
+      <!-- The driver's own questions, word for word (`APPLY_COPY`), so what the office asks across the
+           desk is what the application asks on the phone. -->
+      <FormField id="apply-add-employer-fmcsr" v-slot="{ id }" :label="EMPLOYMENT.subjectToFmcsr">
+        <ComboSelect :id="id" v-model="form.subject_to_fmcsr" :options="YES_NO" />
+      </FormField>
+      <FormField id="apply-add-employer-tested" v-slot="{ id }" :label="EMPLOYMENT.safetySensitive">
+        <ComboSelect :id="id" v-model="form.safety_sensitive" :options="YES_NO" />
+      </FormField>
     </div>
-    <BaseButton size="sm" :disabled="Boolean(problem) || pending" @click="submit">
+    <BaseButton size="sm" :disabled="Boolean(problem) || unanswered || pending" @click="submit">
       Add this employer
     </BaseButton>
   </div>

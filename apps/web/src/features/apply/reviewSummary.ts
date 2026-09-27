@@ -75,6 +75,8 @@ const text = (v: string | null | undefined): string =>
   (v ?? "").trim() === "" ? copy.empty : (v ?? "").trim();
 
 const yesNo = (v: boolean): string => (v ? "Yes" : "No");
+/** A yes/no the applicant may not have answered yet (Q-AW33). */
+const answered = (v: boolean | null): string => (v === null ? copy.empty : yesNo(v));
 
 /** "Illinois (IL)", matching the picker — a driver should recognise what they chose. */
 const place = (code: string): string => {
@@ -192,8 +194,9 @@ export function buildReviewSummary({ draft, questionnaire, captures }: ReviewInp
         { label: c.employment.operatedCmv, value: yesNo(e.operated_cmv) },
         { label: c.employment.dotRegulated, value: yesNo(e.dot_regulated) },
         // (b)(10)(iv)(A)/(B) (C3c1): filed, and now printed on the PDF, so shown before it is sent too.
-        { label: c.employment.subjectToFmcsr, value: yesNo(e.subject_to_fmcsr) },
-        { label: c.employment.safetySensitive, value: yesNo(e.safety_sensitive) },
+        // `null` is unanswered since C3c2b (Q-AW33): `copy.empty` ("Not answered", as the PDF says), never "No".
+        { label: c.employment.subjectToFmcsr, value: answered(e.subject_to_fmcsr) },
+        { label: c.employment.safetySensitive, value: answered(e.safety_sensitive) },
       ],
     }));
 

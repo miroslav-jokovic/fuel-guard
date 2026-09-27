@@ -128,6 +128,14 @@ describe("what the office reads", () => {
  * `editableFields` refuses to offer because creating a path it cannot see would be an invention.
  * Creating a ROW is offered separately, and these pin that it appends rather than overwrites.
  */
+/** Choose Yes or No in one of the office form's pickers, found by the id its field gives it. */
+async function answer(w: ReturnType<typeof drawer>, id: string, value: "yes" | "no"): Promise<void> {
+  const picker = w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === id);
+  expect(picker, id).toBeTruthy();
+  picker!.vm.$emit("update:modelValue", value);
+  await settle(w);
+}
+
 describe("adding an employer the applicant left out", () => {
   it("appends at the end of the list, on the same transport as a correction", async () => {
     const w = drawer();
@@ -137,6 +145,8 @@ describe("adding an employer the applicant left out", () => {
     // ⚠ `From` is an AppDateField wrapping DatePickerBase, not a native <input type="date">, so it is
     // driven by its own event rather than by setValue on an input that does not exist.
     await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
+    await answer(w, "apply-add-employer-fmcsr", "yes");
+    await answer(w, "apply-add-employer-tested", "no");
     await settle(w);
     apiFetch.mockResolvedValueOnce({ ok: true, data: { ok: true } });
     await button(w, "Add this employer")!.trigger("click");
@@ -149,6 +159,31 @@ describe("adding an employer the applicant left out", () => {
     expect(call?.[1].body.path).toEqual(["employers", 1]);
     expect(call?.[1].body.value.employer_name).toBe("Werner");
     expect(typeof call?.[1].body).toBe("object");
+    // Q-AW33 (C3c2b): what was chosen, each on its own — no longer copied from "DOT-regulated" and
+    // "drove a CMV", which both start at Yes, so a derived answer would read Yes/Yes here.
+    expect(call?.[1].body.value.subject_to_fmcsr).toBe(true);
+    expect(call?.[1].body.value.safety_sensitive).toBe(false);
+    // And back to nothing chosen for the next one — a kept answer would be a default for a stranger.
+    for (const id of ["apply-add-employer-fmcsr", "apply-add-employer-tested"]) {
+      expect(w.findAllComponents({ name: "AppCombobox" }).find((c) => c.props("id") === id)!.props("modelValue"), id).toBe("");
+    }
+  });
+
+  /**
+   * Q-AW33 (C3c2b): a blank the schema allows, refused here — the office's correction list skips a null
+   * cell (`editableFields`), so a blank added now could never be filled in, and a v2 filing refuses it.
+   */
+  it("will not add an employer until both (b)(10)(iv) questions are answered", async () => {
+    const w = drawer();
+    await settle(w);
+    await w.find("input#apply-add-employer-name").setValue("Werner");
+    await w.findAllComponents({ name: "AppDateField" })[0]!.vm.$emit("update:modelValue", "2019-03-01");
+    await answer(w, "apply-add-employer-fmcsr", "yes");
+    await settle(w);
+    expect(button(w, "Add this employer")!.attributes("disabled")).toBeDefined();
+    await answer(w, "apply-add-employer-tested", "yes");
+    await settle(w);
+    expect(button(w, "Add this employer")!.attributes("disabled")).toBeUndefined();
   });
 
   it("will not send half an employer", async () => {

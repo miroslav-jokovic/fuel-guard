@@ -8,7 +8,7 @@ import {
   AppMemorableDate,
 } from "@silvicom/ui";
 import { jurisdictionName, jurisdictionOptions } from "@silvicom/shared";
-import PartOneYesNo from "./PartOneYesNo.vue";
+import YesNoField from "@/features/apply/YesNoField.vue";
 import { validateOtherLicence, type OtherLicence, type PartOneAnswers, type ScreenErrors } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -52,7 +52,7 @@ function cancel(): void {
 
 <template>
   <div class="space-y-4">
-    <PartOneYesNo v-model="answers.otherHeld" :legend="copy.question" :hint="copy.hint" :error="errors.otherHeld" />
+    <YesNoField v-model="answers.otherHeld" :legend="copy.question" :hint="copy.hint" :error="errors.otherHeld" />
 
     <template v-if="answers.otherHeld">
       <div v-if="answers.others.length > 0">

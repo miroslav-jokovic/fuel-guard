@@ -16,8 +16,17 @@ withDefaults(
     legend: string;
     name?: string;
     disabled?: boolean;
+    /**
+     * `touch` makes each choice a 44 CSS px row — the target APPLICATION-FLOW-V2-PLAN.md §6.8 sets for
+     * `/apply`, as `AppButton`'s `touch` does. `default` is 36. Added 2026-09-27 (C3c2b), when the
+     * application's employer questions became Yes/No choices pressed by a thumb. The row grows by
+     * padding (12 + a 20px line + 12 = 44): a one-line choice sits in the middle of it, and a wrapped
+     * one stays aligned to its first line (`items-start`, `AppCheckbox`'s measured reasoning). Measured
+     * at 390px: `min-h-11` alone left each radio at the top of its row with 24px of nothing under it.
+     */
+    size?: "default" | "touch";
   }>(),
-  { modelValue: undefined, name: undefined, disabled: false },
+  { modelValue: undefined, name: undefined, disabled: false, size: "default" },
 );
 const emit = defineEmits<{ "update:modelValue": [value: RadioValue] }>();
 const generatedName = `radio-${useId()}`;
@@ -29,8 +38,8 @@ const generatedName = `radio-${useId()}`;
     <label
       v-for="option in options"
       :key="String(option.value)"
-      class="flex min-h-9 items-start gap-2 text-sm text-ink-secondary"
-      :class="option.disabled && 'cursor-not-allowed opacity-60'"
+      class="flex items-start gap-2 text-sm text-ink-secondary"
+      :class="[size === 'touch' ? 'min-h-11 py-3' : 'min-h-9', option.disabled && 'cursor-not-allowed opacity-60']"
     >
       <input
         type="radio"

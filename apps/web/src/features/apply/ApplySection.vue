@@ -23,6 +23,8 @@ defineProps<{
   captures: ApplicationCaptureView[];
   /** The carrier's day, which the address and employment screens measure their three years from. */
   asOf: string;
+  /** That day on a v2 link, null on a legacy one — the employment screen's job panel asks more of v2 (C3c2b). */
+  v2AsOf?: string | null;
   identityLockedBy: string | null;
 }>();
 const draft = defineModel<ApplicationDraft>({ required: true });
@@ -33,7 +35,7 @@ const emit = defineEmits<{ goTo: [ApplicationSection] }>();
   <ApplicantDetailsFields v-if="section === 'identity'" v-model="draft" :locked-by="identityLockedBy" />
   <AddressHistoryFields v-else-if="section === 'addresses'" v-model="draft" :as-of="asOf" />
   <LicenceFields v-else-if="section === 'licence'" v-model="draft" :locked-by="identityLockedBy" />
-  <ApplyEmploymentFields v-else-if="section === 'employment'" v-model="draft" :as-of="asOf" />
+  <ApplyEmploymentFields v-else-if="section === 'employment'" v-model="draft" :as-of="asOf" :v2-as-of="v2AsOf" />
   <SafetyHistoryFields v-else-if="section === 'safety'" v-model="draft" />
   <!-- A9: the carrier's own questions, which discharge no CFR paragraph and block nothing. -->
   <QuestionnaireFields v-else-if="section === 'questions'" v-model="draft" />

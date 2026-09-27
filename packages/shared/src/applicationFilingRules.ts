@@ -88,7 +88,9 @@ export function applicationV2FilingIssues(
     // (b)(10)(iv)(A)/(B) are (b)(10)'s alone — the three years, not the seven before them.
     if (employmentSegments(e, asOf).includes("b10")) {
       if (e.subject_to_fmcsr == null) {
-        issues.push({ path: at("subject_to_fmcsr"), message: "Say whether you were subject to the FMCSRs in this job" });
+        // Plain words since C3c2b: this sentence lands under the driver's own Yes/No, and "FMCSRs" is
+        // the regulation's abbreviation, not theirs.
+        issues.push({ path: at("subject_to_fmcsr"), message: "Say whether the Federal Motor Carrier Safety Regulations applied to you in this job" });
       }
       if (e.safety_sensitive == null) {
         issues.push({ path: at("safety_sensitive"), message: "Say whether this job was subject to DOT drug and alcohol testing" });

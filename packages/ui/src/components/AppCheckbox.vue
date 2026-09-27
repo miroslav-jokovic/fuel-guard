@@ -31,18 +31,23 @@
  * ⚠ `min-h-9` stays and is not dead space: it is the 36px touch target, and with `items-start` the
  * content sits at the top of it rather than floating in the middle, which is what a wrapped label
  * needs. Removing it shrinks every option row below the tap minimum.
+ *
+ * `size="touch"` makes that row 44px — the target APPLICATION-FLOW-V2-PLAN.md §6.8 sets for `/apply`,
+ * as `AppButton`'s and `AppRadioGroup`'s `touch` do — by padding, so the 2px alignment above still
+ * holds and a one-line label sits in the middle of the row. Added 2026-09-27
+ * (C3c2b) for the application's job panel, where "I drove a commercial vehicle" sits among 44px
+ * Yes/No rows.
  */
 defineOptions({ inheritAttrs: false });
-withDefaults(defineProps<{ modelValue?: boolean; label?: string; disabled?: boolean }>(), {
-  modelValue: false,
-  label: undefined,
-  disabled: false,
-});
+withDefaults(
+  defineProps<{ modelValue?: boolean; label?: string; disabled?: boolean; size?: "default" | "touch" }>(),
+  { modelValue: false, label: undefined, disabled: false, size: "default" },
+);
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 </script>
 
 <template>
-  <label class="flex min-h-9 items-start gap-2 text-sm text-ink-secondary">
+  <label class="flex items-start gap-2 text-sm text-ink-secondary" :class="size === 'touch' ? 'min-h-11 py-3' : 'min-h-9'">
     <input
       v-bind="$attrs"
       type="checkbox"

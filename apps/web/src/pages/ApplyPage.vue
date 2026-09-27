@@ -370,6 +370,7 @@ watch(
             :token="token"
             :captures="invitation.data.value.captures ?? []"
             :as-of="carrierToday"
+            :v2-as-of="v2AsOf()"
             :identity-locked-by="identityLockedBy"
             @go-to="goToSection"
           />

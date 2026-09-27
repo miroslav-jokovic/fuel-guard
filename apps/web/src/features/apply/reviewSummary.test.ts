@@ -154,6 +154,15 @@ describe("everything the driver typed is on the page they certify", () => {
     expect(entries.find((e) => e.label === APPLY_COPY.employment.safetySensitive)?.value).toBe("No");
   });
 
+  it("says an unanswered (b)(10)(iv) question is not answered, never No (Q-AW33)", () => {
+    const d = filled();
+    d.employers[0]!.subject_to_fmcsr = null;
+    d.employers[0]!.safety_sensitive = false;
+    const entries = summary(d).flatMap((sec) => sec.groups).flatMap((g) => g.entries);
+    expect(entries.find((e) => e.label === APPLY_COPY.employment.subjectToFmcsr)?.value).toBe(APPLY_COPY.review.empty);
+    expect(entries.find((e) => e.label === APPLY_COPY.employment.safetySensitive)?.value).toBe("No");
+  });
+
   it("shows the SECOND employer, not a count of employers", () => {
     // The exact regression: this screen rendered "2 employers" and nothing about either of them.
     const text = asText(summary(filled()));

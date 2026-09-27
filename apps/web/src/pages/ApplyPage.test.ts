@@ -3,6 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
+import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -782,6 +783,25 @@ describe("the applicant's page", () => {
     await press("About you");
     await press(APPLY_COPY.hub.saveAndContinue);
     expect(w.text()).toContain(APPLY_COPY.hub.intro);
+  });
+
+  /**
+   * C3c2b: the job panel asks a v2 link what its filing requires (Q-AW33's two questions among them) —
+   * so the page must tell it the link is v2, with the carrier's day. The page is the only thing that
+   * knows (`partOne`); a missing hand-off would give every v2 applicant the legacy panel, silently.
+   */
+  it("tells a v2 link's job panel the carrier's day, so it asks what the filing requires", async () => {
+    const part2 = { phases: {
+      consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+      submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+    }, releasesSigned: [...APPLICATION_RELEASE_ORDER], carrierToday: "2026-09-26",
+    draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "safety", updatedAt: null } };
+    fetchMock.mockResolvedValue(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, part2));
+    const w = mountPage();
+    await settle(w);
+    await w.findAll("button").find((b) => b.text().includes("Where you have worked"))!.trigger("click");
+    await flushPromises();
+    expect(w.findComponent(EmployerDrawer).props("v2AsOf")).toBe("2026-09-26");
   });
 
   it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {

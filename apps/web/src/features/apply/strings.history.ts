@@ -32,8 +32,23 @@ export const APPLY_HISTORY_COPY = {
     reasonHint: "Why you moved on.",
     operatedCmv: "I drove a commercial vehicle in this job",
     dotRegulated: "This employer was DOT-regulated",
-    safetySensitive: "This job was safety-sensitive under DOT drug and alcohol rules",
-    subjectToFmcsr: "This job was subject to the federal motor carrier safety regulations",
+    /**
+     * The two "whether" questions the regulation asks about each job in the last three years, asked as
+     * Yes/No with nothing chosen (C3c2b, Q-AW33) — they were two unticked statements, so leaving them
+     * alone answered "No". Plain words for the regulation's; `EmployerQuestions.test.ts` holds each
+     * against the committed text (cfr-391-21/391.21.txt, (b)(10)(iv)(A) and (B)):
+     *   (A) "Applicant was subject to the FMCSRs while employed by that previous employer"
+     *   (B) "Job was designated as a safety sensitive function in any DOT regulated mode subject to
+     *       alcohol and controlled substances testing requirements as required by 49 CFR part 40"
+     * The review screen and the office's labels print these same questions beside the answer.
+     */
+    subjectToFmcsr: "In this job, did the Federal Motor Carrier Safety Regulations apply to you?",
+    subjectToFmcsrHint: "The federal safety rules for trucking companies and their drivers.",
+    safetySensitive: "Was this a safety-sensitive job that required DOT drug and alcohol testing?",
+    safetySensitiveHint:
+      "Any job the DOT tests for drugs and alcohol, in any industry it regulates — trucking, buses, aviation, rail, transit or pipelines.",
+    /** A job on the list with an answer still missing (v2): the answers are inside, so the row says so. */
+    jobNeedsAnswers: "Some answers are missing. Choose Change to finish them.",
     add: "Add another employer",
     remove: "Remove",
     experience: "Driving experience",

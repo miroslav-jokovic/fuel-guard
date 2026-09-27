@@ -49,8 +49,14 @@ export interface DraftEmployer {
   operated_cmv: boolean;
   dot_regulated: boolean;
   reason_for_leaving: string;
-  subject_to_fmcsr: boolean;
-  safety_sensitive: boolean;
+  /**
+   * §391.21(b)(10)(iv)(A) and (B), asked Yes/No — and `null` until the applicant answers (C3c2b,
+   * Q-AW33). They were `false` from `emptyEmployer` behind two unticked checkboxes, so the page always
+   * sent an answer nobody gave, and a v2 filing's `== null` rule could never fire. A saved `true` or
+   * `false` (a draft from before C3c2b) is kept as it was.
+   */
+  subject_to_fmcsr: boolean | null;
+  safety_sensitive: boolean | null;
 }
 
 export interface DraftAccident {
@@ -173,7 +179,9 @@ export const emptyEmployer = (): DraftEmployer => ({
   // nobody owed, while a driving job wrongly marked otherwise silently drops a §391.23(a)(2)
   // obligation the carrier is required to discharge.
   operated_cmv: true, dot_regulated: true,
-  reason_for_leaving: "", subject_to_fmcsr: false, safety_sensitive: false,
+  // ⚠ NOT defaulted, unlike the two above (Q-AW33): they are the regulation's own "whether" questions
+  // about this job, and a default is the one answer a filing rule cannot tell from the applicant's.
+  reason_for_leaving: "", subject_to_fmcsr: null, safety_sensitive: null,
 });
 
 export const emptyAccident = (): DraftAccident => ({

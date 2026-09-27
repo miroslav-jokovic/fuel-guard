@@ -255,6 +255,45 @@ describe("what autosave sends", () => {
     ]);
   });
 
+  /**
+   * Q-AW33 (C3c2b): §391.21(b)(10)(iv)'s two answers are `null` until given, and `null` survives every
+   * step to the contract — so the v2 filing rule that refuses a blank can see one. They started `false`
+   * behind unticked boxes, which filed a "No" nobody gave.
+   */
+  it("starts both (b)(10)(iv) answers unanswered, never No", () => {
+    expect(emptyEmployer().subject_to_fmcsr).toBeNull();
+    expect(emptyEmployer().safety_sensitive).toBeNull();
+    expect(emptyDraft().employers[0]!.subject_to_fmcsr).toBeNull();
+  });
+
+  it("carries an unanswered (b)(10)(iv) question through autosave, resume and the contract as null", () => {
+    const draft = everything();
+    draft.employers[0] = { ...draft.employers[0]!, subject_to_fmcsr: null, safety_sensitive: null };
+    const payload = toDraftPayload(draft);
+    expect(applicationDraftPayloadSchema.safeParse(payload).success).toBe(true);
+    const restored = fromDraftPayload(payload);
+    expect(restored.employers[0]!.subject_to_fmcsr).toBeNull();
+    expect(restored.employers[0]!.safety_sensitive).toBeNull();
+    const filed = toApplication(restored) as { employers: Array<Record<string, unknown>> };
+    expect(filed.employers[0]!.subject_to_fmcsr).toBeNull();
+    expect(filed.employers[0]!.safety_sensitive).toBeNull();
+  });
+
+  it("keeps a saved yes or no — a draft from before C3c2b keeps its false — and reads anything else as unanswered", () => {
+    const [yes, legacy, junk, absent] = fromDraftPayload({
+      employers: [
+        { employer_name: "A", subject_to_fmcsr: true, safety_sensitive: false },
+        { employer_name: "B", subject_to_fmcsr: false, safety_sensitive: false },
+        { employer_name: "C", subject_to_fmcsr: "yes", safety_sensitive: 1 },
+        { employer_name: "D" },
+      ],
+    }).employers;
+    expect([yes!.subject_to_fmcsr, yes!.safety_sensitive]).toEqual([true, false]);
+    expect([legacy!.subject_to_fmcsr, legacy!.safety_sensitive]).toEqual([false, false]);
+    expect([junk!.subject_to_fmcsr, junk!.safety_sensitive]).toEqual([null, null]);
+    expect([absent!.subject_to_fmcsr, absent!.safety_sensitive]).toEqual([null, null]);
+  });
+
   it("drops a saved gap row it cannot read rather than rendering it", () => {
     const restored = fromDraftPayload({ employment_gaps: [{ from: "2023-09-26", to: 7, explanation: "x" }, "junk"] });
     expect(restored.employment_gaps).toEqual([]);

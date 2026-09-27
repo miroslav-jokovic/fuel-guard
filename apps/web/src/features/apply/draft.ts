@@ -288,6 +288,8 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
    */
   const state = (v: unknown): string =>
     toJurisdictionCode(typeof v === "string" ? v : null) ?? "";
+  /** A yes/no answer as saved, or `null` — "not answered" — for anything that is not one. */
+  const answer = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 
   return {
     ...base,
@@ -319,6 +321,11 @@ export function fromDraftPayload(payload: Record<string, unknown> | null | undef
       ...e,
       key: isEmployerKey(e.key) ? e.key : newEmployerKey(),
       state: state(e.state),
+      // Q-AW33 (C3c2b): a saved answer is kept, `true` or `false` alike — including the `false` a draft
+      // from before C3c2b holds because the box was never ticked; it cannot be told from a real "No".
+      // Anything else — absent, or not a boolean — is unanswered, never "No".
+      subject_to_fmcsr: answer(e.subject_to_fmcsr),
+      safety_sensitive: answer(e.safety_sensitive),
     })),
     declares_no_employment: bool("declares_no_employment"),
     // Only rows whose three fields are strings: a gap row is dates the form computed plus words, and

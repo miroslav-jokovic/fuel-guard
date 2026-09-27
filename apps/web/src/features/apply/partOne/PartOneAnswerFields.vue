@@ -8,7 +8,7 @@ import {
   AppRadioGroup,
 } from "@silvicom/ui";
 import { CDL_CLASSES, ENDORSEMENT_CODES, US_JURISDICTION_CODES, jurisdictionOptions } from "@silvicom/shared";
-import PartOneYesNo from "./PartOneYesNo.vue";
+import YesNoField from "@/features/apply/YesNoField.vue";
 import type { PartOneAnswers, PartOneScreen, ScreenErrors } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -102,16 +102,16 @@ function toggleEndorsement(code: string, on: boolean): void {
   </div>
 
   <div v-else-if="screen === 'screening'" class="space-y-5">
-    <PartOneYesNo v-model="answers.prior_positive_2y" :legend="copy.screening.priorPositive" :error="errors.prior_positive_2y" />
-    <PartOneYesNo
+    <YesNoField v-model="answers.prior_positive_2y" :legend="copy.screening.priorPositive" :error="errors.prior_positive_2y" />
+    <YesNoField
       v-model="answers.dot_program_30d"
       :legend="copy.screening.program30d"
       :hint="copy.screening.programHint"
       :error="errors.dot_program_30d"
     />
     <template v-if="answers.dot_program_30d">
-      <PartOneYesNo v-model="answers.dot_tested_6m" :legend="copy.screening.tested6m" :error="errors.dot_tested_6m" />
-      <PartOneYesNo v-model="answers.dot_random_12m" :legend="copy.screening.random12m" :error="errors.dot_random_12m" />
+      <YesNoField v-model="answers.dot_tested_6m" :legend="copy.screening.tested6m" :error="errors.dot_tested_6m" />
+      <YesNoField v-model="answers.dot_random_12m" :legend="copy.screening.random12m" :error="errors.dot_random_12m" />
     </template>
   </div>
 </template>
