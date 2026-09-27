@@ -25,6 +25,7 @@ import {
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
+import { verifyCaptureBytes } from "./captureVerification.js";
 
 /**
  * The applicant's photographs, staged and promoted (A8, D-APP10).
@@ -41,10 +42,13 @@ import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
  * means "this photograph is in the bucket and the driver has been told the slot is filled", so it is
  * written last. Orphaned bytes are collected by that same sweep after its 24-hour grace.
  *
- * ── AND WHY THE BYTES NEVER TOUCH THIS PROCESS ────────────────────────────────────────────────
- * A signed upload URL out, a Storage-to-Storage copy at submit. The API reads metadata about the
- * object and never the object, which is `compliance.ts:110`'s property and the reason a driver
- * uploading a 6 MB photograph on a truck-stop connection does not occupy an API worker while they do.
+ * ── WHERE THE BYTES TOUCH THIS PROCESS, AND WHERE THEY DO NOT ────────────────────────────────
+ * The upload never passes through here: a signed upload URL out, a Storage-to-Storage copy at submit, so a
+ * driver uploading a photograph on a truck-stop connection does not hold an API worker while they do.
+ * ⚠ The confirm DOES read the object once, since C3b2a (D-AW9): Storage-to-API, after the upload has
+ * finished, to hash, decode and measure it before the row is written (`captureVerification.ts`). That was
+ * `compliance.ts:110`'s property until then, and it was given up on purpose — a row describing bytes
+ * nobody had checked was the gap. Measured before building it: ≈ 35 ms of CPU per web photograph.
  */
 
 /** A staged capture, as the promotion and the applicant's own page need to see it. */
@@ -102,6 +106,12 @@ export const CAPTURE_UPLOAD_FAILED: IntakeError = {
   message: "That photo did not finish uploading. Take it again.",
 };
 
+/** The object is there but is not the photograph the browser sent, or not a picture at all (D-AW9). */
+export const CAPTURE_NOT_INTACT: IntakeError = {
+  code: "capture_not_intact",
+  message: "That photo did not arrive intact. Take it again.",
+};
+
 /**
  * Somewhere to put one photograph — and nothing else.
  *
@@ -132,37 +142,11 @@ export async function startCapture(
 }
 
 /**
- * What Storage says about one object — or null when it is not there.
- *
- * `list` with a search rather than `info`: it is the oldest and most widely supported call in the
- * Storage API, and this path must not be the thing that breaks on a Storage version we did not
- * choose. The size comes back as metadata, and taking it from HERE rather than from the request body
- * is what makes the staged row a description of the object rather than of what a client claimed.
- */
-async function statObject(
-  admin: SupabaseClient,
-  path: string,
-): Promise<{ bytes: number | null } | null> {
-  const cut = path.lastIndexOf("/");
-  const dir = cut < 0 ? "" : path.slice(0, cut);
-  const name = cut < 0 ? path : path.slice(cut + 1);
-  const { data, error } = await admin.storage
-    .from(APPLICATION_CAPTURES_BUCKET)
-    .list(dir, { limit: 100, search: name });
-  if (error) return null;
-  const hit = ((data ?? []) as Array<{ name: string; metadata?: { size?: number } }>)
-    .find((o) => o.name === name);
-  if (!hit) return null;
-  // Nullable rather than defaulted: Storage does not always report a size, and a wrong number on a
-  // row that claims to describe an object is worse than an honest absence.
-  return { bytes: typeof hit.metadata?.size === "number" ? hit.metadata.size : null };
-}
-
-/**
  * The bytes landed: stage the row, replacing whatever that slot held.
  *
- * The object is read back first. A confirm for an upload that never happened is refused rather than
- * recorded, because the only thing this row is for is telling the driver — and then the submit
+ * The object is read back first, hashed against the browser's claim and decoded (`captureVerification`).
+ * A confirm for an upload that never happened, or for bytes that are not the ones sent, is refused rather
+ * than recorded, because the only thing this row is for is telling the driver — and then the submit
  * transaction — that the photograph exists.
  *
  * The superseded object is removed best effort. A failure there costs bytes the nightly sweep will
@@ -186,10 +170,20 @@ export async function confirmCapture(
   const path = applicationCaptureStoragePath(
     session.org_id, session.id, captureId, body.content_type,
   );
-  const found = await statObject(admin, path);
-  // Nothing at that key: either the PUT never finished or it went somewhere else. Either way there is
-  // no photograph, and recording one would be the lie this ordering exists to prevent.
-  if (!found) return CAPTURE_UPLOAD_FAILED;
+  // D-AW9: read it back and check it BEFORE the row — a row means the slot holds this photograph. Nothing
+  // at that key (the PUT never finished, or went somewhere else) and a read that fails are the same answer:
+  // there is no photograph here to vouch for, and the driver's retry uploads it again. The byte count is
+  // the object's own, which is what makes the row a description of the object rather than of a claim.
+  const { data: object, error: readError } = await admin.storage.from(APPLICATION_CAPTURES_BUCKET).download(path);
+  if (readError || !object) return CAPTURE_UPLOAD_FAILED;
+  const verified = await verifyCaptureBytes(Buffer.from(await object.arrayBuffer()), body.sha256, body.slot);
+  if (!verified.ok) {
+    console.warn("[capture-verify] refused", { slot: body.slot, reason: verified.reason });
+    // Best effort, as with a superseded photo: the nightly sweep collects what this misses.
+    await admin.storage.from(APPLICATION_CAPTURES_BUCKET).remove([path]);
+    return CAPTURE_NOT_INTACT;
+  }
+  console.info("[capture-verify]", { slot: body.slot, bytes: verified.bytes, cpuMs: Math.round(verified.cpuMs) });
 
   const { data, error } = await admin.rpc("stage_application_capture", {
     p_org: session.org_id,
@@ -202,10 +196,26 @@ export async function confirmCapture(
     // the claim checked rather than trusted. Storage's own reported mime type is a second opinion a
     // proxy or a browser can get wrong.
     p_content_type: body.content_type,
-    p_bytes: found.bytes,
+    p_bytes: verified.bytes,
     p_sha256: body.sha256,
   });
   if (error) return { code: "capture_stage_failed", message: error.message };
+
+  // The server's half on the row (0376). After the stage, because it UPDATEs the row the stage wrote.
+  const { error: confirmError } = await admin.rpc("confirm_application_capture", {
+    p_org: session.org_id,
+    p_invitation: session.id,
+    p_capture: captureId,
+    p_server_sha256: verified.serverSha256,
+    p_bytes: verified.bytes,
+    p_metrics: verified.metrics,
+  });
+  if (confirmError) {
+    // ⚠ Not a refusal: the bytes WERE checked in this request and the photograph is staged — only the
+    // record of the check failed. Refusing now would tell the driver to retake a photo that is fine.
+    // The row reads `verified_at` null, the same as a capture staged before C3b2a.
+    console.error("[capture-verify] could not record the verification", { slot: body.slot, error: confirmError.message });
+  }
 
   const row = data as { captured_at?: string; replaced_path?: string | null } | null;
   const replaced = row?.replaced_path ?? null;

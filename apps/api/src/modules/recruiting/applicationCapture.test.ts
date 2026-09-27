@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { createHash } from "node:crypto";
+import sharp from "sharp";
+import { beforeAll, describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { hashInvitationToken } from "./applicationIntake.js";
 import {
@@ -25,12 +27,6 @@ const INVITATION = "11111111-2222-4333-8444-555555555555";
 const TOKEN = "c".repeat(43);
 const NOW = new Date("2026-08-21T12:00:00Z");
 const SHA = "a1".repeat(32);
-
-/** One object in the staging bucket, as Supabase's `list` reports it. */
-const listed = (name: string, size = 240_000) => ({
-  data: [{ name, id: "obj-1", metadata: { size } }],
-  error: null,
-});
 
 function seed(
   over: Record<string, unknown> = {},
@@ -168,21 +164,36 @@ describe("a filed application's handbook adopting its own signature (A-1, C0b �
 
 describe("confirming that the bytes landed", () => {
   const CAPTURE = "99999999-8888-4777-8666-555555555555";
+  const BODY = { slot: "cdl_front" as const, content_type: "image/webp" as const };
+  /** A real photograph-sized WebP — the confirm decodes and measures it, so nothing here is faked. */
+  let photo: Buffer;
+  let photoSha: string;
+  beforeAll(async () => {
+    const px = Buffer.alloc(320 * 200 * 3);
+    for (let i = 0; i < px.length; i++) px[i] = (i * 37) % 251;
+    photo = await sharp(px, { raw: { width: 320, height: 200, channels: 3 } }).webp({ quality: 80 }).toBuffer();
+    photoSha = createHash("sha256").update(photo).digest("hex");
+  });
+  const inBucket = (bytes: Buffer) => ({ download: () => ({ data: new Blob([new Uint8Array(bytes)]), error: null }) });
+  const confirmRpc = (rec: SupabaseRecorder) => rec.rpcs().find((r) => r.fn === "confirm_application_capture");
 
   it("refuses a confirm for an object that is not in the bucket, and stages nothing", async () => {
-    const rec = seed({}, { list: () => ({ data: [], error: null }) });
-    const result = await confirmCapture(
-      rec.client, TOKEN, CAPTURE, { slot: "cdl_front", content_type: "image/webp", sha256: SHA }, NOW,
-    );
+    const rec = seed({}, { download: () => ({ data: null, error: { message: "Object not found" } }) });
+    const result = await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: SHA }, NOW);
     expect(result).toMatchObject({ code: "capture_upload_failed" });
     expect(rec.rpcs()).toEqual([]);
   });
 
-  it("records the size Storage reports, not a number the request supplied", async () => {
-    const rec = seed({}, { list: () => listed(`${CAPTURE}.webp`, 512_000) });
-    const result = await confirmCapture(
-      rec.client, TOKEN, CAPTURE, { slot: "cdl_front", content_type: "image/webp", sha256: SHA }, NOW,
-    );
+  it("reads the object at the key it recomputed — never a path the request named", async () => {
+    const rec = seed({}, inBucket(photo));
+    await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: photoSha }, NOW);
+    const read = rec.storageCalls().find((c) => c.fn === "download");
+    expect(read).toMatchObject({ bucket: "application-captures", args: [`${ORG}/${INVITATION}/${CAPTURE}.webp`] });
+  });
+
+  it("stages the size of the bytes it read, not a number the request supplied", async () => {
+    const rec = seed({}, inBucket(photo));
+    const result = await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: photoSha }, NOW);
     expect(result).toMatchObject({ slot: "cdl_front" });
     const [rpc] = rec.rpcs();
     expect(rpc?.fn).toBe("stage_application_capture");
@@ -194,9 +205,67 @@ describe("confirming that the bytes landed", () => {
       p_slot: "cdl_front",
       // Recomputed from the resolved token — the request never names a path.
       p_path: `${ORG}/${INVITATION}/${CAPTURE}.webp`,
-      p_bytes: 512_000,
-      p_sha256: SHA,
+      p_bytes: photo.byteLength,
+      p_sha256: photoSha,
     });
+  });
+
+  it("records the server's own hash and measurements on the row it staged (D-AW9)", async () => {
+    const rec = seed({}, inBucket(photo));
+    await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: photoSha.toUpperCase() }, NOW);
+    expect(rec.rpcs().map((r) => r.fn)).toEqual(["stage_application_capture", "confirm_application_capture"]);
+    const args = confirmRpc(rec)?.args as Record<string, unknown>;
+    expect(args).toMatchObject({ p_org: ORG, p_invitation: INVITATION, p_capture: CAPTURE, p_server_sha256: photoSha, p_bytes: photo.byteLength });
+    // The measurement of the photo itself, at the capture config's analysis scale (320 px wide ≤ 1024).
+    expect(args.p_metrics).toMatchObject({ longEdgePx: 320, analysisLongEdgePx: 320, configVersion: "capture-2026.08.0" });
+    expect((args.p_metrics as { blurVariance: number }).blurVariance).toBeGreaterThan(0);
+  });
+
+  it("refuses bytes that are not the ones the browser sent, stages nothing, and clears them out", async () => {
+    const rec = seed({}, { ...inBucket(photo), remove: () => ({ data: [], error: null }) });
+    const result = await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: SHA }, NOW);
+    expect(result).toMatchObject({ code: "capture_not_intact" });
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.storageCalls().filter((c) => c.fn === "remove")[0]?.args[0]).toEqual([`${ORG}/${INVITATION}/${CAPTURE}.webp`]);
+  });
+
+  it("refuses an object that is not a picture, whatever its hash", async () => {
+    const junk = Buffer.from("this is not an image at all");
+    const rec = seed({}, { ...inBucket(junk), remove: () => ({ data: [], error: null }) });
+    const result = await confirmCapture(
+      rec.client, TOKEN, CAPTURE, { ...BODY, sha256: createHash("sha256").update(junk).digest("hex") }, NOW,
+    );
+    expect(result).toMatchObject({ code: "capture_not_intact" });
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("checks a drawn mark's bytes but does not measure it — a signature has no focus or glare", async () => {
+    const mark = await sharp({ create: { width: 60, height: 20, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const rec = seed({}, inBucket(mark));
+    await confirmCapture(
+      rec.client, TOKEN, CAPTURE,
+      { slot: "signature_mark", content_type: "image/png", sha256: createHash("sha256").update(mark).digest("hex") }, NOW,
+    );
+    expect(confirmRpc(rec)?.args).toMatchObject({ p_metrics: null, p_bytes: mark.byteLength });
+  });
+
+  it("keeps a staged photo when only the record of its check fails — the bytes were checked", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_invitations: [{
+          id: INVITATION, org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
+          expires_at: "2099-01-01T00:00:00Z", revoked_at: null,
+          consented_at: "2026-09-14T08:00:00Z", releases_completed_at: null, submitted_at: null,
+        }],
+      },
+      rpc: {
+        stage_application_capture: { capture_id: CAPTURE, captured_at: NOW.toISOString(), replaced_path: null },
+        confirm_application_capture: { error: { message: "DA042" } },
+      },
+      storage: inBucket(photo),
+    });
+    const result = await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: photoSha }, NOW);
+    expect(result).toMatchObject({ slot: "cdl_front" });
   });
 
   it("collects the photograph it replaced, so a re-shoot does not leave its predecessor behind", async () => {
@@ -217,13 +286,11 @@ describe("confirming that the bytes landed", () => {
       },
       storage: {
         createSignedUploadUrl: () => ({ data: { signedUrl: "u", token: "t" }, error: null }),
-        list: () => listed(`${CAPTURE}.webp`),
+        ...inBucket(photo),
         remove: () => ({ data: [], error: null }),
       },
     });
-    await confirmCapture(
-      rec.client, TOKEN, CAPTURE, { slot: "cdl_front", content_type: "image/webp", sha256: SHA }, NOW,
-    );
+    await confirmCapture(rec.client, TOKEN, CAPTURE, { ...BODY, sha256: photoSha }, NOW);
     const removals = rec.storageCalls().filter((c) => c.fn === "remove");
     expect(removals).toHaveLength(1);
     expect(removals[0]?.args[0]).toEqual([`${ORG}/${INVITATION}/old.jpg`]);
