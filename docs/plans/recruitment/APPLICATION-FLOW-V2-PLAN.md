@@ -997,3 +997,20 @@ Append dated lines at the END.
   the driver app registers hazmat documents). **Browser metrics NOT built — Q-AW32:** the advisory has no threshold to
   compare against (D-SCAN10), and computing a number nobody reads costs the driver's phone for nothing; the server's
   recorded metrics from this PR are the samples (a) needs. 12 mutants, all killed.
+- 2026-09-27 — **C3b2a merged** (#1080, main `dcb66a9`).
+- 2026-09-27 — **C3b2b split in two**, for the reason C3b2 was: **C3b2b1** the scanner screen (§6.6.1) + "Upload a photo
+  instead" (§6.6.6, first half); **C3b2b2** the desktop QR + "Text me the link" (§6.6.6, second half). **C3b2b1 built**
+  (`claude/applicant-flow-c3b2b`). `useApplicationCaptures` splits the press: `take(slot, source)` holds the photograph
+  and shows it large (state `review`), and only `use` ("Use this photo") runs start → PUT → confirm — **nothing crosses the
+  wire before it**, and `onStaged` (the barcode read, AW5) fires after `use`, never on a preview. `capture` keeps the
+  one-press form for the documents list and the legacy identity step. **Failures split by what the driver does next:** a
+  lost signal keeps the photograph held so "Use this photo" works again; 422 `capture_not_intact` (D-AW9) lets it go and
+  offers only a retake (the documents list now says so too — it said "check your signal"). A Retake the driver closes
+  leaves the held photograph on screen. "Upload a photo instead" is the same provider and gate with `pickImageFile("image/*")`
+  (no `capture`); its retake reopens the file picker ("Choose another photo"). `PartOnePhoto` no longer wraps
+  `DocumentCaptureFields`: an outline shaped to the document (ID-1 card for the CDL, a letter page for the certificate),
+  the two-line hint, full-width buttons. **44 px:** `AppButton` gained `size="touch"` (`h-11`) rather than an `!h-11` at
+  the call site. **Found at the call site:** Continue with a photograph held and not sent would ask the server, find the
+  slot empty and say "Take the photo" to a driver looking at it — the flow now names "Use this photo" and asks nothing.
+  No blur advisory (Q-AW32). 18 mutants, all killed — one ("take sends at once") first written as a `use` call under
+  `take`'s own busy lock changed nothing, and was rewritten as a real one before it counted.

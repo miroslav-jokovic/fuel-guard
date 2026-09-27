@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue";
+import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import PartOneAnswerFields from "./PartOneAnswerFields.vue";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
@@ -63,6 +63,29 @@ const intro = computed(() => {
   }
 });
 const action = computed(() => (flow.screen.value === "rights" ? copy.rights.acknowledge : copy.next));
+
+/**
+ * A photograph taken and not yet sent (§6.6.1: nothing uploads before "Use this photo"). Continue would
+ * ask the server, find the slot empty and say "Take the photo" to a driver looking at the photo they took
+ * — so it says which button to press instead, and asks the server nothing.
+ */
+const holding = ref(false);
+const unsent = ref(false);
+watch(flow.screen, () => {
+  holding.value = false;
+  unsent.value = false;
+});
+watch(holding, (held) => {
+  if (!held) unsent.value = false;
+});
+function onContinue(): void {
+  if (flow.kept.value) return flow.acknowledgeKept();
+  if (isPhotoScreen(flow.screen.value) && holding.value) {
+    unsent.value = true;
+    return;
+  }
+  void flow.next();
+}
 </script>
 
 <template>
@@ -94,12 +117,14 @@ const action = computed(() => (flow.screen.value === "rights" ? copy.rights.ackn
         :reads-barcode="flow.readsBarcode.value"
         :barcode="flow.screen.value === 'cdl_back' ? flow.barcode.value : 'idle'"
         @staged="flow.licencePhotoStaged"
+        @holding="holding = $event"
       />
       <PartOneRights v-else-if="flow.screen.value === 'rights' && inputs.summary" :summary="inputs.summary" />
       <PartOneAnswerFields v-else v-model:answers="answers" :screen="flow.screen.value" :errors="flow.errors.value" />
     </template>
 
     <AppCallout v-if="flow.kept.value" tone="info">{{ copy.kept(carrier) }}</AppCallout>
+    <p v-if="unsent" class="text-sm text-danger-700" role="alert">{{ copy.photo.unsent }}</p>
     <p v-if="flow.failure.value" class="text-sm text-danger-700" role="alert">{{ flow.failure.value }}</p>
 
     <div class="flex items-center justify-between gap-3">
@@ -110,7 +135,7 @@ const action = computed(() => (flow.screen.value === "rights" ? copy.rights.ackn
       <BaseButton
         variant="primary"
         :disabled="flow.working.value"
-        @click="flow.kept.value ? flow.acknowledgeKept() : flow.next()"
+        @click="onContinue"
       >
         {{ flow.working.value ? copy.working : action }}
       </BaseButton>

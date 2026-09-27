@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
 import ApplyPage from "@/pages/ApplyPage.vue";
@@ -20,6 +20,20 @@ import { APPLY_COPY } from "@/features/apply/strings";
 const fetchMock = vi.hoisted(() => vi.fn());
 vi.stubGlobal("fetch", fetchMock);
 vi.mock("vue-router", () => ({ useRoute: () => ({ params: { token: "t".repeat(43) } }) }));
+/**
+ * The camera, for the one test that takes a photo on Part 1's scanner screen: jsdom has no
+ * `createImageBitmap` and no picker, so the provider answers with a page and never opens either.
+ */
+vi.mock("@/features/apply/capture/webFileProvider", () => ({
+  createWebFileProvider: () => ({
+    id: "t", version: "0", cancel: () => {},
+    isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
+    scan: async () => ({
+      ok: true,
+      pages: [{ originalOfRecord: { uri: "blob:held", width: 1, height: 1, bytes: 1, mediaType: "image/webp" }, integrityHash: "ab".repeat(32) }],
+    }),
+  }),
+}));
 
 const RELEASES = [
   {
@@ -634,6 +648,29 @@ describe("the applicant's page", () => {
     expect(w.text()).toContain(APPLY_COPY.partOne.step(1, 9));
     expect(w.text()).not.toContain("Your driver's licence");
     expect(w.text()).not.toContain("Your signature");
+  });
+
+  /**
+   * §6.6.1: nothing uploads before "Use this photo". Continue with a photo taken and not sent would ask the
+   * server, find the slot empty and say "Take the photo" to a driver looking at the photo they took — so it
+   * names the button instead, and asks the server nothing.
+   */
+  it("Continue with a photo taken and not sent names Use this photo and asks the server nothing", async () => {
+    fetchMock.mockResolvedValue(partOnePage({}));
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const w = mountPage();
+    await settle(w);
+    const press = async (label: string) => {
+      await w.findAll("button").find((b) => b.text() === label)!.trigger("click");
+      await flushPromises();
+    };
+    await press(APPLY_COPY.partOne.photo.take);
+    const before = fetchMock.mock.calls.length;
+    await press(APPLY_COPY.partOne.next);
+    expect(w.text()).toContain(APPLY_COPY.partOne.photo.unsent);
+    expect(w.text()).not.toContain(APPLY_COPY.partOne.photo.required);
+    expect(fetchMock.mock.calls.length).toBe(before);
+    expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
   });
 
   it("goes to the permissions once Part 1 is finished, and never back to the identity screen", async () => {

@@ -268,6 +268,8 @@ export const APPLY_COPY = {
     done: "Received",
     failedHeading: "That photo did not go through",
     failed: "Check your signal and take it again. Nothing was lost.",
+    /** D-AW9: the server re-hashed the object and it was not the photo sent (422 `capture_not_intact`). */
+    notIntact: "That photo did not arrive intact. Take it again.",
     /**
      * Why a photograph was refused, in the driver's words rather than the gate's. Total over the
      * rejection taxonomy on purpose: a reason with no sentence would reach a driver as a blank.

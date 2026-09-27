@@ -6,7 +6,7 @@ import { RouterLink, type RouteLocationRaw } from "vue-router";
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "link";
-    size?: "sm" | "md" | "icon" | "row";
+    size?: "sm" | "md" | "icon" | "row" | "touch";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -73,6 +73,14 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    * name and a place name rather than a label, and truncation is the caller's to choose per line.
    */
   row: "h-auto w-full gap-x-2 px-3 py-2 text-sm",
+  /**
+   * A control pressed by a thumb on a phone: 44 CSS px tall, the target APPLICATION-FLOW-V2-PLAN.md §6.8
+   * sets for `/apply` (Q-AW20: `/apply` first; WCAG 2.5.8's floor is 24). `md` is 36.
+   *
+   * Added 2026-09-27 for Part 1's scanner screen (C3b2b), for the reason `icon` and `row` were: the call
+   * site would otherwise have written `!h-11`, and a missing size is the honest reading of that.
+   */
+  touch: "h-11 gap-x-2 px-4 text-base",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */

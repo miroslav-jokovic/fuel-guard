@@ -1,18 +1,20 @@
 import { computed, onScopeDispose, reactive, ref, type Ref } from "vue";
 import {
   BUNDLED_DEFAULT_CONFIG,
+  type CapturedPage,
   type CaptureProvider,
   type RejectionReason,
 } from "@silvicom/capture-engine";
 import {
   APPLICATION_CAPTURE_REQUESTED,
   APPLICATION_CAPTURE_SLOT_LABELS,
+  type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
   type ApplicationCaptureView,
 } from "@silvicom/shared";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider } from "./webFileProvider";
-import { pickPhotoFromCamera } from "./webImageIo";
+import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
 
 /**
  * One photograph per slot, from the driver's own phone (A8, D-APP10).
@@ -24,6 +26,11 @@ import { pickPhotoFromCamera } from "./webImageIo";
  * to put it, a PUT straight to Storage, and a call to say it landed. The row is written last, so a
  * failed upload leaves no slot claiming to be filled.
  *
+ * ── TAKE, LOOK, THEN SEND (§6.6.1, C3b2b) ─────────────────────────────────────────────────────
+ * Part 1's scanner screen splits the press in two: `take` holds the photograph and shows it large, and
+ * only `use` ("Use this") sends it — so a thumb over the licence is seen and retaken before it costs a
+ * byte. `capture` keeps the one-press form for the screens that have no preview step.
+ *
  * ── EVERY DEPENDENCY IS INJECTABLE, FOR THE REASON A7'S IO WAS ────────────────────────────────
  * The decision this composable makes — what does the driver see after they take a photograph? — must
  * be testable without a camera, a canvas, a network or a GPU. The provider and the calls are
@@ -34,7 +41,26 @@ import { pickPhotoFromCamera } from "./webImageIo";
  * finger on a canvas — must not each hold their own idea of what order those calls go in.
  */
 
-export type CaptureSlotState = "empty" | "working" | "done" | "rejected" | "failed";
+/**
+ * `review` is a photograph in the phone's hands and nowhere else (§6.6.1): taken, shown large, and waiting
+ * for "Use this" or "Retake". Nothing has crossed the wire, so leaving the screen costs nothing.
+ */
+export type CaptureSlotState = "empty" | "working" | "review" | "done" | "rejected" | "failed";
+
+/**
+ * Where the picture comes from (§6.6.6). `camera` opens the phone's own camera app (the `capture` input,
+ * D-APP11); `file` is "Upload a photo instead", for a driver whose browser was refused the camera, or who
+ * photographed the card earlier. Both go through the same provider and the same gate.
+ */
+export type CaptureSource = "camera" | "file";
+
+/**
+ * Why a slot is `failed`, because the driver's next move differs. `network`: the photograph is still
+ * held, so "Use this" can be pressed again once the signal is back. `not_intact`: the server re-hashed the
+ * object and it was not what was sent, or not a picture (D-AW9, 422 `capture_not_intact`) — pressing
+ * again would send the same bytes, so the photograph is let go and only a retake is offered.
+ */
+export type CaptureFailure = "network" | "not_intact";
 
 export interface CaptureSlotView {
   slot: ApplicationCaptureSlot;
@@ -42,6 +68,12 @@ export interface CaptureSlotView {
   state: CaptureSlotState;
   /** Why the gate refused, so the driver is told what to fix rather than that "it failed". */
   reason: RejectionReason | null;
+  /** Set only when `state` is `failed`. */
+  failure: CaptureFailure | null;
+  /** A photograph is held in this browser, waiting for "Use this" (§6.6.1). */
+  pending: boolean;
+  /** Which picker produced the held or last photograph, so "Retake" reopens the same one. */
+  source: CaptureSource;
   capturedAt: string | null;
   /**
    * What the driver just sent, to look at (X6). An object URL, or null.
@@ -77,13 +109,27 @@ export function useApplicationCaptures(
 ) {
   /** The file the default provider's picker last returned — the original of what it then processed. */
   let picked: File | null = null;
+  /**
+   * Which picker the next `scan()` opens. A variable the default provider's `pick` reads, rather than a
+   * second provider, because the two sources differ ONLY in the input's `capture` attribute — the gate,
+   * the downscale and the EXIF strip after it are one pipeline, and two providers would be two of them.
+   */
+  let source: CaptureSource = "camera";
   const provider =
     options.provider ??
-    createWebFileProvider(BUNDLED_DEFAULT_CONFIG, { pick: async () => (picked = await pickPhotoFromCamera()) });
+    createWebFileProvider(BUNDLED_DEFAULT_CONFIG, {
+      pick: async () => (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera())),
+    });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
   /** What has happened on this screen. What happened on a previous visit comes from `already`. */
-  const local = reactive<Record<string, { state: CaptureSlotState; reason: RejectionReason | null; capturedAt: string | null }>>({});
+  const local = reactive<Record<string, SlotLocal>>({});
+  /**
+   * The photograph taken and not yet sent, per slot (§6.6.1) — the page (its object URL is the preview),
+   * its content type, and the original file for `onStaged`. Not reactive: a `File` has no business in a
+   * proxy, and the view reads `local[slot].pending`, which is.
+   */
+  const held: Partial<Record<ApplicationCaptureSlot, Held>> = {};
   const busy = ref<ApplicationCaptureSlot | null>(null);
 
   /**
@@ -97,17 +143,19 @@ export function useApplicationCaptures(
   const previews = reactive<Record<string, string | null>>({});
 
   const forget = (slot: ApplicationCaptureSlot): void => {
-    const held = previews[slot];
-    if (held) URL.revokeObjectURL(held);
+    const shown = previews[slot];
+    if (shown) URL.revokeObjectURL(shown);
     previews[slot] = null;
+    // The held photograph's object URL IS the preview, so letting go of one is letting go of both.
+    delete held[slot];
   };
 
   // The screen can be left at any point — a driver who goes back to the licence step, or closes the
   // tab. Nothing here outlives the component that asked for it.
   onScopeDispose(() => {
     for (const slot of Object.keys(previews)) {
-      const held = previews[slot];
-      if (held) URL.revokeObjectURL(held);
+      const shown = previews[slot];
+      if (shown) URL.revokeObjectURL(shown);
     }
   });
 
@@ -123,87 +171,156 @@ export function useApplicationCaptures(
         label: APPLICATION_CAPTURE_SLOT_LABELS[slot],
         state,
         reason: here?.reason ?? null,
+        failure: here?.failure ?? null,
+        pending: here?.pending ?? false,
+        source: here?.source ?? "camera",
         capturedAt: here?.capturedAt ?? stored?.capturedAt ?? null,
         previewUrl: previews[slot] ?? null,
       };
     }),
   );
 
-  const mark = (
-    slot: ApplicationCaptureSlot,
-    state: CaptureSlotState,
-    reason: RejectionReason | null = null,
-    capturedAt: string | null = null,
-  ): void => {
-    local[slot] = { state, reason, capturedAt };
+  const mark = (slot: ApplicationCaptureSlot, state: CaptureSlotState, over: Partial<SlotLocal> = {}): void => {
+    local[slot] = {
+      state,
+      reason: null,
+      failure: null,
+      capturedAt: null,
+      pending: Boolean(held[slot]),
+      source: local[slot]?.source ?? "camera",
+      ...over,
+    };
   };
 
   /**
-   * Open the camera for one slot and, if the gate accepts what comes back, put it in the bucket.
+   * Open the camera (or the file picker) for one slot and HOLD what comes back (§6.6.1).
    *
-   * A rejected capture returns `{ ok: false, reason }` with NO page (A7), so there is deliberately
-   * nothing here that could upload one — the refusal is a state on the screen, not a round trip.
+   * Nothing is uploaded here: a photograph the gate accepts becomes the large preview with "Use this" and
+   * "Retake", and only `use` sends it. A rejected capture returns `{ ok: false, reason }` with NO page
+   * (A7), so there is deliberately nothing here that could upload one either way.
    */
-  async function capture(slot: ApplicationCaptureSlot): Promise<void> {
+  async function take(slot: ApplicationCaptureSlot, from: CaptureSource = "camera"): Promise<void> {
     if (busy.value) return;
     busy.value = slot;
-    mark(slot, "working");
+    /** What the slot showed before, for a picker the driver closes: nothing happened, so nothing changes. */
+    const before = local[slot] ? { ...local[slot] } : null;
+    source = from;
+    mark(slot, "working", { source: from });
     try {
       const result = await provider.scan();
       if (!result.ok) {
-        // Cancelling the picker is not a failure and must not paint one: the driver closed the
-        // camera, and the slot goes back to where it was.
-        if (result.reason === "CAPTURE_CANCELLED") delete local[slot];
-        else mark(slot, "rejected", result.reason);
+        // Cancelling the picker is not a failure and must not paint one — a driver who pressed Retake
+        // and closed the camera is still looking at the photograph they had.
+        if (result.reason === "CAPTURE_CANCELLED") {
+          if (before) local[slot] = before;
+          else delete local[slot];
+        } else {
+          forget(slot);
+          mark(slot, "rejected", { reason: result.reason, source: from, pending: false });
+        }
         return;
       }
       const page = result.pages[0];
       const contentType = page ? captureContentType(page.originalOfRecord.mediaType) : null;
       if (!page || !contentType) {
-        mark(slot, "failed");
+        if (page) URL.revokeObjectURL(page.originalOfRecord.uri);
+        forget(slot);
+        mark(slot, "failed", { failure: "network", source: from, pending: false });
         return;
       }
+      // The new photograph REPLACES whatever the slot showed, and that one is revoked on the spot (X6).
+      forget(slot);
+      held[slot] = { page, contentType, original: picked };
+      previews[slot] = page.originalOfRecord.uri;
+      mark(slot, "review", { source: from, pending: true });
+    } catch {
+      mark(slot, "failed", { failure: "network", source: from });
+    } finally {
+      // A phone photograph is megabytes; `held` keeps the one on screen, this does not keep another.
+      picked = null;
+      busy.value = null;
+    }
+  }
 
+  /**
+   * "Use this" — put the held photograph in the bucket (start → PUT → confirm, `stageCapture`).
+   *
+   * On a network failure the photograph stays held, so the same button works once the signal is back; on
+   * `capture_not_intact` it is let go, because sending the same bytes again gets the same answer.
+   */
+  async function use(slot: ApplicationCaptureSlot): Promise<void> {
+    const photo = held[slot];
+    if (busy.value || !photo) return;
+    busy.value = slot;
+    mark(slot, "working");
+    try {
       // The provider hands back an object URL rather than the blob; reading it back is how the bytes
       // are recovered without widening the engine's contract for one consumer.
-      const blob = await fetch(page.originalOfRecord.uri).then((r) => r.blob());
-      /** Whether the URL became this slot's preview, and so must outlive the block below. */
-      let kept = false;
-      try {
-        // The gate already hashed these exact bytes (A7), so the digest is passed through rather
-        // than recomputed — the shared path takes an io whose `digest` is a function for the callers
-        // that have no hash of their own.
-        const confirmed = await stageCapture(token.value, slot, blob, contentType, {
-          ...io,
-          digest: async () => page.integrityHash,
-        });
-        mark(slot, "done", null, confirmed.capturedAt);
-        options.onStaged?.(slot, picked ?? blob);
-        // A phone photograph is megabytes; the caller holds it as long as it needs it, this does not.
-        picked = null;
-        // Kept, not revoked: this is the one the driver is now looking at (X6). The previous
-        // picture for this slot goes at the same moment, so the count never grows.
+      const blob = await fetch(photo.page.originalOfRecord.uri).then((r) => r.blob());
+      // The gate already hashed these exact bytes (A7), so the digest is passed through rather than
+      // recomputed — the shared path takes an io whose `digest` is a function for the callers that
+      // have no hash of their own.
+      const confirmed = await stageCapture(token.value, slot, blob, photo.contentType, {
+        ...io,
+        digest: async () => photo.page.integrityHash,
+      });
+      // Sent: no longer held, but still the picture on the screen (X6) — `previews` keeps its URL.
+      delete held[slot];
+      mark(slot, "done", { capturedAt: confirmed.capturedAt, pending: false });
+      options.onStaged?.(slot, photo.original ?? blob);
+    } catch (e) {
+      if ((e as { code?: string }).code === "capture_not_intact") {
         forget(slot);
-        previews[slot] = page.originalOfRecord.uri;
-        kept = true;
-      } finally {
-        // The photograph did not reach the bucket, so there is nothing to show and nothing to keep.
-        // A phone should not hold four hundred-kilobyte blobs alive because a driver re-took a
-        // licence four times.
-        if (!kept) URL.revokeObjectURL(page.originalOfRecord.uri);
+        mark(slot, "failed", { failure: "not_intact", pending: false });
+      } else {
+        // One state for every network failure, because the driver's action is the same for all of
+        // them: try again when the signal comes back.
+        mark(slot, "failed", { failure: "network" });
       }
-    } catch {
-      // One state for every network failure, because the driver's action is the same for all of
-      // them: try again when the signal comes back.
-      mark(slot, "failed");
     } finally {
       busy.value = null;
+    }
+  }
+
+  /**
+   * Take and send in one press, for the screens with no preview step (the documents list, the legacy
+   * identity step). A photograph that did not reach the bucket is let go rather than left held behind a
+   * button those screens do not have — there is nothing to show and nothing to keep.
+   */
+  async function capture(slot: ApplicationCaptureSlot): Promise<void> {
+    // Read through a function: after `take` narrows the state to "review", TypeScript would otherwise
+    // hold that narrowing across `use`, which is exactly the call that changes it.
+    const stateOf = (): CaptureSlotState | undefined => local[slot]?.state;
+    await take(slot);
+    if (stateOf() !== "review") return;
+    await use(slot);
+    if (stateOf() !== "done") {
+      forget(slot);
+      if (local[slot]) local[slot].pending = false;
     }
   }
 
   return {
     slots,
     busy: computed(() => busy.value),
+    take,
+    use,
     capture,
   };
+}
+
+interface SlotLocal {
+  state: CaptureSlotState;
+  reason: RejectionReason | null;
+  failure: CaptureFailure | null;
+  capturedAt: string | null;
+  pending: boolean;
+  source: CaptureSource;
+}
+
+interface Held {
+  page: CapturedPage;
+  contentType: ApplicationCaptureContentType;
+  /** What the picker returned — handed on by `onStaged`; null when an injected provider had no picker. */
+  original: File | null;
 }

@@ -116,14 +116,37 @@ export const APPLY_PART_ONE_COPY = {
       programHint: "These help decide whether you need a new drug test. The carrier checks them with your last employer.",
       answer: "Answer this question.",
     },
+    /**
+     * Screens 8–10, the scanner (§6.6.1): what to photograph on the first line, how on the second, one
+     * "Take photo", then the picture large with "Use this photo" / "Retake". Nothing is sent before
+     * "Use this photo", so the words never say "uploaded" until it has been.
+     */
     photo: {
-      cdl_front: { heading: "Photo of the front of your CDL", hint: "Flat surface, no flash, all four corners in the picture." },
-      cdl_back: { heading: "Photo of the back of your CDL", hint: "The side with the barcode. Flat surface, no flash." },
+      cdl_front: { heading: "Photo of the front of your CDL", hint: "The side with your photo on it.", outline: "Front of your CDL" },
+      cdl_back: { heading: "Photo of the back of your CDL", hint: "The side with the barcode.", outline: "Back of your CDL" },
       /** AW5: the barcode is read in the phone, after the photo is saved. Reading it never blocks Continue. */
       reading: "Reading the barcode on your licence…",
       readFilled: "We read your licence's barcode and filled in some of the next screens. Check each answer before you continue.",
       readNothing: "The barcode could not be read. That's fine — you'll type your details on the next screens.",
-      medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate." },
+      medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate.", outline: "Your medical card" },
+      howTo: "Lay it on a flat surface. No flash, and all four corners in the picture.",
+      take: "Take photo",
+      /** §6.6.6: the camera was refused, or the photo is already on the phone. Same screen, same checks. */
+      upload: "Upload a photo instead",
+      use: "Use this photo",
+      retake: "Retake",
+      chooseAnother: "Choose another photo",
+      check: "Can you read every word, and are all four corners in? If not, retake it.",
+      sending: "Sending…",
+      received: "Received.",
+      /** Taken on an earlier visit: the server keeps the photo, and this page is not shown it (X6). */
+      receivedEarlier: "Received on an earlier visit. Take it again only if it was the wrong card.",
+      takeAgain: "Take it again",
+      /** Continue pressed with a photo taken but not sent. */
+      unsent: "Press “Use this photo” to send it, or Retake.",
+      failed: "That did not send. Check your signal, then press “Use this photo” again.",
+      /** D-AW9: the server re-hashed the object and it was not the photo sent (422 `capture_not_intact`). */
+      notIntact: "That photo did not arrive intact. Take it again.",
       required: "Take the photo to continue.",
       noMedicalCard: "I don't have a medical card yet",
       noMedicalCardHint: "You can carry on. You will need one before you travel.",
