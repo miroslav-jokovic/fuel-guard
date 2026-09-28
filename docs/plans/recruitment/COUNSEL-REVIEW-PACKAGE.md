@@ -42,8 +42,9 @@ for that applicant**. That is why we are asking now.
 2. **Three questions about notices to declined applicants** (Part B, §5). The FMCSA-mandated PSP
    form that every applicant signs promises specific notices after an adverse decision. The carrier
    has decided to send them from Silvicom 360 and needs your approval of the notice text.
-3. **Approval of four instruments we drafted or adapted** (Part C, §6), and **four structural
-   questions** (Part D, §7).
+3. **Approval of four instruments we drafted or adapted** (Part C, §6), and **five structural
+   questions** (Part D, §7) — the fifth, Q18, added on September 28, 2026: may the fines the
+   packet and the handbook set be deducted from what a driver is paid?
 
 **What a response looks like** (§9): for each question, *approve*, *approve with changes* (with a
 redline), or *reject* (with your replacement text or instruction). Any change to a signed instrument
@@ -57,7 +58,7 @@ shows which text each person signed.
 | **1 — before the first packet is signed** | Q1 page 4 · Q2 certification · Q3 electronic use of pages 15/20/22 · Q4 page 15 and the blanket-release rule · Q5 page 22 · Q6 page 19 | Applicants sign these today, and a signed packet cannot be amended afterwards |
 | **2 — before the first decline based on a report** | Q7 PSP status · Q8 remote-application exception · Q9 notice text | The carrier's signed PSP form already promises these notices |
 | **3 — approve the drafted instruments** | Q10 Clearinghouse · Q11 e-sign consent · Q12 SMS consent · Q13 §40.25 letter | Q12 and Q13 are unused until approved; Q10 and Q11 are in use now |
-| **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items | Affects how the packet may need to be split, not whether it works today |
+| **4 — structural** | Q14 employee vs. owner-operator · Q15 owner-operator agreement · Q16 §391.23(i) rights · Q17 smaller items · Q18 fines and deductions | Affects how the packet may need to be split, not whether it works today. Q18 must be answered before any fine is deducted |
 
 ---
 
@@ -560,6 +561,69 @@ stated on page 15 is the one to build. The platform will record each request and
   half (interview notes, result) is the carrier's and is not shown to the applicant. Please confirm
   that is correct.
 
+### Q18. Fines, and deducting them from what a driver is paid · **Priority 4** *(added September 28, 2026)*
+
+**Facts.** The applicant signs two lists of fines, and the carrier intends to collect them by
+deduction.
+
+- **The packet.** Page 7 prices log, ticket and misconduct offences (for example *"LATE RECORDS OF
+  DUTY STATUS … $10.00 PER DAY"*, *"HOURS OF SERVICE 2ND OOS VIOLATION $700.00"*, three offences at
+  *"$1,500.00"*) and sets four insurance deductibles of *"$2,500.00"* each. Page 8 fines $50 for each
+  under-inflated tire and $100 for a late oil change, and charges the driver for repairs. Pages 9–10
+  (initialled, and signed on page 10) set further charges, among them: rule 2, $100 then $200 for
+  lateness; rule 14, *"charge and loss of pay"* for proof-of-delivery paperwork not turned in;
+  rule 28, *"responsible for insurance deductibles"*; rule 29, *"$2,000 penalty"* for leaving
+  without two weeks' notice; rule 30, *"immediate termination, loss of pay and escrow"* on a failed
+  or refused drug test; rules 31–32, *"possible loss of pay"*. Page 10 ends: *"Silvicom Inc reserves
+  the right to amend, change or review any of the forgoing provisions. New provisions can be added at
+  any time."*
+- **The handbook.** A separate fines table, signed at two places, prices many of the same offences
+  differently (for example, late logs at $5.00 per day after 15 days, against the packet's $10.00
+  after 25).
+- **The two documents disagree with each other and with themselves.** Nine offences carry two
+  prices. For three offences the packet says termination is automatic on one page and *"possible"*
+  on another. Late delivery and missed check calls are each priced in two different ways. The
+  carrier will make the two documents agree after your answer, not before it.
+- **Who signs.** Company drivers, owner-operators, and drivers employed by an owner-operator all
+  sign the same packet (see Q14). Page 30 has the last group acknowledge that *"the only one
+  responsible for my salary is my employer, aka (Owner Operator)"*.
+
+**Law.** The Illinois Wage Payment and Collection Act, 820 ILCS 115/9, permits a deduction from
+wages or final compensation only with, among other routes, the *"express written consent of the
+employee, given freely at the time the deduction is made"*. For owner-operators who lease equipment
+to the carrier, 49 CFR §376.12 governs what the lease must say about charges back to the lessor
+(listed in Appendix A). We have not researched the federal minimum-wage rules on deductions, the
+treatment of penalties and forfeitures under Illinois law, or escrow rules, and we ask you to.
+
+**Our reading.** A signature on the packet at hiring is consent given months before any deduction,
+so it does not appear to meet *"at the time the deduction is made"* for a company driver. For an
+owner-operator the wage act may not apply, but a chargeback may have to appear in the lease itself.
+We have no reading on the rest.
+
+**What we need.**
+
+1. **Company drivers.** May any of these fines be deducted from wages? Is a separate written
+   authorization needed each time, and in what form?
+2. **Owner-operators.** Does the wage act apply to them? Does the risk that an owner-operator is
+   found to be an employee change the answer? Must each chargeback be stated in the §376.12 lease
+   rather than in a rulebook, and does pages 29–31 (Q15) do that?
+3. **Drivers employed by an owner-operator.** May the carrier fine a person it does not pay? If so,
+   is the fine taken from the owner-operator's settlement, and on what authority?
+4. **Penalties and forfeitures.** Are these enforceable as written: the $2,000 notice penalty
+   (rule 29); the loss of pay and escrow on a failed or refused test (rule 30); the *"loss of pay"*
+   in rules 14, 31 and 32?
+5. **Costs passed to the driver.** May the $2,500 insurance deductibles (page 7, rule 28), repair
+   costs (page 8) and tickets be deducted, and how must an owner-operator's escrow be held and
+   returned?
+6. **Minimum wage.** May a deduction take a company driver's pay for a period below the federal or
+   Illinois minimum wage?
+7. **Amendment.** Does the clause letting the carrier add provisions *"at any time"* undermine the
+   consent to a fine added later?
+8. **One schedule.** Should a single document be the only schedule of fines, with the other
+   referring to it?
+9. **The outcome.** For each fine: may it stay as written, does it need a separate signed
+   authorization at the time of deduction, or should it be withdrawn?
+
 ---
 
 ## 8. What the platform already does
@@ -613,6 +677,7 @@ must. If so, please say which, and we will arrange it.
 | 49 CFR 390.32 | Electronic records and signatures under Parts 300–399 |
 | 49 CFR 391.21, 391.23, 391.25, 391.31, 391.51 | Application, investigations, annual review, road test, qualification file |
 | 49 CFR 376.12 | Lease requirements |
+| 820 ILCS 115/9 | Deductions from wages or final compensation (Q18) |
 | 49 CFR 382.501, 382.701, 382.703, 382.705 | Prohibition, Clearinghouse queries, consent, reporting |
 | 49 CFR 40.25, 40.163, 40.321 | Previous-employer testing history, MRO reporting, confidentiality |
 | *Syed v. M-I, LLC*, 853 F.3d 492 (9th Cir. 2017) | Liability waiver in FCRA disclosure |

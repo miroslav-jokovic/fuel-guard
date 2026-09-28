@@ -57,11 +57,8 @@ const WAIVERS = new Map([
   // POST /recruitment/applicants/:driverId/drug-test-appointments. sms_outbox left on 2026-09-26 (C2d):
   // recruiting/smsOutbox.ts writes it, drained by startSmsOutboxScheduler. sms_suppressions left on
   // 2026-09-27 (C2d2): recruiting/smsSuppressions.ts writes it from the Telnyx webhook's STOP and START.
-  [
-    "application_screen_events",
-    "APPLICATION-FLOW-V2-PLAN.md M1 (0376), schema-only. C3's AW14 writes it from the /apply link; the " +
-      "entry leaves in that merge.",
-  ],
+  // application_screen_events left on 2026-09-28 (C3d3a): recruiting/applicationScreenEvents.ts writes it
+  // behind POST /api/public/application/:token/screen-events. That was the last of the five.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

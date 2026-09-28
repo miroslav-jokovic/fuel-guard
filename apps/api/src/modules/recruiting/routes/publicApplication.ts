@@ -20,6 +20,7 @@ import { requestReview } from "../applicationHandoff.js";
 import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
 import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
 import { publicApplicationSmsRouter } from "./publicApplicationSms.js";
+import { publicApplicationScreenEventsRouter } from "./publicApplicationScreenEvents.js";
 import { saveDraft, unlockDraft } from "../applicationDraft.js";
 import { recordEsignConsent } from "../esignConsent.js";
 import { isIntakeError } from "../applicationIntake.js";
@@ -182,8 +183,8 @@ export function publicApplicationRouter(): Router {
    * Autosave (A2). Partial, unvalidated, size-capped, and idempotent per invitation.
    *
    * PUT rather than POST because it is the same resource every time: one draft per link, replaced
-   * wholesale. The client debounces to well inside the surface's rate budget — 20 req/min at
-   * `app.ts:147` with `/api/public`'s 60/min stacked on top, so the intersection is 20.
+   * wholesale. The client debounces to well inside the surface's rate budget — the intake's 20 req/min
+   * per address (`applicationLimits.ts`); `/api/public`'s 60/min does not apply to this prefix.
    */
   router.put(
     "/:token/draft",
@@ -362,6 +363,9 @@ export function publicApplicationRouter(): Router {
   // The optional agreement to be texted (SMS-OPT-IN-PLAN D-SMS1) — offered on the waiting screens,
   // never in the path.
   router.use(publicApplicationSmsRouter());
+
+  // Which screens the page showed (AW14, C3d3a), on its own rate budget — see `applicationLimits.ts`.
+  router.use(publicApplicationScreenEventsRouter());
 
   return router;
 }

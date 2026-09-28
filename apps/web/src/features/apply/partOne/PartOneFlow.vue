@@ -8,6 +8,8 @@ import PartOneRights from "./PartOneRights.vue";
 import { isPhotoScreen, photoDone, type PartOneScreen } from "./partOneScreens";
 import { useHandoffPoll, useIsDesktop } from "./useDesktopHandoff";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
+import { useApplyScreen } from "@/features/apply/useScreenEvents";
+import { partOneScreenName } from "@silvicom/shared";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -39,6 +41,7 @@ const emit = defineEmits<{ done: [] }>();
 
 const copy = APPLY_COPY.partOne;
 const flow = usePartOne(toRef(props, "token"), toRef(props, "inputs"), props.refresh, () => emit("done"));
+useApplyScreen(() => partOneScreenName(flow.screen.value));
 const answers = flow.answers;
 
 const HEADINGS: Record<Exclude<PartOneScreen, "cdl_front" | "cdl_back" | "medical_card">, string> = {

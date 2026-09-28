@@ -1,6 +1,7 @@
 import {
   CDL_CLASSES,
   ENDORSEMENT_CODES,
+  PART_ONE_SCREENS,
   applicantIntakeLicenceSchema,
   applicantIntakeLicencesSchema,
   applicantIntakeSchema,
@@ -10,6 +11,7 @@ import {
   type ApplicantIntakeLicence,
   type AamvaLicence,
   type ApplicationCaptureView,
+  type PartOneScreen,
   type PartOneStatus,
 } from "@silvicom/shared";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -34,26 +36,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  */
 
 /**
- * ⚠ **The CDL's two photographs come FIRST** (Q-AW31, default built in C3b1). §6.2's table put them at
- * 8–9, after the typed licence screens, while the same table says those screens are "prefilled from
- * the barcode on screen 9" — which no order but this can do: a prefill that never overwrites typed
- * input (§6.6.4) has nothing left to fill once screens 3–5 are typed, and the date of birth, once
- * written, is fill-only for the applicant (0376 → `record_applicant_identity`), so a later "correction"
- * from the barcode would be dropped. Captures are open from the 7001(c) consent onward (AF3), so
- * photographing first needs nothing from the server. The medical card stays after the questions.
+ * The screens, in order. ⚠ Held in `@silvicom/shared` since C3d3a (`applicationScreens.ts`, with why the
+ * CDL's two photographs come first, Q-AW31), because the screen names the page reports are derived from
+ * it and the api checks them. Re-exported so nothing that walks Part 1 changed its import.
  */
-export const PART_ONE_SCREENS = [
-  "cdl_front",
-  "cdl_back",
-  "about",
-  "address",
-  "licence",
-  "otherLicences",
-  "screening",
-  "medical_card",
-  "rights",
-] as const;
-export type PartOneScreen = (typeof PART_ONE_SCREENS)[number];
+export { PART_ONE_SCREENS, type PartOneScreen };
 
 /** The screens whose answers wait for screen 7 on a link that has not begun (see the header). */
 export const HELD_UNTIL_SCREENING: readonly PartOneScreen[] = ["about", "address", "licence", "otherLicences"];

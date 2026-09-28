@@ -2086,10 +2086,10 @@
       "layer": "core",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 180,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "no rows yet (M1 is schema only). One row per screen an applicant enters, ~40 per completed application (AW14). The 180-day rule is declared here in the merge that adds it to RETENTION_RULES with the writer (C3)."
+        "why": "One row per screen visit on an applicant's link, written by recruiting/applicationScreenEvents.ts since C3d3a — ~40 per completed application (AW14), a visit reported open then closed is one row. 180 days, in RETENTION_RULES with its writer as 0376 promised."
       }
     }
   }

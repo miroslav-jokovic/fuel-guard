@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toRef } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import ApplicationFiledCard from "@/features/apply/ApplicationFiledCard.vue";
 import DraftUnlockGate from "@/features/apply/DraftUnlockGate.vue";
@@ -11,6 +12,8 @@ import ApplyWaitScreen from "@/features/apply/ApplyWaitScreen.vue";
 import SigningCeremony from "@/features/apply/signing/SigningCeremony.vue";
 import SignOffScreen from "@/features/apply/SignOffScreen.vue";
 import ApplyExpectations from "@/features/apply/ApplyExpectations.vue";
+import ApplyScreenMark from "@/features/apply/ApplyScreenMark.vue";
+import { provideScreenEvents } from "@/features/apply/useScreenEvents";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import type {
   ApplyEsignConsent,
@@ -59,8 +62,13 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * While any instrument is still draft wording the ceremony is skipped entirely and the instruments
  * are shown read-only on the last screen, as they were before A5 — the server refuses those
  * signatures (Q-H3), and a ceremony nobody can complete would be a wall across the application.
+ *
+ * ── AND EACH BRANCH SAYS WHICH SCREEN IT IS (AW14, C3d3a) ────────────────────────────────────
+ * An `ApplyScreenMark` first in every branch names it for the screen reports (`useScreenEvents.ts`),
+ * provided here because this is where the chain is. The name sits beside the condition it describes,
+ * so there is no second copy of the chain to drift from this one.
  */
-defineProps<{
+const props = defineProps<{
   token: string;
   invitation: ReturnType<typeof useApplyInvitationQuery>;
   submitted: boolean;
@@ -88,6 +96,7 @@ defineProps<{
   sendError: string | null;
 }>();
 const draft = defineModel<ApplicationDraft>("draft", { required: true });
+provideScreenEvents(toRef(props, "token"));
 const emit = defineEmits<{
   begin: [];
   agree: [];
@@ -112,17 +121,20 @@ const emit = defineEmits<{
   <!-- What happened, not what will (A1). The old copy promised signing that this page could not
        deliver — submitting killed the link the promise was made on — and D-APP4 moves the signing
        ahead of the certification, so there is no longer a later step to promise. -->
-  <ApplicationFiledCard
-    v-else-if="submitted"
-    :token="token"
-    :carrier="invitation.data.value?.carrier ?? ''"
-    :road-test-certificate="invitation.data.value?.roadTestCertificate ?? null"
-    :handbook="invitation.data.value?.handbook ?? null"
-  />
+  <template v-else-if="submitted">
+    <ApplyScreenMark name="filed" />
+    <ApplicationFiledCard
+      :token="token"
+      :carrier="invitation.data.value?.carrier ?? ''"
+      :road-test-certificate="invitation.data.value?.roadTestCertificate ?? null"
+      :handbook="invitation.data.value?.handbook ?? null"
+    />
+  </template>
 
   <!-- F4/D-AX11: handed over, and not yet approved. The driver has done everything they can do for
        the moment, and the screen says so rather than leaving them on a form with a spent button. -->
   <BaseCard v-else-if="awaitingReview">
+    <ApplyScreenMark name="wait.review" />
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.handoff.waitingHeading" :note="APPLY_COPY.handoff.waitingNote"
       :body="APPLY_COPY.handoff.waitingBody(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
@@ -132,6 +144,7 @@ const emit = defineEmits<{
        neither. `signFirst` covers both things signed before the form — the consent and the ceremony
        flip together, because both are gated on the same wording being published. -->
   <BaseCard v-else-if="expectationsNeeded">
+    <ApplyScreenMark name="expectations" />
     <ApplyExpectations
       :carrier="invitation.data.value?.carrier ?? ''"
       :sign-first="ceremonyAvailable || Boolean(esignConsent?.required)"
@@ -142,6 +155,7 @@ const emit = defineEmits<{
   <!-- A4/D-APP5: §390.32(d) requires proof of 15 U.S.C. 7001(c) consent behind an electronic
        §391.21 application, so this is the first thing on the link and nothing writes before it. -->
   <BaseCard v-else-if="consentNeeded && esignConsent">
+    <ApplyScreenMark name="consent" />
     <EsignConsentGate
       :consent="esignConsent"
       :carrier="invitation.data.value?.carrier ?? ''"
@@ -152,11 +166,13 @@ const emit = defineEmits<{
   </BaseCard>
 
   <BaseCard v-else-if="partOneNeeded && partOneInputs">
+    <ApplyScreenMark name="part1" />
     <PartOneFlow :token="token" :carrier="invitation.data.value?.carrier ?? ''" :inputs="partOneInputs"
       :refresh="refreshPartOne" @done="emit('partOneDone')" />
   </BaseCard>
 
   <BaseCard v-else-if="identityNeeded">
+    <ApplyScreenMark name="identity" />
     <IdentityFields :token="token" :carrier="invitation.data.value?.carrier ?? ''"
       :captures="invitation.data.value?.captures ?? []" @done="emit('identityRecorded')" />
   </BaseCard>
@@ -164,6 +180,7 @@ const emit = defineEmits<{
   <!-- A5/D-APP7: one instrument per screen, one act each. FCRA §604(b)(2) requires each
        disclosure to stand alone, so there is nothing else on screen while one is showing. -->
   <BaseCard v-else-if="ceremonyNeeded">
+    <ApplyScreenMark name="ceremony" />
     <SigningCeremony
       :token="token"
       :releases="releases"
@@ -176,6 +193,7 @@ const emit = defineEmits<{
 
   <!-- AF4 (plan §3.1 row 5): permissions in, form not sent. Before the unlock gate: nothing is shown. -->
   <BaseCard v-else-if="waitingForApplication">
+    <ApplyScreenMark name="wait.permissions" />
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.permissionsReceived.heading" :note="APPLY_COPY.permissionsReceived.note"
       :body="APPLY_COPY.permissionsReceived.body(invitation.data.value?.carrier ?? '')">
       <!-- §6.2 screen 20: a v2 link's "done" — and what the driver can do meanwhile. -->
@@ -186,23 +204,27 @@ const emit = defineEmits<{
   <!-- AF5 (plan §3.1 row 9): approved, and signing happens in the office. Before the unlock gate: it
        prints nothing of the application. -->
   <BaseCard v-else-if="awaitingOffice">
+    <ApplyScreenMark name="wait.office" />
     <ApplyWaitScreen :token="token" :carrier="invitation.data.value?.carrier ?? ''" :heading="APPLY_COPY.signInOffice.heading" :note="APPLY_COPY.signInOffice.note"
       :body="APPLY_COPY.signInOffice.body(invitation.data.value?.carrier ?? '')" />
   </BaseCard>
 
   <!-- A2/D-APP16: the draft holds a date of birth, so the bare link does not read it back. One
        question, asked only when there is something to protect. -->
-  <DraftUnlockGate
-    v-else-if="locked"
-    :token="token"
-    :carrier="invitation.data.value?.carrier ?? ''"
-    @unlocked="emit('unlocked', $event)"
-  />
+  <template v-else-if="locked">
+    <ApplyScreenMark name="unlock" />
+    <DraftUnlockGate
+      :token="token"
+      :carrier="invitation.data.value?.carrier ?? ''"
+      @unlocked="emit('unlocked', $event)"
+    />
+  </template>
 
   <!-- F4/D-AX12: approved, and waiting for the signature. ⚠ After the date-of-birth gate above, not
        before it: this screen prints the whole application, and D-APP16 exists because an application
        link is forwarded in email and read on a shared phone. -->
   <BaseCard v-else-if="awaitingSignature">
+    <ApplyScreenMark name="signoff" />
     <SignOffScreen
       v-model="draft"
       :token="token"

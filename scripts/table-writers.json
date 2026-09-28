@@ -539,5 +539,8 @@
   ],
   "sms_suppressions": [
     "apps/api/src/modules/recruiting/smsSuppressions.ts"
+  ],
+  "application_screen_events": [
+    "apps/api/src/modules/recruiting/applicationScreenEvents.ts"
   ]
 }

@@ -155,14 +155,30 @@ function refuse(tag: string, message: string) {
   };
 }
 
-/** Everything on the applicant's link EXCEPT the ceremony: unchanged in size, keyed by address. */
+/**
+ * The page reporting which screen it is on (AW14, C3d3a) — `POST /<token>/screen-events`.
+ *
+ * ⚠ **Out of the intake's 20 a minute, and that is the whole reason this bucket exists.** Autosave is
+ * built to use up to 12 of those 20 (`useApplicationDraft.ts`), and the rest are the page's own reads,
+ * the unlock and the send. A report per screen change inside the same bucket would turn a driver
+ * walking Part 1 quickly into a 429 on their answers — telemetry costing the thing it measures. So it
+ * has its own count, keyed by the LINK for the ceremony's reason: several applicants in one office
+ * share an address.
+ */
+export const SCREEN_EVENTS_LIMIT = 6;
+
+export function isScreenEventsReport(req: Request): boolean {
+  return req.method === "POST" && /^\/[^/]+\/screen-events\/?$/.test(req.path);
+}
+
+/** Everything on the applicant's link EXCEPT the ceremony and the screen reports: unchanged in size, keyed by address. */
 export function applicationIntakeLimiter(): RequestHandler {
   return rateLimit({
     windowMs: 60_000,
     limit: APPLICATION_INTAKE_LIMIT,
     standardHeaders: "draft-7",
     legacyHeaders: false,
-    skip: isCeremonyRequest,
+    skip: (req) => isCeremonyRequest(req) || isScreenEventsReport(req),
     handler: refuse("intake", "Too many requests from here just now. Wait a minute and try again."),
   });
 }
@@ -205,5 +221,23 @@ export function textLinkLimiter(): RequestHandler {
     standardHeaders: false,
     legacyHeaders: false,
     handler: refuse("text-link", "We have already texted this link a few times. Use the QR code, or try again in ten minutes."),
+  });
+}
+
+/**
+ * The screen reports' own budget. The page sends one a minute at most while something changed, plus
+ * one when the phone is put away and one when the page closes; six is that with room for a driver
+ * flicking the phone on and off. A seventh inside a minute is refused, and the page keeps the visits
+ * for its next report — nothing the driver typed rides on this request.
+ */
+export function screenEventsLimiter(): RequestHandler {
+  return rateLimit({
+    windowMs: 60_000,
+    limit: SCREEN_EVENTS_LIMIT,
+    keyGenerator: applicationLinkKey,
+    // The intake limiter owns the `RateLimit` headers on this prefix (see `packetCeremonyLimiter`).
+    standardHeaders: false,
+    legacyHeaders: false,
+    handler: refuse("screen-events", "Too many screen reports from this link just now."),
   });
 }
