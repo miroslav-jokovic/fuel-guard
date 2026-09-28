@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   HIRING_PHASE_LABELS,
+  canPurgeApplicant,
   canWriteDriverLifecycle,
   rolesThatManage,
   type HiringPhase,
@@ -32,6 +33,7 @@ import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
+import PurgeApplicantDrawer from "@/features/recruitment/PurgeApplicantDrawer.vue";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 
 /**
@@ -211,6 +213,14 @@ const canInvite = computed(() => {
 const inviting = ref(false);
 
 const archiving = ref<PipelineApplicant | null>(null);
+
+/**
+ * Q-AW40: an admin may delete an applicant outright — offered on the ARCHIVED view only. Archiving is
+ * the reversible step and deleting the irreversible one, so the second is reached through the first;
+ * the api refuses a purge of an un-archived applicant (`not_archived`), so the rule is one rule.
+ */
+const canPurge = computed(() => canPurgeApplicant(session.role));
+const purging = ref<PipelineApplicant | null>(null);
 const archiveDriver = useArchiveDriver();
 const toast = useToastStore();
 
@@ -393,13 +403,16 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         </template>
 
         <template #actions="{ row }">
-          <KebabMenu v-if="canHire || canInvite">
+          <KebabMenu v-if="canHire || canInvite || (canPurge && showArchived)">
             <BaseButton v-if="canHire && !showArchived" class="kebab-item" @click="hiring = row">Hire…</BaseButton>
             <BaseButton v-if="canInvite && !showArchived" class="kebab-item" @click="archiving = row">
               Archive…
             </BaseButton>
             <BaseButton v-if="canInvite && showArchived" class="kebab-item" @click="setArchived(row, false)">
               Restore
+            </BaseButton>
+            <BaseButton v-if="canPurge && showArchived" class="kebab-item kebab-item-danger" @click="purging = row">
+              Delete permanently…
             </BaseButton>
           </KebabMenu>
         </template>
@@ -416,6 +429,8 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
       @close="archiving = null"
       @confirm="archiving && setArchived(archiving, true)"
     />
+
+    <PurgeApplicantDrawer :applicant="purging" @close="purging = null" />
 
     <InviteApplicantDrawer
       :open="inviting"

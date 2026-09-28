@@ -140,6 +140,7 @@ export * from "./mvrJurisdictions.js";
 export * from "./roadTestContract.js";
 export * from "./handbookContract.js";
 export * from "./recruitingSettingsContract.js";
+export * from "./applicantPurgeContract.js";
 export * from "./recruitmentTemplatesContract.js";
 export * from "./psp/identity.js";
 export * from "./psp/order.js";

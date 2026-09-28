@@ -89,6 +89,23 @@ vi.mock("@/features/recruitment/useEmployment", async (importOriginal) => ({
   }),
 }));
 
+/**
+ * The caller's role, over the REAL session store: null (the default every test above was written
+ * against, so no kebab renders) unless a test sets it. Only `role` is replaced — the section and
+ * surface answers stay the store's own.
+ */
+const who = vi.hoisted(() => ({ role: null as string | null }));
+vi.mock("@/stores/session", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/stores/session")>();
+  return {
+    ...real,
+    useSessionStore: () =>
+      new Proxy(real.useSessionStore(), {
+        get: (target, key) => (key === "role" && who.role !== null ? who.role : Reflect.get(target, key)),
+      }),
+  };
+});
+
 vi.mock("@/composables/useDrivers", () => ({
   useArchiveDriver: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
@@ -133,6 +150,7 @@ const router = createRouter({
  */
 const mounted: Array<{ unmount: () => void }> = [];
 afterEach(() => {
+  who.role = null;
   while (mounted.length) mounted.pop()!.unmount();
   document.body.innerHTML = "";
 });
@@ -273,5 +291,42 @@ describe("the columns", () => {
   it("prints the fold's action, never a label written on this page", async () => {
     const wrapper = await mountBoard();
     expect(wrapper.text()).toContain("Order the driving record");
+  });
+});
+
+/**
+ * Q-AW40: "Delete permanently…" is an admin's, and only on the Archived view — archiving is the
+ * reversible step, deleting the irreversible one, and the api refuses a purge of an un-archived
+ * applicant. The fixture's rows are served for both views; what differs is the menu.
+ */
+describe("deleting an applicant permanently", () => {
+  const menuItems = async (wrapper: Awaited<ReturnType<typeof mountBoard>>) => {
+    await wrapper.find("tbody tr button[aria-label='Actions']").trigger("click");
+    return [...document.querySelectorAll<HTMLElement>(".kebab-item")].map((b) => b.textContent?.trim() ?? "");
+  };
+
+  it("is offered to an admin on the Archived view", async () => {
+    who.role = "admin";
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Show", /Archived/);
+    expect(await menuItems(wrapper)).toContain("Delete permanently…");
+  });
+
+  it("is not offered on the live board, even to an admin", async () => {
+    who.role = "admin";
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Waiting on", /Everyone/);
+    const items = await menuItems(wrapper);
+    expect(items).toContain("Archive…");
+    expect(items).not.toContain("Delete permanently…");
+  });
+
+  it("is not offered to a recruiter, who archives and restores but does not delete", async () => {
+    who.role = "recruiter";
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Show", /Archived/);
+    const items = await menuItems(wrapper);
+    expect(items).toContain("Restore");
+    expect(items).not.toContain("Delete permanently…");
   });
 });

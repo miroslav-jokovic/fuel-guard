@@ -1647,3 +1647,44 @@ Append dated lines at the END.
     Two showed my own two-step deletes were unneeded — RESTRICT is checked at the end of the statement — so both
     were removed along with their wrong comments. Two are no-ops: the audit read's `created_at` lower bound only
     bounds the index scan, and `for update` guards a race that a single PGlite connection cannot stage.
+- 2026-09-28 — **P1 merged** (#1110, main `796d530`); CI green on the merged head. **0380 verified applied** in production
+  ~8 minutes after the merge: highest migration 0380, `purge_applicant` executable by service_role only (not
+  authenticated, not anon), all six guards carry the purge branch.
+- 2026-09-28 — **P2 built** (`claude/purge-applicant-p2`): the reader of 0380 (Q-AW40). No migration.
+  - **The route:** `POST /api/recruitment/applicants/:driverId/purge`, in the recruiting module (`routes/purge.ts`,
+    `applicantPurge.ts`). Gates, in order: `canPurgeApplicant` (new in `@silvicom/shared`, `isAdmin` — the ruling,
+    derived rather than hand-listed), `requireFreshAuth` (the password again, as the member password reset does), then
+    the body's `confirm_name`. The service reads the driver org-scoped, refuses one that is **not archived**
+    (`not_archived`), checks the typed name (`purgeNameMatches`: case and runs of spaces forgiven, nothing else), then
+    calls 0380 and maps its refusals: PA010 → 409 `was_hired`, PA011 → 409 `has_records`, PA012 → 409 `linked`,
+    PA020 → 404, PA030 → 403, anything else → 500 "nothing was deleted".
+  - **Storage, after the commit:** each path 0380 returned is removed from its table's bucket — `documents` and
+    `signature_adoptions` from the evidence bucket, captures from theirs. A file that cannot be removed is named in
+    the answer and in the audit row. `drivers.photo_path` has no writer and no bucket anywhere in the product, so a
+    path found there is reported as not removed rather than guessed at (none exists in production).
+  - **The audit:** one `driver.purged` row — entity `drivers`, the id, `counts`, `storageRemoved`,
+    `storageNotRemoved`; never the name (a test asserts the row does not contain it). If that write fails after the
+    delete has committed, the answer says `audited: false` and the drawer says so; the database's own
+    `driver.delete` trigger row remains either way.
+  - **The screen:** the Recruitment board's **Archived** view gains "Delete permanently…" in the row menu, for an
+    admin only (`kebab-item-danger`). It opens `PurgeApplicantDrawer`: what is removed, that a hired person cannot be,
+    and a "Type their name to confirm" field; Delete stays disabled until the name matches. The password prompt
+    replaces the body and the same delete re-runs once it is given. A delete that left a file behind or wrote no
+    audit row is reported as "Deleted, with something left over", never as a clean success. Offering it only on the
+    Archived view is the api's `not_archived` rule, not a second one. `ArchiveDriverModal`'s comment, which said
+    there was no destructive version of archiving, now says where the one for applicants is.
+  - **Checks:** 24 mutants over the route, service, contract, drawer and page; 23 killed on the first pass. The
+    survivor was a redundant `!matches` guard inside the drawer's delete (the button is already disabled, and the
+    api checks again); removed rather than kept as a no-op.
+  - **Found by looking, not by a test: no danger menu item in the app was red.** `.kebab-item-danger` lives in
+    `@layer components`, and a menu item is an `AppButton` whose variant sets `text-ink-secondary` as a utility, which
+    outranks it — the loss `LiveMapControls.vue` already records for a brand tint. Measured in Chromium on this board:
+    "Delete permanently…" computed `oklch(0.478 0.016 286)`, the same ink as "Restore"; with `!text-danger-600` in
+    `packages/tokens/src/epilogue.css` it computes `oklch(0.589 0.240 27)`. One line, and it fixes the eight other
+    danger items too (Users, Anomalies, Annual inspections, Vehicles, Trailers, the inspector register, plan history).
+  - **Seen in a browser** (built, dev bypass, as admin, API stubbed): the Archived view's menu at 1280 and 390 px,
+    the drawer with Delete disabled until the name was typed (it stayed disabled for the wrong applicant's name), the
+    typed name sent as typed, and a `was_hired` refusal shown in 0380's sentence with the drawer left open. No page
+    errors. The hint under the field now carries the name alone; a placeholder repeating it was removed.
+  - **Next:** once merged, the owner deletes the two test applicants (drivers `16045e32` and `0c77fabb`, invitations
+    `d61557dc` and `f2b142e4`) from the Archived view; new test applicants go in a QA org.
