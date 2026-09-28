@@ -157,5 +157,12 @@ function toLoadContext(
     : never,
 ): LiveMapVehicle["load"] {
   if (!load) return null;
-  return { id: load.loadId, ref: load.ref, status: load.status, nextStop: load.nextStop };
+  return {
+    id: load.loadId,
+    ref: load.ref,
+    status: load.status,
+    source: load.source,
+    externalStatus: load.externalStatus,
+    nextStop: load.nextStop,
+  };
 }

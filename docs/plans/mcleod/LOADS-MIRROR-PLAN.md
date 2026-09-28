@@ -700,3 +700,27 @@ Append a dated line per merge. Never edit a status column.
   the analytics part does not grant one (it failed on the old file, naming exactly those five). The
   copy is a snapshot whose newest rows date from ~2026-09-10, so its night checks permissions and
   runtime, not freshness.
+- 2026-09-28 — **The live map and the Assignments board read McLeod loads correctly.** An audit of every
+  consumer in §3.3 found both still asking for the approval chain's statuses (`accepted`/`in_transit`,
+  plus `offered` on Assignments). A McLeod load never becomes `accepted`: the projection writes
+  `approved` for `P` with nothing departed. So a load McLeod had planned onto a truck would have been
+  on neither surface, contrary to D-MCC12 ("draw only `P`"). And the map's next stop read only the
+  driver app's stop statuses, which a McLeod load's stops never leave (`pending`), so it would have named
+  the pickup McLeod had departed as the next stop on every McLeod truck. Measured on live `lme` first
+  (96 `P`, 253 stops): McLeod's `stop.status` is `A`/`D`, every `D` has `actual_departure`, none out of
+  sequence; all 96 `P` had a stop departed, so today no load was hidden by the first gap, but every
+  truck would have shown the wrong next stop. **Built:** shared `isLoadOnTruck` / `isLoadWithDriver`
+  (McLeod: `approved` + `in_transit`; any other source: the old rule, since an office-approved manual
+  load was never released), `nextStopOnRoute` (a stop is behind the truck when the driver app finished
+  it OR McLeod departed it; the driver's own `nextStop` is deliberately left alone, that is Q-LMR2),
+  `mcleodStopDeparted` (now also the projection's own definition of in transit) and
+  `compareLoadsOnTruck`. That last one replaces row order where a truck or driver holds two loads: the
+  map's comment promised "the first row wins deterministically" over a read with no ORDER BY. No truck
+  held two on the live board, but McLeod can plan the next load early. The map and Assignments now
+  word statuses with `loadBoardState` ("Planned", "In transit", McLeod's code in the map's tooltip),
+  not the raw enum or "Approved". New contract fields are optional/defaulted because web and api
+  deploy separately. No migration. 21 mutants, each killed by name. **Still open, deliberately:** the
+  driver app lists `offered`/`accepted`/`in_transit`/… (`DRIVER_VISIBLE_STATUSES`, RLS 0087), so a
+  dispatched McLeod load not yet started (`approved`) would not show in the app, and its stops follow
+  the driver's own statuses. Both belong to the app channel ("later", §6a) and Q-LMR2, and change
+  nothing today: dispatch is SMS-only and no load has been dispatched.

@@ -79,7 +79,18 @@ export interface LiveMapLoad {
   /** The carrier's own reference, which is what a dispatcher says out loud. */
   ref: string | null;
   status: string;
-  /** The earliest stop still to be worked. Null when every stop is done or none was recorded. */
+  /**
+   * Where the load came from (`tms` = McLeod) and McLeod's own movement code, so the map words the
+   * status with `loadBoardState`, exactly as the Loads board does. Optional because the web and api
+   * services deploy separately: a map served against an api from before 2026-09-28 gets neither, and
+   * still has a word for the status.
+   */
+  source?: string | null;
+  externalStatus?: string | null;
+  /**
+   * The first stop not behind the truck (`nextStopOnRoute`): neither finished in the driver app nor
+   * departed in McLeod. Null when every stop is behind it or none was recorded.
+   */
   nextStop: LiveMapStop | null;
 }
 
@@ -101,7 +112,10 @@ export interface LiveMapVehicle {
    * than an hour apart on the two (2026-09-17).
    */
   fuel: LiveMapFuel | null;
-  /** Null for every truck until LM12 turns the loads feed on. That is normal, not an error. */
+  /**
+   * The load this truck is hauling now (`isLoadOnTruck`: for McLeod, movement `P`, D-MCC12), or null.
+   * Null on every truck until the Board VM's first sync, which is normal, not an error.
+   */
   load: LiveMapLoad | null;
 }
 

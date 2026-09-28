@@ -255,15 +255,61 @@ describe("the live map board", () => {
   // query with every row. So the assertions above prove the board's ASSEMBLY and prove nothing about
   // its WHERE clauses; dropping the status filter entirely would leave all of them green. These two
   // read the recorded filters directly, which is the only way to pin a predicate with this fake.
-  it("asks `loads` only for statuses that mean the load is on a truck now", async () => {
-    const rec = recorder({ loads: [{ id: "l", vehicle_id: "veh-1", ref: null, status: "in_transit" }] });
-    await board(rec);
-    const q = rec.forTable("loads")[0]!;
-    const statuses = q.ops.find((o) => o.method === "in" && o.args[0] === "status")?.args[1];
-    expect(statuses).toEqual(["accepted", "in_transit"]);
-    // A draft or offered load is not what a truck is doing, and delivered/canceled are finished.
-    expect(statuses).not.toContain("draft");
-    expect(statuses).not.toContain("delivered");
+  it("asks `loads` for the statuses some source can mean 'on a truck', and nothing finished or unsent", () => {
+    // Pinned against the recorded filter, since the recorder applies none. The per-source rule itself
+    // is applied in TypeScript after the read (`isLoadOnTruck`), and the next tests prove THAT.
+    const rec = recorder({ loads: [{ id: "l", vehicle_id: "veh-1", ref: null, status: "in_transit", source: "tms" }] });
+    return board(rec).then(() => {
+      const q = rec.forTable("loads")[0]!;
+      const statuses = q.ops.find((o) => o.method === "in" && o.args[0] === "status")?.args[1] as string[];
+      expect([...statuses].sort()).toEqual(["accepted", "approved", "in_transit"]);
+      expect(statuses).not.toContain("pending_approval");
+      expect(statuses).not.toContain("delivered");
+    });
+  });
+
+  // ── 2026-09-28: McLeod loads on the map (D-MCC12, "draw only P") ──────────────────────────────────
+  // Before this, the map drew `accepted`/`in_transit` only. A McLeod load never becomes `accepted`, so a
+  // truck McLeod had planned a load onto, with nothing departed yet (`approved`), showed no load.
+  describe("which loads a truck carries", () => {
+    const truckLoad = (o: Record<string, unknown>) => ({ id: "load-1", vehicle_id: "veh-1", ref: "0001", source: "tms", external_status: "P", ...o });
+
+    it("draws a McLeod load McLeod has planned but not started", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "approved" })] }));
+      expect(b.vehicles[0]!.load).toMatchObject({ id: "load-1", status: "approved", source: "tms", externalStatus: "P" });
+    });
+
+    it("does not draw an office-approved load that did not come from McLeod: nobody released it to a driver", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "approved", source: "manual", external_status: null })] }));
+      expect(b.vehicles[0]!.load).toBeNull();
+    });
+
+    it("never draws McLeod's A, even with a truck on it", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "pending_approval", external_status: "A" })] }));
+      expect(b.vehicles[0]!.load).toBeNull();
+    });
+
+    it("shows the load under way when a truck holds two, whichever order the rows arrive in", async () => {
+      const current = truckLoad({ id: "load-now", ref: "0009", status: "in_transit" });
+      const next = truckLoad({ id: "load-next", ref: "0001", status: "approved" });
+      for (const loads of [[current, next], [next, current]]) {
+        const b = await board(recorder({ loads }));
+        expect(b.vehicles[0]!.load!.id).toBe("load-now");
+      }
+    });
+
+    it("names as next stop the first one McLeod has not departed, not the pickup it left", async () => {
+      const stopRow = (seq: number, external_status: string, name: string) => ({
+        load_id: "load-1", seq, kind: seq === 1 ? "pickup" : "dropoff", name, city: null, state: null,
+        appointment_start: null, appointment_end: null, status: "pending", external_status,
+      });
+      const b = await board(recorder({
+        loads: [truckLoad({ status: "in_transit" })],
+        // Out of sequence on purpose: the answer must come from `seq`, not from row order.
+        stops: [stopRow(3, "A", "Final"), stopRow(1, "D", "Shipper"), stopRow(2, "A", "Consignee")],
+      }));
+      expect(b.vehicles[0]!.load!.nextStop).toMatchObject({ seq: 2, name: "Consignee" });
+    });
   });
 
   it("asks `drivers` only for the ids its own vehicles named", async () => {

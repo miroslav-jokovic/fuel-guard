@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssignmentRow } from "@silvicom/shared";
+import { WITH_DRIVER_CANDIDATE_STATUSES, compareLoadsOnTruck, isLoadWithDriver, type AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
@@ -199,9 +199,10 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
       .is("ended_at", null),
     admin
       .from("loads")
-      .select("id, ref, status, driver_id")
+      .select("id, ref, status, source, external_status, driver_id")
       .eq("org_id", orgId)
-      .in("status", ["offered", "accepted", "in_transit"]),
+      // The widest set any source can mean; `isLoadWithDriver` then applies each load's own rule.
+      .in("status", [...WITH_DRIVER_CANDIDATE_STATUSES]),
     admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
     admin
       .from("trailers")
@@ -216,15 +217,16 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
     sessionByDriver.set(s.driver_id, { id: s.id, started_at: s.started_at });
   }
 
-  const loadByDriver = new Map<string, { id: string; ref: string; status: string }>();
-  for (const l of (loadsRes.data ?? []) as unknown as { id: string; ref: string; status: string; driver_id: string | null }[]) {
-    if (!l.driver_id) continue;
-    // in_transit outranks accepted outranks offered — show what they are actually doing.
-    const held = loadByDriver.get(l.driver_id);
-    const rank = (s: string) => (s === "in_transit" ? 3 : s === "accepted" ? 2 : 1);
-    if (!held || rank(l.status) > rank(held.status)) {
-      loadByDriver.set(l.driver_id, { id: l.id, ref: l.ref, status: l.status });
-    }
+  // One load per driver: `isLoadWithDriver` decides which count (a McLeod `P` is one, D-MCC12) and
+  // `compareLoadsOnTruck` which wins when a driver holds two — under way first, then the smaller
+  // reference — so the row does not depend on the order PostgREST happened to return.
+  type HeldLoad = { id: string; ref: string; status: string; source: string | null; external_status: string | null };
+  const loadByDriver = new Map<string, HeldLoad>();
+  const held = ((loadsRes.data ?? []) as unknown as (HeldLoad & { driver_id: string | null })[])
+    .filter(isLoadWithDriver)
+    .sort(compareLoadsOnTruck);
+  for (const l of held) {
+    if (l.driver_id && !loadByDriver.has(l.driver_id)) loadByDriver.set(l.driver_id, l);
   }
 
   // drivers.current_hos_vehicle stores the truck's UNIT NAME (Samsara display name) → resolve to our
@@ -266,6 +268,8 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
       load_id: load?.id ?? null,
       load_ref: load?.ref ?? null,
       load_status: load?.status ?? null,
+      load_source: load?.source ?? null,
+      load_external_status: load?.external_status ?? null,
     };
   });
 }

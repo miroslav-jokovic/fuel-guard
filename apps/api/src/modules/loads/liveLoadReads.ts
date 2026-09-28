@@ -1,25 +1,17 @@
 /**
  * The loads module's read interface for "what is this truck hauling right now" (LM6, D-ARC3).
  *
- * ⚠ THIS RETURNS NOTHING IN PRODUCTION TODAY, AND THAT IS THE DOCUMENTED NORMAL STATE. `loads` has
- * **0 rows** (measured 2026-09-15); the TMS feed that fills it is LM12. The live map ships before it,
- * showing where the fleet is before it can show what each truck is carrying, because the first is
- * useful on its own. A reader that returns an empty map is therefore CORRECT here, not broken — the
- * board renders every truck with `load: null` and says nothing about it.
+ * Which loads count, and which stop is next, are not decided here: `isLoadOnTruck` and
+ * `nextStopOnRoute` (shared `loadBoard.ts`) decide both, so the map and the Assignments board cannot
+ * disagree. Since 2026-09-28 that means a McLeod load is drawn when McLeod has it `P` (D-MCC12), and
+ * its next stop is the first one McLeod has not departed (and the driver app has not finished).
  *
- * The same shape is what lights up the moment LM12 lands, with no change on the map's side.
+ * An empty result is still a normal state, not an error: before the Board VM's first sync, production
+ * `loads` holds only the old feed's rows, every one `pending_approval`, so no truck carries a load.
+ * The board renders each with `load: null` and says nothing about it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-/**
- * Statuses that mean "this load is on a truck now".
- *
- * `draft`, `pending_approval`, `approved` and `offered` are all pre-dispatch — a load a driver has
- * not taken is not what their truck is doing. `delivered` and `canceled` are finished. That leaves
- * the two states in which a load is genuinely riding: accepted (assigned, not yet rolling) and
- * in_transit. Read off `LOAD_STATUSES` in `loadsContract.ts` rather than invented.
- */
-export const LIVE_LOAD_STATUSES = ["accepted", "in_transit"] as const;
+import { ON_TRUCK_CANDIDATE_STATUSES, compareLoadsOnTruck, isLoadOnTruck, nextStopOnRoute } from "@silvicom/shared";
 
 /** A stop still to be worked, in the shape the board hands to the map. */
 export interface LiveLoadStop {
@@ -37,6 +29,10 @@ export interface LiveLoadContext {
   loadId: string;
   ref: string | null;
   status: string;
+  /** Where the load came from (`tms` = McLeod), so the map can word the status the way the board does. */
+  source: string | null;
+  /** McLeod's own movement code, for the same tooltip the Loads board shows. */
+  externalStatus: string | null;
   nextStop: LiveLoadStop | null;
 }
 
@@ -44,7 +40,14 @@ const PAGE_CAP = 1000;
 /** Stops a stop-lookup will not go past. A load with more than this has a data problem, not a route. */
 const STOP_CAP = 1000;
 
-type LoadRow = { id: string; vehicle_id: string | null; ref: string | null; status: string };
+type LoadRow = {
+  id: string;
+  vehicle_id: string | null;
+  ref: string | null;
+  status: string;
+  source: string | null;
+  external_status: string | null;
+};
 type StopRow = {
   load_id: string;
   seq: number | null;
@@ -55,10 +58,8 @@ type StopRow = {
   appointment_start: string | null;
   appointment_end: string | null;
   status: string | null;
+  external_status: string | null;
 };
-
-/** Stops already behind the truck. The next stop is the first one that is neither of these. */
-const DONE_STOP_STATUSES = new Set(["completed", "skipped"]);
 
 /**
  * The live load for each vehicle that has one, keyed by vehicle id.
@@ -66,11 +67,11 @@ const DONE_STOP_STATUSES = new Set(["completed", "skipped"]);
  * Org-scoped on both reads — `admin` is the service role and bypasses RLS, so these filters are the
  * only tenant boundary the read has.
  *
- * A vehicle carrying two live loads at once is a dispatch data problem rather than something to
- * represent: the map draws ONE marker per truck and can show one load on it. The newest by `seq`
- * ordering would be arbitrary, so the FIRST row wins deterministically and the rest are ignored —
- * documented here because "why is truck 412 showing the wrong load" needs an answer that is not "it
- * depends".
+ * A vehicle carrying two live loads at once gets ONE on the map, chosen by `compareLoadsOnTruck`
+ * (the one under way, then the smaller reference), never by row order: this read has no ORDER BY and
+ * PostgREST promises none. Until 2026-09-28 this said "the FIRST row wins deterministically", which
+ * row order does not deliver; it is written down because "why is truck 412 showing the wrong load"
+ * needs an answer that is not "it depends".
  */
 export async function readLiveLoadContext(
   admin: SupabaseClient,
@@ -78,18 +79,20 @@ export async function readLiveLoadContext(
 ): Promise<{ byVehicleId: Map<string, LiveLoadContext>; truncated: boolean }> {
   const { data: lData, error: lErr } = await admin
     .from("loads")
-    .select("id, vehicle_id, ref, status")
+    .select("id, vehicle_id, ref, status, source, external_status")
     .eq("org_id", orgId)
-    .in("status", [...LIVE_LOAD_STATUSES])
+    // The widest set any source can mean; `isLoadOnTruck` then applies each load's own rule.
+    .in("status", [...ON_TRUCK_CANDIDATE_STATUSES])
     .not("vehicle_id", "is", null)
     .limit(PAGE_CAP);
   if (lErr) throw new Error(lErr.message);
-  const loads = (lData ?? []) as unknown as LoadRow[];
-  if (loads.length === 0) return { byVehicleId: new Map(), truncated: false };
+  const fetched = (lData ?? []) as unknown as LoadRow[];
+  const loads = fetched.filter(isLoadOnTruck).sort(compareLoadsOnTruck);
+  if (loads.length === 0) return { byVehicleId: new Map(), truncated: fetched.length >= PAGE_CAP };
 
   const { data: sData, error: sErr } = await admin
     .from("load_stops")
-    .select("load_id, seq, kind, name, city, state, appointment_start, appointment_end, status")
+    .select("load_id, seq, kind, name, city, state, appointment_start, appointment_end, status, external_status")
     .eq("org_id", orgId)
     .in(
       "load_id",
@@ -99,11 +102,17 @@ export async function readLiveLoadContext(
     .limit(STOP_CAP);
   if (sErr) throw new Error(sErr.message);
 
-  const nextByLoad = new Map<string, LiveLoadStop>();
+  const stopsByLoad = new Map<string, StopRow[]>();
   for (const s of (sData ?? []) as unknown as StopRow[]) {
-    if (DONE_STOP_STATUSES.has(s.status ?? "")) continue;
-    if (nextByLoad.has(s.load_id)) continue; // ordered by seq, so the first survivor is the next stop
-    nextByLoad.set(s.load_id, {
+    const list = stopsByLoad.get(s.load_id);
+    if (list) list.push(s);
+    else stopsByLoad.set(s.load_id, [s]);
+  }
+  const nextByLoad = new Map<string, LiveLoadStop>();
+  for (const [loadId, stops] of stopsByLoad) {
+    const s = nextStopOnRoute(stops);
+    if (!s) continue;
+    nextByLoad.set(loadId, {
       seq: s.seq,
       kind: s.kind,
       name: s.name,
@@ -122,8 +131,10 @@ export async function readLiveLoadContext(
       loadId: l.id,
       ref: l.ref,
       status: l.status,
+      source: l.source,
+      externalStatus: l.external_status,
       nextStop: nextByLoad.get(l.id) ?? null,
     });
   }
-  return { byVehicleId, truncated: loads.length >= PAGE_CAP };
+  return { byVehicleId, truncated: fetched.length >= PAGE_CAP };
 }
