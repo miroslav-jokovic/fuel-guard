@@ -137,7 +137,9 @@ async function sign(): Promise<void> {
       <p class="text-sm text-ink">{{ current.release.intent }}</p>
     </template>
     <details v-else class="text-sm text-ink-secondary">
-      <summary class="cursor-pointer text-ink">{{ copy.readAsText }}</summary>
+      <!-- py-3 around the 20 px line makes the 44 px target (§6.8, C3d3b2); padding, not flex, which
+           would drop the disclosure triangle. -->
+      <summary class="cursor-pointer py-3 text-ink">{{ copy.readAsText }}</summary>
       <p class="mt-2 whitespace-pre-line">{{ current.release.body }}</p>
       <p class="mt-2 text-ink">{{ current.release.intent }}</p>
     </details>
@@ -155,9 +157,9 @@ async function sign(): Promise<void> {
 </template>
 
 <style scoped>
-/* The tag sits over the box's ruled line, like DocuSign's: bottom-left of the box, never over the
-   text above it. */
+/* The tag sits on the box, like DocuSign's: its top-left at the box's, never over the text above it
+   (the slot hangs it from the box's top — see `PermissionDocumentView`). */
 .sign-here-tag {
-  margin-bottom: 0.15rem;
+  margin-top: 0.15rem;
 }
 </style>

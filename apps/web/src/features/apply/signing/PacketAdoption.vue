@@ -430,7 +430,8 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       {{ copy.initialsFailed }}
     </p>
 
-    <div class="flex justify-end gap-2">
+    <!-- Wraps: at 320 px the two did not fit on one line and "Change" was pushed off the card (C3d3b2). -->
+    <div class="flex flex-wrap justify-end gap-2">
       <BaseButton variant="secondary" @click="ceremony.reopen">{{ copy.confirmChange }}</BaseButton>
       <BaseButton variant="primary" @click="ceremony.confirm">{{ copy.confirmAction }}</BaseButton>
     </div>

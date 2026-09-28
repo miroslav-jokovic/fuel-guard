@@ -1,4 +1,5 @@
 import type { Page, Request, Route } from "@playwright/test";
+import { driverPlacements, PERMISSION_SIGNATURE_DESTINATION } from "@silvicom/shared";
 
 /**
  * A fake of the applicant's public API, for the browser specs (C3d3b1).
@@ -50,6 +51,8 @@ export interface StubState {
   /** Bytes each CUT upload carried, in order — what a resend must match. */
   cutBodies: Buffer[];
   cutPatterns: RegExp[];
+  /** Requests this fake had no answer for — a spec asserts it is empty, so a walk never passes on a 501. */
+  unstubbed: string[];
 }
 
 export interface Stub {
@@ -113,6 +116,81 @@ export function partTwoLink(payload: Json, revision: number): Json {
   };
 }
 
+/**
+ * A Letter-sized PDF of `pages` pages, each saying its number — the permissions, the packet and the
+ * handbook the page renders with pdfjs.
+ *
+ * Written by hand rather than with a PDF library, because the web app has none and pdfjs needs very
+ * little. `signHere` names the permission's signature box as the api's renderer does (AF6): the box's
+ * top-left as an XYZ point in the catalogue's `/Dests`, which `signatureBox.ts` turns into the **Sign
+ * here** tag's place and SIZE. The size is the point — the tag is as big as the box the renderer drew,
+ * scaled to the phone, so a spec that measures it needs the real proportions: `PERMISSION_SIGNATURE_BOX`
+ * over a 612-point page, as the renderer's is.
+ */
+function letterPdf(pages: number, signHere = false): Buffer {
+  // 1 catalogue, 2 page tree, 3 font, then a page and its content stream per page.
+  const pageRef = (i: number) => `${4 + i * 2} 0 R`;
+  const dests = signHere ? ` /Dests << /${PERMISSION_SIGNATURE_DESTINATION} [${pageRef(0)} /XYZ 72 200 0] >>` : "";
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R${dests} >>`,
+    `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => pageRef(i)).join(" ")}] /Count ${pages} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  for (let i = 0; i < pages; i += 1) {
+    const text = `BT /F1 12 Tf 72 700 Td (Page ${i + 1}) Tj ET`;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`,
+      `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    );
+  }
+  let pdf = "%PDF-1.4\n";
+  const offsets = objects.map((body, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const at of offsets) pdf += `${String(at).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, "latin1");
+}
+
+const pdf = (route: Route, body: Buffer) => route.fulfill({ status: 200, contentType: "application/pdf", body });
+
+/** The carrier's packet is 31 pages (`packetPlacements.ts`); every served stop names one of them. */
+const PACKET_PAGES = 31;
+
+/**
+ * A v2 link at its second visit: Part 1 done, permissions signed, the form sent and the draft unlocked
+ * (no date of birth in it, so no gate). `phases` is laid over that — approved, filed — and so is the
+ * rest of `over`: a locked draft, the packet's stops, the handbook.
+ */
+export function partTwoV2Link(over: Json = {}): Json {
+  const { phases, ...rest } = over;
+  return {
+    ...partOneLink(),
+    releasesSigned: RELEASES.map((r) => r.purpose),
+    phases: { ...PHASES_NONE, consentedAt: NOW, releasesCompletedAt: NOW, applicationSentAt: NOW, ...(phases as Json | undefined) },
+    draft: { locked: false, payload: { first_name: "Susan", last_name: "Godfrey" }, furthestSection: "identity", updatedAt: NOW, revision: 1 },
+    partOne: {
+      completedAt: NOW, contact: true, address: true, licences: true, screening: true, medicalCardPending: false, rights: true,
+    },
+    identityComplete: true,
+    fcraSummary: null,
+    ...rest,
+  };
+}
+
+/** The packet's driver stops as the server serves them — nothing signed yet. */
+export const packetStops = (): Json[] => driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
+
+/** The handbook as a filed link sees it once the office has opened it, with a signature to borrow. */
+export const openHandbook = (): Json => ({
+  canOpen: true, openedAt: NOW, driverSigned: [], driverComplete: false, filedAt: null,
+  adoption: null, version: "e2e",
+});
+
 const json = (route: Route, status: number, body: unknown) =>
   route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
@@ -136,6 +214,7 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
     uploads: new Map(),
     cutBodies: [],
     cutPatterns: [],
+    unstubbed: [],
   };
   const origin = ORIGIN;
   let seq = 0;
@@ -199,11 +278,45 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
       ];
       return json(route, 200, { slot: b.slot, capturedAt: new Date().toISOString() });
     }
+    if (method === "POST" && rest === "/consent") {
+      state.bundle = { ...state.bundle, phases: { ...(state.bundle.phases as Json), consentedAt: NOW } };
+      return json(route, 201, { ok: true });
+    }
+    if (method === "POST" && rest === "/intake/complete") {
+      state.bundle = { ...state.bundle, partOne: { ...(state.bundle.partOne as Json), completedAt: NOW } };
+      return json(route, 200, { ok: true });
+    }
+    if (method === "POST" && rest === "/release") {
+      const b = body as { purpose: string };
+      const signed = [...(state.bundle.releasesSigned as string[]), b.purpose];
+      state.bundle = { ...state.bundle, releasesSigned: signed };
+      return json(route, 201, { signedCount: signed.length, completed: signed.length === RELEASES.length });
+    }
+    const permission = /^\/permission\/([a-z_]+)\.pdf$/.exec(rest);
+    if (method === "GET" && permission) {
+      return pdf(route, letterPdf(1, true));
+    }
+    // The packet and the handbook: pages to draw and places to sign. Their marks are not remembered —
+    // no spec walks either past its first place.
+    if (method === "GET" && rest === "/packet") return pdf(route, letterPdf(PACKET_PAGES));
+    if (method === "GET" && rest === "/handbook.pdf") return pdf(route, letterPdf(3));
+    if (method === "POST" && rest === "/mark") return json(route, 201, { signedCount: 1, complete: false });
+    if (method === "POST" && rest === "/handbook/mark") return json(route, 201, { ok: true });
+    if (method === "POST" && rest === "/unlock") {
+      return json(route, 200, { draft: { ...(state.bundle.draft as Json), locked: false, payload: state.draft.payload ?? {}, revision: state.draft.revision } });
+    }
+    if (method === "GET" && rest === "/sms-consent") {
+      return json(route, 200, {
+        document: { version: "v1", title: "Text messages", citation: "c", body: "b", intent: "I agree to receive texts." },
+        status: { offered: true, state: "none", phoneLast4: null },
+      });
+    }
     if (method === "POST" && rest === "/intake") return json(route, 201, { ok: true, keptExisting: [] });
     if (method === "POST" && rest === "/intake/licences") return json(route, 201, { ok: true, keptExisting: [], licenceCount: 1 });
     if (method === "POST" && rest === "/identity") return json(route, 201, { ok: true, keptExisting: [] });
     if (method === "POST" && rest === "/screen-events") return json(route, 200, { ok: true, inserted: 0, closed: 0 });
     // Anything else the page asks for is a route this fake does not know — say so in the failure.
+    state.unstubbed.push(`${method} ${rest}`);
     return json(route, 501, { error: { code: "not_stubbed", message: `e2e stub: ${method} ${rest}` } });
   });
 

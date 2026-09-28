@@ -134,10 +134,12 @@ async function turnOff(): Promise<void> {
         <p class="whitespace-pre-line rounded-surface bg-surface-muted p-3 text-xs leading-relaxed text-ink-secondary">
           {{ card.document.body }}
         </p>
+        <!-- Two links on a line of their own, not inside a sentence, so WCAG 2.5.8's inline exemption does
+             not cover them: each is a 44 px box (§6.8; 16 px tall before C3d3b2). -->
         <p class="text-xs text-ink-muted">
-          <a :href="SMS_TERMS_PATH" target="_blank" rel="noopener" class="text-link hover:text-link-hover">{{ copy.terms }}</a>
+          <a :href="SMS_TERMS_PATH" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center text-link hover:text-link-hover">{{ copy.terms }}</a>
           <span aria-hidden="true"> · </span>
-          <a :href="SMS_PRIVACY_PATH" target="_blank" rel="noopener" class="text-link hover:text-link-hover">{{ copy.privacy }}</a>
+          <a :href="SMS_PRIVACY_PATH" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center text-link hover:text-link-hover">{{ copy.privacy }}</a>
         </p>
       </div>
 

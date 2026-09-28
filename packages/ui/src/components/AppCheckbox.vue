@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { useTouchTargets } from "../touchTargets";
+
 /**
  * The checkbox (D-DS). Its ROOT IS A BLOCK-LEVEL FLEX, which is the whole point of this comment.
  *
@@ -36,18 +39,20 @@
  * as `AppButton`'s and `AppRadioGroup`'s `touch` do — by padding, so the 2px alignment above still
  * holds and a one-line label sits in the middle of the row. Added 2026-09-27
  * (C3c2b) for the application's job panel, where "I drove a commercial vehicle" sits among 44px
- * Yes/No rows.
+ * Yes/No rows. Inside a thumb-pressed layout (`touchTargets.ts`) every checkbox is `touch`, asked or not.
  */
 defineOptions({ inheritAttrs: false });
-withDefaults(
+const props = withDefaults(
   defineProps<{ modelValue?: boolean; label?: string; disabled?: boolean; size?: "default" | "touch" }>(),
   { modelValue: false, label: undefined, disabled: false, size: "default" },
 );
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
+const touchTargets = useTouchTargets();
+const touch = computed(() => touchTargets || props.size === "touch");
 </script>
 
 <template>
-  <label class="flex items-start gap-2 text-sm text-ink-secondary" :class="size === 'touch' ? 'min-h-11 py-3' : 'min-h-9'">
+  <label class="flex items-start gap-2 text-sm text-ink-secondary" :class="touch ? 'min-h-11 py-3' : 'min-h-9'">
     <input
       v-bind="$attrs"
       type="checkbox"
