@@ -223,6 +223,18 @@ export function saveState(path, state) {
 }
 
 /**
+ * Record what the roster sweep sent — never under a dry run. The state file is the list of rows the
+ * NEXT sweep will treat as already sent, so a dry run that saved it (as `--roster --dry-run` did until
+ * 2026-09-28) told the real sweep sharing that file that changes it had only printed were delivered, and
+ * the real sweep skipped them for good. Returns whether it wrote.
+ */
+export function persistRosterState(path, state, { dryRun, save = saveState }) {
+  if (dryRun) return false;
+  save(path, state);
+  return true;
+}
+
+/**
  * Connect, read the three tables, map them. `mssql` is required lazily so that mock mode and the ws
  * path keep working on a box where the driver was never installed.
  */

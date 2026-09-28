@@ -57,3 +57,17 @@ test("no rows prints the header alone", () => {
     "\n### stops — 0 row(s) would be sent",
   ]);
 });
+
+import { persistRosterState } from "./roster.mjs";
+
+// A dry run must leave no trace the real sweep reads. `--roster --dry-run` used to save the roster
+// state, so a real sweep sharing that file treated the changes the dry run only PRINTED as delivered
+// and never sent them (found 2026-09-28, before any harm: that run had used its own copy's file).
+test("a roster dry run records nothing; a real sweep records what it sent", () => {
+  const writes = [];
+  const save = (path, state) => writes.push({ path, state });
+  assert.equal(persistRosterState("roster-state.json", { drivers: { A: "h" } }, { dryRun: true, save }), false);
+  assert.deepEqual(writes, []);
+  assert.equal(persistRosterState("roster-state.json", { drivers: { A: "h" } }, { dryRun: false, save }), true);
+  assert.deepEqual(writes, [{ path: "roster-state.json", state: { drivers: { A: "h" } } }]);
+});
