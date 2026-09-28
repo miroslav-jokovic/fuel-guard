@@ -111,7 +111,8 @@ async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<stri
       org_id: orgId,
       load_id: loadId,
       ...s,
-      // McLeod knows no carrier photo policy; dispatch sets the slots. The ingest's defaults, unchanged.
+      // McLeod knows no carrier photo policy, and nothing in the office sets it on a McLeod load since LR6
+      // removed editing, so every sync writes the ingest's defaults on the stops it (re)writes.
       required_photos: s.kind === "pickup" ? ["trailer", "bol"] : ["bol"],
     })),
   );

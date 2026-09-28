@@ -17,6 +17,7 @@ import {
   type EventRow,
 } from "./tmsLoadIngestWriters.js";
 import { knownDispatcherIds } from "./tmsDispatcherIngest.js";
+import { fetchAllPaged } from "../../lib/paging.js";
 import {
   AMENDABLE_LOAD_FIELDS,
   tmsMayOverwrite,
@@ -83,26 +84,40 @@ export interface LoadIngestResult {
   results: TmsLoadResult[];
 }
 
+// ── A FAILED READ IS AN ERROR, NEVER AN EMPTY ROSTER (production-readiness audit, 2026-09-28) ─────
+// These read without checking `error`, so a transient database failure produced EMPTY resolvers: every
+// McLeod code then resolved to null, and the mirror projection, which always writes the three ids,
+// unassigned the driver, truck and trailer of every load in the batch. The connector only resends a
+// movement when McLeod changes it, so the damage stayed until each load happened to change. A read
+// failure now throws, the request answers 500, the connector keeps the batch unsent and retries it.
+// The same reads were also capped at PostgREST's 1,000 rows without saying so; `fetchAllPaged` pages
+// past it, in a stable order, so a roster that grows past 1,000 does not start resolving to null.
+
 async function lookup(
   admin: SupabaseClient,
   table: "vehicles" | "trailers",
   orgId: string,
 ): Promise<KeyResolver> {
-  const { data } = await admin.from(table).select("id, unit_number").eq("org_id", orgId);
+  const rows = await fetchAllPaged<UnitRow>((from, to) =>
+    admin.from(table).select("id, unit_number").eq("org_id", orgId).order("id").range(from, to),
+  ).catch((e: Error) => {
+    throw new Error(`[mcleod] ${table} could not be read to resolve McLeod codes: ${e.message}`);
+  });
   // Trailers normalise the reefer prefix McLeod does not use (D-FG8) — a raw compare drops ~44 of
   // this carrier's trailers, and a load with no trailer is a load with no reefer context.
-  return unitResolver((data ?? []) as UnitRow[], table);
+  return unitResolver(rows, table);
 }
 
 async function driverLookup(admin: SupabaseClient, orgId: string): Promise<KeyResolver> {
-  const { data } = await admin
-    .from("drivers")
-    .select("id, employee_id, mcleod_driver_id")
-    .eq("org_id", orgId);
+  const rows = await fetchAllPaged<DriverKeyRow>((from, to) =>
+    admin.from("drivers").select("id, employee_id, mcleod_driver_id").eq("org_id", orgId).order("id").range(from, to),
+  ).catch((e: Error) => {
+    throw new Error(`[mcleod] drivers could not be read to resolve McLeod codes: ${e.message}`);
+  });
   // `mcleod_driver_id` is the key that actually exists. `employee_id` is populated on 0 of 271
   // production rows, so before D-FG7 every McLeod load resolved to a null driver and said so only in
   // an unmatched list nobody was reading.
-  return driverResolver((data ?? []) as DriverKeyRow[]);
+  return driverResolver(rows);
 }
 
 /**

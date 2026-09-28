@@ -724,3 +724,36 @@ Append a dated line per merge. Never edit a status column.
   dispatched McLeod load not yet started (`approved`) would not show in the app, and its stops follow
   the driver's own statuses. Both belong to the app channel ("later", §6a) and Q-LMR2, and change
   nothing today: dispatch is SMS-only and no load has been dispatched.
+- 2026-09-28 — **Production-readiness audit of both halves; fixes in two PRs.** Connector (#1106):
+  POST timeout, refusals not retried, https-only origin, a timer heartbeat on the lock, atomic state
+  with `.bak`, `reconcile`/`--dry-run` refused under `--service`, and the API's refused/unmatched
+  movements now logged. Ingest (this PR): **a failed roster read no longer unassigns loads.** Before,
+  the driver/vehicle/trailer lookups ignored `error`, so a transient database failure resolved every
+  code to null and the projection wrote null onto every load in the batch, and the connector only
+  resends a movement when McLeod changes it. Those lookups also page past PostgREST's 1,000 rows now.
+  A failed token lookup answers 500, not 401. The token is checked before the 8 MB body is parsed. A
+  movement whose stops lack a usable sequence is refused by name instead of failing the batch (never
+  seen: 0 in 72,633 TMS stops over a year). The legacy stop writer checks its delete. **Accepted for
+  go-live, with the reason, not fixed:**
+  (1) *Last write wins on the raw mirror* (no version or time check), so a replayed or out-of-order
+  payload could move a load's status backwards. There is one writer: one connector, a lock that can
+  no longer go stale, cycles strictly one after another, and a retry resends the SAME content. A
+  guard needs a connector read-time on every movement plus a migration; worth doing if a second
+  writer is ever planned.
+  (2) *The projection is not one transaction.* A failure mid-way answers 500, the connector keeps the
+  batch unhashed and resends it, and the writes are idempotent on McLeod's keys. The one thing a
+  retry does not restore is a `created` event lost on the first attempt (the retry takes the update
+  path). A single RPC would fix it; that is LR8-sized work.
+  (3) *`POST /api/tms/loads` is still mounted and writes the same rows.* Nothing posts to it: the Board
+  VM connector has no path to it, and the laptop runs `--roster` only. Retiring it belongs with LR8
+  (`load_external_payloads`, which also has no retention and still holds the old feed's rows).
+  (4) *No test drives the `/api/tms` rate limiter* (300 per 15 min per IP; a 1-minute cycle posts one
+  to three). Its budget is separate from the office's `/api` limiter, so the carrier's shared IP is
+  not at risk.
+  **Laptop, until cut-over:** the launchd roster sweep runs every 2 minutes from the SHARED checkout,
+  so it runs whatever commit another chat has checked out (detached `4cbba9d` at the time of the
+  audit), with `MCLEOD_SQL_ENCRYPT=false` against Alex's "do not run unencrypted", posting to the web
+  service. It is switched off at cut-over (Alex's step 4); until then the owner may set
+  `MCLEOD_SQL_SERVERNAME=APPNEW` and remove `MCLEOD_SQL_ENCRYPT=false` in its `.env`. **The close
+  backlog is 293** (289 D, 4 V of 303 open, 2026-09-28), not ~181; the query that produces the ids
+  file is in the connector README.

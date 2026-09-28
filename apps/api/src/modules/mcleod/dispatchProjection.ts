@@ -26,7 +26,10 @@ const CHUNK = 50;
 
 export interface DispatchProjectionResult extends MirrorWriteResult {
   projected: number;
-  /** Movements with no core load — no order, or a McLeod status nobody has ruled on. Said, never dropped. */
+  /**
+   * Movements with no core load — no order, a McLeod status nobody has ruled on, or stops without a usable
+   * sequence. Kept in raw and returned here; the connector logs each one by id (since 2026-09-28).
+   */
   refused: { movement_id: string; reason: string }[];
   /** McLeod codes with no Silvicom match — the load is kept, the field left empty, the code reported. */
   unmatched: string[];

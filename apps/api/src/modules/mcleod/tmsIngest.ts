@@ -35,12 +35,16 @@ export async function orgForIngestToken(
   token: string,
 ): Promise<{ orgId: string; provider: string } | null> {
   if (!token) return null;
-  const { data } = await admin
+  const { data, error } = await admin
     .from("org_integrations")
     .select("org_id, provider, enabled")
     .eq("ingest_token_hash", hashIngestToken(token))
     .eq("enabled", true)
     .maybeSingle();
+  // A failed lookup is OUR fault, not the caller's token: it throws (500, which the connector retries)
+  // rather than answering 401, which told the connector's operator to go and fix a token that was fine
+  // (audit 2026-09-28). Two rows with one hash also land here, since maybeSingle refuses them.
+  if (error) throw new Error(`[tms-ingest] ingest token lookup failed: ${error.message}`);
   if (!data) return null;
   return { orgId: (data as { org_id: string }).org_id, provider: (data as { provider: string }).provider };
 }

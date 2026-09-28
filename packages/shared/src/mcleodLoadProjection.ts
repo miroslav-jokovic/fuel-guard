@@ -176,20 +176,30 @@ function stopName(s: RawDispatchStop): string {
 export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatchStop[]): ProjectionOutcome {
   const status = projectMcleodStatus(m.movement_status, stops.map((s) => s.status));
   if (!m.order_id) return { ok: false, movement_id: m.movement_id, reason: "no order attached" };
+  // A stop's number is its identity on our side (`load_stops` is unique on load + seq), so a movement
+  // whose stops lack McLeod's sequence, or repeat one, cannot be stored. Refused HERE, one movement at a
+  // time: it used to fall back to the stop's position, which can collide with another stop's real number
+  // and fail the whole batch's stop write, every cycle. Never seen — 0 null, 0 repeated in 72,633 TMS
+  // stops over the year to 2026-09-28 — which is why it must be said by name if it ever happens.
+  const numbered = stops.flatMap((s) => (s.movement_sequence == null ? [] : [{ ...s, movement_sequence: s.movement_sequence }]));
+  // One test covers both: a missing number leaves fewer distinct numbers than stops, and so does a repeat.
+  if (new Set(numbered.map((s) => s.movement_sequence)).size !== stops.length) {
+    return { ok: false, movement_id: m.movement_id, reason: "stop sequence missing or repeated" };
+  }
   if (!status) return { ok: false, movement_id: m.movement_id, reason: `unknown McLeod status '${m.movement_status ?? ""}'` };
 
   const notes: string[] = [];
-  const ordered = [...stops].sort((a, b) => (a.movement_sequence ?? 0) - (b.movement_sequence ?? 0));
+  const ordered = [...numbered].sort((a, b) => a.movement_sequence - b.movement_sequence);
   const projected: ProjectedStop[] = [];
-  ordered.forEach((s, i) => {
+  ordered.forEach((s) => {
     const kind = STOP_KIND[(s.stop_type ?? "").trim()];
     if (!kind) {
-      notes.push(`movement ${m.movement_id}: stop ${s.movement_sequence ?? i + 1} type '${s.stop_type ?? ""}' kept in raw, not drawn`);
+      notes.push(`movement ${m.movement_id}: stop ${s.movement_sequence} type '${s.stop_type ?? ""}' kept in raw, not drawn`);
       return;
     }
     projected.push({
       // McLeod's own sequence, so a stop keeps its number across syncs even when a VA sits between.
-      seq: s.movement_sequence ?? i + 1,
+      seq: s.movement_sequence,
       kind,
       name: stopName(s),
       address_line: s.address,
