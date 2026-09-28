@@ -5,6 +5,8 @@ import {
   nextSmsWindow,
   normalisePhone,
   smsApplicationApproved,
+  smsApplicationReady,
+  smsApplicationReminder,
   smsDrugTestSite,
   smsOptInConfirmation,
   smsZonesFor,
@@ -16,6 +18,7 @@ import { redactNumber, sendSms } from "../../lib/sms.js";
 import { readCarrierZone } from "./applicantBoardReads.js";
 import { carrierName } from "./applicationMail.js";
 import { drugTestStillLive, markDrugTestSent } from "./applicantDrugTest.js";
+import { mintInvitationToken } from "./applicationIntake.js";
 import { isSuppressed } from "./smsSuppressions.js";
 
 /**
@@ -28,29 +31,39 @@ import { isSuppressed } from "./smsSuppressions.js";
  * (the row is then the record a delivery receipt lands on), otherwise queued with `not_before` at the
  * next opening, and drained by `runSmsOutboxOnce` every five minutes on the api service.
  *
- * ── ONLY TEXTS WITHOUT A LINK ─────────────────────────────────────────────────────────────────
+ * ── A LINK IS MINTED WHEN THE TEXT GOES, ON THE TEXT'S OWN TOKEN (Q-AW29 (a), 0378) ────────────
  * 0376 stores a template and its params, never a rendered body, and refuses a URL in the params: a
- * plaintext bearer token in the database is what 0232 and Q-AX5 refused. A link can only be minted by
- * rotating the invitation's token, and the nudge and the office's Send put that same link on screen and
- * in an email at the moment they are pressed (D-AF7) — so a queued text that rotated again at drain
- * time would kill the link the driver was just handed. The texts that carry a link (`nudge`,
- * `application_sent`, `signing_link`) therefore still go at once or not at all, with the email as
- * their delivery path; what lets them wait too is plan §11 Q-AW29 (a text-only token), not a detour
- * here. The three templates below carry none.
+ * plaintext bearer token in the database is what 0232 and Q-AX5 refused. Until Q-AW29 that meant the
+ * texts carrying a link could not wait — minting one rotates a token, and the reminder and the office's
+ * Send put the invitation's link on screen and in an email the moment they run (D-AF7), so a queued
+ * text that rotated `token_hash` at drain time would kill the link the driver had just been handed.
+ *
+ * Now the link-bearing templates (`LINK_TEMPLATES`) carry no link in their params at all. `transmit`
+ * mints one at the moment of sending — at once, or hours later from the drain — and rotates only the
+ * invitation's TEXT token (`rotate_invitation_sms_token`, 0378), which the resolver accepts as a third
+ * door. The email's link and the office's screen are untouched; the previous text's link dies, which is
+ * what the words have always said. Rotate first, then send, for 0232's reason: a failure between the two
+ * costs a text, never a link that does not work yet. `signing_link` is not here yet: the sign link is
+ * minted by the office in person (D-AF3), and C3s decides how it reaches the phone.
  *
  * ⚠ Every query org-filters itself. The drain reads each org's queue in turn (`runSmsOutboxOnce`),
  * never the whole table, and a delivery receipt — which names no org — finds its row by the
  * provider's message id and writes back through that row's own org.
  */
 
-export const SMS_TEMPLATES = ["consent_confirm", "application_approved", "drug_test_site"] as const;
+export const SMS_TEMPLATES = ["consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge"] as const;
 export type SmsTemplate = (typeof SMS_TEMPLATES)[number];
+
+/** The templates whose words carry the applicant's link — minted at send time, never stored. */
+export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge"]);
 
 /** 0376's reasons; `other` is the approval notice, which the CHECK has no word of its own for. */
 const REASON: Record<SmsTemplate, string> = {
   consent_confirm: "consent_confirm",
   application_approved: "other",
   drug_test_site: "drug_test_site",
+  application_sent: "application_sent",
+  nudge: "nudge",
 };
 
 /**
@@ -100,11 +113,19 @@ async function recipientZones(admin: SupabaseClient, orgId: string, invitationId
   return smsZonesFor((data as { state?: string | null } | null)?.state);
 }
 
-/** The words, rendered at SEND time from what the row holds — never stored. */
-async function render(admin: SupabaseClient, orgId: string, template: SmsTemplate, params: Record<string, unknown>): Promise<string> {
+/** The words, rendered at SEND time from what the row holds — never stored. `link` only for LINK_TEMPLATES. */
+async function render(
+  admin: SupabaseClient,
+  orgId: string,
+  template: SmsTemplate,
+  params: Record<string, unknown>,
+  link: string | null,
+): Promise<string> {
   const carrier = await carrierName(admin, orgId);
   if (template === "consent_confirm") return smsOptInConfirmation(carrier);
   if (template === "application_approved") return smsApplicationApproved(carrier);
+  if (template === "application_sent") return smsApplicationReady(carrier, String(link));
+  if (template === "nudge") return smsApplicationReminder(carrier, String(link));
   const zone = await readCarrierZone(admin, orgId);
   const label = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
     .formatToParts(new Date(String(params.window_start)))
@@ -112,14 +133,47 @@ async function render(admin: SupabaseClient, orgId: string, template: SmsTemplat
   return smsDrugTestSite(carrier, params as unknown as DrugTestSiteParams, zone, label);
 }
 
+/**
+ * A fresh link on the invitation's TEXT token (0378), or null when the invitation was revoked or lapsed
+ * — in which case nothing may be sent, because the only thing the text says is a link.
+ */
+async function mintTextLink(admin: SupabaseClient, env: Env, orgId: string, invitationId: string | null): Promise<string | null> {
+  if (!invitationId) return null;
+  const { token, hash } = mintInvitationToken();
+  const { data, error } = await admin.rpc("rotate_invitation_sms_token", {
+    p_org: orgId,
+    p_invitation: invitationId,
+    p_token_hash: hash,
+  });
+  if (error || data !== true) return null;
+  return `${env.WEB_APP_URL}/apply/${token}`;
+}
+
+type SendingRow = {
+  id: string; org_id: string; invitation_id: string | null; phone: string;
+  template: SmsTemplate; params: Record<string, unknown>; attempts: number;
+};
+
 /** Send one row's text now and record what became of it. The row must already be ours to send. */
 async function transmit(
   admin: SupabaseClient,
   env: Env,
-  row: { id: string; org_id: string; phone: string; template: SmsTemplate; params: Record<string, unknown>; attempts: number },
+  row: SendingRow,
   now: Date,
-): Promise<{ ok: boolean; detail?: string }> {
-  const body = await render(admin, row.org_id, row.template, row.params);
+): Promise<{ ok: boolean; cancelled?: boolean; detail?: string }> {
+  let link: string | null = null;
+  if (LINK_TEMPLATES.has(row.template)) {
+    link = await mintTextLink(admin, env, row.org_id, row.invitation_id);
+    if (!link) {
+      await admin
+        .from("sms_outbox")
+        .update({ status: "cancelled", last_error: "the invitation was revoked or lapsed before its text went" })
+        .eq("org_id", row.org_id)
+        .eq("id", row.id);
+      return { ok: false, cancelled: true, detail: "invitation no longer live" };
+    }
+  }
+  const body = await render(admin, row.org_id, row.template, row.params, link);
   const result = await sendSms(env, { to: row.phone, body });
   const stamp = now.toISOString();
   await admin
@@ -181,19 +235,41 @@ export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: S
   if (!open) return { sent: false, queued: true, outboxId, notBefore: notBefore.toISOString() };
 
   const sent = await transmit(admin, env, {
-    id: outboxId, org_id: message.orgId, phone, template: message.template, params: message.params, attempts: 0,
+    id: outboxId, org_id: message.orgId, invitation_id: message.invitationId, phone,
+    template: message.template, params: message.params, attempts: 0,
   }, now);
   return sent.ok ? { sent: true, outboxId } : { sent: false, failed: sent.detail ?? "send failed" };
 }
 
 /**
- * Is what a queued text announces still true? Only the drug-test site can stop being: the office moved
- * or cancelled the appointment after the text was queued (a rebooking cancels the older row), and a
- * text naming a cancelled site sends the applicant to the wrong place.
+ * Is what a queued text announces still true?
+ *
+ *   · the drug-test site — the office moved or cancelled the appointment after the text was queued (a
+ *     rebooking cancels the older row), and a text naming a cancelled site sends the applicant to the
+ *     wrong place;
+ *   · "your application is ready" and the reminder (Q-AW29) — not once the applicant has handed the
+ *     application over, had it approved, or filed it overnight: a reminder to somebody waiting on the
+ *     office is A1's defect, and "fill it in here" to somebody who has is noise. A revoked or lapsed
+ *     invitation is refused by the rotation itself (`mintTextLink`).
  */
-async function stillWanted(admin: SupabaseClient, orgId: string, template: SmsTemplate, params: Record<string, unknown>): Promise<boolean> {
-  if (template !== "drug_test_site") return true;
-  return drugTestStillLive(admin, orgId, String(params.appointment_id ?? ""));
+async function stillWanted(
+  admin: SupabaseClient,
+  orgId: string,
+  template: SmsTemplate,
+  params: Record<string, unknown>,
+  invitationId: string | null,
+): Promise<boolean> {
+  if (template === "drug_test_site") return drugTestStillLive(admin, orgId, String(params.appointment_id ?? ""));
+  if (!LINK_TEMPLATES.has(template)) return true;
+  if (!invitationId) return false;
+  const { data } = await admin
+    .from("application_invitations")
+    .select("submitted_at, review_requested_at, approved_at")
+    .eq("org_id", orgId)
+    .eq("id", invitationId)
+    .maybeSingle();
+  const inv = data as { submitted_at: string | null; review_requested_at: string | null; approved_at: string | null } | null;
+  return inv !== null && !inv.submitted_at && !inv.review_requested_at && !inv.approved_at;
 }
 
 /** How many due rows one org's drain takes per run: 0376's claim bound (§8.5 C2). */
@@ -244,7 +320,7 @@ export async function drainSmsOutboxForOrg(admin: SupabaseClient, env: Env, orgI
       out.cancelled += 1;
       continue;
     }
-    if (!(await stillWanted(admin, orgId, row.template, row.params))) {
+    if (!(await stillWanted(admin, orgId, row.template, row.params, row.invitation_id))) {
       await set(row.id, { status: "cancelled", last_error: "what it announced was cancelled while queued" });
       out.cancelled += 1;
       continue;
@@ -259,6 +335,7 @@ export async function drainSmsOutboxForOrg(admin: SupabaseClient, env: Env, orgI
     if (((claimed ?? []) as unknown[]).length !== 1) continue;
     const sent = await transmit(admin, env, row, now);
     if (sent.ok) out.sent += 1;
+    else if (sent.cancelled) out.cancelled += 1;
     else out.failed += 1;
   }
   return out;

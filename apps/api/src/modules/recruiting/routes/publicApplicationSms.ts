@@ -143,10 +143,12 @@ export function publicApplicationSmsRouter(): Router {
    * "Text me the link" (§6.6.6, C3b2b2) — the desktop page sending ITS OWN link to the phone the
    * applicant agreed to be texted on, so the photographs are taken with a camera.
    *
-   * ⚠ **Send now or never, never through `sms_outbox`** (Q-AW29's default): 0376 refuses a URL in a
-   * queued text's params, and minting one at drain would rotate the token under the tab that asked. So
-   * `sendApplicationSms` directly — every gate it holds (draft wording, a live consent, a number, a
-   * suppression, quiet hours) answers `held`, and the page says what to do instead ("use the QR code").
+   * ⚠ **Send now or never, never through `sms_outbox`** — and since Q-AW29 that is a choice, not a
+   * limit: the outbox could hold it now (the text would carry its own token, 0378), but this text is
+   * for a person sitting at the desktop THIS minute, and a link that arrived in the morning would be
+   * the wrong answer to the question they asked. So `sendApplicationSms` directly — every gate it
+   * holds (draft wording, a live consent, a number, a suppression, quiet hours) answers `held`, and
+   * the page says what to do instead ("use the QR code").
    *
    * ⚠ **The link is composed here from this request's own `:token`, and stored nowhere.** The client
    * sends no URL and no number: a body the server texted would be a way to text anything to anybody.

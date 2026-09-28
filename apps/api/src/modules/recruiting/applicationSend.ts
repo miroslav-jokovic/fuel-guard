@@ -3,7 +3,6 @@ import {
   APPLICATION_SEND_WARNS_ON,
   INVITE_TTL_DAYS_DEFAULT,
   renderApplicationSentEmail,
-  smsApplicationReady,
   type HiringStepKey,
   type SmsHoldReason,
 } from "@silvicom/shared";
@@ -12,7 +11,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
-import { sendApplicationSms, type SmsOutcome } from "./applicationSms.js";
+import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
 
 /**
  * The office sends the applicant the application form (AF4, D-AF5, D-AF7).
@@ -54,12 +53,14 @@ export interface ApplicationSent {
 
 /**
  * `no_consent` is the ordinary answer — most applicants will not have agreed — and the panel reads
- * it as "not agreed to texts" rather than as a failure. `quiet_hours` means held, not dropped: the
- * email and the screen already carry the link, so nothing retries it.
+ * it as "not agreed to texts" rather than as a failure. `queued` (Q-AW29) is a text outside the
+ * applicant's hours: it goes when their day starts, on its own link, and the email and the screen carry
+ * the link meanwhile. `quiet_hours` is what an API before Q-AW29 answered for the same case, when the
+ * text was dropped; a panel still says so if it meets one.
  */
 export interface ApplicationTextOutcome {
   sent: boolean;
-  reason: SmsHoldReason | "send_failed" | null;
+  reason: SmsHoldReason | "send_failed" | "queued" | null;
 }
 
 const NOT_FOUND: ApplicationSendError = {
@@ -129,10 +130,12 @@ export async function sendApplication(
   const carrier = await carrierName(admin, orgId);
   // D-SMS7: a text as well, when the applicant agreed to one on their waiting screen. Attempted
   // FIRST and the email goes regardless, as the nudge and the approval notice already do — every
-  // gate that can refuse the text leaves the email and the on-screen link untouched.
-  const texted = await sendApplicationSms(
-    admin, env, orgId, invitation.driver_id, smsApplicationReady(carrier, link), new Date(),
-  );
+  // gate that can refuse the text leaves the email and the on-screen link untouched. Through the
+  // outbox since Q-AW29: after hours it waits for the applicant's morning, and its link is minted then,
+  // on the invitation's TEXT token (0378), so it never rotates `link` above.
+  const texted = await sendOrQueueSms(admin, env, {
+    orgId, driverId: invitation.driver_id, invitationId: invitation.id, template: "application_sent", params: {},
+  }, new Date());
   const delivery = await deliverApplicationMail(
     env, invitation.email, renderApplicationSentEmail(carrier, link, INVITE_TTL_DAYS_DEFAULT),
   );
@@ -140,5 +143,7 @@ export async function sendApplication(
 }
 
 /** The office's reading of the text, in the words its panel needs and nothing it does not. */
-const textOutcome = (o: SmsOutcome): ApplicationTextOutcome =>
-  o.sent ? { sent: true, reason: null } : { sent: false, reason: "held" in o ? o.held : "send_failed" };
+const textOutcome = (o: OutboxOutcome): ApplicationTextOutcome =>
+  o.sent
+    ? { sent: true, reason: null }
+    : { sent: false, reason: "held" in o ? o.held : "queued" in o ? "queued" : "send_failed" };

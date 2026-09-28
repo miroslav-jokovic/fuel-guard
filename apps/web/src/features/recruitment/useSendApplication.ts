@@ -16,7 +16,8 @@ export interface ApplicationSent {
    * D-SMS7: whether the link also went by text. `no_consent` is the ordinary answer and reads as "not
    * agreed", never as a failure. Optional: an API from before SMS4 does not send it.
    */
-  text?: { sent: boolean; reason: SmsHoldReason | "send_failed" | null };
+  /** `queued` (Q-AW29): outside the applicant's hours — it goes when their day starts. */
+  text?: { sent: boolean; reason: SmsHoldReason | "send_failed" | "queued" | null };
 }
 
 /**

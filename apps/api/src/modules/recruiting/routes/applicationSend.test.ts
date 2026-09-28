@@ -58,6 +58,7 @@ const seed = (over: {
   createSupabaseRecorder({
     tables: {
       sms_consents: over.consents ?? [],
+      sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
@@ -76,6 +77,7 @@ const seed = (over: {
     },
     rpc: {
       send_application_invitation: "2026-09-24T12:00:00Z",
+      rotate_invitation_sms_token: true,
       save_application_draft: { draft_id: "d-1", updated_at: "2026-09-24T12:05:00Z" },
       ...over.rpc,
     },
@@ -265,7 +267,9 @@ describe("the office sends the application", () => {
 
 /**
  * D-SMS7: the link goes by text too, to an applicant who agreed on their waiting screen — and a text
- * that is refused or held never costs them the email or the on-screen link.
+ * that is refused or waiting never costs them the email or the on-screen link. Since Q-AW29 (0378) the
+ * text carries a link of its OWN, minted on the invitation's text token, and after hours it waits in
+ * the outbox for the applicant's morning rather than being dropped.
  */
 describe("and texts it, when the applicant agreed", () => {
   type Sent = { link: string; text: { sent: boolean; reason: string | null } };
@@ -290,19 +294,31 @@ describe("and texts it, when the applicant agreed", () => {
 
     expect(body.text).toEqual({ sent: true, reason: null });
     expect(sms.fn.mock.calls[0]![1]).toMatchObject({ to: "+17082365732" });
-    expect(sms.fn.mock.calls[0]![1].body).toContain(body.link);
+    // Its own link, not the one on screen and in the email: a later text rotates only its own token.
+    const texted = String(sms.fn.mock.calls[0]![1].body).match(/\/apply\/([A-Za-z0-9_-]+)/)?.[1] ?? "";
+    expect(texted).not.toBe("");
+    expect(body.link).not.toContain(texted);
+    const rotation = rec.rpcs().find((r) => r.fn === "rotate_invitation_sms_token")!.args as Record<string, unknown>;
+    expect(rotation).toMatchObject({ p_org: ORG, p_invitation: INV, p_token_hash: hashInvitationToken(texted) });
     expect(mail.fn).toHaveBeenCalledTimes(1);
     expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
 
-  it("says a held text was held, and still emails and shows the link", async () => {
+  /** Q-AW29: after hours the text WAITS — it used to be dropped here, with nothing to retry it. */
+  it("queues a text after hours for the applicant's morning, and still emails and shows the link", async () => {
     publish();
     // 03:00 Eastern.
     vi.useFakeTimers({ now: new Date("2026-09-25T07:00:00Z"), toFake: ["Date"] });
-    holder.client = seed({ consents: LIVE }).client;
+    const rec = seed({ consents: LIVE });
+    holder.client = rec.client;
     const body = (await (await send()).json()) as Sent;
 
-    expect(body.text).toEqual({ sent: false, reason: "quiet_hours" });
+    expect(body.text).toEqual({ sent: false, reason: "queued" });
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({
+      status: "queued", template: "application_sent", reason: "application_sent", invitation_id: INV, params: {},
+    });
+    // No link minted yet: that happens when the drain sends it.
+    expect(rec.rpcs().some((r) => r.fn === "rotate_invitation_sms_token")).toBe(false);
     expect(sms.fn).not.toHaveBeenCalled();
     expect(mail.fn).toHaveBeenCalledTimes(1);
     expect(body.link).toContain("/apply/");

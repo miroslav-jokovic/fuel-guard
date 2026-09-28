@@ -337,10 +337,11 @@ export interface DrugTestSiteParams {
 /**
  * The drug-test appointment, by text (D-AW6, C2d) — where to go, when, and what to quote.
  *
- * ⚠ No link, on purpose: a text carrying a link cannot wait in `sms_outbox` (0376 refuses a URL in
- * its params, and plan Q-AW29 holds the link-bearing sends), and this one often has to wait — the
- * office books collections during the day, for tomorrow. The times are the carrier's clock, which is
- * what the office typed them on (`carrierWallTimeSchema`), and they say so.
+ * ⚠ No link, on purpose: there is nothing to do on the application link about a drug test — it is
+ * an address and a time. (It could carry one since Q-AW29, 0378, and still wait for its window: the
+ * outbox mints a link at send time for the templates that need one.) It often has to wait — the office
+ * books collections during the day, for tomorrow. The times are the carrier's clock, which is what the
+ * office typed them on (`carrierWallTimeSchema`), and they say so.
  */
 export function smsDrugTestSite(carrier: string, p: DrugTestSiteParams, zone: string, zoneLabel: string): string {
   const from = formatDisplayDateTime(p.window_start, "", zone);

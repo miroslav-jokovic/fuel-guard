@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { SMS_CONSENT } from "@silvicom/shared";
+import {
+  createSupabaseRecorder,
+  expectOrgScoped,
+  type RecordedQuery,
+  type SupabaseRecorder,
+} from "../../testing/supabaseRecorder.js";
 import { loadEnv } from "../../env.js";
 import { nudgeEmail, runApplicationNudgesOnce } from "./applicationNudgeSweep.js";
 
@@ -15,6 +21,8 @@ import { nudgeEmail, runApplicationNudgesOnce } from "./applicationNudgeSweep.js
 
 const sent = vi.hoisted(() => ({ fn: vi.fn() }));
 vi.mock("../../lib/mailer.js", () => ({ sendEmail: sent.fn }));
+const sms = vi.hoisted(() => ({ fn: vi.fn() }));
+vi.mock("../../lib/sms.js", async (orig) => ({ ...(await orig<object>()), sendSms: sms.fn }));
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
@@ -30,6 +38,8 @@ const seed = (over: {
   intake?: string;
   capture?: string;
   permission?: string;
+  /** A live consent to be texted (Q-AW29). Absent: none, so the text is held and the email still goes. */
+  consent?: boolean;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -49,10 +59,15 @@ const seed = (over: {
         invitation_id: "inv-1", updated_at: STALE, furthest_section: "employment", ...over.draft,
       }],
       organizations: [{ name: "Silvicom Inc", notifications_enabled: true }],
+      sms_consents: over.consent
+        ? [{ org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-08-01T00:00:00Z" }]
+        : [],
+      sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       drivers: [{ full_name: "Susan Godfrey" }],
     },
     rpc: {
       nudge_application_invitation: over.rotated === undefined ? true : over.rotated,
+      rotate_invitation_sms_token: true,
       emit_notification: "notif-1",
     },
   });
@@ -298,5 +313,46 @@ describe("the driver who stopped in Part 1", () => {
     expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
       .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
     expect(rec.rpcs()).toEqual([]);
+  });
+});
+
+/**
+ * Q-AW29 (0378): the reminder's TEXT goes through the outbox. At night it waits for the driver's
+ * morning instead of being dropped, and its link is its own — minted when it goes, on the text token —
+ * so the email's link (the rotation above) is never the one in the text.
+ */
+describe("the reminder's text", () => {
+  afterEach(() => { vi.restoreAllMocks(); sms.fn.mockReset(); });
+  const publish = () => vi.spyOn(SMS_CONSENT, "version", "get").mockReturnValue("v1");
+
+  it("waits in the outbox at night, as a nudge, with no link in it", async () => {
+    publish();
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ consent: true });
+    // 03:00 Chicago.
+    const night = new Date("2026-08-21T08:00:00Z");
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], night))
+      .toEqual({ stalled: 1, emailed: 1, messaged: 0 });
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({
+      status: "queued", template: "nudge", reason: "nudge", invitation_id: "inv-1", params: {},
+    });
+    expect(sms.fn).not.toHaveBeenCalled();
+    expect(rec.rpcs().some((r) => r.fn === "rotate_invitation_sms_token")).toBe(false);
+  });
+
+  it("goes at once in the day, on a link that is not the email's", async () => {
+    publish();
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    sms.fn.mockResolvedValue({ ok: true, provider: "telnyx", messageId: "m-1" });
+    const rec = seed({ consent: true });
+    // 16:00 Eastern, 10:00 Hawaii — open everywhere, since no state is on file. (`NOW` is 02:00 in Hawaii.)
+    const day = new Date("2026-08-21T20:00:00Z");
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], day))
+      .toEqual({ stalled: 1, emailed: 1, messaged: 1 });
+    const texted = String(sms.fn.mock.calls[0]![1].body).match(/\/apply\/([A-Za-z0-9_-]+)/)?.[1] ?? "";
+    const [email] = sent.fn.mock.calls[0]!.slice(1) as [{ text: string }];
+    expect(texted).not.toBe("");
+    expect(email.text).not.toContain(texted);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
 });

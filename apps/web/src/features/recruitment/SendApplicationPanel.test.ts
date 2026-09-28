@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   posts: [] as string[],
   sentAt: null as string | null,
   steps: [] as Array<{ key: string; label: string; state: string }>,
+  text: undefined as undefined | { sent: boolean; reason: string | null },
 }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string, opts?: { method?: string }) => {
@@ -29,6 +30,7 @@ vi.mock("@/lib/api", () => ({
           warnings: ["psp"],
           applicationSentAt: "2026-09-24T12:00:00Z",
           delivery: { sent: true, email: "susan@example.test", reason: null },
+          text: state.text,
         },
       };
     }
@@ -54,6 +56,7 @@ beforeEach(() => {
   state.posts.length = 0;
   state.sentAt = null;
   state.steps = [];
+  state.text = undefined;
   role.value = "recruiter";
 });
 
@@ -83,6 +86,33 @@ describe("sending the application", () => {
     expect(w.text()).toContain("Emailed to susan@example.test");
     expect(w.text()).toContain("Sent with these still outstanding: PSP report.");
     expect(w.text()).toContain("send the application again if it is lost");
+  });
+
+  /**
+   * What became of the text, one sentence each. Q-AW29: a text after hours now WAITS for the applicant's
+   * morning, and the office is told it is coming rather than that it will not.
+   */
+  it.each([
+    [{ sent: true, reason: null }, "Also texted to the applicant."],
+    [{ sent: false, reason: "queued" }, "it will be texted to them in the morning"],
+    [{ sent: false, reason: "quiet_hours" }, "Not texted: it is outside daytime hours"],
+    [{ sent: false, reason: "send_failed" }, "The text did not go through."],
+  ])("says what became of the text: %j", async (text, words) => {
+    state.text = text;
+    const w = mountIt();
+    await flushPromises();
+    await button(w, "Send the application")!.trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(words);
+  });
+
+  it("says nothing about a text to an applicant who never agreed to one", async () => {
+    state.text = { sent: false, reason: "no_consent" };
+    const w = mountIt();
+    await flushPromises();
+    await button(w, "Send the application")!.trigger("click");
+    await flushPromises();
+    expect(w.text()).not.toMatch(/text/i);
   });
 
   it("offers to send again once sent, and says the old link will stop working", async () => {
