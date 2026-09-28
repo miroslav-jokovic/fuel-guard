@@ -1570,3 +1570,18 @@ Append dated lines at the END.
   still works for them). **That is intended — the owner, same day: "admin will set this Representative and
   examiner and there is no need for recruiter to do anything with this."** No open question. A recruiter still
   adds one inline from the handbook and road-test panels when a hire needs it.
+- 2026-09-28 — **Recruiting under Settings merged** (#1104, main `61e03a9`); CI green on the merged head.
+- 2026-09-28 — **S1 built** (`claude/recruiting-settings-s1`): migration **0379** `recruiting_settings`, schema only — it
+  merges alone and S2 is its reader (Q-AW41).
+  - **Shape:** one row per org (`org_id` primary key, cascades with the org): `invite_ttl_days`, `reminders_enabled`,
+    `reminder_after_hours`, `updated_by`, stamps. RLS on, no policies (service role only, as 0173).
+  - **No row = the product's defaults,** and the three columns carry NO default: the defaults' one home is
+    `INVITE_TTL_DAYS_DEFAULT`/`STALE_DRAFT_HOURS`, and only a saved org has a row, so a column default would never be
+    the value in force. **S2 must** fall back to the constants on a missing row and write all three answers at once.
+  - **Bounds:** link 1–60 days (the CHECK's 60 is `INVITE_TTL_DAYS_MAX`, read from source by the matrix); reminder
+    24–1440 hours — ⚠ **24 is this migration's choice, not the owner's** (the ruling gave no range; the sweep is six-
+    hourly, so a reminder lands up to 6 h late); a reminder that is ON must come before the link dies (the sweep skips
+    an expired invitation), an OFF one keeps its number unchecked.
+  - **Checks:** `supabase/tests/recruiting-settings.test.mjs` (23), the RLS matrix seeds it explicitly (its CHECKs
+    refuse invented integers), `recruiting_settings` pinned in `check-table-producers.mjs` until S2's save writes it.
+    12 of 12 migration mutants killed.

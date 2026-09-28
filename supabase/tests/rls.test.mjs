@@ -2279,6 +2279,11 @@ async function main() {
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-examiner@example.com') returning id) ` +
         `insert into road_test_examiners (org_id, full_name, title, signature_path, created_by) ` +
         `select '${org}', 'RLS Examiner', 'Maintenance manager', '${org}/examiners/rls.png', u.id from u`,
+      // 0379: every answer is required and bounded (a reminder of at least 24 hours, inside the link's
+      // lifetime), which the synthesiser's invented integers cannot meet — handed the product defaults.
+      recruiting_settings: (org) =>
+        `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) ` +
+        `values ('${org}', 14, true, 48)`,
       // 0374: the signature must sit in the org's OWN `representatives/` folder, as 0372's examiners must.
       carrier_representatives: (org) =>
         `with u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-rep@example.com') returning id) ` +
