@@ -63,10 +63,17 @@ test("a 5xx, a 429 and a network error are retried, and the fourth attempt's suc
 test("an API that never answers is given up on after the timeout, on every attempt", async () => {
   let calls = 0;
   // A fetch that honours its AbortSignal and otherwise hangs forever — the defect was having no signal.
+  // It holds a REF'D timer while it hangs, the way a real request's open socket does: the timer behind
+  // AbortSignal.timeout is unref'd, so a fake holding nothing would let Node 22 end the test before the
+  // timeout fired (CI, 2026-09-28) — a property of the fake, never of a real hung connection.
   const fetchImpl = (_url, init) =>
     new Promise((_, reject) => {
       calls++;
-      init.signal.addEventListener("abort", () => reject(init.signal.reason));
+      const socket = setTimeout(() => {}, 60_000);
+      init.signal.addEventListener("abort", () => {
+        clearTimeout(socket);
+        reject(init.signal.reason);
+      });
     });
   const t0 = Date.now();
   await assert.rejects(
