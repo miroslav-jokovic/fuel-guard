@@ -59,8 +59,8 @@ describe("with no examiner on file (Q-RT2)", () => {
     const inputs = w.findAll("input:not([type=file])");
     await inputs[0]!.setValue("Arvidera Gakhal");
     await inputs[1]!.setValue("Maintenance manager");
-    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "sig.png", { type: "image/png" });
-    w.findComponent({ name: "FileDropzone" }).vm.$emit("files", [png]);
+    const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    w.findComponent({ name: "SignaturePad" }).vm.$emit("change", png);
     await settle(w);
     // The api now lists them, as it would after the add.
     state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];

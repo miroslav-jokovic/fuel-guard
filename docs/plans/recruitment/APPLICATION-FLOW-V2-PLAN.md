@@ -761,6 +761,8 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW42** (2026-09-28) | There is no place to add a carrier Representative or a road-test examiner ahead of time: each is added only inside one driver's panel, and only once that driver reaches the step (`HandbookPanel.vue`, `RoadTestPanel.vue`). So the owner could not add the Representative the countersign needs. | (a) a register under Settings, beside Q-AW41's settings, listing both with add and remove (the api exists: `/recruitment/representatives`, the examiners' routes); no migration; (b) keep them in the panels | **(a), under Settings. RULED by the owner 2026-09-28.** |
 | **Q-AW43** (2026-09-28) | Q-AW17's fines. | — | **DEFERRED by the owner 2026-09-28**: the fines stay as they are until the hiring process works end to end. Counsel's question is written (`COUNSEL-REVIEW-PACKAGE.md` Q18, added 2026-09-28) and goes with the rest of the memo. **#1059 stays held.** |
 | **Q-AW44** (2026-09-28, found building P1) | After a purge the applicant's **name and email survive in `audit_logs`**. Measured on the two test applicants: 16 audit rows, and `driver.created` (`meta.fullName`), `compliance.application_invited` (`meta.email`) and `driver.archived` (`meta.fullName`) carry them. `audit_logs` is append-only evidence, so 0380 leaves it alone rather than decide this by rewriting it. Separately, for **real** applicants rather than test ones: federal record-keeping (29 CFR §1602.14, for employers Title VII covers) generally keeps an application for a year after it was made or acted on. So "applicants generally" may be narrower than the ruling reads. | (a) keep the audit rows as they are; the purge removes the applicant from the product, and the trail of who did what stays; (b) the purge also blanks the name and email in that driver's audit `meta` (a second, named exception to append-only); (c) from now on audit rows carry ids, never names or emails, plus (b) for rows already written. Real applicants: (i) purge anyone never hired, as ruled; (ii) purge only after a year, or only test applicants, until counsel answers | **(a) now, and (c) as its own small step if the owner wants names gone.** For real applicants, **(ii)**, with the question going to counsel as the memo's Q19. P2 can ship either way; the test applicants are not covered by the record-keeping rule. |
+| **Q-AW45** (2026-09-28) | The carrier's Representative and road-test examiner were added with an **uploaded PNG** of their signature (`SignatoryAddForm.vue`, "a scan or a photo of them signing on white paper"). The owner: *"We need on dashboard sign pad so this representative can Sign or use Signing Pad directly. We don't want to upload some PNG file with signature."* Production had 0 Representatives and 0 examiners, because the owner stopped at the upload. | (a) a drawn pad in the office's form; the drawing is sent as the same PNG, so the contract, the api, `signature_path` and both renderers are unchanged, and the image is stored once and printed on every countersignature after; (b) the Representative signs each countersignature live, no stored image — changes the handbook countersign flow and the schema | (a) first, then ask whether (b) is wanted. First deferred ("leave this for later"), then **RULED (a) by the owner 2026-09-28** ("Office official can sign with mouse on screen and that signature can be saved and used in future") and built the same day — §12. (b) is not asked for. |
+| **Q-AW46** (2026-09-28, found measuring C3d4) | §6.8's web-vitals bar is **not met**, and the cause is structural. Lighthouse 13.5 mobile (Slow 4G simulated, 4× CPU), built `dist` served gzipped as production serves it, stubbed API, 3 runs per screen: a11y **100** on all five screens and INP **25–28 ms** (a user flow through expectations → Start → I agree), but perf **70–74** (filed page 57–60), LCP **4.5–4.8 s**, FCP 3.15 s, CLS **0.118–0.331**. The applicant downloads ~415 KB gzipped of the office app first: `App.vue` imports every layout including `AppShell`, the router's `beforeEach` awaits `session.init()` (Supabase) on every route, and `index.html` is an empty `#app`. CLS is the footer drawn before the content, and on the filed page the handbook's list and viewer. | (a) `/apply` gets its own HTML entry (and production's SPA fallback in `app.ts` serves it for `/apply/*`) — a throwaway build measured perf 82–85, LCP 3.15–3.45 s; (b) plus `ApplyPage` loading each phase lazily (its chunk alone is 137 KB gzipped); (c) reserve the content's height (CLS); (d) gate only what passes today (a11y, INP, CLS once (c) lands) and record perf | **PARKED by the owner 2026-09-28** ("we have overcomplicated this") in favour of Q-AW45. When it resumes: (c) and (d) in one PR, then (a), then (b), and the perf ≥ 90 / LCP ≤ 2.5 s gate last. The measuring script is not committed; its method is in §12. |
 
 ---
 
@@ -1688,3 +1690,32 @@ Append dated lines at the END.
     errors. The hint under the field now carries the name alone; a placeholder repeating it was removed.
   - **Next:** once merged, the owner deletes the two test applicants (drivers `16045e32` and `0c77fabb`, invitations
     `d61557dc` and `f2b142e4`) from the Archived view; new test applicants go in a QA org.
+- 2026-09-28 — **P2 merged** (#1111, main `7125913`); both production services verified at `7125913` / schema 0380.
+  The owner then deleted the test applicants from the Archived view (7 `driver.purged` rows, all `audited: true`,
+  no file left behind).
+- 2026-09-28 — **C3d4 measured, not built, and parked** (Q-AW46). Method, so it can be repeated: `dist` built with
+  CI's placeholder values and **without** `apps/web/.env` (a copied `.env` carries `VITE_DEV_BYPASS`, and the first
+  run measured an admin session's requests); served by express + `compression()` as `app.ts`/`appHttp.ts` serve it,
+  because `vite preview` does not compress and production does (the index chunk: 499 KB raw, 152 KB on the wire);
+  `stubApi.ts` installed on a Playwright persistent context whose remote-debugging port Lighthouse drives, one bundle
+  per screen — expectations, Part 1 "About you", the Part 2 task list, the sign-off with the packet, the filed page
+  with the handbook. Numbers in Q-AW46. Two cautions for whoever resumes it: 4× CPU on a fast Mac (benchmark index
+  ~4,100) understates a Galaxy A24, though TBT is ~50 ms so the network dominates; and a timespan over the Part 1
+  walk measured CLS 0.164, which the navigation runs do not see.
+- 2026-09-28 — **Q-AW45 (a) built** (`claude/representative-signature-pad`): the Representative and the road-test
+  examiner sign on a pad, with the mouse or a finger, in Settings → Recruiting and in the handbook and road-test
+  panels (all three are `SignatoryAddForm.vue`). No migration, no api change.
+  - **One pad.** The applicant's `SignaturePad.vue` moved from `features/apply/signing/` to `components/`
+    (`lint:boundaries` forbids recruitment importing apply's internals). It carries no words: the applicant's come from
+    `APPLY_COPY.packet` (their clear button's `drawClear` was defined and never shown), the office's from the form.
+    `APPLY_COPY.signing` — the A5 defaults no caller used since AF6 — is gone.
+  - **`trim`** crops the office's PNG to the ink with a 6 px margin, because both renderers `fit` the image into a
+    box ~27 pt tall: an 878×128 pad became a 224×77 image. Off for the applicant, whose mark places were measured
+    with the whole pad.
+  - **Dark theme:** the ink is fixed near-black for print, and the office has a dark theme, so the pad is
+    `color-scheme: light` — its `light-dark()` surface resolves to white. Measured: `oklch(1 0 0)` under both schemes.
+  - **Seen:** in Chromium (built, dev bypass, API stubbed) at 1280 px, light and dark: a signature drawn with the
+    mouse, the POST carrying a 224×77 PNG. That PNG rendered by `handbookPdf` (the carrier's line under "Agreed") and
+    `roadTestCertificatePdf` (the examiner's line), rasterised and looked at: on its rule, legible, the caption clear.
+  - **Not pinned by a unit test:** jsdom has no canvas, so the crop and the colour scheme were verified by looking.
+    The three form tests now drive the pad's `change` rather than the dropzone's `files`.
