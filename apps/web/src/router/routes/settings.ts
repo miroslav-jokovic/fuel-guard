@@ -49,13 +49,13 @@ export const settingsRoutes: RouteRecordRaw[] = [
   {
     // R1 (APPLICATION-FLOW-V2-PLAN.md, Q-AW42): the carrier's Representatives and road-test examiners.
     // No section meta: `admin.recruiting` in the surface catalogue says `recruitment: view`, and the
-    // guard reads it — so a recruiter, who holds `settings: none`, still reaches it. And no `parent`,
-    // unlike its neighbours: the breadcrumb and back chevron walk it, and for that recruiter they
-    // would point at a Settings page the guard bounces them from. It has a sidebar entry of its own.
+    // guard reads it — so a recruiter, who holds `settings: none`, still reaches it by URL. It lives
+    // under Settings (a card there, no sidebar entry — owner's ruling 2026-09-28), so its crumb is
+    // Settings like its neighbours'.
     path: "/settings/recruiting",
     name: "recruiting-settings",
     component: () => import("@/pages/SettingsRecruitingPage.vue"),
-    meta: { requiresAuth: true, title: "Recruiting" },
+    meta: { requiresAuth: true, title: "Recruiting", parent: "/settings" },
   },
   {
     path: "/settings/thresholds",

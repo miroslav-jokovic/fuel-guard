@@ -39,8 +39,9 @@ const configCards = [
   // accident rather than by construction.
   { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.can("roster") },
   // `recruitment` and not `settings`, for the Driver App card's reason: the card, the route's catalogue
-  // entry (`admin.recruiting`) and the api ask one question. It also has its own sidebar entry, because
-  // a recruiter holds `settings: none` and never sees this page (Q-AW42).
+  // entry (`admin.recruiting`) and the api ask one question. This card is its only way in (owner's
+  // ruling 2026-09-28: under Settings, not in the sidebar, kept by the admin) — a recruiter, who cannot
+  // open this page, has none, and does not need one.
   { name: "Recruiting", to: "/settings/recruiting", icon: BooksCheckIcon, desc: "The representatives who countersign the driver handbook and the examiners who give the road test.", show: session.canView("recruitment") },
   { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.can("settings") },
   // ⚠ Listed here from the day the page shipped, and deliberately so: `routeReachability.test.ts`

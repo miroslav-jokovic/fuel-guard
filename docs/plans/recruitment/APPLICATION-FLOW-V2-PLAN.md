@@ -1561,3 +1561,12 @@ Append dated lines at the END.
   - **Checks:** 17 mutants, 17 killed after three survivors were closed (the two above and the Settings card's
     gate). Seen in a browser (built, dev bypass, as admin): both lists, the inline form on an empty list, a
     390 px phone, the Settings card and the sidebar entry, no page errors.
+- 2026-09-28 — **R1 merged** (#1102, main `3f927c0`); CI green on the merged head.
+- 2026-09-28 — **Owner ruling on R1: Recruiting lives under the Settings page, not in the sidebar's Admin group.**
+  Built (`claude/recruiting-under-settings`): `admin.recruiting` is now a child of `admin.settings` (no nav
+  entry, icon removed), the route takes `meta.parent: "/settings"`, and the Settings card is its way in. The
+  gate is unchanged — `section("recruitment")`, what the api asks — so nothing is refused that was allowed.
+  A recruiter and a safety manager hold `settings: none`, so they have no link to the register (the URL
+  still works for them). **That is intended — the owner, same day: "admin will set this Representative and
+  examiner and there is no need for recruiter to do anything with this."** No open question. A recruiter still
+  adds one inline from the handbook and road-test panels when a hire needs it.
