@@ -1463,3 +1463,33 @@ Append dated lines at the END.
     handbook, the task list and the permissions wait never checked on the real page), one was the adoption
     bug above, and two are no-ops: the batch cap's mutant changes a constant the test reads, and dropping
     closed visits from memory changes only memory (a clean visit is never resent). No migration.
+- 2026-09-28 — **C3d3a merged** (#1098, main `752e8cc`); CI green on the merged head.
+- 2026-09-28 — **C3d3b1 built** (`claude/applicant-flow-c3d3b1`): the first browser tests CI runs, and the defect
+  they found on their first run.
+  - **The harness:** `apps/web/playwright.apply.config.ts` serves the BUILT app (`vite preview`) to Chromium at
+    390 px with touch; `e2e-apply/stubApi.ts` is a stateful fake of `/api/public/application/**` and the
+    storage upload in raw JSON, refuses every other origin, and records what the page sent. Its own folder
+    because `e2e/` is `smoke.yml`'s, run against production. Run in `typecheck-build` after the build, with
+    Chromium cached (`e2e:apply`); listed in CLAUDE.md's CI section. The specs are typechecked.
+  - **§6.8's network bar, end to end** (`e2e-apply/offline.spec.ts`): Part 1's screens 3–6 survive a cut at
+    screen 7 and a reload, and the write that lands carries them (C3d1a); a Part 2 answer typed while saves
+    fail is put back after a reload and saved on its revision (C3d1b); a photograph whose upload was cut is
+    sent again after a reload with the same bytes and hash and no picker opened, and one held while offline
+    goes by itself on `online` (C3d2).
+  - **Found by the first run: both copies of typed answers could lose the last screen.** They were a plain
+    300 ms trailing debounce, which a stream of changes each sooner than that never lets fire: the walk
+    reached screen 7 with NOTHING on the phone, and the reload reopened Part 1 on its first screen, empty.
+    A write on `pagehide` does not rescue it — measured, a write started as the page reloads does not
+    commit. Fixed in `deviceCopies.ts`'s `debouncedCopy`: a screen passed (Part 1) or a section left
+    (Part 2) is written at ONCE; typing within a screen keeps the pause; a pending write also runs on
+    `visibilitychange` → hidden (the one event a phone reliably sends before dropping a background tab)
+    and, best effort, on `pagehide`.
+  - **Found on the way:** `page.route` answers above the network stack, so `setOffline(true)` does not cut
+    a stubbed request (the first offline-photo test "went offline" and the photo was received). The specs
+    cut with the stub and use `setOffline` only for the browser's `offline`/`online` events.
+  - **The smoke test:** `getByLabel('Password')` also matched the "Show password" button and failed every
+    production smoke run; `{ exact: true }` in `smoke.spec.ts` and `hazmat.spec.ts`.
+  - **Checks:** 12 mutants, 11 killed on the first pass; the survivor (listeners left behind when a copy's
+    scope ends) now has its test. Four of the mutants disable C3d1a's restore, C3d1b's replay, C3d2's replay
+    and C3d2's `online` resend, and only the browser specs are run against them. 20 of 20 on `--repeat-each 5`.
+    No migration.

@@ -40,6 +40,12 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. A green
   run is ~3 minutes (measured 2026-09-05; it was 15.7 before the split). Put a new gate in `gates`;
   put anything needing `apps/web/dist` in `typecheck-build`, which is the only job that builds.
+- **Browser tests run in `typecheck-build`** since 2026-09-28 (C3d3b1): `pnpm --filter @silvicom/web
+  e2e:apply` runs `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
+  (`e2e-apply/stubApi.ts`, raw JSON) — after the build, with Chromium cached. They are the ONLY
+  Playwright specs CI runs: `apps/web/e2e/` is `smoke.yml`'s, against production after a deploy, so a
+  stubbed spec must never go there. Locally: build `dist` first (CI's placeholder `VITE_SUPABASE_*`
+  values), then `pnpm --filter @silvicom/web e2e:apply`.
 
 ## Hard rules (each one is machine-enforced; the gate is named)
 

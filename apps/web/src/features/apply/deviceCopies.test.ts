@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
-import { deleteCopy, putCopy, readCopy } from "./deviceCopies";
+import { effectScope } from "vue";
+import { debouncedCopy, deleteCopy, putCopy, readCopy } from "./deviceCopies";
 
 /**
  * The apply link's device store (AW10). Pinned here, beside the copies' own tests: C3d1a's one-day-old
@@ -41,5 +42,92 @@ describe("the device store", () => {
     await deleteCopy("partOne", "same");
     expect(await readCopy("partOne", "same", () => true)).toBeNull();
     expect(await readCopy<ReturnType<typeof row> & { which: string }>("partTwo", "same", () => true)).toMatchObject({ which: "two" });
+  });
+});
+
+/**
+ * `debouncedCopy` (C3d3b1): the pause both copies of typed answers take, and the three ways it is cut short
+ * — `now`, the phone put away, the page going — found necessary by the first browser test.
+ */
+describe("debouncedCopy", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+  });
+
+  const make = () => {
+    const write = vi.fn();
+    const scope = effectScope();
+    const copy = scope.run(() => debouncedCopy(write, 300))!;
+    return { write, copy, stop: () => scope.stop() };
+  };
+  const hide = () => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("writes once, after the pause since the last change", () => {
+    vi.useFakeTimers();
+    const { write, copy, stop } = make();
+    copy.schedule();
+    vi.advanceTimersByTime(200);
+    copy.schedule();
+    vi.advanceTimersByTime(200);
+    expect(write).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(100);
+    expect(write).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("writes at once on `now`, and the pending write it replaced does not follow", () => {
+    vi.useFakeTimers();
+    const { write, copy, stop } = make();
+    copy.schedule();
+    copy.now();
+    expect(write).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1_000);
+    expect(write).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("runs a pending write when the phone is put away or the page goes — and only a pending one", () => {
+    vi.useFakeTimers();
+    const { write, copy, stop } = make();
+    hide();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(write).not.toHaveBeenCalled();
+    copy.schedule();
+    hide();
+    expect(write).toHaveBeenCalledTimes(1);
+    copy.schedule();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(write).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(1_000);
+    expect(write).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("removes the very listeners it added when its scope ends — a remounted screen adds a fresh pair", () => {
+    const added = [vi.spyOn(document, "addEventListener"), vi.spyOn(window, "addEventListener")];
+    const removed = [vi.spyOn(document, "removeEventListener"), vi.spyOn(window, "removeEventListener")];
+    const { stop } = make();
+    const mine = (spy: (typeof added)[number]) =>
+      spy.mock.calls.filter(([type]) => type === "visibilitychange" || type === "pagehide").map(([type, fn]) => [type, fn]);
+    const listening = [...mine(added[0]!), ...mine(added[1]!)];
+    expect(listening.map(([type]) => type).sort()).toEqual(["pagehide", "visibilitychange"]);
+    stop();
+    expect([...mine(removed[0]!), ...mine(removed[1]!)]).toEqual(expect.arrayContaining(listening));
+    for (const spy of [...added, ...removed]) spy.mockRestore();
+  });
+
+  it("drops the pending write, and stops listening, when its scope ends", () => {
+    vi.useFakeTimers();
+    const { write, copy, stop } = make();
+    copy.schedule();
+    stop();
+    vi.advanceTimersByTime(1_000);
+    window.dispatchEvent(new Event("pagehide"));
+    hide();
+    expect(write).not.toHaveBeenCalled();
   });
 });

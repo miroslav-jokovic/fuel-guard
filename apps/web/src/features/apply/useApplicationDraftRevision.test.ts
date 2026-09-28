@@ -25,10 +25,11 @@ const LINK = "2099-01-01T00:00:00Z";
 function run(draft: ApplicationDraft, revision: number | null = 3, local: { key: string; linkExpiresAt: string } | null = { key: KEY, linkExpiresAt: LINK }) {
   const scope = effectScope();
   const rev = ref<number | null>(revision);
+  const section = ref<string | null>("identity");
   const api = scope.run(() =>
-    useApplicationDraft(ref("t".repeat(43)), draft, { enabled: ref(true), section: ref("identity"), revision: rev, local: ref(local) }),
+    useApplicationDraft(ref("t".repeat(43)), draft, { enabled: ref(true), section, revision: rev, local: ref(local) }),
   )!;
-  return { ...api, rev, stop: () => scope.stop() };
+  return { ...api, rev, section, stop: () => scope.stop() };
 }
 
 const conflict = () => Object.assign(new Error("changed"), { code: "draft_revision_conflict" });
@@ -121,6 +122,22 @@ describe("the copy on the phone", () => {
     await past(400);
     const kept = await readDraftCopy(KEY);
     expect(kept).toMatchObject({ payload: JSON.parse(JSON.stringify(toDraftPayload(draft))), section: "identity", baseRevision: 3 });
+    h.stop();
+  });
+
+  /**
+   * C3d3b1, found by the browser test: the copy waited 300 ms after the last change, so a driver who moved
+   * on and lost the page inside that pause lost the screen they had just finished. Leaving a section is
+   * written at once — read here with no time passed, where only an immediate write can have landed.
+   */
+  it("is written at once when the driver moves to another section", async () => {
+    const draft = reactive(emptyDraft());
+    const h = run(draft);
+    saved.fn.mockRejectedValue(new Error("offline"));
+    draft.first_name = "Susan";
+    h.section.value = "addresses";
+    await past(0);
+    expect(await readDraftCopy(KEY)).toMatchObject({ payload: { first_name: "Susan" }, section: "addresses" });
     h.stop();
   });
 

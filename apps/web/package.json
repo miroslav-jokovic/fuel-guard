@@ -11,7 +11,8 @@
     "typecheck": "vue-tsc -p tsconfig.json --noEmit",
     "lint:tokens": "node scripts/check-design-tokens.mjs",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:apply": "playwright test -c playwright.apply.config.ts"
   },
   "dependencies": {
     "@floating-ui/vue": "^2.0.0",
