@@ -93,3 +93,19 @@ Keep matching company_id on every join. The settled-movements fix stays in.
 Next step Send me two times this week for 30 minutes. We will do the dry run, confirm the open-load count against the McLeod board, and I will issue the extra grants on the analytics copy.
 
 Thanks,
+
+
+---
+
+**Alex, 2026-09-28 — the grant script ran** (checked the same day under the connector's login; see
+LOADS-MIRROR-PLAN.md, 2026-09-28)
+
+Good morning,
+
+This was published with one note:
+
+GRANT SELECT ON dbo.customer (id, name, city, state) TO silvicom_dispatch_ro;
+Msg 4615, Level 16, State 1, Line 27
+Invalid column name 'state'.
+
+There was an error as "State" did not exists. The correct name is "State_ID" we changed it and reExecuted all good!

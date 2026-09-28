@@ -1,5 +1,13 @@
 # The read routine, for the carrier's review
 
+> **2026-09-28 — the grants ran, and the check below was wrong.** Alex ran `SILVICOM-GRANTS.sql`,
+> fixing `customer (…, state)` to `state_id`. "Reads exactly the eleven finance tables" counted the
+> finance TABLES, not what the finance STATEMENTS join: 15–18 also read `movement`,
+> `movement_order`, `orders`, `stop` and `users`, and were refused on `lme_analytics` under the
+> connector's login. And `customer` needs `company_id` to match on. Both are now lines marked "not
+> yet run" in the script, and `review.test.mjs` derives the analytics part's tables from the routine
+> itself, so it cannot fall behind silently again.
+>
 > **2026-09-25 — the grant script:** [`SILVICOM-GRANTS.sql`](SILVICOM-GRANTS.sql), which Alex asked for
 > in the format of the 2026-09-15 one (`GRANT ... TO silvicom_dispatch_ro`). Written by hand, unlike
 > the routine: Part 1 (`reference_number`, `customer` by column) on LME, Part 2 (the finance tables) on

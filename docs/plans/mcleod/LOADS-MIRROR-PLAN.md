@@ -413,6 +413,21 @@ stop `id`, stop `phone`): the owner confirms Alex will add them to his list — 
 5. **Q-LMR5 — PU number and customer name need SELECT on `reference_number` and `customer`.**
    Alex. **Recommendation:** ask in LR0's email; column-scoped on `customer` (name, city, state —
    no credit or billing fields), and `reference_number` filtered to what we read.
+   **2026-09-28 — granted on LME, and measured under the connector's login.** The state column is
+   `state_id` (char 2; the grant script said `state` and Alex corrected it when he ran it). The
+   customer grant still lacks **`company_id`**: ids repeat across companies (6,243 rows, 4,252
+   distinct), so joined on `id` alone the 143 open orders match 268 customer rows and 82 of them match
+   two customers with different names. One more column grant, now in `SILVICOM-GRANTS.sql`, marked
+   not yet run. The reader is not built until it lands, since joining without it would show the wrong
+   customer on 82 of 143 loads. `reference_number` hangs off STOPS only
+   (`element_id` 128 on all 34,592 rows; `partner_id` never matches an order id) and joins on
+   `stop_id` + `company_id`. On the open board the qualifiers are ZZ 105, PO 82, P8 70, SI 35, TZ/SCA
+   33, CR 31, DO/RB/VD/TH 14–15, **PU 13**, and a few others. The PU # candidates: (a) `P8` (the X12
+   "pickup reference number") and `PU` on the movement's `PU` stops: 50 of 143 open movements carry
+   one; (b) add `PO` (42 more on PU stops), but that is the purchase order the stop's `ponum` already
+   carries; (c) show every reference in a hover and name none. **Recommendation: (a)**, confirmed by
+   a dispatcher on three loads in McLeod before building, because "PU #" is the office's word and
+   the qualifiers are EDI's.
 6. **Q-LMR6 — "Send via Email/SMS": what is sent, to whom?** SMS is dark until Telnyx has a number
    (see `sms-provider-is-telnyx`). **Recommendation:** after LR7; email first, via Brevo, sending the
    load sheet to the assigned driver; spec it separately.
@@ -670,3 +685,18 @@ Append a dated line per merge. Never edit a status column.
   McLeod ids. Both now print per-field coverage for dispatchers, movements and stops (stops counted as
   their own rows) with no sample row; the roster dry run keeps its masked sample. `CONNECTOR-ON-THE-VM.md`
   step 1 says so. The SQL file is unchanged.
+- 2026-09-28 — **Alex ran `SILVICOM-GRANTS.sql`**, correcting `customer (…, state)` to `state_id` on the
+  way. Then everything was checked under `silvicom_dispatch_ro` itself, encrypted (APPNEW + trust),
+  `program_name` "Silvicom 360 connector". **LME:** `reference_number` whole table, `customer` id/name/
+  city/state_id, no finance table yet, no UPDATE, no SHOWPLAN. The routine's statements 1–8 and 22–24
+  run as-is (142 loads, 340 stops, 16 dispatchers, 169/194/223 roster, 1,308/460/172 retired), and so
+  do the agent's own `--loads`, `--close` and `--roster` dry runs. **lme_analytics:** the eleven finance
+  tables + `equipment_item`; statements 9–14 and 19–21 run, but **15–18 were refused**. They join
+  `movement`, `movement_order`, `orders`, `stop` and `users`, which the grant script never listed
+  because it only counted the finance tables. `--financial --dry-run` there dies at `movement_order`,
+  so the one night Alex asked to watch on the analytics copy could not have run. Also found:
+  `customer` needs `company_id` (Q-LMR5 above). Both are in the grant script as "not yet run" lines, and
+  a new `review.test.mjs` test reads the finance statements' tables out of the routine and fails when
+  the analytics part does not grant one (it failed on the old file, naming exactly those five). The
+  copy is a snapshot whose newest rows date from ~2026-09-10, so its night checks permissions and
+  runtime, not freshness.

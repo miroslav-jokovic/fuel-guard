@@ -120,7 +120,7 @@ export function statementCount() {
 
 /** Every statement in the file, in order — `review.test.mjs` checks each against the code. */
 export function routineStatements() {
-  return PARTS.flatMap((p) => p.statements.map(([title, , sql]) => ({ title, sql })));
+  return PARTS.flatMap((p) => p.statements.map(([title, , sql]) => ({ title, sql, finance: Boolean(p.finance) })));
 }
 
 const wrapText = (text, width = 86) => {
