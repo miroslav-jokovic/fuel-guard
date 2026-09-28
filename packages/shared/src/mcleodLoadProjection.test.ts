@@ -76,6 +76,14 @@ describe("the load", () => {
   it("a movement with no order is not a load we can show — refused with the reason", () => {
     expect(projectMcleodMovement(movement({ order_id: null }), [])).toMatchObject({ ok: false, reason: "no order attached" });
   });
+  // A stop's number is its identity in `load_stops` (unique on load + seq). Falling back to position
+  // could collide with another stop's real number and fail a whole batch (audit 2026-09-28).
+  it.each([
+    ["missing", [stop({ stop_id: "a", movement_sequence: 1 }), stop({ stop_id: "b", movement_sequence: null, stop_type: "SO" })]],
+    ["repeated", [stop({ stop_id: "a", movement_sequence: 2 }), stop({ stop_id: "b", movement_sequence: 2, stop_type: "SO" })]],
+  ])("a movement whose stop sequence is %s is refused by name, never numbered by position", (_label, stops) => {
+    expect(projectMcleodMovement(movement(), stops)).toEqual({ ok: false, movement_id: "900", reason: "stop sequence missing or repeated" });
+  });
   it("names the first of a team and says so", () => {
     const r = projectMcleodMovement(movement({ driver_codes: ["DKELLY", "JSMITH"] }), []);
     expect(r.ok && r.load.driver_code).toBe("DKELLY");
