@@ -21,6 +21,7 @@ import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
 import { usePartOneStep } from "@/features/apply/partOne/usePartOneStep";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
 import DraftNotice from "@/features/apply/DraftNotice.vue";
+import { provideLocalCopy } from "@/features/apply/deviceCopies";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
 import { provideApplyIssues } from "@/features/apply/issues";
@@ -162,6 +163,7 @@ const goToSection = (section: ApplicationSection): void => (hub.inTask.value ? h
 
 /** C3d1b: the revision saves are checked against, taken with the body it describes — never from a later refetch. */
 const draftRevision = ref<number | null>(null);
+const localCopy = provideLocalCopy(() => invitation.data.value);
 const autosave = useApplicationDraft(token, draft, {
   // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
   // the driver has not been allowed to reach yet would be a lie about their signal.
@@ -172,10 +174,7 @@ const autosave = useApplicationDraft(token, draft, {
   ),
   section: computed(() => wizard.furthestSection.value),
   revision: draftRevision,
-  local: computed(() => {
-    const inv = invitation.data.value;
-    return inv?.localKey ? { key: inv.localKey, linkExpiresAt: inv.expiresAt } : null;
-  }),
+  local: localCopy,
 });
 
 watch(

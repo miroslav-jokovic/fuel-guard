@@ -7,6 +7,7 @@ import { IDBFactory } from "fake-indexeddb";
 import ApplyPage from "@/pages/ApplyPage.vue";
 import { toDraftPayload, fromDraftPayload } from "@/features/apply/draft";
 import { DRAFT_COPY_VERSION, readDraftCopy, writeDraftCopy } from "@/features/apply/draftLocal";
+import { keepPhoto, readKeptPhoto } from "@/features/apply/capture/photoLocal";
 import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -1355,5 +1356,39 @@ describe("the applicant's page", () => {
       expect(puts()[0]).toMatchObject({ revision: 8, payload: { email: "phone@example.test" } });
       w.unmount();
     });
+  });
+
+  /**
+   * C3d2 (Q-AW38 (a)): the page provides the link's copy spec, and Part 1's photo screen — four components
+   * down — sends a photograph a previous visit chose and never got confirmed, without a retake.
+   */
+  it("sends a photograph kept from the last visit when Part 1's photo screen opens, and lets it go once confirmed", async () => {
+    globalThis.indexedDB = new IDBFactory();
+    const KEY = "b".repeat(64);
+    const spec = { key: KEY, linkExpiresAt: "2099-01-01T00:00:00Z" };
+    await keepPhoto(spec, "cdl_front", new Blob(["kept licence"]), "image/webp", "c3".repeat(32));
+    (URL as unknown as { createObjectURL: () => string }).createObjectURL = () => "blob:put-back";
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const calls: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith("/capture") && init?.method === "POST") {
+        calls.push("start");
+        return ok({ captureId: "cap-9", storagePath: "p", uploadUrl: "https://storage.test/u", uploadToken: "t" });
+      }
+      if (u === "https://storage.test/u") {
+        calls.push("upload");
+        return ok({});
+      }
+      if (u.endsWith("/capture/cap-9")) {
+        calls.push(`confirm ${JSON.parse(String(init?.body)).sha256}`);
+        return ok({ slot: "cdl_front", capturedAt: "2026-09-28T12:00:00Z" });
+      }
+      return partOnePage({}, { localKey: KEY });
+    });
+    const w = mountPage();
+    await settle(w);
+    await vi.waitFor(() => expect(calls).toEqual(["start", "upload", `confirm ${"c3".repeat(32)}`]));
+    await vi.waitFor(async () => expect(await readKeptPhoto(spec, "cdl_front")).toBeNull());
   });
 });

@@ -1,7 +1,9 @@
+import { computed, getCurrentInstance, inject, provide, type InjectionKey, type Ref } from "vue";
+
 /**
- * The apply link's copies on the device (AW10): Part 1's held screens (`partOne/partOneLocal.ts`, C3d1a)
- * and Part 2's unsent draft (`draftLocal.ts`, C3d1b). One database, one store per copy, each row keyed by
- * the bundle's `localKey`. What each copy holds, and for how long, is its own module's rule (Q-AW39);
+ * The apply link's copies on the device (AW10): Part 1's held screens (`partOne/partOneLocal.ts`, C3d1a),
+ * Part 2's unsent draft (`draftLocal.ts`, C3d1b) and photographs not yet confirmed (`capture/photoLocal.ts`,
+ * C3d2). One database, one store per copy, each row keyed by the bundle's `localKey`. What each copy holds, and for how long, is its own module's rule (Q-AW39);
  * this file is only the storage.
  *
  * ── STORAGE BLOCKED IS NOT BROKEN ─────────────────────────────────────────────────────────────
@@ -20,11 +22,12 @@
  */
 
 const DB_NAME = "silvicom-apply";
-const DB_VERSION = 1;
+/** 2: C3d2 added `photos`. The upgrade creates whichever stores are missing, so 1 → 2 keeps both copies. */
+const DB_VERSION = 2;
 const RETIRED_DB = "silvicom-part-one";
 
-export type CopyStore = "partOne" | "partTwo";
-const STORES: readonly CopyStore[] = ["partOne", "partTwo"];
+export type CopyStore = "partOne" | "partTwo" | "photos";
+const STORES: readonly CopyStore[] = ["partOne", "partTwo", "photos"];
 
 /** Every row carries its key and the moment it stops being readable. */
 export interface CopyRow {
@@ -118,3 +121,29 @@ export interface LocalCopySpec {
   key: string;
   linkExpiresAt: string;
 }
+
+/**
+ * The link's copy spec, provided once by `ApplyPage` (C3d2) — the way `issues.ts` provides the issue list —
+ * because the capture screens sit three and four components down and none of them otherwise needs the
+ * bundle. Null where nothing provided it (a test, a page from before C3d1a's `localKey`): no copy is kept.
+ */
+export const APPLY_LOCAL_COPY: InjectionKey<Ref<LocalCopySpec | null>> = Symbol("apply-local-copy");
+
+/**
+ * Where this link's copies live, from the bundle — provided to every screen below the page, and returned for
+ * the page's own autosave. Null for a bundle with no `localKey` (one cached from before C3d1a).
+ */
+export function provideLocalCopy(
+  bundle: () => { localKey?: string; expiresAt: string } | undefined,
+): Ref<LocalCopySpec | null> {
+  const spec = computed<LocalCopySpec | null>(() => {
+    const inv = bundle();
+    return inv?.localKey ? { key: inv.localKey, linkExpiresAt: inv.expiresAt } : null;
+  });
+  provide(APPLY_LOCAL_COPY, spec);
+  return spec;
+}
+
+/** Safe outside a component (a composable under test in an effect scope): no instance, no copy. */
+export const injectLocalCopy = (): Ref<LocalCopySpec | null> | null =>
+  getCurrentInstance() ? inject(APPLY_LOCAL_COPY, null) : null;
