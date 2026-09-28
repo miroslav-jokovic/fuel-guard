@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput } from "@silvicom/ui";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
+import SignaturePad from "@/components/SignaturePad.vue";
 import { useToastStore } from "@/stores/toast";
 import { pngDataUrl, useAddRoadTestExaminer } from "@/features/recruitment/useRoadTest";
 import { useAddRepresentative } from "@/features/recruitment/useHandbook";
@@ -17,6 +17,16 @@ import { useAddRepresentative } from "@/features/recruitment/useHandbook";
  * complete entry is — and the rule itself is the contract's (`roadTestExaminerCreateSchema`,
  * `carrierRepresentativeCreateSchema`, both 2–120 / 2–80 characters and a PNG), which the api
  * re-checks on the bytes.
+ *
+ * ── THE SIGNATURE IS DRAWN HERE, NOT UPLOADED (Q-AW45 (a)) ─────────────────────────────────────
+ * It was a PNG upload — "a scan or a photo of them signing on white paper" — and production had no
+ * Representative and no examiner, because the owner stopped at it (2026-09-28: "We need on dashboard
+ * sign pad so this representative can Sign or use Signing Pad directly"). They now sign on the pad
+ * with a mouse, or a finger on a touch screen, and the drawing is sent as the same PNG data URL the
+ * upload was: the contract, the api, `signature_path` and both PDF renderers are unchanged, and the
+ * image is stored once and printed on every countersignature after (D-HB3, Q-RT2). `trim` crops it
+ * to the ink, because the renderers fit it into a box ~27 pt tall. A new signature is a new person
+ * (HB010: a Representative row is never edited).
  *
  * The two kinds differ only in their words and in the endpoint, so the kind picks both and nothing
  * else. The parent learns about the person added through `added` — the handbook panel selects them
@@ -39,16 +49,14 @@ const emit = defineEmits<{ cancel: [] }>();
 const COPY: Record<Kind, { heading: string; blurb: string; titlePlaceholder: string; titleHint: string; submit: string }> = {
   representative: {
     heading: "Add a representative",
-    blurb:
-      "Their signature prints where the carrier agrees. Upload a PNG of it — a scan or a photo of them signing on white paper.",
+    blurb: "Their signature prints where the carrier agrees, on every handbook they sign.",
     titlePlaceholder: "Safety manager",
     titleHint: "Printed beside their signature.",
     submit: "Add representative",
   },
   examiner: {
     heading: "Add an examiner",
-    blurb:
-      "Their signature prints on every road test they give. Upload a PNG of it — a scan or a photo of them signing on white paper.",
+    blurb: "Their signature prints on every road test they give.",
     titlePlaceholder: "Maintenance manager",
     titleHint: "Printed on the certificate.",
     submit: "Add examiner",
@@ -61,7 +69,9 @@ const toast = useToastStore();
 const add = props.kind === "representative" ? useAddRepresentative() : useAddRoadTestExaminer();
 
 const form = reactive({ fullName: "", title: "" });
-const signature = ref<File | null>(null);
+const signature = ref<Blob | null>(null);
+/** Bumped after a save, so the pad is drawn afresh for the next person rather than cleared by hand. */
+const padKey = ref(0);
 const complete = computed(
   () => form.fullName.trim().length >= 2 && form.title.trim().length >= 2 && Boolean(signature.value),
 );
@@ -81,6 +91,7 @@ async function save(): Promise<void> {
     }
     Object.assign(form, { fullName: "", title: "" });
     signature.value = null;
+    padKey.value += 1;
     props.onAdded?.(created);
   } catch (e) {
     toast.error(
@@ -103,13 +114,13 @@ async function save(): Promise<void> {
         <BaseInput :id="id" v-model="form.title" :placeholder="copy.titlePlaceholder" />
       </FormField>
     </div>
-    <FileDropzone
-      accept=".png"
-      :busy="add.isPending.value"
-      busy-label="Saving…"
-      :label="signature ? signature.name : 'Drag & drop the signature (PNG)'"
-      hint="PNG only. Stored privately with the carrier's files."
-      @files="signature = $event[0] ?? null"
+    <SignaturePad
+      :key="padKey"
+      label="Signature"
+      hint="Sign with the mouse, or a finger on a touch screen. Stored privately with the carrier's files."
+      clear-label="Clear"
+      trim
+      @change="signature = $event"
     />
     <div class="flex gap-3">
       <BaseButton variant="primary" size="sm" :disabled="!complete || add.isPending.value" @click="save">

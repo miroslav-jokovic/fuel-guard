@@ -173,8 +173,8 @@ describe("adding somebody", () => {
     const inputs = s.findAll("input:not([type=file])");
     await inputs[0]!.setValue("  Ana Perić ");
     await inputs[1]!.setValue("Safety manager");
-    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "sig.png", { type: "image/png" });
-    s.findComponent({ name: "FileDropzone" }).vm.$emit("files", [png]);
+    const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    s.findComponent({ name: "SignaturePad" }).vm.$emit("change", png);
     await settle(w);
     return s;
   };

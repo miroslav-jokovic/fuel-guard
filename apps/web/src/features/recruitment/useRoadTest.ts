@@ -81,12 +81,15 @@ export function useRecordRoadTest(driverId: Ref<string>) {
   });
 }
 
-/** A PNG file as the data URL the examiner endpoint takes. The API checks the bytes are a PNG. */
-export function pngDataUrl(file: File): Promise<string> {
+/**
+ * A PNG as the data URL the examiner and Representative endpoints take. The API checks the bytes
+ * are a PNG. Since Q-AW45 it is the pad's drawing (a Blob), no longer an uploaded file.
+ */
+export function pngDataUrl(png: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read that file."));
-    reader.readAsDataURL(file);
+    reader.onerror = () => reject(new Error("Could not read the signature."));
+    reader.readAsDataURL(png);
   });
 }

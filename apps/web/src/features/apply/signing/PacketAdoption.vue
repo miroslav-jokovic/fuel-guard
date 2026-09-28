@@ -8,7 +8,7 @@ import {
 } from "@silvicom/ui";
 import type { PacketMarkKind } from "@silvicom/shared";
 import type { AdoptionCeremony, AdoptionCopy } from "@/features/apply/signing/adoptionCeremony";
-import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
+import SignaturePad from "@/components/SignaturePad.vue";
 import PacketMarkStyles from "@/features/apply/signing/PacketMarkStyles.vue";
 import PacketMarkUpload from "@/features/apply/signing/PacketMarkUpload.vue";
 import { markRequiredFor, type AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoption";
@@ -297,6 +297,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       <SignaturePad
         :label="copy.drawLabel"
         :hint="copy.drawHint"
+        :clear-label="copy.drawClear"
         @change="ceremony.markBlob.value = $event"
       />
       <p v-if="!markReady" class="text-sm text-ink-secondary">{{ copy.drawNeeded }}</p>
@@ -309,6 +310,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
         <SignaturePad
           :label="copy.drawInitialsLabel"
           :hint="copy.drawInitialsHint"
+          :clear-label="copy.drawClear"
           @change="ceremony.initialsBlob.value = $event"
         />
         <p v-if="!initialsMarkReady" class="text-sm text-ink-secondary">
