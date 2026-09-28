@@ -234,6 +234,36 @@ ok("and does not rotate the token again",
   (await one(`select token_hash from application_invitations where id = $1`, [NUDGE_INV])).token_hash
     === afterNudge.token_hash);
 
+// ── Q-AW37 (0377): once per PART. The nudge above came before the office sent the form, so it was
+// the Part 1 reminder; the office's Send opens the Part 2 one, and that one closes the invitation.
+await db.query(
+  `update application_invitations
+      set nudged_at = now() - interval '3 days', application_sent_at = now() - interval '1 day' where id = $1`, [NUDGE_INV]);
+const partTwo = (await one(
+  `select public.nudge_application_invitation($1,$2,'a'||repeat('1',63),14) as r`, [ORG, NUDGE_INV])).r;
+ok("a driver reminded in Part 1 is reminded again once the office sends the form", partTwo === true);
+ok("and that reminder rotates the token like the first",
+  (await one(`select token_hash from application_invitations where id = $1`, [NUDGE_INV])).token_hash
+    === "a" + "1".repeat(63));
+ok(
+  "a third reminder does nothing — the Part 2 stamp is later than the send",
+  (await one(`select public.nudge_application_invitation($1,$2,'a'||repeat('2',63),14) as r`,
+    [ORG, NUDGE_INV])).r === false,
+);
+
+// Strictly BEFORE the send: a stamp at the same instant is not proof the reminder was Part 1's, and an
+// ambiguous stamp must never buy a second reminder.
+const SAME_DRIVER = await driver("Same Instant");
+const SAME_INV = await invite(SAME_DRIVER, "same-instant");
+await db.query(
+  `update application_invitations set nudged_at = now() - interval '1 hour', application_sent_at = now() - interval '1 hour'
+    where id = $1`, [SAME_INV]);
+ok(
+  "a stamp at the very instant of the send reads as spent",
+  (await one(`select public.nudge_application_invitation($1,$2,'a'||repeat('3',63),14) as r`,
+    [ORG, SAME_INV])).r === false,
+);
+
 // The race the WHERE clause exists for: the sweep reads a candidate, then sends mail. A driver who
 // submits in that window must not have their link rotated out from under them.
 const SUBMITTED_DRIVER = await driver("Finished Already");
