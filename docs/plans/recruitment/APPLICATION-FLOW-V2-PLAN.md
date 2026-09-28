@@ -1238,3 +1238,16 @@ Append dated lines at the END.
   **Checks:** 29 mutants, all killed. **Not looked at in a browser:** the drawer opens only from the recruiter
   page, which has no preview harness; the component's layout uses the same primitives and grid as
   `ApplicantIdentityCorrection`. No migration.
+- 2026-09-28 — **Q-AW36 merged** (#1091, main `c8462d1`); CI green on the merged head.
+- 2026-09-28 — **Q-AW29a built** (`claude/applicant-flow-aw29`): migration **0378**, the text's own token, merged
+  alone before its reader.
+  - **The column:** `application_invitations.sms_token_hash`, nullable, with a partial unique index (0345's
+    reasoning).
+  - **The writer:** `rotate_invitation_sms_token(org, invitation, hash)` sets it in one guarded statement and
+    touches nothing else. `token_hash` (the email's and the office's link), `sign_token_hash` and `expires_at`
+    all stand. It refuses a revoked, lapsed or other-org invitation and anything but a SHA-256 hex digest. It
+    allows a submitted one, because the sign link is texted after submission. service_role only.
+  - **Tests:** the session test gained 10 cases (36 passed). 10 mutants, all killed.
+  - **Next, Q-AW29b:** the resolver accepts the new hash as a third door. The outbox gains the link-bearing
+    templates, whose link is minted at send time through this function. The office's Send and the reminder
+    queue their texts instead of dropping them in quiet hours.
