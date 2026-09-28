@@ -23,9 +23,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * 0376 judges §40.25(j) on the intake row as it stands after EVERY write (AI009, D-AW13): a write that
  * leaves it unanswered is refused. The question is screen 7, so screens 3–6 cannot be saved before it —
  * the M1 PR's fourth reading, and `applicantScreeningContract.ts`'s header. Their answers are held
- * here and posted by `firstWrite` when screen 7 is answered. ⚠ Until AW10 (C3d) replays a local draft,
- * a reload before screen 7 loses up to four screens of typing; that is recorded in plan §12, not
- * hidden by reordering the owner's screens.
+ * here and posted by `firstWrite` when screen 7 is answered. Since C3d1a (AW10) they are also kept on
+ * the device until then (`partOneLocal.ts`), so a reload before screen 7 no longer loses them.
  *
  * ── AND WHY THE FIRST WRITE IS THREE CALLS IN THIS ORDER ─────────────────────────────────────
  * 0376 writes the date of birth only THROUGH `record_applicant_identity`, and only once the current

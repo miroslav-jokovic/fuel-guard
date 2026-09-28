@@ -441,7 +441,7 @@ Behind the existing `CaptureProvider` seam, nothing replaced:
 | Tap targets on `/apply` | 100% ≥ 44×44 CSS px, none < 24 (WCAG 2.5.8) | Playwright sweep, 320 and 390 px |
 | Apply-route JS | ≤ 200 KiB gzipped; barcode reader, PDF viewer, signature pad lazy | build report |
 | Web vitals on a Galaxy-A24-class profile, Slow 4G | LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; Lighthouse mobile perf ≥ 90, a11y 100 | Lighthouse CI in `typecheck-build` (the only job that builds), listed in CLAUDE.md |
-| Network cut mid-screen | zero lost answers; an upload cut at 50% resumes | Playwright offline test |
+| Network cut mid-screen | zero lost answers; a cut upload is retried from the kept photo, never re-taken (Q-AW38 (a) — was "an upload cut at 50% resumes") | Playwright offline test |
 | Errors | inline, name the field and the fix; validate on leaving a field, clear on the fixing keystroke; summary kept | component tests |
 | Real walk | an older Android + an iPhone, one real driver, end to end | §11 log |
 
@@ -596,7 +596,7 @@ execute); `submit-application-v2.test.mjs` (promoted captures skipped, verificat
 | AW7 | MVR from intake; 30-day freshness; one checklist-input builder for board + checklist; legacy draft copy | C2 |
 | AW8 | Drug-test appointments, portal-consent fact, send warnings | C2 |
 | AW9 | Part 2 task-list hub, loops, coverage meters, notice screen, check your answers, (b)(1) header, (b)(12) wording | C3 |
-| AW10 | Local draft replay (IndexedDB) with revision; resumable uploads (Supabase TUS on `application-captures`) | C3 |
+| AW10 | Local draft replay (IndexedDB) with revision; uploads retried from the photo kept on the device (Q-AW38 (a) replaced Supabase TUS) | C3 |
 | AW11 | §7 state machine + travel | C2 |
 | AW12 | Phone verification per employer | C2 |
 | AW13 | Spanish on `/apply` + `APPLY_COPY` key-parity test | C4 |
@@ -719,6 +719,8 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW35** (C3c2c2, 2026-09-27) | Part 1 lets an OTHER licence go without an expiry (`PartOneOtherLicences`: optional), and filing then refuses the whole v2 application — `composeFiledApplication` names it ("Give the expiry date of your OH licence", (b)(5) needs the date to know whether it is unexpired) — while no screen can supply it: Part 2 shows Part 1's licences read-only (C3c2c2), and before that its list was replaced by Part 1's anyway (C2c). So any v2 applicant who lists another licence without an expiry cannot be filed, by anyone short of SQL. Production has 0 v2 invitations (measured 2026-09-27), so nobody is stuck yet. Part 2's licence screen now says "no expiry date given" on such a licence. | (a) Part 1 REQUIRES the expiry for every licence, hint "the date printed on it — even if you gave it up"; no migration; (b) Part 1 asks "do you still hold it?" and requires the date only for a held one, composition skipping a surrendered one — needs a column (migration + reader, two merges); (c) an office writer for Part 1's licences (Q-AW36) | **(a)**, a few lines in Part 1 plus its test, before the first real v2 applicant — the driver is holding the question at the only moment anyone can answer it. (c) is still owed, for the licence the driver gets wrong anyway. **RULED (a) by the owner 2026-09-27; BUILT** — required on screen 6 AND in the contract the intake route parses, so no client can store a licence filing would refuse. |
 | **Q-AW36** (C3c2c2, 2026-09-27) | The office has no way to CORRECT a Part 1 fact except the date of birth and the CDL's number and state (`correctApplicantIdentity`, `p_overwrite`). The phone, the current address, the CDL's class and expiry, the other licences and §40.25(j) are written only by the applicant's `record_applicant_intake` (fill-only). "Something wrong? Tell us" (C3c2c2) now reaches the office's drawer as a note — but the office can read it and cannot act on it; and C3c2c2 also, correctly, stopped the drawer offering the draft's copies of those answers, because filing overwrote any correction made there. | (a) an office "Correct Part 1" act: `record_applicant_intake` with `p_overwrite = true` (it already takes the flag), audited like the identity correction, reachable from the drawer beside the note; no migration; (b) send the applicant back to Part 1 — reopens screening | **(a)**, as its own PR; it is the other half of the "Tell us" path, and the function already exists. **RULED (a) by the owner 2026-09-27.** **BUILT 2026-09-28** — without §40.25(j) and §382.301(b): those are the applicant's statements, and an answer the office typed is not the answer to the question the regulation has the employer ask. |
 | **Q-AW37** (C3c3, 2026-09-27) | An invitation may be nudged ONCE, ever (0232: `where nudged_at is null`, never cleared). C3c3's Part-1 reminder would spend it, and a driver who then stalls in Part 2 — the form with their work history in it — would never be asked back; the office alert shares one dedupe key per invitation too. | (a) one reminder shared by both parts, no migration; (b) one per part: the function allows a stamp that predates `application_sent_at` (a Part 1 reminder), derived rather than a second column — a migration, then its reader | **(b)**. **RULED (b) by the owner 2026-09-27; 0377 built in C3c3a**; the Part-1 sweep is C3c3b. |
+| **Q-AW38** (C3d, 2026-09-28) | AW10 names Supabase TUS for "an upload cut at 50% resumes" (§6.8). Supabase's resumable uploads use a FIXED 6 MB chunk ("must be set to 6MB (for now) do not change it", Supabase docs, read 2026-09-28), and a capture is downscaled to 1568 px WebP q80 — "the low hundreds of kilobytes" (`APPLICATION_CAPTURE_MAX_BYTES`'s header). Every capture is therefore ONE chunk: a cut at 50% restarts from zero exactly as today's signed-URL PUT does, and `tus-js-client` would cost apply-route JS (§6.8's 200 KiB) for nothing. What a cut actually loses today is the PHOTO: the encoded bytes live only in the page (an object URL) until `confirm`. | (a) keep the encoded photo in IndexedDB until `confirm` and replay `stageCapture`'s three calls on reconnect — §6.8's bar reworded to "retried from the kept photo, never re-taken"; (b) build TUS anyway; (c) raise the capture size until chunks matter | **(a)** — the defect is a re-take, not a re-send. **RULED (a) by the owner 2026-09-28**; it is C3d2. |
+| **Q-AW39** (C3d, 2026-09-28) | AW10's local replay puts screens 3–6's answers — the date of birth, the CDL number, the address — at rest on the device before screen 7, and the link may be opened on an office computer (the desktop handoff, C3b2b2). D-APP16 keeps a date of birth off the bare link; nothing yet says how long one may sit in a browser. | (a) screens 3–6 only, never screen 7's answers; deleted the moment screen 7's write lands, and at the EARLIER of 72 hours and the link's expiry, every read sweeping every expired copy on the device; (b) the same without the date of birth (retyped after a reload) | **(a)**. **RULED (a) by the owner 2026-09-28; BUILT in C3d1a.** |
 | **Q-AW30** (C2d2, 2026-09-27) | G-2 and §8.5 say "exact-keyword STOP". Built instead: CANCEL, END and QUIT count only as the whole message (G-2's false positives — "I'll quit my job", "end of the week"); STOP, STOPALL, UNSUBSCRIBE, REVOKE and OPT OUT still count anywhere. Reason: the public terms page promises "please stop texting me" works, the existing test pinned "help me stop these texts" as an opt-out, the FCC's §64.1200(a)(10) standard is "any reasonable means", and a false positive is now undone by START. | (a) as built; (b) every keyword whole-message only, terms page loses the "plain request" sentence; (c) counsel rules | **(a)**; (b) is a one-line change in `isStopMessage` plus the terms page, if the owner prefers it. **RULED (a) by the owner 2026-09-27** — as built. |
 
 ---
@@ -1265,3 +1267,33 @@ Append dated lines at the END.
   - **Unchanged:** no wording changed, so no new Telnyx sample. The desktop's "Text me the link" stays
     send-now, by choice now rather than by limit (its header says why).
   - **Tests:** 21 mutants, all killed.
+- 2026-09-28 — **Q-AW29b merged** (#1093, main `ac4aa5e`); CI green on the merged head.
+- 2026-09-28 — **C3d split** (owner, 2026-09-28): **C3d1a** Part 1's held screens kept on the device; **C3d1b**
+  Part 2's draft on 0376's revision (`save_application_draft`'s 6-argument overload, DA041 → reload the
+  server's copy) with a device copy of a failed save; **C3d2** uploads retried from the kept photo (Q-AW38 (a),
+  replacing TUS); **C3d3** screen events (0376's `application_screen_events`, its writer and 180-day retention),
+  the 44 px sweep and the offline test, against built `dist` with a stubbed API in `typecheck-build` — the first
+  browser tests CI runs; **C3d4** Lighthouse CI on the same harness, measured first. **No migration in any of
+  them**: 0376 already holds the revision column, the 6-argument function and the events table, and all three
+  were verified present in production on 2026-09-28. **Q-AW38 (a)** and **Q-AW39 (a)** ruled (rows in §11).
+- 2026-09-28 — **C3d1a built** (`claude/applicant-flow-c3d1a`): a reload before screen 7 no longer loses
+  screens 3–6.
+  - **The copy:** `partOne/partOneLocal.ts` keeps screens 3–6's answers, the screens passed and what the
+    barcode filled, in IndexedDB, written 300 ms after each change. It is never screen 7's answers, the
+    medical card or a photo. It is deleted when screen 7's write lands (and on arrival at a link already
+    begun), and it dies at the earlier of 72 hours and the link's expiry. Every read sweeps every expired
+    copy on the device. With storage blocked, Part 1 works as before and cannot survive a reload.
+  - **The key:** the bundle serves `localKey`, sha256 of a namespaced invitation id. **Found on the way:**
+    keying by token would have missed the one return path this exists for, because the Part-1 reminder
+    rotates the email's token and a text carries its own (Q-AW29). The key is the same on every door and
+    is neither the token nor an id (the bundle's rule is that no internal id crosses).
+  - **The walk:** a restore applies only to an untouched walk (typing or a barcode read that came first
+    wins). It reopens on the first held screen not passed, but a walk still owed a photo stays on the
+    photo. Restored screens count as `held`, so screen 7 writes them through `firstWrite` as typed ones.
+  - **Dropped:** an operation queue, written first to order a write before screen 7's delete. Its mutant
+    survived, because IndexedDB already orders them (the connection queue, and readwrite transactions
+    started in creation order), so the queue was a no-op and the comment justifying it was wrong.
+  - **Checks:** 32 mutants, all killed. One survived the first pass (a copy's expiry taken from the 72
+    hours alone) and gained its test. Looked at in Chromium at 390 px: typed "About you" and a street,
+    reloaded, reopened on "Where you live now" with both screens' answers back, and nothing sent.
+    No migration.

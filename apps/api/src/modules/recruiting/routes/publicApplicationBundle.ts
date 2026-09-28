@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { todayInZone } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -27,6 +28,19 @@ import { carrierZone } from "../carrierClock.js";
  * That file's header governs it: every refusal is the same `invalid_link`, and no org id crosses the
  * boundary — the token resolves to the org server-side, here as everywhere on the surface.
  */
+
+/**
+ * The key the page keeps Part 1's typing under on the device until screen 7 writes it (AW10, C3d1a,
+ * `partOne/partOneLocal.ts`).
+ *
+ * ⚠ Not the token: the token ROTATES — the reminder replaces the email's link and a text mints its own
+ * (Q-AW29) — and the Part-1 reminder fires exactly when a driver stopped before screen 7, so a copy keyed
+ * by token would be unreachable on the one return path it exists for. Not the invitation id either: this
+ * file's rule is that no internal id crosses the boundary. A one-way hash of the id, namespaced to this
+ * one use, is the same on every door and says nothing about anything else.
+ */
+export const localCopyKey = (invitationId: string): string =>
+  createHash("sha256").update(`apply-part-one-local:${invitationId}`).digest("hex");
 
 /**
  * What the applicant sees when they open the link: which carrier, what is being asked, and the
@@ -96,6 +110,7 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     carrierAddress: (org as { legal_address?: string | null } | null)?.legal_address ?? null,
     carrierToday,
     expiresAt: invitation.expires_at,
+    localKey: localCopyKey(invitation.id),
     releases: releasesForApplicant(wording),
     releasesSigned: signed,
     // Where this driver stopped (D-APP1). Three dates and nothing else — the page opens on the

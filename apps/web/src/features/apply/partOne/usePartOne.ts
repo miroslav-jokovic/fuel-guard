@@ -3,6 +3,7 @@ import type { AamvaLicence, ApplicationCaptureView, FcraSummary, PartOneStatus }
 import { readLicenceBarcode } from "@/features/apply/capture/readLicenceBarcode";
 import { APPLY_COPY } from "@/features/apply/strings";
 import { completePartOne, postIntake, postIntakeLicences } from "./partOneApi";
+import { useHeldCopy, type LocalCopySpec } from "./partOneLocal";
 import {
   HELD_UNTIL_SCREENING,
   PART_ONE_SCREENS,
@@ -42,12 +43,18 @@ import {
  * server and not in this page, so posting what this page holds would delete what it does not. Those two
  * screens are therefore read-only in a session that did not type them (`locked`), and the office corrects
  * the list (`p_overwrite`) if it is wrong.
+ *
+ * Screens 3–6's held answers are also kept on the device until screen 7 writes them (`partOneLocal.ts`,
+ * AW10), so a reload before screen 7 no longer loses them. A restored screen counts as `held`: this
+ * device typed it, and on an unbegun link the server holds no list for a re-post to delete.
  */
 export interface PartOneInputs {
   status: PartOneStatus;
   identityComplete: boolean;
   captures: readonly ApplicationCaptureView[];
   summary: FcraSummary | null;
+  /** The device copy's key and lifetime (C3d1a). Absent: no copy is kept, as before C3d1a. */
+  local?: LocalCopySpec | null;
 }
 
 /** Where the licence's barcode stands on the CDL-back screen (AW5). `idle` says nothing. */
@@ -132,6 +139,18 @@ export function usePartOne(
   const locked = computed(
     () => (screen.value === "licence" || screen.value === "otherLicences") && onFile.value && !held.has("licence"),
   );
+
+  const { ready: restored } = useHeldCopy({
+    spec: initial.local,
+    answers,
+    held,
+    fromLicence,
+    begun,
+    screen,
+    goTo: (s) => {
+      index.value = PART_ONE_SCREENS.indexOf(s);
+    },
+  });
 
   function back(): void {
     [errors.value, failure.value, kept.value] = [{}, null, false];
@@ -287,6 +306,8 @@ export function usePartOne(
     back,
     next,
     acknowledgeKept,
+    /** Settles once the device copy has been read (and applied, when there was one to apply). */
+    restored,
   };
 }
 

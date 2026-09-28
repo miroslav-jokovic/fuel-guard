@@ -142,6 +142,12 @@ export interface ApplyInvitation {
    */
   carrierToday?: string;
   expiresAt: string;
+  /**
+   * The key Part 1's device copy is kept under (C3d1a, `partOne/partOneLocal.ts`): a hash of the
+   * invitation, the same across every token the link is sent with, and never the token or an id.
+   * ⚠ Optional: a bundle cached from before C3d1a keeps no device copy.
+   */
+  localKey?: string;
   releases: ApplyRelease[];
   /** Which instruments this link has already collected, so a resumed ceremony skips them (A5). */
   releasesSigned: AuthorizationPurpose[];
