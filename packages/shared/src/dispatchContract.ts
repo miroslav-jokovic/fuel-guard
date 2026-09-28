@@ -33,6 +33,13 @@ export const assignmentRowSchema = z.object({
   load_id: z.uuid().nullable(),
   load_ref: z.string().nullable(),
   load_status: z.string().nullable(),
+  /**
+   * Where the load came from (`tms` = McLeod) and McLeod's movement code, so the board words the
+   * status with `loadBoardState`, as the Loads board does. Defaulted because web and api deploy
+   * separately: a response from an api older than 2026-09-28 lacks both, and must still parse.
+   */
+  load_source: z.string().nullable().default(null),
+  load_external_status: z.string().nullable().default(null),
 });
 export type AssignmentRow = z.infer<typeof assignmentRowSchema>;
 

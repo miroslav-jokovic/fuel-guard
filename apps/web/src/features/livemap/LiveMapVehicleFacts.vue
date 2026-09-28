@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
+import { loadBoardState, type LiveMapBoard, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { formatAge, fuelMetric } from "./liveMapWords";
@@ -47,6 +47,16 @@ const props = defineProps<{
 }>();
 
 const compact = computed(() => props.density === "compact");
+
+// The load's status in the Loads board's words (`loadBoardState`), never the raw enum: until
+// 2026-09-28 this printed `in_transit`, and a McLeod load McLeod has planned but not started would
+// have printed `approved`, a word left over from the approval chain LR6 removed. McLeod's own code
+// rides in the tooltip, as on the board, so the map can be matched to McLeod's screen.
+const loadState = computed(() => {
+  const load = props.vehicle.load;
+  if (!load) return null;
+  return loadBoardState({ status: load.status as LoadStatus, source: load.source ?? "", external_status: load.externalStatus ?? null });
+});
 
 const speed = computed(() => {
   const mph = props.vehicle.position.speedMph;
@@ -113,7 +123,7 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
         No load on this truck. Loads arrive with the dispatch feed.
       </p>
       <RouterLink v-else :to="`/loads/${vehicle.load.id}`" class="block text-sm text-link hover:text-link-hover">
-        {{ vehicle.load.ref ?? "Load" }} · {{ vehicle.load.status }}
+        {{ vehicle.load.ref ?? "Load" }} · <span :title="loadState?.mcleodWords ?? undefined">{{ loadState?.label }}</span>
       </RouterLink>
       <p v-if="vehicle.load?.nextStop" class="text-xs text-ink-muted">
         Next stop: {{ vehicle.load.nextStop.name ?? vehicle.load.nextStop.kind }}

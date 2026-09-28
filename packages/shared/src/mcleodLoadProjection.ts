@@ -103,6 +103,18 @@ export type ProjectionOutcome =
   | { ok: false; movement_id: string; reason: string };
 
 /**
+ * Whether McLeod has the truck gone from a stop. `stop.status` takes two values on the open board, `A`
+ * and `D`. Measured on live `lme` 2026-09-28 (96 `P` movements, 253 stops): all 97 `D` stops carry
+ * `actual_departure` and none of the 156 `A` stops does. Five `A` stops carry an arrival: the truck is
+ * AT that stop, which is not behind it. No movement had a `D` stop after a stop that was not `D`.
+ * So `D` is "departed", and it is the one definition read by both the projection (in transit = a stop
+ * departed) and the live map (next stop = the first not departed, `nextStopOnRoute`).
+ */
+export function mcleodStopDeparted(stopStatus: string | null | undefined): boolean {
+  return (stopStatus ?? "").trim() === "D";
+}
+
+/**
  * McLeod movement status → our status (D-LMR7: status is McLeod's, the Dispatch act is separate).
  *
  *   A (available, not covered)          → pending_approval — the page says "Uncovered"
@@ -119,7 +131,7 @@ export function projectMcleodStatus(movementStatus: string | null, stopStatuses:
     case "A":
       return "pending_approval";
     case "P":
-      return stopStatuses.some((s) => (s ?? "").trim() === "D") ? "in_transit" : "approved";
+      return stopStatuses.some(mcleodStopDeparted) ? "in_transit" : "approved";
     case "D":
       return "delivered";
     case "V":

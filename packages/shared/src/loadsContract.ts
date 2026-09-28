@@ -31,6 +31,8 @@ export type StopKind = (typeof STOP_KINDS)[number];
 
 export const STOP_STATUSES = ["pending", "arrived", "completed", "skipped"] as const;
 export type StopStatus = (typeof STOP_STATUSES)[number];
+/** The driver app's own "this stop is finished": worked, or skipped with a reason. */
+export const DRIVER_DONE_STOP_STATUSES: readonly StopStatus[] = ["completed", "skipped"];
 
 /**
  * The photo slots a stop can require. Free-form `text[]` in the DB so dispatch can add one without a
@@ -157,18 +159,23 @@ export function loadBucket(status: LoadStatus): "upcoming" | "current" | "previo
   return "upcoming";
 }
 
-/** The next stop a driver should work — the lowest-seq stop that isn't finished. */
+/**
+ * The next stop a driver should work — the lowest-seq stop that isn't finished.
+ *
+ * The DRIVER'S reading: only the driver app's own statuses count. The office's reading of where a
+ * truck goes next also counts McLeod's departures (`nextStopOnRoute`, loadBoard.ts). They are kept
+ * apart on purpose: whether McLeod's departure should finish a stop in the driver app is Q-LMR2
+ * (LOADS-MIRROR-PLAN.md), still open, and deciding it here by sharing one function would rule it silently.
+ */
 export function nextStop(load: Pick<Load, "stops">): LoadStop | null {
-  const open = load.stops
-    .filter((s) => s.status !== "completed" && s.status !== "skipped")
-    .sort((a, b) => a.seq - b.seq);
+  const open = load.stops.filter((s) => !DRIVER_DONE_STOP_STATUSES.includes(s.status)).sort((a, b) => a.seq - b.seq);
   return open[0] ?? null;
 }
 
 /** Progress along the run, for the Home hero's stop counter and bar. */
 export function stopProgress(load: Pick<Load, "stops">): { current: number; total: number } {
   const total = load.stops.length;
-  const done = load.stops.filter((s) => s.status === "completed" || s.status === "skipped").length;
+  const done = load.stops.filter((s) => DRIVER_DONE_STOP_STATUSES.includes(s.status)).length;
   // "Stop 2 of 3" means the one being worked on, so clamp to the total once everything is finished.
   return { current: Math.min(done + 1, Math.max(total, 1)), total };
 }

@@ -9,11 +9,10 @@
  * carve-out claims it.
  */
 export { dispatchRouter } from "./routes/dispatch.js";
-// What each truck is hauling right now, for the live map (LM6). Returns nothing until LM12 turns
-// the TMS feed on — `loads` has 0 rows in production — and an empty answer is correct, not broken.
+// What each truck is hauling right now, for the live map (LM6). Which loads count is shared
+// `isLoadOnTruck` (D-MCC12 for McLeod); an empty answer before the first sync is correct, not broken.
 export {
   readLiveLoadContext,
-  LIVE_LOAD_STATUSES,
   type LiveLoadContext,
   type LiveLoadStop,
 } from "./liveLoadReads.js";

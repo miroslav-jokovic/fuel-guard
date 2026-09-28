@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import {
   shiftDuration,
-  LOAD_STATUS_LABELS,
+  loadBoardState,
   type AssignmentRow,
   type LoadStatus,
 } from "@silvicom/shared";
@@ -75,10 +75,12 @@ const TABS = [
 ] as const;
 const tab = ref<(typeof TABS)[number]["value"]>("board");
 
+// The Loads board's words (`loadBoardState`), not the approval chain's: a McLeod load planned but not
+// started is `approved`, which LOAD_STATUS_LABELS would call "Approved" (2026-09-28).
 const loadLabel = (r: AssignmentRow) =>
-  r.load_ref
-    ? `${r.load_ref} · ${LOAD_STATUS_LABELS[(r.load_status ?? "draft") as LoadStatus] ?? r.load_status}`
-    : "—";
+  r.load_ref && r.load_status
+    ? `${r.load_ref} · ${loadBoardState({ status: r.load_status as LoadStatus, source: r.load_source ?? "", external_status: r.load_external_status }).label}`
+    : (r.load_ref ?? "—");
 
 // Legacy in-app shift gating: End shift appears only for a genuinely open session.
 const hasOpenSession = (r: AssignmentRow) => r.session_id != null;
