@@ -238,6 +238,27 @@ beforeAll(async () => {
 afterAll(async () => closeTestServer(server));
 
 describe("opening the link", () => {
+  /**
+   * C3d1a: the key Part 1's device copy lives under. The Part-1 reminder rotates the email's token and a
+   * text carries its own (Q-AW29), so a key that moved with the token would strand the copy on exactly the
+   * visit it exists for — and it must say nothing about the invitation or the token it came through.
+   */
+  it("serves one localKey through every door of the link, and it is neither the token nor the id", async () => {
+    const SMS_TOKEN = "c".repeat(43);
+    holder.client = seed({ sms_token_hash: hashInvitationToken(SMS_TOKEN) }).client;
+    const viaEmail = (await (await call(`/${TOKEN}`)).json()) as { localKey: string };
+    const viaText = (await (await call(`/${SMS_TOKEN}`)).json()) as { localKey: string };
+    expect(viaEmail.localKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(viaText.localKey).toBe(viaEmail.localKey);
+    expect(viaEmail.localKey).not.toContain("inv-1");
+    expect(viaEmail.localKey).not.toBe(createHash("sha256").update("inv-1").digest("hex"));
+    expect(viaEmail.localKey).not.toBe(hashInvitationToken(TOKEN));
+
+    holder.client = seed({ id: "inv-2" }).client;
+    const other = (await (await call(`/${TOKEN}`)).json()) as { localKey: string };
+    expect(other.localKey).not.toBe(viaEmail.localKey);
+  });
+
   it("needs no bearer token and names the carrier", async () => {
     holder.client = seed().client;
     const res = await call(`/${TOKEN}`);

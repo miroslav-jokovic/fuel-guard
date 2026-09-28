@@ -33,6 +33,8 @@ export function usePartOneStep(
           identityComplete: Boolean(data.identityComplete),
           captures: data.captures ?? [],
           summary: data.fcraSummary ?? null,
+          // C3d1a: no key (a bundle cached from before it) keeps no device copy.
+          local: data.localKey ? { key: data.localKey, linkExpiresAt: data.expiresAt } : null,
         }
       : null;
 
