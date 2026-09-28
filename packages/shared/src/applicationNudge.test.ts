@@ -26,6 +26,20 @@ const candidate = (over: Partial<NudgeCandidate> = {}): NudgeCandidate => ({
   application_sent_at: hoursAgo(96),
   draft_updated_at: hoursAgo(72),
   furthest_section: "employment",
+  consented_at: hoursAgo(300),
+  releases_completed_at: hoursAgo(290),
+  part_one_activity_at: hoursAgo(290),
+  ...over,
+});
+
+/** A driver who began Part 1 and stopped before the permissions were finished. */
+const partOne = (over: Partial<NudgeCandidate> = {}): NudgeCandidate => candidate({
+  application_sent_at: null,
+  releases_completed_at: null,
+  consented_at: hoursAgo(100),
+  draft_updated_at: hoursAgo(90),
+  part_one_activity_at: hoursAgo(80),
+  furthest_section: null,
   ...over,
 });
 
@@ -37,6 +51,7 @@ describe("who is nudged", () => {
     expect(nudge?.furthestSection).toBe("employment");
     // Per invitation, so the office is told once and the six-hourly re-runs stay silent.
     expect(nudge?.dedupeKey).toBe("application_stalled:inv-1");
+    expect(nudge?.part).toBe("part_two");
   });
 
   it("leaves a draft touched inside the window alone — Friday evening is not abandonment", () => {
@@ -61,9 +76,91 @@ describe("who is nudged", () => {
     expect(planApplicationNudges([candidate({ expires_at: "2026-08-01T00:00:00Z" })], NOW)).toEqual([]);
   });
 
-  /** Once, ever. A system that reminds an applicant every six hours gets filtered. */
-  it("never nudges twice", () => {
+  /** Once per part. A system that reminds an applicant every six hours gets filtered. */
+  it("never nudges twice in Part 2", () => {
     expect(planApplicationNudges([candidate({ nudged_at: "2026-08-20T10:00:00Z" })], NOW)).toEqual([]);
+  });
+
+  /** A stamp at the very instant of the send is not proof it was Part 1's — 0377's strict `<`. */
+  it("reads a stamp at the instant of the send as Part 2's", () => {
+    const sent = hoursAgo(96);
+    expect(planApplicationNudges([candidate({ application_sent_at: sent, nudged_at: sent })], NOW)).toEqual([]);
+  });
+
+  /**
+   * ⚠ C3c3b: AF3 writes the draft on the first visit, so a form sent days after Part 1 arrives with an
+   * old draft. Reading only the draft reminded the driver at once and rotated away the link the office
+   * had just sent.
+   */
+  it("starts Part 2's clock at the office's Send, not at the older draft", () => {
+    const justSent = candidate({ application_sent_at: hoursAgo(2), draft_updated_at: hoursAgo(200) });
+    expect(planApplicationNudges([justSent], NOW)).toEqual([]);
+    const sentAndLeft = candidate({ application_sent_at: hoursAgo(STALE_DRAFT_HOURS + 1), draft_updated_at: hoursAgo(200) });
+    expect(planApplicationNudges([sentAndLeft], NOW)).toHaveLength(1);
+  });
+});
+
+/**
+ * C3c3b — the driver who stopped in Part 1 (Q-AW37 (b), one reminder per part). They consented, and
+ * did not finish the permissions; nobody can screen them until they do, so this wait is theirs.
+ */
+describe("the driver who stopped in Part 1", () => {
+  it("is nudged, as Part 1, with its own office alert and no section", () => {
+    const [nudge] = planApplicationNudges([partOne()], NOW);
+    expect(nudge).toMatchObject({
+      invitationId: "inv-1", part: "part_one", email: "susan@example.test", furthestSection: null,
+      dedupeKey: "application_stalled_part_one:inv-1",
+    });
+  });
+
+  it("carries no section even when the draft names one — sections are Part 2's", () => {
+    expect(planApplicationNudges([partOne({ furthest_section: "employment" })], NOW)[0]?.furthestSection).toBeNull();
+  });
+
+  /** Each of the four places Part 1 writes is a sign of life on its own. */
+  it("is left alone while anything Part 1 wrote is inside the window", () => {
+    const warm = hoursAgo(STALE_DRAFT_HOURS - 1);
+    expect(planApplicationNudges([partOne({ consented_at: warm, draft_updated_at: null, part_one_activity_at: null })], NOW)).toEqual([]);
+    expect(planApplicationNudges([partOne({ draft_updated_at: warm })], NOW)).toEqual([]);
+    expect(planApplicationNudges([partOne({ part_one_activity_at: warm })], NOW)).toEqual([]);
+  });
+
+  /** The window's edge: exactly forty-eight hours is still inside it, as it always was for Part 2. */
+  it("is left alone at exactly the window's edge, and nudged a moment past it", () => {
+    const edge = { consented_at: hoursAgo(STALE_DRAFT_HOURS), draft_updated_at: null, part_one_activity_at: null };
+    expect(planApplicationNudges([partOne(edge)], NOW)).toEqual([]);
+    expect(planApplicationNudges([partOne({ ...edge, consented_at: hoursAgo(STALE_DRAFT_HOURS + 0.001) })], NOW)).toHaveLength(1);
+  });
+
+  /** A consent and nothing after it is still a driver who began — Part 1's first write is the consent. */
+  it("is nudged on a stale consent alone", () => {
+    expect(planApplicationNudges([partOne({ draft_updated_at: null, part_one_activity_at: null })], NOW)).toHaveLength(1);
+  });
+
+  it("is never nudged when they never consented — nothing was begun", () => {
+    expect(planApplicationNudges([partOne({ consented_at: null })], NOW)).toEqual([]);
+  });
+
+  /** Permissions finished and the form unsent is the office's screening, however long it takes. */
+  it("is never nudged once the permissions are finished", () => {
+    expect(planApplicationNudges([partOne({ releases_completed_at: hoursAgo(90) })], NOW)).toEqual([]);
+  });
+
+  it("is nudged once in Part 1", () => {
+    expect(planApplicationNudges([partOne({ nudged_at: hoursAgo(60) })], NOW)).toEqual([]);
+  });
+
+  /** The ruling itself: Part 1's reminder does not spend Part 2's. */
+  it("is nudged again in Part 2 after a Part 1 reminder", () => {
+    const [nudge] = planApplicationNudges([candidate({ nudged_at: hoursAgo(150), application_sent_at: hoursAgo(96) })], NOW);
+    expect(nudge?.part).toBe("part_two");
+  });
+
+  it("is subject to every exit a Part 2 candidate is", () => {
+    for (const exit of [
+      { submitted_at: hoursAgo(1) }, { revoked_at: hoursAgo(1) }, { expires_at: hoursAgo(1) },
+      { review_requested_at: hoursAgo(1) }, { approved_at: hoursAgo(1) },
+    ]) expect(planApplicationNudges([partOne(exit)], NOW)).toEqual([]);
   });
 });
 

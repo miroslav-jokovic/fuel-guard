@@ -5,10 +5,12 @@ import {
   planApplicationNudges,
   smsApplicationReminder,
   type NudgeCandidate,
+  type NudgePart,
   type PlannedNudge,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
+import { fetchAllPaged } from "../../lib/paging.js";
 import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { sendApplicationSms } from "./applicationSms.js";
@@ -39,16 +41,27 @@ const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
+ * The last sentence, per part. Part 2's reminder is the last one the invitation can get; Part 1's is
+ * not — a driver reminded now may be reminded once more, about the form, weeks later (Q-AW37 (b)) —
+ * so Part 1's promise is narrower, and true.
+ */
+const NO_MORE: Record<NudgePart, string> = {
+  part_one: "we will not remind you about this step again.",
+  part_two: "we will not send another reminder.",
+};
+
+/**
  * The email itself.
  *
  * Written to a person who is doing the carrier a favour by applying at all: what is saved, where they
  * stopped, one link, and the one caveat that matters — the older email's link is dead now. No
- * deadline, no chasing, and no second reminder, because there will not be one.
+ * deadline, no chasing, and no second reminder about the same step, because there will not be one.
  */
 export function nudgeEmail(
   carrier: string,
   link: string,
   sectionLabel: string | null,
+  part: NudgePart = "part_two",
 ): { subject: string; text: string; html: string } {
   const where = sectionLabel ? ` You had reached "${sectionLabel}".` : "";
   const subject = `Your ${carrier} application is saved`;
@@ -56,14 +69,14 @@ export function nudgeEmail(
     `You started an application for ${carrier} and it is still saved.${where}\n\n`
     + `Pick up where you left off: ${link}\n\n`
     + "This link replaces the one in the earlier email, which no longer works. "
-    + "If you would rather not continue, you can ignore this — we will not send another reminder.";
+    + `If you would rather not continue, you can ignore this — ${NO_MORE[part]}`;
   const html = [
     `<p>You started an application for ${escapeHtml(carrier)} and it is still saved.`,
     sectionLabel ? ` You had reached &quot;${escapeHtml(sectionLabel)}&quot;.` : "",
     "</p>",
     `<p><a href="${escapeHtml(link)}">Pick up where you left off</a></p>`,
     "<p>This link replaces the one in the earlier email, which no longer works. If you would rather "
-    + "not continue, you can ignore this — we will not send another reminder.</p>",
+    + `not continue, you can ignore this — ${NO_MORE[part]}</p>`,
   ].join("");
   return { subject, text, html };
 }
@@ -75,7 +88,47 @@ export function nudgeEmail(
  * compiling. One `const` keeps the literal and the margin both.
  */
 const CANDIDATE_COLS =
-  "id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at, review_requested_at, approved_at, application_sent_at";
+  "id, driver_id, email, expires_at, revoked_at, submitted_at, nudged_at, review_requested_at, approved_at, application_sent_at, consented_at, releases_completed_at";
+
+/**
+ * Part 1's writes outside the draft — the intake row, the photographs, the signed permissions — as one
+ * latest instant per invitation (C3c3b). Read for EVERY candidate, not only the ones that look like
+ * Part 1: a narrower read than the fold's own test would hand it a null for a driver active yesterday,
+ * and a null reads as "nothing written", which is a reminder sent to somebody mid-way through.
+ *
+ * Paged (PostgREST caps a response at 1,000 rows), and each select a literal of its own, for the
+ * reason `CANDIDATE_COLS` gives — and no aliases, because `supabaseRecorder` hands back whole rows,
+ * so an alias would be the one thing about this read its tests could not see.
+ */
+async function partOneActivity(
+  admin: SupabaseClient,
+  orgId: string,
+  ids: readonly string[],
+): Promise<Map<string, string>> {
+  const [intakes, captures, permissions] = await Promise.all([
+    fetchAllPaged<{ invitation_id: string; updated_at: string }>((from, to) =>
+      admin.from("application_intakes").select("invitation_id, updated_at")
+        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
+    fetchAllPaged<{ invitation_id: string; captured_at: string }>((from, to) =>
+      admin.from("application_captures").select("invitation_id, captured_at")
+        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
+    fetchAllPaged<{ invitation_id: string | null; created_at: string }>((from, to) =>
+      admin.from("driver_authorizations").select("invitation_id, created_at")
+        .eq("org_id", orgId).in("invitation_id", ids).order("id").range(from, to)),
+  ]);
+  const out = new Map<string, string>();
+  const stamps = [
+    ...intakes.map((r) => [r.invitation_id, r.updated_at] as const),
+    ...captures.map((r) => [r.invitation_id, r.captured_at] as const),
+    ...permissions.map((r) => [r.invitation_id, r.created_at] as const),
+  ];
+  for (const [id, at] of stamps) {
+    if (!id || !at) continue;
+    const held = out.get(id);
+    if (!held || Date.parse(at) > Date.parse(held)) out.set(id, at);
+  }
+  return out;
+}
 
 /**
  * Every live invitation for one org, joined to whatever draft it holds.
@@ -90,6 +143,11 @@ const CANDIDATE_COLS =
  * ⚠ `application_sent_at` too (AF4), and its absence would fail SILENT rather than loud: the fold
  * skips an unsent application, the row is cast rather than typed, and a column nobody selected reads
  * `undefined` — so every candidate would look unsent and the sweep would quietly nudge nobody, ever.
+ * `consented_at` and `releases_completed_at` are Part 1's (C3c3b), and fail the same silent way.
+ *
+ * ⚠ `nudged_at` is NOT filtered here any more (Q-AW37 (b), 0377): a driver reminded in Part 1 is
+ * still owed Part 2's reminder, and "is this part's reminder spent" compares two columns, which is
+ * the fold's to decide.
  */
 async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCandidate[]> {
   const { data, error } = await admin
@@ -98,10 +156,9 @@ async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCa
     // The service role bypasses RLS; every query on this path carries its own tenant scope.
     .eq("org_id", orgId)
     .is("submitted_at", null)
-    .is("revoked_at", null)
-    .is("nudged_at", null);
+    .is("revoked_at", null);
   if (error) throw new Error(error.message);
-  const invitations = (data ?? []) as Omit<NudgeCandidate, "draft_updated_at" | "furthest_section">[];
+  const invitations = (data ?? []) as Omit<NudgeCandidate, "draft_updated_at" | "furthest_section" | "part_one_activity_at">[];
   if (invitations.length === 0) return [];
 
   const { data: drafts, error: draftError } = await admin
@@ -115,12 +172,15 @@ async function candidates(admin: SupabaseClient, orgId: string): Promise<NudgeCa
       .map((d) => [d.invitation_id, d]),
   );
 
+  const activity = await partOneActivity(admin, orgId, invitations.map((i) => i.id));
+
   return invitations.map((i) => {
     const draft = byInvitation.get(i.id);
     return {
       ...i,
       draft_updated_at: draft?.updated_at ?? null,
       furthest_section: draft?.furthest_section ?? null,
+      part_one_activity_at: activity.get(i.id) ?? null,
     };
   });
 }
@@ -141,7 +201,9 @@ async function alertOffice(
       orgId,
       userId,
       category: "application_stalled",
-      title: `${driverName} stopped part-way through their application`,
+      title: nudge.part === "part_one"
+        ? `${driverName} stopped before finishing getting started on their application`
+        : `${driverName} stopped part-way through their application`,
       severity: "info",
       entityType: "driver",
       entityId: nudge.driverId,
@@ -235,7 +297,7 @@ export async function runApplicationNudgesOnce(
     const texted = await sendApplicationSms(admin, env, orgId, nudge.driverId, smsBody(carrier, link), now);
     if (texted.sent) messaged += 1;
 
-    const { subject, text, html } = nudgeEmail(carrier, link, label);
+    const { subject, text, html } = nudgeEmail(carrier, link, label, nudge.part);
     const sent = await sendEmail(env, { to: [nudge.email], subject, text, html });
     if (sent.ok) emailed += 1;
     else {

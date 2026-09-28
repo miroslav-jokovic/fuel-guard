@@ -1190,3 +1190,27 @@ Append dated lines at the END.
   reads only unstamped rows, behaves exactly as before. M2 moves to the next free number. The session matrix gained
   4 cases (26 passed); 5 mutants, all killed — one fixture put the send in the future and failed the first run, a
   test fault fixed before the count. Next: **C3c3b**, the Part-1 sweep, after 0377 is verified applied.
+- 2026-09-27 — **C3c3a merged** (#1089, main `156714a`); CI green on the merged head; **0377 verified applied** in
+  production (`nudge_application_invitation`'s body reads `application_sent_at`).
+- 2026-09-28 — **C3c3b built** (`claude/applicant-flow-c3c3b`): the Part-1 reminder, on 0377. `planApplicationNudges`
+  now answers WHICH part a driver stopped in:
+  - **Part 1** is consented, with the permissions not finished, and no reminder stamp yet.
+  - **Part 2** is the form sent, and no stamp later than the send.
+  - Never consented (nothing begun) and permissions finished with the form unsent (the office's screening) are
+    still never reminded. Legacy links count as well, since both link kinds' first visit ends with the permissions.
+
+  Part 1's idle clock is the latest of the consent, the draft, and — read by the sweep, paged and org-scoped, for
+  every candidate so a narrower read can never hand the fold a false "nothing written" — the intake row, the
+  photographs and the signed permissions. Each part has its own office alert (`application_stalled_part_one:<id>`,
+  "stopped before finishing getting started"). Part 2 keeps its key, so no alert is raised twice. Part 1's email
+  promises only "we will not remind you about this step again", and the text is the existing reminder, so no new
+  Telnyx sample is needed. The sweep no longer filters `nudged_at` out: the fold decides.
+
+  **Found and fixed:** Part 2's clock read only the draft, and AF3 writes the draft on the first visit, so a form
+  sent days after Part 1 was reminded AT ONCE, rotating away the link the office had just sent. The clock now
+  starts at the later of the draft and the Send.
+
+  Measured first: one live invitation lacks its permissions, and it never consented, so the first run reminds
+  nobody. No migration and no new scheduler: the sweep still runs inside the DQ alert scheduler on the api
+  service. 25 mutants, all killed. Two survived the first pass — the 48-hour edge, and a min-for-max over
+  Part 1's writes — and each gained its test.

@@ -26,6 +26,10 @@ const seed = (over: {
   invitation?: Record<string, unknown>;
   draft?: Record<string, unknown> | null;
   rotated?: unknown;
+  /** Part 1's writes outside the draft (C3c3b). Absent: none. */
+  intake?: string;
+  capture?: string;
+  permission?: string;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
@@ -35,8 +39,12 @@ const seed = (over: {
         review_requested_at: null, approved_at: null,
         // Sent: the office gave them the form, and they stopped filling it in (AF4).
         application_sent_at: "2026-08-10T09:00:00Z",
+        consented_at: "2026-08-01T09:00:00Z", releases_completed_at: "2026-08-01T10:00:00Z",
         ...over.invitation,
       }],
+      application_intakes: over.intake ? [{ invitation_id: "inv-1", updated_at: over.intake }] : [],
+      application_captures: over.capture ? [{ invitation_id: "inv-1", captured_at: over.capture }] : [],
+      driver_authorizations: over.permission ? [{ invitation_id: "inv-1", created_at: over.permission }] : [],
       application_drafts: over.draft === null ? [] : [{
         invitation_id: "inv-1", updated_at: STALE, furthest_section: "employment", ...over.draft,
       }],
@@ -192,11 +200,103 @@ describe("what the driver reads", () => {
     // The one caveat rotation makes necessary, said plainly rather than left to be discovered.
     expect(text).toContain("replaces the one in the earlier email");
     // And no second reminder is promised, because there will not be one.
-    expect(text).toContain("will not send another reminder");
+    expect(text).toContain("we will not send another reminder.");
+    expect(text).not.toContain("about this step");
   });
 
   it("omits the section when the driver never reached a named one", () => {
     expect(nudgeEmail("Silvicom Inc", "https://app.test/apply/abc", null).text)
       .not.toContain("You had reached");
+  });
+});
+
+/**
+ * C3c3b — the driver who stopped in Part 1 (Q-AW37 (b): one reminder per part, 0377).
+ *
+ * They consented and did not finish the permissions. What these add to the fold's own tests is the
+ * half a pure function cannot reach: that the sweep READS the three places Part 1 writes outside the
+ * draft (a null there reads as "nothing written", which would remind somebody mid-way through), that
+ * it asks PostgREST for Part 1's stamps, and that the driver and the office are told it was Part 1.
+ */
+describe("the driver who stopped in Part 1", () => {
+  const partOne = { application_sent_at: null, releases_completed_at: null, consented_at: STALE };
+  const warm = "2026-08-21T11:00:00Z";
+
+  it("is reminded once, with Part 1's words, and the office is told it was Part 1", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: partOne, draft: { furthest_section: "employment" }, intake: STALE, capture: STALE });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 1, emailed: 1, messaged: 0 });
+    expect(rec.rpcs().some((r) => r.fn === "nudge_application_invitation")).toBe(true);
+    const alert = rec.rpcs().find((r) => r.fn === "emit_notification")!.args as Record<string, unknown>;
+    expect(JSON.stringify(alert)).toContain("application_stalled_part_one:inv-1");
+    expect(JSON.stringify(alert)).toContain("Susan Godfrey stopped before finishing getting started on their application");
+    const [email] = sent.fn.mock.calls[0]!.slice(1) as [{ text: string }];
+    // Part 2 may still remind them about the form, so Part 1 promises only what is true.
+    expect(email.text).toContain("we will not remind you about this step again.");
+    expect(email.text).not.toContain("will not send another reminder");
+    // Sections are Part 2's; a Part 1 reminder never names one.
+    expect(email.text).not.toContain("You had reached");
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  /** Each read on its own: every one of them is the only sign of life for somebody. */
+  it.each([
+    ["the intake row", { intake: warm }],
+    ["a photograph", { capture: warm }],
+    ["a signed permission", { permission: warm }],
+  ])("is left alone while %s was written inside the window", async (_label, activity) => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: partOne, ...activity });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  /** The LATEST write counts: an old intake row beside yesterday's photograph is somebody still at it. */
+  it("reads the latest of Part 1's writes, not the earliest", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: partOne, intake: STALE, capture: warm, permission: STALE });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+  });
+
+  it("asks PostgREST for Part 1's stamps and each activity column", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: partOne });
+    await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
+    const select = (table: string) =>
+      String(rec.forTable(table)[0]?.ops.find((o) => o.method === "select")?.args[0] ?? "");
+    expect(select("application_invitations")).toContain("consented_at");
+    expect(select("application_invitations")).toContain("releases_completed_at");
+    expect(select("application_intakes")).toBe("invitation_id, updated_at");
+    expect(select("application_captures")).toBe("invitation_id, captured_at");
+    expect(select("driver_authorizations")).toBe("invitation_id, created_at");
+  });
+
+  /**
+   * ⚠ 0377: a driver reminded in Part 1 is still owed Part 2's reminder, so the read must not drop a
+   * stamped invitation. The recorder ignores filters, so the filter itself is what is asserted.
+   */
+  it("still reads an invitation already reminded in Part 1, and reminds it about the form", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: { nudged_at: "2026-08-05T09:00:00Z" } });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 1, emailed: 1, messaged: 0 });
+    const ops = rec.forTable("application_invitations")[0]?.ops ?? [];
+    expect(ops.some((o) => o.method === "is" && o.args[0] === "revoked_at")).toBe(true);
+    expect(ops.some((o) => o.method === "is" && o.args[0] === "nudged_at")).toBe(false);
+  });
+
+  /**
+   * ⚠ The defect C3c3b found: AF3 writes the draft on the first visit, so a form sent today arrives
+   * with a draft days old, and the old clock reminded at once — rotating away the link just sent.
+   */
+  it("leaves a form the office sent an hour ago alone, however old the draft", async () => {
+    sent.fn.mockReset().mockResolvedValue({ ok: true });
+    const rec = seed({ invitation: { application_sent_at: warm } });
+    expect(await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW))
+      .toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+    expect(rec.rpcs()).toEqual([]);
   });
 });
