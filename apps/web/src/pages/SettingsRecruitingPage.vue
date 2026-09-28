@@ -17,8 +17,10 @@ import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
  * ── WHO REACHES IT ────────────────────────────────────────────────────────────────────────────
  * The catalogue's `admin.recruiting` entry, `section("recruitment")`: anybody who can view recruiting
  * sees the lists, and `SignatoryRegister` offers the writes on `manage` — both from the section matrix,
- * both what the api asks. It is NOT under `admin.settings`' own gate: a recruiter holds
- * `settings: none` and `recruitment: manage`, and is the person this page is for.
+ * both what the api asks. It is reached from a card on the Settings page and has no sidebar entry
+ * (owner's ruling 2026-09-28). Its gate is still not `settings`', so a recruiter who holds
+ * `settings: none` can use it by URL, though they have no link to it: the owner ruled the admin keeps
+ * this register, and a recruiter adds one inline from the panels when a hire needs it.
  *
  * ── ROOM FOR THE NEXT SECTION ─────────────────────────────────────────────────────────────────
  * Q-AW41's invitation settings (the link's lifetime and the reminder, S1/S2) land on this page as a

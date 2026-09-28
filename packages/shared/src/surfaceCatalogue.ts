@@ -228,10 +228,6 @@ export const SURFACES: readonly Surface[] = [
   // reachable); Users = admin only. Department roles get neither.
   { key: "admin.settings", label: "Settings", path: "/settings", group: "admin", gate: section("settings") },
   { key: "admin.users", label: "Users", path: "/settings/users", group: "admin", gate: ADMIN },
-  // The carrier's Representatives and road-test examiners (Q-AW42, R1). A nav entry and not a child of
-  // `admin.settings`: a recruiter holds `settings: none` and `recruitment: manage`, so a Settings card
-  // alone would hide it from the person it is for. `recruitment`, the section its api asks.
-  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment") },
 
   // ── NON-NAV surfaces: never in the sidebar, never separately grantable (D-SURF8) ──────────────
   // A `parent` means "this screen is reached from another one and shares its grant". They exist so
@@ -321,6 +317,14 @@ export const SURFACES: readonly Surface[] = [
   // `roster` and not `settings`: this console decides what DRIVERS see, and `driverAppSettings.ts`
   // gates on rolesThatManage("roster"). The card, the route and the endpoint ask one question —
   // before R0 all three asked the same global boolean and agreed by accident rather than by design.
+  /**
+   * The carrier's Representatives and road-test examiners (Q-AW42, R1). A card on the Settings page and
+   * NOT a sidebar entry, by the owner's ruling of 2026-09-28 (R1 first shipped it in the Admin group).
+   * Its gate stays `recruitment` — the section its api asks — so a recruiter who has the URL can use it.
+   * A recruiter and a safety manager hold `settings: none`, so they have no link to it — intended: the
+   * owner ruled the admin keeps this register (APPLICATION-FLOW-V2-PLAN.md §12, 2026-09-28).
+   */
+  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), parent: "admin.settings" },
   { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), parent: "admin.settings" },
 
   /**
