@@ -61,6 +61,76 @@ const seed = (
 
 const BODY = { payload: { first_name: "Susan" }, section: "identity" };
 
+describe("saving against a revision (AW10, C3d1b)", () => {
+  it("uses the revision-checked save when the page says which revision it holds", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z", revision: 4 } },
+    });
+    const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 3 }, NOW);
+    expect(result).toEqual({ updatedAt: "2026-08-21T09:05:00Z", revision: 4 });
+    expect(rec.rpcs()[0]!.args).toMatchObject({ p_org: ORG, p_invitation: "inv-1", p_expected_revision: 3 });
+  });
+
+  it("sends 0 as a revision, not as \"no revision\" — 0 is the first save's expectation", async () => {
+    const rec = seed();
+    await saveDraft(rec.client, TOKEN, { ...BODY, revision: 0 }, NOW);
+    expect(rec.rpcs()[0]!.args).toHaveProperty("p_expected_revision", 0);
+  });
+
+  /**
+   * A page loaded before C3d1b deployed sends no revision. Refusing it would stop that driver's autosave
+   * mid-form, so it keeps the 5-argument save — without the key, because PostgREST picks the overload by
+   * the NAMES it is sent (PGRST203 if two could match).
+   */
+  it("keeps the old save, with no revision key at all, for a page that sends none", async () => {
+    const rec = seed();
+    const result = await saveDraft(rec.client, TOKEN, BODY, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    expect(rec.rpcs()[0]!.args).not.toHaveProperty("p_expected_revision");
+  });
+
+  it("answers a stale revision as draft_revision_conflict, in the driver's words", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      rpc: { save_application_draft: { error: { code: "DA041", message: "draft_revision_conflict" } } },
+    });
+    const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 2 }, NOW);
+    expect(result).toEqual({
+      code: "draft_revision_conflict",
+      message: "Your application was changed on another screen. Reload this page to carry on from the latest answers.",
+    });
+  });
+
+  it("keeps any other database refusal a save failure", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { application_invitations: [invitation()], application_drafts: [], organizations: [{ id: ORG, operating_hours: null }] },
+      rpc: { save_application_draft: { error: { code: "23505", message: "duplicate" } } },
+    });
+    const result = await saveDraft(rec.client, TOKEN, { ...BODY, revision: 2 }, NOW);
+    expect(isIntakeError(result) && result.code).toBe("draft_save_failed");
+  });
+
+  it("serves the revision on every view — locked, refused and released — and 0 with no draft", async () => {
+    expect(viewDraft(draftRow({ first_name: "S" }, { revision: 7 })).revision).toBe(7);
+    expect(viewDraft(draftRow({ date_of_birth: "1980-04-01" }, { revision: 7 }))).toMatchObject({ locked: true, revision: 7 });
+    expect(viewDraft(null).revision).toBe(0);
+    const rec = seed({ draft: draftRow({ date_of_birth: "1980-04-01" }, { revision: 9 }) });
+    const wrong = await unlockDraft(rec.client, TOKEN, "1999-01-01", NOW);
+    expect(wrong).toMatchObject({ locked: true, revision: 9 });
+    const right = await unlockDraft(rec.client, TOKEN, "1980-04-01", NOW);
+    expect(right).toMatchObject({ locked: false, revision: 9 });
+  });
+
+  it("reads the revision column with the draft, scoped to the org", async () => {
+    const rec = seed({ draft: draftRow({ first_name: "S" }, { revision: 2 }) });
+    await loadDraft(rec.client, ORG, "inv-1");
+    const read = rec.queries.find((q) => q.table === "application_drafts")!;
+    expect(read.ops.find((o) => o.method === "select")!.args[0]).toBe("payload, furthest_section, updated_at, revision");
+    expectOrgScoped(rec, ORG);
+  });
+});
+
 describe("saving a draft", () => {
   it("writes through the RPC with the org and driver the TOKEN resolved to", async () => {
     const rec = seed();

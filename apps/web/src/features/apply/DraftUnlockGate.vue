@@ -38,7 +38,7 @@ async function unlock(): Promise<void> {
   try {
     const res = await unlockApplicationDraft(props.token, dateOfBirth.value);
     if (res.draft.locked) failed.value = true;
-    else emit("unlocked", { payload: res.draft.payload ?? {}, partOne: res.draft.partOne ?? null });
+    else emit("unlocked", { payload: res.draft.payload ?? {}, partOne: res.draft.partOne ?? null, revision: res.draft.revision ?? null });
   } catch {
     failed.value = true;
   } finally {

@@ -581,6 +581,9 @@ execute); `submit-application-v2.test.mjs` (promoted captures skipped, verificat
 - Drop the old 11-argument `record_packet_mark`, 5-argument `save_application_draft`, the old
   `submit_driver_application` and `record_driver_release` signatures, and `record_applicant_identity`,
   **each only after `pg_stat_user_functions`/a grep shows no caller**.
+  ⚠ Since C3d1b the 5-argument `save_application_draft` has exactly one caller: `saveDraft` when a
+  page sends no `revision` (a page loaded before C3d1b deployed). The same merge makes
+  `applicationDraftSaveSchema.revision` required and deletes that branch.
 - Held until answered: versioned packet templates (Q-AW2 (b)); a `drivers` status trigger (Q-AW21).
 
 ### 8.4 The AW work items
@@ -1297,3 +1300,43 @@ Append dated lines at the END.
     hours alone) and gained its test. Looked at in Chromium at 390 px: typed "About you" and a street,
     reloaded, reopened on "Where you live now" with both screens' answers back, and nothing sent.
     No migration.
+- 2026-09-28 — **C3d1a merged** (#1094, main `9bcc5b3`); CI green on the merged head.
+- 2026-09-28 — **C3d1b built** (`claude/applicant-flow-c3d1b`): Part 2's draft is saved against its revision,
+  and what a visit could not send is kept on the phone.
+  - **The revision (0376's reader):** every autosave names the revision it was typed on. The api calls
+    `save_application_draft`'s 6-argument overload, and DA041 answers 409 `draft_revision_conflict`. The
+    bundle and the unlock serve `revision` (also on a locked view: a count of saves reveals nothing). The
+    page takes it with the body it restores, never from a later refetch.
+  - **On a conflict** (another tab or device saved, or the office corrected an answer — both bump the
+    revision through 0376's trigger): the tab stops saving for good, deletes its copy (it is the older
+    one), and shows a callout with "Reload the page" (`DraftNotice.vue`). Anything typed in that tab since
+    its last save is lost, and the callout says so. Before C3d1b the tab would have written over the newer
+    save without a word.
+  - **The copy on the phone** (`draftLocal.ts`): the payload autosave sends, written on every change and
+    deleted once a save lands with nothing typed since it was SENT. On the next visit it is put back only
+    when the server still holds the revision it was typed on ("We put back answers…", sent at once), and
+    dropped with a notice when the server moved on. Never before the date-of-birth unlock (D-APP16).
+    Q-AW39's lifetime applies (72 hours or the link, whichever is earlier).
+  - **Deploy window:** a page loaded before this deploy sends no revision; the api keeps the 5-argument
+    save for it, as 0376 anticipated. **M2 drops that signature and makes `revision` required in the same
+    merge** (§8.3 now says so).
+  - **One store:** C3d1a's copy moved into `deviceCopies.ts` (one database, a store per copy). Opening it
+    deletes C3d1a's one-day-old database, whose rows would otherwise never be read or swept again.
+  - **Found by the tests, before merge:** (1) `toDraftPayload` hands back the form's reactive arrays, and
+    IndexedDB cannot clone a Proxy — the put threw, the store resolved as designed, and no copy would ever
+    have been kept in production; the copy now goes through JSON. (2) A save landing deleted the copy even
+    when the driver had typed while it was in flight; changes are now counted from the moment of sending.
+  - **Found by looking** (Chromium, 390 px): the progress card showed a green dot and "You can close this
+    page and open your link again later" beside "Not saved" — for a conflict, and already for a failed save
+    since A2. It now takes `saveTrouble`: a red dot and no promise while the last save failed or was refused.
+  - **Checks:** 43 mutants. 40 killed on the first pass. Of the three survivors, two were real gaps and now
+    have tests: a page served no revision would have sent `revision: null`, which the contract refuses, so
+    every save from a page loaded before this deploy would 400; and the route dropping the new revision
+    from its answer would make the page's second save conflict with its first. The third was a no-op (a
+    conflict guard in `schedule` that `flush` and `keepCopy` already make), and the guard was removed.
+    Looked at in Chromium at 390 px, the API stubbed: a 409 shows the callout and "Reload the page" and
+    stops saving after one PUT; a copy on revision 5 against a server at revision 5 is put back, announced
+    and sent. No migration.
+  - **Found in the full run:** `ApplyPage.test.ts` mounted the page 54 times and unmounted it 11, so 43
+    pages kept real autosave timers running into later tests' `fetch` mock. "Sends nothing" failed under
+    full-suite load and passed alone. The file now unmounts every page after its test (`enableAutoUnmount`).

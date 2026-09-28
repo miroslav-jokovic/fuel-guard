@@ -199,7 +199,7 @@ export function publicApplicationRouter(): Router {
           result.code === "invalid_link"
             ? 404
             : result.code === "already_submitted" || result.code === "esign_consent_required"
-                || result.code === "application_not_sent"
+                || result.code === "application_not_sent" || result.code === "draft_revision_conflict"
               ? 409
               : result.code === "draft_too_large"
                 ? 413
@@ -207,7 +207,7 @@ export function publicApplicationRouter(): Router {
         res.status(status).json(apiError(result.code, result.message));
         return;
       }
-      res.json({ ok: true, updatedAt: result.updatedAt });
+      res.json({ ok: true, updatedAt: result.updatedAt, revision: result.revision });
     }),
   );
 

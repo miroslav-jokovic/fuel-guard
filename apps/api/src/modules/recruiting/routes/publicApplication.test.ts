@@ -237,6 +237,50 @@ beforeAll(async () => {
 
 afterAll(async () => closeTestServer(server));
 
+describe("saving the draft against its revision (C3d1b)", () => {
+  it("answers a stale revision 409 draft_revision_conflict and passes a fresh one through", async () => {
+    const stale = seed({}, { application_drafts: [] });
+    holder.client = createSupabaseRecorder({
+      tables: { application_invitations: [{
+        id: "inv-1", org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
+        expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
+        releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
+      }], organizations: [{ name: "Silvicom Inc" }], application_drafts: [] },
+      rpc: { save_application_draft: { error: { code: "DA041", message: "draft_revision_conflict" } } },
+    }).client;
+    const refused = await call(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null, revision: 2 }) });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe("draft_revision_conflict");
+
+    holder.client = stale.client;
+    const fine = await call(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null, revision: 0 }) });
+    expect(fine.status).toBe(200);
+    expect(stale.rpcs().find((r) => r.fn === "save_application_draft")!.args).toMatchObject({ p_expected_revision: 0 });
+  });
+
+  /** The page saves its NEXT change against this; without it, its second save would conflict with its first. */
+  it("hands back the revision the save produced", async () => {
+    holder.client = createSupabaseRecorder({
+      tables: { application_invitations: [{
+        id: "inv-1", org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
+        expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
+        releases_completed_at: null, application_sent_at: "2026-09-14T09:00:00Z", submitted_at: null,
+      }], organizations: [{ name: "Silvicom Inc" }], application_drafts: [] },
+      rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-09-28T10:00:00Z", revision: 1 } },
+    }).client;
+    const res = await call(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null, revision: 0 }) });
+    expect(await res.json()).toEqual({ ok: true, updatedAt: "2026-09-28T10:00:00Z", revision: 1 });
+  });
+
+  it("refuses a revision that is not a whole number of saves before anything is written", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    const res = await call(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: {}, section: null, revision: -1 }) });
+    expect(res.status).toBe(400);
+    expect(rec.rpcs()).toHaveLength(0);
+  });
+});
+
 describe("opening the link", () => {
   /**
    * C3d1a: the key Part 1's device copy lives under. The Part-1 reminder rotates the email's token and a

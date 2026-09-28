@@ -1,8 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { flushPromises, mount } from "@vue/test-utils";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
 import ApplyPage from "@/pages/ApplyPage.vue";
+import { toDraftPayload, fromDraftPayload } from "@/features/apply/draft";
+import { DRAFT_COPY_VERSION, readDraftCopy, writeDraftCopy } from "@/features/apply/draftLocal";
 import EmployerDrawer from "@/features/apply/EmployerDrawer.vue";
 import ApplySection from "@/features/apply/ApplySection.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -92,6 +96,14 @@ const dead = () => ({ ok: false, json: async () => ({ error: { code: "invalid_li
 
 const mountPage = () =>
   mount(ApplyPage, { global: { plugins: [VueQueryPlugin] } });
+
+/**
+ * ⚠ Every page is unmounted after its test (C3d1b). Before this, 43 of the 54 pages mounted here were
+ * left alive, and their autosave timers — real ones, 2 and 5 seconds — kept running into the NEXT
+ * test's `fetch` mock. Harmless while nothing counted saves; "sends nothing" failed under full-suite
+ * load the day something did, because a stranger's save landed inside its window.
+ */
+enableAutoUnmount(afterEach);
 
 /** The primary control at the bottom of a step — Next, then Check my answers, then Send. */
 const advance = async (w: ReturnType<typeof mountPage>) => {
@@ -1249,5 +1261,99 @@ describe("the applicant's page", () => {
     await settle(w);
     expect(w.text()).toContain("This link is not valid");
     expect(w.text()).toContain("Ask the carrier who invited you for a new one");
+  });
+
+  /**
+   * AW10 (C3d1b): Part 2's draft is saved against its revision, and what a visit could not send is kept
+   * on the phone and put back on the next one — only onto the revision it was typed on, and never before
+   * the date-of-birth unlock (D-APP16).
+   */
+  describe("the draft's revision and the copy on the phone", () => {
+    const KEY = "a".repeat(64);
+    const formBundle = (draft: Record<string, unknown>) => ({
+      carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", localKey: KEY,
+      releases: RELEASES.map((r) => ({ ...r, version: "v1", draft: false })),
+      releasesSigned: ["fcra_disclosure", "psp"],
+      phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: null },
+      draft,
+      esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+    });
+    /** What the phone kept last time: the complete draft, with the email changed. */
+    const PHONE = JSON.parse(JSON.stringify(toDraftPayload({ ...fromDraftPayload(COMPLETE_DRAFT), email: "phone@example.test" })));
+    const keep = (baseRevision: number) => writeDraftCopy({
+      key: KEY, version: DRAFT_COPY_VERSION, payload: PHONE, section: null, baseRevision,
+      savedAt: "2026-09-28T10:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z",
+    });
+    const puts = () => fetchMock.mock.calls
+      .filter(([url, init]) => String(url).endsWith("/draft") && init?.method === "PUT")
+      .map(([, init]) => JSON.parse(String(init.body)) as { payload: Record<string, unknown>; revision?: number });
+    const route = (bundle: unknown, draftAnswer: () => unknown = () => ok({ ok: true, updatedAt: "2026-09-28T10:01:00Z", revision: 6 })) =>
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) =>
+        String(url).endsWith("/draft") && init?.method === "PUT" ? draftAnswer() : ok(bundle));
+
+    beforeEach(() => {
+      globalThis.indexedDB = new IDBFactory();
+    });
+
+    it("puts back what the phone could not send, onto the revision it was typed on, and sends it at once", async () => {
+      await keep(5);
+      route(formBundle({ locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null, revision: 5 }));
+      const w = mountPage();
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.save.restored);
+      expect(puts()).toHaveLength(1);
+      expect(puts()[0]).toMatchObject({ revision: 5, payload: { email: "phone@example.test" } });
+      w.unmount();
+    });
+
+    it("drops a copy the server moved on from, says so, and sends nothing", async () => {
+      await keep(4);
+      route(formBundle({ locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null, revision: 5 }));
+      const w = mountPage();
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.save.dropped);
+      expect(puts()).toHaveLength(0);
+      expect(await readDraftCopy(KEY)).toBeNull();
+      w.unmount();
+    });
+
+    it("stops saving and offers the reload when the server says the draft changed elsewhere", async () => {
+      await keep(5);
+      route(
+        formBundle({ locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null, revision: 5 }),
+        () => ({ ok: false, json: async () => ({ error: { code: "draft_revision_conflict", message: "changed" } }) }),
+      );
+      const w = mountPage();
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.save.conflictDetail);
+      expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.save.reload)).toBe(true);
+      expect(await readDraftCopy(KEY)).toBeNull();
+      w.unmount();
+    });
+
+    it("never puts a copy back on a locked draft before the date of birth, and uses the unlock's revision after it", async () => {
+      await keep(8);
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith("/unlock")) {
+          return ok({ draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null, revision: 8 } });
+        }
+        if (String(url).endsWith("/draft") && init?.method === "PUT") return ok({ ok: true, updatedAt: "x", revision: 9 });
+        // The bundle was read a save earlier than the unlock: the body's own revision is the one to save against.
+        return ok(formBundle({ locked: true, payload: null, furthestSection: null, updatedAt: null, revision: 7 }));
+      });
+      const w = mountPage();
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.unlock.heading);
+      expect(w.text()).not.toContain(APPLY_COPY.save.restored);
+      expect(puts()).toHaveLength(0);
+
+      w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+      await settle(w);
+      await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+      await settle(w);
+      expect(w.text()).toContain(APPLY_COPY.save.restored);
+      expect(puts()[0]).toMatchObject({ revision: 8, payload: { email: "phone@example.test" } });
+      w.unmount();
+    });
   });
 });

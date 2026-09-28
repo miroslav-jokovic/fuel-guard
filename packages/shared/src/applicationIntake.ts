@@ -150,6 +150,16 @@ export const applicationDraftSaveSchema = z.object({
     .refine((p) => !("ssn" in p), { message: "A draft may not carry a Social Security number" }),
   /** The furthest section reached. A3 defines the vocabulary; until then this is free text. */
   section: z.string().min(1).max(64).nullish(),
+  /**
+   * The draft's revision this tab last read or saved (AW10, C3d1b; 0376's `application_drafts.revision`),
+   * 0 for no draft yet. A save carrying a stale one is refused 409 `draft_revision_conflict`, so a tab or
+   * a replayed device copy can never write over a newer save — another tab's, or the office's correction.
+   *
+   * ⚠ Optional for one reason only: a page loaded before C3d1b deployed sends none, and refusing it would
+   * stop that driver's autosave mid-form. Absent keeps today's last-writer-wins save (0376's 5-argument
+   * `save_application_draft`); M2 drops that signature and this becomes required in the same merge.
+   */
+  revision: z.number().int().min(0).optional(),
 });
 export type ApplicationDraftSave = z.infer<typeof applicationDraftSaveSchema>;
 

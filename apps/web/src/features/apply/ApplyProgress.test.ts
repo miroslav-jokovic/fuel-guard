@@ -11,7 +11,7 @@ import ApplyProgress from "./ApplyProgress.vue";
  * driver aiming for step 3 in a moving truck would hit step 4 — and the list cannot reach a screen
  * the driver has never been to, because jumping does not validate and `next()` does.
  */
-const card = (props: Partial<{ index: number; furthest: number; saveStatus: string | null }> = {}) =>
+const card = (props: Partial<{ index: number; furthest: number; saveStatus: string | null; saveTrouble: boolean }> = {}) =>
   mount(ApplyProgress, {
     props: { index: 3, furthest: 4, saveStatus: "Saved", ...props },
   });
@@ -134,5 +134,14 @@ describe("that the answers are being kept", () => {
 
   it("says how to come back, where the evidence of saving is", () => {
     expect(card().text()).toContain("You can close this page and open your link again later.");
+  });
+
+  /** C3d1b: after a failed or refused save the newest answers are not on the server, so the promise is false. */
+  it("neither promises a return nor shows the green dot when the last save failed", () => {
+    const w = card({ saveStatus: "Not saved — this application was changed on another screen.", saveTrouble: true });
+    expect(w.text()).not.toContain("You can close this page and open your link again later.");
+    expect(w.find(".bg-success-600").exists()).toBe(false);
+    expect(w.find(".bg-danger-600").exists()).toBe(true);
+    expect(card().find(".bg-success-600").exists()).toBe(true);
   });
 });

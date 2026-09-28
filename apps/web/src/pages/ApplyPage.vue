@@ -20,6 +20,7 @@ import { applyPartOne } from "@/features/apply/partOneFacts";
 import { useEsignConsentStep } from "@/features/apply/useEsignConsentStep";
 import { usePartOneStep } from "@/features/apply/partOne/usePartOneStep";
 import { draftStatusLabel, useApplicationDraft } from "@/features/apply/useApplicationDraft";
+import DraftNotice from "@/features/apply/DraftNotice.vue";
 import { useApplicationSending } from "@/features/apply/useApplicationSending";
 import { useApplicationWizard, type SectionIssue } from "@/features/apply/useApplicationWizard";
 import { provideApplyIssues } from "@/features/apply/issues";
@@ -159,26 +160,8 @@ async function showIssue(issue: SectionIssue): Promise<void> {
 /** A "Fix" on the review screen: a task in Part 2's list, a screen in the legacy wizard. */
 const goToSection = (section: ApplicationSection): void => (hub.inTask.value ? hub.open(section) : wizard.goTo(section));
 
-watch(
-  [() => invitation.data.value, released],
-  ([inv, body]) => {
-    if (!inv || restored.value) return;
-    // Still gated: nothing to restore and nothing to save over. Autosave stays off, so a stranger
-    // holding the link cannot overwrite the draft they are not allowed to read.
-    if (inv.draft?.locked && !body) return;
-    const payload = body?.payload ?? inv.draft?.payload ?? null;
-    if (payload) Object.assign(draft, fromDraftPayload(payload));
-    if (body?.partOne) applyPartOne(draft, body.partOne);
-    furthestSection.value = inv.draft?.furthestSection ?? null;
-    wizard.resume();
-    restored.value = true;
-    // Next tick, so the restore assignment above does not itself schedule a save of what we just
-    // loaded back to the server.
-    void nextTick(() => { autosaveEnabled.value = true; });
-  },
-  { immediate: true },
-);
-
+/** C3d1b: the revision saves are checked against, taken with the body it describes — never from a later refetch. */
+const draftRevision = ref<number | null>(null);
 const autosave = useApplicationDraft(token, draft, {
   // Never before the consent: the server refuses those writes, and a "Not saved" banner on a screen
   // the driver has not been allowed to reach yet would be a lie about their signal.
@@ -188,7 +171,38 @@ const autosave = useApplicationDraft(token, draft, {
       && !waitingForApplication.value,
   ),
   section: computed(() => wizard.furthestSection.value),
+  revision: draftRevision,
+  local: computed(() => {
+    const inv = invitation.data.value;
+    return inv?.localKey ? { key: inv.localKey, linkExpiresAt: inv.expiresAt } : null;
+  }),
 });
+
+watch(
+  [() => invitation.data.value, released],
+  async ([inv, body]) => {
+    if (!inv || restored.value) return;
+    // Still gated: nothing to restore and nothing to save over. Autosave stays off, so a stranger
+    // holding the link cannot overwrite the draft they are not allowed to read.
+    if (inv.draft?.locked && !body) return;
+    restored.value = true;
+    const payload = body?.payload ?? inv.draft?.payload ?? null;
+    if (payload) Object.assign(draft, fromDraftPayload(payload));
+    draftRevision.value = body ? body.revision : (inv.draft?.revision ?? null);
+    // What the last visit could not send (C3d1b) — before Part 1's facts, which are laid over last.
+    const replayed = await autosave.replay();
+    if (body?.partOne) applyPartOne(draft, body.partOne);
+    furthestSection.value = inv.draft?.furthestSection ?? null;
+    wizard.resume();
+    // Next tick, so the restore assignment above does not itself schedule a save of what we just
+    // loaded back to the server — except answers put back from the phone, which the server lacks.
+    void nextTick(() => {
+      autosaveEnabled.value = true;
+      if (replayed) void autosave.flushNow();
+    });
+  },
+  { immediate: true },
+);
 const saveStatus = computed(() => draftStatusLabel(autosave.state.value));
 
 // ── What it involves, before any of it is asked (B7) ──────────────────────────────────────────
@@ -337,6 +351,7 @@ watch(
           {{ APPLY_COPY.notOpen.banner(invitation.data.value.carrier) }}
         </AppCallout>
       </div>
+      <DraftNotice :state="autosave.state.value" :notice="autosave.notice.value" />
 
       <!-- §391.21(b)(1): "The name and address of the employing motor carrier" belongs ON the application. -->
       <p v-if="invitation.data.value.carrierAddress" class="text-sm text-ink-muted">
@@ -357,6 +372,7 @@ watch(
           :index="wizard.index.value"
           :furthest="wizard.furthestIndex.value"
           :save-status="saveStatus"
+          :save-trouble="autosave.state.value === 'failed' || autosave.state.value === 'conflict'"
           @go-to="wizard.goTo"
         />
 

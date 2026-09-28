@@ -26,13 +26,14 @@ const answer = async (draft: Record<string, unknown>) => {
 describe("the unlock gate", () => {
   it("hands up the body and Part 1's facts together", async () => {
     const partOne = { intake: { phone: "+13125550142" }, licences: [], asOf: "2026-09-27" };
-    const w = await answer({ locked: false, payload: { first_name: "Susan" }, partOne });
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne });
+    const w = await answer({ locked: false, payload: { first_name: "Susan" }, partOne, revision: 6 });
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: { first_name: "Susan" }, partOne, revision: 6 });
   });
 
   it("treats an unlocked answer with no body as nothing to resume, never as a wrong date", async () => {
     const w = await answer({ locked: false, payload: null });
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null });
+    // No revision served (an API from before C3d1b): null, which asks the server for no check.
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null, revision: null });
     expect(w.text()).not.toContain(APPLY_COPY.unlock.failed);
   });
 
