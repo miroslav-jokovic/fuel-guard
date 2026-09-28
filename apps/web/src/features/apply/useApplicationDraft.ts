@@ -14,9 +14,10 @@ import { saveApplicationDraft } from "./useApplication";
  *
  * ── THE TWO TIMERS, AND WHY THERE ARE TWO ─────────────────────────────────────────────────────
  * A 2-second idle debounce alone is not safe here. The public application surface is rate limited to
- * 20 requests/minute (`app.ts:147`) with `/api/public`'s 60/minute stacked on top, so the budget is
- * the intersection: 20. A driver who pauses every two seconds — which is what typing an address
- * looks like — would produce up to 30 saves a minute and start getting 429s in the middle of their
+ * 20 requests/minute per address (`applicationLimits.ts`; `/api/public`'s 60/minute skips this
+ * prefix, and the page's screen reports have a bucket of their own since C3d3a). A driver who pauses
+ * every two seconds — which is what typing an address looks like — would produce up to 30 saves a
+ * minute and start getting 429s in the middle of their
  * application.
  *
  * So there is also a floor: at most one save every `MIN_INTERVAL_MS`. A change arriving inside that

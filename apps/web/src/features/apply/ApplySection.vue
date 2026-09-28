@@ -10,6 +10,7 @@ import DocumentCaptureFields from "@/features/apply/DocumentCaptureFields.vue";
 import ReviewFields from "@/features/apply/ReviewFields.vue";
 import EmployerCheckNotice from "@/features/apply/EmployerCheckNotice.vue";
 import type { ApplicationDraft } from "@/features/apply/draft";
+import { useApplyScreen } from "@/features/apply/useScreenEvents";
 
 /**
  * One screen of the application, chosen by section — moved out of `ApplyPage.vue` whole on 2026-09-27
@@ -17,7 +18,7 @@ import type { ApplicationDraft } from "@/features/apply/draft";
  * page's, unedited, except one addition: the review screen opens with the §391.21(d) notice
  * (`EmployerCheckNotice`), the last screen before anything is sent.
  */
-defineProps<{
+const props = defineProps<{
   section: ApplicationSection;
   token: string;
   captures: ApplicationCaptureView[];
@@ -34,6 +35,8 @@ defineProps<{
 }>();
 const draft = defineModel<ApplicationDraft>({ required: true });
 const emit = defineEmits<{ goTo: [ApplicationSection] }>();
+// Part 2's screens, one per section, in both the task list and the legacy wizard (AW14).
+useApplyScreen(() => `part2.${props.section}`);
 </script>
 
 <template>

@@ -256,6 +256,18 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "A-11/D-AW12 (APPLICATION-FLOW-V2-PLAN §8.2): the delivery log of texts sent or queued — template, params, number, status; the consent behind each is sms_consents, which this rule cannot touch",
   },
+  {
+    // 0376 / C3d3a (AW14). One row per screen an applicant's page showed: a screen's NAME and two times,
+    // never an answer. Its only reader is §6.8's completion-time query, which looks at recent links;
+    // 180 days is 0376's own promise, and two quarters of hiring is enough to see a trend and old
+    // enough that nobody's visits are kept past the question they answer.
+    table: "application_screen_events",
+    timeColumn: "entered_at",
+    keepDays: 180,
+    strategy: "id",
+    orgScoped: true,
+    why: "AW14 (APPLICATION-FLOW-V2-PLAN §6.8): screen visits on the applicant's link, names and times only, read by the completion-time query; 180 days as 0376's table comment promised",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */

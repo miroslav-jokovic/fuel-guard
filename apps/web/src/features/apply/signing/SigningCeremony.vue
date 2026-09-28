@@ -7,6 +7,7 @@ import { usePermissionCeremony } from "@/features/apply/signing/usePermissionCer
 import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
 import PermissionDocumentView from "@/features/apply/signing/PermissionDocumentView.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
+import { useApplyScreen } from "@/features/apply/useScreenEvents";
 
 /**
  * The permissions, one document at a time, each signed where it says (A5, AF6, D-AF2).
@@ -65,6 +66,10 @@ onBeforeUnmount(() => {
 watch(() => ceremony.complete.value, (done) => done && emit("done"), { immediate: true });
 
 const current = computed(() => ceremony.current.value);
+const adopting = computed(() => ceremony.state.value === "adopting" || ceremony.state.value === "confirming");
+// One screen per permission (AW14). Adopting the signature is `ceremony` (the branch's own name), and
+// ⚠ it has to be said: `current` already points at the first permission while the adoption is showing.
+useApplyScreen(() => (current.value && !adopting.value ? `ceremony.${current.value.purpose}` : null));
 const src = computed(() =>
   current.value
     ? `/api/public/application/${encodeURIComponent(props.token)}/permission/${current.value.purpose}.pdf`
@@ -83,7 +88,7 @@ async function sign(): Promise<void> {
 
 <template>
   <PacketAdoption
-    v-if="ceremony.state.value === 'adopting' || ceremony.state.value === 'confirming'"
+    v-if="adopting"
     :ceremony="ceremony"
     :carrier="carrier"
     :stops="[]"

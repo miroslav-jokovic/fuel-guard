@@ -15,9 +15,10 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * no box falls back to its words and a plain button, so nobody is ever left without a way to sign.
  */
 
-const signed = vi.hoisted(() => ({ fn: vi.fn() }));
+const signed = vi.hoisted(() => ({ fn: vi.fn(), report: vi.fn() }));
 vi.mock("@/features/apply/useApplication", () => ({
   signRelease: signed.fn,
+  publicFetch: signed.report,
   startApplicationCapture: vi.fn(),
   uploadCaptureBytes: vi.fn(),
   confirmApplicationCapture: vi.fn(),
@@ -149,5 +150,48 @@ describe("when the document cannot carry the tag", () => {
     expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.permissions.signHere)).toBe(false);
     await click(w, APPLY_COPY.permissions.signAction);
     expect(signed.fn).toHaveBeenCalledWith(TOKEN, APPLICATION_RELEASE_ORDER[0], "Susan Godfrey");
+  });
+});
+
+/**
+ * AW14 (C3d3a): each permission is its own screen in the reports, and adopting the signature is not
+ * one of them — ⚠ while the adoption shows, the ceremony already points at the first permission, so
+ * a name read from that alone would report the adoption as `ceremony.fcra_disclosure`.
+ */
+describe("the screen reports", () => {
+  it("names the adoption `ceremony` and each permission by its own name", async () => {
+    signed.report.mockReset();
+    signed.report.mockResolvedValue({ ok: true });
+    const { defineComponent, h } = await import("vue");
+    const { provideScreenEvents } = await import("@/features/apply/useScreenEvents");
+    const { ref } = await import("vue");
+    const ApplyScreenMark = (await import("@/features/apply/ApplyScreenMark.vue")).default;
+    // As `ApplyPhaseRouter` places it: the branch's name first, the ceremony's own screens inside it.
+    const Page = defineComponent({
+      setup() {
+        provideScreenEvents(ref(TOKEN));
+        return () => [
+          h(ApplyScreenMark, { name: "ceremony" }),
+          h(SigningCeremony, {
+            token: TOKEN, releases: APPLICATION_RELEASE_ORDER.map(release), alreadySigned: [], carrier: "Silvicom Inc",
+          }),
+        ];
+      },
+    });
+    const w = mount(Page);
+    await flushPromises();
+    await adopt(w as never);
+    await click(w as never, APPLY_COPY.permissions.signHere);
+    window.dispatchEvent(new Event("pagehide"));
+    await flushPromises();
+    const screens = signed.report.mock.calls
+      .flatMap(([, init]) => (JSON.parse(String((init as RequestInit).body)) as { events: { screen: string }[] }).events)
+      .map((e) => e.screen);
+    expect(screens).toEqual([
+      "ceremony",
+      `ceremony.${APPLICATION_RELEASE_ORDER[0]}`,
+      `ceremony.${APPLICATION_RELEASE_ORDER[1]}`,
+    ]);
+    w.unmount();
   });
 });

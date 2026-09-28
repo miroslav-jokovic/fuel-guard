@@ -1391,4 +1391,135 @@ describe("the applicant's page", () => {
     await vi.waitFor(() => expect(calls).toEqual(["start", "upload", `confirm ${"c3".repeat(32)}`]));
     await vi.waitFor(async () => expect(await readKeptPhoto(spec, "cdl_front")).toBeNull());
   });
+
+  /**
+   * The screen reports (AW14, C3d3a), from the real page: each branch of the phase chain names itself
+   * and the form names its section, so what §6.8 measures is what the driver actually had on screen.
+   */
+  describe("the screen reports", () => {
+
+    /** Every report the page sent, as the screens they name, in order. */
+    const reportsOf = (bundle: unknown) => {
+      const screens: string[] = [];
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith("/screen-events")) {
+          screens.push(...(JSON.parse(String(init!.body)) as { events: { screen: string }[] }).events.map((e) => e.screen));
+          return ok({ ok: true });
+        }
+        return bundle;
+      });
+      return screens;
+    };
+    const close = async (w: ReturnType<typeof mountPage>) => {
+      window.dispatchEvent(new Event("pagehide"));
+      await settle(w);
+    };
+
+    it("names Part 1's screen, not only the branch it sits in", async () => {
+      const screens = reportsOf(partOnePage({}));
+      const w = mountPage();
+      await settle(w);
+      await close(w);
+      expect(screens).toEqual(["part1.cdl_front"]);
+    });
+
+    it("names a v2 link's task list, then the task opened from it", async () => {
+      const screens = reportsOf(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, {
+        phases: {
+          consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+          submittedAt: null, applicationSentAt: "2026-08-22T09:00:00Z",
+        },
+        releasesSigned: [...APPLICATION_RELEASE_ORDER],
+        draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: "safety", updatedAt: null },
+      }));
+      const w = mountPage();
+      await settle(w);
+      await w.findAll("button").find((b) => b.text().includes("About you"))!.trigger("click");
+      await settle(w);
+      await close(w);
+      expect(screens).toEqual(["part2.hub", "part2.identity"]);
+    });
+
+    it("names the wait for the office to send the form", async () => {
+      const screens = reportsOf(partOnePage({ completedAt: "2026-08-21T09:05:00Z" }, {
+        phases: {
+          consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z",
+          submittedAt: null, applicationSentAt: null,
+        },
+        releasesSigned: [...APPLICATION_RELEASE_ORDER],
+      }));
+      const w = mountPage();
+      await settle(w);
+      await close(w);
+      expect(screens).toEqual(["wait.permissions"]);
+    });
+
+    it("names the handbook while its places are being signed, and the filed page around it", async () => {
+      const filed = (openedAt: string | null) => ok({
+        carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+        phases: { consentedAt: "2026-08-21T09:00:00Z", releasesCompletedAt: "2026-08-21T09:10:00Z", submittedAt: "2026-08-25T09:00:00Z" },
+        handbook: {
+          canOpen: true, openedAt, driverSigned: [], driverComplete: false, filedAt: null, adoption: null, version: "h1",
+        },
+      });
+      let screens = reportsOf(filed("2026-08-26T09:00:00Z"));
+      let w = mountPage();
+      await settle(w);
+      await close(w);
+      expect(screens).toEqual(["handbook"]);
+      w.unmount();
+
+      screens = reportsOf(filed(null));
+      w = mountPage();
+      await settle(w);
+      await close(w);
+      expect(screens).toEqual(["filed"]);
+    });
+
+    it("names the screen the driver is on, from the first screen down to the form's section", async () => {
+      const reports: { events: { screen: string; left_at: string | null }[] }[] = [];
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith("/screen-events")) {
+          reports.push(JSON.parse(String(init!.body)) as (typeof reports)[number]);
+          return ok({ ok: true, inserted: 1, closed: 0 });
+        }
+        return ok({
+          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          draft: { locked: false, payload: COMPLETE_DRAFT, furthestSection: null, updatedAt: null },
+        });
+      });
+      const w = mountPage();
+      await settle(w);
+      // A draft on file counts as a used link, so this one opens on the form rather than the welcome.
+      await advance(w);
+      window.dispatchEvent(new Event("pagehide"));
+      await settle(w);
+
+      expect(String(fetchMock.mock.calls.find(([u]) => String(u).endsWith("/screen-events"))![0]))
+        .toBe(`/api/public/application/${"t".repeat(43)}/screen-events`);
+      const visits = reports.flatMap((r) => r.events);
+      expect(visits.map((v) => v.screen)).toEqual(["part2.identity", "part2.addresses"]);
+      expect(visits.every((v) => v.left_at !== null)).toBe(true);
+    });
+
+    it("names the welcome and the consent on an untouched link", async () => {
+      const reports: { events: { screen: string }[] }[] = [];
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (String(url).endsWith("/screen-events")) {
+          reports.push(JSON.parse(String(init!.body)) as (typeof reports)[number]);
+          return ok({ ok: true });
+        }
+        return ok({
+          carrier: "Silvicom Inc", expiresAt: "2099-01-01T00:00:00Z", releases: RELEASES,
+          esignConsent: { version: "v1", title: "t", citation: "c", body: "b", intent: "i", draft: false, required: true },
+        });
+      });
+      const w = mountPage();
+      await settle(w);
+      await start(w);
+      window.dispatchEvent(new Event("pagehide"));
+      await settle(w);
+      expect(reports.flatMap((r) => r.events).map((v) => v.screen)).toEqual(["expectations", "consent"]);
+    });
+  });
 });

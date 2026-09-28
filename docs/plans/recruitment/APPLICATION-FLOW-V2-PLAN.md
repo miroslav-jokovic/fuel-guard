@@ -445,6 +445,37 @@ Behind the existing `CaptureProvider` seam, nothing replaced:
 | Errors | inline, name the field and the fix; validate on leaving a field, clear on the fixing keystroke; summary kept | component tests |
 | Real walk | an older Android + an iPhone, one real driver, end to end | §11 log |
 
+**How the two completion bars are read (owner, 2026-09-28: time ON the screens, a SQL query run by
+hand).** A visit ends when the screen changes and when the phone is put away (C3d3a), so the sum of a
+link's `part1.*` visits is the time spent on Part 1, and a driver who finishes over two days is not
+counted as taking two days. A visit still open (a phone that died on it) counts as nothing, and one
+visit is capped at 30 minutes, for a screen left showing on a desk. Part 1 counts links whose Part 1 is
+finished; Part 2, links whose application was handed to the office.
+
+```sql
+with visits as (
+  select e.invitation_id,
+         case when e.screen like 'part1.%' then 'part1' else 'part2' end as part,
+         least(extract(epoch from (coalesce(e.left_at, e.entered_at) - e.entered_at)), 1800) / 60.0 as minutes
+  from application_screen_events e
+  where e.org_id = :org and (e.screen like 'part1.%' or e.screen like 'part2.%')
+), per_link as (
+  select v.invitation_id, v.part, sum(v.minutes) as minutes
+  from visits v
+  join application_invitations i on i.id = v.invitation_id
+  where (v.part = 'part1' and i.intake_completed_at is not null)
+     or (v.part = 'part2' and i.review_requested_at is not null)
+  group by v.invitation_id, v.part
+)
+select part, count(*) as links,
+       round(percentile_cont(0.5) within group (order by minutes)::numeric, 1) as median_min,
+       round(percentile_cont(0.75) within group (order by minutes)::numeric, 1) as p75_min
+from per_link group by part order by part;
+```
+
+A panel in the office is not built (owner, 2026-09-28): the query is enough until there are links to
+read.
+
 ### 6.9 Signing — the owner's model (2026-09-26), against today **[V]**
 
 | Owner's step | Today | Change |
@@ -725,6 +756,10 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW38** (C3d, 2026-09-28) | AW10 names Supabase TUS for "an upload cut at 50% resumes" (§6.8). Supabase's resumable uploads use a FIXED 6 MB chunk ("must be set to 6MB (for now) do not change it", Supabase docs, read 2026-09-28), and a capture is downscaled to 1568 px WebP q80 — "the low hundreds of kilobytes" (`APPLICATION_CAPTURE_MAX_BYTES`'s header). Every capture is therefore ONE chunk: a cut at 50% restarts from zero exactly as today's signed-URL PUT does, and `tus-js-client` would cost apply-route JS (§6.8's 200 KiB) for nothing. What a cut actually loses today is the PHOTO: the encoded bytes live only in the page (an object URL) until `confirm`. | (a) keep the encoded photo in IndexedDB until `confirm` and replay `stageCapture`'s three calls on reconnect — §6.8's bar reworded to "retried from the kept photo, never re-taken"; (b) build TUS anyway; (c) raise the capture size until chunks matter | **(a)** — the defect is a re-take, not a re-send. **RULED (a) by the owner 2026-09-28**; it is C3d2. |
 | **Q-AW39** (C3d, 2026-09-28) | AW10's local replay puts screens 3–6's answers — the date of birth, the CDL number, the address — at rest on the device before screen 7, and the link may be opened on an office computer (the desktop handoff, C3b2b2). D-APP16 keeps a date of birth off the bare link; nothing yet says how long one may sit in a browser. | (a) screens 3–6 only, never screen 7's answers; deleted the moment screen 7's write lands, and at the EARLIER of 72 hours and the link's expiry, every read sweeping every expired copy on the device; (b) the same without the date of birth (retyped after a reload) | **(a)**. **RULED (a) by the owner 2026-09-28; BUILT in C3d1a.** |
 | **Q-AW30** (C2d2, 2026-09-27) | G-2 and §8.5 say "exact-keyword STOP". Built instead: CANCEL, END and QUIT count only as the whole message (G-2's false positives — "I'll quit my job", "end of the week"); STOP, STOPALL, UNSUBSCRIBE, REVOKE and OPT OUT still count anywhere. Reason: the public terms page promises "please stop texting me" works, the existing test pinned "help me stop these texts" as an opt-out, the FCC's §64.1200(a)(10) standard is "any reasonable means", and a false positive is now undone by START. | (a) as built; (b) every keyword whole-message only, terms page loses the "plain request" sentence; (c) counsel rules | **(a)**; (b) is a one-line change in `isStopMessage` plus the terms page, if the owner prefers it. **RULED (a) by the owner 2026-09-27** — as built. |
+| **Q-AW40** (2026-09-28) | The owner wants test applicants, and applicants generally, deleted outright by an admin: archiving (`drivers.archived_at`) leaves them in the database. Today nothing can: `trg_guard_driver_hard_delete` refuses DR010 ("archived, never deleted") except inside `merge_driver`, and `driver_applications`, `esign_consents`, `application_packet_marks`, `application_drafts` and `application_captures` each refuse a delete by trigger. Measured on production 2026-09-28: the two test applicants (`d61557dc`, `f2b142e4`, both in the real fleet's org) hold 1 filed application, 1 qualification record, 8 permissions, 2 e-sign consents, 20 packet marks, 2 drafts, 1 capture and 1 employment row. | (a) an admin-only "Delete applicant permanently": a migration adds `purge_applicant(p_org, p_driver, p_actor)`, which sets a session flag every one of those guards honours (the `merge_driver` pattern), deletes the applicant's rows and invitations, and refuses a driver who was ever hired; the api removes the Storage objects and writes one `audit_logs` row (`driver.purged`: ids and counts, no name); the screen asks for step-up and the typed name. Migration, then reader — two merges; (b) archive only | **RULED: hard delete, admin only (owner, 2026-09-28).** Built as (a). ⚠ **An applicant only, never a driver who was hired**: a hired driver's qualification file is §391.51 evidence kept for the length of employment plus three years, so the refusal is part of the ruling as built, not a detail — say if it should be otherwise. |
+| **Q-AW41** (2026-09-28) | The link's lifetime (14 days, extended by 14 on every send, reminder and signing opened; `INVITE_TTL_DAYS_DEFAULT`) and the reminder (after 48 hours without progress, once per part; `STALE_DRAFT_HOURS`) are constants. The owner: drivers often finish over a couple of days, and the carrier wants control. | (a) Settings → Recruiting: the default link lifetime (1–60 days), the reminder delay in hours and an on/off switch; a per-invite override in the invite drawer (the api already takes `expires_in_days`). New columns: a migration, then the reader — two merges. The 72 hours a phone keeps unsent answers (Q-AW39) stays fixed: it is a privacy rule, not a convenience; (b) leave the constants | **(a). RULED by the owner 2026-09-28.** |
+| **Q-AW42** (2026-09-28) | There is no place to add a carrier Representative or a road-test examiner ahead of time: each is added only inside one driver's panel, and only once that driver reaches the step (`HandbookPanel.vue`, `RoadTestPanel.vue`). So the owner could not add the Representative the countersign needs. | (a) a register under Settings, beside Q-AW41's settings, listing both with add and remove (the api exists: `/recruitment/representatives`, the examiners' routes); no migration; (b) keep them in the panels | **(a), under Settings. RULED by the owner 2026-09-28.** |
+| **Q-AW43** (2026-09-28) | Q-AW17's fines. | — | **DEFERRED by the owner 2026-09-28**: the fines stay as they are until the hiring process works end to end. Counsel's question is written (`COUNSEL-REVIEW-PACKAGE.md` Q18, added 2026-09-28) and goes with the rest of the memo. **#1059 stays held.** |
 
 ---
 
@@ -1377,3 +1412,54 @@ Append dated lines at the END.
     the upload cut, the screen said "That did not send". After a reload the same photograph was back on
     screen, sent once (start, upload, confirm with its original hash) and "Received", and the phone held
     no copy afterwards. No migration.
+- 2026-09-28 — **C3d2 merged** (#1096, main `4608141`); CI green on the merged head.
+- 2026-09-28 — **Owner rulings** (rows in §11):
+  - **C3d3 split in three**, as proposed: **C3d3a** screen events (writer, retention, the page's
+    reports); **C3d3b1** the first browser tests in CI — a Playwright config serving built `dist` with
+    `/api/public/application/**` stubbed, Chromium in `typecheck-build` (its cost measured), the
+    offline test, and `smoke.spec.ts`'s duplicate `getByLabel('Password')` fixed; **C3d3b2** the
+    44 px sweep and whatever it finds.
+  - **§6.8's completion bars are time ON the screens**, read by a SQL query run by hand (now under
+    §6.8); no office panel.
+  - **Q-AW40**: applicants can be deleted outright by an admin — never a driver who was hired.
+  - **Q-AW41**: the link's lifetime and the reminder become settings, with a per-invite override.
+  - **Q-AW42**: Representatives and examiners get a register under Settings.
+  - **Q-AW43**: the fines (Q-AW17) are deferred until the hiring process works end to end; counsel's
+    question is written as the memo's Q18. **#1059 stays held.**
+  - **The two test applicants are not extended** (`d61557dc` lapses today, `f2b142e4` on 2026-10-01).
+    They are deleted by Q-AW40 once it ships, and new test applicants are invited in a separate QA
+    org. So **Q-AW1 and Q-AW2 are moot**, and **M2 no longer waits for `d61557dc` to be filed**
+    (§8.3's heading) — it still waits for C3s.
+  - **The queue from here:** C3d3a → C3d3b1 → C3d3b2 → R1 (Settings → Recruiting: Q-AW42's register,
+    no migration) → S1/S2 (Q-AW41: migration, then reader) → P1/P2 (Q-AW40: migration, then purge)
+    → C3d4 (Lighthouse) → AW6 (selfie) → C3s → M2 → C4 → QA walk.
+- 2026-09-28 — **C3d3a built** (`claude/applicant-flow-c3d3`): the writer of 0376's `application_screen_events`.
+  - **Names, derived.** `@silvicom/shared`'s `applicationScreens.ts` builds every name the page may report
+    from the lists the screens already are — Part 1's `PART_ONE_SCREENS` (moved there from the web),
+    Part 2's sections, the permissions — plus one per branch of the phase chain. The api refuses any other
+    name, so a leaked link can write screen visits and never a value (D-APP16). **Found by a test:**
+    Part 1's `otherLicences` would have failed 0376's lowercase CHECK and taken its whole report with it;
+    reported names are snake-cased (`part1.other_licences`).
+  - **Which screen** is the deepest one mounted: each branch of `ApplyPhaseRouter` carries an
+    `ApplyScreenMark`, and Part 1, each permission, the handbook, the task list and each section name
+    themselves inside it. No list restates the chain.
+  - **Time on the screen** (the owner's ruling): a visit closes when the screen changes and when the phone
+    is put away, and a new one opens when it comes back. A visit is reported open while showing, so a
+    phone that dies on a screen still leaves it behind; the server keeps one row per visit (`id` minted by
+    the page, insert-or-nothing, closed once).
+  - **The rate budget:** reports go once a minute while something changed, when hidden and on `pagehide`
+    (`fetch` with `keepalive`), at most 50 visits each, on their own per-link bucket
+    (`screenEventsLimiter`, 6 a minute) that the intake's 20 skips — autosave keeps its 12.
+  - **The phone's clock:** each report carries `sent_at`, and the api moves every time by the difference
+    to its own clock; a visit still in the future after that is dropped.
+  - **Retention:** 180 days (`RETENTION_RULES` and `table-modules.json`), as 0376 promised. The table left
+    `check-table-producers.mjs`'s schema-only list — the last of M1's five. §6.8's query is written under
+    §6.8 and runs on production (no rows yet).
+  - **Found by the mutation pass:** during signature adoption the ceremony already points at the first
+    permission, so the adoption would have been reported as `ceremony.fcra_disclosure`; it is `ceremony`.
+  - **Checks:** 35 mutants. 25 killed on the first pass; of the ten survivors, seven were real gaps and now
+    have tests (a visit reported closed then open in one report; one closed while its open copy was in
+    flight — whose first test passed on `undefined` via `not.toBeNull()`; Part 1, a permission, the
+    handbook, the task list and the permissions wait never checked on the real page), one was the adoption
+    bug above, and two are no-ops: the batch cap's mutant changes a constant the test reads, and dropping
+    closed visits from memory changes only memory (a clean visit is never resent). No migration.

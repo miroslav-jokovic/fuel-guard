@@ -5,6 +5,7 @@ import { CheckIcon } from "@silvicom/ui/icons";
 import type { ApplicationCaptureView, ApplicationSection } from "@silvicom/shared";
 import type { ApplicationDraft } from "@/features/apply/draft";
 import { hubTasks, type TaskStatus } from "@/features/apply/taskHub";
+import { useApplyScreen } from "@/features/apply/useScreenEvents";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -22,6 +23,7 @@ const props = defineProps<{
   saveStatus: string | null;
 }>();
 const emit = defineEmits<{ open: [ApplicationSection] }>();
+useApplyScreen(() => "part2.hub");
 
 const copy = APPLY_COPY.hub;
 const tasks = computed(() => hubTasks(props.draft, props.v2AsOf, props.captures));

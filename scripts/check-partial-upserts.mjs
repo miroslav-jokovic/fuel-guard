@@ -56,6 +56,9 @@ const ALLOWED = {
   // proposed tuple, so an incomplete insert-or-skip fails exactly like an incomplete DO UPDATE.
   "apps/api/src/modules/hazmat/hazmatLoads.ts": ["hazmat_documents", "hazmat_loads"],
   "apps/api/src/modules/evidence/compliance.ts": ["documents"],
+  // C3d3a (AW14): the same insert-or-skip on a page-minted UUID — a screen visit reported twice is one
+  // row. The payload carries every required column: id, org_id, invitation_id, screen, entered_at.
+  "apps/api/src/modules/recruiting/applicationScreenEvents.ts": ["application_screen_events"],
 };
 
 // ── required columns per table, from the migration ledger ────────────────────────────────────────

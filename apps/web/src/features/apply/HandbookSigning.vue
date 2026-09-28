@@ -7,6 +7,7 @@ import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
 import PermissionDocumentView from "@/features/apply/signing/PermissionDocumentView.vue";
 import { useHandbookAdoption } from "@/features/apply/signing/useHandbookAdoption";
 import { publicFetch } from "./useApplication";
+import { useApplyScreen } from "./useScreenEvents";
 import { APPLY_COPY } from "./strings";
 
 /**
@@ -29,6 +30,10 @@ import { APPLY_COPY } from "./strings";
  * adoption screens, and the first place carries the typed name. See `useHandbookAdoption.ts`.
  */
 const props = defineProps<{ token: string; carrier: string; handbook: LinkHandbookStatus }>();
+
+// A screen of its own while the places are being signed; before the office opens it and after, it is
+// part of the filed page (`filed`, AW14).
+useApplyScreen(() => (props.handbook.openedAt && !props.handbook.driverComplete ? "handbook" : null));
 
 const qc = useQueryClient();
 const places = HANDBOOK_PLACEMENTS.filter((p) => p.party === "driver");
