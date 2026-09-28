@@ -2,8 +2,10 @@ import { Router } from "express";
 import {
   applicantIdentitySchema,
   applicationEditSchema,
+  partOneCorrectionSchema,
   type ApplicantIdentity,
   type ApplicationEdit,
+  type PartOneCorrection,
 } from "@silvicom/shared";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
@@ -18,6 +20,7 @@ import {
 import { applicationPreviewPdf, isPreviewError } from "../applicationPdf/preview.js";
 import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf/permissions.js";
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
+import { correctApplicantPartOne, isPartOneCorrectionError } from "../applicantPartOneCorrection.js";
 import { isApplicationSendError, sendApplication } from "../applicationSend.js";
 import { isOpenSigningError, openPacketSigning } from "../applicationOpenSigning.js";
 
@@ -51,6 +54,7 @@ export function recruitmentApplicationReviewRouter(): Router {
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
           || code === "nothing_signed_yet" || code === "invitation_revoked"
           || code === "permissions_incomplete" || code === "application_not_approved"
+          || code === "not_part_one" || code === "part_one_not_begun"
           ? 409
           : 500;
 
@@ -191,6 +195,33 @@ export function recruitmentApplicationReviewRouter(): Router {
         req.auth!.userId,
       );
       if (isIdentityCorrectionError(result)) {
+        res.status(status(result.code)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Correct Part 1's facts (Q-AW36 (a)) — the office acting on "Something wrong? Tell us". The whole
+   * set, overwriting, through the one intake writer; audited. `canManage`, for the reason the identity
+   * correction above gives: this changes what screening ran on.
+   */
+  router.post(
+    "/applications/:invitationId/part-one",
+    requireOrg,
+    canManage,
+    validateBody(partOneCorrectionSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await correctApplicantPartOne(
+        admin,
+        req.auth!.orgId!,
+        String(req.params.invitationId ?? ""),
+        res.locals.body as PartOneCorrection,
+        req.auth!.userId,
+      );
+      if (isPartOneCorrectionError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }
