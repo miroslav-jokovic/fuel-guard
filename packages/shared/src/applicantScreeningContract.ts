@@ -171,22 +171,58 @@ export type ApplicantIntakeLicence = z.infer<typeof applicantIntakeLicenceSchema
  * The duplicate refusal restates 0376's `application_intake_licences_licence_key` in words, so the
  * driver is told which entry and the database never answers 23505.
  */
+/** 0376's unique (invitation, state, number), in words — both lists that replace the stored one use it. */
+function refuseDuplicateLicences(v: { licences: ApplicantIntakeLicence[] }, ctx: z.RefinementCtx): void {
+  const seen = new Set<string>();
+  v.licences.forEach((l, i) => {
+    const key = `${l.state_code}|${l.licence_number.toUpperCase()}`;
+    if (seen.has(key)) {
+      ctx.addIssue({ code: "custom", message: "This licence is already on the list", path: ["licences", i] });
+    }
+    seen.add(key);
+  });
+}
+
 export const applicantIntakeLicencesSchema = z
   .object({
     licences: z.array(applicantIntakeLicenceSchema).min(1).max(INTAKE_LICENCE_MAX),
   })
   .strict()
-  .superRefine((v, ctx) => {
-    const seen = new Set<string>();
-    v.licences.forEach((l, i) => {
-      const key = `${l.state_code}|${l.licence_number.toUpperCase()}`;
-      if (seen.has(key)) {
-        ctx.addIssue({ code: "custom", message: "This licence is already on the list", path: ["licences", i] });
-      }
-      seen.add(key);
-    });
-  });
+  .superRefine(refuseDuplicateLicences);
 export type ApplicantIntakeLicences = z.infer<typeof applicantIntakeLicencesSchema>;
+
+/**
+ * `POST /api/recruitment/applications/:invitationId/part-one` — the office correcting Part 1's facts
+ * (Q-AW36 (a), owner 2026-09-27): the applicant's "Something wrong? Tell us" reaches the office, and
+ * this is how the office acts on it.
+ *
+ * ── THE WHOLE SET, EVERY TIME ─────────────────────────────────────────────────────────────────
+ * The office sees what Part 1 holds, changes what the note says is wrong, and saves the lot — so every
+ * field is required and the licence list replaces the stored one whole, exactly as Part 1's own screen
+ * posts it. A partial correction would be a second shape of the same write for no reader's benefit.
+ *
+ * ── WHAT IS NOT HERE, ON PURPOSE ──────────────────────────────────────────────────────────────
+ * §40.25(j) and the two §382.301(b) answers are the APPLICANT'S statements: the regulation has the
+ * employer ASK, and an answer typed by the office is not the answer to that question. Nor are the FCRA
+ * acknowledgement, "I don't have a medical card yet", or the declared endorsements (a declaration,
+ * verified on the MVR, never filed). The date of birth is corrected where it always was, beside the
+ * permissions (`applicantIdentitySchema`), which on a v2 link now goes through the same writer.
+ */
+export const partOneCorrectionSchema = z
+  .object({
+    phone: usMobilePhoneSchema,
+    address_line1: z.string().trim().min(1).max(200),
+    address_line2: z.string().trim().max(200).nullable(),
+    city: z.string().trim().min(1).max(120),
+    state: usStateSchema,
+    postal_code: z.string().trim().regex(/^\d{5}$/, "A ZIP code is five digits"),
+    cdl_class: z.enum(CDL_CLASSES),
+    /** Position 0 is the current CDL — the licence PSP runs on and `drivers` holds. */
+    licences: z.array(applicantIntakeLicenceSchema).min(1).max(INTAKE_LICENCE_MAX),
+  })
+  .strict()
+  .superRefine(refuseDuplicateLicences);
+export type PartOneCorrection = z.infer<typeof partOneCorrectionSchema>;
 
 /**
  * The slots Part 1 photographs and `complete_applicant_intake` promotes to `documents` (D-AW4). The

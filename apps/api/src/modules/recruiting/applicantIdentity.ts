@@ -7,6 +7,7 @@ import {
 } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { loadCarrierWording } from "./carrierWording.js";
+import { correctIdentityThroughPartOne } from "./applicantPartOneCorrection.js";
 import {
   ALREADY_SUBMITTED,
   isIntakeError,
@@ -198,6 +199,14 @@ export async function correctApplicantIdentity(
   const notFound = { code: "application_not_found", message: "That application is not in this organization." };
   if (!invitation) return notFound;
 
+  // A v2 link's licence list moves with the identity (Q-AW36) — see `correctIdentityThroughPartOne`.
+  const throughPartOne = await correctIdentityThroughPartOne(admin, orgId, invitation, body);
+  if (throughPartOne && "code" in throughPartOne) return throughPartOne;
+  if (throughPartOne) {
+    await auditIdentityCorrection(admin, orgId, invitation, actorId);
+    return { ok: true };
+  }
+
   const { error } = await admin.rpc(
     "record_applicant_identity",
     rpcArgs(orgId, invitation.id, invitation.driver_id, body, true),
@@ -214,6 +223,17 @@ export async function correctApplicantIdentity(
     return { code: "identity_failed", message: error.message };
   }
 
+  await auditIdentityCorrection(admin, orgId, invitation, actorId);
+  return { ok: true };
+}
+
+/** One audit row per identity correction, whichever writer carried it. Names, never values. */
+async function auditIdentityCorrection(
+  admin: SupabaseClient,
+  orgId: string,
+  invitation: { id: string; driver_id: string },
+  actorId: string,
+): Promise<void> {
   await writeAudit(admin, {
     orgId,
     actorId,
@@ -222,5 +242,4 @@ export async function correctApplicantIdentity(
     entityId: invitation.id,
     meta: { driverId: invitation.driver_id, fields: [...APPLICANT_IDENTITY_KEYS] },
   });
-  return { ok: true };
 }

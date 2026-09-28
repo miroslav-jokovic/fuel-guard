@@ -177,6 +177,25 @@ ok("a second completion is idempotent: same stamp, no new document",
 ok("AI008: after completion the applicant cannot rewrite Part 1",
   (await intakeCode(ORG, I1, D1, { city: "X" }, LICENCES, null, false)) === "AI008");
 ok("…the office still can", (await intakeCode(ORG, I1, D1, { city: "Skokie" }, LICENCES, null, true)) === null);
+
+// Q-AW36: the office replaces the CURRENT licence after Part 1 is finished. Position 0 is what the
+// function hands `record_applicant_identity`, so `drivers` and the draft move with the list — the one
+// property the API's v2 identity correction relies on (`correctIdentityThroughPartOne`).
+await intake(ORG, I1, D1, { date_of_birth: "1980-04-02" }, [
+  { position: 0, state_code: "IN", licence_number: "IN-CORRECTED", expires_on: "2030-02-28" },
+  LICENCES[1],
+], null, true);
+const corrected = await one(
+  `select to_char(date_of_birth,'YYYY-MM-DD') dob, cdl_number, cdl_state, to_char(cdl_expires_at,'YYYY-MM-DD') exp
+     from drivers where id = $1`, [D1]);
+ok("an office list replacement moves the CDL on drivers — number, state, expiry and date of birth",
+  corrected.cdl_number === "IN-CORRECTED" && corrected.cdl_state === "IN" && corrected.exp === "2030-02-28"
+    && corrected.dob === "1980-04-02");
+ok("…and the draft, in the same transaction",
+  (await one(`select payload from application_drafts where invitation_id = $1`, [I1]))?.payload?.cdl_number === "IN-CORRECTED");
+ok("…and the list holds exactly what was sent, the old licence gone",
+  (await count(`select count(*)::int n from application_intake_licences where invitation_id = $1 and licence_number = 'D1234567'`, [I1])) === 0
+    && (await count(`select count(*)::int n from application_intake_licences where invitation_id = $1`, [I1])) === 2);
 ok("a capture of another invitation cannot be promoted through this one",
   (await (async () => {
     const other = await stage(I2, D2, "medical_card");

@@ -143,6 +143,28 @@ describe("what the office reads", () => {
     expect(legacy.find("input#apply-phone").exists()).toBe(true);
   });
 
+  /** Q-AW36: the correction the note asks for sits under it — on a v2 application, until approval. */
+  it("offers the Part 1 correction on a v2 application until it is approved, and never on a legacy one", async () => {
+    const FACTS = {
+      intake: { phone: "+13125550142", address_line1: "1 Main St", address_line2: null, city: "Joliet", state: "IL",
+        postal_code: "60431", prior_positive_2y: false, cdl_class: "A" },
+      licences: [{ position: 0, state_code: "IL", agency: null, licence_number: "IL123", expires_on: "2029-03-01" }],
+      asOf: "2026-09-26",
+    };
+    for (const [over, shown] of [
+      [{ partOne: FACTS }, true],
+      [{ partOne: FACTS, state: "filling", editable: false }, true],
+      [{ partOne: FACTS, state: "approved", editable: false }, false],
+      [{ partOne: FACTS, state: "certified", editable: false }, false],
+      [{}, false],
+    ] as const) {
+      apiFetch.mockResolvedValue({ ok: true, data: review(over) });
+      const w = drawer();
+      await settle(w);
+      expect(w.find("[data-part-one-correction]").exists(), JSON.stringify(over).slice(0, 60)).toBe(shown);
+    }
+  });
+
   it("says where the application has got to", async () => {
     const w = drawer();
     await settle(w);

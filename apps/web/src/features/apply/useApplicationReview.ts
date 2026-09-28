@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ApplicationPath, ApplicationReviewState, PartOneFactsView } from "@silvicom/shared";
+import type { ApplicationPath, ApplicationReviewState, PartOneCorrection, PartOneFactsView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -91,6 +91,24 @@ export function useApproveApplication(invitationId: Ref<string | null>) {
       );
       if (!res.ok) throw new Error(res.error?.message ?? "That could not be approved.");
       return res.data!.notice;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
+  });
+}
+
+/**
+ * The office correcting Part 1 (Q-AW36 (a)). The review is refetched, so the summary above the form —
+ * composed from Part 1's facts — shows what the application will now say.
+ */
+export function useCorrectPartOne(invitationId: Ref<string | null>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PartOneCorrection): Promise<void> => {
+      const res = await apiFetch(
+        `/api/recruitment/applications/${encodeURIComponent(invitationId.value ?? "")}/part-one`,
+        { method: "POST", body: input },
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "That correction could not be saved.");
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(invitationId.value ?? "") }),
   });

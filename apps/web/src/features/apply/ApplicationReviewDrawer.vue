@@ -18,6 +18,7 @@ import { buildReviewSummary } from "./reviewSummary";
 import { describeField } from "./fieldLabels";
 import { editableFields, pathKey } from "./editableFields";
 import AddEmployerForm from "./AddEmployerForm.vue";
+import PartOneCorrection from "./PartOneCorrection.vue";
 import ApplicationAnswerList from "./ApplicationAnswerList.vue";
 import {
   useApplicationReviewQuery,
@@ -81,7 +82,8 @@ const summary = computed(() => {
 });
 
 // C3c2c2: on a v2 application, the answers filing takes from Part 1 are not offered — a correction
-// there would be filed over. The date of birth and CDL are corrected through the identity path instead.
+// there would be filed over. They are corrected at their source instead: `PartOneCorrection` (Q-AW36),
+// and the date of birth beside the permissions.
 const fields = computed(() =>
   editableFields(payload.value, questionnaireForApplicant(), Boolean(review.data.value?.partOne)));
 /** "Something wrong? Tell us" (C3c2c2): the applicant's note about a Part 1 fact they could only read. */
@@ -252,12 +254,17 @@ async function approveIt(): Promise<void> {
         Signed and filed. These answers are part of the qualification file.
       </AppCallout>
 
-      <!-- C3c2c2: before the answers — it may say one of them is wrong. ⚠ Only the date of birth and the
-           CDL's number and state can be corrected from here today; the rest is Q-AW36. -->
+      <!-- C3c2c2: before the answers — it may say one of them is wrong. The correction it asks for sits
+           right under it (Q-AW36), open while the office can still correct anything: until approval. -->
       <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
         <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
         <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
       </AppCallout>
+      <PartOneCorrection
+        v-if="invitationId && review.data.value?.partOne && state !== 'approved' && state !== 'certified'"
+        :invitation-id="invitationId"
+        :facts="review.data.value.partOne"
+      />
 
       <template v-if="summary.length">
         <section v-for="group in summary" :key="group.section" class="space-y-2">

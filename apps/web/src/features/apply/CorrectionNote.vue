@@ -16,9 +16,9 @@ import { APPLY_COPY } from "@/features/apply/strings";
  *
  * Opens by itself when a note is already written, so a driver who comes back sees what they said.
  *
- * ⚠ The office cannot yet CORRECT most of what a note reports: only the date of birth and the CDL's
- * number and state have an office writer (`correctApplicantIdentity`). Recorded as Q-AW36, not routed
- * around here — this sends the report; what the office can do with it is that question's.
+ * The office acts on it in the drawer, right under the note: `PartOneCorrection` (Q-AW36) rewrites
+ * Part 1's contact, address, CDL class and licences, and the date of birth is corrected beside the
+ * permissions.
  */
 const draft = defineModel<ApplicationDraft>({ required: true });
 const copy = APPLY_COPY.partOneFacts;
