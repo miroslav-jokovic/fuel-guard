@@ -1,7 +1,6 @@
 import { computed, onScopeDispose, reactive, ref, type Ref } from "vue";
 import {
   BUNDLED_DEFAULT_CONFIG,
-  type CapturedPage,
   type CaptureProvider,
   type RejectionReason,
 } from "@silvicom/capture-engine";
@@ -12,6 +11,8 @@ import {
   type ApplicationCaptureSlot,
   type ApplicationCaptureView,
 } from "@silvicom/shared";
+import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
+import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider } from "./webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
@@ -39,6 +40,12 @@ import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
  * The three network acts themselves live in `stageCapture`, shared with the signing ceremony's drawn
  * mark (A8b): two producers that could not be more different — a phone camera through the gate, a
  * finger on a canvas — must not each hold their own idea of what order those calls go in.
+ *
+ * ── A PHOTOGRAPH SENT IS NEVER TAKEN TWICE (AW10, C3d2, Q-AW38 (a)) ─────────────────────────────
+ * "Use this" first writes the photograph to the phone (`photoLocal.ts`), and only `confirm`'s answer
+ * deletes it. So a cut mid-upload, a reload, or a phone that drops the tab leaves it there: the next visit
+ * puts it back in its slot and sends it again, and a phone coming back online retries a failed send by
+ * itself. The driver never has to find the licence and photograph it again.
  */
 
 /**
@@ -105,8 +112,12 @@ export function useApplicationCaptures(
      * With an injected provider there is no original to hand over, so the staged bytes are.
      */
     onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
+    /** Where a photograph waits for `confirm` (C3d2). Defaults to what `ApplyPage` provides; null keeps none. */
+    local?: Ref<LocalCopySpec | null> | null;
   } = {},
 ) {
+  const local_ = options.local !== undefined ? options.local : injectLocalCopy();
+  const spec = (): LocalCopySpec | null => local_?.value ?? null;
   /** The file the default provider's picker last returned — the original of what it then processed. */
   let picked: File | null = null;
   /**
@@ -230,7 +241,7 @@ export function useApplicationCaptures(
       }
       // The new photograph REPLACES whatever the slot showed, and that one is revoked on the spot (X6).
       forget(slot);
-      held[slot] = { page, contentType, original: picked };
+      held[slot] = { uri: page.originalOfRecord.uri, integrityHash: page.integrityHash, contentType, original: picked };
       previews[slot] = page.originalOfRecord.uri;
       mark(slot, "review", { source: from, pending: true });
     } catch {
@@ -256,20 +267,28 @@ export function useApplicationCaptures(
     try {
       // The provider hands back an object URL rather than the blob; reading it back is how the bytes
       // are recovered without widening the engine's contract for one consumer.
-      const blob = await fetch(photo.page.originalOfRecord.uri).then((r) => r.blob());
+      const blob: Blob = photo.blob !== undefined ? photo.blob : await fetch(photo.uri).then((r) => r.blob());
+      // C3d2: on the phone BEFORE the first byte goes, so no cut after this point can lose it. A put that
+      // fails (storage blocked) resolves, and the send goes ahead as it did before C3d2.
+      const where = spec();
+      if (where && !photo.kept) await keepPhoto(where, slot, blob, photo.contentType, photo.integrityHash);
       // The gate already hashed these exact bytes (A7), so the digest is passed through rather than
       // recomputed — the shared path takes an io whose `digest` is a function for the callers that
       // have no hash of their own.
       const confirmed = await stageCapture(token.value, slot, blob, photo.contentType, {
         ...io,
-        digest: async () => photo.page.integrityHash,
+        digest: async () => photo.integrityHash,
       });
+      if (where) await dropKeptPhoto(where, slot);
       // Sent: no longer held, but still the picture on the screen (X6) — `previews` keeps its URL.
       delete held[slot];
       mark(slot, "done", { capturedAt: confirmed.capturedAt, pending: false });
       options.onStaged?.(slot, photo.original ?? blob);
     } catch (e) {
       if ((e as { code?: string }).code === "capture_not_intact") {
+        // The server has refused these exact bytes; sending them again gets the same answer.
+        const where = spec();
+        if (where) await dropKeptPhoto(where, slot);
         forget(slot);
         mark(slot, "failed", { failure: "not_intact", pending: false });
       } else {
@@ -300,12 +319,60 @@ export function useApplicationCaptures(
     }
   }
 
+  /**
+   * A photograph this phone chose and the server never confirmed (C3d2): back in its slot, shown, and sent.
+   * If the send fails again it stays held — "Use this" works as always, and so does coming back online.
+   * Not when this screen already has a photograph of its own, and not over a newer one on the server
+   * (`serverIsNewer`: the same photograph, landed; or one taken since on another device).
+   */
+  async function replay(slot: ApplicationCaptureSlot): Promise<void> {
+    const where = spec();
+    if (!where) return;
+    const kept = await readKeptPhoto(where, slot);
+    // Checked AFTER the read: the driver may have taken a photograph on this screen while it ran, and
+    // theirs is the newer one.
+    if (!kept || held[slot] || local[slot]) return;
+    const stored = already.value.find((c) => c.slot === slot) ?? null;
+    if (serverIsNewer(kept, stored?.capturedAt ?? null)) {
+      await dropKeptPhoto(where, slot);
+      return;
+    }
+    const blob = new Blob([kept.bytes], { type: kept.contentType });
+    const uri = URL.createObjectURL(blob);
+    forget(slot);
+    held[slot] = { uri, blob, integrityHash: kept.integrityHash, contentType: kept.contentType, original: null, kept: true };
+    previews[slot] = uri;
+    mark(slot, "review", { pending: true });
+    await use(slot);
+  }
+
+  // One at a time — `use` refuses while another slot is busy, so a parallel replay would skip slots.
+  const replayAll = async (): Promise<void> => {
+    for (const slot of options.only ?? APPLICATION_CAPTURE_REQUESTED) await replay(slot);
+  };
+  const replayed = replayAll();
+
+  /** Back online: a send that failed on the signal goes again by itself (the button still works too). */
+  const onOnline = (): void => {
+    void (async () => {
+      for (const slot of options.only ?? APPLICATION_CAPTURE_REQUESTED) {
+        if (held[slot] && local[slot]?.state === "failed" && local[slot]?.failure === "network") await use(slot);
+      }
+    })();
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", onOnline);
+    onScopeDispose(() => window.removeEventListener("online", onOnline));
+  }
+
   return {
     slots,
     busy: computed(() => busy.value),
     take,
     use,
     capture,
+    /** Settles once any photograph kept from an earlier visit has been put back and sent (or tried). */
+    replayed,
   };
 }
 
@@ -319,8 +386,19 @@ interface SlotLocal {
 }
 
 interface Held {
-  page: CapturedPage;
+  /** The encoded photograph's object URL — also the preview. */
+  uri: string;
+  /** The gate's sha256 of those bytes (A7). */
+  integrityHash: string;
   contentType: ApplicationCaptureContentType;
-  /** What the picker returned — handed on by `onStaged`; null when an injected provider had no picker. */
+  /**
+   * What the picker returned — handed on by `onStaged`; null when an injected provider had no picker, and
+   * for a photograph put back from the phone (C3d2), which keeps only the encoded bytes. So a CDL back sent
+   * on a later visit is read for its barcode from the downscaled copy, which may not read.
+   */
   original: File | null;
+  /** Put back from the phone (C3d2): already kept, so `use` does not write it again. */
+  kept?: boolean;
+  /** The bytes themselves, when they are already in hand (a put-back photograph), so `use` need not re-read its own URL. */
+  blob?: Blob;
 }

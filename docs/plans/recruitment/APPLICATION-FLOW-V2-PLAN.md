@@ -1340,3 +1340,40 @@ Append dated lines at the END.
   - **Found in the full run:** `ApplyPage.test.ts` mounted the page 54 times and unmounted it 11, so 43
     pages kept real autosave timers running into later tests' `fetch` mock. "Sends nothing" failed under
     full-suite load and passed alone. The file now unmounts every page after its test (`enableAutoUnmount`).
+- 2026-09-28 — **C3d1b merged** (#1095, main `7f63d80`); CI green on the merged head.
+- 2026-09-28 — **C3d2 built** (`claude/applicant-flow-c3d2`): a photograph the driver chose is never taken
+  twice (Q-AW38 (a), replacing TUS).
+  - **Kept:** "Use this" writes the encoded photograph (the bytes the upload sends, with the gate's hash) to
+    the phone BEFORE the first byte goes (`capture/photoLocal.ts`, store `photos`). `confirm`'s answer
+    deletes it, and so does `capture_not_intact` (sending the same bytes again changes nothing). A photograph
+    still in review is never kept (§6.6.1's line). Q-AW39's lifetime is applied to photographs too.
+  - **Sent again:** on the next visit a kept photograph goes back in its slot, is shown, and is sent with the
+    same bytes and hash. If that fails too it stays held, "Use this" works, and the phone coming back online
+    (`online`) resends it by itself.
+  - **Not over a newer one:** a kept photograph is dropped, unsent, when the server's photograph for that
+    slot is at or after it (`serverIsNewer`): it is the same photograph confirmed with the answer lost, or
+    one taken since on another device (the desktop handoff, §6.6.6). ⚠ Two clocks are compared (server
+    `capturedAt`, phone `keptAt`); a phone running slow can drop a kept photograph that should have gone.
+    The bundle serves no hash that could decide it better.
+  - **Not kept:** the camera's original. So a CDL back sent on a later visit is read for its barcode from the
+    downscaled copy, which may not read. The driver then types the fields, as when any barcode is unread.
+  - **Wiring:** `ApplyPage` provides the link's copy spec once (`provideLocalCopy`, as `issues.ts` provides
+    the issue list). All three capture screens (Part 1's photo screen, the documents screen, the legacy
+    identity step) pick it up without new props. `ApplyPage.vue` stays at 445 lines (the spec's derivation
+    moved into `deviceCopies.ts`).
+  - **Checks:** 25 mutants, 19 killed on the first pass. Of the six survivors, four were real gaps that now
+    have tests:
+    - **The database version.** A phone that ran C3d1b holds `silvicom-apply` at version 1, with no `photos`
+      store. Without the bump to 2, every photograph put would throw, the store would resolve as designed,
+      and nothing would ever be kept. No test had started from an old database.
+    - One key for every slot, so the medical card would replace the licence.
+    - Coming back online would send a photograph still in review.
+    - A failed resend re-kept the copy, pushing its expiry forward on every visit.
+
+    The fifth was a redundant early guard: it was removed, and the check after the read, which covers it,
+    has its own test (a photograph taken while the phone was being read wins). The sixth is a no-op
+    (`Date.parse(null)` is NaN, so the null check changes nothing); it stays for the reader.
+  - **Looked at in Chromium at 390 px:** a real WebP from the browser's encoder, and real IndexedDB. With
+    the upload cut, the screen said "That did not send". After a reload the same photograph was back on
+    screen, sent once (start, upload, confirm with its original hash) and "Received", and the phone held
+    no copy afterwards. No migration.
