@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink, type RouteLocationRaw } from "vue-router";
+import { useTouchTargets } from "../touchTargets";
 
 /** Shared button for both applications. Gold is identity; graphite is action. */
 const props = withDefaults(
@@ -87,6 +88,24 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
 const LINK_SIZE = "h-auto gap-x-1 p-0 text-inherit";
 
 /**
+ * Inside a thumb-pressed layout (`touchTargets.ts`), each compact size becomes its 44 px counterpart:
+ * a labelled button becomes `touch`, a square one `size-11`, a list row keeps its own height above a
+ * 44 px floor. `link` is left alone — it is inline text, which WCAG 2.5.8 exempts.
+ */
+const touchTargets = useTouchTargets();
+const TOUCH_SIZES: Partial<Record<NonNullable<typeof props.size>, string>> = {
+  sm: SIZES.touch,
+  md: SIZES.touch,
+  icon: "size-11 p-0",
+  row: `${SIZES.row} min-h-11`,
+};
+const sizeClass = computed(() =>
+  props.variant === "link"
+    ? LINK_SIZE
+    : (touchTargets ? TOUCH_SIZES[props.size] : undefined) ?? SIZES[props.size],
+);
+
+/**
  * ⚠ The shape line is conditional because `row` inverts three of its defaults — a control is centred,
  * pill-cornered and semibold; a list row is left-aligned, square and normal weight. Branching here is
  * what lets the variant exist WITHOUT an `!important` at the call site, which was the whole reason it
@@ -103,7 +122,7 @@ const cls = computed(() => [
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
   "disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60",
   VARIANTS[props.variant],
-  props.variant === "link" ? LINK_SIZE : SIZES[props.size],
+  sizeClass.value,
   props.block ? "flex w-full" : "",
 ]);
 </script>

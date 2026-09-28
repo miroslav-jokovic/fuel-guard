@@ -1493,3 +1493,47 @@ Append dated lines at the END.
     scope ends) now has its test. Four of the mutants disable C3d1a's restore, C3d1b's replay, C3d2's replay
     and C3d2's `online` resend, and only the browser specs are run against them. 20 of 20 on `--repeat-each 5`.
     No migration.
+- 2026-09-28 — **C3d3b1 merged** (#1099, main `dd6b356`); CI green on the merged head.
+- 2026-09-28 — **C3d3b2 built** (`claude/applicant-flow-c3d3b2`): §6.8's tap-target bar, measured and met on every
+  `/apply` screen at 390 and 320 px.
+  - **What the first sweep found:** over a hundred controls under 44 px on nearly every screen, from ten causes.
+    Five were the primitives' compact sizes (`AppButton` md/sm 36/32, `AppInput` 36, the combobox, `AppCheckbox`
+    36, `AppSegmentedControl` 32). The others: the date field and its calendar (a 36×36 button, 35 px days,
+    25×25 month arrows); the **Sign here** tag, sized off the PDF's 48 pt box (79×32 on a phone); the permission's
+    "Read this document as text" disclosure (20 tall); the SMS card's two links (16 tall, on a line of their own,
+    so WCAG 2.5.8's inline exemption does not cover them); and what the owner-approved split left unmeasured —
+    the Part 2 drawers, the packet walk, the handbook.
+  - **The fix is stated once, not a hundred times.** 20 call sites had asked for `size="touch"` and the rest had
+    not, because "this route is pressed by a thumb" was being restated per control. `@silvicom/ui`'s
+    `touchTargets.ts` now carries it: `ApplyLayout.vue` (the layout of `/apply/:token` and no other route) calls
+    `provideTouchTargets()`, and `AppButton`, `AppInput`, `AppSelect`, `AppCombobox` (input and options),
+    `AppCheckbox`, `AppRadioGroup`, `AppSegmentedControl`, `AppIconButton` and the date field raise their own
+    compact sizes to 44. An inline link (`variant="link"`) is never boxed. The office keeps its 36 px density;
+    `packages/ui/src/touchTargets.test.ts` pins both halves for every primitive. The existing `size="touch"`
+    props stay — they are what a control asks for outside such a layout. The calendar is teleported out of the
+    layout, so it takes the floor as a menu class (`app-date-touch`): 44 px days and arrows, and its sides come
+    in from 8 to 4 px so a whole month fits a 320 px phone (it measured 326).
+  - **What the bigger controls broke, found by the sweep's overflow check:** Part 2's Back/Save row (side by
+    side it needed 380 px of a 342 px column — it already overflowed at 320 before this) now stacks on a phone,
+    the forward act on top; the adoption's confirm row wraps (at 320 px "Change" was off the card).
+  - **Found by looking, not by the sweep:** the 44 px Sign-here tag, bottom-aligned to an 18 px box, covered
+    the intent sentence the driver signs to on a real permission PDF at 320 px. It now hangs from the box's top
+    and grows down over the empty signature line; the spec asserts its top is the box's. And the packet's strip
+    of sixteen place dots is 10 px each, but it is an indicator, not a control (its markup has no handler on a
+    phone; the rail's buttons are `lg:` only), so it is not a target.
+  - **The spec:** `e2e-apply/tapTargets.spec.ts`, on the C3d3b1 harness, at 390 and 320 px: expectations,
+    consent, all nine Part 1 screens (with an open state list and an added licence), the adoption in its three
+    ways, the confirm, both permissions with the disclosure open, the permissions wait, the unlock with its
+    calendar open, the Part 2 task list, every task and every "Add…" it offers (the address and job drawers
+    included), both office waits, the sign-off with the packet's adoption, confirm and first place, and the
+    filed page with the handbook open. It measures every button, link, field, select, disclosure and
+    interactive role (a radio or checkbox by its label), fails a target that is cut off by the screen's edge or
+    a page that scrolls sideways, and exempts a link inside a sentence, decided from the page rather than
+    listed. `stubApi.ts` gained the consent, Part 1's completion, the permissions and their PDFs (drawn by hand
+    with the real `sign-here` destination, so the tag is its true size), the unlock, SMS consent, the packet,
+    the handbook, a Part 2 v2 fixture, and a list of any request it had no answer for, which every check asserts
+    is empty.
+  - **Checks:** 22 mutants, all killed on the first pass — one per primitive's raised size, the provider
+    removed, the calendar's four variables and its class, and each page-level fix. Three are killed only by
+    the unit test (an inline link given a box, a 36 px select, a 36 px icon button): no `/apply` screen renders
+    one today, so the walk cannot see them. 60 of 60 on `--repeat-each 5`. No migration.

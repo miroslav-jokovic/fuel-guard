@@ -40,3 +40,4 @@ export type { ComboboxOption } from "./components/AppCombobox.vue";
 export type { TabItem } from "./components/AppTabs.vue";
 export type { SegmentOption } from "./components/AppSegmentedControl.vue";
 export type { CalloutTone } from "./components/AppCallout.vue";
+export { provideTouchTargets } from "./touchTargets";

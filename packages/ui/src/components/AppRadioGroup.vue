@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { useId } from "vue";
+import { computed, useId } from "vue";
+import { useTouchTargets } from "../touchTargets";
 
 export type RadioValue = string | number;
 export interface RadioOption {
@@ -9,7 +10,7 @@ export interface RadioOption {
   disabled?: boolean;
 }
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue?: RadioValue;
     options: RadioOption[];
@@ -30,6 +31,9 @@ withDefaults(
 );
 const emit = defineEmits<{ "update:modelValue": [value: RadioValue] }>();
 const generatedName = `radio-${useId()}`;
+/** Inside a thumb-pressed layout (`touchTargets.ts`) every choice is `touch`, asked or not. */
+const touchTargets = useTouchTargets();
+const touch = computed(() => touchTargets || props.size === "touch");
 </script>
 
 <template>
@@ -39,7 +43,7 @@ const generatedName = `radio-${useId()}`;
       v-for="option in options"
       :key="String(option.value)"
       class="flex items-start gap-2 text-sm text-ink-secondary"
-      :class="[size === 'touch' ? 'min-h-11 py-3' : 'min-h-9', option.disabled && 'cursor-not-allowed opacity-60']"
+      :class="[touch ? 'min-h-11 py-3' : 'min-h-9', option.disabled && 'cursor-not-allowed opacity-60']"
     >
       <input
         type="radio"

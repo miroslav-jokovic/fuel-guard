@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, useAttrs, useId, watch, nextTick } from
 import { CheckIcon, ChevronUpDownIcon } from "../icons";
 import AppIcon from "./AppIcon.vue";
 import AppInput from "./AppInput.vue";
+import { useTouchTargets } from "../touchTargets";
 
 defineOptions({ inheritAttrs: false });
 
@@ -41,6 +42,8 @@ const props = withDefaults(
   },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string]; "update:query": [value: string] }>();
+/** The input is `AppInput`'s and follows the floor by itself; the options are this file's (`touchTargets.ts`). */
+const touchTargets = useTouchTargets();
 
 /**
  * ⚠ **`class` stays on the root; everything else goes to the input** (2026-09-11).
@@ -246,6 +249,7 @@ function onKeydown(event: KeyboardEvent) {
           :key="option.value"
           class="flex items-center gap-2 px-3 py-1.5"
           :class="[
+            touchTargets && 'min-h-11',
             option.disabled ? 'cursor-not-allowed text-ink-disabled' : 'cursor-pointer',
             option.value === modelValue ? 'font-medium text-brand-700' : 'text-ink-secondary',
             index === activeIndex

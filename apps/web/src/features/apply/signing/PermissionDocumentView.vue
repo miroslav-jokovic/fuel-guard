@@ -158,10 +158,12 @@ onBeforeUnmount(() => {
         :aria-label="`${label}, page ${n} of ${pageCount}`"
       />
       <!-- Over the box the renderer drew, in percentages of this page, so it stays on the box at
-           every width the page is drawn at. -->
+           every width the page is drawn at. ⚠ Hung from the box's TOP, so a tag taller than the box
+           grows down over the box and its caption, never up: at 320 px the box is 18 px tall and the
+           44 px tag (§6.8, C3d3b2), bottom-aligned, covered the intent sentence the driver signs to. -->
       <div
         v-if="state === 'ready' && box && box.page === n - 1"
-        class="absolute flex items-end"
+        class="absolute flex items-start"
         :style="{
           left: `${box.at.left}%`,
           top: `${box.at.top}%`,
