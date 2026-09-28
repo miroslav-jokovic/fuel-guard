@@ -305,6 +305,57 @@ ok(
   )) === 0,
 );
 
+// ── Q-AW29 (0378): the text's own token ──────────────────────────────────────────────────────────
+// A text that carries the link may now wait for its window, because its token is its own: rotating it
+// kills the previous TEXT's link and nothing else — the email's `token_hash`, the office's on-screen
+// link and `sign_token_hash` all keep working.
+const SMS_DRIVER = await driver("Texted Later");
+const SMS_INV = await invite(SMS_DRIVER, "texted");
+await db.query(`update application_invitations set sign_token_hash = 'sign-texted' where id = $1`, [SMS_INV]);
+const smsHash = (c) => c.repeat(64);
+const rotateSms = async (inv, hash, org = ORG) =>
+  (await one(`select public.rotate_invitation_sms_token($1,$2,$3) as r`, [org, inv, hash])).r;
+const smsBefore = await one(`select token_hash, sign_token_hash, expires_at from application_invitations where id = $1`, [SMS_INV]);
+
+ok("a live invitation's text token is set", (await rotateSms(SMS_INV, smsHash("1"))) === true
+  && (await one(`select sms_token_hash from application_invitations where id = $1`, [SMS_INV])).sms_token_hash === smsHash("1"));
+ok("a second text replaces the first text's token", (await rotateSms(SMS_INV, smsHash("2"))) === true
+  && (await one(`select sms_token_hash from application_invitations where id = $1`, [SMS_INV])).sms_token_hash === smsHash("2"));
+const smsAfter = await one(`select token_hash, sign_token_hash, expires_at from application_invitations where id = $1`, [SMS_INV]);
+ok("…and touches nothing else: the email's link, the sign link and the expiry all stand",
+  smsAfter.token_hash === smsBefore.token_hash && smsAfter.sign_token_hash === smsBefore.sign_token_hash
+    && Date.parse(smsAfter.expires_at) === Date.parse(smsBefore.expires_at));
+
+const SMS_OTHER_ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Other') returning id`)).id;
+ok("another org cannot rotate it", (await rotateSms(SMS_INV, smsHash("3"), SMS_OTHER_ORG)) === false
+  && (await one(`select sms_token_hash from application_invitations where id = $1`, [SMS_INV])).sms_token_hash === smsHash("2"));
+
+const SMS_REVOKED = await invite(await driver("Texted Revoked"), "texted-revoked");
+await db.query(`update application_invitations set revoked_at = now() where id = $1`, [SMS_REVOKED]);
+ok("a revoked invitation is never handed a working text link", (await rotateSms(SMS_REVOKED, smsHash("4"))) === false);
+const SMS_LAPSED = await invite(await driver("Texted Lapsed"), "texted-lapsed", "now() - interval '1 minute'");
+ok("nor is a lapsed one", (await rotateSms(SMS_LAPSED, smsHash("5"))) === false);
+
+// A submitted invitation still takes one: the sign link is texted after submission, and whether a
+// queued text is still worth sending is the caller's question.
+const SMS_FILED_DRIVER = await driver("Texted Filed");
+const SMS_FILED = await invite(SMS_FILED_DRIVER, "texted-filed");
+await submit(SMS_FILED, SMS_FILED_DRIVER);
+ok("a submitted, live invitation can still be texted its link", (await rotateSms(SMS_FILED, smsHash("6"))) === true);
+
+ok("two invitations can never hold the same text token (the resolver looks up BY it)",
+  (await raised(() => rotateSms(SMS_FILED, smsHash("2"))))?.code === "23505");
+ok("anything but a SHA-256 hex digest is refused",
+  (await raised(() => rotateSms(SMS_INV, "not-a-hash")))?.code === "22023"
+    && (await raised(() => rotateSms(SMS_INV, smsHash("A"))))?.code === "22023");
+ok(
+  "the rotation function is service_role only",
+  (await count(
+    `select count(*)::int as n from information_schema.role_routine_grants
+      where routine_name = 'rotate_invitation_sms_token' and grantee in ('anon','authenticated','PUBLIC')`,
+  )) === 0,
+);
+
 // ── the table is still a credential store, not a browser-readable one ──────────────────────────
 ok(
   "application_invitations has RLS on and no client policies",
