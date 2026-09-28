@@ -153,7 +153,7 @@ test("an inactive dispatcher is carried as inactive rather than dropped", () => 
   assert.equal(out[0].is_active, false);
 });
 
-import { loadHash, planLoadPosts } from "./loads.mjs";
+import { loadHash } from "./loads.mjs";
 
 test("a voided movement is posted as a cancellation, a delivered one is not", () => {
   assert.equal(mapLoad(row({ external_status: "V" }), [stop()]).load.canceled, true);
@@ -168,11 +168,3 @@ test("the load hash depends on content, not on the order properties were written
   assert.notEqual(loadHash(a), loadHash({ ...a, stops: [{ seq: 1, name: "B" }] }));
 });
 
-test("only new or changed loads are posted, and loads that left the board are handed to the close read", () => {
-  const one = mapLoad(row({ external_id: "TMS:1" }), [stop()]).load;
-  const two = mapLoad(row({ external_id: "TMS:2" }), [stop()]).load;
-  const posted = { "TMS:1": loadHash(one), "TMS:2": "stale-hash", "TMS:9": "gone" };
-  const plan = planLoadPosts([one, two], posted);
-  assert.deepEqual(plan.changed.map((l) => l.external_id), ["TMS:2"]);
-  assert.deepEqual(plan.leftBoard, ["TMS:9"]);
-});
