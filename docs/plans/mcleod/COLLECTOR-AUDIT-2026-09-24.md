@@ -209,8 +209,9 @@ batches a second (~11.9 million a day) — **0.04%**.
 |---|---|---|
 | loads, roster | `movement`, `movement_order`, `orders`, `stop`, `tractor`, `trailer`, `continuity`, `users`, `driver` (column-scoped) | **already granted** |
 | PU number (LR7) | `reference_number` | SELECT |
-| customer name (LR7) | `customer` | SELECT on the id, name and city/state columns only — no credit, billing or contact fields |
+| customer name (LR7) | `customer` | SELECT on `id`, `name`, `city`, `state_id` and `company_id` only — no credit, billing or contact fields (2026-09-28: the column is `state_id`, not `state`; `company_id` was missing) |
 | finance | `gl_ledger`, `gl_ledger_hist`, `gl_account`, `billing_history`, `drs_settle_hist`, `drs_deduct_hist`, `voucher`, `voucher_hist`, `fuel_detail`, `fuel_detail_hist`, `equipment_item` | SELECT |
+| finance, on `lme_analytics` only | `movement`, `movement_order`, `orders`, `stop`, `users` | SELECT (2026-09-28: statements 15–18 join them; on LME they are already granted) |
 | plans (optional) | SHOWPLAN | lets us prove a statement's plan instead of inferring it from timings |
 
 `VIEW CHANGE TRACKING` can be **given back** if D-CA2 is ruled. Column lists for `reference_number`
@@ -334,3 +335,10 @@ Append a dated line per merge. Never edit a status column.
   `consignee_refno`, the stop's own `id` and its `phone` — the note to him must list those by name.
   Still 24 statements, no new table, no new join; `SILVICOM-READ-ROUTINE.sql` regenerated.
   Per his condition the owner sends him the new file before the connector runs it.
+- 2026-09-28 — **The grants ran, and were checked under the connector's own login.** Alex ran
+  `SILVICOM-GRANTS.sql`, correcting `customer (…, state)` to `state_id`. Checked encrypted as
+  `silvicom_dispatch_ro`, statement by statement: on LME everything but finance runs as the routine
+  prints it; on `lme_analytics` statements 15–18 were refused for want of `movement`, `movement_order`,
+  `orders`, `stop` and `users`, and `customer` has no `company_id` to match on. Both corrections are in
+  the grant script as lines not yet run; the table above is corrected. Detail in LOADS-MIRROR-PLAN.md
+  (Q-LMR5 and the 2026-09-28 log line).
