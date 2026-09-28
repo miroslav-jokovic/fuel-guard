@@ -1537,3 +1537,27 @@ Append dated lines at the END.
     removed, the calendar's four variables and its class, and each page-level fix. Three are killed only by
     the unit test (an inline link given a box, a 36 px select, a 36 px icon button): no `/apply` screen renders
     one today, so the walk cannot see them. 60 of 60 on `--repeat-each 5`. No migration.
+- 2026-09-28 — **C3d3b2 merged** (#1101, main `4cbba9d`); CI green on the merged head.
+- 2026-09-28 — **R1 built** (`claude/recruiting-register`): Settings → Recruiting, Q-AW42's register. No migration.
+  - **The page:** `/settings/recruiting` lists the carrier's Representatives and its road-test examiners, each
+    with its add form, a Representative's Remove (DELETE) and an examiner's Retire (the api's `/retire`,
+    which nothing in the web called before — `useRetireRoadTestExaminer`). Both ask first. A Representative
+    who has countersigned cannot be removed, and the api's sentence is what the toast shows. Each list is a
+    `SettingsSection`, so Q-AW41's invitation settings (S2) arrive as a third without moving anything.
+  - **Who:** a sidebar entry of its own, `admin.recruiting`, gated `section("recruitment")` — NOT a child of
+    `admin.settings`, because a recruiter holds `settings: none` and `recruitment: manage` and is who the page
+    is for. The writes are offered on `session.can("recruitment")`, what the api's routes ask. A Settings card
+    shows on `canView("recruitment")` too. No `meta.parent`: the breadcrumb would have pointed the recruiter at
+    a Settings page the guard bounces them from.
+  - **One form, not three:** the panels' two add forms were the same form with different words, so they are
+    now `SignatoryAddForm` (kind = representative | examiner), and the handbook panel's list is the register's
+    `SignatoryRegister`. The panels keep their inline add. The handbook panel's Remove now asks first and
+    shows only on `manage`, as the register's does; the road-test panel's heading reads "Add an examiner".
+  - **Found by the mutation pass, a regression in the split itself:** the form is usually on screen BECAUSE the
+    list is empty, and the add's own success refetches the list, which unmounted the form before its `await`
+    returned — and Vue drops an emit from an unmounted component. So the handbook panel no longer selected the
+    Representative just added, nor the road-test panel the examiner. Neither behaviour had a test before; the
+    two tests written to close the survivors failed on the unmutated code. `onAdded` is a callback prop now.
+  - **Checks:** 17 mutants, 17 killed after three survivors were closed (the two above and the Settings card's
+    gate). Seen in a browser (built, dev bypass, as admin): both lists, the inline form on an empty list, a
+    390 px phone, the Settings card and the sidebar entry, no page errors.

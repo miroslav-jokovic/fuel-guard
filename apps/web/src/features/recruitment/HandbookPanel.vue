@@ -1,19 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, ref } from "vue";
 import { HANDBOOK_PLACEMENTS, INVITE_TTL_DAYS_DEFAULT, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
-import {
-  AppButton as BaseButton,
-  AppCombobox as ComboSelect,
-  AppFormField as FormField,
-  AppInput as BaseInput,
-} from "@silvicom/ui";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
+import { AppButton as BaseButton, AppCombobox as ComboSelect, AppFormField as FormField } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
-import { pngDataUrl } from "@/features/recruitment/useRoadTest";
+import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import {
-  useAddRepresentative,
   useCountersignHandbook,
-  useDeleteRepresentative,
   useHandbookStatus,
   useOpenHandbook,
   useRepresentatives,
@@ -30,7 +22,9 @@ import {
  *
  * ── THE REPRESENTATIVES (D-HB3) ───────────────────────────────────────────────────────────────
  * Added with their signature and removed, as the maintenance inspectors are. One who has countersigned
- * a handbook cannot be removed — the server says so, and that sentence is what the toast shows.
+ * a handbook cannot be removed — the server says so, and that sentence is what the toast shows. The
+ * list and its form are `SignatoryRegister`, the same one Settings → Recruiting shows (Q-AW42), so a
+ * Representative can be added before any driver reaches this step and still be added here.
  */
 const props = defineProps<{ driverId: string; done: boolean }>();
 
@@ -38,8 +32,6 @@ const toast = useToastStore();
 const driverId = computed(() => props.driverId);
 const statusQ = useHandbookStatus(driverId);
 const repsQ = useRepresentatives();
-const addRep = useAddRepresentative();
-const deleteRep = useDeleteRepresentative();
 const open = useOpenHandbook(driverId);
 const countersign = useCountersignHandbook(driverId);
 
@@ -51,41 +43,8 @@ const signedCount = computed(() => status.value?.driverSigned.length ?? 0);
 const linkExpired = computed(() => Boolean(status.value && Date.parse(status.value.linkExpiresAt) <= Date.now()));
 
 const representativeId = ref("");
-
-// ── adding a Representative ────────────────────────────────────────────────────────────────────
-const repForm = reactive({ fullName: "", title: "" });
-const signature = ref<File | null>(null);
-const addingRep = ref(false);
-const canAddRep = computed(
-  () => repForm.fullName.trim().length >= 2 && repForm.title.trim().length >= 2 && Boolean(signature.value),
-);
-
-async function saveRep(): Promise<void> {
-  if (!signature.value) return;
-  try {
-    const created = await addRep.mutateAsync({
-      full_name: repForm.fullName.trim(),
-      title: repForm.title.trim(),
-      signature_png: await pngDataUrl(signature.value),
-    });
-    toast.success("Representative added", `${created.full_name} can now sign handbooks for the carrier.`);
-    representativeId.value = created.id;
-    Object.assign(repForm, { fullName: "", title: "" });
-    signature.value = null;
-    addingRep.value = false;
-  } catch (e) {
-    toast.error("Could not add the representative", e instanceof Error ? e.message : undefined);
-  }
-}
-
-async function removeRep(id: string, name: string): Promise<void> {
-  try {
-    await deleteRep.mutateAsync(id);
-    toast.success("Representative removed", `${name} is no longer on the list.`);
-    if (representativeId.value === id) representativeId.value = "";
-  } catch (e) {
-    toast.error("Could not remove the representative", e instanceof Error ? e.message : undefined);
-  }
+function forgetRepresentative(id: string): void {
+  if (representativeId.value === id) representativeId.value = "";
 }
 
 // ── the two acts ───────────────────────────────────────────────────────────────────────────────
@@ -190,48 +149,11 @@ async function countersignAndFile(): Promise<void> {
     <!-- The Representatives, managed here like the maintenance inspectors (D-HB3). -->
     <div class="space-y-3">
       <p class="text-sm font-medium text-ink">Representatives</p>
-      <p v-if="reps.length === 0" class="text-xs text-ink-muted">
-        Nobody signs for the carrier yet. Add a representative to countersign handbooks.
-      </p>
-      <ul v-else class="divide-y divide-edge border-y border-edge">
-        <li v-for="rep in reps" :key="rep.id" class="flex items-center justify-between gap-3 py-2 text-xs">
-          <span class="text-ink">{{ rep.full_name }} <span class="text-ink-secondary">· {{ rep.title }}</span></span>
-          <BaseButton variant="ghost" size="sm" :disabled="deleteRep.isPending.value" @click="removeRep(rep.id, rep.full_name)">
-            Remove
-          </BaseButton>
-        </li>
-      </ul>
-
-      <div v-if="reps.length === 0 || addingRep" class="space-y-4 rounded-surface border border-edge p-4">
-        <p class="text-sm font-medium text-ink">Add a representative</p>
-        <p class="text-xs text-ink-secondary">
-          Their signature prints where the carrier agrees. Upload a PNG of it — a scan or a photo of them
-          signing on white paper.
-        </p>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Name">
-            <BaseInput :id="id" v-model="repForm.fullName" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Title" hint="Printed beside their signature.">
-            <BaseInput :id="id" v-model="repForm.title" placeholder="Safety manager" />
-          </FormField>
-        </div>
-        <FileDropzone
-          accept=".png"
-          :busy="addRep.isPending.value"
-          busy-label="Saving…"
-          :label="signature ? signature.name : 'Drag & drop the signature (PNG)'"
-          hint="PNG only. Stored privately with the carrier's files."
-          @files="signature = $event[0] ?? null"
-        />
-        <div class="flex gap-3">
-          <BaseButton variant="primary" size="sm" :disabled="!canAddRep || addRep.isPending.value" @click="saveRep">
-            Add representative
-          </BaseButton>
-          <BaseButton v-if="reps.length > 0" variant="ghost" size="sm" @click="addingRep = false">Cancel</BaseButton>
-        </div>
-      </div>
-      <BaseButton v-else variant="link" size="sm" @click="addingRep = true">Add a representative</BaseButton>
+      <SignatoryRegister
+        kind="representative"
+        @added="representativeId = $event.id"
+        @removed="forgetRepresentative"
+      />
     </div>
   </div>
 </template>

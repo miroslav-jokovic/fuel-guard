@@ -73,6 +73,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "items": [
       "Settings → /settings",
       "Users → /settings/users",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -284,6 +285,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Settings → /settings",
       "Users → /settings/users",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -364,6 +366,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "items": [
       "Settings → /settings",
       "Users → /settings/users",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -442,6 +445,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "items": [
       "Settings → /settings",
       "Users → /settings/users",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -522,6 +526,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -599,6 +604,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -674,6 +680,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -757,6 +764,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Settings → /settings",
       "Users → /settings/users",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1001,6 +1009,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1073,6 +1082,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1143,6 +1153,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1175,6 +1186,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
       "Drivers → /drivers",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
+    ],
+  },
 ]
 `;
 
@@ -1205,6 +1222,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
       "Drivers → /drivers",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
+    ],
+  },
 ]
 `;
 
@@ -1233,6 +1256,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > recruiter �
     "group": "Fleet",
     "items": [
       "Drivers → /drivers",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1282,6 +1311,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Odometer → /odometer",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
+    ],
+  },
 ]
 `;
 
@@ -1327,6 +1362,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Odometer → /odometer",
     ],
   },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
+    ],
+  },
 ]
 `;
 
@@ -1370,6 +1411,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Trailers → /trailers",
       "Drivers → /drivers",
       "Odometer → /odometer",
+    ],
+  },
+  {
+    "group": "Admin",
+    "items": [
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1566,6 +1613,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Admin",
     "items": [
       "Settings → /settings",
+      "Recruiting → /settings/recruiting",
     ],
   },
 ]
@@ -1635,6 +1683,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
         "Trailers → /trailers",
         "Drivers → /drivers",
         "Odometer → /odometer",
+      ],
+    },
+    {
+      "group": "Admin",
+      "items": [
+        "Recruiting → /settings/recruiting",
       ],
     },
   ],

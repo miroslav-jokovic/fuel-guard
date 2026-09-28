@@ -158,6 +158,15 @@ describe("the section gates on the navigation guard", () => {
     expect(await landsOn("recruiter", "/shop/inspections/x")).toBe("dashboard");
   });
 
+  it("Settings → Recruiting follows the recruitment section, not the settings one (Q-AW42)", async () => {
+    // A recruiter holds `settings: none` and `recruitment: manage` — the one role this page is for, and
+    // the one a `settings` gate would have turned away. A dispatcher holds `recruitment: none`.
+    expect(await landsOn("recruiter", "/settings")).toBe("dashboard");
+    expect(await landsOn("recruiter", "/settings/recruiting")).toBe("recruiting-settings");
+    expect(await landsOn("admin", "/settings/recruiting")).toBe("recruiting-settings");
+    expect(await landsOn("dispatcher", "/settings/recruiting")).toBe("dashboard");
+  });
+
   it("the reporting screens now ask what their settings card always asked", async () => {
     // `/reports` and its three siblings had no route gate. Their card on the settings page shows on
     // `can("settings") || readOnly`, which resolves to exactly rolesThatCanView("settings").

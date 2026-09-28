@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { sectionAccess } from "@silvicom/shared";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 
 /**
@@ -10,6 +11,7 @@ import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
  * panel asked for the right thing.
  */
 const REP = "11111111-2222-4333-8444-555555555555";
+const ADDED = "22222222-3333-4444-8555-666666666666";
 const state = vi.hoisted(() => ({
   handbook: null as unknown,
   reps: [] as unknown[],
@@ -21,12 +23,23 @@ vi.mock("@/lib/api", () => ({
     const method = opts?.method ?? "GET";
     if (method !== "GET") {
       state.calls.push({ url, method, body: opts?.body });
+      if (method === "POST" && url.endsWith("/representatives")) {
+        const added = { id: ADDED, full_name: "Ana Perić", title: "Safety manager", created_at: "" };
+        state.reps = [...state.reps, added];
+        return { ok: true, data: { representative: added } };
+      }
       return { ok: true, data: {} };
     }
     if (url.endsWith("/representatives")) return { ok: true, data: { representatives: state.reps } };
     return { ok: true, data: { handbook: state.handbook } };
   }),
 }));
+
+// The session, in a recruiter's shoes from the shared matrix: the Representatives list offers its
+// writes on `recruitment: manage` since it became `SignatoryRegister` (Q-AW42).
+const session = vi.hoisted(() => ({ role: "recruiter", can: (_s: string): boolean => true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+session.can = (s: string) => sectionAccess("recruiter", s as never) === "manage";
 
 const status = (over: Record<string, unknown> = {}) => ({
   canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null,
@@ -130,6 +143,27 @@ describe("countersigning", () => {
     expect(w.text()).toContain("Add a representative");
     expect(button(w, "Countersign and file")).toBeUndefined();
   });
+
+  it("countersigns with the Representative just added, without picking them again", async () => {
+    state.reps = [];
+    state.handbook = status({ openedAt: "t", driverSigned: ["h1", "h2", "h3", "h4", "h5"], driverComplete: true });
+    const w = mountPanel();
+    await settle(w);
+    const inputs = w.findAll("input:not([type=file])");
+    await inputs[0]!.setValue("Ana Perić");
+    await inputs[1]!.setValue("Safety manager");
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "sig.png", { type: "image/png" });
+    w.findComponent({ name: "FileDropzone" }).vm.$emit("files", [png]);
+    await settle(w);
+    await button(w, "Add representative")!.trigger("click");
+    await settle(w);
+    await button(w, "Countersign and file")!.trigger("click");
+    await settle(w);
+    expect(state.calls.map((c) => [c.url, c.body && (c.body as { representative_id?: string }).representative_id])).toEqual([
+      ["/api/recruitment/representatives", undefined],
+      ["/api/recruitment/applicants/d1/handbook/countersign", ADDED],
+    ]);
+  });
 });
 
 describe("the Representatives (D-HB3)", () => {
@@ -137,6 +171,7 @@ describe("the Representatives (D-HB3)", () => {
     state.handbook = status({ canOpen: false });
     const w = mountPanel();
     await settle(w);
+    vi.stubGlobal("confirm", () => true);
     await button(w, "Remove")!.trigger("click");
     await settle(w);
     expect(state.calls).toEqual([{ url: `/api/recruitment/representatives/${REP}`, method: "DELETE", body: undefined }]);

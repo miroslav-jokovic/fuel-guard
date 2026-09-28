@@ -479,6 +479,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/data",
   },
   {
+    "name": "recruiting-settings",
+    "params": {},
+    "url": "/settings/recruiting",
+  },
+  {
     "name": "efs-soap",
     "params": {},
     "url": "/settings/efs-soap",
@@ -1194,6 +1199,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "permissions",
     "path": "/settings/permissions",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Recruiting",
+    },
+    "name": "recruiting-settings",
+    "path": "/settings/recruiting",
     "redirect": null,
   },
   {

@@ -42,6 +42,25 @@ export function useAddRoadTestExaminer() {
   });
 }
 
+/**
+ * Retires an examiner (Q-AW42's register). A retirement and not a delete, because the forms and
+ * certificates they signed print their name and signature from the row: it stays, stamped
+ * `retired_at`, and leaves the list the office picks from. There is no un-retire in the api.
+ */
+export function useRetireRoadTestExaminer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const res = await apiFetch(`/api/recruitment/road-test-examiners/${encodeURIComponent(id)}/retire`, {
+        method: "POST",
+        body: {},
+      });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not retire the examiner.");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: roadTestExaminersKey }),
+  });
+}
+
 export function useRecordRoadTest(driverId: Ref<string>) {
   const qc = useQueryClient();
   const id = computed(() => driverId.value);

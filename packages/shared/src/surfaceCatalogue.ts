@@ -228,6 +228,10 @@ export const SURFACES: readonly Surface[] = [
   // reachable); Users = admin only. Department roles get neither.
   { key: "admin.settings", label: "Settings", path: "/settings", group: "admin", gate: section("settings") },
   { key: "admin.users", label: "Users", path: "/settings/users", group: "admin", gate: ADMIN },
+  // The carrier's Representatives and road-test examiners (Q-AW42, R1). A nav entry and not a child of
+  // `admin.settings`: a recruiter holds `settings: none` and `recruitment: manage`, so a Settings card
+  // alone would hide it from the person it is for. `recruitment`, the section its api asks.
+  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment") },
 
   // ── NON-NAV surfaces: never in the sidebar, never separately grantable (D-SURF8) ──────────────
   // A `parent` means "this screen is reached from another one and shares its grant". They exist so

@@ -48,8 +48,26 @@ describe("with no examiner on file (Q-RT2)", () => {
     state.examiners = [];
     const w = mountPanel();
     await settle(w);
-    expect(w.text()).toContain("Add the examiner");
+    expect(w.text()).toContain("Add an examiner");
     expect(w.text()).not.toContain("The road test given includes");
+  });
+
+  it("puts the examiner just added in the Examiner field", async () => {
+    state.examiners = [];
+    const w = mountPanel();
+    await settle(w);
+    const inputs = w.findAll("input:not([type=file])");
+    await inputs[0]!.setValue("Arvidera Gakhal");
+    await inputs[1]!.setValue("Maintenance manager");
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "sig.png", { type: "image/png" });
+    w.findComponent({ name: "FileDropzone" }).vm.$emit("files", [png]);
+    await settle(w);
+    // The api now lists them, as it would after the add.
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    await w.findAll("button").find((b) => b.text() === "Add examiner")!.trigger("click");
+    await settle(w);
+    expect(state.posts.map((p) => p.url)).toEqual(["/api/recruitment/road-test-examiners"]);
+    expect(w.findAllComponents({ name: "AppCombobox" })[0]!.props("modelValue")).toBe(EXAMINER);
   });
 });
 
