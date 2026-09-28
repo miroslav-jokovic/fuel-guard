@@ -39,6 +39,8 @@
     "src/**/*.ts",
     "src/**/*.vue",
     "env.d.ts",
+    "e2e-apply/**/*.ts",
+    "playwright.apply.config.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ],

@@ -305,6 +305,23 @@ jobs:
       - name: light-dark() survives minification
         run: pnpm lint:light-dark
 
+      # The first browser tests CI runs (C3d3b1, APPLICATION-FLOW-V2-PLAN.md §6.8): the applicant's page,
+      # BUILT, in Chromium, against a stubbed API — a cut network loses no answers and a cut upload is
+      # sent again from the kept photo. Here because they need `dist`, and this is the only job that
+      # builds. `apps/web/playwright.apply.config.ts` says why they are not in `e2e/` (smoke.yml runs that
+      # folder against production).
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json') }}
+
+      - name: Install Chromium
+        run: pnpm --filter @silvicom/web exec playwright install --with-deps chromium
+
+      - name: The applicant's page in a browser
+        run: pnpm --filter @silvicom/web e2e:apply
+
   # ── Unit suites, three ways ───────────────────────────────────────────────────────────────────
   # apps/api (259 files) and apps/web (146) are the two big ones, and they are import-bound rather
   # than assertion-bound: on run 33942529999 api spent 601s importing modules and 105s running
