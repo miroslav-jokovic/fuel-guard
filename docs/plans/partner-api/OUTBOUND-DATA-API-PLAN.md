@@ -1,6 +1,6 @@
 # Outbound Data API — Implementation Blueprint
 
-**Status: BLUEPRINT — Phase 0 discovery is the first execution step.**
+**Status: BLUEPRINT — Phase 0 is fully planned; execution and evidence collection are pending.**
 **Owner:** Silvicom 360 platform/API
 **Decision IDs:** `D-PAPI-*`
 **Last verified against:** isolated planning checkout at `origin/main` commit `752e8cc` (2026-09-28). The active Claude Code checkout contains separate ongoing work and was intentionally not used as the PR base. Recheck all implementation references against the then-current `main` before each build phase.
@@ -138,22 +138,180 @@ A phase may be refined incrementally in this same file. Do not start a dependent
 
 ### Phase 0 — Baseline and requirement discovery (first)
 
-**Outcome:** a current, evidence-backed resource catalog and consumer requirement baseline; no API implementation.
+**Outcome:** an approved, evidence-backed boundary for the first outbound API contract and a complete disposition for every data domain FuelGuard may provide. Phase 0 is analysis and decision recording only: no API/runtime code, schema, credential, vendor-collector, or deployment changes. Record its outputs in this file; do not create a separate inventory, spreadsheet, report, or plan.
 
-1. Rebase discovery on the current target branch and record commit SHA, migration/schema state, and active plan/PR dependencies. Do not inspect, stage, or modify another active checkout’s changes.
-2. Inventory all mounted API routes and auth gates from `apps/api/src/app.ts`, route-auth ledgers/tests, and module exports. Separate user routes, inbound vendor webhooks, inbound collector ingest, admin APIs, and candidate outbound resources.
-3. Walk `scripts/table-modules.json`, canonical architecture ownership, and each candidate module’s `index.ts` interfaces. Trace field flow source → raw/staging → core → harness; verify no API consumer shortcut crosses ownership boundaries.
-4. Measure source availability and freshness for each tenant/domain in scope; check the presence of loads, positions, manual records, and representative changes. Record which domains are live, planned, empty, or unsupported. No inferred population from schema alone.
-5. Document the first receiving system(s), their use cases, needed fields, expected volume/cadence/latency, consumer network/runtime, error/retry behavior, and data-sharing constraints from approved requirements. If no consumer is selected yet, keep the contract consumer-neutral and do not invent partner-specific promises.
-6. Build the full field classification/release matrix, object relationships, organization/vehicle/customer scope requirements, location and evidence policies, retention, correction, deletion, and audit decisions. Validate against existing policies and legal/product requirements; record cited evidence.
-7. Inventory existing API contract tooling/package dependencies and CI gates; check official OpenAPI spec and tooling documentation before selecting OAS version, generation/validation approach, and code-first/spec-first workflow.
-8. Convert every unverified dependency or unresolved policy into an explicit prerequisite step with an owner, required evidence, and exit gate in this plan. Keep every dependent resource/phase blocked until that prerequisite is complete. If a prerequisite is governed by another approved plan, link it and keep the dependent work blocked until that plan’s prerequisite is verified; do not count an unresolved external dependency as a phase exit.
+**Execution owner:** API/product owner coordinates evidence and records decisions. Domain owners validate their data paths and fields. Security/privacy and legal reviewers approve decisions within their remit. Names must be recorded during execution; do not invent owners in advance.
 
-**Evidence to record:** route/domain map; data lineage/ownership matrix; field sensitivity/release policy; consumer requirements; data availability/freshness measurements; current step-up/auth policy with source; OpenAPI tooling decision; dated D-PAPI decision entries.
+**Working rules:**
 
-**Exit gate:** product/API owner approves the scope and all field/resource policies; every initial resource passes or is explicitly deferred by evidence; no unresolved policy or dependency blocks the next phase; prerequisites placed in this or another approved plan remain blocked until their evidence-backed exit gates pass; no payload/authorization rule is guessed. Update §§2, 3, 5, and phase details with exact code paths and decisions.
+- Execute from a clean worktree on the latest agreed `main` revision. Record the exact SHA. Do not inspect or change another active Claude Code checkout’s uncommitted files. If the plan branch is behind `main`, update the isolated plan branch first and recheck references.
+- Root `CLAUDE.md` says CI gates outrank prose; `docs/ARCHITECTURE.md` says `scripts/table-modules.json` is the machine-readable table→module→layer contract. Use those rules in that order. When a gate, manifest, current code/test, migration, product document, or old plan disagrees, record the exact conflict and use the governing source identified by the repo rules; do not silently choose whichever source supports the desired endpoint.
+- Use only authorized, read-only operational evidence. Do not query raw production payloads or expose PII to make this inventory. Prefer existing tenant-scoped health/status interfaces and aggregate counts. If a production fact cannot be verified through an approved source, record it as unverified and keep that resource out of the approved pilot until resolved.
+- Do not copy vendor credentials, secrets, raw payloads, sensitive customer data, or personal information into this document. Store only source references, versions/fingerprints, aggregate measurements, and decisions.
+- For an unknown field, policy, source, or contract behavior, use `UNVERIFIED` and identify the exact evidence needed. Do not fill gaps with assumptions. A not-applicable entry needs a reason and approver.
 
-**Anti-patterns:** do not infer a supported feature from a route, migration, table, or plan; do not treat sample/empty tenant data as proof of production readiness; do not promise tolls or position history without a producer/retention proof.
+#### Step 0.1 — Freeze the evidence baseline and applicable rules
+
+1. Record plan branch, target branch, target SHA, date, migration head, and whether the target branch is clean. Note any PRs that could change API routes, module ownership, data producers, auth, or retention before implementation. The active parallel checkout is not a source unless its change has merged to the target branch.
+2. Read the current root `CLAUDE.md`, `apps/api/CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/SILVICOM-360.md`, and `docs/MIGRATION-DISCIPLINE.md`. Extract only rules that constrain this API: ownership/layers, shared contract location, org scoping, auth/gates, audits, schema changes, retention, deployment sequencing, and plan status.
+3. Record the exact locations and versions of machine-enforced rules: `scripts/table-modules.json`, `scripts/table-writers.json`, route-auth/route-gate ledgers and their CI checks, RLS and table-access checks, shared-contract checks, and migration version/order checks. Confirm which are active by reading their package scripts/workflow entries; do not infer enforcement from a script’s presence.
+
+
+**Output in this file:** `Phase 0 evidence register` rows for repository baseline, rules, reviewed SHA, and applicable gate names.
+
+**Stop condition:** target branch/SHA or ownership source cannot be identified, or a conflicting active change makes the planned API surface indeterminate. Resolve before the next step.
+
+#### Step 0.2 — Inventory all existing API surfaces and authentication modes
+
+1. Enumerate router mounts from `apps/api/src/app.ts`, then follow each mounted router to its method/path declarations. Use `apps/api/src/routeAuth.test.ts`, `apps/api/src/routeGateLedger.test.ts` (if present on the target SHA), `apps/api/src/testing/routeLedger.ts`, and the actual mount middleware to verify auth and module/section gates. Do not rely on route names alone.
+2. Inventory all externally reachable application data surfaces, not just Express routes: API hosts/prefixes, `apps/admin-api`, public routes, Supabase/PostgREST client reads protected by RLS, Storage buckets/download flows, report/export links, inbound callbacks, and machine-ingest endpoints. Record public vs authenticated posture and owner; do not treat a private client/RLS path as a supported partner API.
+3. Classify each route/resource family as one of: employee/session API, driver/session API, public/anonymous, internal admin, provider-signed inbound webhook, vendor/on-prem inbound ingest, or candidate outbound consumer surface. For each method/path or route pattern, record router owner, auth principal, tenant resolution, role/module gates, read/write operation, request/response schema, and whether it is suitable for reuse (reuse is not presumed).
+4. Trace currently relevant surfaces specifically: dispatch/load reads, live-map/position reads, transactions/fuel reads, IFTA, anomaly/report/insight reads, maintenance, evidence/compliance, integrations, `/api/tms`, and `/api/webhooks`. Verify current behavior and consumers from implementation and tests.
+5. Search package manifests and lockfile for OpenAPI/Swagger/spec validators or generators. Record exact dependency/version or `NONE FOUND` only after the scoped search. Do not add a package in Phase 0.
+
+
+**Output in this file:** a compact route/resource-family inventory with method/path patterns, auth boundaries, schemas, direct-data surfaces, exact source references, and an explicit “not a partner contract” reason for existing user-facing/inbound routes.
+
+**Starting sources:** `apps/api/src/app.ts`, `apps/api/src/routeAuth.test.ts`, `apps/api/src/routeGateLedger.test.ts`, `apps/api/src/testing/routeLedger.ts`, module router/index files, `package.json`, `apps/api/package.json`, `packages/shared/package.json`, and `pnpm-lock.yaml`.
+
+#### Step 0.3 — Build the complete data-domain and producer catalog
+
+1. Start with product/domain inventories in `docs/SILVICOM-360.md`, module ownership in `docs/ARCHITECTURE.md`, and the machine manifest `scripts/table-modules.json`. Include domains even when they are absent, planned, retired, derived, manually entered, or not appropriate for external release.
+2. Inspect collector/module exports, current write sites and read interfaces, relevant migrations/generated schema, shared contracts, forms/imports, schedulers/webhooks, and tests. Use the actual writer manifest and boundary gates to establish ownership; confirm the path in code. Do not infer a producer from an empty table, schema, UI label, plan title, or vendor capability.
+3. Cover at minimum these candidate families, then add any additional source/domain discovered from the manifests and product inventory:
+   - roster: drivers, vehicles, trailers, assignments, time off;
+   - loads/dispatch: loads, stops, events, assignments, customer/order context;
+   - telematics: current positions, any retained position history, HOS, engine/idle, odometer, IFTA mileage, fuel signals;
+   - fuel: EFS/WEX transactions and card data, canonical fuel transactions/events, declines, prices, statements/reconciliation/exceptions;
+   - finance: McLeod settlements/AP/billing/GL and derived allocations/reports;
+   - maintenance: inspections, FleetPal work orders/service history, shop/truck inventory, parts, defects, evidence;
+   - compliance and safety: DQ/evidence, PSP, hazmat, anomalies, driver performance;
+   - office/manual entry: imports, toll expenses, posted prices, and any other human-created operational or financial records;
+   - reports/insights and other harness outputs; credentials, secrets, audit internals, and raw vendor payloads must be explicitly considered for exclusion.
+4. For each domain, trace at least one representative field through producer → raw/staging (if applicable) → owner/canonical interface → harness projection → existing API read. Trace every proposed externally visible field, not only the representative one, before marking a domain ready for contract design.
+5. When documentation conflicts with code/manifest, record the conflict and the governing fact. Example: architecture prose can lag a built module; only current code plus the active ownership manifest/gates establishes shipped status and owner. Update this plan’s baseline notes; do not create a parallel data catalog.
+
+
+**Output in this file:** the completed domain matrix in §5, expanded with producer status, owner/layer, interface, provenance, available fields, evidence, and disposition.
+
+**Stop condition:** any proposed field has no verified producer, owner, or consumer meaning. Remove it from candidate scope or add the missing producer/owner-contract task as an explicit prerequisite before Phase 1/4; do not expose it by direct-table query.
+
+#### Step 0.4 — Verify source documentation and field semantics
+
+For every in-scope upstream source, create a source-evidence row in this file with official publisher, exact document/endpoint/WSDL, version or content fingerprint, retrieval date, fields/operations relied upon, link to local parser/mapper, and any customer-specific confirmation needed.
+
+- **Samsara:** inspect the official developer documentation for the exact endpoints/webhook fields and pagination/rate-limit/freshness behavior the local collector uses. Start with [Get fleet locations](https://developers.samsara.com/reference/getfleetlocations), [GPS tracking](https://developers.samsara.com/docs/tms-gps-tracking), [pagination](https://developers.samsara.com/docs/pagination), [authentication](https://developers.samsara.com/docs/authentication), and [rate limits](https://developers.samsara.com/docs/rate-limits); then verify the exact operations the checked-out collector calls and current changelog notices. Map claims to `apps/api/src/modules/samsara/` and still-live compatibility code; never use a vendor field name as the outbound contract without its local canonical mapping. These vendor endpoints are upstream-source evidence only, not proposed FuelGuard endpoint shapes.
+- **McLeod:** use the exact installed LoadMaster/Web API contract and the existing `docs/MCLEOD-SELF-HOSTED-INTEGRATION.md` and `tools/mcleod-agent/` mappings. Use McLeod's [official Web Services documentation](https://tms-map.mcleodhosted.com/ws/docs/) where it matches the installed deployment. Mark fields requiring site/version-specific permission, audit retention, or support confirmation as unverified until the customer-specific evidence is recorded.
+- **FleetPal:** check `docs/FleetPal/SOURCE.md` and the vendor’s current official OpenAPI material at [openapi.fleetpal.io](https://openapi.fleetpal.io). Record the version plus a stable fingerprint because the tracked note says vendor `v1` may change without a version bump. Respect the repo’s licensing rule: do not copy ignored vendor specification material into this plan or PR.
+- **EFS/WEX:** use the supplied official WSDL/integration guide and `docs/plans/EFS-SOAP-INTEGRATION-PLAN.md`; cite operation and field mapping to the EFS collector/parser. The WSDL and customer integration guide are customer-supplied artifacts, not assumed public specifications. Record their exact revision/fingerprint and permission to use them without storing credentials or sensitive payload examples here. If the applicable artifact or license/permission is absent, mark dependent fields `UNVERIFIED`; do not reconstruct SOAP behavior from memory.
+- **Manual/office-created data:** trace the actual input form/import path and validation to its owning core record. A spreadsheet or form is a transport, not proof of a supported canonical domain. Toll expenses remain unimplemented in the inspected baseline; their expected record owner, required evidence, correction process, and producer must be specified as a prerequisite before an API resource can pass readiness.
+
+Only retrieve external docs from the vendor or standards owner. If an official source is unavailable or does not settle a field, request written vendor/customer confirmation or defer the field. Record that outcome in this plan; do not substitute blogs or assumptions.
+
+#### Step 0.5 — Measure availability, freshness, and lifecycle evidence
+
+1. For each candidate domain and each approved target organization, use an existing, authenticated, tenant-scoped health/freshness view where available (for example Samsara feed-pulse, EFS feed-freshness, McLeod roster/financial freshness, or FleetPal sync state). Verify the endpoint’s authorization and semantics from its code before relying on it.
+2. Collect only aggregate evidence: enabled/configured state, last successful source read, last successful write/normalization, source event/update timestamp where stored, eligible row count, rejected/unmapped count, stale/error count, and measurement time. Do not copy record bodies or identifiers into the plan.
+3. Distinguish provider polling/read time from source-event time, row-write time, and derived-computation time. A generic `last_synced_at` is not proof that every domain or record is current; confirm the stamp’s writer and meaning in code/tests.
+4. Derive each freshness state from the documented collector cadence/source guarantee and the consumer’s approved latency requirement. If either is unknown, record `FRESHNESS CONTRACT UNVERIFIED`; do not invent a minutes threshold. Use states `verified live`, `configured/no qualifying data`, `stale`, `failed`, `planned/not implemented`, or `unverified` with source and as-of time.
+5. Verify create/update/correction/archive/delete behavior from producer and owner code, migrations, tests, and retention rules (`apps/api/src/modules/org/dataRetentionPolicy.ts`). Identify whether a consumer can detect every change and whether tombstones/history exist. If not, state the exact missing mechanism; do not claim incremental sync completeness.
+6. If approved tenant-scoped health views cannot answer availability, do not query unscoped production tables. Request an approved aggregate read path or use fixtures to verify code behavior and leave production availability explicitly unverified.
+
+
+**Output in this file:** per-domain evidence with source, org scope label (no raw org data if sensitive), as-of time, collection/read/write/derive times, aggregate counts, freshness state, and life-cycle semantics.
+**Verification:** every measurement has a code path and owner; test fixtures are labeled as fixtures and never presented as production evidence.
+
+#### Step 0.6 — Capture consumer, use-case, and delivery requirements
+
+Complete the following intake row for every intended receiving integration. Use `UNVERIFIED` rather than guessing; the API owner obtains written approval from the designated business/system owner.
+
+| Requirement | Required answer/evidence |
+|---|---|
+| Consumer | Product/system name, business owner, technical owner, vendor/tenant/environment, approved integration contact |
+| Purpose | Exact workflow enabled; business reason for each requested data domain; prohibited secondary use |
+| Direction/actions | Confirm outbound read API and webhook notifications; explicitly list any requested inbound writes as separate scope (none are inferred) |
+| Domain/fields | Requested resources and minimum fields, stable join keys, consumer meaning/units/time zone, required history horizon |
+| Scope | Organization, fleet/vehicle/load/customer scope, user visibility constraints, position precision/history and document access if requested |
+| Delivery | Polling, incremental cursor, webhook event types, acceptable latency, outage/replay window, ordering and duplicate tolerance |
+| Volume | Expected active records, change rate, peak request/event rate, bulk export need, growth horizon, evidence/source for each estimate |
+| Security/network | Environments, TLS/network restrictions if any, key custody/rotation contact, endpoint ownership for webhook, firewall/proxy constraints |
+| Data governance | Data classification, retention, correction/deletion propagation, onward sharing, contract/legal review and approved purpose |
+| Operations | Integration owner/on-call, support contact, incident notification path, monitoring and decommission procedure |
+
+**Decision rule:** a consumer-neutral reusable API may be designed only for domains and fields that the product owner approves for that use. A named consumer’s compatibility promises, volume targets, and latency targets cannot be locked until that consumer’s intake is complete. Any requested field without a purpose and authorization decision is excluded by default. If an unknown requirement is essential, the affected resource remains blocked; it is not silently generalized.
+
+#### Step 0.7 — Complete field classification and access-policy matrix
+
+For every proposed response field and join, record: domain/resource, field, source/owner, classification, personal/sensitive/regulatory status, permitted purpose, allowed integration scope, organization/object constraints, field projection, location/time bounds, freshness/null semantics, retention/correction/deletion treatment, read audit requirement, and approving owner. Review at least direct driver identifiers/contact, license/DQ evidence, precise location and movement history, load/customer/order details, fuel-card/account data, transaction/GL amounts, anomaly/score outputs, documents, source payloads, credentials, and audit/security metadata.
+
+1. Read current permission matrices and API middleware; identify whether an existing employee role or module entitlement does NOT answer partner authorization. Do not reuse employee roles as integration scopes without an explicit approved mapping.
+2. Review `requireFreshAuth` policy and actual sensitive admin routes; record the exact step-up rules/source and which credential/subscription/export changes require them.
+3. Review `docs/MIGRATION-DISCIPLINE.md`, RLS/table ownership, `dataRetentionPolicy.ts`, append-only evidence rules, and any relevant contractual/privacy/retention policy. Request the proper owner’s approval where the repository does not establish a policy.
+4. Define access defaults for unclassified fields (`deny`), unmapped objects (`deny`), stale/unknown source facts (preserve the explicit state; never substitute a value), and missing scope (`deny`). Record approved exceptions as dated decisions with narrow scope and removal condition.
+5. For location, decide separately whether current positions and historical traces are allowed, permitted vehicles, maximum time range, precision, sampling, stale handling, retention, and whether webhook delivery may contain coordinates. No GPS field is released merely because the current dispatch UI displays it.
+
+
+**Output in this file:** approved field-level data-release matrix and any signed/attributed decision records. Any legal interpretation remains with counsel; engineering records the approved ruling and does not invent legal meaning.
+
+#### Step 0.8 — Verify OpenAPI, security standards, and implementation-tool fit
+
+1. Record the official OpenAPI Specification version current on the review date and relevant capabilities. The OpenAPI Initiative’s official version page lists OAS 3.2.1 (published 2026-09-10) as current on this blueprint update; Phase 0 rechecks the source rather than assuming it stays current.
+2. Inspect `package.json`, `apps/api/package.json`, `packages/shared/package.json`, lockfile, TypeScript/Node constraints, existing Zod contract conventions, CI gates, and build environment. Record exact supported versions and candidates for parsing, validating, generating documentation/clients, and checking Zod↔OpenAPI drift. Do not add dependencies or choose code-first/spec-first in Phase 0.
+3. For each candidate tool, check the tool’s official documentation against the pinned OAS version, JSON Schema dialect, TypeScript/Zod behavior, license, maintenance/support status, offline CI use, and ability to fail CI on invalid or drifted contracts. If no tool fully supports the target, list the specific compatibility gap and a bounded supported fallback for Phase 1 to decide.
+4. Read the official OWASP API Security Top 10 and applicable official RFCs for the chosen API-key bearer transport and webhook signature approach. On this blueprint date, RFC 9700 is the OAuth 2.0 Security Best Current Practice and RFC 6750 is updated by it; do not treat OAuth itself as selected or required. The project uses API keys by user direction; Phase 0 verifies transport risks and scopes, while Phase 1 freezes the wire contract.
+5. For every external standard, save the official URL, title/version, publication/update date, reviewed date, and exact rule being used in this file. Check whether an updated official edition supersedes a reference in §8.
+
+**Known standard snapshot to revalidate:** [OAS 3.2.1](https://spec.openapis.org/oas/v3.2.1.html) (published 2026-09-10); [OWASP API Security Top 10, 2023](https://api-security.owasp.org/editions/2023/en/0x11-t10/); [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700) and [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750). These sources inform design; none replaces local authorization, tenant, privacy, or implementation checks.
+
+#### Step 0.9 — Resolve scope, dependencies, and decisions in this document
+
+1. Update the §5 domain matrix for every product/source domain with its verified status and exact evidence. No blank status is permitted. Use these dispositions:
+   - `READY FOR CONTRACT DESIGN` — producer, owner interface, field meanings, consumer purpose, access policy, lifecycle, and freshness evidence are verified.
+   - `PREREQUISITE REQUIRED` — a specific producer, owner interface, policy, or operational capability is missing; add its ordered prerequisite step here or reference an approved existing plan and its exact step. The resource cannot enter the supported API until that step passes.
+   - `DEFERRED` — owner explicitly approved exclusion for this release; include reason, trigger to revisit, and ensure no dependent endpoint/event claims support.
+   - `OUT OF SCOPE` — owner explicitly ruled it out, with reason and date.
+   - `BLOCKED` — required evidence/decision is unavailable. Name the owner, exact evidence/action, and the dependent resource/phase that cannot proceed.
+2. Record a traceable decision for API consumer scope, per-field release, credential identity, read/audit policy, current/historical position handling, manual/toll readiness, correction/deletion semantics, and OpenAPI/toolchain evaluation status. Do not mark a decision accepted without the approving role/name and evidence.
+3. Build the ordered dependency list. If a data source does not exist (toll/manual expenses are absent in the inspected baseline), identify the owning domain plan/step required to produce canonical data; keep API exposure after that producer and owner contract. Do not create a second ingestion path inside the API plan.
+4. Update §§2, 3, 5, this progress ledger, and the handoff in this file with verified current-state facts and exact references. Existing snapshots remain labeled historical; remove statements proven stale rather than carrying both as if simultaneously true.
+
+**Phase 0 pass criteria:**
+
+- Baseline SHA, governing rules, route/auth inventory, complete candidate data-domain list, owners and interfaces, official source-doc register, production availability/freshness evidence or explicit `unverified`, consumer requirements, field release/access matrix, correction/deletion/retention behavior, OpenAPI/tool compatibility evidence, and dated decisions are all present in this file.
+- Every domain has an approved disposition and every missing requirement has a specific ordered resolution step and owner. No required pilot resource remains `BLOCKED`; no unresolved security, privacy, legal, freshness, or ownership question is represented as solved.
+- Product/API owner approves the first release domain/field scope; security/privacy and legal reviewers sign decisions within their authority; domain owners approve their source mappings. If the consumer is not named, owner explicitly approves a consumer-neutral contract and its bounded purposes/resources before passing Phase 0.
+- Only after all criteria pass may Phase 1 freeze API contract details. A `DEFERRED`/`PREREQUISITE REQUIRED` domain cannot be silently counted as supported or used to unblock its dependent endpoint.
+
+**Phase 0 verification checklist:**
+
+- Re-run route/contract/source searches against the recorded target SHA and verify each finding at its call/write site and test.
+- Compare all owned tables against `scripts/table-modules.json` and the active table access/writer gates; enumerate every mismatch and resolve it through the authoritative mechanism.
+- Verify every production measurement has the correct tenant scope and an approved read path; validate that no copied row-level data or secret entered this file/PR.
+- Confirm every external behavior claim links to a first-party vendor/standards source with version/date, or is marked unverified/deferred.
+- Confirm every consumer-requested field has a purpose, data classification, owner, scope, lifecycle semantics, and approver; no broad wildcard access remains.
+- Confirm all outputs are recorded in this blueprint only; no new plan or inventory file was created.
+- Update the phase ledger to `Verified` only after the named approvers and evidence are recorded; until then it remains `Not started` or `In progress`.
+
+**Anti-pattern guards:** do not infer readiness from a route, UI field, migration, vendor spec, or populated table alone; do not call `last_synced_at` a data-freshness guarantee without tracing its writer; do not treat all user-role access as suitable for an integration; do not expose raw collector data; do not silently omit tolls, positions, loads, compliance, or any requested domain; do not resolve a policy conflict by assumption; do not create an extra document.
+
+**Phase 0 evidence register (complete in this file during execution):**
+
+| Evidence item | Required record | Status |
+|---|---|---|
+| Target baseline | Branch, target SHA, date, migration/schema head, parallel PR dependency check | Not started |
+| Governing rules | Paths, active gate/script/workflow names, rule conflicts and resolution | Not started |
+| Route/auth inventory | Mounted path, router, domain, principal, tenant resolution, scope/gate, status | Not started |
+| Data-domain inventory | Producer/source, owner/layer, interface, fields, flow, disposition | Not started |
+| Vendor/standards sources | Official URL, title/version/fingerprint, reviewed date, mapped behavior | Not started |
+| Availability/freshness | Tenant-scoped aggregate source, as-of, cadence, last read/write/event, counts/status | Not started |
+| Consumer requirements | Completed intake per receiving integration or signed neutral-scope decision | Not started |
+| Field release matrix | Field class, purpose, scope, retention, lifecycle, approving owner | Not started |
+| Security/admin policy | Key/subscription/export grants, step-up, audit and offboarding decisions | Not started |
+| Incremental lifecycle | Change cursor, late update, correction, tombstone, replay evidence/decision | Not started |
+| OpenAPI/tooling | Official current version; repo dependencies; official tool compatibility evidence | Not started |
+| Exit approvals | Product/API, domain, security/privacy, and legal approvals as applicable | Not started |
+
+**Phase 0 handoff template (complete in this file):** target SHA; completed steps and evidence references; disposition table; decisions/approvers; unresolved items and the exact step that blocks; next permitted phase; active branch/PR. Do not hand off with “see chat” or unreferenced local artifacts.
 
 ### Phase 1 — Contract architecture and OpenAPI decision
 
@@ -295,7 +453,7 @@ A phase may be refined incrementally in this same file. Do not start a dependent
 
 | Phase | Status | Evidence / PR | Next action |
 |---|---|---|---|
-| 0 — Baseline and requirement discovery | Not started | Blueprint created from `origin/main` snapshot; discovery must be rerun on implementation target | Inventory current routes, owners, consumer requirements, data availability, and field policy |
+| 0 — Baseline and requirement discovery | Planned; not executed | Detailed runbook and evidence register are in §6; baseline snapshot is historical | Execute §6 Phase 0 against the approved target SHA and record all evidence in this file |
 | 1 — Contract and OpenAPI | Not started | — | Begins after Phase 0 exit gate |
 | 2 — Integration identity and keys | Not started | — | Begins after Phase 1 decisions |
 | 3 — Auth and authorization boundary | Not started | — | Begins after Phase 2 lifecycle design |
@@ -322,9 +480,12 @@ A phase may be refined incrementally in this same file. Do not start a dependent
 
 ### Official external references
 
-- [OpenAPI Initiative — OpenAPI Specification versions and schemas](https://spec.openapis.org/oas/) — verify and pin the chosen version/tool compatibility at Phase 1; do not infer tool support from the specification alone.
+- [Samsara — Get fleet locations](https://developers.samsara.com/reference/getfleetlocations), [GPS tracking](https://developers.samsara.com/docs/tms-gps-tracking), [pagination](https://developers.samsara.com/docs/pagination), [authentication](https://developers.samsara.com/docs/authentication), and [rate limits](https://developers.samsara.com/docs/rate-limits) — upstream collector evidence only; verify the endpoint version and behavior actually used by the repository during Phase 0.
+- [McLeod — Web Services documentation](https://tms-map.mcleodhosted.com/ws/docs/) — compare against the specific customer-installed version; this public documentation does not establish customer configuration or entitlement.
+- [FleetPal — OpenAPI](https://openapi.fleetpal.io) — vendor specification may change without a version bump; capture a permitted fingerprint during Phase 0, not its contents.
+- [OpenAPI Initiative — OpenAPI Specification v3.2.1](https://spec.openapis.org/oas/v3.2.1.html) — official current-version snapshot reviewed 2026-09-28; verify current version and tool compatibility during Phase 0/1, and do not infer tool support from the specification alone.
 - [OWASP API Security Top 10 (2023)](https://api-security.owasp.org/editions/2023/en/0x11-t10/) — threat checklist for object/property/function authorization, resource consumption, SSRF, inventory, and unsafe API consumption. Recheck for a newer official edition at Phase 0/8.
-- [RFC 6750 — OAuth 2.0 Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750) — bearer-token transport/security guidance applicable to API-key bearer credentials; this does not require adopting OAuth.
+- [RFC 6750 — OAuth 2.0 Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750) and [RFC 9700 — OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700) — review together; RFC 9700 updates RFC 6750. Bearer guidance informs API-key transport; it does not require adopting OAuth.
 - [GitHub Docs — Validating webhook deliveries](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries) — official implementation example for HMAC-SHA256 payload signature and constant-time comparison; verify generic event/timestamp/replay semantics separately before adopting a provider-specific format.
 
 ## 9. Decision log
@@ -340,5 +501,5 @@ A phase may be refined incrementally in this same file. Do not start a dependent
 
 **Current phase:** Phase 0 is not started; this document is the blueprint only.
 **Verified snapshot:** isolated base `origin/main` at `752e8cc`; repo architecture/auth/integration patterns and official OpenAPI/OWASP references were reviewed to draft the gates.
-**Outstanding:** run Phase 0 against the target branch before implementation; name the first consumer/use case; remeasure domains, population, freshness, route/tooling state, and policy. No API implementation has been authorized by this plan.
-**Next action:** review this blueprint, then execute Phase 0 and update this same file with measured evidence and locked decisions before building Phase 1.
+**Outstanding:** execute the Phase 0 runbook in §6 against the approved target SHA; complete its in-document evidence register and requirement/policy approvals. Phase 0 execution is not represented as complete by this blueprint update. No API implementation has been authorized by this plan.
+**Next action:** execute §6 Phase 0 in order; record findings, dependencies, and approvals in this same file; begin Phase 1 only after the Phase 0 pass criteria are evidenced.
