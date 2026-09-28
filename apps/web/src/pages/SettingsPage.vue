@@ -3,6 +3,7 @@ import { AppIcon } from "@silvicom/ui";
 import {
   AdjustmentsHorizontalIcon,
   BellIcon,
+  BooksCheckIcon,
   BuildingOffice2Icon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
@@ -37,6 +38,10 @@ const configCards = [
   // endpoint now ask one question — before R0 all three asked the same global boolean and agreed by
   // accident rather than by construction.
   { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.can("roster") },
+  // `recruitment` and not `settings`, for the Driver App card's reason: the card, the route's catalogue
+  // entry (`admin.recruiting`) and the api ask one question. It also has its own sidebar entry, because
+  // a recruiter holds `settings: none` and never sees this page (Q-AW42).
+  { name: "Recruiting", to: "/settings/recruiting", icon: BooksCheckIcon, desc: "The representatives who countersign the driver handbook and the examiners who give the road test.", show: session.canView("recruitment") },
   { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.can("settings") },
   // ⚠ Listed here from the day the page shipped, and deliberately so: `routeReachability.test.ts`
   // exists because ten of eleven `/settings/*` routes were on this page and one was reachable only

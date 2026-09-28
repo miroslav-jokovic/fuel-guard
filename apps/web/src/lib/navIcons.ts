@@ -1,5 +1,6 @@
 import {
   BeakerIcon,
+  BooksCheckIcon,
   CurrencyDollarIcon,
   DocumentTextIcon,
   ChartAverageIcon,
@@ -119,6 +120,8 @@ export const SURFACE_ICONS: Record<string, Icon> = {
 
   "admin.settings": Cog6ToothIcon,
   "admin.users": UsersIcon,
+  // The register of people who sign for the carrier (Q-AW42). Unused anywhere else in the menu.
+  "admin.recruiting": BooksCheckIcon,
 };
 
 /** The icon shown for a labelled group in the collapsed rail. Keyed by `SURFACE_GROUPS[].key`. */

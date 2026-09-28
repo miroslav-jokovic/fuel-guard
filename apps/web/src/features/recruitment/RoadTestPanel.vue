@@ -21,16 +21,11 @@ import {
   AppSegmentedControl,
   AppTextarea,
 } from "@silvicom/ui";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
+import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
-import {
-  pngDataUrl,
-  useAddRoadTestExaminer,
-  useRecordRoadTest,
-  useRoadTestExaminers,
-} from "@/features/recruitment/useRoadTest";
+import { useRecordRoadTest, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
 
 /**
  * The §391.31 road test, recorded where the hire is worked — D2 (`ROAD-TEST-PLAN.md` RT3).
@@ -44,7 +39,9 @@ import {
  * ── THE EXAMINER'S SIGNATURE IS ADDED HERE, ONCE (Q-RT2) ──────────────────────────────────────
  * The owner ruled the examiner's signature is added from the dashboard, as he used to sign on paper.
  * With no examiner on file the panel asks for one first; the filed documents then say who applied
- * the signature, so the office's act is visible on the paper.
+ * the signature, so the office's act is visible on the paper. The form is `SignatoryAddForm`, the one
+ * Settings → Recruiting also shows (Q-AW42), where an examiner can be added — and retired — before any
+ * driver reaches this step.
  */
 const props = defineProps<{ driverId: string; done: boolean }>();
 
@@ -53,7 +50,6 @@ const driverId = computed(() => props.driverId);
 const examinersQ = useRoadTestExaminers();
 const vehiclesQ = useVehiclesQuery();
 const recordsQ = useQualificationRecordsQuery(driverId);
-const addExaminer = useAddRoadTestExaminer();
 const record = useRecordRoadTest(driverId);
 
 const examiners = computed(() => examinersQ.data.value ?? []);
@@ -69,29 +65,10 @@ const TRAILER_OPTIONS = ROAD_TEST_TRAILER_TYPES.map((t) => ({ value: t, label: R
 const filed = computed(() => (recordsQ.data.value ?? []).filter((r) => r.kind === "road_test"));
 
 // ── the examiner, when none is on file ─────────────────────────────────────────────────────────
-const examinerForm = reactive({ fullName: "", title: "" });
-const signature = ref<File | null>(null);
 const addingExaminer = ref(false);
-const canAddExaminer = computed(
-  () => examinerForm.fullName.trim().length >= 2 && examinerForm.title.trim().length >= 2 && Boolean(signature.value),
-);
-
-async function saveExaminer(): Promise<void> {
-  if (!signature.value) return;
-  try {
-    const created = await addExaminer.mutateAsync({
-      full_name: examinerForm.fullName.trim(),
-      title: examinerForm.title.trim(),
-      signature_png: await pngDataUrl(signature.value),
-    });
-    toast.success("Examiner added", `${created.full_name}'s signature will print on the road tests they give.`);
-    form.examinerId = created.id;
-    Object.assign(examinerForm, { fullName: "", title: "" });
-    signature.value = null;
-    addingExaminer.value = false;
-  } catch (e) {
-    toast.error("Could not add the examiner", e instanceof Error ? e.message : undefined);
-  }
+function examinerAdded(examiner: { id: string }): void {
+  form.examinerId = examiner.id;
+  addingExaminer.value = false;
 }
 
 // ── the test ───────────────────────────────────────────────────────────────────────────────────
@@ -163,35 +140,13 @@ const showForm = computed(() => !props.done || adding.value);
 
     <template v-if="showForm">
       <!-- The examiner first: without one there is nobody to sign the form (Q-RT2). -->
-      <div v-if="examiners.length === 0 || addingExaminer" class="space-y-4 rounded-surface border border-edge p-4">
-        <p class="text-sm font-medium text-ink">Add the examiner</p>
-        <p class="text-xs text-ink-secondary">
-          Their signature prints on every road test they give. Upload a PNG of it — a scan or a photo of
-          them signing on white paper.
-        </p>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Name">
-            <BaseInput :id="id" v-model="examinerForm.fullName" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Title" hint="Printed on the certificate.">
-            <BaseInput :id="id" v-model="examinerForm.title" placeholder="Maintenance manager" />
-          </FormField>
-        </div>
-        <FileDropzone
-          accept=".png"
-          :busy="addExaminer.isPending.value"
-          busy-label="Saving…"
-          :label="signature ? signature.name : 'Drag & drop the signature (PNG)'"
-          hint="PNG only. Stored privately with the carrier's files."
-          @files="signature = $event[0] ?? null"
-        />
-        <div class="flex gap-3">
-          <BaseButton variant="primary" size="sm" :disabled="!canAddExaminer || addExaminer.isPending.value" @click="saveExaminer">
-            Add examiner
-          </BaseButton>
-          <BaseButton v-if="examiners.length > 0" variant="ghost" size="sm" @click="addingExaminer = false">Cancel</BaseButton>
-        </div>
-      </div>
+      <SignatoryAddForm
+        v-if="examiners.length === 0 || addingExaminer"
+        kind="examiner"
+        :cancellable="examiners.length > 0"
+        @added="examinerAdded"
+        @cancel="addingExaminer = false"
+      />
 
       <div v-if="examiners.length > 0" class="space-y-5">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
