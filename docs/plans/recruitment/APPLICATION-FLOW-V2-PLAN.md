@@ -760,6 +760,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW41** (2026-09-28) | The link's lifetime (14 days, extended by 14 on every send, reminder and signing opened; `INVITE_TTL_DAYS_DEFAULT`) and the reminder (after 48 hours without progress, once per part; `STALE_DRAFT_HOURS`) are constants. The owner: drivers often finish over a couple of days, and the carrier wants control. | (a) Settings → Recruiting: the default link lifetime (1–60 days), the reminder delay in hours and an on/off switch; a per-invite override in the invite drawer (the api already takes `expires_in_days`). New columns: a migration, then the reader — two merges. The 72 hours a phone keeps unsent answers (Q-AW39) stays fixed: it is a privacy rule, not a convenience; (b) leave the constants | **(a). RULED by the owner 2026-09-28.** |
 | **Q-AW42** (2026-09-28) | There is no place to add a carrier Representative or a road-test examiner ahead of time: each is added only inside one driver's panel, and only once that driver reaches the step (`HandbookPanel.vue`, `RoadTestPanel.vue`). So the owner could not add the Representative the countersign needs. | (a) a register under Settings, beside Q-AW41's settings, listing both with add and remove (the api exists: `/recruitment/representatives`, the examiners' routes); no migration; (b) keep them in the panels | **(a), under Settings. RULED by the owner 2026-09-28.** |
 | **Q-AW43** (2026-09-28) | Q-AW17's fines. | — | **DEFERRED by the owner 2026-09-28**: the fines stay as they are until the hiring process works end to end. Counsel's question is written (`COUNSEL-REVIEW-PACKAGE.md` Q18, added 2026-09-28) and goes with the rest of the memo. **#1059 stays held.** |
+| **Q-AW44** (2026-09-28, found building P1) | After a purge the applicant's **name and email survive in `audit_logs`**. Measured on the two test applicants: 16 audit rows, and `driver.created` (`meta.fullName`), `compliance.application_invited` (`meta.email`) and `driver.archived` (`meta.fullName`) carry them. `audit_logs` is append-only evidence, so 0380 leaves it alone rather than decide this by rewriting it. Separately, for **real** applicants rather than test ones: federal record-keeping (29 CFR §1602.14, for employers Title VII covers) generally keeps an application for a year after it was made or acted on. So "applicants generally" may be narrower than the ruling reads. | (a) keep the audit rows as they are; the purge removes the applicant from the product, and the trail of who did what stays; (b) the purge also blanks the name and email in that driver's audit `meta` (a second, named exception to append-only); (c) from now on audit rows carry ids, never names or emails, plus (b) for rows already written. Real applicants: (i) purge anyone never hired, as ruled; (ii) purge only after a year, or only test applicants, until counsel answers | **(a) now, and (c) as its own small step if the owner wants names gone.** For real applicants, **(ii)**, with the question going to counsel as the memo's Q19. P2 can ship either way; the test applicants are not covered by the record-keeping rule. |
 
 ---
 
@@ -1612,3 +1613,37 @@ Append dated lines at the END.
   - **Checks:** 26 mutants, 25 killed; the survivor swaps `STALE_DRAFT_HOURS` for the literal 48 in the defaults — the
     same value, so a no-op no test can see. Seen in a browser (built, dev bypass, as admin): the defaults, the refusal
     under the delay when the link is shortened to 2 days, and the switched-off state at 390 px; no page errors.
+- 2026-09-28 — **S2 merged** (#1108, main `6e8fc1f`); CI green on the merged head.
+- 2026-09-28 — **P1 built** (`claude/purge-applicant-p1`): migration **0380** `purge_applicant(p_org, p_driver, p_actor)`, Q-AW40's
+  migration half. It merges alone; P2 (the admin screen, Storage cleanup, the `driver.purged` audit) is its reader.
+  - **Measured on production first:** 40 foreign keys into `drivers` (18 cascade, 5 restrict, 17 set null), the FK tree
+    below them, and every trigger on it. **Six guards refuse a service-role delete:** `drivers` (DR010),
+    `driver_applications` (DA010), `esign_consents` (EC010), `signature_adoptions` (SA010), `employer_verification_calls`
+    (EV010), `handbook_marks` (HB011). The handoff's note that packet marks, drafts and captures "refuse a delete by
+    trigger" is not so: `application_packet_marks` and `application_edits` have no trigger, and the rest refuse only a
+    JWT-bearing writer. The two test applicants are drivers `16045e32` (invitation `d61557dc`) and `0c77fabb`
+    (`f2b142e4`), both `applicant`, archived, and linked to nothing. Their rows: 2 invitations, 1 application,
+    1 qualification record, 8 authorizations, 2 consents, 20 packet marks, 2 drafts, 1 capture, 1 employment row,
+    1 document, and 16 audit rows.
+  - **The flag:** new, `fuelguard.purging_applicant`. It holds the DRIVER'S ID, not 'on', so each guard is opened
+    for that applicant's rows only. It is transaction-local and cleared before return. Why not reuse `merging_driver`:
+    the guards' exemption would then read "a merge" when it was a purge. Each of the six guards is reproduced
+    with one branch added, and the pre/post `pg_get_functiondef` diff shows nothing else changed. `merge_driver` is untouched.
+  - **"Ever hired", PA010:** status past `applicant`, a `hire_date` or `termination_date`, or an audit row
+    `compliance.applicant_hired` for the driver. The last is the durable one, because 0213 lets an admin edit
+    status and dates back. **PA011:** a row in any drivers-referencing table the purge doesn't own, read from
+    `pg_constraint` at call time rather than listed, so a new table refuses until somebody decides (the
+    merge_driver cascade trap, inverted). Also PA011: a DQ export naming the driver. **PA012:** a driver-app account
+    or a McLeod/Samsara/EFS id. **PA020:** another org, or missing. **PA030:** the actor isn't an admin of the org.
+  - **Kept:** `sms_suppressions` (a STOP belongs to the number; the driver id is nulled), `audit_logs`, and
+    `notification_events`. ⚠ The name and email survive in audit `meta`; that is **Q-AW44**.
+  - **Storage:** the function RETURNS `{counts, storage}`, with storage keyed by table (`documents`,
+    `application_captures`, `signature_adoptions`, `drivers` photo). If P2 read the paths first, it would race a
+    capture confirmed in between.
+  - **Checks:** `supabase/tests/purge-applicant.test.mjs` (65). The fixture fills every table that references
+    `application_invitations`, read from the catalogue so a new one fails the matrix until it is seeded. 45
+    migration mutants, 40 killed on the first pass. Of the survivors, one was a real gap and now has its test
+    (the flag left set inside an explicit transaction: the old check read it after the implicit one had ended).
+    Two showed my own two-step deletes were unneeded — RESTRICT is checked at the end of the statement — so both
+    were removed along with their wrong comments. Two are no-ops: the audit read's `created_at` lower bound only
+    bounds the index scan, and `for update` guards a race that a single PGlite connection cannot stage.
