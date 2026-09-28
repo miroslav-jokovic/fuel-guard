@@ -1168,6 +1168,17 @@
         "why": "no rows yet (HB0 is schema only). A handful of office people who countersign for the carrier; a row is added when a Representative, title or signature changes. Evidence a signed handbook cites; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
       }
     },
+    "recruiting_settings": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "no rows yet (S1 is schema only). One row per org, rewritten in place when the carrier changes its link lifetime or reminder (Q-AW41); growth is bounded by the number of orgs. Configuration, not evidence; deleted with its org."
+      }
+    },
     "handbook_marks": {
       "module": "recruiting",
       "layer": "core",
