@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSync, statSync, renameSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
-import { fetchRoster, fetchRetirements, diffAgainstState, loadState, saveState, runInspection } from "./roster.mjs";
+import { fetchRoster, fetchRetirements, diffAgainstState, loadState, persistRosterState, runInspection } from "./roster.mjs";
 import { financialWindow, monthsTouching } from "./windows.mjs";
 import { INSPECTION } from "./inspect.mjs";
 import { fetchSettlements } from "./settlements.mjs";
@@ -522,7 +522,7 @@ async function runRoster() {
     log(`roster: ${entity} sent=${changed.length} received=${res.received} linked=${res.upserted} updated=${res.updated ?? 0} created=${res.created ?? 0}${res.skippedOwned ? ` office-owned=${res.skippedOwned}` : ""}${res.unmatched.length ? ` UNMATCHED=${res.unmatched.length}` : ""}`);
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
-  saveState(CFG.rosterStatePath, nextState);
+  persistRosterState(CFG.rosterStatePath, nextState, { dryRun: CFG.dryRun });
   if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster.counts);
 }
 
