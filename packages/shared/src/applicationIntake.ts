@@ -31,7 +31,11 @@ export const applicationInviteCreateSchema = z.object({
   driver_id: z.uuid(),
   /** Where the link is being sent, recorded so a recruiter can see who was invited. */
   email: z.email().max(200).nullish(),
-  expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).default(INVITE_TTL_DAYS_DEFAULT),
+  /**
+   * This one link's lifetime, overriding the carrier's (Q-AW41). No default here since S2: absent means
+   * "the carrier's setting", which only the api can read — a `.default(14)` would silently override it.
+   */
+  expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).optional(),
 });
 export type ApplicationInviteCreate = z.infer<typeof applicationInviteCreateSchema>;
 

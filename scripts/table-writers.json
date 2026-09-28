@@ -515,6 +515,9 @@
     "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/modules/idle/weatherBackfill.ts"
   ],
+  "recruiting_settings": [
+    "apps/api/src/modules/recruiting/recruitingSettings.ts"
+  ],
   "road_test_examiners": [
     "apps/api/src/modules/recruiting/roadTest.ts"
   ],

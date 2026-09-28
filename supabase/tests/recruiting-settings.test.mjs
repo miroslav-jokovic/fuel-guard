@@ -109,15 +109,21 @@ ok("a link of 0 days is refused", await refused(
 ok("a link of 1 day is accepted (reminder off)", !(await refused(
   `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 1, false, 48)`, [ORG])));
 await clear();
-ok("a reminder after 23 hours is refused", await refused(
-  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 14, true, 23)`, [ORG]));
-ok("a reminder after 24 hours is accepted", !(await refused(
-  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 14, true, 24)`, [ORG])));
+// The hour bounds are the contract's (S2, recruitingSettingsContract.ts), read from source for the same
+// reason as the day bound: the screen, the api and this CHECK must refuse the same numbers.
+const contract = readFileSync(join(SUPA, "..", "packages", "shared", "src", "recruitingSettingsContract.ts"), "utf8");
+const hMin = Number(/export const REMINDER_AFTER_HOURS_MIN = (\d+);/.exec(contract)?.[1]);
+const hMax = Number(/export const REMINDER_AFTER_HOURS_MAX = (\d+);/.exec(contract)?.[1]);
+ok("REMINDER_AFTER_HOURS_MIN and _MAX were read from the contract's source", Number.isInteger(hMin) && Number.isInteger(hMax) && hMin < hMax, `got ${hMin}, ${hMax}`);
+ok("a reminder after REMINDER_AFTER_HOURS_MIN - 1 hours is refused", await refused(
+  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 14, true, $2)`, [ORG, hMin - 1]));
+ok("a reminder after REMINDER_AFTER_HOURS_MIN hours is accepted", !(await refused(
+  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 14, true, $2)`, [ORG, hMin])));
 await clear();
-ok("a reminder after 1441 hours is refused, even switched off", await refused(
-  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 60, false, 1441)`, [ORG]));
-ok("a reminder after 1440 hours is accepted when switched off", !(await refused(
-  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 60, false, 1440)`, [ORG])));
+ok("a reminder after REMINDER_AFTER_HOURS_MAX + 1 hours is refused, even switched off", await refused(
+  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 60, false, $2)`, [ORG, hMax + 1]));
+ok("a reminder after REMINDER_AFTER_HOURS_MAX hours is accepted when switched off", !(await refused(
+  `insert into recruiting_settings (org_id, invite_ttl_days, reminders_enabled, reminder_after_hours) values ($1, 60, false, $2)`, [ORG, hMax])));
 await clear();
 
 // ── 3. a reminder that is on comes before the link dies ───────────────────────────────────────

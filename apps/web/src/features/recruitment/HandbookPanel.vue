@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { HANDBOOK_PLACEMENTS, INVITE_TTL_DAYS_DEFAULT, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
+import { HANDBOOK_PLACEMENTS, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCombobox as ComboSelect, AppFormField as FormField } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
@@ -59,13 +59,14 @@ async function openSigning(): Promise<void> {
 
 /**
  * The same door as Open (APPLICATION-FLOW-V2-PLAN.md A-2): every press keeps the driver's link alive for
- * another `INVITE_TTL_DAYS_DEFAULT` days, and a second press never re-stamps who opened it. Nothing
+ * another of the carrier's link lifetimes (Q-AW41) — the toast says the date the server set, never a
+ * number restated here — and a second press never re-stamps who opened it. Nothing
  * else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed one.
  */
 async function extendLink(): Promise<void> {
   try {
-    await open.mutateAsync(undefined);
-    toast.success("Link extended", `The driver's link stays open for another ${INVITE_TTL_DAYS_DEFAULT} days.`);
+    const { expiresAt } = await open.mutateAsync(undefined);
+    toast.success("Link extended", `The driver's link is open until ${formatDisplayDateTime(expiresAt)}.`);
   } catch (e) {
     toast.error("Could not extend the driver's link", e instanceof Error ? e.message : undefined);
   }

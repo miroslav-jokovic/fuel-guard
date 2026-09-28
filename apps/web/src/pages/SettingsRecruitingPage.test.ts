@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   examiners: [] as unknown[],
   calls: [] as Array<{ url: string; method: string; body: unknown }>,
   refuse: null as null | { code: string; message: string },
+  /** The carrier's link settings as the api holds them (Q-AW41); null = never saved. */
+  settings: null as null | { invite_ttl_days: number; reminders_enabled: boolean; reminder_after_hours: number },
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -30,10 +32,19 @@ vi.mock("@/lib/api", () => ({
       const person = { id: "new-1", full_name: "Ana Perić", title: "Safety manager", created_at: "2026-09-28T15:00:00Z" };
       if (url.endsWith("/representatives")) return { ok: true, data: { representative: person } };
       if (url.endsWith("/road-test-examiners")) return { ok: true, data: { examiner: person } };
+      if (url.endsWith("/settings")) {
+        state.settings = opts!.body as typeof state.settings;
+        return { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-28T16:00:00Z" } };
+      }
       return { ok: true, data: {} };
     }
     if (url.endsWith("/representatives")) return { ok: true, data: { representatives: state.reps } };
     if (url.endsWith("/road-test-examiners")) return { ok: true, data: { examiners: state.examiners } };
+    if (url.endsWith("/settings")) {
+      return state.settings
+        ? { ok: true, data: { settings: state.settings, isDefault: false, updatedAt: "2026-09-27T09:00:00Z" } }
+        : { ok: true, data: { settings: { invite_ttl_days: 14, reminders_enabled: true, reminder_after_hours: 48 }, isDefault: true, updatedAt: null } };
+    }
     throw new Error(`unexpected GET ${url}`);
   }),
 }));
@@ -72,6 +83,7 @@ beforeEach(() => {
   asRole("recruiter");
   state.calls = [];
   state.refuse = null;
+  state.settings = null;
   state.reps = [{ id: REP, full_name: "Miroslav Jokovic", title: "Owner", created_at: "2026-09-01T12:00:00Z" }];
   state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "2026-09-02T12:00:00Z" }];
   vi.stubGlobal("confirm", () => true);
@@ -111,7 +123,8 @@ describe("who may change the register", () => {
 
     asRole("auditor");
     const ro = await page();
-    expect(ro.find("input").exists()).toBe(false);
+    expect(section(ro, "Representatives").find("input").exists()).toBe(false);
+    expect(section(ro, "Road-test examiners").find("input").exists()).toBe(false);
     expect(section(ro, "Road-test examiners").text()).toContain("No examiner is on file yet");
   });
 });
@@ -204,5 +217,67 @@ describe("adding somebody", () => {
     await inputs[1]!.setValue("Safety manager");
     const submit = s.findAll("button").find((b) => b.text() === "Add representative")!;
     expect(submit.attributes("disabled")).toBeDefined();
+  });
+});
+
+describe("the application links (Q-AW41)", () => {
+  const links = (w: ReturnType<typeof mount>) => section(w, "Application links");
+  const inputs = (w: ReturnType<typeof mount>) => links(w).findAll("input");
+  const saveButton = (w: ReturnType<typeof mount>) => links(w).findAll("button").find((b) => b.text() === "Save");
+
+  it("shows the product's defaults and says nobody has changed them", async () => {
+    const w = await page();
+    expect(links(w).text()).toContain("These are the product's defaults");
+    expect((inputs(w)[0]!.element as HTMLInputElement).value).toBe("14");
+    expect((inputs(w)[1]!.element as HTMLInputElement).value).toBe("48");
+    // Nothing changed yet, so nothing to save.
+    expect(saveButton(w)!.attributes("disabled")).toBeDefined();
+  });
+
+  it("saves the whole set as numbers", async () => {
+    const w = await page();
+    await inputs(w)[0]!.setValue("7");
+    await inputs(w)[1]!.setValue("72");
+    await saveButton(w)!.trigger("click");
+    await settle(w);
+    expect(state.calls).toEqual([
+      { url: "/api/recruitment/settings", method: "PUT", body: { invite_ttl_days: 7, reminders_enabled: true, reminder_after_hours: 72 } },
+    ]);
+  });
+
+  it("refuses, in the contract's words, a reminder that would come after the link dies", async () => {
+    const w = await page();
+    await inputs(w)[0]!.setValue("2");
+    await settle(w);
+    expect(links(w).text()).toContain("The reminder must go before the link expires");
+    expect(saveButton(w)!.attributes("disabled")).toBeDefined();
+  });
+
+  it("switched off, hides the delay and saves it unchanged", async () => {
+    const w = await page();
+    links(w).findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", false);
+    await settle(w);
+    expect(inputs(w)).toHaveLength(1);
+    await inputs(w)[0]!.setValue("1");
+    await saveButton(w)!.trigger("click");
+    await settle(w);
+    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 1, reminders_enabled: false, reminder_after_hours: 48 });
+  });
+
+  it("refuses a link longer than 60 days", async () => {
+    const w = await page();
+    await inputs(w)[0]!.setValue("61");
+    await settle(w);
+    expect(links(w).text()).toContain("Between 1 and 60 days.");
+    expect(saveButton(w)!.attributes("disabled")).toBeDefined();
+  });
+
+  it("shows an auditor the values and no Save", async () => {
+    asRole("auditor");
+    state.settings = { invite_ttl_days: 9, reminders_enabled: true, reminder_after_hours: 30 };
+    const w = await page();
+    expect(links(w).text()).toContain("Last changed");
+    expect(inputs(w)[0]!.attributes("disabled")).toBeDefined();
+    expect(saveButton(w)).toBeUndefined();
   });
 });

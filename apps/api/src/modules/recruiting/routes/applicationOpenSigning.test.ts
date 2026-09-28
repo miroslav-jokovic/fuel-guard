@@ -49,10 +49,13 @@ const seed = (over: {
   rpc?: Record<string, unknown>;
   /** The draft's `applying_as`, as the path select hands it back (Q-HM14). */
   applyingAs?: string;
+  /** The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults. */
+  settings?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
+      recruiting_settings: over.settings ? [over.settings] : [],
       organizations: [{ name: "Silvicom Inc" }],
       drivers: [{ id: DRIVER, org_id: ORG, hire_date: null, date_of_birth: "1980-04-01", cdl_number: "D1", cdl_state: "IL" }],
       driver_authorizations: [],
@@ -182,6 +185,14 @@ describe("the applicant's link before the office opens signing", () => {
 });
 
 describe("the office opens signing", () => {
+  it("extends the link by the carrier's own lifetime (Q-AW41)", async () => {
+    const rec = seed({ settings: { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" } });
+    holder.client = rec.client;
+    expect((await open()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "open_packet_signing")!.args as Record<string, unknown>;
+    expect(args.p_extend_days).toBe(5);
+  });
+
   it("mints the sign link through 0369's function and hands it back on screen", async () => {
     const rec = seed();
     holder.client = rec.client;

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  INVITE_TTL_DAYS_DEFAULT,
   canResendApplicationLink,
   renderApplicationInviteEmail,
   renderApplicationLinkResentEmail,
@@ -10,6 +9,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { mintIntakeRow } from "./applicantIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The office's hold on an applicant's link (C2e: Q-AX5, Q-AX6).
@@ -79,6 +79,9 @@ async function applicantOf(admin: SupabaseClient, orgId: string, driverId: strin
  * A new invitation (H5) — moved here from the route unchanged in behaviour, because "send the link
  * again" needs it too when the current one is finished.
  *
+ * `days` is the invite drawer's override for this one link; absent, the carrier's own lifetime
+ * (Q-AW41, `recruitingSettings`) — never a constant, which would quietly overrule the carrier.
+ *
  * ⚠ Sending never decides whether the invitation exists: the row and the audit are committed before
  * the mailer is touched, and a refused send is reported rather than raised (the route's header).
  */
@@ -91,7 +94,7 @@ export async function createApplicationInvite(
   if (isApplicationLinkError(applicant)) return applicant;
 
   const { token, hash } = mintInvitationToken();
-  const days = input.days ?? INVITE_TTL_DAYS_DEFAULT;
+  const days = input.days ?? (await recruitingSettings(admin, input.orgId)).invite_ttl_days;
   const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
   const { data, error } = await admin
     .from("application_invitations")
@@ -136,8 +139,8 @@ export async function createApplicationInvite(
 }
 
 /**
- * The same invitation, a new link (Q-AX5): rotate the hash and keep the link alive for another
- * `INVITE_TTL_DAYS_DEFAULT` days — never shortening it (0232's rule, as the handbook's extension).
+ * The same invitation, a new link (Q-AX5): rotate the hash and keep the link alive for another of the
+ * carrier's link lifetimes (Q-AW41) — never shortening it (0232's rule, as the handbook's extension).
  *
  * The UPDATE is conditional on the invitation still being re-sendable, so a revoke or a handbook filing
  * that lands between the read and the write is honoured rather than overwritten.
@@ -149,7 +152,8 @@ async function resendOnInvitation(
   now: Date,
 ): Promise<ApplicationLinkResult | ApplicationLinkError> {
   const { invitation } = input;
-  const floor = new Date(now.getTime() + INVITE_TTL_DAYS_DEFAULT * 86_400_000);
+  const { invite_ttl_days: ttl } = await recruitingSettings(admin, input.orgId);
+  const floor = new Date(now.getTime() + ttl * 86_400_000);
   const expiresAt = Date.parse(invitation.expires_at) > floor.getTime() ? invitation.expires_at : floor.toISOString();
   const { token, hash } = mintInvitationToken();
   const { data, error } = await admin

@@ -2,6 +2,7 @@
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
+import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsForm.vue";
 
 /**
  * Settings → Recruiting (APPLICATION-FLOW-V2-PLAN.md R1, Q-AW42 ruled (a) by the owner 2026-09-28).
@@ -22,15 +23,25 @@ import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
  * `settings: none` can use it by URL, though they have no link to it: the owner ruled the admin keeps
  * this register, and a recruiter adds one inline from the panels when a hire needs it.
  *
- * ── ROOM FOR THE NEXT SECTION ─────────────────────────────────────────────────────────────────
- * Q-AW41's invitation settings (the link's lifetime and the reminder, S1/S2) land on this page as a
- * third `SettingsSection`; each section is self-contained so adding one moves nothing here.
+ * ── APPLICATION LINKS (S2, Q-AW41) ────────────────────────────────────────────────────────────
+ * The link's lifetime and the reminder, first on the page because it shapes every invitation, where the
+ * two registers above are consulted once per hire. `RecruitingSettingsForm` holds its own reads and
+ * gate, as each register does, so the sections stay independent.
  */
 </script>
 
 <template>
   <div class="space-y-8">
-    <PageHeader description="The people who sign hiring paperwork for the carrier." />
+    <PageHeader description="How application links behave, and the people who sign hiring paperwork for the carrier." />
+
+    <SettingsSection
+      title="Application links"
+      description="How long a driver's link stays open, and whether a driver who stops is reminded."
+    >
+      <div class="rounded-surface bg-surface p-4 ring-1 ring-edge">
+        <RecruitingSettingsForm />
+      </div>
+    </SettingsSection>
 
     <SettingsSection
       title="Representatives"

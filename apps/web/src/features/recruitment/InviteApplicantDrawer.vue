@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { rolesThatManage } from "@silvicom/shared";
+import { INVITE_TTL_DAYS_MAX, rolesThatManage } from "@silvicom/shared";
 import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import { useCreateApplicant } from "@/features/recruitment/useCreateApplicant";
+import { useRecruitingSettings } from "@/features/recruitment/useRecruitingSettings";
 import {
   findApplicantMatches,
   useCreateApplicationInvite,
@@ -55,6 +56,13 @@ import {
  * email — archived ones too, which is where those four were — and offers "Send them the link again" on
  * that record: their own application, their own link, nothing duplicated. "This is someone else" still
  * adds them; two drivers can share a name.
+ *
+ * ── THIS LINK'S LIFETIME (Q-AW41) ─────────────────────────────────────────────────────────────
+ * Left blank, the new link lives the carrier's own lifetime (Settings → Recruiting), which the api reads —
+ * the field shows it as its placeholder and never sends it back, so a carrier's later change is never
+ * frozen into a value this drawer happened to hold. Typed, it is this one link's override. It applies to a
+ * NEW invitation only: "Send them the link again" keeps the applicant's invitation and extends it by the
+ * carrier's lifetime, as every other re-send does.
  */
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
@@ -63,6 +71,8 @@ const session = useSessionStore();
 const toast = useToastStore();
 const createApplicant = useCreateApplicant();
 const createInvite = useCreateApplicationInvite();
+const settingsQ = useRecruitingSettings();
+const carrierDays = computed(() => settingsQ.data.value?.settings.invite_ttl_days ?? null);
 const sendAgain = useSendApplicationLinkAgain();
 
 /** Same gate the driver-page card uses — the section matrix, never a role literal. */
@@ -74,6 +84,8 @@ const canInvite = computed(() => {
 const firstName = ref("");
 const lastName = ref("");
 const email = ref("");
+/** Blank = the carrier's lifetime. */
+const linkDays = ref("");
 const link = ref<string | null>(null);
 const delivery = ref<ApplicationInviteDelivery | null>(null);
 /** Set only in the halfway state: the applicant exists and the invitation did not happen. */
@@ -89,6 +101,7 @@ watch(
     firstName.value = "";
     lastName.value = "";
     email.value = "";
+    linkDays.value = "";
     link.value = null;
     delivery.value = null;
     orphaned.value = null;
@@ -98,7 +111,12 @@ watch(
 // A changed name or email is a different question; the old answer must not stand for it.
 watch([firstName, lastName, email], () => (matches.value = null));
 
-const ready = computed(() => firstName.value.trim() !== "" && lastName.value.trim() !== "");
+const overrideDays = computed<number | undefined>(() => (linkDays.value.trim() === "" ? undefined : Number(linkDays.value)));
+const daysValid = computed(() => {
+  const d = overrideDays.value;
+  return d === undefined || (Number.isInteger(d) && d >= 1 && d <= INVITE_TTL_DAYS_MAX);
+});
+const ready = computed(() => firstName.value.trim() !== "" && lastName.value.trim() !== "" && daysValid.value);
 const working = computed(
   () => checking.value || createApplicant.isPending.value || createInvite.isPending.value || sendAgain.isPending.value,
 );
@@ -154,6 +172,7 @@ async function addNew(): Promise<void> {
     const result = await createInvite.mutateAsync({
       driverId,
       email: email.value.trim() || null,
+      expiresInDays: overrideDays.value,
     });
     link.value = result.link;
     delivery.value = result.delivery;
@@ -188,6 +207,25 @@ async function addNew(): Promise<void> {
           hint="Optional — the link is emailed to this address. Leave it blank and you send the link yourself."
         >
           <BaseInput :id="id" v-model="email" type="email" placeholder="Optional" autocomplete="off" />
+        </FormField>
+        <FormField
+          v-slot="{ id }"
+          label="Link stays open for (days)"
+          :hint="carrierDays === null
+            ? 'Optional — leave blank for the carrier\'s setting.'
+            : `Optional — leave blank for the carrier's setting, ${carrierDays} days.`"
+          :error="daysValid ? undefined : `Between 1 and ${INVITE_TTL_DAYS_MAX} days.`"
+        >
+          <BaseInput
+            :id="id"
+            v-model="linkDays"
+            type="number"
+            min="1"
+            :max="INVITE_TTL_DAYS_MAX"
+            inputmode="numeric"
+            :placeholder="carrierDays === null ? '' : String(carrierDays)"
+            class="max-w-32"
+          />
         </FormField>
       </template>
 
