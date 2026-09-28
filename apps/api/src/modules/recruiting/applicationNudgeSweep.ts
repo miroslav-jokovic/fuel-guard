@@ -3,7 +3,6 @@ import {
   APPLICATION_SECTION_LABELS,
   INVITE_TTL_DAYS_DEFAULT,
   planApplicationNudges,
-  smsApplicationReminder,
   type NudgeCandidate,
   type NudgePart,
   type PlannedNudge,
@@ -13,7 +12,7 @@ import { sendEmail } from "../../lib/mailer.js";
 import { fetchAllPaged } from "../../lib/paging.js";
 import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
-import { sendApplicationSms } from "./applicationSms.js";
+import { sendOrQueueSms } from "./smsOutbox.js";
 
 /**
  * The abandonment sweep (A10, D-APP15) — one email to a driver who walked away, and one alert to the
@@ -220,18 +219,6 @@ export interface NudgeSweepResult {
 }
 
 /**
- * The text.
- *
- * Carrier identification is not decoration: every US carrier's messaging rules require the sender to
- * be identifiable in the body, and `STOP` has to be discoverable from the message itself rather than
- * from a consent somebody signed weeks ago. What is left after those two is the link, so the copy says
- * the one thing the email says at length — this link is the live one — and nothing else. The words
- * live in `smsConsentContract.ts` beside every other message this programme sends, so the set a
- * toll-free verification is submitted with is one file (SMS-OPT-IN-PLAN §6).
- */
-export const smsBody = smsApplicationReminder;
-
-/**
  * One org's sweep.
  *
  * ⚠ An invitation with no address still alerts the office and is NOT stamped. The office alert is the
@@ -288,13 +275,15 @@ export async function runApplicationNudgesOnce(
     /**
      * A11b: a text FIRST when the driver agreed to one, and the email regardless.
      *
-     * Not either/or, and the reason is the rotation. The token has already changed by the time either
-     * goes out, so a driver who consented to SMS and also has the original email would otherwise be
-     * left with a dead link in their inbox and a live one they might not see. Both carry the same new
-     * link, and every gate that could refuse the text — no consent, draft wording, quiet hours, an
-     * opt-out — leaves the email untouched, so a refusal is never a driver hearing nothing.
+     * Not either/or: every gate that could refuse the text — no consent, draft wording, an opt-out —
+     * leaves the email untouched, so a refusal is never a driver hearing nothing. Through the outbox
+     * since Q-AW29: after hours it waits for the driver's morning rather than being dropped, and its link
+     * is minted when it goes, on the invitation's TEXT token (0378) — never `link` above, which the email
+     * carries and which a later rotation of the text's token leaves alone.
      */
-    const texted = await sendApplicationSms(admin, env, orgId, nudge.driverId, smsBody(carrier, link), now);
+    const texted = await sendOrQueueSms(admin, env, {
+      orgId, driverId: nudge.driverId, invitationId: nudge.invitationId, template: "nudge", params: {},
+    }, now);
     if (texted.sent) messaged += 1;
 
     const { subject, text, html } = nudgeEmail(carrier, link, label, nudge.part);

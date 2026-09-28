@@ -57,13 +57,15 @@ const warnedAfter = computed(() => (result.value?.warnings ?? []).map((k) => hir
 /**
  * What became of the text (D-SMS7), in one sentence — and nothing at all for an applicant who never
  * agreed, because the status line below already says so and "not texted" there would read as a fault.
- * A held text is NOT retried: the email and the link on screen already carry it, and the sentence
- * says that rather than promising a text that will not come.
+ * Since Q-AW29 a text outside the applicant's hours WAITS and goes in their morning (`queued`), and the
+ * sentence says so. `quiet_hours` is what an API from before that answered, when the text was dropped
+ * and never retried; the two services can sit at different commits, so the old sentence stays for it.
  */
 const textLine = computed(() => {
   const text = result.value?.text;
   if (!text || text.reason === "no_consent") return null;
   if (text.sent) return "Also texted to the applicant.";
+  if (text.reason === "queued") return "It is night where the applicant lives, so it will be texted to them in the morning. The email and the link above carry it now.";
   if (text.reason === "quiet_hours") return "Not texted: it is outside daytime hours somewhere in the US. The email and the link above carry it.";
   if (text.reason === "consent_revoked" || text.reason === "no_number" || text.reason === "suppressed") return null;
   return "The text did not go through. The email and the link above carry it.";

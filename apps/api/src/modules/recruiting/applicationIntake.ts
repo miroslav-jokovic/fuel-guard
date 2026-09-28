@@ -71,6 +71,11 @@ interface InvitationRow {
    * back on the office's screen rather than emailed (D-AF3).
    */
   sign_token_hash: string | null;
+  /**
+   * The THIRD hash (Q-AW29, 0378): the one a text carries, minted when a link-bearing text is sent —
+   * at once, or by the outbox's drain hours later — so a queued text never rotates the email's link.
+   */
+  sms_token_hash?: string | null;
   expires_at: string;
   revoked_at: string | null;
   /** 15 U.S.C. 7001(c) consent recorded (A4 sets it; nothing sets it yet). */
@@ -164,7 +169,13 @@ export const phasesOf = (row: {
  * The `||` does leak WHICH hash matched, in timing. That is not a secret: both tokens were emailed to
  * the same person, and a caller who presents one already knows which one they hold.
  */
-function presentedTokenMatches(row: Pick<InvitationRow, "token_hash" | "sign_token_hash">, hash: string): boolean {
+/** A stored hash may be compared only when it is a real digest — see the note inside. */
+const isHash = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+
+function presentedTokenMatches(
+  row: Pick<InvitationRow, "token_hash" | "sign_token_hash" | "sms_token_hash">,
+  hash: string,
+): boolean {
   if (hashEquals(row.token_hash, hash)) return true;
   /**
    * ⚠ A truthiness check, and `!== null` was not enough — measured, it broke
@@ -174,8 +185,9 @@ function presentedTokenMatches(row: Pick<InvitationRow, "token_hash" | "sign_tok
    * `hashEquals` would then decode a non-string and either throw or compare nothing, so a missing
    * column could decide a token's fate. Nothing but a real hex digest may reach the compare.
    */
-  return typeof row.sign_token_hash === "string" && row.sign_token_hash.length > 0
-    && hashEquals(row.sign_token_hash, hash);
+  if (isHash(row.sign_token_hash) && hashEquals(row.sign_token_hash, hash)) return true;
+  // Q-AW29: the text's own link. Same rule, same reason — most invitations have never been texted one.
+  return isHash(row.sms_token_hash) && hashEquals(row.sms_token_hash, hash);
 }
 
 /**
@@ -185,12 +197,14 @@ function presentedTokenMatches(row: Pick<InvitationRow, "token_hash" | "sign_tok
  * time. The second compare is not redundant paranoia about the index: it keeps the code honest if
  * somebody later widens the lookup, and it costs a microsecond on a path that runs once per hire.
  *
- * ── ⚠ TWO DOORS, ONE INVITATION (A5b, D-AX15) ─────────────────────────────────────────────────
+ * ── ⚠ THREE DOORS, ONE INVITATION (A5b, D-AX15; Q-AW29) ──────────────────────────────────────
  * Somebody later did widen the lookup. `token_hash` is the link the applicant was invited with;
  * `sign_token_hash` was minted when the office approved, so the approval email could carry a link of
  * its own (0345); since AF5 it is minted when the office opens signing in person, and shown on the
  * office's screen (D-AF3, 0369). Either opens this invitation and both keep working — the amendment
- * to D-AX14 is that the sign link ADDS a door rather than moving one.
+ * to D-AX14 is that the sign link ADDS a door rather than moving one. Since Q-AW29 (0378) there is a
+ * THIRD, `sms_token_hash`: the link a text carries, minted when the text is actually sent, so a text
+ * that waited overnight for its window never rotates the link the email and the office's screen hold.
  *
  * ⚠ The `.or()` interpolates a value derived from the caller, which is normally how a filter becomes
  * an injection. It is safe by construction and only by construction: `hashInvitationToken` returns a
@@ -222,11 +236,11 @@ export async function resolveInvitation(
   const { data } = await admin
     .from("application_invitations")
     .select(
-      "id, org_id, driver_id, token_hash, sign_token_hash, expires_at, revoked_at, consented_at, "
+      "id, org_id, driver_id, token_hash, sign_token_hash, sms_token_hash, expires_at, revoked_at, consented_at, "
       + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
       + "submitted_at, handbook_signing_opened_at, handbook_filed_at",
     )
-    .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash}`)
+    .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();
   const row = data as InvitationRow | null;
   const dead = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };

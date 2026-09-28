@@ -232,13 +232,38 @@ describe("either link opens the same application", () => {
     expect(row.id).toBe("inv-1");
   });
 
+  /**
+   * Q-AW29 (0378): the THIRD door — the link a text carried, minted when the text went. It opens the
+   * same invitation, and the other two keep working beside it; a text token on a row that has none, or
+   * a null, matches nothing.
+   */
+  it("opens on the token a text carried, beside the other two", async () => {
+    const TEXT_TOKEN = "t".repeat(43);
+    const texted = () => ({ ...approved(), sms_token_hash: hashInvitationToken(TEXT_TOKEN) });
+    for (const token of [TEXT_TOKEN, TOKEN, SIGN_TOKEN]) {
+      const row = await resolveInvitation(createSupabaseRecorder({ tables: { application_invitations: [texted()] } }).client, token, NOW);
+      expect(isIntakeError(row), token.slice(0, 1)).toBe(false);
+      if (!isIntakeError(row)) expect(row.id).toBe("inv-1");
+    }
+    for (const without of [approved(), { ...approved(), sms_token_hash: null }]) {
+      const rec = createSupabaseRecorder({ tables: { application_invitations: [without] } });
+      expect(await resolveInvitation(rec.client, TEXT_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
+    }
+    // Revocation kills every door, the text's included.
+    const revoked = createSupabaseRecorder({ tables: { application_invitations: [{ ...texted(), revoked_at: "2026-08-21T00:00:00Z" }] } });
+    expect(await resolveInvitation(revoked.client, TEXT_TOKEN, NOW)).toMatchObject({ code: "invalid_link" });
+  });
+
   it("asks PostgREST for both columns, so a sign token can match at all", async () => {
     const rec = createSupabaseRecorder({ tables: { application_invitations: [approved()] } });
     await resolveInvitation(rec.client, SIGN_TOKEN, NOW);
     const ops = rec.forTable("application_invitations")[0]!.ops;
     expect(String(ops.find((o) => o.method === "select")?.args[0])).toContain("sign_token_hash");
+    // Q-AW29 (0378): and the text's own token, the third door.
+    expect(String(ops.find((o) => o.method === "select")?.args[0])).toContain("sms_token_hash");
+    const h = hashInvitationToken(SIGN_TOKEN);
     expect(String(ops.find((o) => o.method === "or")?.args[0]))
-      .toBe(`token_hash.eq.${hashInvitationToken(SIGN_TOKEN)},sign_token_hash.eq.${hashInvitationToken(SIGN_TOKEN)}`);
+      .toBe(`token_hash.eq.${h},sign_token_hash.eq.${h},sms_token_hash.eq.${h}`);
   });
 
   /**

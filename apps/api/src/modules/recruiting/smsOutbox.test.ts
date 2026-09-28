@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { loadEnv } from "../../env.js";
+import { hashInvitationToken } from "./applicationIntake.js";
 
 /**
  * The SMS outbox (A-11, D-AW12, C2d): a text outside its recipient's civil hours is queued and sent
@@ -29,8 +30,13 @@ afterEach(() => vi.restoreAllMocks());
 const consent = (over: Record<string, unknown> = {}) =>
   ({ org_id: ORG, driver_id: DRIVER, phone: "+17082365732", revoked_at: null, granted_at: "2026-09-25T10:00:00Z", ...over });
 
-const seed = (over: { consents?: unknown[]; state?: string | null; outbox?: unknown[]; appointments?: unknown[]; suppressions?: unknown[] } = {}) =>
+const seed = (over: {
+  consents?: unknown[]; state?: string | null; outbox?: unknown[]; appointments?: unknown[]; suppressions?: unknown[];
+  /** Q-AW29: the invitation a link-bearing text is about, and what the text-token rotation answers. */
+  invitations?: unknown[]; rotated?: unknown;
+} = {}) =>
   createSupabaseRecorder({
+    rpc: { rotate_invitation_sms_token: over.rotated === undefined ? true : over.rotated },
     tables: {
       sms_consents: postgrestFixture((over.consents ?? [consent()]) as Record<string, unknown>[]),
       application_intakes: postgrestFixture(
@@ -45,6 +51,9 @@ const seed = (over: { consents?: unknown[]; state?: string | null; outbox?: unkn
       drug_test_appointments: postgrestFixture((over.appointments ?? []) as Record<string, unknown>[]),
       sms_suppressions: postgrestFixture((over.suppressions ?? []) as Record<string, unknown>[]),
       organizations: [{ name: "Silvicom Inc", operating_hours: { tz: "America/Chicago" } }],
+      application_invitations: postgrestFixture((over.invitations ?? [
+        { id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: null, approved_at: null },
+      ]) as Record<string, unknown>[]),
     },
   });
 
@@ -195,6 +204,98 @@ describe("drainSmsOutboxForOrg", () => {
     const rec = seed({ outbox: [queued()] });
     expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ failed: 1 });
     expect(updates(rec)[1]).toMatchObject({ status: "failed", last_error: "Invalid destination", attempts: 1 });
+  });
+});
+
+/**
+ * Q-AW29 (a), 0378: the texts that carry the applicant's link. The link is never in the row — 0376
+ * refuses a URL in the params — and is minted when the text GOES, on the invitation's text-only token,
+ * so a text that waited overnight never rotates the link the email and the office's screen hold.
+ */
+describe("a text that carries the link", () => {
+  const rotation = (rec: ReturnType<typeof seed>) =>
+    rec.rpcs().find((r) => r.fn === "rotate_invitation_sms_token")?.args as Record<string, unknown> | undefined;
+  /** The token in the text, and the hash the rotation was handed: they must be one pair. */
+  const tokenIn = (body: string): string => body.match(/\/apply\/([A-Za-z0-9_-]+)/)?.[1] ?? "";
+
+  it.each([
+    ["application_sent", "Your driver application is ready"],
+    ["nudge", "Your driver application is saved"],
+  ] as const)("sends %s with a link minted now, on the text token, the pair matching", async (template, words) => {
+    const rec = seed();
+    let rotatedBeforeSend = false;
+    sms.fn.mockImplementation(async () => {
+      rotatedBeforeSend = rotation(rec) !== undefined;
+      return { ok: true, provider: "telnyx", messageId: "tx-1" };
+    });
+    const out = await sendOrQueueSms(rec.client, env, message({ template }), OPEN);
+    expect(out).toEqual({ sent: true, outboxId: "o-new" });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(body).toContain(words);
+    const args = rotation(rec)!;
+    expect(args).toMatchObject({ p_org: ORG, p_invitation: "inv-1" });
+    expect(hashInvitationToken(tokenIn(body))).toBe(args.p_token_hash);
+    // Rotate FIRST, then send: a failure between them costs a text, never a link that does not work yet.
+    expect(rotatedBeforeSend).toBe(true);
+    // The row holds no link, and the reason is 0376's word for it.
+    expect(rec.writtenRows("sms_outbox")[0]).toMatchObject({ template, reason: template, params: {} });
+    expect(JSON.stringify(rec.writtenRows("sms_outbox"))).not.toContain("/apply/");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("queues one outside the window WITHOUT minting a link — that waits for the send", async () => {
+    const rec = seed();
+    expect(await sendOrQueueSms(rec.client, env, message({ template: "application_sent" }), SHUT)).toMatchObject({ queued: true });
+    expect(rotation(rec)).toBeUndefined();
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  /** The rotation refuses a revoked or lapsed invitation, and a text that is only a link is then nothing. */
+  it("cancels, and sends nothing, when the invitation is no longer live", async () => {
+    const rec = seed({ rotated: false });
+    const out = await sendOrQueueSms(rec.client, env, message({ template: "nudge" }), OPEN);
+    expect(out).toMatchObject({ sent: false, failed: expect.any(String) });
+    expect(sms.fn).not.toHaveBeenCalled();
+    expect(rec.writtenRows("sms_outbox").at(-1)).toMatchObject({ status: "cancelled" });
+  });
+
+  const queued = (template: string) => ({
+    id: "o-1", org_id: ORG, driver_id: DRIVER, invitation_id: "inv-1", phone: "+17082365732", template,
+    params: {}, attempts: 0, status: "queued", not_before: "2027-01-12T15:00:00Z", expires_at: "2027-01-13T15:00:00Z",
+  });
+
+  it("drains a queued one in the morning, minting its link then", async () => {
+    const rec = seed({ outbox: [queued("application_sent")] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toEqual({ sent: 1, failed: 0, cancelled: 0, deferred: 0 });
+    const body = String(sms.fn.mock.calls[0]![1].body);
+    expect(hashInvitationToken(tokenIn(body))).toBe(rotation(rec)!.p_token_hash);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it.each([
+    ["handed to the office", { review_requested_at: "2027-01-12T10:00:00Z" }],
+    ["approved", { approved_at: "2027-01-12T10:00:00Z" }],
+    ["filed", { submitted_at: "2027-01-12T10:00:00Z" }],
+  ])("cancels a queued one whose application was %s overnight, minting nothing", async (_label, moved) => {
+    const rec = seed({
+      outbox: [queued("nudge")],
+      invitations: [{ id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: null, approved_at: null, ...moved }],
+    });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 0, cancelled: 1 });
+    expect(rotation(rec)).toBeUndefined();
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  it("counts one the rotation refused as cancelled, not failed", async () => {
+    const rec = seed({ outbox: [queued("application_sent")], rotated: false });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toEqual({ sent: 0, failed: 0, cancelled: 1, deferred: 0 });
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  it("cancels a queued link text that names no invitation — there is no link to mint", async () => {
+    const rec = seed({ outbox: [{ ...queued("nudge"), invitation_id: null }] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 0, cancelled: 1 });
+    expect(sms.fn).not.toHaveBeenCalled();
   });
 });
 
