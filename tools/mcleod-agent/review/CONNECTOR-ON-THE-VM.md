@@ -27,8 +27,11 @@ can do it together.
 - `connector.example.env`: a template for the config. The real file is `connector.env`. It holds
   two secrets, the LME password and our upload token, which we'll send separately. Keep the quotes
   around both: Node reads an unquoted value only up to the first `#`.
-- It writes two small files of its own next to the code:
-  - `service-state.json`: what it has already sent.
+- It writes a few small files of its own next to the code:
+  - `service-state.json`: what it has already sent, and which loads it still has to check on. It's
+    written to a temporary file first and then swapped in, with the previous copy kept as
+    `service-state.json.bak`, so a power cut can't leave it half-written.
+  - `roster-state.json`: the same for drivers, trucks and trailers.
   - `service.lock`: stops a second copy from starting.
 
 
@@ -49,6 +52,9 @@ node --env-file=connector.env agent.mjs --service
   licence details. Under systemd that lands in the journal. It can also write to a file if
   `CONNECTOR_LOG` is set; that file rolls over at 20 MB.
 - On SIGTERM it closes the LME connection and exits cleanly.
+- It only sends to an `https://` address, and it won't start if a second copy is already running.
+- If our side is slow, it gives up on a request after 60 seconds and tries again later. If our side
+  refuses something, it logs why once and carries on with the other feeds.
 - If LME is busy (three timeouts in a row), it pauses for 15 minutes on its own.
 - If the service is restarted, it carries on where it left off.
 
@@ -66,6 +72,7 @@ ExecStart=/usr/bin/node --env-file=connector.env agent.mjs --service
 Restart=always
 RestartSec=60
 User=silvicom
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
@@ -81,7 +88,10 @@ As agreed, nothing goes on a timer until we've done these together:
    of them carry each field. It prints no addresses, names or phone numbers, and it sends nothing.
    The count should match the McLeod board (about 160 loads).
 2. **A one-time cleanup:** we close the loads that Silvicom 360 still shows as open but that have
-   since been delivered or voided in McLeod. That's about 180 movement ids, one keyed read.
+   since been delivered or voided in McLeod. We bring the list of movement ids as a text file, one
+   per line, and run `node --env-file=connector.env agent.mjs --close --ids-file=close-ids.txt`.
+   On 28 September that was 293 ids (289 delivered, 4 voided), read in one keyed statement per 300.
+   It only closes what LME itself says is delivered or void; anything else is left as it is.
 3. **Start the service,** and watch the first few minutes of the log together.
 4. **Switch off the roster sync** on my laptop.
 

@@ -380,18 +380,3 @@ export function loadHash(load) {
         : v;
   return createHash("sha256").update(JSON.stringify(canon(load))).digest("hex").slice(0, 32);
 }
-
-/**
- * Split a board against what was last posted: the loads to post (new or changed), and the movement
- * ids we hold open that are no longer on the board — the input to the close read.
- */
-export function planLoadPosts(boardLoads, posted) {
-  const changed = [];
-  const onBoard = new Set();
-  for (const load of boardLoads) {
-    onBoard.add(load.external_id);
-    if (posted[load.external_id] !== loadHash(load)) changed.push(load);
-  }
-  const leftBoard = Object.keys(posted).filter((id) => !onBoard.has(id));
-  return { changed, leftBoard };
-}

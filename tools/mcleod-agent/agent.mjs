@@ -33,6 +33,15 @@ import { fetchDispatchLoads, fetchClosedLoads, loadHash } from "./loads.mjs";
 import { describeDryRun, describeMirrorDryRun } from "./dryRun.mjs";
 import { holdConnection, releaseConnection, breakerState } from "./connection.mjs";
 import { dueJobs, JOBS } from "./schedule.mjs";
+import {
+  LOCK_HEARTBEAT_MS,
+  loadServiceState as readServiceState,
+  postJson,
+  saveServiceState as writeServiceState,
+  serviceConfigProblems,
+  takeLock,
+  validateIngestUrl,
+} from "./service.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
 
@@ -178,10 +187,23 @@ function fail(msg) {
 if (!CFG.inspect && !CFG.dryRun && (!CFG.ingestUrl || !CFG.ingestToken)) {
   fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 }
+// The token goes wherever this URL points, so it is checked before anything is read or sent: https,
+// an origin, no credentials in it (service.mjs, audit 2026-09-28).
+if (CFG.ingestUrl) {
+  try {
+    CFG.ingestUrl = validateIngestUrl(CFG.ingestUrl);
+  } catch (e) {
+    fail(e.message);
+  }
+}
+if (CFG.service) {
+  const problems = serviceConfigProblems({ rosterMode: CFG.rosterMode, dryRun: CFG.dryRun });
+  if (problems.length) fail(problems.join("\n  "));
+}
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
 if (CFG.roster || CFG.retire || CFG.inspect || CFG.dryRun || CFG.financial || CFG.loads || CFG.service || CFG.close) {
   for (const k of ["server", "database", "user", "password", "companyId"]) {
-    if (!CFG.sql[k]) fail(`--roster needs MCLEOD_SQL_${k === "companyId" ? "…MCLEOD_COMPANY_ID" : k.toUpperCase()}.`);
+    if (!CFG.sql[k]) fail(`Reading McLeod needs ${k === "companyId" ? "MCLEOD_COMPANY_ID" : `MCLEOD_SQL_${k.toUpperCase()}`}.`);
   }
   if (!["report", "link", "identity", "create", "reconcile"].includes(CFG.rosterMode)) {
     fail("ROSTER_MODE must be 'report', 'link', 'identity', 'create' or 'reconcile'.");
@@ -211,30 +233,18 @@ function postFail(msg) {
   fail(msg);
 }
 
-/** POST JSON to FuelGuard with the ingest token, retrying transient failures with backoff. */
+/**
+ * POST JSON to FuelGuard with the ingest token (`postJson`, service.mjs): a timeout on every attempt,
+ * transient failures retried with backoff, a refusal reported at once and never retried.
+ */
 async function postToFuelGuard(path, body) {
   // The backstop under every dry run: each feed skips its own sends, and this refuses the one a
   // future feed forgets. A dry run is what gets typed in front of the carrier; it must never write.
   if (CFG.dryRun) fail(`refusing to POST ${path} during a dry run — a dry run posts nothing`);
-  const url = `${CFG.ingestUrl}${path}`;
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${CFG.ingestToken}` },
-        body: JSON.stringify(body),
-      });
-      if (res.status === 401) postFail("FuelGuard rejected the ingest token (401). Re-check FUELGUARD_INGEST_TOKEN.");
-      if (res.status >= 500 || res.status === 429) throw new Error(`HTTP ${res.status}`); // transient → retry
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) postFail(`FuelGuard ${path} rejected the payload (HTTP ${res.status}): ${JSON.stringify(json)}`);
-      return json;
-    } catch (e) {
-      if (attempt === 4) postFail(`FuelGuard ${path} unreachable after retries: ${e.message}`);
-      const backoff = 1000 * 2 ** (attempt - 1);
-      log(`POST ${path} failed (${e.message}); retrying in ${backoff}ms…`);
-      await sleep(backoff);
-    }
+  try {
+    return await postJson({ origin: CFG.ingestUrl, path, token: CFG.ingestToken, body, sleep, log });
+  } catch (e) {
+    postFail(e.message);
   }
 }
 
@@ -621,9 +631,28 @@ function describeMirror(movements) {
 /** POST mirror movements in batches of 500 (the contract's cap); returns the summed ingest result. */
 async function postMirror(companyId, movements) {
   const total = { movements: 0, stops: 0, stopsRemoved: 0, closed: 0 };
+  const refused = [];
+  const unmatched = new Set();
   for (const part of chunk(movements, 500)) {
     const r = await postToFuelGuard("/api/tms/dispatch-movements", { company_id: companyId, movements: part });
     for (const k of Object.keys(total)) total[k] += r?.[k] ?? 0;
+    refused.push(...(r?.projection?.refused ?? []));
+    for (const code of r?.projection?.unmatched ?? []) unmatched.add(code);
+  }
+  // What the API stored but could not turn into a load, and the McLeod codes it could not match to our
+  // roster. Until 2026-09-28 this was summed away: the API said it in its response and nobody read it,
+  // so a load with no order, a new McLeod status, or a truck missing from the roster went unnoticed.
+  // Ids and fixed reason strings only — McLeod's codes, never names (Alex's logging condition).
+  if (refused.length) {
+    const byReason = {};
+    for (const x of refused) (byReason[x.reason] ??= []).push(x.movement_id);
+    for (const [reason, ids] of Object.entries(byReason)) {
+      log(`mirror: ${ids.length} movement(s) stored but NOT projected (${reason}): ${ids.slice(0, 20).join(", ")}${ids.length > 20 ? " …" : ""}`);
+    }
+  }
+  if (unmatched.size) {
+    const codes = [...unmatched];
+    log(`mirror: ${codes.length} McLeod code(s) not on our roster, loaded without them: ${codes.slice(0, 20).join(", ")}${codes.length > 20 ? " …" : ""}`);
   }
   return total;
 }
@@ -718,70 +747,9 @@ async function runFinancial() {
 
 
 // ── --service (CA3) ─────────────────────────────────────────────────────────────────────────────────
-/**
- * One copy only. Two services on one VM would double every read the letter promised the carrier, so
- * a second copy refuses to start.
- *
- * The lock records the holder's pid AND is rewritten every tick, and a lock counts as held only when
- * both are true: its process exists and it was touched within LOCK_STALE_MS. The pid alone is not
- * enough on Windows, which reuses process ids — after a reboot a leftover lock can name some
- * unrelated live process, and a pid-only check would then refuse to start the service for good.
- */
-const LOCK_STALE_MS = 2 * 60_000;
-
-function takeLock(path) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const fd = openSync(path, "wx");
-      writeFileSync(fd, String(process.pid));
-      closeSync(fd);
-      return () => {
-        try {
-          unlinkSync(path);
-        } catch {
-          /* already gone */
-        }
-      };
-    } catch (e) {
-      if (e.code !== "EEXIST") throw e;
-      const pid = Number(readFileSync(path, "utf8").trim());
-      const fresh = Date.now() - statSync(path).mtimeMs < LOCK_STALE_MS;
-      let alive = false;
-      try {
-        if (pid > 0) process.kill(pid, 0);
-        alive = pid > 0;
-      } catch (err) {
-        alive = err.code === "EPERM";
-      }
-      if (alive && fresh) fail(`another connector is already running (pid ${pid}, lock ${path}). Refusing to start a second.`);
-      log(`service: removing stale lock from pid ${pid} (${alive ? "not touched for over 2 minutes" : "process gone"})`);
-      unlinkSync(path);
-    }
-  }
-  fail(`could not take the service lock at ${path}`);
-}
-
-/**
- * What the service remembers between cycles and restarts: when each feed last ran, and a hash of every
- * load it has posted. The KEYS are McLeod movement ids — the carrier's identifiers — so the file lives
- * beside the agent and is gitignored, exactly like roster-state.json.
- */
-function loadServiceState() {
-  // `mirrored` is `posted`'s twin for the raw mirror: a movement's ETA or actual times change without
-  // its load changing, so the two feeds cannot share one hash.
-  if (!existsSync(CFG.servicePath)) return { runs: {}, posted: {}, mirrored: {}, board: [], dispatchersHash: null };
-  const s = JSON.parse(readFileSync(CFG.servicePath, "utf8"));
-  return {
-    runs: s.runs ?? {},
-    posted: s.posted ?? {},
-    mirrored: s.mirrored ?? {},
-    board: s.board ?? [],
-    dispatchersHash: s.dispatchersHash ?? null,
-  };
-}
-function saveServiceState(state) {
-  writeFileSync(CFG.servicePath, JSON.stringify(state, null, 2));
-}
+/** What the service remembers between cycles and restarts (service.mjs: atomic, with a `.bak`). */
+const loadServiceState = () => readServiceState(CFG.servicePath, { log });
+const saveServiceState = (state) => writeServiceState(CFG.servicePath, state);
 
 /** The board, storing only movements that changed since they were last stored (and dispatchers likewise). */
 async function serviceLoads(state) {
@@ -883,17 +851,32 @@ function teeToLogFile(path) {
 
 async function runService() {
   const rollLog = process.env.CONNECTOR_LOG ? teeToLogFile(process.env.CONNECTOR_LOG) : () => {};
-  const release = takeLock(CFG.lockPath);
+  let lock;
+  try {
+    lock = takeLock(CFG.lockPath, { log });
+  } catch (e) {
+    fail(e.message);
+  }
   holdConnection();
   let stopping = false;
-  const stop = async (sig) => {
+  const stop = async (why, code = 0) => {
     if (stopping) return;
     stopping = true;
-    log(`service: ${sig} — closing the McLeod connection and exiting`);
+    clearInterval(beat);
+    log(`service: ${why} — closing the McLeod connection and exiting`);
     await releaseConnection();
-    release();
-    process.exit(0);
+    lock.release();
+    process.exit(code);
   };
+  // The heartbeat is a timer, so a cycle waiting on McLeod or the API cannot let the lock go stale. If
+  // the lock is no longer ours, another copy is running: stop rather than read McLeod beside it.
+  const beat = setInterval(() => {
+    try {
+      lock.heartbeat();
+    } catch (e) {
+      stop(e.message, 1);
+    }
+  }, LOCK_HEARTBEAT_MS);
   process.on("SIGINT", () => stop("SIGINT"));
   process.on("SIGTERM", () => stop("SIGTERM"));
 
@@ -930,12 +913,6 @@ async function runService() {
         if (b.open) log(`service: circuit breaker OPEN until ${new Date(b.openUntil).toISOString()} — McLeod is busy, backing off`);
       }
       saveServiceState(state);
-    }
-    // Heartbeat: a live service keeps its lock fresh (see takeLock).
-    try {
-      writeFileSync(CFG.lockPath, String(process.pid));
-    } catch {
-      /* the next tick tries again */
     }
     rollLog();
     await sleep(5_000);
