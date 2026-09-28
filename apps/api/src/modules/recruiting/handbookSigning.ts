@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   HANDBOOK_CARRIER_PLACEMENT_ID,
   HANDBOOK_PLACEMENTS,
-  INVITE_TTL_DAYS_DEFAULT,
   handbookPlacementById,
   handbookStatus,
   type OfficeHandbookStatus,
@@ -14,6 +13,7 @@ import { carrierOf, signatureMarkBytes } from "./applicationPdf/sources.js";
 import { handbookPdf, type HandbookMarkPrint } from "./applicationPdf/handbook/handbookPdf.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import { representativeForPrint } from "./representatives.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The driver handbook, signed on screen — the office's half (HANDBOOK-SIGNING-PLAN.md HB3; D-HB1..5).
@@ -107,18 +107,19 @@ export async function driverHandbookStatus(
 }
 
 /**
- * The link's new expiry for a handbook press: `max(expires_at, now + INVITE_TTL_DAYS_DEFAULT)` —
- * 0232's rule, the same one 0365/0369 apply in SQL: an extension never SHORTENS a link. Null when the
- * link already outlives the window, so nothing is written or audited.
+ * The link's new expiry for a handbook press: `max(expires_at, now + days)`, `days` being the carrier's
+ * link lifetime (Q-AW41) — 0232's rule, the same one 0365/0369 apply in SQL: an extension never SHORTENS
+ * a link. Null when the link already outlives the window, so nothing is written or audited.
  */
-export function handbookLinkExpiry(expiresAt: string, now: Date): string | null {
-  const floor = new Date(now.getTime() + INVITE_TTL_DAYS_DEFAULT * 86_400_000);
+export function handbookLinkExpiry(expiresAt: string, now: Date, days: number): string | null {
+  const floor = new Date(now.getTime() + days * 86_400_000);
   return Date.parse(expiresAt) >= floor.getTime() ? null : floor.toISOString();
 }
 
 /**
  * The office opens handbook signing, at the desk — and every press, the first or a later one, keeps
- * the driver's link alive for another `INVITE_TTL_DAYS_DEFAULT` days (APPLICATION-FLOW-V2-PLAN.md A-2).
+ * the driver's link alive for another of the carrier's link lifetimes (APPLICATION-FLOW-V2-PLAN.md A-2,
+ * Q-AW41).
  *
  * ⚠ WHY THE EXTENSION SITS ABOVE THE "ALREADY OPENED" RETURN. 0374's guard refuses every handbook
  * mark once `expires_at <= now()` (HB021) — the driver's five places AND the office's countersignature
@@ -144,7 +145,7 @@ export async function openHandbookSigning(
   }
   if (inv.handbook_filed_at) return { code: "already_filed", message: "The handbook is already signed and filed." };
 
-  const newExpiry = handbookLinkExpiry(inv.expires_at, now);
+  const newExpiry = handbookLinkExpiry(inv.expires_at, now, (await recruitingSettings(admin, orgId)).invite_ttl_days);
   if (newExpiry) {
     const { error } = await admin
       .from("application_invitations")

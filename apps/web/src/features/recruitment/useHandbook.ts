@@ -65,15 +65,16 @@ export function useHandbookStatus(driverId: Ref<string>) {
   });
 }
 
-function useHandbookAct<T>(driverId: Ref<string>, path: string, fallback: string) {
+function useHandbookAct<T, R = unknown>(driverId: Ref<string>, path: string, fallback: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body?: T): Promise<void> => {
-      const res = await apiFetch(`/api/recruitment/applicants/${encodeURIComponent(driverId.value)}/handbook/${path}`, {
+    mutationFn: async (body?: T): Promise<R> => {
+      const res = await apiFetch<R>(`/api/recruitment/applicants/${encodeURIComponent(driverId.value)}/handbook/${path}`, {
         method: "POST",
         body: body ?? {},
       });
       if (!res.ok) throw new Error(res.error?.message ?? fallback);
+      return res.data as R;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: handbookKey(driverId.value) });
@@ -84,8 +85,9 @@ function useHandbookAct<T>(driverId: Ref<string>, path: string, fallback: string
   });
 }
 
+/** Open (and Extend): the answer carries the link's expiry, which is the carrier's lifetime from now (Q-AW41). */
 export const useOpenHandbook = (driverId: Ref<string>) =>
-  useHandbookAct<never>(driverId, "open", "Could not open handbook signing.");
+  useHandbookAct<never, { expiresAt: string; extended: boolean }>(driverId, "open", "Could not open handbook signing.");
 
 export const useCountersignHandbook = (driverId: Ref<string>) =>
   useHandbookAct<{ representative_id: string }>(driverId, "countersign", "Could not countersign the handbook.");

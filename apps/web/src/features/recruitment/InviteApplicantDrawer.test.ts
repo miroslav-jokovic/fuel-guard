@@ -15,6 +15,11 @@ import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.
  * them makes an applicant who never appears or a link that is quietly re-shown.
  */
 const calls: Array<{ path: string; init?: { method?: string; body?: unknown } }> = [];
+/**
+ * The carrier's link lifetime, read when the drawer mounts (Q-AW41) — kept out of `calls`, which is the
+ * log of what the drawer DOES; a read on mount is not an act and would shift every index below.
+ */
+const settingsReads = vi.hoisted(() => ({ n: 0 }));
 const fail = vi.hoisted(() => ({ invite: false }));
 /** What the board's duplicate check answers (Q-AX6). Empty by default: nobody is on the board yet. */
 const board = vi.hoisted(() => ({ matches: [] as Array<{ id: string; full_name: string; email: string | null; archived: boolean }> }));
@@ -32,6 +37,10 @@ vi.mock("@/stores/session", () => ({
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
+    if (path === "/api/recruitment/settings") {
+      settingsReads.n += 1;
+      return { ok: true, data: { settings: { invite_ttl_days: 10, reminders_enabled: true, reminder_after_hours: 48 }, isDefault: false, updatedAt: "2026-09-28T12:00:00Z" } };
+    }
     calls.push({ path, init });
     if (path === "/api/roster/drivers") {
       return { ok: true, data: { driver: { id: "d-new", full_name: "Dana Reyes", status: "applicant" } } };
@@ -183,6 +192,50 @@ describe("inviting an applicant from the board", () => {
         "/api/roster/drivers",
         "/api/recruitment/application-invites",
       ]);
+    });
+  });
+
+  describe("this link's lifetime (Q-AW41)", () => {
+    const fill = async (w: ReturnType<typeof mountWith>, days: string) => {
+      const inputs = w.findAll("input");
+      await inputs[0]!.setValue("Dana");
+      await inputs[1]!.setValue("Reyes");
+      await inputs[3]!.setValue(days);
+    };
+    const inviteBody = () =>
+      calls.find((c) => c.path === "/api/recruitment/application-invites")!.init!.body as Record<string, unknown>;
+
+    it("shows the carrier's lifetime, and leaves it to the api when left blank", async () => {
+      const w = mountWith("recruiter");
+      await settle(w);
+      expect(settingsReads.n).toBeGreaterThan(0);
+      expect(w.findAll("input")[3]!.attributes("placeholder")).toBe("10");
+      expect(w.text()).toContain("the carrier's setting, 10 days");
+      await fillAndSubmit(w);
+      expect(inviteBody()).toEqual({ driver_id: "d-new", email: null });
+    });
+
+    it("sends a typed number as this link's override", async () => {
+      const w = mountWith("recruiter");
+      await settle(w);
+      await fill(w, "30");
+      await w.findAll("button").find((b) => b.text() === "Add and create the link")!.trigger("click");
+      await settle(w);
+      expect(inviteBody()).toEqual({ driver_id: "d-new", email: null, expires_in_days: 30 });
+    });
+
+    it("refuses a lifetime outside 1 to 60 days, and sends nothing", async () => {
+      for (const bad of ["0", "61", "2.5"]) {
+        calls.length = 0;
+        const w = mountWith("recruiter");
+        await settle(w);
+        await fill(w, bad);
+        const submit = w.findAll("button").find((b) => b.text() === "Add and create the link")!;
+        expect(submit.attributes("disabled"), bad).toBeDefined();
+        expect(w.text()).toContain("Between 1 and 60 days.");
+        w.unmount();
+      }
+      expect(calls).toHaveLength(0);
     });
   });
 

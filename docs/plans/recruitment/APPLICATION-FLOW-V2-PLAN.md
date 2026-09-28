@@ -1585,3 +1585,30 @@ Append dated lines at the END.
   - **Checks:** `supabase/tests/recruiting-settings.test.mjs` (23), the RLS matrix seeds it explicitly (its CHECKs
     refuse invented integers), `recruiting_settings` pinned in `check-table-producers.mjs` until S2's save writes it.
     12 of 12 migration mutants killed.
+- 2026-09-28 — **S1 merged** (#1105, main `f9b043c`); CI green on the merged head. **0379 verified applied** in production
+  ~6½ minutes after the merge: the table, RLS on with no policies, its six constraints, no rows.
+- 2026-09-28 — **S2 built** (`claude/recruiting-settings-s2`): the reader of 0379 (Q-AW41). No migration.
+  - **The screen:** Settings → Recruiting gains "Application links" above the two registers: the link's lifetime in
+    days, "Remind a driver who stops" on/off, and the delay in hours. It validates with `recruitingSettingsSchema`,
+    the contract the api's `PUT /api/recruitment/settings` uses (bounds, and a reminder that is on must come before
+    the link dies), so both refuse in the same sentence; 0379 refuses a third time. `recruitment` view reads,
+    manage writes; audited `recruitment.settings_updated` with from/to.
+  - **The one reader:** `recruitingSettings.ts` — the org's row, else `RECRUITING_SETTINGS_DEFAULTS` (built from
+    `INVITE_TTL_DAYS_DEFAULT`/`STALE_DRAFT_HOURS`); a failed read THROWS rather than fall back to a longer-lived
+    default. The save is UPDATE-then-INSERT, a racing insert's 23505 answered by an update. Every place that
+    extended a link by the constant now asks it: the invite, "send the link again", Send, open signing, the
+    handbook's Open/Extend, and the reminder sweep; the Send email's "stops working in N days" is the same number.
+  - **The reminder switch, as built:** OFF sends the driver nothing and neither rotates nor extends their link, but
+    the office is still alerted once that they stopped — the path an invitation with no address already takes. The
+    delay is also when the office alert fires. ⚠ If the owner meant OFF to silence the office too, it is one line.
+  - **The per-invite override:** the invite drawer's "Link stays open for (days)", blank by default with the
+    carrier's number as its placeholder; blank sends nothing and the api applies the carrier's setting, typed sends
+    `expires_in_days`. It applies to a NEW invitation only — "Send them the link again" extends by the carrier's
+    lifetime like every re-send. `applicationInviteCreateSchema.expires_in_days` lost its `.default(14)`, which would
+    have silently overruled the carrier.
+  - **The handbook's Extend toast** now states the date the server set, not "another 14 days".
+  - `recruiting_settings` left `check-table-producers.mjs`'s waivers (0 remain); 0379's matrix now reads the hour
+    bounds from the contract's source too.
+  - **Checks:** 26 mutants, 25 killed; the survivor swaps `STALE_DRAFT_HOURS` for the literal 48 in the defaults — the
+    same value, so a no-op no test can see. Seen in a browser (built, dev bypass, as admin): the defaults, the refusal
+    under the delay when the link is shortened to 2 days, and the switched-off state at 390 px; no page errors.

@@ -54,10 +54,13 @@ const seed = (over: {
   rpc?: Record<string, unknown>;
   /** D-SMS7: a live consent to be texted, as `sendApplicationSms` reads one. */
   consents?: Record<string, unknown>[];
+  /** The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults. */
+  settings?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       sms_consents: over.consents ?? [],
+      recruiting_settings: over.settings ? [over.settings] : [],
       sms_outbox: (q: RecordedQuery) => (q.write?.method === "insert" ? [{ id: "o-1" }] : []),
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
       organizations: [{ name: "Silvicom Inc" }],
@@ -193,6 +196,16 @@ describe("the office sends the application", () => {
     expect(args.p_token_hash).toBe(hashInvitationToken(token));
     expect(body.applicationSentAt).toBe("2026-09-24T12:00:00Z");
     expect(body.delivery.sent).toBe(true);
+  });
+
+  it("extends the link by the carrier's own lifetime, and the email promises that many days (Q-AW41)", async () => {
+    mail.fn.mockClear();
+    const rec = seed({ settings: { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" } });
+    holder.client = rec.client;
+    expect((await send()).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "send_application_invitation")!.args as Record<string, unknown>;
+    expect(args.p_extend_days).toBe(5);
+    expect(mail.fn.mock.calls[0]![1].text).toContain("stops working in 5 days");
   });
 
   it("emails the new link, and tells the applicant the old one is dead", async () => {

@@ -3,6 +3,8 @@ import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { sectionAccess } from "@silvicom/shared";
+import { formatDisplayDateTime } from "@silvicom/shared";
+import { useToastStore } from "@/stores/toast";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 
 /**
@@ -28,6 +30,8 @@ vi.mock("@/lib/api", () => ({
         state.reps = [...state.reps, added];
         return { ok: true, data: { representative: added } };
       }
+      // The route answers Open/Extend with the link's new expiry (handbook.ts), which the toast states.
+      if (url.endsWith("/handbook/open")) return { ok: true, data: { expiresAt: "2026-10-03T17:00:00.000Z", extended: true } };
       return { ok: true, data: {} };
     }
     if (url.endsWith("/representatives")) return { ok: true, data: { representatives: state.reps } };
@@ -102,6 +106,9 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
     await button(w, "Extend the driver's link")!.trigger("click");
     await settle(w);
     expect(state.calls).toEqual([{ url: "/api/recruitment/applicants/d1/handbook/open", method: "POST", body: {} }]);
+    // The date the server set — the carrier's lifetime from now (Q-AW41) — never a number restated here.
+    const [toast] = useToastStore().toasts;
+    expect([toast!.title, toast!.message]).toEqual(["Link extended", `The driver's link is open until ${formatDisplayDateTime("2026-10-03T17:00:00.000Z")}.`]);
   });
 
   it("says a lapsed link has expired, and still offers the extension", async () => {

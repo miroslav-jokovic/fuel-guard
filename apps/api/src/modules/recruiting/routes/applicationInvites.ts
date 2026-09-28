@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  INVITE_TTL_DAYS_DEFAULT,
   applicationInviteCreateSchema,
   type ApplicationInviteCreate,
 } from "@silvicom/shared";
@@ -147,7 +146,8 @@ export function recruitmentApplicationInvitesRouter(): Router {
         userId: req.auth!.userId,
         driverId: body.driver_id,
         email: body.email ?? null,
-        days: body.expires_in_days ?? INVITE_TTL_DAYS_DEFAULT,
+        // The drawer's override for this link, else the carrier's lifetime (Q-AW41) — decided inside.
+        days: body.expires_in_days,
       });
       if (isApplicationLinkError(result)) {
         res.status(result.status).json(apiError(result.code, result.message));

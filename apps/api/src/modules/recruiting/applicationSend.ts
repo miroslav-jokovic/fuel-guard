@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_SEND_WARNS_ON,
-  INVITE_TTL_DAYS_DEFAULT,
   renderApplicationSentEmail,
   type HiringStepKey,
   type SmsHoldReason,
@@ -12,6 +11,7 @@ import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
 import { sendOrQueueSms, type OutboxOutcome } from "./smsOutbox.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The office sends the applicant the application form (AF4, D-AF5, D-AF7).
@@ -92,12 +92,14 @@ export async function sendApplication(
         .filter((s) => APPLICATION_SEND_WARNS_ON.includes(s.key) && s.state !== "done")
         .map((s) => s.key);
 
+  // The carrier's link lifetime (Q-AW41), and the number the email promises — the same one.
+  const { invite_ttl_days: days } = await recruitingSettings(admin, orgId);
   const { token, hash } = mintInvitationToken();
   const { data: sentAt, error } = await admin.rpc("send_application_invitation", {
     p_org: orgId,
     p_invitation: invitation.id,
     p_token_hash: hash,
-    p_extend_days: INVITE_TTL_DAYS_DEFAULT,
+    p_extend_days: days,
   });
   if (error) {
     if (error.code === "AI005") {
@@ -137,7 +139,7 @@ export async function sendApplication(
     orgId, driverId: invitation.driver_id, invitationId: invitation.id, template: "application_sent", params: {},
   }, new Date());
   const delivery = await deliverApplicationMail(
-    env, invitation.email, renderApplicationSentEmail(carrier, link, INVITE_TTL_DAYS_DEFAULT),
+    env, invitation.email, renderApplicationSentEmail(carrier, link, days),
   );
   return { link, warnings, applicationSentAt: String(sentAt), delivery, text: textOutcome(texted) };
 }

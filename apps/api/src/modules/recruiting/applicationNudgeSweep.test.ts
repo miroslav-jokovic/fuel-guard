@@ -40,9 +40,12 @@ const seed = (over: {
   permission?: string;
   /** A live consent to be texted (Q-AW29). Absent: none, so the text is held and the email still goes. */
   consent?: boolean;
+  /** The carrier's own reminder and link lifetime (Q-AW41). Absent: no row, the product's defaults. */
+  settings?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
+      recruiting_settings: over.settings ? [{ updated_at: "2026-08-01T00:00:00Z", ...over.settings }] : [],
       application_invitations: [{
         id: "inv-1", driver_id: DRIVER, email: "susan@example.test",
         expires_at: "2026-09-01T00:00:00Z", revoked_at: null, submitted_at: null, nudged_at: null,
@@ -123,6 +126,39 @@ describe("the sweep", () => {
     expect(rec.rpcs().some((r) => r.fn === "nudge_application_invitation")).toBe(false);
     // The office still hears about it — that is the cue to pick up the phone.
     expect(rec.rpcs().some((r) => r.fn === "emit_notification")).toBe(true);
+  });
+
+  describe("the carrier's own reminder (Q-AW41)", () => {
+    const ON = { invite_ttl_days: 14, reminders_enabled: true };
+
+    it("waits the carrier's delay: 72 hours idle is not stalled at 96, and is at 71", async () => {
+      sent.fn.mockReset().mockResolvedValue({ ok: true });
+      // STALE is exactly 72 hours before NOW.
+      const patient = seed({ settings: { ...ON, reminder_after_hours: 96 } });
+      expect(await runApplicationNudgesOnce(patient.client, env(), ORG, ["user-1"], NOW)).toEqual({ stalled: 0, emailed: 0, messaged: 0 });
+      const prompt = seed({ settings: { ...ON, reminder_after_hours: 71 } });
+      expect(await runApplicationNudgesOnce(prompt.client, env(), ORG, ["user-1"], NOW)).toEqual({ stalled: 1, emailed: 1, messaged: 0 });
+    });
+
+    it("extends the rotated link by the carrier's lifetime", async () => {
+      sent.fn.mockReset().mockResolvedValue({ ok: true });
+      const rec = seed({ settings: { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48 } });
+      await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
+      const rotate = rec.rpcs().find((r) => r.fn === "nudge_application_invitation")!;
+      expect((rotate.args as Record<string, unknown>).p_extend_days).toBe(5);
+    });
+
+    it("switched off: the office is still told, the driver is sent nothing and their link is untouched", async () => {
+      sent.fn.mockReset().mockResolvedValue({ ok: true });
+      sms.fn.mockReset();
+      const rec = seed({ consent: true, settings: { ...ON, reminders_enabled: false, reminder_after_hours: 48 } });
+      const result = await runApplicationNudgesOnce(rec.client, env(), ORG, ["user-1"], NOW);
+      expect(result).toEqual({ stalled: 1, emailed: 0, messaged: 0 });
+      expect(sent.fn).not.toHaveBeenCalled();
+      expect(rec.rpcs().some((r) => r.fn === "nudge_application_invitation")).toBe(false);
+      expect(rec.writtenRows("sms_outbox")).toHaveLength(0);
+      expect(rec.rpcs().some((r) => r.fn === "emit_notification")).toBe(true);
+    });
   });
 
   it("does nothing at all for a draft that is still warm", async () => {

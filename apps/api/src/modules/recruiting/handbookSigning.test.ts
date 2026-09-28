@@ -21,10 +21,12 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 
 const filterOf = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;
 
-const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean; markVersion?: string } = {}) =>
+const seed = (over: { invitation?: Record<string, unknown> | null; places?: string[]; carrierMarkError?: unknown; rep?: boolean; markVersion?: string; settings?: Record<string, unknown> } = {}) =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
+      // No row is the product's defaults (Q-AW41) — the state of every org until it saves.
+      recruiting_settings: over.settings ? [over.settings] : [],
       handbook_marks: (q: RecordedQuery) => {
         if (q.write) return over.carrierMarkError ? { writeError: over.carrierMarkError } : [];
         return (over.places ?? DRIVER_PLACES).map((placement_id) => ({
@@ -94,6 +96,17 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
     expectOrgScoped(rec, ORG);
   });
 
+  it("extends by the carrier's own link lifetime when it has chosen one (Q-AW41)", async () => {
+    const rec = seed({
+      invitation: { expires_at: "2026-09-20T00:00:00.000Z" },
+      settings: { invite_ttl_days: 3, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" },
+    });
+    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
+    expect(!isHandbookError(result) && result.expiresAt).toBe("2026-09-29T17:00:00.000Z");
+    expect(rec.writtenRows("application_invitations")).toEqual([{ expires_at: "2026-09-29T17:00:00.000Z" }]);
+    expectOrgScoped(rec, ORG);
+  });
+
   it("revives a link that has already lapsed", async () => {
     const rec = seed({ invitation: { expires_at: "2026-09-20T00:00:00.000Z" } });
     const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
@@ -111,9 +124,9 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
   });
 
   it("never shortens a link, and never extends a filed or unfiled-application one", async () => {
-    expect(handbookLinkExpiry("2026-10-30T00:00:00.000Z", NOW)).toBeNull();
-    expect(handbookLinkExpiry(FOURTEEN_DAYS_ON, NOW)).toBeNull();
-    expect(handbookLinkExpiry("2026-10-10T16:59:59.999Z", NOW)).toBe(FOURTEEN_DAYS_ON);
+    expect(handbookLinkExpiry("2026-10-30T00:00:00.000Z", NOW, 14)).toBeNull();
+    expect(handbookLinkExpiry(FOURTEEN_DAYS_ON, NOW, 14)).toBeNull();
+    expect(handbookLinkExpiry("2026-10-10T16:59:59.999Z", NOW, 14)).toBe(FOURTEEN_DAYS_ON);
 
     const filed = seed({ invitation: { handbook_filed_at: "2026-09-25T12:00:00Z", expires_at: "2026-09-27T00:00:00.000Z" } });
     expect(isHandbookError(await openHandbookSigning(filed.client, ORG, "u", DRIVER, NOW))).toBe(true);

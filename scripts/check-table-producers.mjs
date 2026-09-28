@@ -59,10 +59,8 @@ const WAIVERS = new Map([
   // 2026-09-27 (C2d2): recruiting/smsSuppressions.ts writes it from the Telnyx webhook's STOP and START.
   // application_screen_events left on 2026-09-28 (C3d3a): recruiting/applicationScreenEvents.ts writes it
   // behind POST /api/public/application/:token/screen-events. That was the last of the five.
-  //
-  // APPLICATION-FLOW-V2-PLAN.md S1 (0379) is schema only for the same reason; its writer is S2's
-  // Settings → Recruiting save, and this entry leaves in that merge.
-  ["recruiting_settings", "S1 (0379) is schema only; S2's settings save writes it (APPLICATION-FLOW-V2-PLAN.md Q-AW41)"],
+  // recruiting_settings left on 2026-09-28 (APPLICATION-FLOW-V2-PLAN.md S2): recruiting/recruitingSettings.ts
+  // writes it behind PUT /api/recruitment/settings. Pinned for the schema-only S1 (0379) only.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

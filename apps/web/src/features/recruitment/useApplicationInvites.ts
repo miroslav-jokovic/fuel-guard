@@ -117,10 +117,16 @@ export function useCreateApplicationInvite() {
     mutationFn: async (input: {
       driverId: string;
       email: string | null;
+      /** This one link's lifetime (Q-AW41). Absent: the carrier's own, which only the api reads. */
+      expiresInDays?: number;
     }): Promise<{ link: string; delivery: ApplicationInviteDelivery }> => {
       const res = await apiFetch<{ link: string; delivery: ApplicationInviteDelivery }>("/api/recruitment/application-invites", {
         method: "POST",
-        body: { driver_id: input.driverId, email: input.email },
+        body: {
+          driver_id: input.driverId,
+          email: input.email,
+          ...(input.expiresInDays === undefined ? {} : { expires_in_days: input.expiresInDays }),
+        },
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the invitation.");
       return res.data;

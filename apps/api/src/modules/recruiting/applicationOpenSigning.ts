@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { INVITE_TTL_DAYS_DEFAULT, OPEN_SIGNING_WARNS_ON, type HiringStepKey } from "@silvicom/shared";
+import { OPEN_SIGNING_WARNS_ON, type HiringStepKey } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import { mintInvitationToken } from "./applicationIntake.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The office opens packet signing, in person (AF5, D-AF3, D-AF6).
@@ -73,12 +74,13 @@ export async function openPacketSigning(
         .filter((s) => OPEN_SIGNING_WARNS_ON.includes(s.key) && s.state !== "done")
         .map((s) => s.key);
 
+  const { invite_ttl_days: days } = await recruitingSettings(admin, orgId); // Q-AW41
   const { token, hash } = mintInvitationToken();
   const { data: openedAt, error } = await admin.rpc("open_packet_signing", {
     p_org: orgId,
     p_invitation: invitation.id,
     p_sign_token_hash: hash,
-    p_extend_days: INVITE_TTL_DAYS_DEFAULT,
+    p_extend_days: days,
   });
   if (error) {
     if (error.code === "AI006") {
