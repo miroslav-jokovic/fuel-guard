@@ -48,6 +48,8 @@ export interface DraftRow {
   payload: Record<string, unknown>;
   furthest_section: string | null;
   updated_at: string;
+  /** 0376 (AW10): how many times the payload changed. Absent on a fixture or a row read before 0376. */
+  revision?: number;
 }
 
 /** What the applicant's page is told about their draft. The body is present only when unlocked. */
@@ -59,13 +61,20 @@ export interface DraftView {
   furthestSection: string | null;
   updatedAt: string | null;
   /**
+   * The revision the page saves against (C3d1b): 0 with no draft. Served on the locked view as well — a
+   * count of saves says nothing about what was typed — so the page that unlocks already holds it.
+   */
+  revision: number;
+  /**
    * C3c2c2 (Q-AW34): a v2 link's Part 1 facts, released with the body and on the same answer — never on
    * the bare link, where `GET /:token` serves booleans only. Absent on every other view.
    */
   partOne?: PartOneFactsView;
 }
 
-const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null };
+const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null, revision: 0 };
+
+const revisionOf = (row: DraftRow | null): number => (typeof row?.revision === "number" ? row.revision : 0);
 
 /**
  * Constant-time compare of two dates of birth.
@@ -85,7 +94,7 @@ function dobMatches(given: string, stored: string): boolean {
 async function readDraft(admin: SupabaseClient, orgId: string, invitationId: string): Promise<DraftRow | null> {
   const { data } = await admin
     .from("application_drafts")
-    .select("payload, furthest_section, updated_at")
+    .select("payload, furthest_section, updated_at, revision")
     // The service role bypasses RLS, so this query carries its own tenant scope even though
     // `invitation_id` is unique — the id came from a resolved token, and the org filter is what
     // makes that provenance explicit rather than assumed.
@@ -104,6 +113,7 @@ export function viewDraft(row: DraftRow | null): DraftView {
     payload: locked ? null : row.payload,
     furthestSection: row.furthest_section,
     updatedAt: row.updated_at,
+    revision: revisionOf(row),
   };
 }
 
@@ -128,7 +138,7 @@ export async function saveDraft(
   token: string,
   body: ApplicationDraftSave,
   now: Date,
-): Promise<{ updatedAt: string } | IntakeError> {
+): Promise<{ updatedAt: string; revision: number | null } | IntakeError> {
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
   // A4: the consent is the first act on the link, so nothing writes before it. A draft holds a date
@@ -162,16 +172,37 @@ export async function saveDraft(
     ...(await identityOnRecord(admin, invitation.org_id, invitation.driver_id)),
   };
 
+  // C3d1b: the revision-checked overload when the page says which revision it holds, so a stale tab
+  // or a replayed device copy is refused rather than written over a newer save (0376, DA041). Without
+  // one — a page from before C3d1b — the 5-argument save, as before; M2 removes that path.
   const { data, error } = await admin.rpc("save_application_draft", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
     p_payload: payload,
     p_section: body.section ?? null,
+    ...(body.revision === undefined ? {} : { p_expected_revision: body.revision }),
   });
-  if (error) return { code: "draft_save_failed", message: error.message };
-  return { updatedAt: String((data as { updated_at?: string } | null)?.updated_at ?? now.toISOString()) };
+  if (error) {
+    if ((error as { code?: string }).code === "DA041") return DRAFT_REVISION_CONFLICT;
+    return { code: "draft_save_failed", message: error.message };
+  }
+  const saved = data as { updated_at?: string; revision?: number } | null;
+  return {
+    updatedAt: String(saved?.updated_at ?? now.toISOString()),
+    revision: typeof saved?.revision === "number" ? saved.revision : null,
+  };
 }
+
+/**
+ * The draft moved on since this page read it: another tab or device saved, or the office corrected an
+ * answer (both bump 0376's revision through its trigger). Said in the driver's words; the page stops
+ * saving and offers the reload that shows them the newer answers.
+ */
+export const DRAFT_REVISION_CONFLICT: IntakeError = {
+  code: "draft_revision_conflict",
+  message: "Your application was changed on another screen. Reload this page to carry on from the latest answers.",
+};
 
 /**
  * Release a gated draft to the person who typed it (D-APP16).
@@ -202,7 +233,10 @@ export async function unlockDraft(
   // whether a draft exists.
   if (!stored) return viewDraft(row);
   if (!dobMatches(dateOfBirth, stored)) {
-    return { locked: true, payload: null, furthestSection: row?.furthest_section ?? null, updatedAt: row?.updated_at ?? null };
+    return {
+      locked: true, payload: null, furthestSection: row?.furthest_section ?? null, updatedAt: row?.updated_at ?? null,
+      revision: revisionOf(row),
+    };
   }
   return {
     locked: false,
@@ -210,6 +244,7 @@ export async function unlockDraft(
     payload: row?.payload ?? {},
     furthestSection: row?.furthest_section ?? null,
     updatedAt: row?.updated_at ?? null,
+    revision: revisionOf(row),
     ...(partOne ? { partOne } : {}),
   };
 }

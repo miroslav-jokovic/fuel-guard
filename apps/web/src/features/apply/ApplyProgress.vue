@@ -50,6 +50,12 @@ const props = defineProps<{
   furthest: number;
   /** "Saved", "Saving…", or null when there is nothing to say yet. */
   saveStatus: string | null;
+  /**
+   * The last save failed or was refused (C3d1b). Then the dot is not green and "You can close this page
+   * and open your link again later" is not said: on a conflict nothing typed here is saved any more, and
+   * after a failure the newest answers are not on the server — the promise would be false either way.
+   */
+  saveTrouble?: boolean;
 }>();
 const emit = defineEmits<{ goTo: [ApplicationSection] }>();
 
@@ -153,10 +159,10 @@ function jump(section: ApplicationSection, reachable: boolean): void {
          its own, with nothing the driver did to cause it. -->
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-edge pt-3 text-xs">
       <span class="flex items-center gap-1.5 text-ink-secondary" aria-live="polite">
-        <span v-if="saveStatus" class="size-1.5 rounded-full bg-success-600" />
+        <span v-if="saveStatus" class="size-1.5 rounded-full" :class="saveTrouble ? 'bg-danger-600' : 'bg-success-600'" />
         {{ saveStatus ?? copy.savesItself }}
       </span>
-      <span class="text-ink-tertiary">{{ copy.comeBack }}</span>
+      <span v-if="!saveTrouble" class="text-ink-tertiary">{{ copy.comeBack }}</span>
     </div>
   </div>
 </template>

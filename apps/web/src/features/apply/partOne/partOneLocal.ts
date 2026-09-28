@@ -1,5 +1,8 @@
 import { onScopeDispose, watch, type Ref } from "vue";
+import { copyExpiry, deleteCopy, isLive, putCopy, readCopy, type LocalCopySpec } from "../deviceCopies";
 import { HELD_UNTIL_SCREENING, type PartOneAnswers, type PartOneScreen, type PrefilledField } from "./partOneScreens";
+
+export type { LocalCopySpec } from "../deviceCopies";
 
 /**
  * Part 1's held screens, kept on the phone until screen 7 writes them (AW10, C3d1a, Q-AW39).
@@ -25,15 +28,9 @@ import { HELD_UNTIL_SCREENING, type PartOneAnswers, type PartOneScreen, type Pre
  * copy keyed by token would be unreachable on the one return path it exists for. The bundle serves a
  * `localKey` — a hash of the invitation, the same across every door — and never the token or an id.
  *
- * ── STORAGE BLOCKED IS NOT BROKEN ─────────────────────────────────────────────────────────────
- * As `inventory/countQueue.ts`: every function RESOLVES when IndexedDB is unavailable (a private window,
- * storage disabled). Part 1 then behaves as it did before C3d1a — it cannot survive a reload, and it
- * still works.
+ * The storage, and what happens when there is none, is `../deviceCopies.ts` — shared with Part 2's
+ * unsent draft since C3d1b.
  */
-
-const DB_NAME = "silvicom-part-one";
-const DB_VERSION = 1;
-const STORE = "held";
 
 /** Bumped when `HeldAnswers` changes shape; a copy of another version is deleted, never read. */
 export const HELD_COPY_VERSION = 1;
@@ -56,12 +53,6 @@ export interface HeldCopy {
   fromLicence: PrefilledField[];
   savedAt: string;
   expiresAt: string;
-}
-
-/** What the bundle says about the link, for the copy's key and its lifetime. */
-export interface LocalCopySpec {
-  key: string;
-  linkExpiresAt: string;
 }
 
 /** A deep copy of the held fields — the reactive answers must never be stored by reference. */
@@ -88,75 +79,20 @@ export function typedAny(h: HeldAnswers): boolean {
 }
 
 /** The earlier of 72 hours from now and the link's expiry. An unreadable expiry leaves the 72 hours. */
-export function heldExpiry(now: Date, linkExpiresAt: string): string {
-  const ttl = now.getTime() + HELD_COPY_TTL_MS;
-  const link = Date.parse(linkExpiresAt);
-  return new Date(Number.isNaN(link) ? ttl : Math.min(ttl, link)).toISOString();
-}
+export const heldExpiry = (now: Date, linkExpiresAt: string): string => copyExpiry(now, HELD_COPY_TTL_MS, linkExpiresAt);
 
 /** Where a restored walk resumes: the first held screen not yet passed, or screen 7 once all four are. */
 export function resumeHeld(passed: readonly PartOneScreen[]): PartOneScreen {
   return HELD_UNTIL_SCREENING.find((s) => !passed.includes(s)) ?? "screening";
 }
 
-const live = (row: HeldCopy, now: Date): boolean =>
-  row.version === HELD_COPY_VERSION && Date.parse(row.expiresAt) > now.getTime();
-
-// ── IndexedDB ─────────────────────────────────────────────────────────────────────────────────
-
-function open(): Promise<IDBDatabase | null> {
-  return new Promise((resolve) => {
-    if (typeof indexedDB === "undefined") return resolve(null);
-    let request: IDBOpenDBRequest;
-    try {
-      request = indexedDB.open(DB_NAME, DB_VERSION);
-    } catch {
-      return resolve(null);
-    }
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "key" });
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-    request.onblocked = () => resolve(null);
-  });
-}
-
-/**
- * No queue of our own: IndexedDB processes a database's open requests in order (its connection queue)
- * and starts readwrite transactions on one store in the order they were created, so a write asked for
- * before screen 7's delete cannot land after it. Pinned by
- * "never lets a write asked for before a delete land after it".
- */
-async function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T | null> {
-  const db = await open();
-  return new Promise<T | null>((resolve) => {
-    if (!db) return resolve(null);
-    try {
-      const request = run(db.transaction(STORE, mode).objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
 /** This link's copy, if it is live — after deleting every expired or outdated copy on the device. */
-export async function readHeld(key: string, now: Date = new Date()): Promise<HeldCopy | null> {
-  const all = ((await tx("readonly", (s) => s.getAll() as IDBRequest<HeldCopy[]>)) ?? []) as HeldCopy[];
-  for (const row of all) if (!live(row, now)) await clearHeld(row.key);
-  return all.find((row) => row.key === key && live(row, now)) ?? null;
-}
+export const readHeld = (key: string, now: Date = new Date()): Promise<HeldCopy | null> =>
+  readCopy<HeldCopy>("partOne", key, (row) => isLive(row, HELD_COPY_VERSION, now));
 
-export async function writeHeld(copy: HeldCopy): Promise<void> {
-  await tx("readwrite", (s) => s.put(copy));
-}
+export const writeHeld = (copy: HeldCopy): Promise<void> => putCopy("partOne", copy);
 
-export async function clearHeld(key: string): Promise<void> {
-  await tx("readwrite", (s) => s.delete(key) as unknown as IDBRequest<undefined>);
-}
+export const clearHeld = (key: string): Promise<void> => deleteCopy("partOne", key);
 
 // ── the walk's half ───────────────────────────────────────────────────────────────────────────
 

@@ -166,6 +166,14 @@ export const APPLY_COPY = {
     saving: "Saving…",
     saved: "Saved. You can close this page and come back to it.",
     failed: "Not saved — check your signal. Your answers are still on this screen.",
+    // C3d1b (AW10): the draft's revision moved on (another tab, another device, or the office).
+    conflict: "Not saved — this application was changed on another screen.",
+    conflictDetail:
+      "Nothing you type here will be saved now. Reload the page to carry on from the latest answers. Anything typed on this screen since the last save will be lost.",
+    reload: "Reload the page",
+    restored: "We put back answers from this phone that had not been sent yet. They are being saved now.",
+    dropped:
+      "Some answers typed on this phone were never sent, and your application was changed after that, so they were not put back. Check your answers.",
   },
 
   issues: {
