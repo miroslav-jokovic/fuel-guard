@@ -1972,3 +1972,6 @@ Append dated lines at the END.
     handbook-cover pages were rendered and looked at. Every CI gate, every suite (the api's `inspections.test.ts`
     failed once with "other side closed" — the known flake — and passed 3 of 3 alone), 94 matrices, the build with
     CI's placeholders, 12 of 12 browser specs.
+  - **Found by CI, not by this batch:** `tapTargets.spec.ts` read the adoption POSTs straight after "Use this",
+    and they follow asynchronously (each PNG is drawn first). It failed once at 390 px on #1122's first run while
+    passing at 320 px. It now waits for both (`expect.poll`); 16 of 16 on `--repeat-each 8`.

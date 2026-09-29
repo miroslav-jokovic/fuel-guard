@@ -261,6 +261,10 @@ for (const width of [390, 320]) {
       await press(page, /^Use this/);
       await s.check("ceremony, confirm");
       // Screen 13 registered both marks as the link's adoptions, each a PNG the browser drew (C3s1).
+      // ⚠ Waited for, never read at once: the two POSTs follow "Use this" asynchronously (each PNG is
+      // drawn first), and reading the stub straight after the sweep failed once on CI at 390 px
+      // (#1122, 2026-09-29) while passing at 320 px in the same run.
+      await expect.poll(() => stub.callsTo("POST", /\/adoption$/).length).toBe(2);
       const adopted = stub.callsTo("POST", /\/adoption$/).map((c) => c.body as { kind: string; typed_text: string; png_base64: string });
       expect(adopted.map((a) => [a.kind, a.typed_text])).toEqual([["signature", "Susan Godfrey"], ["initials", "SG"]]);
       for (const a of adopted) expect(Buffer.from(a.png_base64, "base64").subarray(1, 4).toString()).toBe("PNG");
