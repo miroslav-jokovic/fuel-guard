@@ -104,6 +104,11 @@ export interface ApplyDraft {
    * draft: the bare link serves booleans (D-APP16). Absent from an API older than C3c2c2 as well.
    */
   partOne?: PartOneFactsView;
+  /**
+   * D-AW14 (C3s3a): wrong answers left before a link the office SENT for signing stops. Only on a wrong
+   * answer on that link; absent on every other link, which keeps D-APP16's no-lockout rule.
+   */
+  attemptsLeft?: number;
 }
 
 /**

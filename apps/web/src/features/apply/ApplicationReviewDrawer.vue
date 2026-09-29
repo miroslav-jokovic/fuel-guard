@@ -193,13 +193,13 @@ const previewDocument = computed<RenderedDocument | null>(() =>
  * `already_notified` is a double-click, not a problem: the first approval sent it.
  *
  * ⚠ AF5 (D-AF3): nobody is "asked to sign" by approval any more — the email tells the applicant they
- * are approved and will sign in the office, and signing opens only when the office presses Open
- * signing on the checklist's packet row. So the toasts say what was told, and what the office owes.
+ * are approved and will sign in the office, and signing opens only when the office presses Send for
+ * signing on the checklist's packet row (D-AW14). So the toasts say what was told, and what the office owes.
  */
 function noticeToast(notice: ApprovalNotice): void {
   if (notice.sent) {
     const also = notice.texted ? " and texted" : "";
-    toast.push("success", `Approved — ${notice.email} has been emailed${also}. Open signing when they are in the office.`);
+    toast.push("success", `Approved — ${notice.email} has been emailed${also}. Send it for signing when they are in the office.`);
     return;
   }
   if (notice.reason === "already_notified") {

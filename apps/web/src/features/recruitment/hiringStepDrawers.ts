@@ -110,8 +110,8 @@ export type HiringDrawerBody =
    */
   | "handbook"
   /**
-   * The packet's signing ceremony. Since AF5 (D-AF3) the office OPENS it here, at the desk, and the
-   * applicant signs on the link that press hands back (`OpenSigningPanel`).
+   * The packet's signing ceremony. Since C3s3a (D-AW14) the office SENDS it from here, at the desk, and
+   * the applicant signs on their own phone, on the link that went by email and text (`SendForSigningPanel`).
    */
   | "packet"
   /**

@@ -68,7 +68,8 @@ interface InvitationRow {
   /**
    * The SECOND hash (A5b, D-AX15, 0345). Minted at approval until AF5; since AF5 minted, and
    * re-minted on every press, by the office's Open signing (`open_packet_signing`, 0369), and handed
-   * back on the office's screen rather than emailed (D-AF3).
+   * back on the office's screen rather than emailed (D-AF3). Since C3s3a (D-AW14) the press is Send for
+   * signing, and the link goes to the applicant's phone by email and text instead.
    */
   sign_token_hash: string | null;
   /**
@@ -110,7 +111,36 @@ interface InvitationRow {
    */
   handbook_signing_opened_at?: string | null;
   handbook_filed_at?: string | null;
+  /**
+   * D-AW14 (0376, read since C3s3a): the sent sign link's own end, 72 hours from the office's Send for
+   * signing, and the wrong dates of birth presented on it. Null / 0 on every invitation never sent one —
+   * including the links `OpenSigningPanel` minted before C3s3a, which keep the invitation's expiry.
+   * ⚠ Optional for the handbook stamps' reason.
+   */
+  sign_link_expires_at?: string | null;
+  unlock_failures?: number;
+  /**
+   * WHICH hash the presented token matched — set by `resolveInvitation`, never read from the row. The
+   * three doors open the same session (A5b), and until C3s3a nothing needed to tell them apart; the
+   * sent link's 72 hours and its unlock counter are that link's, not the invitation's (D-AW14).
+   */
+  door?: InvitationDoor;
 }
+
+/** `invite` = `token_hash`, `sign` = `sign_token_hash`, `text` = `sms_token_hash` (0378). */
+export type InvitationDoor = "invite" | "sign" | "text";
+
+/**
+ * Did this token come through a door the office's Send for signing governs? (D-AW14, C3s3a)
+ *
+ * The sign door, and the TEXT door once signing has been sent: the signing text carries a link on the
+ * text token (0378 — minted when the text goes, so a text queued overnight never rotates the emailed
+ * link), and a text-door link minted earlier for the application is capped with it, which only ever
+ * shortens a link whose texts `stillWanted` stopped sending at approval. The invite door keeps D-APP16's
+ * rule — no counter, the invitation's own expiry — see `SIGN_LINK_UNLOCK_LIMIT`'s note for why.
+ */
+export const isSentSignDoor = (row: Pick<InvitationRow, "door" | "sign_link_expires_at">): boolean =>
+  Boolean(row.sign_link_expires_at) && (row.door === "sign" || row.door === "text");
 
 /** What `GET /:token` hands the page so it can open where the driver stopped. */
 export interface InvitationPhases {
@@ -159,7 +189,7 @@ export const phasesOf = (row: {
 });
 
 /**
- * Does the presented token match EITHER of the invitation's hashes? (A5b, D-AX15)
+ * Which of the invitation's hashes does the presented token match, if any? (A5b, D-AX15; the door since C3s3a)
  *
  * ⚠ `hashEquals` on both, never `===`, and the reason is the same for the second column as for the
  * first: anything derived from a secret compared byte-by-byte with early exit is a timing oracle. The
@@ -175,8 +205,8 @@ const isHash = (v: unknown): v is string => typeof v === "string" && v.length > 
 function presentedTokenMatches(
   row: Pick<InvitationRow, "token_hash" | "sign_token_hash" | "sms_token_hash">,
   hash: string,
-): boolean {
-  if (hashEquals(row.token_hash, hash)) return true;
+): InvitationDoor | null {
+  if (hashEquals(row.token_hash, hash)) return "invite";
   /**
    * ⚠ A truthiness check, and `!== null` was not enough — measured, it broke
    * `applicationCopy.test.ts`'s *"signs nothing for a token that is not this invitation's"*. Most
@@ -185,9 +215,9 @@ function presentedTokenMatches(
    * `hashEquals` would then decode a non-string and either throw or compare nothing, so a missing
    * column could decide a token's fate. Nothing but a real hex digest may reach the compare.
    */
-  if (isHash(row.sign_token_hash) && hashEquals(row.sign_token_hash, hash)) return true;
+  if (isHash(row.sign_token_hash) && hashEquals(row.sign_token_hash, hash)) return "sign";
   // Q-AW29: the text's own link. Same rule, same reason — most invitations have never been texted one.
-  return isHash(row.sms_token_hash) && hashEquals(row.sms_token_hash, hash);
+  return isHash(row.sms_token_hash) && hashEquals(row.sms_token_hash, hash) ? "text" : null;
 }
 
 /**
@@ -226,6 +256,10 @@ function presentedTokenMatches(
  * had promised. Only `revoked_at` and `expires_at` make the whole session dead now; a phase already
  * spent is refused by the write path that owns it, with its own answer, and the other phases stay
  * reachable through the same link.
+ *
+ * ── ⚠ AND ONE THING IT REFUSES BY DOOR (D-AW14, C3s3a) ─────────────────────────────────────────
+ * A link the office SENT for signing ends 72 hours after the press (`sign_link_expires_at`), whatever
+ * the invitation's own expiry says — the same neutral refusal, since a lapsed link is still a probe.
  */
 export async function resolveInvitation(
   admin: SupabaseClient,
@@ -238,16 +272,19 @@ export async function resolveInvitation(
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, sms_token_hash, expires_at, revoked_at, consented_at, "
       + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
-      + "submitted_at, handbook_signing_opened_at, handbook_filed_at",
+      + "submitted_at, handbook_signing_opened_at, handbook_filed_at, sign_link_expires_at, unlock_failures",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();
   const row = data as InvitationRow | null;
   const dead = { code: "invalid_link", message: "This application link is not valid. Ask for a new one." };
-  if (!row || !presentedTokenMatches(row, hash)) return dead;
+  const door = row ? presentedTokenMatches(row, hash) : null;
+  if (!row || !door) return dead;
   if (row.revoked_at) return dead;
   if (Date.parse(row.expires_at) <= now.getTime()) return dead;
-  return row;
+  const resolved = { ...row, door };
+  if (isSentSignDoor(resolved) && Date.parse(resolved.sign_link_expires_at!) <= now.getTime()) return dead;
+  return resolved;
 }
 
 /**

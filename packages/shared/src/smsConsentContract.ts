@@ -311,6 +311,16 @@ export type TextLinkAnswer =
   | { outcome: "sent" }
   | { outcome: "held"; held: SmsHoldReason };
 
+/**
+ * The sign link, to the phone of a driver who is in the office (D-AW14, C3s3a).
+ *
+ * The hours are said because the link really does stop — 72 hours from the office's press — and "ask
+ * us to send it again" is the remedy, since the office can send another and nobody else can.
+ */
+export const smsSigningLink = (carrier: string, link: string, hours: number): string =>
+  `${carrier}: Sign your driver application here: ${link} `
+  + `This link works for ${hours} hours. Reply STOP to opt out.`;
+
 /** The 48-hour reminder (A10) — the same link rotation as above, so the same warning. */
 export const smsApplicationReminder = (carrier: string, link: string): string =>
   `${carrier}: Your driver application is saved. Pick up where you left off: ${link} `

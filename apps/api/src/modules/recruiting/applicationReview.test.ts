@@ -415,7 +415,7 @@ describe("approving it", () => {
   });
 
   /**
-   * ⚠ And approval MINTS nothing any more. The sign link belongs to the office's Open signing
+   * ⚠ And approval MINTS nothing any more. The sign link belongs to the office's Send for signing
    * (`open_packet_signing`, 0369); a token minted here and never sent would be a live credential on
    * the row with no copy anywhere — and one minted AND sent would be the remote signing D-AF3 removed.
    */

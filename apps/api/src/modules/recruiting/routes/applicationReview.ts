@@ -22,7 +22,7 @@ import { applicationPermissionsPdf, isPermissionsError } from "../applicationPdf
 import { correctApplicantIdentity, isIdentityCorrectionError } from "../applicantIdentity.js";
 import { correctApplicantPartOne, isPartOneCorrectionError } from "../applicantPartOneCorrection.js";
 import { isApplicationSendError, sendApplication } from "../applicationSend.js";
-import { isOpenSigningError, openPacketSigning } from "../applicationOpenSigning.js";
+import { isSendForSigningError, sendForSigning } from "../applicationSendForSigning.js";
 
 /**
  * Reading, correcting and approving an applicant's answers (F4).
@@ -54,7 +54,7 @@ export function recruitmentApplicationReviewRouter(): Router {
           || code === "already_certified" || code === "already_filed" || code === "nothing_to_preview"
           || code === "nothing_signed_yet" || code === "invitation_revoked"
           || code === "permissions_incomplete" || code === "application_not_approved"
-          || code === "not_part_one" || code === "part_one_not_begun"
+          || code === "not_part_one" || code === "part_one_not_begun" || code === "link_changed"
           ? 409
           : 500;
 
@@ -258,27 +258,29 @@ export function recruitmentApplicationReviewRouter(): Router {
   );
 
   /**
-   * Open packet signing, in the office (AF5, D-AF3, D-AF6).
+   * Send the packet for signing, to the driver's phone, while they are in the office (D-AW14, C3s3a).
    *
-   * Answers with the sign link — the only copy — for the office to open on its own screen, and with
-   * the federal gates and road test still outstanding, which it WARNS about and does not refuse on.
-   * ⚠ It emails nothing: a sign link sent anywhere else would let the packet be signed away from the
-   * office, which is what D-AF3 exists to stop. A second press rotates the link; the first date stays.
+   * Emails the sign link always and texts it where the driver agreed to texts; the link lives 72 hours
+   * and stops after five wrong dates of birth. ⚠ It answers with WHERE the link went, never the link:
+   * AF5's "open it on this screen" is retired, and a bearer link on the office's computer is a second
+   * copy nobody needs. It warns, and does not refuse, on the federal gates and the road test (D-AF6). A
+   * second press rotates the link and restarts the 72 hours; the first date stays.
    */
   router.post(
-    "/applications/:invitationId/open-signing",
+    "/applications/:invitationId/send-for-signing",
     requireOrg,
     canManage,
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
-      const result = await openPacketSigning(
+      const result = await sendForSigning(
         getSupabaseAdmin(env),
         env,
         req.auth!.orgId!,
         String(req.params.invitationId ?? ""),
         req.auth!.userId,
+        new Date(),
       );
-      if (isOpenSigningError(result)) {
+      if (isSendForSigningError(result)) {
         res.status(status(result.code)).json(apiError(result.code, result.message));
         return;
       }

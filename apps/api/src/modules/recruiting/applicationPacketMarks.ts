@@ -61,7 +61,7 @@ export const PACKET_NOT_APPROVED: IntakeError = {
  * Approved, and not yet opened in the office (AF5, D-AF3, 0369's DR036).
  *
  * ⚠ Worded for the applicant who reaches it, because the only way to is from home: a link opened
- * before the office pressed Open signing at the desk. They have done nothing wrong and nothing is
+ * before the office pressed Send for signing at the desk (Open signing until C3s3a). They have done nothing wrong and nothing is
  * lost, and what they need to know is where the signing happens.
  */
 export const PACKET_NOT_OPENED: IntakeError = {

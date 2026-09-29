@@ -52,7 +52,7 @@ export const isApplicationLinkError = (v: unknown): v is ApplicationLinkError =>
 
 // ⚠ ONE string literal, as the route's own `INVITE_COLS` explains.
 export const INVITE_COLS =
-  "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, handbook_filed_at, revoked_at, created_at";
+  "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, handbook_filed_at, revoked_at, created_at, sign_link_expires_at, unlock_failures";
 
 const applyLink = (env: Env, token: string): string => `${env.WEB_APP_URL}/apply/${token}`;
 

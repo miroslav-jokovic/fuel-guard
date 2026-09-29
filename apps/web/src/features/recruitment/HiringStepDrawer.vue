@@ -16,7 +16,7 @@ import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import SendApplicationPanel from "@/features/recruitment/SendApplicationPanel.vue";
-import OpenSigningPanel from "@/features/recruitment/OpenSigningPanel.vue";
+import SendForSigningPanel from "@/features/recruitment/SendForSigningPanel.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
@@ -194,8 +194,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :driver-id="driverId"
       />
 
-      <!-- AF5/D-AF3: the packet is signed in the office, on a link the office opens at the desk. -->
-      <OpenSigningPanel
+      <!-- D-AW14 (C3s3a): the packet is signed on the applicant's phone, on a link the office sends from the desk. -->
+      <SendForSigningPanel
         v-else-if="body === 'packet' && invitationId"
         :invitation-id="invitationId"
         :driver-id="driverId"

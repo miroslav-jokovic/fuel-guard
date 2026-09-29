@@ -34,6 +34,12 @@ export interface ApplicationInvitation {
   /** AF5 (0369): when the office opened packet signing, in person. Optional: absent from an older API. */
   signing_opened_at?: string | null;
   submitted_at: string | null;
+  /**
+   * D-AW14 (C3s3a): the sent sign link's end, and the wrong dates of birth presented on it — five stop
+   * it. Optional: absent from an API older than C3s3a.
+   */
+  sign_link_expires_at?: string | null;
+  unlock_failures?: number;
   /** The handbook's filing — a link's last use (D-AW1, C2e). Optional: absent from an older API. */
   handbook_filed_at?: string | null;
   revoked_at: string | null;

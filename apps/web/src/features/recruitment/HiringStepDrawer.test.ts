@@ -35,7 +35,7 @@ const STUBS = {
   AuthorizationsPanel: stub("authorizations"),
   ApplicantIdentityCorrection: stub("identity"),
   SendApplicationPanel: stub("send"),
-  OpenSigningPanel: stub("open-signing"),
+  SendForSigningPanel: stub("send-for-signing"),
   EmploymentHistorySection: stub("employment"),
   EmployerInquirySection: stub("inquiry"),
   PspRecordsSection: stub("psp"),
@@ -284,12 +284,12 @@ describe("the steps with no affordance yet say so, and point at the act", () => 
    * than pointing at a link the applicant no longer signs on.
    */
   it("opens the packet from the office when there is an invitation to open", async () => {
-    expect(bodyOf(await openOn("application_signed"))).toBe("open-signing");
+    expect(bodyOf(await openOn("application_signed"))).toBe("send-for-signing");
   });
 
   it("says the packet is signed in the office when there is no invitation", async () => {
     const root = await openOn("application_signed", null);
-    expect(bodies(root)).not.toContain("open-signing");
+    expect(bodies(root)).not.toContain("send-for-signing");
     expect(root.textContent).toContain("signs this in the office");
     expect(root.textContent).not.toContain("their own link");
   });
