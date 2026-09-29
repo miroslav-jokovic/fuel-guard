@@ -377,7 +377,8 @@ async function refused(label, driver, inv, expected, actor = ADMIN, org = ORG) {
 }
 
 const H1 = await seedApplicant(ORG, "Hal Active");
-await db.query(`update drivers set status = 'active', hire_date = '2026-09-01' where id = $1`, [H1.d]);
+// Through the hire itself: since 0386 (Q-AW21) nothing else may make an applicant active.
+await db.query(`select public.hire_applicant($1, $2, '2026-09-01'::date, null, '[]'::jsonb)`, [ORG, H1.d]);
 await refused("a hired driver is refused", H1.d, H1.inv, "PA010");
 
 const H2 = await seedApplicant(ORG, "Hana Reverted");
