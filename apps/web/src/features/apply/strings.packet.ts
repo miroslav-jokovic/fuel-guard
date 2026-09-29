@@ -122,6 +122,16 @@ export const APPLY_PACKET_COPY = {
     resumedInitialsLabel: "Your initials",
     resumedAction: "Carry on signing",
     /**
+     * ⚠ The link's adoption OFFERED at a document that has not used it yet (D-AW15, C3s2a) — the owner's
+     * "This is your signature — use it". Not the resumed walk's words: nothing here is pinned, and a new
+     * one replaces it for this document and every one after.
+     */
+    adoptedHeading: "This is your signature",
+    adoptedBody:
+      "You made this when you started your application. Use it here, or make a new one — a new one is used from now on.",
+    adoptedAction: "Use it",
+    remakeAction: "Make a new one",
+    /**
      * ⚠ What a resumed link is told about a signature picture it cannot show (C2).
      *
      * The picture is on the server, staged on a previous visit, and the apply bundle serves capture

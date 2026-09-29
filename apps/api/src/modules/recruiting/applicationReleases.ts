@@ -16,7 +16,7 @@ import {
 } from "./applicationIntake.js";
 import { IDENTITY_MISSING, identityOnFile } from "./applicantIdentity.js";
 import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
-import { liveAdoption } from "./signatureAdoption.js";
+import { ADOPTION_NAME_MISMATCH, adoptionForMark } from "./documentAdoption.js";
 
 /**
  * The five authorizations an applicant signs before the form (A5, D-APP4).
@@ -57,15 +57,6 @@ export function releasesForApplicant(wording: CarrierWording): Array<{
 export const RELEASES_COMPLETE: IntakeError = {
   code: "releases_complete",
   message: "Every authorization on this link has already been signed.",
-};
-
-/**
- * The name on the request is not the name the driver adopted (D-AW15). The page signs with the adopted
- * name, so this is a page that adopted again and could not save it; it takes the driver back to adopt.
- */
-export const ADOPTION_NAME_MISMATCH: IntakeError = {
-  code: "adoption_name_mismatch",
-  message: "Your signature changed and the new one did not save. Make it again, then sign.",
 };
 
 export const RELEASE_ALREADY_SIGNED: IntakeError = {
@@ -146,7 +137,8 @@ export async function recordRelease(
    * ⚠ **The name must be the adopted one.** `signed_name` is the signature of record (D-APP8) and the
    * adoption's picture is drawn beside it; a row whose name and picture disagree would be two people's.
    */
-  const adoption = await liveAdoption(admin, invitation.org_id, invitation.id, "signature");
+  const adoption = await adoptionForMark(admin, invitation.org_id, invitation.id, "permissions", "signature");
+  if (adoption && isIntakeError(adoption)) return adoption;
   if (adoption && adoption.typedText !== body.signed_name.trim()) return ADOPTION_NAME_MISMATCH;
 
   // The 12-argument overload (0376). No defaults on either, so every argument is named.

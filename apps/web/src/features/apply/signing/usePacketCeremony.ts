@@ -2,6 +2,8 @@ import { computed, ref, type Ref } from "vue";
 import { applyPacketMark, type ApplyPacketStop } from "@/features/apply/useApplication";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 import { usePacketAdoption } from "@/features/apply/signing/usePacketAdoption";
+import { adoptMark } from "@/features/apply/signing/adoptMark";
+import type { PacketMarkKind, SignatureAdoptionsView } from "@silvicom/shared";
 
 export type { AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoption";
 
@@ -78,6 +80,10 @@ export function usePacketCeremony(
      * adoption half; its `initialsStaged` says why the two marks need two flags.
      */
     initialsStaged?: Ref<boolean>;
+    /** Screen 13's adoptions on this link (D-AW15, C3s2a): offered as "This is your signature — use it". */
+    adoptions?: Ref<SignatureAdoptionsView | undefined>;
+    /** Where a new mark is registered. Every picture made here is an adoption since C3s2a. */
+    adopt?: typeof adoptMark;
   } = {},
 ) {
   const working = ref(false);
@@ -161,6 +167,18 @@ export function usePacketCeremony(
     served: options.adopted,
     markStaged: options.markStaged,
     initialsStaged: options.initialsStaged,
+    linkAdopted: options.adoptions,
+    /**
+     * D-AW15 (C3s2a): a mark made here is REGISTERED as the link's adoption — superseding the one screen
+     * 13 made — and never staged into a capture slot, which A11 prunes at 90 days.
+     */
+    sendMark: (kind: PacketMarkKind, blob: Blob) =>
+      (options.adopt ?? adoptMark)(
+        token.value,
+        kind,
+        (kind === "initials" ? adoption.adoptedInitials : adoption.adoptedName).value.trim(),
+        blob,
+      ),
     stage: options.stage,
     io: options.io,
   });
@@ -293,7 +311,11 @@ export function usePacketCeremony(
       filedHere.value = new Set(filedHere.value).add(stop.id);
     } catch (e) {
       const code = (e as { code?: string }).code;
-      if (code === "packet_mark_already_made") {
+      if (code === "adoption_name_mismatch") {
+        // The new mark did not save, so the server still holds the old one. Back to make it again.
+        error.value = e instanceof Error ? e.message : "Make your signature again.";
+        adoption.reopen();
+      } else if (code === "packet_mark_already_made") {
         // A double-tap, or the same link open twice. The mark exists — move on rather than telling
         // the driver off for something the server handled correctly.
         filedHere.value = new Set(filedHere.value).add(stop.id);

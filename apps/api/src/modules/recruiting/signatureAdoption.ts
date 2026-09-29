@@ -18,6 +18,7 @@ import {
   type SubmitContext,
 } from "./applicationIntake.js";
 import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
+import { ADOPTION_IN_USE, adoptionSplitsADocument } from "./documentAdoption.js";
 
 /**
  * Adopt once (APPLICATION-FLOW-V2-PLAN.md D-AW15, C3s1): the driver's signature and initials, each an
@@ -40,19 +41,13 @@ import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
  * adoption** had it not been taught this table in the same change: `compliance-docs` is swept for
  * objects no `documents` row names, and an adoption has none (`storageReconcile.ts`).
  *
- * ── ⚠ ONE PICTURE PER KIND WHILE THE DRIVER HOLDS THE PEN ─────────────────────────────────────
- * A driver may adopt again — the confirm screen's "Change" — until a mark has been MADE with the
- * adoption. After that a new one is refused (`adoption_in_use`): 0376 would supersede it happily, and
- * the old row would go on saying what the earlier marks looked like, but every renderer draws ONE
- * picture per kind per document, so a permissions document signed half with each would print the
- * second hand on all six. Superseding a mark already in use is the office's act in C3s2, where the
- * renderers learn to read each mark's own adoption.
+ * ── A NEW SIGNATURE SUPERSEDES THE OLD, BETWEEN DOCUMENTS ────────────────────────────────────
+ * A driver may make a new signature at any point that does not split a document — the packet's "This
+ * is your signature — use it, or make another" is the ordinary case. 0376 supersedes the old row, which
+ * goes on saying what the marks made with it looked like; each document prints the adoption its own
+ * marks name. Refused (`adoption_in_use`) only while a document is part-signed with the live one —
+ * `documentAdoption.ts` says why.
  */
-
-export const ADOPTION_IN_USE: IntakeError = {
-  code: "adoption_in_use",
-  message: "You have already signed with this, so it cannot be changed now.",
-};
 
 const NOT_A_PNG: IntakeError = {
   code: "adoption_not_png",
@@ -77,7 +72,7 @@ async function liveAdoptions(admin: SupabaseClient, orgId: string, invitationId:
 }
 
 /** The live adoption of one kind, or null — what a mark made now is made with. */
-export async function liveAdoption(
+async function liveAdoption(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string,
@@ -96,20 +91,6 @@ export async function adoptionsForLink(
   const rows = await liveAdoptions(admin, orgId, invitationId);
   const text = (kind: PacketMarkKind) => rows.find((r) => r.kind === kind)?.typed_text ?? null;
   return { signature: text("signature"), initials: text("initials") };
-}
-
-/**
- * Whether any mark has been made with this adoption. The three tables 0376 gave `adoption_id`; in C3s1
- * only the permissions write it, and the other two are read so C3s2 cannot forget them.
- */
-async function adoptionInUse(admin: SupabaseClient, orgId: string, adoptionId: string): Promise<boolean> {
-  // Three literal `.from()`s rather than a loop: the table gates read table names off the source.
-  const uses = await Promise.all([
-    admin.from("driver_authorizations").select("id").eq("org_id", orgId).eq("adoption_id", adoptionId).limit(1),
-    admin.from("application_packet_marks").select("id").eq("org_id", orgId).eq("adoption_id", adoptionId).limit(1),
-    admin.from("handbook_marks").select("id").eq("org_id", orgId).eq("adoption_id", adoptionId).limit(1),
-  ]);
-  return uses.some(({ data }) => (data ?? []).length > 0);
 }
 
 /** A PNG by its signature AND by decoding: a content type is a claim, and a mark that will not draw is none. */
@@ -140,7 +121,7 @@ export async function recordSignatureAdoption(
   }
 
   const live = await liveAdoption(admin, invitation.org_id, invitation.id, body.kind);
-  if (live && (await adoptionInUse(admin, invitation.org_id, live.id))) return ADOPTION_IN_USE;
+  if (live && (await adoptionSplitsADocument(admin, invitation, live.id, body.kind))) return ADOPTION_IN_USE;
 
   const bytes = await readPng(body.png_base64);
   if (!bytes) return NOT_A_PNG;

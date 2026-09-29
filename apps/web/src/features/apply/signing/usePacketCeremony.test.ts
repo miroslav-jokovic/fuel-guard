@@ -27,6 +27,18 @@ const TOTAL = packetDriverMarkCount(null);
 const stopsFrom = (signed: Record<string, string> = {}): ApplyPacketStop[] =>
   driverPlacements(null).map((p) => ({ ...p, signedAt: signed[p.id] ?? null }));
 
+/**
+ * Since C3s2a every picture the packet makes is REGISTERED as the link's adoption (`adoptMark`), not
+ * staged. The suite's assertions were written about staging — which mark, which bytes, which failure —
+ * and those are still the questions, so each adoption is handed to the test's `stage` mock in its
+ * argument order: token, the slot the kind maps to, the blob.
+ */
+const asAdopt = (stage: (...args: never[]) => unknown) =>
+  ((token: string, kind: string, _text: string, blob: Blob) =>
+    (stage as (...a: unknown[]) => unknown)(
+      token, kind === "initials" ? APPLICATION_CAPTURE_MARK_SLOT.initials : APPLICATION_CAPTURE_MARK_SLOT.signature, blob, "image/png",
+    )) as never;
+
 const marked: Array<{ placementId: string; signedName: string }> = [];
 let answer: (placementId: string) => { signedCount: number; complete: boolean } | Error;
 
@@ -83,7 +95,7 @@ describe("adopting the mark", () => {
    */
   it("stages both marks, into their own slots, once both drawings exist", async () => {
     const stage = vi.fn().mockResolvedValue(undefined);
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
@@ -131,7 +143,7 @@ describe("adopting the mark", () => {
         .map((p) => [p.id, "2026-09-19T10:00:00Z"]),
     );
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom(initialsSigned)), {
-      stage: stage as never,
+      adopt: asAdopt(stage),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.style.value = "drawn";
@@ -151,7 +163,7 @@ describe("adopting the mark", () => {
    */
   it("starts anyway when the drawing will not upload", async () => {
     const stage = vi.fn().mockRejectedValue(new Error("offline"));
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
@@ -175,7 +187,7 @@ describe("adopting the mark", () => {
         ? Promise.reject(new Error("offline"))
         : Promise.resolve(undefined),
     );
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
@@ -190,7 +202,7 @@ describe("adopting the mark", () => {
 
   it("does not stage anything when the driver types", async () => {
     const stage = vi.fn();
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     expect(await c.adopt()).toBe(true);
@@ -208,7 +220,7 @@ describe("adopting the mark", () => {
   it("will not file a mark while the drawing is still uploading", async () => {
     const releases: Array<() => void> = [];
     const stage = vi.fn(() => new Promise<void>((resolve) => { releases.push(resolve); }));
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
@@ -579,7 +591,7 @@ describe("a resumed walk whose marks the server has already pinned", () => {
 describe("what the stop promises in drawn mode", () => {
   /** Adopt by drawing BOTH marks, staged successfully, standing on the first stop. */
   async function drawnCeremony(stage = vi.fn().mockResolvedValue(undefined)) {
-    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { stage: stage as never });
+    const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), { adopt: asAdopt(stage) });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     c.style.value = "drawn";
@@ -693,7 +705,7 @@ describe("telling the driver the drawing did not save", () => {
 
   it("says nothing when the drawing staged", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
-      stage: vi.fn().mockResolvedValue(undefined) as never,
+      adopt: asAdopt(vi.fn().mockResolvedValue(undefined)),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -711,7 +723,7 @@ describe("telling the driver the drawing did not save", () => {
    */
   it("records the failure, and still lets the driver sign", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
-      stage: vi.fn().mockRejectedValue(new Error("offline")) as never,
+      adopt: asAdopt(vi.fn().mockRejectedValue(new Error("offline"))),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -729,7 +741,7 @@ describe("telling the driver the drawing did not save", () => {
    */
   it("stops promising the drawing once it has failed", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
-      stage: vi.fn().mockRejectedValue(new Error("offline")) as never,
+      adopt: asAdopt(vi.fn().mockRejectedValue(new Error("offline"))),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -1072,7 +1084,7 @@ describe("what the paper carries, whichever tab made the mark", () => {
     initials: Blob | null = blob === null ? null : initialsPng(),
   ) {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
-      stage: vi.fn().mockResolvedValue(undefined) as never,
+      adopt: asAdopt(vi.fn().mockResolvedValue(undefined)),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -1159,7 +1171,7 @@ describe("resuming a link whose signature picture is already staged", () => {
     usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(markStaged),
       initialsStaged: ref(initialsStaged),
-      stage: vi.fn().mockResolvedValue(undefined) as never,
+      adopt: asAdopt(vi.fn().mockResolvedValue(undefined)),
     });
 
   it("knows a picture will be printed even with nothing in this browser", () => {
@@ -1225,7 +1237,7 @@ describe("resuming a link whose signature picture is already staged", () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(true),
       initialsStaged: ref(true),
-      stage: stage as never,
+      adopt: asAdopt(stage),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -1264,7 +1276,7 @@ describe("resuming a link whose signature picture is already staged", () => {
   it("withdraws the promise when this session's staging failed", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(true),
-      stage: vi.fn().mockRejectedValue(new Error("no")) as never,
+      adopt: asAdopt(vi.fn().mockRejectedValue(new Error("no"))),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
@@ -1298,7 +1310,7 @@ describe("carrying on from a link whose picture was staged last time", () => {
     usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(true),
       adopted: ref({ signature: "Marija Varmeda", initials: "MV" }),
-      stage: vi.fn().mockResolvedValue(undefined) as never,
+      adopt: asAdopt(vi.fn().mockResolvedValue(undefined)),
     });
 
   it("does not call an empty blob a failure when the server already holds one", async () => {
@@ -1318,12 +1330,81 @@ describe("carrying on from a link whose picture was staged last time", () => {
   it("still calls an empty blob a failure when the server holds nothing", async () => {
     const c = usePacketCeremony(ref(TOKEN), ref(stopsFrom()), {
       markStaged: ref(false),
-      stage: vi.fn().mockResolvedValue(undefined) as never,
+      adopt: asAdopt(vi.fn().mockResolvedValue(undefined)),
     });
     c.adoptedName.value = "Marija Varmeda";
     c.adoptedInitials.value = "MV";
     expect(await c.adopt()).toBe(true);
     expect(c.drawnMarkFailed.value).toBe(true);
     expect(c.markWillPrint.value).toBe(false);
+  });
+});
+
+/**
+ * D-AW15 (C3s2a): the link's adoption from screen 13 is OFFERED at the packet — "This is your signature
+ * — use it", or make a new one — and a new one is registered as the link's adoption, never staged.
+ */
+describe("the link's adoption, offered at the packet", () => {
+  const ADOPTED = { signature: "Susan Godfrey", initials: "SG" };
+  const withAdoption = (over: { adoptions?: typeof ADOPTED; served?: { signature: string | null; initials: string | null } | null; adopt?: ReturnType<typeof vi.fn>; stops?: ApplyPacketStop[] } = {}) =>
+    usePacketCeremony(ref(TOKEN), ref(over.stops ?? stopsFrom()), {
+      adoptions: ref(over.adoptions ?? ADOPTED),
+      adopted: ref(over.served ?? null),
+      markStaged: ref(true),
+      initialsStaged: ref(true),
+      adopt: (over.adopt ?? vi.fn().mockResolvedValue({})) as never,
+    });
+
+  it("offers it with the names in, and one press starts the walk without making anything new", async () => {
+    const adopt = vi.fn().mockResolvedValue({});
+    const c = withAdoption({ adopt });
+    expect(c.alreadyAdopted.value).toBe(true);
+    expect(c.canRemake.value).toBe(true);
+    expect(await c.adopt()).toBe(true);
+    expect(c.state.value).toBe("signing");
+    expect(adopt).not.toHaveBeenCalled();
+    await c.sign();
+    expect(marked[0]).toEqual({ placementId: "p03", signedName: "Susan Godfrey" });
+  });
+
+  it("makes a new one on request: the form, then both marks registered with their own text", async () => {
+    const adopt = vi.fn().mockResolvedValue({});
+    const c = withAdoption({ adopt });
+    c.remake();
+    expect(c.alreadyAdopted.value).toBe(false);
+    expect(c.state.value).toBe("adopting");
+    c.adoptedName.value = "Susan M Godfrey";
+    c.adoptedInitials.value = "SMG";
+    c.markBlob.value = new Blob(["sig"], { type: "image/png" });
+    c.initialsBlob.value = new Blob(["ini"], { type: "image/png" });
+    expect(await c.adopt()).toBe(true);
+    expect(adopt.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ["signature", "Susan M Godfrey"],
+      ["initials", "SMG"],
+    ]);
+  });
+
+  it("is not offered once a place on the packet carries a mark: that walk is resumed, not re-chosen", () => {
+    const c = withAdoption({ served: { signature: "Susan Godfrey", initials: null }, stops: stopsFrom({ p03: "2026-09-28T10:00:00Z" }) });
+    expect(c.alreadyAdopted.value).toBe(false);
+    expect(c.canRemake.value).toBe(false);
+    c.remake();
+    expect(c.canChange("signature")).toBe(false);
+  });
+
+  it("is not offered when the link has a signature but the packet still needs initials it never made", () => {
+    const c = withAdoption({ adoptions: { signature: "Susan Godfrey", initials: null } as never });
+    expect(c.alreadyAdopted.value).toBe(false);
+    expect(c.adoptedName.value).toBe("Susan Godfrey");
+  });
+
+  it("goes back to the form when the server says the name is not the adopted one", async () => {
+    const c = withAdoption();
+    await c.adopt();
+    answer = () => Object.assign(new Error("Make it again"), { code: "adoption_name_mismatch" });
+    await c.sign();
+    expect(c.state.value).toBe("adopting");
+    expect(c.alreadyAdopted.value).toBe(false);
+    expect(c.error.value).toBe("Make it again");
   });
 });

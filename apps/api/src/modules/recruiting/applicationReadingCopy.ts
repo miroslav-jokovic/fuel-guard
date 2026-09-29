@@ -99,10 +99,10 @@ export async function applicantReadingCopy(
    */
   const marks = await packetMarksFor(admin, invitation.org_id, invitation.id);
   const drawnMark = marks.length
-    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature")
+    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature", "packet")
     : null;
   const initialsMark = marks.length
-    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "initials")
+    ? await signatureMarkBytes(admin, invitation.org_id, invitation.id, "initials", "packet")
     : null;
 
   const preview = await applicationPreviewPdf(admin, invitation.org_id, invitation.id, {

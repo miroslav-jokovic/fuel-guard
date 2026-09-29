@@ -1790,3 +1790,31 @@ Append dated lines at the END.
     included.
   - **Checks:** 12 mutants, all killed. The tap-target walk at 390 and 320 px now adopts both marks and asserts two PNG
     POSTs. The adoption screen was walked in Chromium only, not on a phone.
+- 2026-09-28 — **C3s1 merged** (#1114, main `4153a05`); both production services verified at `4153a05`.
+- 2026-09-28 — **C3s2 measured, then split into C3s2a (build) and C3s2b (the legacy back-fill); C3s2b is DROPPED.**
+  Production, read-only: **one** `application_invitations` row in total (`396000db`, revoked 2026-08-22, never
+  consented). It has no `signature_mark`/`initials_mark` capture, and there are 0 packet marks, 0 handbook marks, 0
+  invitation-linked permissions and 0 `signature_adoptions` rows. There is nothing to back-fill, and every link from
+  now on adopts on screen 13. `d61557dc`, the one invitation C0b existed for, was purged by P2.
+- 2026-09-28 — **C3s2a built** (`claude/applicant-flow-c3s2a`). No migration.
+  - **Every mark records its adoption.** The packet (13-argument `record_packet_mark`, `p_adoption_id`), the handbook
+    (`handbook_marks.adoption_id`) and the permissions (since C3s1) find the link's live adoption server-side, and
+    refuse a name that is not its typed text (`adoption_name_mismatch`, DR038 alike).
+  - **One adoption per kind per document** (`documentAdoption.ts`). A mark is refused when its document's earlier
+    marks carry another adoption (`adoption_changed_mid_document`). A new adoption is refused only while a document
+    is part-signed with the live one (`adoption_in_use`), so a new signature BETWEEN documents is the ordinary case.
+    This replaces C3s1's "never once used".
+  - **The renderers draw the adoption the document's own marks name** (`signatureMarkBytes(…, document)`), so the
+    permissions keep printing the one they were signed with after a new one is made at the packet. This replaces
+    C3s1's "newest before the instant". Marks naming none (pre-C3s1, or A8b's failed picture) read the capture as
+    before.
+  - **The packet offers the link's adoption:** "This is your signature" with "Use it", or "Make a new one" until a
+    place carries the mark. A mark made there is registered as an adoption and never staged.
+  - **C0b retired:** `handbookSelfAdoption.ts`, `useHandbookAdoption.ts`, the capture exception after filing,
+    `LinkHandbookStatus.adoption`, `handbookMarkSchema.signed_name` (a stale page's field is stripped by the schema)
+    and the handbook's adoption copy. The handbook signs with the adoption, or else the packet's adopted name.
+  - **Not in C3s2a:** the office's own sign-link session is still `OpenSigningPanel` (C3s3).
+  - **Checks:** 19 mutants. One survived first: no test signed an INITIALS place, so looking up the signature's adoption
+    for `p05` passed. A test was added and the mutant is now killed. The browser walk at 390 and 320 px adds the
+    packet's "This is your signature" panel: "Use it" reaches the first place with no adoption POST. Seen in Chromium
+    only.

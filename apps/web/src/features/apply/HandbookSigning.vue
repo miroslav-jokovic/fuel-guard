@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { HANDBOOK_PLACEMENTS, type HandbookPlacementId, type LinkHandbookStatus } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
 import PermissionDocumentView from "@/features/apply/signing/PermissionDocumentView.vue";
-import { useHandbookAdoption } from "@/features/apply/signing/useHandbookAdoption";
 import { publicFetch } from "./useApplication";
 import { useApplyScreen } from "./useScreenEvents";
 import { APPLY_COPY } from "./strings";
@@ -18,16 +16,16 @@ import { APPLY_COPY } from "./strings";
  * opens it, where it happens and a button to look again — never a poll, because several drivers in
  * one office share one address and the intake's bucket is 20 a minute. Once open: the carrier's
  * handbook, every page, from the same viewer the permissions use, and its five places, signed one at
- * a time with the signature the driver adopted for the application (the server applies it; nothing is
+ * a time with the signature the driver adopted on screen 13 (D-AW15 — the server applies it; nothing is
  * typed here). Once filed: their signed copy.
  *
  * ⚠ The document is re-read after each place, by version in the address, so the driver sees their
  * signature land where they signed. Those reads ride the ceremony's per-link bucket.
  *
- * ── ⚠ WORKAROUND: A HANDBOOK THAT ADOPTS ITS OWN SIGNATURE (A-1, C0b; removed by C3s) ─────────────
- * When the server says `adoption.required` — the application was filed before its packet was signed
- * on screen, so there is no adopted signature to borrow — the places wait behind the packet's own
- * adoption screens, and the first place carries the typed name. See `useHandbookAdoption.ts`.
+ * ── C0b's self-adoption is gone (C3s2a) ────────────────────────────────────────────────────────
+ * A handbook used to adopt its own signature when the application had been filed before its packet was
+ * signed on screen (A-1). Every link now adopts once, before the permissions, and P2 purged the one
+ * invitation the workaround existed for.
  */
 const props = defineProps<{ token: string; carrier: string; handbook: LinkHandbookStatus }>();
 
@@ -43,26 +41,8 @@ const failed = ref(false);
 const unreadable = ref(false);
 const checking = ref(false);
 const downloadFailed = ref(false);
-/** The server's own sentence for a refusal the driver can act on (adopt first), else the generic one. */
+/** The server's own sentence for a refusal the driver can act on, else the generic one. */
 const failedMessage = ref<string | null>(null);
-
-const selfAdopting = computed(() => props.handbook.adoption?.required === true);
-const adoption = useHandbookAdoption(computed(() => props.token), computed(() => props.handbook));
-const adopting = computed(() => selfAdopting.value && (adoption.state.value === "adopting" || adoption.state.value === "confirming"));
-
-/** The signature picture's object URL, for the confirm screen — `SigningCeremony.vue`'s idiom. */
-const drawnUrl = ref<string | null>(null);
-watch(
-  () => adoption.markBlob.value,
-  (blob) => {
-    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
-  },
-  { immediate: true },
-);
-onBeforeUnmount(() => {
-  if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-});
 
 // The count of signed places is in the address, so the viewer's `:key` reloads after each one.
 const src = computed(() => `/api/public/application/${props.token}/handbook.pdf?v=${props.handbook.driverSigned.length}`);
@@ -83,17 +63,16 @@ async function sign(id: HandbookPlacementId): Promise<void> {
   failed.value = false;
   failedMessage.value = null;
   try {
-    // The typed name rides every place while self-adopting; the server reads it on the first only.
-    const signedName = selfAdopting.value ? { signed_name: adoption.adoptedName.value.trim() } : {};
     await publicFetch(`/${props.token}/handbook/mark`, {
       method: "POST",
       // A-6: the text this page shows; the server refuses a place read under another one.
-      body: JSON.stringify({ placement_id: id, esign_consent: true, handbook_version: props.handbook.version, ...signedName }),
+      body: JSON.stringify({ placement_id: id, esign_consent: true, handbook_version: props.handbook.version }),
     });
     await refresh();
   } catch (e) {
     failed.value = true;
-    if ((e as { code?: string }).code === "handbook_adopt_signature_first") failedMessage.value = (e as Error).message;
+    // The signature changed partway through the handbook (C3s2a): the server's own sentence says what to do.
+    if ((e as { code?: string }).code === "adoption_changed_mid_document") failedMessage.value = (e as Error).message;
   } finally {
     busy.value = null;
   }
@@ -130,18 +109,8 @@ async function download(): Promise<void> {
       </BaseButton>
     </template>
 
-    <PacketAdoption
-      v-else-if="adopting"
-      :ceremony="adoption"
-      :carrier="carrier"
-      :stops="[]"
-      :copy="APPLY_COPY.handbook.adoption"
-      :drawn-url="drawnUrl"
-      :initials-url="null"
-    />
-
     <template v-else>
-      <p class="text-sm text-ink-muted">{{ selfAdopting ? APPLY_COPY.handbook.introOwnSignature : APPLY_COPY.handbook.intro }}</p>
+      <p class="text-sm text-ink-muted">{{ APPLY_COPY.handbook.intro }}</p>
       <PermissionDocumentView
         v-if="!unreadable"
         :key="src"

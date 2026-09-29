@@ -289,8 +289,10 @@ export function publicApplicationRouter(): Router {
                 || result.code === "identity_missing"
                 // D-AW2: on a v2 link Part 1 comes first, for the same reason.
                 || result.code === "intake_incomplete"
-                // D-AW15: the name is not the adopted one — the page takes the driver back to adopt.
+                // D-AW15: the name is not the adopted one — the page takes the driver back to adopt —
+                // or the permissions were started with another adoption (C3s2a, `documentAdoption.ts`).
                 || result.code === "adoption_name_mismatch"
+                || result.code === "adoption_changed_mid_document"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -335,6 +337,9 @@ export function publicApplicationRouter(): Router {
                 || result.code === "packet_mark_not_their_capacity"
                 // A-5: the text moved under a half-signed packet — the state of the world, not the request.
                 || result.code === "packet_text_changed"
+                // D-AW15 (C3s2a): the adopted mark, not this name — or not the one this packet started with.
+                || result.code === "adoption_name_mismatch"
+                || result.code === "adoption_changed_mid_document"
                 || result.code === "esign_consent_required"
               ? 409
               // A stop that is not the driver's is a bad request rather than a conflict: nothing

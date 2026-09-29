@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { APPLICATION_CAPTURE_MARK_SLOT, type PacketMarkKind } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_MARK_SLOT, type PacketMarkKind, type SignatureAdoptionsView } from "@silvicom/shared";
 import { stageCapture, type CaptureIo } from "@/features/apply/capture/stageCapture";
 import { DEFAULT_MARK_STYLE_ID } from "@/features/apply/signing/markStyles";
 import {
@@ -155,6 +155,12 @@ export interface PacketAdoptionInput {
    * adopts the initials the packet will use, once, with the signature. Absent, the stops decide.
    */
   initialsWanted?: Ref<boolean>;
+  /**
+   * What the LINK has adopted on screen 13 (D-AW15, C3s2a) — as distinct from `served`, which is what
+   * THIS document has already pinned. An adoption the document has not used yet is offered, not
+   * imposed: "This is your signature — use it", or make a new one (`remake`), which supersedes it.
+   */
+  linkAdopted?: Ref<SignatureAdoptionsView | undefined>;
   stage?: typeof stageCapture;
   io?: CaptureIo;
 }
@@ -251,8 +257,36 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * `pinnedKinds`, `canChange`, `placesWithMark`, `alreadyAdopted` — live in `packetAdoptionPins.ts`
    * since C1 (2026-09-26). Same five members, created here in the same setup.
    */
-  const { needsInitials, pinnedKinds, canChange, placesWithMark, alreadyAdopted } =
-    usePacketAdoptionPins({ stops, filedHere, outstanding, served, initialsWanted: input.initialsWanted });
+  const pins = usePacketAdoptionPins({ stops, filedHere, outstanding, served, initialsWanted: input.initialsWanted });
+  const { needsInitials, pinnedKinds, canChange, placesWithMark } = pins;
+
+  /**
+   * The link's adoption, offered (D-AW15, C3s2a): seeded into the fields when this document has pinned
+   * nothing, and shown as "This is your signature — use it" rather than an empty form.
+   *
+   * ⚠ **Offered only while it covers every mark this document asks for** — a link adopted before the
+   * initials were asked for has a signature and no initials, and the form is where the second one is
+   * made. And `remaking` is the driver choosing the form over the offer, which is why it is a flag the
+   * driver sets rather than something derived: nothing about the link changes when they press it.
+   */
+  const remaking = ref(false);
+  const linkHas = (kind: PacketMarkKind): boolean => Boolean(input.linkAdopted?.value?.[kind]?.trim());
+  const offersLinkAdoption = computed(
+    () =>
+      pinnedKinds.value.size === 0
+      && !remaking.value
+      && linkHas("signature")
+      && (!needsInitials.value || linkHas("initials")),
+  );
+  if (!adoptedName.value) adoptedName.value = input.linkAdopted?.value?.signature ?? "";
+  if (!adoptedInitials.value) adoptedInitials.value = input.linkAdopted?.value?.initials ?? "";
+  /** What the document pinned, or else the link's adoption on offer — either way, nothing to type. */
+  const alreadyAdopted = computed(() => pins.alreadyAdopted.value || offersLinkAdoption.value);
+  /** The driver would rather make a new one. Only while no place on this document carries a mark. */
+  const canRemake = computed(() => offersLinkAdoption.value);
+  function remake(): void {
+    if (canRemake.value) remaking.value = true;
+  }
 
   const markCarriedOver = signaturePicture.carriedOver;
   const markWillPrint = signaturePicture.willPrint;
@@ -366,6 +400,8 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    */
   function reopen(): boolean {
     if (!canChange("signature") && !canChange("initials")) return false;
+    // The form, not the link's adoption on offer: the driver is here to change what is in it.
+    remaking.value = true;
     adopted.value = false;
     confirmed.value = false;
     return true;
@@ -388,6 +424,8 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
     adoptedInitials,
     needsInitials,
     alreadyAdopted,
+    canRemake,
+    remake,
     markFor,
     style,
     styleId,

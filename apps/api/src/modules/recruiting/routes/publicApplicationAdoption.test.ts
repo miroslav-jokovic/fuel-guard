@@ -45,6 +45,7 @@ const seed = (over: {
   invitation?: FixtureRow;
   adoptions?: FixtureRow[];
   authorizations?: FixtureRow[];
+  packetMarks?: FixtureRow[];
   intakes?: FixtureRow[];
   rpc?: Record<string, unknown>;
 } = {}): SupabaseRecorder =>
@@ -59,7 +60,7 @@ const seed = (over: {
       organizations: [{ name: "Silvicom Inc" }],
       signature_adoptions: postgrestFixture([...(over.adoptions ?? []), ...STRANGER]),
       driver_authorizations: postgrestFixture(over.authorizations ?? []),
-      application_packet_marks: postgrestFixture([]),
+      application_packet_marks: postgrestFixture(over.packetMarks ?? []),
       handbook_marks: postgrestFixture([]),
       application_intakes: postgrestFixture(over.intakes ?? []),
       // Identity on file, as `recordRelease` requires before any permission (AF3).
@@ -69,6 +70,7 @@ const seed = (over: {
     rpc: {
       record_signature_adoption: { adoption_id: "x", superseded_id: null },
       record_driver_release: { authorization_id: "auth-1", signed_count: 1, completed: false },
+      record_packet_mark: { mark_id: "m-1", signed_count: 1, complete: false },
       ...over.rpc,
     },
   });
@@ -143,10 +145,10 @@ describe("POST /:token/adoption", () => {
     expect(res.status).toBe(201);
   });
 
-  it("refuses a new signature once a permission was signed with the live one — and looks only at this org's", async () => {
+  it("refuses a new signature while the permissions are part-signed with the live one — and looks only at this org's", async () => {
     const rec = seed({
       adoptions: [adoption(ORG, "signature")],
-      authorizations: [{ id: "a1", org_id: ORG, adoption_id: `adopt-signature-${ORG}` }],
+      authorizations: [{ id: "a1", org_id: ORG, invitation_id: INVITE, revokes: null, adoption_id: `adopt-signature-${ORG}` }],
     });
     holder.client = rec.client;
     const res = await adopt({ kind: "signature", typed_text: "Susan M Godfrey", png_base64: PNG.toString("base64") });
@@ -158,16 +160,39 @@ describe("POST /:token/adoption", () => {
     // The same use, recorded against ANOTHER org's row, locks nothing here.
     holder.client = seed({
       adoptions: [adoption(ORG, "signature")],
-      authorizations: [{ id: "a1", org_id: OTHER, adoption_id: `adopt-signature-${ORG}` }],
+      authorizations: [{ id: "a1", org_id: OTHER, invitation_id: INVITE, revokes: null, adoption_id: `adopt-signature-${ORG}` }],
     }).client;
     const other = await adopt({ kind: "signature", typed_text: "Susan M Godfrey", png_base64: PNG.toString("base64") });
     expect(other.status).toBe(201);
   });
 
+  /** C3s2a: between documents a new signature is the ordinary case — the packet's "or make another". */
+  it("takes a new signature once the permissions are finished, before the packet has a mark", async () => {
+    const rec = seed({
+      invitation: { releases_completed_at: "2026-09-28T11:00:00Z" },
+      adoptions: [adoption(ORG, "signature")],
+      authorizations: [{ id: "a1", org_id: ORG, invitation_id: INVITE, revokes: null, adoption_id: `adopt-signature-${ORG}` }],
+    });
+    holder.client = rec.client;
+    const res = await adopt({ kind: "signature", typed_text: "Susan M Godfrey", png_base64: PNG.toString("base64") });
+    expect(res.status).toBe(201);
+  });
+
+  it("refuses one while the packet is part-signed with the live one", async () => {
+    holder.client = seed({
+      invitation: { releases_completed_at: "2026-09-28T11:00:00Z" },
+      adoptions: [adoption(ORG, "signature")],
+      packetMarks: [{ org_id: ORG, invitation_id: INVITE, mark: "signature", adoption_id: `adopt-signature-${ORG}`, signed_at: "2026-09-28T12:00:00Z" }],
+    }).client;
+    const res = await adopt({ kind: "signature", typed_text: "Susan M Godfrey", png_base64: PNG.toString("base64") });
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("adoption_in_use");
+  });
+
   it("the initials stay changeable while only the signature is in use", async () => {
     holder.client = seed({
       adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials")],
-      authorizations: [{ id: "a1", org_id: ORG, adoption_id: `adopt-signature-${ORG}` }],
+      authorizations: [{ id: "a1", org_id: ORG, invitation_id: INVITE, revokes: null, adoption_id: `adopt-signature-${ORG}` }],
     }).client;
     const res = await adopt({ kind: "initials", typed_text: "S.G.", png_base64: PNG.toString("base64") });
     expect(res.status).toBe(201);
@@ -255,6 +280,18 @@ describe("a permission is signed with the adopted signature", () => {
     expect(rec.rpcs()).toEqual([]);
   });
 
+  it("refuses when the permissions already signed carry another adoption (C3s2a)", async () => {
+    const rec = seed({
+      adoptions: [adoption(ORG, "signature")],
+      authorizations: [{ id: "a0", org_id: ORG, invitation_id: INVITE, revokes: null, adoption_id: "older", accepted_at: "2026-09-28T09:00:00Z" }],
+    });
+    holder.client = rec.client;
+    const res = await release("Susan Godfrey");
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("adoption_changed_mid_document");
+    expect(rec.rpcs()).toEqual([]);
+  });
+
   it("answers the database's DR038 as the same mismatch", async () => {
     holder.client = seed({
       adoptions: [adoption(ORG, "signature")],
@@ -263,5 +300,63 @@ describe("a permission is signed with the adopted signature", () => {
     const res = await release("Susan Godfrey");
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("adoption_name_mismatch");
+  });
+});
+
+/** The packet's places are one click that applies the adoption (D-AW15, C3s2a). */
+describe("a packet place is signed with the adopted mark", () => {
+  const OPENED = { approved_at: "2026-09-28T09:30:00Z", signing_opened_at: "2026-09-28T09:40:00Z" };
+  const place = (signedName: string) =>
+    call("/mark", { method: "POST", body: JSON.stringify({ placement_id: "p03", signed_name: signedName, esign_consent: true }) });
+
+  it("names the live adoption of the place's kind to the 13-argument function", async () => {
+    const rec = seed({ invitation: OPENED, adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials")] });
+    holder.client = rec.client;
+    const res = await place("Susan Godfrey");
+    expect(res.status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "record_packet_mark")!.args as Record<string, unknown>;
+    expect(args.p_adoption_id).toBe(`adopt-signature-${ORG}`);
+    expect(args.p_mark).toBe("signature");
+  });
+
+  // p05 takes initials: the INITIALS adoption, with its own text — never the signature's.
+  it("signs an initials place with the initials adoption and its text", async () => {
+    const rec = seed({ invitation: OPENED, adoptions: [adoption(ORG, "signature"), adoption(ORG, "initials", { typed_text: "SG" })] });
+    holder.client = rec.client;
+    const res = await call("/mark", { method: "POST", body: JSON.stringify({ placement_id: "p05", signed_name: "SG", esign_consent: true }) });
+    expect(res.status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "record_packet_mark")!.args as Record<string, unknown>;
+    expect(args.p_mark).toBe("initials");
+    expect(args.p_adoption_id).toBe(`adopt-initials-${ORG}`);
+  });
+
+  it("refuses a name that is not the adopted one, and makes no mark", async () => {
+    const rec = seed({ invitation: OPENED, adoptions: [adoption(ORG, "signature")] });
+    holder.client = rec.client;
+    const res = await place("Susan M Godfrey");
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("adoption_name_mismatch");
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("refuses when the packet's earlier places carry another adoption", async () => {
+    const rec = seed({
+      invitation: OPENED,
+      adoptions: [adoption(ORG, "signature")],
+      packetMarks: [{ org_id: ORG, invitation_id: INVITE, mark: "signature", adoption_id: "older", signed_at: "2026-09-28T09:45:00Z" }],
+    });
+    holder.client = rec.client;
+    const res = await place("Susan Godfrey");
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("adoption_changed_mid_document");
+    expect(rec.rpcs()).toEqual([]);
+  });
+
+  it("signs with the typed name and no adoption when the link has none (A8b)", async () => {
+    const rec = seed({ invitation: OPENED });
+    holder.client = rec.client;
+    expect((await place("Susan Godfrey")).status).toBe(201);
+    const args = rec.rpcs().find((r) => r.fn === "record_packet_mark")!.args as Record<string, unknown>;
+    expect(args).toHaveProperty("p_adoption_id", null);
   });
 });
