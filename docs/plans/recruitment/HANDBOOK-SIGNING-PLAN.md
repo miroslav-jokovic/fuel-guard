@@ -160,8 +160,8 @@ HB1–HB5 ship in ONE merge after 0374 is visible in production, as RT1–RT3 di
 
 ## 6. Q-HB1 — the Representative signs the packet's four carrier lines (DESIGN, 2026-09-29)
 
-**Status: proposed, awaiting the owner.** Q-HB1 was ruled yes on 2026-09-29, and the owner asked for
-the design before any build. Every "today" fact below was read at the call site on `main` `bc0ca4e`
+**Status: APPROVED (owner, 2026-09-29: Q-HB3 (a), Q-HB4 yes).** Q-HB1 was ruled yes on 2026-09-29, and the
+owner asked for the design before any build. D-HB7..D-HB10 below are ruled as written. Every "today" fact below was read at the call site on `main` `bc0ca4e`
 or measured on production the same day. Nothing is built.
 
 ### 6.1 What was measured
@@ -319,8 +319,9 @@ so the invariant still holds and says why.
   authorization it relies on, and the notice beside it already says where the driver signed. (b) Sign
   `p18c` only and print a notice on the other three. *Recommendation:* (a). It is what was ruled, and
   a carrier signature under a release the carrier did receive asserts nothing false.
+  **RULED (a) by the owner 2026-09-29.**
 - **Q-HB4 · Approve §6: (b)-by-stamping, one act with the handbook countersign, the new table, the
-  caption, no new gate?** *Recommendation:* yes, as written.
+  caption, no new gate?** *Recommendation:* yes, as written. **RULED yes by the owner 2026-09-29.**
 - **Q-HB2 · When the handbook is amended, must hired drivers re-sign?** Its own text says amendments
   *"shall become effective 5 calendar days after delivery"*. *Recommendation:* not in this build. A
   later step can offer the new version to the driver app.
@@ -404,3 +405,5 @@ so the invariant still holds and says why.
   date rule 16 pt below its signature rule. Recommended: a second, countersigned copy made by
   stamping the filed bytes, one act with the handbook countersign, a new one-row-per-invitation table,
   no new hire gate. Q-HB3 and Q-HB4 await the owner.
+- **2026-09-29** — **Q-HB3 ruled (a), Q-HB4 yes** (owner): D-HB7..D-HB10 stand as written in §6. Build
+  order: the table alone (QH0), then the writer and readers (QH1), then the invariant (QH2).
