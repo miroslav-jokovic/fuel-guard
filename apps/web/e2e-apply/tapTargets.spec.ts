@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PART_ONE_SCREENS } from "@silvicom/shared";
 import { openHandbook, packetStops, partOneLink, partTwoV2Link, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
@@ -150,7 +151,7 @@ async function photograph(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Use this photo" })).toBeVisible();
 }
 
-const step = (page: Page, n: number) => expect(page.getByText(`Step ${n} of 9`)).toBeVisible();
+const step = (page: Page, n: number) => expect(page.getByText(`Step ${n} of ${PART_ONE_SCREENS.length}`)).toBeVisible();
 
 for (const width of [390, 320]) {
   test.describe(`at ${width} px`, () => {
@@ -230,7 +231,20 @@ for (const width of [390, 320]) {
       await page.getByLabel(/medical card yet/).check();
       await press(page, "Continue");
 
+      // AW6: the selfie — its oval, its notice, "I can't take one" ticked, then a photo taken and sent.
       await step(page, 9);
+      await s.check("part1.selfie");
+      const cannot = page.getByLabel(/can't take a photo of myself/);
+      await cannot.check();
+      await s.check("part1.selfie, cannot take one");
+      await cannot.uncheck();
+      await photograph(page);
+      await s.check("part1.selfie, photo to review");
+      await press(page, "Use this photo");
+      await expect(page.getByText("Received.")).toBeVisible();
+      await press(page, "Continue");
+
+      await step(page, 10);
       await s.check("part1.rights");
       await press(page, "I have read this");
 

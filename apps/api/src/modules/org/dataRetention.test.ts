@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { APPLICATION_CAPTURE_KEEP_DAYS } from "@silvicom/shared";
 import {
   runDataRetention,
   RETENTION_RULES,
@@ -55,6 +56,16 @@ describe("retention policy (the config itself)", () => {
     const SCORING_HEALTH_MAX_WINDOW_DAYS = 30;
     expect(rule!.keepDays).toBeGreaterThan(SCORING_HEALTH_MAX_WINDOW_DAYS);
     expect(rule!.timeColumn).toBe("started_at"); // the indexed column (idx_scoring_attempts_org_started)
+  });
+
+  /**
+   * AW6: Part 1's selfie screen tells the driver the photo is deleted `APPLICATION_CAPTURE_KEEP_DAYS`
+   * after it is taken. `check-table-lifecycle.mjs` reads `keepDays` as a literal, so the rule cannot
+   * import the constant; this is what keeps the sentence a driver reads equal to what the pruner does.
+   */
+  it("keeps staged captures for as long as the applicant is told", () => {
+    const rule = RETENTION_RULES.find((r) => r.table === "application_captures");
+    expect(rule?.keepDays).toBe(APPLICATION_CAPTURE_KEEP_DAYS);
   });
 
   /**

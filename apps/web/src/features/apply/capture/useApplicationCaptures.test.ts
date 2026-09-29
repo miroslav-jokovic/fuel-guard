@@ -16,8 +16,8 @@ const UPLOADED = new File(["a photo already on the phone"], "IMG_0002.jpg", { ty
 const pickers = vi.hoisted(() => ({ camera: vi.fn(), file: vi.fn() }));
 vi.mock("./webImageIo", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./webImageIo")>()),
-  pickPhotoFromCamera: async () => {
-    pickers.camera();
+  pickPhotoFromCamera: async (...args: unknown[]) => {
+    pickers.camera(...args);
     return ORIGINAL;
   },
   pickImageFile: async (...args: unknown[]) => {
@@ -446,5 +446,13 @@ describe("Upload a photo instead (§6.6.6)", () => {
     expect(pickers.camera).toHaveBeenCalledTimes(1);
     await captures.use("cdl_back");
     expect(onStaged).toHaveBeenCalledWith("cdl_back", ORIGINAL);
+  });
+
+  /** AW6, §6.7: the selfie is of the person holding the phone, so it opens the FRONT camera. */
+  it("opens the front camera for the selfie and the rear one for a document, one press after another", async () => {
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io: spyIo(), only: ["selfie", "cdl_front"] });
+    await captures.take("selfie");
+    await captures.take("cdl_front");
+    expect(pickers.camera.mock.calls).toEqual([["user"], ["environment"]]);
   });
 });

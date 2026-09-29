@@ -354,6 +354,25 @@ describe("promoting a staged set into the qualification file", () => {
     expect((result as unknown[]).length).toBe(2);
   });
 
+  /** AW6: the selfie stays in staging — copied into `compliance-docs` it would be kept forever. */
+  it("never copies the selfie into the evidence bucket, nor offers it for filing", async () => {
+    const CAP_S = "cccccccc-3333-4333-8333-333333333333";
+    const rec = createSupabaseRecorder({
+      tables: {
+        application_captures: [
+          { id: CAP_A, slot: "cdl_front", storage_path: `${ORG}/${INVITATION}/${CAP_A}.webp`, content_type: "image/webp", bytes: 1, sha256: SHA, captured_at: NOW.toISOString() },
+          { id: CAP_S, slot: "selfie", storage_path: `${ORG}/${INVITATION}/${CAP_S}.webp`, content_type: "image/webp", bytes: 1, sha256: SHA, captured_at: NOW.toISOString() },
+        ],
+      },
+      storage: { copy: () => ({ data: { path: "x" }, error: null }) },
+    });
+    const result = await promoteCaptures(rec.client, ORG, INVITATION, DRIVER);
+    if ("code" in result) throw new Error("expected a promotion");
+    expect(result.map((p) => p.capture_id)).toEqual([CAP_A]);
+    const copies = rec.storageCalls().filter((c) => c.fn === "copy");
+    expect(copies.map((c) => c.args[0])).toEqual([`${ORG}/${INVITATION}/${CAP_A}.webp`]);
+  });
+
   it("promotes nothing when nothing was staged", async () => {
     const rec = createSupabaseRecorder({ tables: { application_captures: [] } });
     expect(await promoteCaptures(rec.client, ORG, INVITATION, DRIVER)).toEqual([]);

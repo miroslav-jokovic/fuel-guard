@@ -9,11 +9,13 @@ import {
   DOCUMENTS_BUCKET,
   applicationCaptureStoragePath,
   documentStoragePath,
+  isPromotedCaptureSlot,
   type ApplicationCaptureConfirm,
   type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
   type ApplicationCaptureStart,
   type ApplicationCaptureView,
+  type PromotedCaptureSlot,
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
@@ -304,7 +306,11 @@ export async function promoteCaptures(
   const { data, error } = await query;
   if (error) return CAPTURE_PROMOTION_FAILED;
 
-  const rows = (data ?? []) as CaptureRow[];
+  // AW6: the selfie never leaves staging. 0376's filing functions skip it too, but by then it would
+  // already have been copied into the evidence bucket, where no row would ever point at it.
+  const rows = ((data ?? []) as CaptureRow[]).filter(
+    (row): row is CaptureRow & { slot: PromotedCaptureSlot } => isPromotedCaptureSlot(row.slot),
+  );
   const promoted: PromotedCapture[] = [];
   for (const row of rows) {
     // The filed document IS the staged capture, by id. That is what makes promotion exactly-once: a

@@ -126,10 +126,12 @@ export function useApplicationCaptures(
    * the downscale and the EXIF strip after it are one pipeline, and two providers would be two of them.
    */
   let source: CaptureSource = "camera";
+  /** Which camera the next `scan()` opens: the front one for the selfie (AW6), the rear for a document. */
+  let facing: "environment" | "user" = "environment";
   const provider =
     options.provider ??
     createWebFileProvider(BUNDLED_DEFAULT_CONFIG, {
-      pick: async () => (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera())),
+      pick: async () => (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera(facing))),
     });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
@@ -216,6 +218,7 @@ export function useApplicationCaptures(
     /** What the slot showed before, for a picker the driver closes: nothing happened, so nothing changes. */
     const before = local[slot] ? { ...local[slot] } : null;
     source = from;
+    facing = slot === "selfie" ? "user" : "environment";
     mark(slot, "working", { source: from });
     try {
       const result = await provider.scan();

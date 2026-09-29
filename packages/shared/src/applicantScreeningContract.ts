@@ -406,3 +406,36 @@ export const clearinghousePortalConsentSchema = z
   .object({ occurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD") })
   .strict();
 export type ClearinghousePortalConsent = z.infer<typeof clearinghousePortalConsentSchema>;
+
+/**
+ * The office's reading of the applicant's selfie beside their licence photo (AW6, §6.7, D-AW10 phase 1,
+ * Q-AW5 (a)). A person decides; nothing in this product measures a face. 0376's CHECK is the list.
+ *
+ * ⚠ A reading, not a gate: §6.7 says a failed or impossible selfie is "never a hard block" — the
+ * recruiter checks the driver against their licence in person on arrival instead. So nothing in the
+ * checklist reads the verdict; it is for the person looking at the drawer.
+ */
+export const SELFIE_VERDICTS = ["matches", "does_not_match", "unclear"] as const;
+export type SelfieVerdict = (typeof SELFIE_VERDICTS)[number];
+
+export const SELFIE_VERDICT_LABELS: Record<SelfieVerdict, string> = {
+  matches: "Same person",
+  does_not_match: "Not the same person",
+  unclear: "Can't tell",
+};
+
+/** `POST /recruitment/applicants/:driverId/intake/selfie-verdict`. A second reading replaces the first. */
+export const selfieVerdictSchema = z.object({ verdict: z.enum(SELFIE_VERDICTS) }).strict();
+export type SelfieVerdictInput = z.infer<typeof selfieVerdictSchema>;
+
+/**
+ * `GET /recruitment/applicants/:driverId/intake/selfie` — the two photographs as short-lived signed
+ * URLs, and the reading on file. A photo is null when it was never taken or has been pruned; `partOneDone`
+ * tells a selfie skipped (Part 1 finished without one) from one not reached yet.
+ */
+export interface SelfieCheck {
+  partOneDone: boolean;
+  selfie: { url: string; capturedAt: string } | null;
+  licenceFront: { url: string; capturedAt: string } | null;
+  verdict: { verdict: SelfieVerdict; at: string } | null;
+}

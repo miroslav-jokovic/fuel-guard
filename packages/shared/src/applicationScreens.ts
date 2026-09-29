@@ -40,6 +40,7 @@ export const PART_ONE_SCREENS = [
   "otherLicences",
   "screening",
   "medical_card",
+  "selfie",
   "rights",
 ] as const;
 export type PartOneScreen = (typeof PART_ONE_SCREENS)[number];

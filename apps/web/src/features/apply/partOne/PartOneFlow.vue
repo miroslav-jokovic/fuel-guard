@@ -5,7 +5,7 @@ import PartOneAnswerFields from "./PartOneAnswerFields.vue";
 import PartOneOtherLicences from "./PartOneOtherLicences.vue";
 import PartOnePhoto from "./PartOnePhoto.vue";
 import PartOneRights from "./PartOneRights.vue";
-import { isPhotoScreen, photoDone, type PartOneScreen } from "./partOneScreens";
+import { isPhotoScreen, photoDone, type PartOneScreen, type PhotoScreen } from "./partOneScreens";
 import { useHandoffPoll, useIsDesktop } from "./useDesktopHandoff";
 import { usePartOne, type PartOneInputs } from "./usePartOne";
 import { useApplyScreen } from "@/features/apply/useScreenEvents";
@@ -18,14 +18,15 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * ── WHERE IT SITS ─────────────────────────────────────────────────────────────────────────────
  * After the welcome (screen 1, `ApplyExpectations`) and the 7001(c) consent (screen 2), which exist and
  * are unchanged; before the six permissions (screens 14–19, the existing ceremony), which the server
- * refuses on a v2 link until Part 1 is finished (`intake_incomplete`). So this walks screens 3–10 and
+ * refuses on a v2 link until Part 1 is finished (`intake_incomplete`). So this walks screens 3–11 and
  * 12 — the CDL's two photographs first, so its barcode can fill screens 3–5 (Q-AW31, `PART_ONE_SCREENS`)
  * — and its last Continue is `complete_applicant_intake`: the stamp, and the photographs filed.
- * Screen 11 (the selfie) waits for Q-AW5 (AW6); screen 13 (adopt a signature) is C3s's (D-AW15).
+ * Screen 11, the selfie (AW6, Q-AW5 (a)), is a photo screen like 8–10; screen 13 (adopt a signature)
+ * is C3s's (D-AW15).
  *
  * ── LINEAR, ONE THING PER SCREEN ──────────────────────────────────────────────────────────────
  * A stepper, not the task list Part 2 gets (D-AW11): Part 1 is nine minutes, its order is the order the
- * office needs the facts in, and a driver on a phone is served by "Step 4 of 9" and one Continue. Back
+ * office needs the facts in, and a driver on a phone is served by "Step 4 of 10" and one Continue. Back
  * is always there; a returning applicant opens on the first screen still owed (`resumeScreen`).
  *
  * ⚠ The photo screen is keyed by screen: `useApplicationCaptures` reads its slot list once, at setup, so
@@ -44,7 +45,7 @@ const flow = usePartOne(toRef(props, "token"), toRef(props, "inputs"), props.ref
 useApplyScreen(() => partOneScreenName(flow.screen.value));
 const answers = flow.answers;
 
-const HEADINGS: Record<Exclude<PartOneScreen, "cdl_front" | "cdl_back" | "medical_card">, string> = {
+const HEADINGS: Record<Exclude<PartOneScreen, PhotoScreen>, string> = {
   about: copy.about.heading,
   address: copy.address.heading,
   licence: copy.licence.heading,
@@ -120,7 +121,7 @@ useHandoffPoll(
   async () => {
     const s = photoScreen.value;
     const fresh = await props.refresh();
-    return s !== null && fresh !== null && photoDone(s, fresh.captures, false);
+    return s !== null && fresh !== null && photoDone(s, fresh.captures, {});
   },
   () => {
     followingPhone = true;

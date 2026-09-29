@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { driverPlacements, APPLICATION_FILLING_SECTIONS, APPLICATION_RELEASE_ORDER, PART_ONE_SCREENS } from "@silvicom/shared";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import ApplyPage from "@/pages/ApplyPage.vue";
@@ -660,7 +660,7 @@ describe("the applicant's page", () => {
     await settle(w);
     // Step 1 is the CDL's front: its barcode (on the back) fills the typed screens after it (Q-AW31).
     expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_front.heading);
-    expect(w.text()).toContain(APPLY_COPY.partOne.step(1, 9));
+    expect(w.text()).toContain(APPLY_COPY.partOne.step(1, PART_ONE_SCREENS.length));
     expect(w.text()).not.toContain("Your driver's licence");
     expect(w.text()).not.toContain("Your signature");
   });
@@ -713,7 +713,7 @@ describe("the applicant's page", () => {
       await vi.advanceTimersByTimeAsync(10_000);
       await flushPromises();
       expect(w.text()).toContain(APPLY_COPY.partOne.photo.cdl_back.heading);
-      expect(w.text()).toContain(APPLY_COPY.partOne.step(2, 9));
+      expect(w.text()).toContain(APPLY_COPY.partOne.step(2, PART_ONE_SCREENS.length));
     } finally {
       vi.useRealTimers();
       vi.unstubAllGlobals();
@@ -733,7 +733,7 @@ describe("the applicant's page", () => {
       await vi.advanceTimersByTimeAsync(10_000);
       await flushPromises();
       // Both sides came from the phone: the desktop is carried past the CDL's back to the typed screens.
-      expect(w.text()).toContain(APPLY_COPY.partOne.step(3, 9));
+      expect(w.text()).toContain(APPLY_COPY.partOne.step(3, PART_ONE_SCREENS.length));
       expect(w.text()).toContain(APPLY_COPY.partOne.about.heading);
     } finally {
       vi.useRealTimers();
