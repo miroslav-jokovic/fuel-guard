@@ -359,7 +359,7 @@ async function fileCountersignedHandbook(
     handbookMarksForPrint(admin, orgId, invitationId),
     handbookPrintFacts(admin, orgId, driverId, invitationId),
     carrierOf(admin, orgId),
-    signatureMarkBytes(admin, orgId, invitationId, "signature"),
+    signatureMarkBytes(admin, orgId, invitationId, "signature", "handbook"),
     displayNameFor(admin, userId, orgId, role),
   ]);
   const pdf = await handbookPdf({

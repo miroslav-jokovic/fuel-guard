@@ -10,6 +10,7 @@ import {
   type PacketPlacement,
 } from "@silvicom/shared";
 import { draftApplyingAs } from "./applicantApplyingAs.js";
+import { ADOPTION_NAME_MISMATCH, adoptionForMark } from "./documentAdoption.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { packetTextVersion } from "./applicationPdf/packet/packetTextVersion.js";
 import {
@@ -285,6 +286,17 @@ export async function recordPacketMark(
   if (invitation.submitted_at) return refused(PACKET_ALREADY_FILED);
   if (!invitation.signing_opened_at) return refused(PACKET_NOT_OPENED);
 
+  /**
+   * D-AW15 (C3s2a): the place is signed WITH the link's adoption of its kind, found here — the request
+   * names no id — and recorded on the row. The name must be the adopted one, for `recordRelease`'s
+   * reason: `signed_name` is the signature of record and the adoption's picture is drawn beside it. No
+   * adoption (every link before C3s1, or one whose adoption never saved — A8b) signs with the typed name
+   * and null, and prints from the staged capture as it always did.
+   */
+  const adoption = await adoptionForMark(admin, invitation.org_id, invitation.id, "packet", placement.mark);
+  if (adoption && isIntakeError(adoption)) return refused(adoption);
+  if (adoption && adoption.typedText !== body.signed_name.trim()) return refused(ADOPTION_NAME_MISMATCH);
+
   const { data, error } = await admin.rpc("record_packet_mark", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
@@ -306,10 +318,9 @@ export async function recordPacketMark(
      * — the eleven-argument one stamps nothing, which is how production's 20 marks came to carry no
      * version at all. Stamped by the server, like `p_page` and `p_affirmed`: the driver's screen shows
      * the place, not the page's words, so the text in force is the one this process prints.
-     * `p_adoption_id` stays null until D-AW15's adoption screen (C3s) exists to name one.
      */
     p_packet_version: await packetTextVersion(),
-    p_adoption_id: null,
+    p_adoption_id: adoption?.id ?? null,
   });
   if (error) {
     if (error.code === "DR034" || /packet_mark_already_made/.test(error.message)) {
@@ -318,6 +329,8 @@ export async function recordPacketMark(
     if (error.code === "DR035" || /packet_mark_name_changed/.test(error.message)) {
       return refused(PACKET_MARK_NAME_CHANGED);
     }
+    // Superseded between the read above and the lock — the driver adopted again in another tab.
+    if (error.code === "DR038") return refused(ADOPTION_NAME_MISMATCH);
     if (error.code === "DR037" || /packet_version_changed/.test(error.message)) {
       return refused(PACKET_TEXT_CHANGED);
     }

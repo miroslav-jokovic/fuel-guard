@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { postgrestFixture, type FixtureRow } from "../../testing/postgrestFixture.js";
 import { hashInvitationToken, isIntakeError } from "./applicationIntake.js";
 import { applicantHandbookPdf, linkHandbookStatus, recordHandbookMark } from "./handbookCeremony.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
@@ -26,7 +27,9 @@ const invitation = (over: Record<string, unknown> = {}) => ({
 });
 
 const seed = (over: { inv?: Record<string, unknown>; adopted?: string | null; writeError?: unknown; places?: string[];
-  packetMarks?: Array<Record<string, unknown>>; handbookName?: string; pictureAt?: string | null;
+  packetMarks?: Array<Record<string, unknown>>; handbookName?: string;
+  /** Screen 13's adoptions on this link (D-AW15), and the one the places already signed carry. */
+  adoptions?: FixtureRow[]; placeAdoption?: string | null;
 } = {}) =>
   createSupabaseRecorder({
     tables: {
@@ -43,11 +46,13 @@ const seed = (over: { inv?: Record<string, unknown>; adopted?: string | null; wr
               party: placement_id === "h4c" ? "carrier" : "driver",
               signed_at: "2026-09-25T11:05:00Z",
               representative_id: null,
+              adoption_id: placement_id === "h4c" ? null : (over.placeAdoption ?? null),
             })),
+      signature_adoptions: postgrestFixture(over.adoptions ?? []),
       drivers: [{ full_name: "Jovana Petrović-Szczepańska" }],
       driver_applications: [{ ssn_last4: "1234" }],
       organizations: [{ name: "Silvicom Inc", legal_address: null }],
-      application_captures: over.pictureAt ? [{ captured_at: over.pictureAt }] : [],
+      application_captures: [],
       qualification_records: [],
       documents: [],
     },
@@ -96,9 +101,10 @@ describe("signing a place", () => {
     expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
   });
 
+  // A page loaded before C3s2a may still send C0b's `signed_name`; the schema strips it, and so does this.
   it("signs with the packet's adopted name even when a name is typed here", async () => {
     const rec = seed({ places: ["h3"] });
-    await recordHandbookMark(rec.client, TOKEN, { ...MARK, signed_name: "Somebody Else" }, CTX, NOW);
+    await recordHandbookMark(rec.client, TOKEN, { ...MARK, signed_name: "Somebody Else" } as never, CTX, NOW);
     expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ signed_name: "Jovana Petrović" });
   });
 
@@ -132,41 +138,41 @@ describe("signing a place", () => {
   });
 });
 
-describe("a handbook adopting its own signature (A-1, C0b — a workaround C3s removes)", () => {
-  // `d61557dc`'s shape: filed 09-14 with no packet marks; the picture was staged on the handbook screen.
-  const selfAdopting = (over: { places?: string[]; handbookName?: string; pictureAt?: string | null } = {}) =>
-    seed({ adopted: null, pictureAt: "pictureAt" in over ? over.pictureAt : "2026-09-25T14:00:00Z", ...over });
+/**
+ * D-AW15 (C3s2a): the handbook is signed with the link's adoption, which replaced C0b's self-adoption.
+ * The fixture carries ANOTHER org's live adoption on the same invitation id, so a read that forgot its
+ * org filter would sign this driver's handbook with a stranger's name.
+ */
+describe("signing with the adopted signature", () => {
+  const adoption = (org: string, id: string, typed: string): FixtureRow => ({
+    id, org_id: org, invitation_id: "inv-1", kind: "signature", typed_text: typed, superseded_by: null,
+  });
+  const STRANGER = adoption("0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "theirs", "Somebody Else");
 
-  it("signs the first place with the name typed on the handbook screen", async () => {
-    const rec = selfAdopting();
-    const result = await recordHandbookMark(rec.client, TOKEN, { ...MARK, signed_name: "  Dana Driver " }, CTX, NOW);
+  it("signs with the adoption's text and records which adoption it applied, over the packet's name", async () => {
+    const rec = seed({ adopted: "Packet Name", adoptions: [adoption(ORG, "a1", "Jovana P."), STRANGER] });
+    const result = await recordHandbookMark(rec.client, TOKEN, MARK, CTX, NOW);
     expect(isIntakeError(result)).toBe(false);
-    expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ placement_id: "h3", party: "driver", signed_name: "Dana Driver" });
+    expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ signed_name: "Jovana P.", adoption_id: "a1" });
     expectOrgScoped(rec, ORG, { exempt: ["application_invitations", "organizations"] });
   });
 
-  it("signs every later place with the first place's name, whatever is typed", async () => {
-    const rec = selfAdopting({ places: ["h1"], handbookName: "Dana Driver" });
-    await recordHandbookMark(rec.client, TOKEN, { ...MARK, signed_name: "Somebody Else" }, CTX, NOW);
-    expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ signed_name: "Dana Driver" });
+  it("refuses a place when the earlier places were signed with another adoption, and writes nothing", async () => {
+    const rec = seed({ places: ["h1"], placeAdoption: "a0", adoptions: [adoption(ORG, "a1", "Jovana P.")] });
+    const result = await recordHandbookMark(rec.client, TOKEN, MARK, CTX, NOW);
+    expect(isIntakeError(result) && result.code).toBe("adoption_changed_mid_document");
+    expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
   });
 
-  it("asks for the adoption first — without a name, or without a picture — and writes nothing", async () => {
-    const noName = selfAdopting();
-    const a = await recordHandbookMark(noName.client, TOKEN, MARK, CTX, NOW);
-    expect(isIntakeError(a) && a.code).toBe("handbook_adopt_signature_first");
-    const noPicture = selfAdopting({ pictureAt: null });
-    const b = await recordHandbookMark(noPicture.client, TOKEN, { ...MARK, signed_name: "Dana Driver" }, CTX, NOW);
-    expect(isIntakeError(b) && b.code).toBe("handbook_adopt_signature_first");
-    expect([...noName.writtenRows("handbook_marks"), ...noPicture.writtenRows("handbook_marks")]).toHaveLength(0);
+  it("signs with the packet's name and no adoption when the link's adoption never saved (A8b)", async () => {
+    const rec = seed({ adoptions: [STRANGER] });
+    await recordHandbookMark(rec.client, TOKEN, MARK, CTX, NOW);
+    expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ signed_name: "Jovana Petrović", adoption_id: null });
   });
 
-  it("tells the link it must adopt, and what is already pinned", async () => {
-    const rec = selfAdopting({ places: ["h1"], handbookName: "Dana Driver" });
-    const view = await linkHandbookStatus(rec.client, invitation({ org_id: ORG }));
-    expect(view?.adoption).toEqual({ required: true, adoptedName: "Dana Driver", pictureStaged: true });
-    const packet = await linkHandbookStatus(seed().client, invitation({ org_id: ORG }));
-    expect(packet?.adoption).toBeNull();
+  it("tells the link nothing about adopting: the handbook no longer adopts its own", async () => {
+    const view = await linkHandbookStatus(seed().client, invitation({ org_id: ORG }));
+    expect(view).not.toHaveProperty("adoption");
   });
 });
 

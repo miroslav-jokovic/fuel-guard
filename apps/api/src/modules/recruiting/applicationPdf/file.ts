@@ -56,7 +56,8 @@ async function gather(
   const orgId = application.org_id;
   const invitationId = application.invitation_id;
   return {
-    signatureMark: await signatureMarkBytes(admin, orgId, invitationId),
+    // The §391.21 document's instrument pages are the permissions: their adoption (C3s2a).
+    signatureMark: await signatureMarkBytes(admin, orgId, invitationId, "signature", "permissions"),
     carrier: await carrierOf(admin, orgId),
     application: application.payload,
     applicationId: application.id,
@@ -113,8 +114,8 @@ async function renderFiledDocument(
      * in pdfkit, with one signature block and no initials line anywhere on it. An initials picture
      * handed to it would be a mark drawn where a signature belongs.
      */
-    drawnMark: await signatureMarkBytes(admin, application.org_id, invitationId, "signature"),
-    initialsMark: await signatureMarkBytes(admin, application.org_id, invitationId, "initials"),
+    drawnMark: await signatureMarkBytes(admin, application.org_id, invitationId, "signature", "packet"),
+    initialsMark: await signatureMarkBytes(admin, application.org_id, invitationId, "initials", "packet"),
   });
 }
 

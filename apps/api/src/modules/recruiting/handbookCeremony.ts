@@ -13,7 +13,7 @@ import {
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
 import { handbookMarksForPrint, handbookPlacesSigned, handbookPrintFacts } from "./handbookSigning.js";
-import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
+import { adoptionForMark } from "./documentAdoption.js";
 
 /**
  * The driver handbook, signed on screen — the driver's half, on their own link (HANDBOOK-SIGNING-PLAN.md
@@ -26,13 +26,15 @@ import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
  * HB022/HB023), and nothing works after the handbook is filed (HB024).
  *
  * ── THE SIGNATURE IS THE ONE THEY ALREADY ADOPTED ─────────────────────────────────────────────
- * The handbook comes after the packet (D-HB1), so the driver's adopted signature exists. Each place is
- * signed with that name — never a new one typed here — and printed with that picture, so the handbook
- * and the application cannot carry two different signatures for one person on one morning.
+ * Since C3s2a it is the link's ADOPTION (D-AW15): screen 13 made it before the permissions, so every
+ * link that reaches the handbook has one. Each place is signed with its typed text — never a new one
+ * typed here — records its `adoption_id`, and is printed with its picture, so the handbook and the
+ * application cannot carry two different signatures for one person on one morning. A link whose
+ * adoption never saved (A8b) signs with the packet's adopted name, as the handbook always did.
  *
- * ⚠ EXCEPT an application filed before the packet was signed on screen, which has no adopted name to
- * borrow (A-1). Its handbook adopts its own — see `handbookSelfAdoption.ts`, a labelled workaround
- * that C3s removes.
+ * ⚠ The C0b workaround that let a handbook adopt its own signature (A-1) is gone: it existed for one
+ * invitation filed before the packet was signed on screen, `d61557dc`, which P2 purged; production
+ * holds no invitation it could apply to (measured 2026-09-28).
  */
 
 export const HANDBOOK_NOT_FILED_YET: IntakeError = {
@@ -55,10 +57,6 @@ export const HANDBOOK_CHANGED: IntakeError = {
   code: "handbook_changed",
   message: "The handbook changed since this page opened. Reload the page to read the current handbook, then sign.",
 };
-export const HANDBOOK_ADOPT_FIRST: IntakeError = {
-  code: "handbook_adopt_signature_first",
-  message: "Adopt your signature first: type your name and make your mark, then sign the handbook.",
-};
 export const HANDBOOK_NO_SIGNATURE: IntakeError = {
   code: "handbook_no_adopted_signature",
   message: "We could not find the signature you adopted for your application. Ask the carrier for help.",
@@ -70,10 +68,7 @@ export async function linkHandbookStatus(
   invitation: { id: string; org_id: string; submitted_at: string | null; handbook_signing_opened_at?: string | null; handbook_filed_at?: string | null },
 ): Promise<LinkHandbookStatus | null> {
   if (!invitation.submitted_at) return null;
-  const [signedPlacementIds, self] = await Promise.all([
-    handbookPlacesSigned(admin, invitation.org_id, invitation.id),
-    handbookSelfAdoption(admin, invitation),
-  ]);
+  const signedPlacementIds = await handbookPlacesSigned(admin, invitation.org_id, invitation.id);
   return {
     ...handbookStatus({
       submittedAt: invitation.submitted_at,
@@ -81,33 +76,20 @@ export async function linkHandbookStatus(
       filedAt: invitation.handbook_filed_at ?? null,
       signedPlacementIds,
     }),
-    adoption: self.required ? { required: true, adoptedName: self.adoptedName, pictureStaged: self.pictureStaged } : null,
     version: HANDBOOK_VERSION,
   };
 }
 
-/**
- * The name this place is signed with, or the refusal that says why there is none.
- *
- * The packet's adopted name, as it always was. Failing that — and only in the self-adoption state
- * (A-1; ⚠ WORKAROUND, removed by C3s) — the name pinned by the first handbook place, or, for the
- * first place itself, the name typed on the handbook screen, once its picture is staged. A name typed
- * after the first place is ignored rather than refused: the pinned one is the signature of record, and
- * the screen shows it.
- */
-async function handbookSignedName(
+/** The name and adoption this place is signed with, or the refusal that says why there is none. */
+async function handbookSignature(
   admin: SupabaseClient,
-  invitation: Parameters<typeof handbookSelfAdoption>[1],
-  body: HandbookMark,
-): Promise<string | IntakeError> {
+  invitation: { id: string; org_id: string },
+): Promise<{ name: string; adoptionId: string | null } | IntakeError> {
+  const adoption = await adoptionForMark(admin, invitation.org_id, invitation.id, "handbook", "signature");
+  if (adoption && isIntakeError(adoption)) return adoption;
+  if (adoption) return { name: adoption.typedText, adoptionId: adoption.id };
   const packet = (await adoptedPacketMarks(admin, invitation.org_id, invitation.id)).signature;
-  if (packet) return packet;
-  const self = await handbookSelfAdoption(admin, invitation);
-  if (!self.required) return HANDBOOK_NO_SIGNATURE;
-  if (self.adoptedName) return self.adoptedName;
-  const typed = body.signed_name?.trim() ?? "";
-  if (typed.length < 2 || !self.pictureStaged) return HANDBOOK_ADOPT_FIRST;
-  return typed;
+  return packet ? { name: packet, adoptionId: null } : HANDBOOK_NO_SIGNATURE;
 }
 
 export async function recordHandbookMark(
@@ -136,8 +118,8 @@ export async function recordHandbookMark(
   if (body.handbook_version !== HANDBOOK_VERSION) return refused(HANDBOOK_CHANGED);
 
   const placement = handbookPlacementById(body.placement_id)!;
-  const adopted = await handbookSignedName(admin, invitation, body);
-  if (typeof adopted !== "string") return refused(adopted);
+  const adopted = await handbookSignature(admin, invitation);
+  if (isIntakeError(adopted)) return refused(adopted);
 
   const { error } = await admin.from("handbook_marks").insert({
     org_id: invitation.org_id,
@@ -145,7 +127,8 @@ export async function recordHandbookMark(
     placement_id: placement.id,
     party: "driver",
     handbook_version: HANDBOOK_VERSION,
-    signed_name: adopted,
+    signed_name: adopted.name,
+    adoption_id: adopted.adoptionId,
     affirmed: placement.what,
     signed_ip: ctx.ip,
     signed_user_agent: ctx.userAgent,
@@ -205,7 +188,7 @@ export async function applicantHandbookPdf(
     handbookMarksForPrint(admin, invitation.org_id, invitation.id),
     handbookPrintFacts(admin, invitation.org_id, invitation.driver_id, invitation.id),
     carrierOf(admin, invitation.org_id),
-    signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature"),
+    signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature", "handbook"),
   ]);
   // The carrier's place stays blank on the reading copy: the countersignature is the office's act,
   // and it is drawn only on the document that files it.

@@ -330,7 +330,9 @@ describe("what the filed document is allowed to know", () => {
       rec
         .forTable(table)
         .flatMap((q) => q.ops)
-        .find((op) => op.method === "select")?.args[0] ?? "",
+        // Skipping the one-column lookup of which adoption a document's marks name (C3s2a,
+        // `documentAdoption.ts`): it reads the same table first, and is not the document's read.
+        .find((op) => op.method === "select" && op.args[0] !== "adoption_id")?.args[0] ?? "",
     );
 
   it("asks for every fact stored about a signature, not five of the eight", async () => {

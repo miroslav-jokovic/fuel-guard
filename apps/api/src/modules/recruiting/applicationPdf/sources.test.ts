@@ -1,120 +1,82 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
+import type { MarkedDocument } from "../documentAdoption.js";
 import { signatureMarkBytes } from "./sources.js";
 
 /**
- * Which picture a document draws once there are two places a mark can live (D-AW15, C3s1): the staged
- * capture the packet makes, and the adoption screen 13 makes. The newest made at or before the
- * document's instant — so the permissions print the adoption they were signed with, and a packet the
- * driver drew afresh prints its own drawing. Storage answers with the PATH, so each assertion says which
- * object was read.
+ * Which picture a document draws (D-AW15, C3s2a): the adoption ITS OWN marks name, never merely the
+ * newest one — a driver who makes a new signature at the packet supersedes the one the permissions were
+ * signed with, and the permissions go on printing theirs. A document whose marks name no adoption (every
+ * mark before C3s1, or A8b's failed picture) reads the staged capture as it always did. Storage answers
+ * with the PATH, so each assertion says which object was read.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const INVITE = "10000000-0000-4000-8000-000000000001";
 
-const capture = (org: string, at: string, over: FixtureRow = {}): FixtureRow => ({
-  id: `cap-${org}`, org_id: org, invitation_id: INVITE, slot: "signature_mark",
-  storage_path: `${org}/${INVITE}/capture.png`, captured_at: at, ...over,
+const adoption = (org: string, id: string, over: FixtureRow = {}): FixtureRow => ({
+  id, org_id: org, invitation_id: INVITE, kind: "signature", storage_path: `${org}/driver/d/${id}.png`, ...over,
 });
-const adoption = (org: string, id: string, at: string, over: FixtureRow = {}): FixtureRow => ({
-  id, org_id: org, invitation_id: INVITE, kind: "signature",
-  storage_path: `${org}/driver/d/${id}.png`, adopted_at: at, superseded_by: null, ...over,
+const mark = (org: string, adoptionId: string | null, over: FixtureRow = {}): FixtureRow => ({
+  org_id: org, invitation_id: INVITE, adoption_id: adoptionId, mark: "signature", party: "driver", revokes: null,
+  signed_at: "2026-09-28T10:00:00Z", accepted_at: "2026-09-28T10:00:00Z", ...over,
 });
 
 const read = async (
-  rows: { captures?: FixtureRow[]; adoptions?: FixtureRow[]; missing?: string[] },
-  before: string | null = null,
+  rows: { adoptions?: FixtureRow[]; permissions?: FixtureRow[]; packet?: FixtureRow[]; handbook?: FixtureRow[]; capture?: boolean },
+  document: MarkedDocument,
   kind: "signature" | "initials" = "signature",
 ) => {
   const rec = createSupabaseRecorder({
     tables: {
-      application_captures: postgrestFixture(rows.captures ?? []),
-      documents: postgrestFixture([]),
       signature_adoptions: postgrestFixture(rows.adoptions ?? []),
+      driver_authorizations: postgrestFixture(rows.permissions ?? []),
+      application_packet_marks: postgrestFixture(rows.packet ?? []),
+      handbook_marks: postgrestFixture(rows.handbook ?? []),
+      application_captures: postgrestFixture(
+        rows.capture ? [{ id: "cap", org_id: ORG, invitation_id: INVITE, slot: `${kind}_mark`, storage_path: "staged.png" }] : [],
+      ),
+      documents: postgrestFixture([]),
     },
-    storage: {
-      download: (path: string) =>
-        rows.missing?.includes(path)
-          ? { data: null, error: { message: "not found" } }
-          : { data: new Blob([path]), error: null },
-    },
+    storage: { download: (path: string) => ({ data: new Blob([path]), error: null }) },
   });
-  const bytes = await signatureMarkBytes(rec.client, ORG, INVITE, kind, before);
+  const bytes = await signatureMarkBytes(rec.client, ORG, INVITE, kind, document);
   expectOrgScoped(rec, ORG);
-  return { drawn: bytes?.toString() ?? null, rec };
+  return bytes?.toString() ?? null;
 };
 
-describe("signatureMarkBytes — the newest picture before the document's instant", () => {
-  it("draws the adoption when there is no capture (a v2 link's permissions)", async () => {
-    const { drawn, rec } = await read({ adoptions: [adoption(ORG, "a1", "2026-09-28T10:00:00Z")] });
-    expect(drawn).toBe(`${ORG}/driver/d/a1.png`);
-    expect(rec.storageCalls()[0]!.bucket).toBe("compliance-docs");
+describe("signatureMarkBytes — the adoption the document's own marks name", () => {
+  const TWO = [adoption(ORG, "a1", { superseded_by: "a2" }), adoption(ORG, "a2")];
+
+  it("the permissions print the adoption they were signed with, after a newer one was made at the packet", async () => {
+    const rows = { adoptions: TWO, permissions: [mark(ORG, "a1")], packet: [mark(ORG, "a2")] };
+    expect(await read(rows, "permissions")).toBe(`${ORG}/driver/d/a1.png`);
+    expect(await read(rows, "packet")).toBe(`${ORG}/driver/d/a2.png`);
   });
 
-  it("draws a capture made AFTER the adoption — a packet drawn afresh prints its own drawing", async () => {
-    const { drawn } = await read({
-      adoptions: [adoption(ORG, "a1", "2026-09-28T10:00:00Z")],
-      captures: [capture(ORG, "2026-09-30T15:00:00Z")],
-    });
-    expect(drawn).toBe(`${ORG}/${INVITE}/capture.png`);
+  it("the handbook prints its own marks' adoption", async () => {
+    expect(await read({ adoptions: TWO, handbook: [mark(ORG, "a2")] }, "handbook")).toBe(`${ORG}/driver/d/a2.png`);
   });
 
-  it("but not on a document whose instant came before that drawing — the permissions keep the adoption", async () => {
-    const { drawn } = await read(
-      {
-        adoptions: [adoption(ORG, "a1", "2026-09-28T10:00:00Z")],
-        captures: [capture(ORG, "2026-09-30T15:00:00Z")],
-      },
-      "2026-09-29T09:00:00Z",
-    );
-    expect(drawn).toBe(`${ORG}/driver/d/a1.png`);
+  it("the initials read the packet's initials marks, never the signature's", async () => {
+    const rows = {
+      adoptions: [adoption(ORG, "sig"), adoption(ORG, "ini", { kind: "initials" })],
+      packet: [mark(ORG, "sig"), mark(ORG, "ini", { mark: "initials" })],
+    };
+    expect(await read(rows, "packet", "initials")).toBe(`${ORG}/driver/d/ini.png`);
   });
 
-  it("draws a legacy link's capture exactly as before, when it has no adoption", async () => {
-    const { drawn } = await read({ captures: [capture(ORG, "2026-09-20T15:00:00Z")] });
-    expect(drawn).toBe(`${ORG}/${INVITE}/capture.png`);
+  it("a document whose marks name no adoption draws the staged capture, as before C3s1", async () => {
+    expect(await read({ adoptions: TWO, permissions: [mark(ORG, null)], capture: true }, "permissions")).toBe("staged.png");
   });
 
-  it("the adoption live at the instant, not a later one", async () => {
-    const { drawn } = await read(
-      {
-        adoptions: [
-          adoption(ORG, "a1", "2026-09-28T10:00:00Z", { superseded_by: "a2" }),
-          adoption(ORG, "a2", "2026-10-02T10:00:00Z"),
-        ],
-      },
-      "2026-09-29T09:00:00Z",
-    );
-    expect(drawn).toBe(`${ORG}/driver/d/a1.png`);
+  it("a document with no marks yet draws no adoption — the newest one is not borrowed", async () => {
+    expect(await read({ adoptions: TWO }, "packet")).toBeNull();
   });
 
-  it("falls back to the older picture when the newer one's bytes are gone", async () => {
-    const { drawn } = await read({
-      adoptions: [adoption(ORG, "a1", "2026-09-28T10:00:00Z")],
-      captures: [capture(ORG, "2026-09-30T15:00:00Z")],
-      missing: [`${ORG}/${INVITE}/capture.png`],
-    });
-    expect(drawn).toBe(`${ORG}/driver/d/a1.png`);
-  });
-
-  it("never draws another org's adoption on the same invitation id", async () => {
-    const { drawn } = await read({ adoptions: [adoption(OTHER, "theirs", "2026-09-28T10:00:00Z")] });
-    expect(drawn).toBeNull();
-  });
-
-  it("reads the initials' own adoption for the initials", async () => {
-    const { drawn } = await read(
-      {
-        adoptions: [
-          adoption(ORG, "sig", "2026-09-28T10:00:00Z"),
-          adoption(ORG, "ini", "2026-09-28T10:00:01Z", { kind: "initials" }),
-        ],
-      },
-      null,
-      "initials",
-    );
-    expect(drawn).toBe(`${ORG}/driver/d/ini.png`);
+  it("another org's marks on the same invitation id name nothing here", async () => {
+    const rows = { adoptions: [adoption(OTHER, "theirs")], packet: [mark(OTHER, "theirs")] };
+    expect(await read(rows, "packet")).toBeNull();
   });
 });

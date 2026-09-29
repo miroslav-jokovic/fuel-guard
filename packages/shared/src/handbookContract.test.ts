@@ -52,10 +52,15 @@ describe("a driver's mark", () => {
     expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true }).success).toBe(false);
   });
 
-  it("carries a self-adopted name trimmed, and refuses one too short to be a name (A-1, C0b)", () => {
-    const parsed = handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, handbook_version: "v1", signed_name: "  Dana Driver " });
-    expect(parsed.success && parsed.data.signed_name).toBe("Dana Driver");
-    expect(handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, handbook_version: "v1", signed_name: " D " }).success).toBe(false);
+  /**
+   * C3s2a retired C0b's self-adopted name: the handbook signs with the link's adoption (D-AW15). A page
+   * loaded before the deploy may still send one, and it must still sign — so the field is stripped, not
+   * refused.
+   */
+  it("strips a name sent by a page from before C3s2a, rather than refusing the place", () => {
+    const parsed = handbookMarkSchema.safeParse({ placement_id: "h1", esign_consent: true, handbook_version: "v1", signed_name: " D " });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).not.toHaveProperty("signed_name");
   });
 });
 

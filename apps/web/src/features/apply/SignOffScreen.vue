@@ -143,6 +143,7 @@ const blocked = computed(() => props.stops.length > 0 && !packetDone.value);
       :adopted-marks="adoptedMarks ?? null"
       :mark-staged="markStaged"
       :initials-staged="initialsStaged"
+      :adoptions="adoptions"
       @done="packetSigned"
     />
   </div>

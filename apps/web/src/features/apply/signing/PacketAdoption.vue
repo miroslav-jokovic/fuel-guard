@@ -168,9 +168,11 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     v-if="ceremony.state.value === 'adopting' && ceremony.alreadyAdopted.value"
     class="mx-auto w-full max-w-3xl space-y-4"
   >
+    <!-- D-AW15 (C3s2a): the link's adoption, OFFERED — "use it", or make a new one — until a place
+         on this document carries it; after that it is the resumed walk's, pinned. -->
     <div>
-      <h2 class="text-lg font-semibold text-ink">{{ copy.resumedHeading }}</h2>
-      <p class="mt-2 text-sm text-ink-muted">{{ copy.resumedBody }}</p>
+      <h2 class="text-lg font-semibold text-ink">{{ ceremony.canRemake.value ? copy.adoptedHeading : copy.resumedHeading }}</h2>
+      <p class="mt-2 text-sm text-ink-muted">{{ ceremony.canRemake.value ? copy.adoptedBody : copy.resumedBody }}</p>
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
         {{ copy.resumed(ceremony.collected.value.length) }}
       </p>
@@ -206,9 +208,10 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
     </div>
 
-    <div class="flex justify-end">
+    <div class="flex flex-wrap justify-end gap-2">
+      <BaseButton v-if="ceremony.canRemake.value" variant="secondary" @click="ceremony.remake">{{ copy.remakeAction }}</BaseButton>
       <BaseButton variant="primary" :disabled="ceremony.working.value" @click="adoptAndStart">
-        {{ ceremony.working.value ? copy.working : copy.resumedAction }}
+        {{ ceremony.working.value ? copy.working : ceremony.canRemake.value ? copy.adoptedAction : copy.resumedAction }}
       </BaseButton>
     </div>
   </section>

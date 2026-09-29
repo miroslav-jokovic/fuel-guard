@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import type { SignatureAdoptionsView } from "@silvicom/shared";
 import type { ApplyPacketStop } from "@/features/apply/useApplication";
 import { usePacketCeremony } from "@/features/apply/signing/usePacketCeremony";
 import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
@@ -65,6 +66,8 @@ const props = defineProps<{
    * sibling, for the same reason that one is.
    */
   initialsStaged?: boolean;
+  /** Screen 13's adoptions (D-AW15, C3s2a): offered as "This is your signature — use it". */
+  adoptions?: SignatureAdoptionsView;
 }>();
 /** Carries the adopted mark, because it is the §391.21(b)(12) signature now (D-PKT15). */
 const emit = defineEmits<{ done: [signedName: string] }>();
@@ -77,6 +80,7 @@ const ceremony = usePacketCeremony(
     adopted: computed(() => props.adoptedMarks ?? null),
     markStaged: computed(() => Boolean(props.markStaged)),
     initialsStaged: computed(() => Boolean(props.initialsStaged)),
+    adoptions: computed(() => props.adoptions),
   },
 );
 

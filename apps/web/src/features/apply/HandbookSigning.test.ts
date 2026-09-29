@@ -18,12 +18,8 @@ const fetchMock = vi.hoisted(() => vi.fn());
 vi.stubGlobal("fetch", fetchMock);
 const TOKEN = "t".repeat(43);
 
-vi.mock("@/features/apply/signing/PacketAdoption.vue", () => ({
-  default: { name: "PacketAdoption", props: ["ceremony", "carrier", "stops", "copy", "drawnUrl", "initialsUrl"], template: "<div data-adoption />" },
-}));
-
 const status = (over: Partial<LinkHandbookStatus> = {}): LinkHandbookStatus => ({
-  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null, adoption: null,
+  canOpen: true, openedAt: null, driverSigned: [], driverComplete: false, filedAt: null,
   version: "handbook-test-v1", ...over,
 });
 const mountIt = (handbook: LinkHandbookStatus) =>
@@ -80,51 +76,19 @@ describe("while it is open", () => {
   });
 });
 
-describe("a handbook adopting its own signature (A-1, C0b — a workaround C3s removes)", () => {
-  const SELF = { required: true, adoptedName: null, pictureStaged: false };
-  type Ceremony = { adoptedName: { value: string }; markBlob: { value: Blob | null }; adopt: () => Promise<boolean>; confirm: () => void };
-  const ceremonyOf = (w: ReturnType<typeof mountIt>) => w.findComponent({ name: "PacketAdoption" }).props("ceremony") as Ceremony;
-
-  it("puts the adoption screens before the places, with the handbook's own words", async () => {
-    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
+/** D-AW15 (C3s2a): the handbook signs with the link's adoption — C0b's own adoption screen is gone. */
+describe("signing with the adopted signature", () => {
+  it("goes straight to the places, and shows the server's sentence when the signature changed mid-document", async () => {
+    const w = mountIt(status({ openedAt: "t" }));
     await flushPromises();
-    expect(w.find("[data-adoption]").exists()).toBe(true);
-    expect(w.findComponent({ name: "PacketAdoption" }).props("copy")).toBe(APPLY_COPY.handbook.adoption);
-    expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.handbook.sign)).toBe(false);
-  });
-
-  it("once adopted and confirmed, signs each place carrying the typed name", async () => {
-    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
-    await flushPromises();
-    const c = ceremonyOf(w);
-    c.adoptedName.value = "Dana Driver";
-    c.markBlob.value = new Blob(["png"], { type: "image/png" });
-    expect(await c.adopt()).toBe(true);
-    c.confirm();
-    await flushPromises();
-    fetchMock.mockClear();
-    await w.findAll("button").find((b) => b.text() === APPLY_COPY.handbook.sign)!.trigger("click");
-    await flushPromises();
-    const markCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/handbook/mark"))!;
-    expect(JSON.parse(String((markCall[1] as RequestInit).body))).toEqual({
-      placement_id: "h1", esign_consent: true, handbook_version: "handbook-test-v1", signed_name: "Dana Driver",
+    expect(w.findAll("button").some((b) => b.text() === APPLY_COPY.handbook.sign)).toBe(true);
+    fetchMock.mockResolvedValue({
+      ok: false, status: 409,
+      json: async () => ({ error: { code: "adoption_changed_mid_document", message: "Carry on with the one you started it with." } }),
     });
-    expect(w.text()).toContain(APPLY_COPY.handbook.introOwnSignature);
-  });
-
-  it("shows the server's own sentence when it asks for the adoption first", async () => {
-    const w = mountIt(status({ openedAt: "t", adoption: SELF }));
-    await flushPromises();
-    const c = ceremonyOf(w);
-    c.adoptedName.value = "Dana Driver";
-    c.markBlob.value = new Blob(["png"], { type: "image/png" });
-    await c.adopt();
-    c.confirm();
-    await flushPromises();
-    fetchMock.mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: { code: "handbook_adopt_signature_first", message: "Adopt your signature first." } }) });
     await w.findAll("button").find((b) => b.text() === APPLY_COPY.handbook.sign)!.trigger("click");
     await flushPromises();
-    expect(w.text()).toContain("Adopt your signature first.");
+    expect(w.text()).toContain("Carry on with the one you started it with.");
   });
 });
 

@@ -336,6 +336,11 @@ for (const width of [390, 320]) {
         ["wait.review", { phases: { reviewRequestedAt: T } }, "Turn on texts"],
         ["wait.office", { phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: null } }, "Turn on texts"],
         ["signoff", { phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T }, packet: packetStops() }, "Sign and send it"],
+        // D-AW15 (C3s2a): screen 13's adoption, offered at the packet — "This is your signature — use it".
+        ["signoff.adopted", {
+          phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T }, packet: packetStops(),
+          adoptions: { signature: "Susan Godfrey", initials: "SG" },
+        }, "Use it"],
         ["filed", { phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T, submittedAt: T }, handbook: openHandbook() }, "Download your copy"],
       ];
       const misses: Misses = {};
@@ -356,6 +361,15 @@ for (const width of [390, 320]) {
           await press(page, /start signing/);
           await expect(page.getByText("Page 3", { exact: false }).first()).toBeVisible();
           await s.check("signoff, packet: first place");
+        }
+        if (screen === "signoff.adopted") {
+          await expect(page.getByRole("heading", { name: "This is your signature" })).toBeVisible();
+          await expect(page.getByRole("button", { name: "Make a new one" })).toBeVisible();
+          await press(page, "Use it");
+          await expect(page.getByText("Page 3", { exact: false }).first()).toBeVisible();
+          await s.check("signoff.adopted, packet: first place");
+          // Used as it is: nothing new is registered.
+          expect(stub.callsTo("POST", /\/adoption$/)).toHaveLength(0);
         }
         if (screen === "filed") {
           await expect(page.getByRole("button", { name: "Sign" }).first()).toBeVisible();

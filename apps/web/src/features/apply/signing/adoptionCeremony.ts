@@ -20,9 +20,9 @@ type PacketCeremony = ReturnType<typeof usePacketCeremony>;
 
 export type AdoptionCeremony = Pick<
   PacketCeremony,
-  | "adopt" | "adoptedName" | "adoptedInitials" | "alreadyAdopted" | "canChange" | "confirm"
+  | "adopt" | "adoptedName" | "adoptedInitials" | "alreadyAdopted" | "canChange" | "canRemake" | "confirm"
   | "complete" | "drawnMarkFailed" | "initialsBlob" | "initialsCarriedOver" | "initialsMarkFailed"
-  | "markBlob" | "markCarriedOver" | "needsInitials" | "pinnedKinds" | "placesWithMark" | "reopen"
+  | "markBlob" | "markCarriedOver" | "needsInitials" | "pinnedKinds" | "placesWithMark" | "remake" | "reopen"
   | "style" | "styleId" | "total" | "working"
 > & {
   state: ComputedRef<PacketCeremonyState>;

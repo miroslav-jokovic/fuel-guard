@@ -188,7 +188,7 @@ export const packetStops = (): Json[] => driverPlacements(null).map((p) => ({ ..
 /** The handbook as a filed link sees it once the office has opened it, with a signature to borrow. */
 export const openHandbook = (): Json => ({
   canOpen: true, openedAt: NOW, driverSigned: [], driverComplete: false, filedAt: null,
-  adoption: null, version: "e2e",
+  version: "e2e",
 });
 
 const json = (route: Route, status: number, body: unknown) =>
