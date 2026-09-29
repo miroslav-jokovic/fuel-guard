@@ -24,7 +24,7 @@ describe("the defaults", () => {
 
 describe("the bounds", () => {
   it("takes a link of 1 to INVITE_TTL_DAYS_MAX days, whole days only", () => {
-    expect(ok({ invite_ttl_days: 1, reminders_enabled: false })).toBe(true);
+    expect(ok({ invite_ttl_days: 2, reminder_after_hours: REMINDER_AFTER_HOURS_MIN })).toBe(true);
     expect(ok({ invite_ttl_days: INVITE_TTL_DAYS_MAX })).toBe(true);
     expect(ok({ invite_ttl_days: 0 })).toBe(false);
     expect(ok({ invite_ttl_days: INVITE_TTL_DAYS_MAX + 1 })).toBe(false);
@@ -34,18 +34,32 @@ describe("the bounds", () => {
   it("takes a reminder of REMINDER_AFTER_HOURS_MIN to _MAX hours", () => {
     expect(ok({ reminder_after_hours: REMINDER_AFTER_HOURS_MIN })).toBe(true);
     expect(ok({ reminder_after_hours: REMINDER_AFTER_HOURS_MIN - 1 })).toBe(false);
-    expect(ok({ invite_ttl_days: 60, reminders_enabled: false, reminder_after_hours: REMINDER_AFTER_HOURS_MAX })).toBe(true);
-    expect(ok({ invite_ttl_days: 60, reminders_enabled: false, reminder_after_hours: REMINDER_AFTER_HOURS_MAX + 1 })).toBe(false);
+    const codes = (v: object) =>
+      recruitingSettingsSchema.safeParse({ ...RECRUITING_SETTINGS_DEFAULTS, invite_ttl_days: INVITE_TTL_DAYS_MAX, ...v })
+        .error?.issues.map((i) => i.code) ?? [];
+    // The longest link is exactly REMINDER_AFTER_HOURS_MAX long, so the top hour is refused by the
+    // before-expiry rule alone, and one more is refused by the bound as well.
+    expect(codes({ reminder_after_hours: REMINDER_AFTER_HOURS_MAX - 1 })).toEqual([]);
+    expect(codes({ reminder_after_hours: REMINDER_AFTER_HOURS_MAX })).toEqual(["custom"]);
+    expect(codes({ reminder_after_hours: REMINDER_AFTER_HOURS_MAX + 1 })).toContain("too_big");
   });
 
-  it("refuses a reminder that is on and would come as the link dies or later, with a sentence for a person", () => {
-    const r = recruitingSettingsSchema.safeParse({ invite_ttl_days: 2, reminders_enabled: true, reminder_after_hours: 48 });
-    expect(r.success).toBe(false);
-    expect(r.error!.issues[0]).toMatchObject({ path: ["reminder_after_hours"] });
-    expect(r.error!.issues[0]!.message).toMatch(/^The reminder must go before the link expires/);
-    expect(ok({ invite_ttl_days: 2, reminder_after_hours: 47 })).toBe(true);
-    expect(ok({ invite_ttl_days: 2, reminders_enabled: false, reminder_after_hours: 48 })).toBe(true);
+  it("makes a one-day link unsavable, since the shortest delay is a whole day (C-AL1)", () => {
+    expect(REMINDER_AFTER_HOURS_MIN).toBe(24);
+    expect(ok({ invite_ttl_days: 1, reminders_enabled: true, reminder_after_hours: REMINDER_AFTER_HOURS_MIN })).toBe(false);
+    expect(ok({ invite_ttl_days: 1, reminders_enabled: false, reminder_after_hours: REMINDER_AFTER_HOURS_MIN })).toBe(false);
   });
+
+  it.each([true, false])(
+    "refuses a delay that comes as the link dies or later with reminders %s — the office's alert rides on it (C-AL1)",
+    (reminders_enabled) => {
+      const r = recruitingSettingsSchema.safeParse({ invite_ttl_days: 2, reminders_enabled, reminder_after_hours: 48 });
+      expect(r.success).toBe(false);
+      expect(r.error!.issues[0]).toMatchObject({ path: ["reminder_after_hours"] });
+      expect(r.error!.issues[0]!.message).toMatch(/^A driver must count as stopped before the link expires/);
+      expect(ok({ invite_ttl_days: 2, reminders_enabled, reminder_after_hours: 47 })).toBe(true);
+    },
+  );
 
   it("refuses a partial set", () => {
     expect(recruitingSettingsSchema.safeParse({ invite_ttl_days: 7 }).success).toBe(false);
