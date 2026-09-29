@@ -17,6 +17,7 @@ import { FCRA_SUMMARY } from "../fcraSummary.js";
 import { latestRoadTestCertificate } from "../applicationRoadTestCopy.js";
 import { linkHandbookStatus } from "../handbookCeremony.js";
 import { carrierZone } from "../carrierClock.js";
+import { adoptionsForLink } from "../signatureAdoption.js";
 
 /**
  * `GET /api/public/apply/:token` — the bundle a link opens on.
@@ -88,6 +89,9 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
   // ⚠ What this link has already adopted, so a RESUMED walk does not ask the driver to retype a
   // mark the server has pinned and then refuse them at the next stop (Q-PKT9).
   const packetAdopted = await adoptedPacketMarks(admin, invitation.org_id, invitation.id);
+  // D-AW15 (C3s1): the signature and initials adopted on screen 13, as typed text — never a picture,
+  // never an id (`SignatureAdoptionsView`).
+  const adoptions = await adoptionsForLink(admin, invitation.org_id, invitation.id);
   // AF3/D-AF1: whether the identity screen still stands between them and the permissions. A
   // boolean and never the values — D-APP16 keeps a date of birth off the bare link.
   const identityComplete = await identityOnFile(
@@ -134,6 +138,7 @@ export const applicationBundleHandler = asyncHandler(async (req, res) => {
     // Null on both until the first mark lands, which is every application nobody has started
     // signing — the ordinary case.
     packetAdopted,
+    adoptions,
     identityComplete,
     roadTestCertificate: certificate ? { testedOn: certificate.occurred_on } : null,
     handbook,

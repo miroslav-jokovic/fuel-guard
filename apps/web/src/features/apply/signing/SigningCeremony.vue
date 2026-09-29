@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureView, type AuthorizationPurpose } from "@silvicom/shared";
+import {
+  APPLICATION_CAPTURE_MARK_SLOT,
+  type ApplicationCaptureView,
+  type AuthorizationPurpose,
+  type SignatureAdoptionsView,
+} from "@silvicom/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
 import { usePermissionCeremony } from "@/features/apply/signing/usePermissionCeremony";
 import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
@@ -13,7 +18,8 @@ import { useApplyScreen } from "@/features/apply/useScreenEvents";
  * The permissions, one document at a time, each signed where it says (A5, AF6, D-AF2).
  *
  * ── WHAT THE APPLICANT SEES ───────────────────────────────────────────────────────────────────
- * Their signature, made once in the packet's own adoption screens and confirmed. Then each permission
+ * Their signature and initials, made once in the packet's own adoption screens and confirmed — screen
+ * 13, the link's adoption (D-AW15, C3s1). Then each permission
  * as the PDF it is, whole, with a **Sign here** tag on the box the document marks. Pressing it signs
  * that document and nothing else, and the next one opens.
  *
@@ -34,6 +40,8 @@ const props = defineProps<{
   carrier: string;
   /** Which capture slots this link holds, to know whether a signature picture is already saved (C2). */
   captures?: ApplicationCaptureView[];
+  /** What the link has adopted on screen 13 (D-AW15), as typed text. */
+  adoptions?: SignatureAdoptionsView;
 }>();
 const emit = defineEmits<{ done: [] }>();
 
@@ -46,21 +54,30 @@ const ceremony = usePermissionCeremony(
     markStaged: computed(() =>
       (props.captures ?? []).some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.signature),
     ),
+    adoptions: computed(() => props.adoptions),
   },
 );
 
-/** The signature picture's object URL, for the confirm screen. One blob, one URL, one revoke. */
+/**
+ * The two pictures' object URLs, for the confirm screen. One blob, one URL, one revoke — each. The
+ * initials have one since C3s1, when this screen started adopting them (D-AW15).
+ */
 const drawnUrl = ref<string | null>(null);
-watch(
-  () => ceremony.markBlob.value,
-  (blob) => {
-    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
-  },
-  { immediate: true },
-);
+const initialsUrl = ref<string | null>(null);
+function followBlob(blob: () => Blob | null, url: typeof drawnUrl): void {
+  watch(
+    blob,
+    (next) => {
+      if (url.value) URL.revokeObjectURL(url.value);
+      url.value = next ? URL.createObjectURL(next) : null;
+    },
+    { immediate: true },
+  );
+}
+followBlob(() => ceremony.markBlob.value, drawnUrl);
+followBlob(() => ceremony.initialsBlob.value, initialsUrl);
 onBeforeUnmount(() => {
-  if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
+  for (const url of [drawnUrl, initialsUrl]) if (url.value) URL.revokeObjectURL(url.value);
 });
 
 watch(() => ceremony.complete.value, (done) => done && emit("done"), { immediate: true });
@@ -94,7 +111,7 @@ async function sign(): Promise<void> {
     :stops="[]"
     :copy="copy.adoption"
     :drawn-url="drawnUrl"
-    :initials-url="null"
+    :initials-url="initialsUrl"
   />
 
   <!-- One document. Nothing else on the screen. -->

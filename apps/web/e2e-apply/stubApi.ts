@@ -292,6 +292,13 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
       state.bundle = { ...state.bundle, releasesSigned: signed };
       return json(route, 201, { signedCount: signed.length, completed: signed.length === RELEASES.length });
     }
+    // Screen 13 (D-AW15, C3s1): an adopted mark, remembered as the real bundle serves it — typed text.
+    if (method === "POST" && rest === "/adoption") {
+      const b = body as { kind: "signature" | "initials"; typed_text: string };
+      const adoptions = (state.bundle.adoptions as Json | undefined) ?? { signature: null, initials: null };
+      state.bundle = { ...state.bundle, adoptions: { ...adoptions, [b.kind]: b.typed_text } };
+      return json(route, 201, { ok: true, adopted: b.kind, superseded: false });
+    }
     const permission = /^\/permission\/([a-z_]+)\.pdf$/.exec(rest);
     if (method === "GET" && permission) {
       return pdf(route, letterPdf(1, true));

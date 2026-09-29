@@ -107,6 +107,10 @@ export function mountBodyParsers(app: Express): void {
   // A weekly Pilot statement is ~30k positioned words plus the source PDF (~370 KB → ~500 KB base64),
   // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
   app.use("/api/fueling/statements", express.json({ limit: "25mb" }));
+  // The adopted signature and initials (D-AW15, C3s1) carry their PNG in the body, and an uploaded mark
+  // can be several hundred KB before base64 — `SIGNATURE_ADOPTION_MAX_BYTES` is the ceiling the route
+  // validates, so this parser only has to let a body of that size reach it.
+  app.use("/api/public/application/:token/adoption", express.json({ limit: "5mb" }));
 
   // ⚠ The `express.urlencoded` mount that used to sit here was for Twilio, which posts
   // `application/x-www-form-urlencoded`. Telnyx posts JSON and signs the RAW BYTES, so the parser

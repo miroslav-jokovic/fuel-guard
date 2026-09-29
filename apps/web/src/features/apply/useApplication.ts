@@ -11,6 +11,7 @@ import type {
   PacketPlacement,
   PartOneFactsView,
   PartOneStatus,
+  SignatureAdoptionsView,
 } from "@silvicom/shared";
 
 /**
@@ -183,6 +184,8 @@ export interface ApplyInvitation {
    * screen this exists to fix.
    */
   packetAdopted?: { signature: string | null; initials: string | null } | null;
+  /** Screen 13's adopted signature and initials, as typed text (D-AW15, C3s1). Optional for the same reason. */
+  adoptions?: SignatureAdoptionsView;
   /**
    * Whether the date of birth and licence are on file, on the row and in the draft (AF3, D-AF1). A
    * boolean and never the values — D-APP16 keeps a date of birth off the bare link.

@@ -16,6 +16,7 @@ import {
 } from "./applicationIntake.js";
 import { IDENTITY_MISSING, identityOnFile } from "./applicantIdentity.js";
 import { INTAKE_INCOMPLETE, intakeState } from "./applicantIntake.js";
+import { liveAdoption } from "./signatureAdoption.js";
 
 /**
  * The five authorizations an applicant signs before the form (A5, D-APP4).
@@ -56,6 +57,15 @@ export function releasesForApplicant(wording: CarrierWording): Array<{
 export const RELEASES_COMPLETE: IntakeError = {
   code: "releases_complete",
   message: "Every authorization on this link has already been signed.",
+};
+
+/**
+ * The name on the request is not the name the driver adopted (D-AW15). The page signs with the adopted
+ * name, so this is a page that adopted again and could not save it; it takes the driver back to adopt.
+ */
+export const ADOPTION_NAME_MISMATCH: IntakeError = {
+  code: "adoption_name_mismatch",
+  message: "Your signature changed and the new one did not save. Make it again, then sign.",
 };
 
 export const RELEASE_ALREADY_SIGNED: IntakeError = {
@@ -128,6 +138,18 @@ export async function recordRelease(
     };
   }
 
+  /**
+   * D-AW15 (C3s1): the permission is signed WITH the adopted signature, found here rather than named by
+   * the page — the request cannot point at another row, and a link whose adoption never saved (A8b: a
+   * picture must not stand between a driver and their signatures) signs with its typed name and null.
+   *
+   * ⚠ **The name must be the adopted one.** `signed_name` is the signature of record (D-APP8) and the
+   * adoption's picture is drawn beside it; a row whose name and picture disagree would be two people's.
+   */
+  const adoption = await liveAdoption(admin, invitation.org_id, invitation.id, "signature");
+  if (adoption && adoption.typedText !== body.signed_name.trim()) return ADOPTION_NAME_MISMATCH;
+
+  // The 12-argument overload (0376). No defaults on either, so every argument is named.
   const { data, error } = await admin.rpc("record_driver_release", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
@@ -141,10 +163,13 @@ export async function recordRelease(
     p_user_agent: ctx.userAgent,
     // The vocabulary lives here, not in the migration: a fifth instrument is a change to one array.
     p_expected_count: APPLICATION_RELEASE_ORDER.length,
+    p_adoption_id: adoption?.id ?? null,
   });
   if (error) {
     if (error.code === "DR023" || /already_signed/.test(error.message)) return RELEASE_ALREADY_SIGNED;
     if (error.code === "DR022" || /releases_already_complete/.test(error.message)) return RELEASES_COMPLETE;
+    // Superseded between the read above and the lock — the driver adopted again in another tab.
+    if (error.code === "DR038") return ADOPTION_NAME_MISMATCH;
     if (
       error.code === "DR020"
       || error.code === "DR021"

@@ -18,6 +18,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { requestReview } from "../applicationHandoff.js";
 import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
+import { publicApplicationAdoptionRouter } from "./publicApplicationAdoption.js";
 import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
 import { publicApplicationSmsRouter } from "./publicApplicationSms.js";
 import { publicApplicationScreenEventsRouter } from "./publicApplicationScreenEvents.js";
@@ -288,6 +289,8 @@ export function publicApplicationRouter(): Router {
                 || result.code === "identity_missing"
                 // D-AW2: on a v2 link Part 1 comes first, for the same reason.
                 || result.code === "intake_incomplete"
+                // D-AW15: the name is not the adopted one — the page takes the driver back to adopt.
+                || result.code === "adoption_name_mismatch"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -352,6 +355,9 @@ export function publicApplicationRouter(): Router {
   // The photograph slots, in their own module (500-line budget). Mounted at this router's root, so
   // the paths are unchanged.
   router.use(publicApplicationCaptureRouter());
+
+  // Screen 13, the adopted signature and initials (D-AW15, C3s1), in its own module for the same reason.
+  router.use(publicApplicationAdoptionRouter());
 
   // What this link hands back as a DOCUMENT, in its own module for the same reason. C1's reading
   // copy of the unsigned packet belongs beside the filed copy, not here.

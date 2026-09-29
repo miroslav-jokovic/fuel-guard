@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import { APPLICATION_CAPTURE_MARK_SLOT, type ApplicationCaptureView } from "@silvicom/shared";
+import type { ApplicationCaptureView, SignatureAdoptionsView } from "@silvicom/shared";
+import { markOnFile } from "@/features/apply/signing/markOnFile";
 import SignOffFields from "@/features/apply/SignOffFields.vue";
 import PacketCeremony from "@/features/apply/signing/PacketCeremony.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -39,6 +40,8 @@ const props = defineProps<{
   stops: readonly ApplyPacketStop[];
   /** What this link has already adopted, so a resumed walk does not ask for it again (Q-PKT9). */
   adoptedMarks?: { signature: string | null; initials: string | null } | null;
+  /** Screen 13's adopted marks (D-AW15, C3s1): a picture the packet carries over rather than asks for. */
+  adoptions?: SignatureAdoptionsView;
   sending: boolean;
   error: string | null;
 }>();
@@ -69,9 +72,8 @@ const packetSignedHere = ref(false);
  * picture fail to stage — in which case the packet prints the typed name and saying otherwise would
  * be the promise `drawnMarkFailed` exists to withdraw.
  */
-const markStaged = computed(() =>
-  props.captures.some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.signature),
-);
+// C3s1: or adopted on screen 13 (`markOnFile`). The packet still asks for the typed name until C3s2.
+const markStaged = computed(() => markOnFile("signature", props.captures, props.adoptions));
 /**
  * And whether an INITIALS picture is already staged on this link (Q-HUI14).
  *
@@ -84,9 +86,7 @@ const markStaged = computed(() =>
  * ⚠ The slot names come from `APPLICATION_CAPTURE_MARK_SLOT` rather than being spelled here, so this
  * component, the renderer and `sources.ts` all join *kind of mark* to *storage slot* in one place.
  */
-const initialsStaged = computed(() =>
-  props.captures.some((c) => c.slot === APPLICATION_CAPTURE_MARK_SLOT.initials),
-);
+const initialsStaged = computed(() => markOnFile("initials", props.captures, props.adoptions));
 
 /**
  * The walk finishing IS the certification (D-PKT15, owner 2026-09-14).

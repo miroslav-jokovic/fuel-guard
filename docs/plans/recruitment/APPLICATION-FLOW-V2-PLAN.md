@@ -1755,3 +1755,38 @@ Append dated lines at the END.
     `no_selfie` refusal, a write touching no row, the URL lifetime, `no-store`, the front camera, resuming at the
     selfie, "I can't take one" accepted, the manage gate on the buttons, the retry guard, the in-person advice, the
     tick-box hidden once a selfie is on file, and the promised 90 days against the pruner. No migration.
+- 2026-09-28 — **AW6 merged** (#1113, main `761ad16`); both production services verified at `761ad16` / schema 0380.
+- 2026-09-28 — **C3s split into five PRs** (§8.5 estimated it at four days as one). No migration in any of them: M1 (0376)
+  built the columns, and production's `pg_proc` was checked on 2026-09-28 — `record_signature_adoption` (9 arguments), the
+  12-argument `record_driver_release` and the 13-argument `record_packet_mark` are all there, with 0 `signature_adoptions`
+  rows. In order:
+  1. **C3s1 — adopt once, driver half (D-AW15).** Screen 13 is the adoption at the head of the permissions branch, where
+     today's signature-only adoption already sits (`SigningCeremony.vue`); it now takes initials too, and registers both
+     through `POST /apply/:token/adoption` → `record_signature_adoption`, the PNG in `compliance-docs` at
+     `documentStoragePath(org,'driver',driverId,id,'image/png')` and no `documents` row. Each permission is signed with
+     the live signature adoption, which the SERVER finds and passes to the 12-argument `record_driver_release` — the
+     client names no id. The nightly `compliance-docs` reconcile reads `signature_adoptions.storage_path` as well as
+     `documents`, **without which it would delete every adoption 24 hours after it was made** (it deletes any object no
+     `documents` row names). The renderers draw the most recent picture made before the document's instant — a staged
+     capture or an adoption — so the permissions print the adoption and a packet drawn afresh prints its own. The packet
+     offers the adoption as carried over (its `markStaged`), and still asks for the typed name as today.
+  2. **C3s2 — one click everywhere.** The packet and the handbook apply the adoption (`adoption_id` on every mark, the
+     13-argument `record_packet_mark`, DR037/DR038) and stop staging captures; the renderers read each mark's own adoption;
+     the office session opens with "This is your signature — use it" and supersedes via `superseded_by`; the legacy
+     back-fill (measured first, written by the owner); C0b's workaround retired.
+  3. **C3s3 — send for signing (D-AW14):** the route, 72 h, `unlock_failures`, the 6-digit code (Q-AW25), and
+     `OpenSigningPanel`'s new-tab path retired.
+  4. **C3s4 — one envelope (D-AW16):** one "Place N of M", p25 withdrawn, the pinned counts in §8.5 updated.
+  5. **C3s5 — prefilled and previewed (D-AW17).**
+  HB022 and 0374's handbook order check stay M2's.
+- 2026-09-28 — **C3s1 built** (`claude/applicant-flow-c3s1`), as the split above says. No migration.
+  - **Found:** the nightly `compliance-docs` reconcile deletes any object no `documents` row names, so every adoption
+    would have been deleted 24 hours after it was made. It now reads `signature_adoptions` too, and refuses to sweep if
+    that read fails.
+  - Screen 13 asks for the initials as well. The permissions' copy says they are KEPT for the application's pages,
+    because the packet's sentence names page numbers read off stops this screen does not have.
+  - A driver may adopt again until a permission has been signed with the adoption (`adoption_in_use`). From then on
+    the served adoption pins the marks, and the resumed panel counts the documents from the walk, earlier visits
+    included.
+  - **Checks:** 12 mutants, all killed. The tap-target walk at 390 and 320 px now adopts both marks and asserts two PNG
+    POSTs. The adoption screen was walked in Chromium only, not on a phone.
