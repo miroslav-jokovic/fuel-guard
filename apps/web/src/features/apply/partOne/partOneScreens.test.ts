@@ -4,6 +4,7 @@ import {
   emptyPartOneAnswers,
   firstWrite,
   licenceList,
+  photoDone,
   PART_ONE_SCREENS,
   prefillFromLicence,
   resumeScreen,
@@ -149,12 +150,38 @@ describe("where a returning applicant resumes", () => {
     expect(resumeScreen(status(), false, both)).toBe("about");
   });
 
-  it("asks for a CDL photo still owed before anything else, then the medical card, then the rights", () => {
+  it("asks for a CDL photo still owed before anything else, then the medical card, the selfie, the rights", () => {
+    const selfie = cap("selfie");
     expect(resumeScreen(status(), true, [])).toBe("cdl_front");
     expect(resumeScreen(status(), true, [cap("cdl_front")])).toBe("cdl_back");
     expect(resumeScreen(status(), true, both)).toBe("medical_card");
-    expect(resumeScreen(status({ medicalCardPending: true }), true, both)).toBe("rights");
-    expect(resumeScreen(status(), true, [...both, cap("medical_card")])).toBe("rights");
+    expect(resumeScreen(status({ medicalCardPending: true }), true, both)).toBe("selfie");
+    expect(resumeScreen(status(), true, [...both, cap("medical_card")])).toBe("selfie");
+    expect(resumeScreen(status({ medicalCardPending: true }), true, [...both, selfie])).toBe("rights");
+    expect(resumeScreen(status(), true, [...both, cap("medical_card"), selfie])).toBe("rights");
+  });
+});
+
+/**
+ * AW6, §6.7: the selfie is "never a hard block". The screen passes on a photo or on "I can't take one",
+ * and each screen's "instead" answer is its own — a skipped selfie does not stand in for a medical card.
+ */
+describe("what a photo screen accepts instead of the photo", () => {
+  it("lets the selfie pass on a photo, or on I can't take one, and nothing else", () => {
+    expect(photoDone("selfie", [], {})).toBe(false);
+    expect(photoDone("selfie", [cap("selfie")], {})).toBe(true);
+    expect(photoDone("selfie", [], { selfie_skipped: true })).toBe(true);
+    expect(photoDone("selfie", [], { medical_card_pending: true })).toBe(false);
+  });
+
+  it("keeps the medical card's own answer to the medical card, and neither to the CDL", () => {
+    expect(photoDone("medical_card", [], { selfie_skipped: true })).toBe(false);
+    expect(photoDone("medical_card", [], { medical_card_pending: true })).toBe(true);
+    expect(photoDone("cdl_front", [], { medical_card_pending: true, selfie_skipped: true })).toBe(false);
+  });
+
+  it("puts the selfie after the medical card and before the rights, as §6.2 numbers them", () => {
+    expect(PART_ONE_SCREENS.slice(-3)).toEqual(["medical_card", "selfie", "rights"]);
   });
 });
 

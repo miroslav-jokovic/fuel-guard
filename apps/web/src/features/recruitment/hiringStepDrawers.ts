@@ -46,9 +46,10 @@ export type HiringDrawerBody =
   /** `ApplicationInviteCard` — the invitation, its state, and the resend/revoke acts. */
   | "invitation"
   /**
-   * Part 1 (§7, D-AW1): the applicant's first visit, on their link. Nothing for the office to perform
-   * here until C3 builds the Part 1 review — so the body says what Part 1 collects and opens the same
-   * invitation card, whose resend and state are the office's only levers on a step that is theirs.
+   * Part 1 (§7, D-AW1): the applicant's first visit, on their link. The body says what Part 1 collects
+   * and opens the same invitation card, whose resend and state are the office's levers on a step that
+   * is theirs — and, since AW6, the selfie beside the licence photo for the office to read
+   * (`SelfieCheckPanel`), which is the one act the office performs on Part 1.
    */
   | "intake"
   /** `TravelPanel` (D-AW7): record the trip, refused until every step before travel is done. */

@@ -133,6 +133,25 @@ export const APPLY_PART_ONE_COPY = {
       readFilled: "We read your licence's barcode and filled in some of the next screens. Check each answer before you continue.",
       readNothing: "The barcode could not be read. That's fine — you'll type your details on the next screens.",
       medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate.", outline: "Your medical card" },
+      /**
+       * Screen 11 (AW6, §6.7). The why comes in the same breath as the ask (the house rule above): a face
+       * is the most personal thing Part 1 asks for, and the three promises are the ones Q-AW5 (a) keeps —
+       * a person looks, no face-matching software, and it is deleted after the staged-capture retention.
+       * `APPLICATION_CAPTURE_KEEP_DAYS` is that retention, pinned to the pruner by an api test.
+       */
+      selfie: {
+        heading: "A photo of you",
+        hint: "Hold your phone at arm's length, face the screen, and fit your face in the oval.",
+        outline: "Your face",
+        howTo: "Take off sunglasses and a hat. Face a window or a light, not away from it.",
+        why: (carrier: string, days: number): string =>
+          `${carrier} will look at it next to your licence photo, to check the application is really yours. A person looks — no face-recognition software. It is not added to your file, and it is deleted ${days} days after you take it.`,
+        check: "Is your whole face in the picture, and clear? If not, retake it.",
+        receivedEarlier: "Received on an earlier visit. Take it again only if it did not show your face clearly.",
+        cannot: "I can't take a photo of myself",
+        cannotHint: "That's fine. Bring your licence when you come to the office, and they will check it's you there.",
+        required: "Take the photo, or tick “I can't take a photo of myself”.",
+      },
       howTo: "Lay it on a flat surface. No flash, and all four corners in the picture.",
       take: "Take photo",
       /** §6.6.6: the camera was refused, or the photo is already on the phone. Same screen, same checks. */

@@ -119,7 +119,26 @@ describe("the photographs", () => {
     await flow.next();
     expect(paths()).toEqual(["/intake"]);
     expect(bodies()[0]).toEqual({ medical_card_pending: true });
+    expect(flow.screen.value).toBe("selfie");
+  });
+
+  /** AW6, §6.7: never a hard block — but not skipped by accident either, and nothing is posted for it. */
+  it("holds the selfie screen until a photo or I can't take one, and posts nothing either way", async () => {
+    const onFile = [...BOTH, cap("medical_card")];
+    const { flow } = walk({ ...begun, captures: onFile }, onFile);
+    expect(flow.screen.value).toBe("selfie");
+    await flow.next();
+    expect(flow.errors.value).toEqual({ photo: "Take the photo, or tick “I can't take a photo of myself”." });
+    expect(flow.screen.value).toBe("selfie");
+
+    flow.answers.selfie_skipped = true;
+    await flow.next();
     expect(flow.screen.value).toBe("rights");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const taken = walk({ ...begun, captures: onFile }, [...onFile, cap("selfie")]);
+    await taken.flow.next();
+    expect(taken.flow.screen.value).toBe("rights");
   });
 });
 
@@ -127,7 +146,7 @@ describe("the rights summary", () => {
   const atRights = {
     status: status({ screening: true, contact: true, address: true, licences: true, medicalCardPending: true }),
     identityComplete: true,
-    captures: [cap("cdl_front"), cap("cdl_back")],
+    captures: [cap("cdl_front"), cap("cdl_back"), cap("selfie")],
   };
 
   it("records the version it showed, then ends Part 1 — in that order, because 0376 refuses the reverse", async () => {

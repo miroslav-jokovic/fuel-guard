@@ -97,9 +97,12 @@ export const browserImageIo: WebImageIo = {
  * camera app is already very good, it costs no bytes of JavaScript, and it works on every phone. A
  * `getUserMedia` + OpenCV auto-crop provider is a SECOND implementation behind this same seam, added
  * only if a measured re-shoot rate justifies its weight.
+ *
+ * `facing` is `user` for the selfie (AW6, §6.7: "front camera") — the one slot that photographs the
+ * person holding the phone rather than something on the table in front of them.
  */
-export function pickPhotoFromCamera(): Promise<File | null> {
-  return pickImageFile("image/*", "environment");
+export function pickPhotoFromCamera(facing: "environment" | "user" = "environment"): Promise<File | null> {
+  return pickImageFile("image/*", facing);
 }
 
 /**

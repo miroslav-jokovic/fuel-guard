@@ -1719,3 +1719,39 @@ Append dated lines at the END.
     `roadTestCertificatePdf` (the examiner's line), rasterised and looked at: on its rule, legible, the caption clear.
   - **Not pinned by a unit test:** jsdom has no canvas, so the crop and the colour scheme were verified by looking.
     The three form tests now drive the pad's `change` rather than the dropzone's `files`.
+- 2026-09-28 — **Q-AW45 (a) merged** (#1112, main `3ceef75`); both production services verified at `3ceef75`.
+- 2026-09-28 — **AW6 built** (`claude/applicant-selfie-aw6`): the selfie, phase 1 (§6.7, D-AW10, Q-AW5 (a)). No
+  migration — 0376 already carried the `selfie` slot and `application_intakes.selfie_verdict`/`_by`/`_at`.
+  - **The driver:** Part 1 screen 11, "A photo of you", between the medical card and the rights (`PART_ONE_SCREENS`,
+    so Part 1 is now ten steps and every "Step n of N" in the tests is derived from it). The front camera
+    (`capture="user"`, chosen by slot in `useApplicationCaptures`), an oval where the card's outline is, and before the
+    button why and for how long: the carrier looks at it beside the licence photo, a person and no face-recognition
+    software, not added to the file, deleted after `APPLICATION_CAPTURE_KEEP_DAYS` (90). That number is new in
+    `@silvicom/shared`; `check-table-lifecycle.mjs` reads `RETENTION_RULES` as a literal, so an api test ("keeps
+    staged captures for as long as the applicant is told") pins the pruner to the sentence.
+  - **Never a hard block:** "I can't take a photo of myself" lets the screen pass, as the medical card's "I don't
+    have one yet" does. It is held in the page only — the missing photo already says it — so a returning driver
+    without a selfie meets the screen again (`resumeScreen`).
+  - **§6.7's "/apply privacy statement gains its own line":** there is no /apply privacy statement; the public policy
+    page (`legalMeta.ts`) describes the driver app. The notice is on the screen that takes the photo instead, which is
+    where the purpose and the term have to be read. A standalone /apply privacy statement is not built.
+  - **Never promoted, by type:** `NEVER_PROMOTED_CAPTURE_SLOTS`, `PromotedCaptureSlot`; `APPLICATION_CAPTURE_DOCUMENT_KIND`
+    and `_PAGE` are keyed by it, so filing a selfie does not compile. **Found on the way:** `promoteCaptures` copies
+    EVERY staged capture into `compliance-docs` before the submit transaction, and 0376 skips the selfie only in SQL
+    — a selfie would have been left in the evidence bucket with no row pointing at it. It is filtered before the copy.
+  - **The office:** the checklist's Part 1 drawer (which said it had nothing for the office to do until C3) now holds
+    `SelfieCheckPanel`: the licence's front and the selfie side by side, the same size, no score, and Same person /
+    Not the same person / Can't tell. `GET /recruitment/applicants/:driverId/intake/selfie` (view; five-minute signed
+    URLs from the staging bucket, `no-store`) and `POST …/intake/selfie-verdict` (manage; writes the three columns on
+    the live invitation's intake row, audits `recruiting.selfie_verdict_recorded` without a URL; refuses `no_selfie`).
+    A second reading replaces the first; the audit rows are the history. The reading gates nothing; "Not the same
+    person" and "Can't tell" say to check the licence in person. `applicantSelfie.ts` joins `table-writers.json`.
+  - **Found by a test:** a broken photo refetched "once per answer" — but every refetch IS a new answer, so a photo
+    whose object was gone would have asked the api forever. It now retries once until an image loads.
+  - **Seen:** in Chromium, the selfie screen at 390 px (the notice, the oval, the tick-box and its line); the drawer at
+    1280 and 390 px with both photos, a reading posted and shown. The tap-target walk covers the selfie screen at 390
+    and 320 px (ticked, and a photo to review); 12 of 12 browser specs.
+  - **Checks:** 14 mutants, all killed on the first pass — the promotion filter, the org filter on the photos, the
+    `no_selfie` refusal, a write touching no row, the URL lifetime, `no-store`, the front camera, resuming at the
+    selfie, "I can't take one" accepted, the manage gate on the buttons, the retry guard, the in-person advice, the
+    tick-box hidden once a selfie is on file, and the promised 90 days against the pruner. No migration.

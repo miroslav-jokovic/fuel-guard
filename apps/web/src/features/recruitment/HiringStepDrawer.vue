@@ -27,6 +27,7 @@ import TravelPanel from "@/features/recruitment/TravelPanel.vue";
 import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
 import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
 import EmployerCallsPanel from "@/features/recruitment/EmployerCallsPanel.vue";
+import SelfieCheckPanel from "@/features/recruitment/SelfieCheckPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -157,15 +158,17 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <template v-else-if="body === 'intake'">
         <p class="text-xs text-ink-secondary">
           Part 1 is the applicant's first visit on their link: identity, phone, address, every licence
-          held in the last three years, and photos of the CDL and the medical card. Their permissions
-          open once it is finished. A link sent before Part 1 existed counts it done once their
-          identity or permissions are in.
+          held in the last three years, photos of the CDL and the medical card, and a photo of
+          themselves. Their permissions open once it is finished. A link sent before Part 1 existed
+          counts it done once their identity or permissions are in.
         </p>
         <ApplicationInviteCard
           :driver-id="driverId"
           :driver-status="driverStatus"
           @review="emit('review', $event)"
         />
+        <!-- AW6 (§6.7): the one thing the office DOES on Part 1 — look at the selfie beside the licence. -->
+        <SelfieCheckPanel :driver-id="driverId" />
       </template>
 
       <template v-else-if="body === 'authorizations'">

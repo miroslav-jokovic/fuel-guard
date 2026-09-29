@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCheckbox } from "@silvicom/ui";
-import type { ApplicationCaptureSlot, ApplicationCaptureView } from "@silvicom/shared";
+import { APPLICATION_CAPTURE_KEEP_DAYS, type ApplicationCaptureSlot, type ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
 import PartOneHandoff from "./PartOneHandoff.vue";
 import type { PartOneAnswers, PhotoScreen, ScreenErrors } from "./partOneScreens";
@@ -28,6 +28,11 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * On a computer (`desktop`, a pointer media query — never the user agent) the QR handoff comes first
  * (§6.6.6, C3b2b2, `PartOneHandoff`) while the slot is still empty, and the two buttons stay beneath it
  * for a driver whose photo is already on this computer. The flow polls for the phone's photo.
+ *
+ * Screen 11, the selfie (AW6, §6.7), is the same screen with three differences: the front camera
+ * (`useApplicationCaptures` picks it by slot), an oval where the card's outline is, and — before the
+ * button — why the photo is taken and how long it is kept, since a face is the one thing here that is
+ * not a document. Its "I can't take one" tick-box is the medical card's "I don't have one yet" pattern.
  *
  * What the screen REQUIRES is unchanged by any of this: Continue asks the server whether the slot is
  * filled (`photoDone`). A photograph held and not sent is not filled, so the flow is told (`holding`) and
@@ -70,18 +75,26 @@ watch(() => slot.value.pending, (held) => emit("holding", held), { immediate: tr
 
 /**
  * The outline's shape is the document's. A CDL is an ID-1 card (85.60 × 53.98 mm, ISO/IEC 7810); the
- * medical examiner's certificate is a letter-size form.
+ * medical examiner's certificate is a letter-size form; a face is an upright oval (§6.7's "oval guide").
  */
-const outlineShape = computed(() =>
-  props.photo === "medical_card" ? "mx-auto aspect-[8.5/11] max-h-96" : "aspect-[85.6/54] w-full",
-);
+const outlineShape = computed(() => {
+  if (props.photo === "medical_card") return "mx-auto aspect-[8.5/11] max-h-96";
+  if (props.photo === "selfie") return "mx-auto aspect-[3/4] w-3/5 max-w-60";
+  return "aspect-[85.6/54] w-full";
+});
+const selfie = computed(() => props.photo === "selfie");
+/** A photo on screen fills the frame as it was taken; only the empty guide is drawn as an oval. */
+const outlineRadius = computed(() => (selfie.value && !slot.value.previewUrl ? "rounded-full" : "rounded-surface"));
 
 const status = computed<string | null>(() => {
   const s = slot.value;
   if (s.state === "rejected" && s.reason) return rejected[s.reason];
   if (s.state === "failed") return s.failure === "not_intact" ? copy.notIntact : copy.failed;
-  if (s.state === "review") return copy.check;
-  if (s.state === "done") return s.previewUrl ? copy.received : copy.receivedEarlier;
+  if (s.state === "review") return selfie.value ? copy.selfie.check : copy.check;
+  if (s.state === "done") {
+    if (s.previewUrl) return copy.received;
+    return selfie.value ? copy.selfie.receivedEarlier : copy.receivedEarlier;
+  }
   return null;
 });
 const statusIsProblem = computed(() => slot.value.state === "rejected" || slot.value.state === "failed");
@@ -100,8 +113,11 @@ const barcodeNote = computed(() => {
   <div class="space-y-4">
     <div class="space-y-1 text-sm text-ink-muted">
       <p>{{ copy[photo].hint }}</p>
-      <p>{{ copy.howTo }}</p>
+      <p>{{ selfie ? copy.selfie.howTo : copy.howTo }}</p>
     </div>
+    <p v-if="selfie" class="rounded-surface bg-surface-muted p-3 text-sm text-ink-secondary" data-selfie-why>
+      {{ copy.selfie.why(carrier, APPLICATION_CAPTURE_KEEP_DAYS) }}
+    </p>
 
     <PartOneHandoff v-if="handoff" :token="token" :carrier="carrier" />
     <p v-if="handoff" class="text-sm text-ink-muted">{{ copy.handoff.orHere }}</p>
@@ -110,7 +126,8 @@ const barcodeNote = computed(() => {
     <figure
       :class="[
         outlineShape,
-        'flex items-center justify-center overflow-hidden rounded-surface bg-surface-muted',
+        outlineRadius,
+        'flex items-center justify-center overflow-hidden bg-surface-muted',
         slot.previewUrl ? 'ring-1 ring-inset ring-edge' : 'border-2 border-dashed border-edge-control',
       ]"
     >
@@ -155,6 +172,10 @@ const barcodeNote = computed(() => {
     <div v-if="photo === 'medical_card'">
       <AppCheckbox v-model="answers.medical_card_pending" :label="copy.noMedicalCard" />
       <p v-if="answers.medical_card_pending" class="mt-1 text-xs text-ink-tertiary">{{ copy.noMedicalCardHint }}</p>
+    </div>
+    <div v-if="selfie && slot.state !== 'done'">
+      <AppCheckbox v-model="answers.selfie_skipped" :label="copy.selfie.cannot" />
+      <p v-if="answers.selfie_skipped" class="mt-1 text-xs text-ink-tertiary">{{ copy.selfie.cannotHint }}</p>
     </div>
     <p v-if="errors.photo" class="text-sm text-danger-700" role="alert">{{ errors.photo }}</p>
   </div>

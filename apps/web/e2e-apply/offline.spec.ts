@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { PART_ONE_SCREENS } from "@silvicom/shared";
 import { partOneLink, partTwoLink, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
@@ -56,26 +57,26 @@ async function answerScreening(page: Page): Promise<void> {
 test("Part 1: a cut connection at screen 7 and a reload lose none of screens 3–6 (C3d1a)", async ({ page }) => {
   const stub = await stubApi(page, partOneLink());
   await page.goto(url);
-  await expect(page.getByText("Step 3 of 9")).toBeVisible();
+  await expect(page.getByText(`Step 3 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
   await typeHeldScreens(page);
-  await expect(page.getByText("Step 7 of 9")).toBeVisible();
+  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
 
   // The signal goes as the driver presses Continue on screen 7: the first write fails.
   stub.cut(/\/intake/);
   await answerScreening(page);
   await continueButton(page).click();
   await expect(page.getByText("That did not save. Check your signal and try again.")).toBeVisible();
-  await expect(page.getByText("Step 7 of 9")).toBeVisible();
+  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
 
   // The phone is reloaded with the signal back. Screens 3–6 come back from the phone, not the server
   // (which has none of them), and the walk reopens where it was.
   stub.restore();
   const beforeReload = stub.state.calls.length;
   await page.reload();
-  await expect(page.getByText("Step 7 of 9")).toBeVisible();
+  await expect(page.getByText(`Step 7 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
   await answerScreening(page);
   await continueButton(page).click();
-  await expect(page.getByText("Step 8 of 9")).toBeVisible();
+  await expect(page.getByText(`Step 8 of ${PART_ONE_SCREENS.length}`)).toBeVisible();
 
   // What was typed BEFORE the reload is what the first write carried.
   const [answers, licences, identity] = stub.state.calls
