@@ -112,8 +112,9 @@ interface InvitationRow {
   handbook_filed_at?: string | null;
   /**
    * D-AW14 (0376, read since C3s3a): the sent sign link's own end, 72 hours from the office's Send for
-   * signing, and the wrong dates of birth presented on it. Null / 0 on every invitation never sent one —
-   * including the links `OpenSigningPanel` minted before C3s3a, which keep the invitation's expiry.
+   * signing, and the wrong dates of birth presented on it. Null / 0 on every invitation never sent one.
+   * A sign token never exists without it (C3s3a writes the end before every mint; production had 0 sign
+   * tokens without one on 2026-09-29), so M2a reads a sign token with no end as dead (§8.6 item 4).
    * ⚠ Optional for the handbook stamps' reason.
    */
   sign_link_expires_at?: string | null;
@@ -137,9 +138,19 @@ export type InvitationDoor = "invite" | "sign" | "text";
  * link), and a text-door link minted earlier for the application is capped with it, which only ever
  * shortens a link whose texts `stillWanted` stopped sending at approval. The invite door keeps D-APP16's
  * rule — no counter, the invitation's own expiry — see `SIGN_LINK_UNLOCK_LIMIT`'s note for why.
+ *
+ * ⚠ The sign door is a sent door ALWAYS, the text door only once signing is sent (M2a, §8.6 item 4).
+ * Before C3s3a a sign link opened on the office's screen had no end of its own and kept the invitation's
+ * expiry; none is left, so a sign token with no end now answers as a lapsed one rather than as a link
+ * with no 72 hours. The text door still lives on the invitation's expiry before signing: it is the link
+ * the application's own texts carry.
  */
 export const isSentSignDoor = (row: Pick<InvitationRow, "door" | "sign_link_expires_at">): boolean =>
-  Boolean(row.sign_link_expires_at) && (row.door === "sign" || row.door === "text");
+  row.door === "sign" || (row.door === "text" && Boolean(row.sign_link_expires_at));
+
+/** Has the sent link's 72 hours run out — or, on the sign door, was it never given any? */
+const sentLinkLapsed = (row: Pick<InvitationRow, "sign_link_expires_at">, now: Date): boolean =>
+  !row.sign_link_expires_at || Date.parse(row.sign_link_expires_at) <= now.getTime();
 
 /** What `GET /:token` hands the page so it can open where the driver stopped. */
 export interface InvitationPhases {
@@ -282,7 +293,7 @@ export async function resolveInvitation(
   if (row.revoked_at) return dead;
   if (Date.parse(row.expires_at) <= now.getTime()) return dead;
   const resolved = { ...row, door };
-  if (isSentSignDoor(resolved) && Date.parse(resolved.sign_link_expires_at!) <= now.getTime()) return dead;
+  if (isSentSignDoor(resolved) && sentLinkLapsed(resolved, now)) return dead;
   return resolved;
 }
 

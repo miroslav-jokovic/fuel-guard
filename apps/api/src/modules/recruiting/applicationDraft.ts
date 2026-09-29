@@ -179,16 +179,15 @@ export async function saveDraft(
     ...(await identityOnRecord(admin, invitation.org_id, invitation.driver_id)),
   };
 
-  // C3d1b: the revision-checked overload when the page says which revision it holds, so a stale tab
-  // or a replayed device copy is refused rather than written over a newer save (0376, DA041). Without
-  // one — a page from before C3d1b — the 5-argument save, as before; M2 removes that path.
+  // C3d1b: the revision-checked overload, so a stale tab or a replayed device copy is refused rather
+  // than written over a newer save (0376, DA041). The contract requires the revision since M2a.
   const { data, error } = await admin.rpc("save_application_draft", {
     p_org: invitation.org_id,
     p_invitation: invitation.id,
     p_driver: invitation.driver_id,
     p_payload: payload,
     p_section: body.section ?? null,
-    ...(body.revision === undefined ? {} : { p_expected_revision: body.revision }),
+    p_expected_revision: body.revision,
   });
   if (error) {
     if ((error as { code?: string }).code === "DA041") return DRAFT_REVISION_CONFLICT;

@@ -175,12 +175,22 @@ describe("sending the packet for signing", () => {
     expect(w.text()).not.toContain("The link works until");
   });
 
-  it("tells an office holding a link opened on a screen before C3s3a to send it", async () => {
+  it("offers a first send when an end was written but the opening never landed (M2a)", async () => {
+    state.invite = { ...APPROVED, sign_link_expires_at: "2099-01-01T12:00:00Z" };
+    const w = mountIt();
+    await flushPromises();
+    expect(w.text()).toContain("send it to their phone");
+    expect(w.text()).not.toContain("The link works until");
+    expect(button(w, "Send for signing")).toBeDefined();
+  });
+
+  it("reads an opening with no end of its own as nothing sent — the pre-C3s3a state is gone (M2a)", async () => {
     state.invite = { ...APPROVED, signing_opened_at: "2026-09-24T09:00:00Z" };
     const w = mountIt();
     await flushPromises();
-    expect(w.text()).toContain("Opened on this screen 09/24/2026");
-    expect(button(w, "Send again")).toBeDefined();
+    expect(w.text()).toContain("send it to their phone");
+    expect(w.text()).not.toContain("Opened on this screen");
+    expect(button(w, "Send for signing")).toBeDefined();
   });
 
   it("shows nothing sent when the office is refused", async () => {

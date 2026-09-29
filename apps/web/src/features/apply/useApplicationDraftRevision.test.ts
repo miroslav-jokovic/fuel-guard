@@ -69,14 +69,16 @@ describe("saving against a revision", () => {
     h.stop();
   });
 
-  it("sends no revision when the page was served none", async () => {
+  it("sends nothing while no revision is restored, then saves against the one it is given (M2a)", async () => {
     const draft = reactive(emptyDraft());
     const h = run(draft, null);
-    saved.fn.mockResolvedValue({ updatedAt: "2026-09-28T10:00:00Z" });
     draft.first_name = "Susan";
     await past(2_100);
-    expect(saved.fn.mock.calls[0]![3]).toBeNull();
-    expect(h.rev.value).toBeNull();
+    expect(saved.fn).not.toHaveBeenCalled();
+    h.rev.value = 3;
+    draft.first_name = "Susanne";
+    await past(2_100);
+    expect(saved.fn.mock.calls[0]![3]).toBe(3);
     h.stop();
   });
 

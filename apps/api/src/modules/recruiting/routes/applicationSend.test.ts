@@ -133,7 +133,7 @@ describe("the applicant's link before the application is sent", () => {
   it("refuses a draft save, and writes nothing", async () => {
     const rec = seed();
     holder.client = rec.client;
-    const res = await pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null }) });
+    const res = await pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null, revision: 0 }) });
     expect(res.status).toBe(409);
     expect(await code(res)).toBe("application_not_sent");
     expect(rec.rpcs()).toHaveLength(0);
@@ -174,7 +174,7 @@ describe("the applicant's link before the application is sent", () => {
 
   it("saves the draft once the form has been sent", async () => {
     holder.client = seed({ invitation: { application_sent_at: "2026-09-24T12:00:00Z" } }).client;
-    const res = await pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null }) });
+    const res = await pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload: { first_name: "S" }, section: null, revision: 0 }) });
     expect(res.status).toBe(200);
   });
 });

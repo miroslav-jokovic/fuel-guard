@@ -214,6 +214,8 @@ describe("either link opens the same application", () => {
     review_requested_at: "2026-08-19T00:00:00Z",
     approved_at: "2026-08-20T00:00:00Z",
     sign_token_hash: hashInvitationToken(SIGN_TOKEN),
+    // Every sign token carries its send's end since C3s3a, and one without is dead since M2a.
+    sign_link_expires_at: "2099-01-01T00:00:00Z",
   });
 
   it("opens on the token the applicant was invited with", async () => {

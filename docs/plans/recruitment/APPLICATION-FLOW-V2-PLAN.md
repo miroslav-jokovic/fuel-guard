@@ -689,8 +689,8 @@ edited or deleted** (it is history, and production has applied it); what it adde
 |---|---|---|---|---|
 | 1 | 0381's `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` + their three constraints | Q-AW25 withdrawn 2026-09-29 | 0 rows with a code; no reader in code | **DONE — 0382** |
 | 2 | Old function signatures: 11-arg `record_packet_mark`, 11-arg `record_driver_release`, 5-arg `save_application_draft`, the pre-0376 `submit_driver_application`, `record_applicant_identity` if unused | superseded by 0376's overloads | ⚠ `track_functions = none` in production (2026-09-29), so `pg_stat_user_functions` reads 0 for EVERY function — §8.3's "only after `pg_stat_user_functions` shows no caller" cannot be answered that way. Decide by grepping `apps/` for each call's key set | M2. ⚠ Measured 2026-09-29: the old 11-argument `record_packet_mark` and `record_driver_release` have NO caller in `apps/`, but the `packet-signing`, `release-ceremony` and `signature-adoption` matrices still call them — rewrite those cases in the same PR. The 12-argument `submit_driver_application`, the 5-argument `save_application_draft` (item 3) and `record_applicant_identity` ARE still called: keep them |
-| 3 | `saveDraft`'s no-`revision` branch; `applicationDraftSaveSchema.revision` becomes required | C3d1b; only a page loaded before C3d1b sends none | — | M2's reader PR |
-| 4 | Links opened on the office's screen before C3s3a: `SendForSigningPanel`'s `legacy` state, and the resolver letting a sign token with no `sign_link_expires_at` keep the invitation's expiry | C3s3a sets the 72 hours before every mint | **0** invitations with `signing_opened_at` and no `sign_link_expires_at` (production, 2026-09-29) | cleanup PR, any time (a null end on the sign door then reads as dead) |
+| 3 | `saveDraft`'s no-`revision` branch; `applicationDraftSaveSchema.revision` becomes required | C3d1b; only a page loaded before C3d1b sends none | — | **Code DONE — M2a**: required in the contract, always passed to the 6-argument save, and the web's "API older than C3d1b" branches gone too (a save waits for a restored revision). **M2b owes**: drop the 5-argument `save_application_draft`, which now has no caller |
+| 4 | Links opened on the office's screen before C3s3a: `SendForSigningPanel`'s `legacy` state, and the resolver letting a sign token with no `sign_link_expires_at` keep the invitation's expiry | C3s3a sets the 72 hours before every mint | **0** invitations with `signing_opened_at` and no `sign_link_expires_at`, and **0** with a sign token and no end (production, 2026-09-29, re-measured before removal) | **DONE — M2a** |
 | 5 | The office's separate "Open handbook signing" (`openHandbookSigning`, `HandbookPanel`'s button, route) and, if nothing else reads them, `handbook_signing_opened_at/_by` | D-AW16: the envelope opens the handbook | Production 2026-09-29: **0** invitations with the old stamp; **0** filed without `signing_opened_at` (DR036 makes that impossible) | **Code DONE — C3s4b**: the opening, its route (`/handbook/open` → `/handbook/extend`, extension only) and button are gone, and NO TypeScript in `apps/` reads or writes either column. **M2 still owes**: drop `handbook_signing_opened_at/_by`; take the old-stamp clause out of `handbook_marks_guard`'s HB023 and out of `application_invitations_handbook_order_check` (its first two clauses are about those columns only); rewrite the matrices that still set them — `handbook-signing` (lines ~69, 155, 158), `purge-applicant` (~130), `rls` (~2298). The audit action `compliance.handbook_signing_opened` is no longer written; its old rows are evidence and stay |
 | 6 | HB022/HB023 and `application_invitations_handbook_order_check` in their 0374 shape | D-AW16 | — | **DONE — 0382** (HB023 and the order check accept the sent envelope; HB022 kept) |
 | 7 | Local worktrees `../FuelGuard-*` whose branches are merged (about 30 on 2026-09-29) | merged PRs | — | housekeeping; not in the repository |
@@ -1991,3 +1991,20 @@ Append dated lines at the END.
     switch is labelled as anomaly emails (Q-AW52). Nothing made stale; §8.6 unchanged.
   - **Checks:** 6 mutants, all killed (the refine back to on-only, `<` to `<=`, the field hidden when off, the old
     message prefix, the hint ignoring the switch, the pointer dropped).
+- 2026-09-29 — **M2a built** (`claude/applicant-flow-m2a`): §8.6 items 3 and 4, the code half of M2. No migration.
+  - **Item 3, the revision:** `applicationDraftSaveSchema.revision` is required, and `saveDraft` always calls the
+    6-argument, revision-checked save. The web's mirror image went too: `saveApplicationDraft` always sends the
+    revision, `ApplyDraft.revision` and `Released.revision` are numbers (the bundle and the unlock always serve one),
+    and `useApplicationDraft` takes `revision` as a required option and sends nothing while it is null — i.e.
+    before the page's restore — rather than a save with no expectation. The 5-argument `save_application_draft`
+    now has no caller; M2b drops it.
+  - **Item 4, the pre-C3s3a sign link:** re-measured first — 0 invitations opened without an end, 0 sign tokens
+    without one. The sign door is now a sent door always (`isSentSignDoor`), so a sign token with no end resolves
+    dead; the text door keeps the invitation's expiry until signing is sent, since the application's own texts
+    carry it. `SendForSigningPanel`'s `legacy` state is gone: an opening with no end reads as nothing sent.
+  - **Checks:** 7 mutants, all killed (the old door rule, the null end read as live, the text door always sent,
+    the revision optional again, the null guard dropped, the panel's end check dropped, the web omitting the key).
+  - **Next, M2b (0385; 0383/0384 went to McLeod's customer name):** drop the 11-argument `record_packet_mark` and
+    `record_driver_release` (rewriting the `packet-signing`, `release-ceremony` and `signature-adoption` matrix
+    cases), the 5-argument `save_application_draft` once M2a is live, and `handbook_signing_opened_at/_by` with
+    HB023's and the order check's old-stamp clauses (§8.6 items 2 and 5).
