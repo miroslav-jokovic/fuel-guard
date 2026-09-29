@@ -1,5 +1,5 @@
 import type { Page, Request, Route } from "@playwright/test";
-import { driverPlacements, PERMISSION_SIGNATURE_DESTINATION } from "@silvicom/shared";
+import { driverPlacements, PERMISSION_SIGNATURE_DESTINATION, signingPlaceDestination } from "@silvicom/shared";
 
 /**
  * A fake of the applicant's public API, for the browser specs (C3d3b1).
@@ -127,10 +127,16 @@ export function partTwoLink(payload: Json, revision: number): Json {
  * scaled to the phone, so a spec that measures it needs the real proportions: `PERMISSION_SIGNATURE_BOX`
  * over a 612-point page, as the renderer's is.
  */
-function letterPdf(pages: number, signHere = false): Buffer {
+function letterPdf(pages: number, signHere = false, places: ReadonlyArray<{ id: string; page: number }> = []): Buffer {
   // 1 catalogue, 2 page tree, 3 font, then a page and its content stream per page.
   const pageRef = (i: number) => `${4 + i * 2} 0 R`;
-  const dests = signHere ? ` /Dests << /${PERMISSION_SIGNATURE_DESTINATION} [${pageRef(0)} /XYZ 72 200 0] >>` : "";
+  // D-HB12: each signing place as the renderers name it — `sign:<id>`, a FitR box on its page. The
+  // box is p18's measured line (154..412, from just under the rule to the tallest mark above it).
+  const named = [
+    ...(signHere ? [`/${PERMISSION_SIGNATURE_DESTINATION} [${pageRef(0)} /XYZ 72 200 0]`] : []),
+    ...places.map((p) => `/${signingPlaceDestination(p.id)} [${pageRef(p.page - 1)} /FitR 154 138.9 412 161.9]`),
+  ];
+  const dests = named.length ? ` /Dests << ${named.join(" ")} >>` : "";
   const objects = [
     `<< /Type /Catalog /Pages 2 0 R${dests} >>`,
     `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => pageRef(i)).join(" ")}] /Count ${pages} >>`,
@@ -157,6 +163,14 @@ function letterPdf(pages: number, signHere = false): Buffer {
 }
 
 const pdf = (route: Route, body: Buffer) => route.fulfill({ status: 200, contentType: "application/pdf", body });
+
+/**
+ * Where the stub's 3-page handbook puts its places. The real one is 11 pages and decides as it draws
+ * (`handbookPdf.ts`); two places share page 2 so the walk's "fetch again" rule has a case to meet.
+ */
+const HANDBOOK_STUB_PAGES = [
+  { id: "h1", page: 1 }, { id: "h2", page: 2 }, { id: "h3", page: 2 }, { id: "h4", page: 3 }, { id: "h5", page: 3 },
+];
 
 /** The carrier's packet is 31 pages (`packetPlacements.ts`); every served stop names one of them. */
 const PACKET_PAGES = 31;
@@ -305,8 +319,8 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
     }
     // The packet and the handbook: pages to draw and places to sign. Their marks are not remembered —
     // no spec walks either past its first place.
-    if (method === "GET" && rest === "/packet") return pdf(route, letterPdf(PACKET_PAGES));
-    if (method === "GET" && rest === "/handbook.pdf") return pdf(route, letterPdf(3));
+    if (method === "GET" && rest === "/packet") return pdf(route, letterPdf(PACKET_PAGES, false, driverPlacements(null)));
+    if (method === "GET" && rest === "/handbook.pdf") return pdf(route, letterPdf(3, false, HANDBOOK_STUB_PAGES));
     if (method === "POST" && rest === "/mark") return json(route, 201, { signedCount: 1, complete: false });
     if (method === "POST" && rest === "/handbook/mark") return json(route, 201, { ok: true });
     if (method === "POST" && rest === "/unlock") {

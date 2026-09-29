@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAudit } from "../../lib/audit.js";
 import { applicationPreviewPdf, isPreviewError } from "./applicationPdf/preview.js";
 import { packetMarksFor } from "./applicationPdf/packetDocument.js";
+import { withPacketPlaceDestinations } from "./applicationPdf/packet/packetPlaceDestinations.js";
 import { signatureMarkBytes } from "./applicationPdf/sources.js";
 import { isIntakeError, resolveInvitation, type IntakeError } from "./applicationIntake.js";
 
@@ -135,7 +136,8 @@ export async function applicantReadingCopy(
   });
 
   return {
-    pdf: preview.pdf,
+    // D-HB12: every place named inside the bytes, so the walk opens its page and tags its line.
+    pdf: await withPacketPlaceDestinations(preview.pdf),
     // ⚠ Not "preview", and not the office's filename. This is the driver's own paper, and the word
     // preview on it would suggest the thing they are signing is a rehearsal.
     filename: "your-application.pdf",

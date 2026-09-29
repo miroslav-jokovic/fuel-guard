@@ -11,8 +11,23 @@ import { APPLY_COPY } from "./strings";
  * own tests — so these pin what THIS component decides: which state shows, which place a press signs,
  * and where the count stands.
  */
-vi.mock("@/features/apply/signing/PermissionDocumentView.vue", () => ({
-  default: { name: "PermissionDocumentView", props: ["src", "label"], template: "<div data-viewer :data-src='src' />" },
+/**
+ * The viewer, stubbed as the bytes would answer (D-HB12): each place on the page its destination names,
+ * and the Sign here tag rendered where the viewer would hang it. `SigningPageView` has its own tests.
+ */
+const PAGES: Record<string, number> = { h1: 3, h2: 7, h3: 9, h4: 9, h5: 11 };
+vi.mock("@/features/apply/signing/SigningPageView.vue", () => ({
+  default: {
+    name: "SigningPageView",
+    props: ["src", "page", "label", "places", "tagPlaceId"],
+    emits: ["located", "loaded", "failed"],
+    mounted(this: { $emit: (e: string, v?: unknown) => void; places: string[] }) {
+      const box = { left: 10, top: 10, width: 40, height: 3 };
+      this.$emit("located", Object.fromEntries(this.places.map((id) => [id, { page: PAGES[id], box }])));
+      this.$emit("loaded", 11);
+    },
+    template: "<div data-viewer :data-src='src' :data-page='page' :data-tag='tagPlaceId'><slot v-if='tagPlaceId' name='tag' /></div>",
+  },
 }));
 
 const fetchMock = vi.hoisted(() => vi.fn());
@@ -38,20 +53,25 @@ beforeEach(() => {
 });
 
 describe("walking its places (D-AW16, C3s4b)", () => {
-  it("shows the handbook, re-reads it by the count of places signed, and continues the packet's count", async () => {
+  it("opens the page the place is on, tags its line, and continues the packet's count (D-HB12)", async () => {
     const w = mountIt(status({ openedAt: "t", driverSigned: ["h1", "h2"] }));
     await flushPromises();
-    expect(w.find("[data-viewer]").attributes("data-src")).toBe(`/api/public/application/${TOKEN}/handbook.pdf?v=2`);
+    const viewer = w.find("[data-viewer]");
+    // The copy carries the two places already signed, and the walk stands on h3, on page 9.
+    expect(viewer.attributes("data-src")).toBe(`/api/public/application/${TOKEN}/handbook.pdf?v=2`);
+    expect(viewer.attributes("data-page")).toBe("9");
+    expect(viewer.attributes("data-tag")).toBe("h3");
     // 14 packet places, then h1 and h2: this is the envelope's 17th of 19.
     expect(w.text()).toContain("Place 17 of 19");
   });
 
-  it("shows ONE place — the first unsigned — with its sentence and one button", async () => {
+  it("shows ONE place — the first unsigned — with its sentence and one button, the tag on its line", async () => {
     const w = mountIt(status({ openedAt: "t", driverSigned: ["h1", "h2"] }));
     await flushPromises();
     expect(signButtons(w)).toHaveLength(1);
-    expect(w.text()).toContain("By signing this, I agree to safety penalty policy.");
-    expect(w.text()).not.toContain("I, Driver, have read the following rules");
+    // The sentence agreed to HERE. (The rail names every place for a screen reader, as the packet's does.)
+    const sentence = w.find("p.rounded-surface").text();
+    expect(sentence).toBe("By signing this, I agree to safety penalty policy.");
   });
 
   it("signs the place shown, with the e-sign consent and no name typed, then moves on without waiting for a refetch", async () => {
@@ -64,6 +84,24 @@ describe("walking its places (D-AW16, C3s4b)", () => {
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({ placement_id: "h3", esign_consent: true, handbook_version: "handbook-test-v1" });
     expect(w.text()).toContain("Place 18 of 19");
     expect(w.text()).toContain("I, Driver, have read the following rules");
+  });
+
+  /**
+   * ⚠ `PlaceWalk`'s rule (decision A, as measured): fetched again only when the page ON SCREEN holds a
+   * place signed since. h3 and h4 share page 9, so signing h3 refetches; h4 → h5 moves to page 11,
+   * where nothing new is signed, so it does not.
+   */
+  it("fetches the document again when the page on screen holds a newly signed place, and only then", async () => {
+    const w = mountIt(status({ openedAt: "t", driverSigned: ["h1", "h2"] }));
+    await flushPromises();
+    await signButtons(w)[0]!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-viewer]").attributes("data-src")).toBe(`/api/public/application/${TOKEN}/handbook.pdf?v=3`);
+    expect(w.find("[data-viewer]").attributes("data-tag")).toBe("h4");
+    await signButtons(w)[0]!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-viewer]").attributes("data-page")).toBe("11");
+    expect(w.find("[data-viewer]").attributes("data-src")).toBe(`/api/public/application/${TOKEN}/handbook.pdf?v=3`);
   });
 
   it("walks the places in the handbook's order, never the order the server listed them", async () => {

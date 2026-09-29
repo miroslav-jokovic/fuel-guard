@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PERMISSION_SIGNATURE_BOX } from "@silvicom/shared";
-import { signatureBoxOnPage } from "@/features/apply/signing/signatureBox";
+import { placeBoxOnPage, signatureBoxOnPage } from "@/features/apply/signing/signatureBox";
 
 const LETTER = [0, 0, 612, 792];
 
@@ -31,5 +31,24 @@ describe("where the Sign here tag goes", () => {
     expect(signatureBoxOnPage([{}, { name: "FitH" }, 54, 400, null], LETTER)).toBeNull();
     expect(signatureBoxOnPage([{}, { name: "XYZ" }, null, 400, null], LETTER)).toBeNull();
     expect(signatureBoxOnPage([{}, { name: "XYZ" }, 54, 400, null], [0, 0, 0, 0])).toBeNull();
+  });
+});
+
+describe("where a signing place's box is (D-HB12)", () => {
+  it("turns a FitR rectangle into its place on the page, top-down, with its own width and height", () => {
+    // p18's measured line: 154..412 at y140.9, box from 2pt under the rule to 21pt above it.
+    const box = placeBoxOnPage([{ num: 9 }, { name: "FitR" }, 154, 138.9, 412, 161.9], LETTER)!;
+    expect(box.left).toBeCloseTo((154 / 612) * 100, 6);
+    expect(box.top).toBeCloseTo(((792 - 161.9) / 792) * 100, 6);
+    expect(box.width).toBeCloseTo((258 / 612) * 100, 6);
+    expect(box.height).toBeCloseTo((23 / 792) * 100, 6);
+  });
+
+  it("refuses anything that is not a whole, non-empty FitR", () => {
+    expect(placeBoxOnPage([{ num: 9 }, { name: "XYZ" }, 1, 2, 3, 4], LETTER)).toBeNull();
+    expect(placeBoxOnPage([{ num: 9 }, { name: "FitR" }, 1, 2, 3], LETTER)).toBeNull();
+    expect(placeBoxOnPage([{ num: 9 }, { name: "FitR" }, 10, 20, 5, 30], LETTER)).toBeNull();
+    expect(placeBoxOnPage([{ num: 9 }, { name: "FitR" }, 1, null, 3, 4], LETTER)).toBeNull();
+    expect(placeBoxOnPage(null, LETTER)).toBeNull();
   });
 });

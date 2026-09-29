@@ -318,6 +318,38 @@ summary gets no second record, because its stamp draws nothing.
 
 ---
 
+### 6.8 D-HB12 · One signing walk for the packet and the handbook (owner, 2026-09-29)
+
+Owner: *"this has to be standardized, we need this to be same on Application and Handbook"*. Ruled as
+recommended: **A** the page on screen shows what is signed; **B** places in order, reading ahead
+allowed; **C** the rail is dots on a phone and a column on a desktop.
+
+**Measured first (2026-09-29).** The packet walk showed ONE page with a rail and "Take me back" but no
+tag; the handbook walk showed all 11 pages stacked, no rail, no jump, no mark sentence, and re-read the
+document after every place. The handbook's comment said flowed text "has no page to jump to"; that is
+true of the text and false of the PDF, which the renderer lays out itself.
+
+**Built:**
+- **Every place is named inside the PDF**, `sign:<placementId>`, as a `FitR` box (the permissions'
+  mechanism, with the size carried in the destination because the lines differ in width). The handbook
+  writes it as it draws each signature line; the packet's READING copy gets it from
+  `packetMarkGeometry.ts` after rendering. The filed packet is not touched.
+- **One walk, `PlaceWalk.vue`**, used by both: the place's page opened, the **Sign here** tag on its box
+  (the tag IS the sign button; a plain button appears only when the document does not name the place or
+  does not load), the rail (`SigningPlaceRail`, was `PacketPageRail`), reading another page and "Take me
+  back". The viewer is `SigningPageView` (was `PacketPageView`). What differs stays with the caller: the
+  packet's two adopted marks and initials, the handbook's server-applied signature.
+- **Decision A, as measured.** The packet's reading copy is **635 KB** (the carrier's embedded fonts;
+  the handbook is 61 KB), so re-reading it after every one of ~15 places would move ~10 MB on a phone.
+  The rule for both documents is: **fetch again when the page ON SCREEN holds a place signed since the
+  copy was fetched** (two places on one sheet, or looking back). The packet's reading copy moves to the
+  ceremony's per-link bucket (60/min) from the intake's 20/min per address, the handbook's reason.
+- Looked at in Chromium on the real documents: the tag sits on page 3's `Signature` rule and on the
+  handbook's second place (page 9 of 11).
+
+**Kept separate on purpose:** the six permissions. Each is its own instrument shown whole (FCRA
+§604(b)(2)); they already carry the same tag over their one box.
+
 ## 7. Open questions
 
 - **Q-HB1 · Should the Representatives also sign the packet's four blank carrier lines (`p18c`,
@@ -445,3 +477,6 @@ summary gets no second record, because its stamp draws nothing.
   CHECK is still proven on its own. **5 of 5 migration mutants killed.** One first-run survivor was a
   fixture gap: NULL keys never collide, so a correction naming the same countersignature from another
   source was added.
+- **2026-09-29** — **D-HB12 built** (§6.8, in PR): one signing walk for the packet and the handbook.
+  Places named in the PDFs (`sign:<id>`, FitR), `PlaceWalk` shared by both, the tag on the line, the
+  refetch rule measured against the packet's 635 KB. Looked at on the real documents.

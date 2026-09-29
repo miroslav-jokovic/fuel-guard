@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import type { ApplyPacketStop } from "@/features/apply/useApplication";
+import type { RailPlace } from "@/features/apply/signing/signingPlaces";
 
 /**
- * The twenty-two places, as a rail beside the page (C1).
+ * The places of one document, as a rail beside the page (C1). Since D-HB12 (2026-09-29) the packet's
+ * AND the handbook's, renamed from `PacketPageRail`; the rules below are unchanged and now hold for both.
  *
  * ── ⚠ IT IS NOT A CURSOR, AND THAT IS THE WHOLE CARE OF THIS FILE ─────────────────────────────
  * `usePacketCeremony.current` is DERIVED — it is the first stop nobody has filed — and A4 fixed a
@@ -45,7 +46,9 @@ import type { ApplyPacketStop } from "@/features/apply/useApplication";
  * ceremony's own comment exists to prevent.
  */
 const props = defineProps<{
-  stops: ApplyPacketStop[];
+  stops: readonly RailPlace[];
+  /** What the count is of — "on the application", "in the handbook" (C3s4b's reason, below). */
+  scope: string;
   /** The stop being SIGNED — the composable's derived answer. Null once every place is collected. */
   currentId: string | null;
   /** The stop being READ. Usually the same; different only while the driver looks around. */
@@ -64,7 +67,7 @@ const props = defineProps<{
 const emit = defineEmits<{ look: [stopId: string] }>();
 
 type RailStop = {
-  stop: ApplyPacketStop;
+  stop: RailPlace;
   index: number;
   signed: boolean;
   signing: boolean;
@@ -102,7 +105,8 @@ function stopLabel(r: RailStop): string {
     : r.signing
       ? "the place you are signing now"
       : "still to come";
-  return `Place ${r.index}, page ${r.stop.page}. ${r.stop.what} — ${state}`;
+  const page = r.stop.page ? `, page ${r.stop.page}` : "";
+  return `Place ${r.index}${page}. ${r.stop.what} — ${state}`;
 }
 </script>
 
@@ -110,7 +114,7 @@ function stopLabel(r: RailStop): string {
   <div class="w-full">
     <!-- ⚠ Names what it counts (C3s4b): the walk's "Place N of M" now spans the handbook too (D-AW16), and
          an unqualified "0 of 15 done" beside "Place 1 of 20" read as two answers to one question. -->
-    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} on the application done</p>
+    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} {{ scope }} done</p>
 
     <!-- The phone: an indicator, not a menu. Wrapped rather than scrolled — see the header. -->
     <ul
@@ -139,7 +143,7 @@ function stopLabel(r: RailStop): string {
           >
             <span class="size-2 shrink-0 rounded-full" :class="dotClass(r)" aria-hidden="true" />
             <span class="text-xs font-medium text-ink-tertiary">{{ r.index }}</span>
-            <span class="truncate text-xs text-ink-muted">Page {{ r.stop.page }}</span>
+            <span v-if="r.stop.page" class="truncate text-xs text-ink-muted">Page {{ r.stop.page }}</span>
             <span class="sr-only">{{ stopLabel(r) }}</span>
           </BaseButton>
         </li>

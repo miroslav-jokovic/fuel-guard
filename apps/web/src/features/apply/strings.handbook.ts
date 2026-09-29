@@ -21,7 +21,9 @@ export const APPLY_HANDBOOK_COPY = {
     filedThen:
       "Your application is signed and filed. The last places to sign are in the driver handbook, below.",
     intro:
-      "Read it, then sign each of its places. You sign with the signature you made when you started your application.",
+      "Each place opens on its page. Read it, then press Sign here on the line. You sign with the signature you made when you started your application.",
+    /** Under the place's sentence (D-HB12): the mark is the server's adopted picture, which this page never holds. */
+    applying: "Your signature goes on the line marked Sign here.",
     documentLabel: "The driver handbook",
     unavailable: "The handbook did not load just now. You can still sign; ask the carrier for a paper copy to read.",
     place: (n: number, total: number): string => `Place ${n} of ${total}`,
