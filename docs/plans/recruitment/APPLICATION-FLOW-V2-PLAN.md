@@ -687,12 +687,12 @@ edited or deleted** (it is history, and production has applied it); what it adde
 
 | # | What | Why stale | Measured | Removed by |
 |---|---|---|---|---|
-| 1 | 0381's `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` + their three constraints | Q-AW25 withdrawn 2026-09-29 | 0 rows with a code; no reader in code | M2 (migration) |
-| 2 | Old function signatures: 11-arg `record_packet_mark`, 11-arg `record_driver_release`, 5-arg `save_application_draft`, the pre-0376 `submit_driver_application`, `record_applicant_identity` if unused | superseded by 0376's overloads | ⚠ `track_functions = none` in production (2026-09-29), so `pg_stat_user_functions` reads 0 for EVERY function — §8.3's "only after `pg_stat_user_functions` shows no caller" cannot be answered that way. Decide by grepping `apps/` for each call's key set | M2 |
+| 1 | 0381's `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` + their three constraints | Q-AW25 withdrawn 2026-09-29 | 0 rows with a code; no reader in code | **DONE — 0382** |
+| 2 | Old function signatures: 11-arg `record_packet_mark`, 11-arg `record_driver_release`, 5-arg `save_application_draft`, the pre-0376 `submit_driver_application`, `record_applicant_identity` if unused | superseded by 0376's overloads | ⚠ `track_functions = none` in production (2026-09-29), so `pg_stat_user_functions` reads 0 for EVERY function — §8.3's "only after `pg_stat_user_functions` shows no caller" cannot be answered that way. Decide by grepping `apps/` for each call's key set | M2. ⚠ Measured 2026-09-29: the old 11-argument `record_packet_mark` and `record_driver_release` have NO caller in `apps/`, but the `packet-signing`, `release-ceremony` and `signature-adoption` matrices still call them — rewrite those cases in the same PR. The 12-argument `submit_driver_application`, the 5-argument `save_application_draft` (item 3) and `record_applicant_identity` ARE still called: keep them |
 | 3 | `saveDraft`'s no-`revision` branch; `applicationDraftSaveSchema.revision` becomes required | C3d1b; only a page loaded before C3d1b sends none | — | M2's reader PR |
 | 4 | Links opened on the office's screen before C3s3a: `SendForSigningPanel`'s `legacy` state, and the resolver letting a sign token with no `sign_link_expires_at` keep the invitation's expiry | C3s3a sets the 72 hours before every mint | **0** invitations with `signing_opened_at` and no `sign_link_expires_at` (production, 2026-09-29) | cleanup PR, any time (a null end on the sign door then reads as dead) |
 | 5 | The office's separate "Open handbook signing" (`openHandbookSigning`, `HandbookPanel`'s button, route) and, if nothing else reads them, `handbook_signing_opened_at/_by` | D-AW16: the envelope opens the handbook | — | C3s4b, then M2 for the columns |
-| 6 | HB022/HB023 and `application_invitations_handbook_order_check` in their 0374 shape | D-AW16 | — | 0382 (C3s4b's migration) |
+| 6 | HB022/HB023 and `application_invitations_handbook_order_check` in their 0374 shape | D-AW16 | — | **DONE — 0382** (HB023 and the order check accept the sent envelope; HB022 kept) |
 | 7 | Local worktrees `../FuelGuard-*` whose branches are merged (about 30 on 2026-09-29) | merged PRs | — | housekeeping; not in the repository |
 
 Not stale, by design: `packetMarkGeometry.ts`'s p04/p15/p19/p20/p22/p25 rules (they measure the carrier's
@@ -1898,3 +1898,10 @@ Append dated lines at the END.
   is signed on the handbook itself." — seen on the rendered page 25 (one line, inside the rule; page 26 still signed).
   The walk is 15 stops (14 for a company driver). The pinned counts §8.5 listed moved by one each. A mutant of the
   notice wording and the removal of the entry were both caught.
+- 2026-09-29 — **C3s4a merged** (#1119, main `22955e7`).
+- 2026-09-29 — **0382 built** (`claude/handbook-envelope-0382`), schema only. The sent envelope (`signing_opened_at`)
+  opens the handbook: `handbook_marks_guard` HB023 accepts it beside the old separate opening, and the order check lets
+  the handbook be filed once either is set. **HB022 is kept, not loosened**: D-AW16's own order is packet → certification
+  → handbook, and "signing opened or filed" (the plan's first draft) would let a handbook be signed before its
+  application is filed. 0381's three sign-code columns are dropped (§8.6 item 1). No reader is needed — it only accepts
+  more; C3s4b is the page. `handbook-signing` matrix +5 cases, the 0381 cases removed; 5 mutants, all killed.

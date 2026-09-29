@@ -63,11 +63,11 @@ const OFFICE = (await one(`insert into auth.users (email) values ('office@carrie
 const DRIVER = (await one(`insert into drivers (org_id, full_name) values ($1, 'Jovana Petrović-Szczepańska') returning id`, [ORG])).id;
 
 const invitation = async (over = {}) => {
-  const v = { submitted_at: "now()", opened: true, filed: false, expires: "now() + interval '10 days'", ...over };
+  const v = { submitted_at: "now()", opened: true, sent: false, filed: false, expires: "now() + interval '10 days'", ...over };
   return (await one(
     `insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at,
-       handbook_signing_opened_at, handbook_signing_opened_by, handbook_filed_at)
-     values ($1, $2, md5(random()::text), ${v.expires}, ${v.submitted_at},
+       signing_opened_at, handbook_signing_opened_at, handbook_signing_opened_by, handbook_filed_at)
+     values ($1, $2, md5(random()::text), ${v.expires}, ${v.submitted_at}, ${v.sent ? "now()" : "null"},
        ${v.opened ? "now()" : "null"}, ${v.opened ? `'${OFFICE}'` : "null"}, ${v.filed ? "now()" : "null"})
      returning id`, [ORG, DRIVER])).id;
 };
@@ -109,6 +109,14 @@ ok("a driver mark on a filed application with signing open is accepted", (await 
 ok("the same place twice is refused by the index (23505)", (await mark(LIVE, "h1")) === "23505");
 ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", opened: false }), "h1")) === "HB022");
 ok("before the office opens handbook signing: HB023", (await mark(await invitation({ opened: false }), "h1")) === "HB023");
+// D-AW16 (0382): the envelope the office SENT opens the handbook — no second press.
+const ENVELOPE = await invitation({ opened: false, sent: true });
+ok("0382: sent for signing, packet filed, never opened separately — a handbook mark is accepted",
+  (await mark(ENVELOPE, "h1")) === null);
+ok("0382: sent for signing but the packet NOT filed — still HB022 (packet first, then handbook)",
+  (await mark(await invitation({ submitted_at: "null", opened: false, sent: true }), "h1")) === "HB022");
+ok("0382: neither sent nor opened — still HB023",
+  (await mark(await invitation({ opened: false, sent: false }), "h1")) === "HB023");
 ok("after the handbook is filed: HB024", (await mark(await invitation({ filed: true }), "h1")) === "HB024");
 ok("on an expired link: HB021", (await mark(await invitation({ expires: "now() - interval '1 day'" }), "h1")) === "HB021");
 const REVOKED = await invitation();
@@ -150,6 +158,12 @@ ok("opening names who opened it (23514 without)",
   (await sqlstate(`update application_invitations set handbook_signing_opened_at = now() where id = $1`, [inv3])) === "23514");
 ok("the handbook cannot be filed before signing was opened (23514)",
   (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3])) === "23514");
+ok("0382: …but can be filed once the envelope was sent, with no separate opening",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`,
+    [await invitation({ opened: false, sent: true })])) === null);
+ok("0382: 0381's sign-code columns are gone",
+  (await one(`select count(*)::int c from information_schema.columns
+              where table_name = 'application_invitations' and column_name like 'sign_code%'`)).c === 0);
 
 // ── 6. RLS: on, no client policy ─────────────────────────────────────────────────────────────────
 for (const t of ["carrier_representatives", "handbook_marks"]) {

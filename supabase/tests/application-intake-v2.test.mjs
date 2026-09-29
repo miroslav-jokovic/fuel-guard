@@ -277,33 +277,9 @@ ok("the new key set resolves to exactly one function",
 ok("unlock_failures cannot go negative",
   (await code(`update application_invitations set unlock_failures = -1 where id = $1`, [I6])) === "23514");
 
-// ── 7a. The sign code's storage (0381, Q-AW47 (a)) — columns only; C3s3b is the reader ───────────
-const HEX = "a".repeat(64);
-ok("0381: an invitation starts with no sign code and a zero count",
-  await (async () => {
-    const r = await one(`select sign_code_hash h, sign_code_expires_at e, sign_code_failures f
-                         from application_invitations where id = $1`, [I6]);
-    return r.h === null && r.e === null && r.f === 0;
-  })());
-ok("0381: a digest and its end are written together",
-  (await code(`update application_invitations set sign_code_hash = $2, sign_code_expires_at = now() + interval '1 hour'
-               where id = $1`, [I6, HEX])) === null);
-ok("0381: …and cleared together",
-  (await code(`update application_invitations set sign_code_hash = null, sign_code_expires_at = null
-               where id = $1`, [I6])) === null);
-ok("0381: a code with no end is refused",
-  (await code(`update application_invitations set sign_code_hash = $2 where id = $1`, [I6, HEX])) === "23514");
-ok("0381: an end with no code is refused",
-  (await code(`update application_invitations set sign_code_expires_at = now() where id = $1`, [I6])) === "23514");
-ok("0381: a digest that is not 64 lowercase hex is refused (never the code itself)",
-  (await code(`update application_invitations set sign_code_hash = '123456', sign_code_expires_at = now()
-               where id = $1`, [I6])) === "23514"
-  && (await code(`update application_invitations set sign_code_hash = $2, sign_code_expires_at = now()
-                  where id = $1`, [I6, "A".repeat(64)])) === "23514");
-ok("0381: sign_code_failures cannot go negative",
-  (await code(`update application_invitations set sign_code_failures = -1 where id = $1`, [I6])) === "23514");
-ok("0381: the invitation table still has no client policy, so the digest stays service-role only",
-  (await count(`select count(*) n from pg_policies where tablename = 'application_invitations'`)) === 0);
+// ── 7a. 0381's sign-code columns were dropped by 0382 (Q-AW25 withdrawn); handbook-signing.test.mjs
+// asserts they are gone.
+
 ok("clearinghouse_portal_consent is a filable qualification record kind",
   (await code(`insert into qualification_records (org_id, driver_id, kind, occurred_on, result)
                values ($1,$2,'clearinghouse_portal_consent',current_date,'granted')`, [ORG, D6])) === null);
