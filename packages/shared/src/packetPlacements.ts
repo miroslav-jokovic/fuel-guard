@@ -281,6 +281,16 @@ export const PACKET_WITHDRAWALS: Readonly<Record<string, PacketWithdrawal>> = {
     since: "2026-09-25",
     notice: "Not signed here. Signed electronically as its own permission.",
   },
+  // ⚠ D-AW16 (owner, 2026-09-26; Q-AW18, G-1, MVR plan Q-MVR7). Page 25 is the carrier's receipt for
+  // the driver handbooks, signed in the packet BEFORE the handbook was ever shown — and the handbook's
+  // own fifth place (`h5`, HANDBOOK-SIGNING-PLAN.md) is the same receipt, signed after reading it. One
+  // receipt, at the moment it is true: h5 stays and p25 goes. A p25 made before this (production's
+  // `f2b142e4` walk, purged since by P2) stays a row, is not counted and prints this notice instead.
+  p25: {
+    ruling: "D-AW16",
+    since: "2026-09-26",
+    notice: "Not signed here. Receipt of the handbook is signed on the handbook itself.",
+  },
 };
 
 /** The withdrawal on this placement, or null while it is signed as normal. */
