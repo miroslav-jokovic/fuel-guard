@@ -36,7 +36,7 @@ describe("the handbook countersign claims before it files", () => {
           // The claim is a conditional UPDATE: losing it is an update that matched no row.
           if (q.write?.method === "update" && over.claimWon === false) return [];
           return [{
-            id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z",
+            id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z",
             handbook_filed_at: null, expires_at: "2099-01-01T00:00:00.000Z",
           }];
         },

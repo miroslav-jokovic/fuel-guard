@@ -37,7 +37,7 @@ export const isChecklistError = (v: unknown): v is ChecklistError =>
 /** Just enough of the invitation to answer phases — the token hash is never selected. */
 const INVITE_COLS =
   // ⚠ One literal: supabase-js types a select by parsing it, and a `+` makes it a plain string.
-  "id, created_at, releases_completed_at, intake_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at, handbook_signing_opened_at";
+  "id, created_at, releases_completed_at, intake_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, revoked_at";
 
 export async function applicantChecklist(
   admin: SupabaseClient,

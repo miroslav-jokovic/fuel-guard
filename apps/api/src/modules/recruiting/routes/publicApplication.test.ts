@@ -1404,10 +1404,10 @@ describe("the driver handbook on the link", () => {
 
   it("tells the page where the handbook stands once it is filed and opened", async () => {
     holder.client = seed({
-      submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+      submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z", handbook_filed_at: null,
     }, { handbook_marks: [{ placement_id: "h1" }, { placement_id: "h2" }] }).client;
     const body = (await (await call(`/${TOKEN}`)).json()) as { handbook: { openedAt: string; driverSigned: string[]; driverComplete: boolean } };
-    expect(body.handbook).toMatchObject({ openedAt: "2026-09-25T11:00:00Z", driverSigned: ["h1", "h2"], driverComplete: false });
+    expect(body.handbook).toMatchObject({ openedAt: "2026-09-25T09:00:00Z", driverSigned: ["h1", "h2"], driverComplete: false });
   });
 });
 

@@ -27,8 +27,14 @@ export const APPLY_PACKET_COPY = {
      * because that is all they have left to give.
      */
     adoptHeadingWithInitials: "Your signature and initials on the application",
-    adoptIntro: (carrier: string, count: number): string =>
-      `${carrier} has approved your application. It now needs your signature in ${count} places on their own form. Give your signature once below — then we take you to each place, one at a time, and show you what you are signing.`,
+    /**
+     * ⚠ Both documents, since C3s4b (D-AW16): the handbook's places follow the application's on the same
+     * walk, and a driver told only about the first number would meet the second as a surprise.
+     */
+    adoptIntro: (carrier: string, count: number, handbook: number): string =>
+      `${carrier} has approved your application. It now needs your signature in ${count} places on their own form, `
+      + `then in ${handbook} places in their driver handbook. Give your signature once below — then we take you to each `
+      + "place, one at a time, and show you what you are signing.",
     /**
      * ⚠ The three tabs (C2). *"Type my name"* is gone, and not because the words were wrong: it named
      * a behaviour that no longer exists. Every tab now produces a picture of a signature and the
@@ -254,9 +260,14 @@ export const APPLY_PACKET_COPY = {
       + "Everything you sign still counts — carry on.",
     resumed: (n: number): string =>
       n === 1 ? "You have already signed 1 place." : `You have already signed ${n} places.`,
-    doneHeading: "That is every place signed",
+    /**
+     * ⚠ Not "every place" any more (C3s4b): the handbook's places come after the filing below, so this
+     * names the form and says what follows it.
+     */
+    doneHeading: "That is every place on the application",
     doneBody:
-      "Your signature is now on every place the form asks for it. One last step below and your application is in.",
+      "Your signature is now on every place the form asks for it. Send your application below, then sign the "
+      + "driver handbook's places.",
     failed: "That did not go through. Check your signal and try again.",
     /**
      * ⚠ What a rate-limited stop says, and it exists because both of the alternatives lied (A0b).

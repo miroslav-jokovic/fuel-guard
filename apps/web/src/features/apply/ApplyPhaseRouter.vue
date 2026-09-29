@@ -128,6 +128,7 @@ const emit = defineEmits<{
       :carrier="invitation.data.value?.carrier ?? ''"
       :road-test-certificate="invitation.data.value?.roadTestCertificate ?? null"
       :handbook="invitation.data.value?.handbook ?? null"
+      :packet-places="packetStops.length"
     />
   </template>
 

@@ -120,6 +120,11 @@ export interface CarrierRepresentative {
 export interface HandbookStatus {
   /** The application is filed, so the handbook can be opened (D-HB1: it comes after the packet). */
   canOpen: boolean;
+  /**
+   * When the handbook opened for the driver's places: the envelope's stamp (`signing_opened_at`, D-AW16,
+   * C3s4b), and null until the application is filed as well — HB022 refuses a place before that, so a
+   * handbook "open" beside an unfiled packet would be one the driver cannot sign.
+   */
   openedAt: string | null;
   /** The driver's places already signed, in the handbook's order. */
   driverSigned: HandbookPlacementId[];
@@ -153,6 +158,7 @@ export interface LinkHandbookStatus extends HandbookStatus {
  */
 export function handbookStatus(input: {
   submittedAt: string | null;
+  /** The envelope's stamp, `application_invitations.signing_opened_at` (0369; D-AW16). */
   openedAt: string | null;
   filedAt: string | null;
   signedPlacementIds: readonly string[];
@@ -161,7 +167,7 @@ export function handbookStatus(input: {
   const driverSigned = HANDBOOK_DRIVER_PLACEMENT_IDS.filter((id) => signed.has(id));
   return {
     canOpen: input.submittedAt !== null,
-    openedAt: input.openedAt,
+    openedAt: input.submittedAt !== null ? input.openedAt : null,
     driverSigned,
     driverComplete: driverSigned.length === HANDBOOK_DRIVER_PLACEMENT_IDS.length,
     filedAt: input.filedAt,

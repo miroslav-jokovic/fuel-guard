@@ -341,7 +341,11 @@ for (const width of [390, 320]) {
           phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T }, packet: packetStops(),
           adoptions: { signature: "Susan Godfrey", initials: "SG" },
         }, "Use it"],
-        ["filed", { phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T, submittedAt: T }, handbook: openHandbook() }, "Download your copy"],
+        // D-AW16 (C3s4b): a filed link with handbook places left opens on the walk, not on the downloads.
+        ["filed", {
+          phases: { reviewRequestedAt: T, approvedAt: T, signingOpenedAt: T, submittedAt: T },
+          packet: packetStops().map((p) => ({ ...p, signedAt: T })), handbook: openHandbook(),
+        }, "Sign here"],
       ];
       const misses: Misses = {};
       for (const [screen, over, ready] of states) {
@@ -360,6 +364,8 @@ for (const width of [390, 320]) {
           await s.check("signoff, packet confirm");
           await press(page, /start signing/);
           await expect(page.getByText("Page 3", { exact: false }).first()).toBeVisible();
+          // D-AW16 (C3s4b): the count spans the packet and the handbook's five places after it.
+          await expect(page.getByText(`Place 1 of ${packetStops().length + 5}`)).toBeVisible();
           await s.check("signoff, packet: first place");
         }
         if (screen === "signoff.adopted") {
@@ -372,7 +378,9 @@ for (const width of [390, 320]) {
           expect(stub.callsTo("POST", /\/adoption$/)).toHaveLength(0);
         }
         if (screen === "filed") {
-          await expect(page.getByRole("button", { name: "Sign" }).first()).toBeVisible();
+          // The envelope's count carries on from the packet: its places, then the handbook's first.
+          const packet = packetStops().length;
+          await expect(page.getByText(`Place ${packet + 1} of ${packet + 5}`)).toBeVisible();
           await s.check("filed, handbook open");
         }
       }

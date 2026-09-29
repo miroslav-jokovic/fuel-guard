@@ -108,7 +108,9 @@ function stopLabel(r: RailStop): string {
 
 <template>
   <div class="w-full">
-    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} done</p>
+    <!-- ⚠ Names what it counts (C3s4b): the walk's "Place N of M" now spans the handbook too (D-AW16), and
+         an unqualified "0 of 15 done" beside "Place 1 of 20" read as two answers to one question. -->
+    <p class="mb-2 text-xs text-ink-muted">{{ signedCount }} of {{ stops.length }} on the application done</p>
 
     <!-- The phone: an indicator, not a menu. Wrapped rather than scrolled — see the header. -->
     <ul

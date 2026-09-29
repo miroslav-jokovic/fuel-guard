@@ -691,7 +691,7 @@ edited or deleted** (it is history, and production has applied it); what it adde
 | 2 | Old function signatures: 11-arg `record_packet_mark`, 11-arg `record_driver_release`, 5-arg `save_application_draft`, the pre-0376 `submit_driver_application`, `record_applicant_identity` if unused | superseded by 0376's overloads | ⚠ `track_functions = none` in production (2026-09-29), so `pg_stat_user_functions` reads 0 for EVERY function — §8.3's "only after `pg_stat_user_functions` shows no caller" cannot be answered that way. Decide by grepping `apps/` for each call's key set | M2. ⚠ Measured 2026-09-29: the old 11-argument `record_packet_mark` and `record_driver_release` have NO caller in `apps/`, but the `packet-signing`, `release-ceremony` and `signature-adoption` matrices still call them — rewrite those cases in the same PR. The 12-argument `submit_driver_application`, the 5-argument `save_application_draft` (item 3) and `record_applicant_identity` ARE still called: keep them |
 | 3 | `saveDraft`'s no-`revision` branch; `applicationDraftSaveSchema.revision` becomes required | C3d1b; only a page loaded before C3d1b sends none | — | M2's reader PR |
 | 4 | Links opened on the office's screen before C3s3a: `SendForSigningPanel`'s `legacy` state, and the resolver letting a sign token with no `sign_link_expires_at` keep the invitation's expiry | C3s3a sets the 72 hours before every mint | **0** invitations with `signing_opened_at` and no `sign_link_expires_at` (production, 2026-09-29) | cleanup PR, any time (a null end on the sign door then reads as dead) |
-| 5 | The office's separate "Open handbook signing" (`openHandbookSigning`, `HandbookPanel`'s button, route) and, if nothing else reads them, `handbook_signing_opened_at/_by` | D-AW16: the envelope opens the handbook | — | C3s4b, then M2 for the columns |
+| 5 | The office's separate "Open handbook signing" (`openHandbookSigning`, `HandbookPanel`'s button, route) and, if nothing else reads them, `handbook_signing_opened_at/_by` | D-AW16: the envelope opens the handbook | Production 2026-09-29: **0** invitations with the old stamp; **0** filed without `signing_opened_at` (DR036 makes that impossible) | **Code DONE — C3s4b**: the opening, its route (`/handbook/open` → `/handbook/extend`, extension only) and button are gone, and NO TypeScript in `apps/` reads or writes either column. **M2 still owes**: drop `handbook_signing_opened_at/_by`; take the old-stamp clause out of `handbook_marks_guard`'s HB023 and out of `application_invitations_handbook_order_check` (its first two clauses are about those columns only); rewrite the matrices that still set them — `handbook-signing` (lines ~69, 155, 158), `purge-applicant` (~130), `rls` (~2298). The audit action `compliance.handbook_signing_opened` is no longer written; its old rows are evidence and stay |
 | 6 | HB022/HB023 and `application_invitations_handbook_order_check` in their 0374 shape | D-AW16 | — | **DONE — 0382** (HB023 and the order check accept the sent envelope; HB022 kept) |
 | 7 | Local worktrees `../FuelGuard-*` whose branches are merged (about 30 on 2026-09-29) | merged PRs | — | housekeeping; not in the repository |
 
@@ -1905,3 +1905,36 @@ Append dated lines at the END.
   → handbook, and "signing opened or filed" (the plan's first draft) would let a handbook be signed before its
   application is filed. 0381's three sign-code columns are dropped (§8.6 item 1). No reader is needed — it only accepts
   more; C3s4b is the page. `handbook-signing` matrix +5 cases, the 0381 cases removed; 5 mutants, all killed.
+- 2026-09-29 — **0382 merged** (#1120, main `6877bbe`) and **applied in production** at 10:46 UTC; both services
+  verified at `6877bbe`, schema 0382 current, no drift; the sign-code columns read back as gone.
+- 2026-09-29 — **C3s4b built** (`claude/applicant-flow-c3s4b`): one walk through the envelope (D-AW16). No migration.
+  - **The envelope opens the handbook.** Every reader now takes `signing_opened_at`: `handbookCeremony.ts` (the
+    mark and the reading copy), `handbookSigning.ts` (office status, countersign), the checklist's builder. The
+    shared fold `handbookStatus` decides "open" once — the envelope's stamp AND a filed application, because HB022
+    refuses a place before the filing — so the checklist, the drawer and the link cannot disagree. Measured before
+    retiring anything: 0 invitations carried the old stamp and 0 were filed without the envelope (DR036 forbids it).
+  - **The office's "Open handbook signing" is retired** (§8.6 item 5): its function, its button and its route. Its
+    link extension is KEPT, as `extendHandbookLink` on `POST …/handbook/extend` behind the drawer's existing "Extend
+    the driver's link": Send for signing's extension covers the driver's walk that morning, but HB021 also refuses
+    the COUNTERSIGNATURE on a lapsed link, and Send for signing refuses a filed application, so nothing else could
+    revive it. The audit action `compliance.handbook_signing_opened` is no longer written.
+  - **The applicant's page:** "Place N of M" spans both documents (`signing/envelope.ts`: the packet's served places
+    plus the handbook's five; 19 for a company driver, 20 for an owner-operator). The packet walk counts against it,
+    and the adoption intro names both numbers. After the certification, the filed card LEADS with the handbook —
+    one line saying the application is filed, then one place at a time (the carrier's sentence, one button, "Place
+    15 of 19") — instead of five buttons under the downloads; once every place is signed it is the filed page
+    again. The current place is derived (first unsigned, this tab's included), never a cursor. The packet rail's
+    "0 of 15 done" now says "on the application", because beside "Place 1 of 20" it read as a second answer.
+    The copy that said the carrier opens the handbook in their office is gone.
+  - **Not done, on purpose:** the handbook viewer shows the whole document above the place, not the place's page —
+    the handbook is flowed text with no fixed page per place (`handbookPdf.ts`). Named destinations per place would
+    let it jump; left for C3s5's handbook preview.
+  - **What the walk now relies on (Q-AW48):** a driver who stops between the packet and the handbook for more than
+    72 hours loses the SENT link, and Send for signing cannot be pressed again on a filed application. They finish on
+    the invitation's own link, which Q-AW48 (a) keeps open to signing on the invitation's expiry — which the office's
+    Extend keeps alive. (b) would not strand them either — it refuses the invite door only while the sent link is
+    live — but any ruling that closes the invite door to signing outright would, and would need a handbook re-send.
+  - **Checks:** 14 mutants, all killed; the router's packet count is killed only by the browser spec (its new
+    "Place 1 of M" and "Place 15 of M" assertions). One survivor of the first pass was a real gap — nothing checked
+    that the checklist's handbook reads the envelope — and now has its test. Every CI gate, every suite, 94
+    matrices, the build with CI's placeholders, 12 of 12 browser specs.

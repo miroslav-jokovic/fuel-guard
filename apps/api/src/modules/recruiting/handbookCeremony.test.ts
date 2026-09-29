@@ -22,7 +22,7 @@ const CTX = { ip: "203.0.113.9", userAgent: "vitest" };
 const invitation = (over: Record<string, unknown> = {}) => ({
   id: "inv-1", org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
   expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
-  submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+  submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z", handbook_filed_at: null,
   ...over,
 });
 
@@ -83,10 +83,17 @@ describe("signing a place", () => {
     expect(isIntakeError(result) && result.code).toBe("handbook_application_not_filed");
   });
 
-  it("refuses before the office opens it, and says where it is opened", async () => {
-    const result = await recordHandbookMark(seed({ inv: { handbook_signing_opened_at: null } }).client, TOKEN, MARK, CTX, NOW);
+  it("refuses on an application never sent for signing (HB023's twin), and says who sends it", async () => {
+    const result = await recordHandbookMark(seed({ inv: { signing_opened_at: null } }).client, TOKEN, MARK, CTX, NOW);
     expect(isIntakeError(result) && result.code).toBe("handbook_not_opened");
-    expect(isIntakeError(result) && result.message).toMatch(/in their office/);
+    expect(isIntakeError(result) && result.message).toMatch(/has not sent your application/);
+  });
+
+  it("is open on the envelope alone: no second opening at the desk (D-AW16, C3s4b)", async () => {
+    const rec = seed({ inv: { signing_opened_at: "2026-09-25T09:00:00Z", handbook_signing_opened_at: null } });
+    const result = await recordHandbookMark(rec.client, TOKEN, MARK, CTX, NOW);
+    expect(isIntakeError(result)).toBe(false);
+    expect(rec.writtenRows("handbook_marks")).toHaveLength(1);
   });
 
   it("refuses once it is filed", async () => {
@@ -192,7 +199,7 @@ describe("reading it", () => {
   });
 
   it("is refused before it is opened", async () => {
-    const result = await applicantHandbookPdf(seed({ inv: { handbook_signing_opened_at: null } }).client, TOKEN, NOW);
+    const result = await applicantHandbookPdf(seed({ inv: { signing_opened_at: null } }).client, TOKEN, NOW);
     expect(isIntakeError(result) && result.code).toBe("handbook_not_opened");
   });
 });

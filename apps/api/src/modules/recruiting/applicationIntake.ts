@@ -106,10 +106,9 @@ interface InvitationRow {
   /** The certified §391.21 application filed — stamped inside `submit_driver_application`. */
   submitted_at: string | null;
   /**
-   * The office opened handbook signing (0374, HANDBOOK-SIGNING-PLAN.md), and the signed handbook was
-   * filed. ⚠ Optional: a row read by a select written before 0374 reads `undefined`, never throws.
+   * The signed handbook was filed (0374, HANDBOOK-SIGNING-PLAN.md). ⚠ Optional: a row read by a select
+   * written before 0374 reads `undefined`, never throws. Its opening is `signing_opened_at` (D-AW16).
    */
-  handbook_signing_opened_at?: string | null;
   handbook_filed_at?: string | null;
   /**
    * D-AW14 (0376, read since C3s3a): the sent sign link's own end, 72 hours from the office's Send for
@@ -272,7 +271,7 @@ export async function resolveInvitation(
     .select(
       "id, org_id, driver_id, token_hash, sign_token_hash, sms_token_hash, expires_at, revoked_at, consented_at, "
       + "intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, "
-      + "submitted_at, handbook_signing_opened_at, handbook_filed_at, sign_link_expires_at, unlock_failures",
+      + "submitted_at, handbook_filed_at, sign_link_expires_at, unlock_failures",
     )
     .or(`token_hash.eq.${hash},sign_token_hash.eq.${hash},sms_token_hash.eq.${hash}`)
     .maybeSingle();

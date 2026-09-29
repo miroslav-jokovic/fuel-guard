@@ -116,7 +116,7 @@ describe("a filed application stages no signature picture (C0b retired)", () => 
           id: INVITATION, org_id: ORG, driver_id: DRIVER, token_hash: hashInvitationToken(TOKEN),
           expires_at: "2099-01-01T00:00:00Z", revoked_at: null, consented_at: "2026-09-14T08:00:00Z",
           releases_completed_at: "2026-09-14T08:30:00Z", submitted_at: "2026-09-14T10:00:00Z",
-          handbook_signing_opened_at: "2026-09-25T20:08:00Z", handbook_filed_at: null,
+          signing_opened_at: "2026-09-14T09:00:00Z", handbook_filed_at: null,
         }],
         application_packet_marks: [],
         handbook_marks: [],

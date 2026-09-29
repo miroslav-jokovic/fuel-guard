@@ -65,7 +65,6 @@ export interface ChecklistInvitation {
   approved_at: string | null;
   signing_opened_at: string | null;
   submitted_at: string | null;
-  handbook_signing_opened_at?: string | null;
 }
 
 export interface ChecklistSubject {
@@ -184,15 +183,14 @@ export async function checklistInputs(
         awaiting: queue.outstanding.filter((e) => e.state === "awaiting").length,
       },
       // HANDBOOK-SIGNING-PLAN.md: drives only `inFlight`; the step is done on the filed record.
-      handbook: {
-        openedAt: inv?.handbook_signing_opened_at ?? null,
-        driverComplete: handbookStatus({
-          submittedAt: inv?.submitted_at ?? null,
-          openedAt: inv?.handbook_signing_opened_at ?? null,
-          filedAt: null,
-          signedPlacementIds: inv ? (handbookMarks.get(inv.id) ?? []).map((r) => r.placement_id) : [],
-        }).driverComplete,
-      },
+      // The fold decides when it is open (the envelope sent AND the application filed, D-AW16), so the
+      // checklist cannot call a handbook in flight that the driver's page would not let them sign.
+      handbook: handbookStatus({
+        submittedAt: inv?.submitted_at ?? null,
+        openedAt: inv?.signing_opened_at ?? null,
+        filedAt: null,
+        signedPlacementIds: inv ? (handbookMarks.get(inv.id) ?? []).map((r) => r.placement_id) : [],
+      }),
       hiredAt: s.hiredAt,
     };
     out.set(s.driverId, { inputs, records: own, marks: markRows });

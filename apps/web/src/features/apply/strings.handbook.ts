@@ -7,28 +7,26 @@
  * still keeps CFR references off a driver's phone).
  *
  * ── WHAT THE SCREEN HAS TO SAY ────────────────────────────────────────────────────────────────
- * The handbook comes after the application and is opened by the carrier in their office, so before
- * that the page says where it happens and nothing more. While it is open, the driver is told they sign
- * with the signature they already adopted — the one thing that would otherwise surprise them — and
- * what is left. The words of the handbook itself are the carrier's and are in the document, not here.
+ * The handbook comes straight after the application, on the same walk (D-AW16, C3s4b): the page says
+ * the application is filed and these are the last places, that the driver signs with the signature they
+ * already adopted — the one thing that would otherwise surprise them — and where they are in the count.
+ * The words of the handbook itself are the carrier's and are in the document, not here. The waiting
+ * copy ("they open it in their office") went with the office's separate opening.
 
  */
 export const APPLY_HANDBOOK_COPY = {
   handbook: {
     heading: "The driver handbook",
-    waiting: (carrier: string): string =>
-      `Next is ${carrier}'s driver handbook. They open it for signing in their office, after your application.`,
-    checkAgain: "Check again",
-    checking: "Checking…",
+    /** Above the walk, on the card that used to say only "your application is in". */
+    filedThen:
+      "Your application is signed and filed. The last places to sign are in the driver handbook, below.",
     intro:
-      "Read it, then sign each of its five places. You sign with the signature you made when you started your application.",
+      "Read it, then sign each of its places. You sign with the signature you made when you started your application.",
     documentLabel: "The driver handbook",
     unavailable: "The handbook did not load just now. You can still sign; ask the carrier for a paper copy to read.",
     place: (n: number, total: number): string => `Place ${n} of ${total}`,
     sign: "Sign here",
     signing: "Signing…",
-    signed: "Signed",
-    progress: (done: number, total: number): string => `${done} of ${total} places signed.`,
     signFailed: "That signature did not go through. Try again.",
     allSigned: (carrier: string): string =>
       `You have signed every place. ${carrier} countersigns it now, and a copy is filed with your application.`,

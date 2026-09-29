@@ -85,9 +85,9 @@ function useHandbookAct<T, R = unknown>(driverId: Ref<string>, path: string, fal
   });
 }
 
-/** Open (and Extend): the answer carries the link's expiry, which is the carrier's lifetime from now (Q-AW41). */
-export const useOpenHandbook = (driverId: Ref<string>) =>
-  useHandbookAct<never, { expiresAt: string; extended: boolean }>(driverId, "open", "Could not open handbook signing.");
+/** Extend the driver's link: the answer carries its new end, the carrier's lifetime from now (Q-AW41). */
+export const useExtendHandbookLink = (driverId: Ref<string>) =>
+  useHandbookAct<never, { expiresAt: string; extended: boolean }>(driverId, "extend", "Could not extend the driver's link.");
 
 export const useCountersignHandbook = (driverId: Ref<string>) =>
   useHandbookAct<{ representative_id: string }>(driverId, "countersign", "Could not countersign the handbook.");

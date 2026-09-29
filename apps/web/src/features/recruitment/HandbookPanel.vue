@@ -6,19 +6,21 @@ import { useToastStore } from "@/stores/toast";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import {
   useCountersignHandbook,
+  useExtendHandbookLink,
   useHandbookStatus,
-  useOpenHandbook,
   useRepresentatives,
 } from "@/features/recruitment/useHandbook";
 
 /**
  * The driver handbook, worked from the step's drawer (HANDBOOK-SIGNING-PLAN.md HB4; D-HB1..D-HB5).
  *
- * ── THE THREE MOVES, IN THE ORDER THE DATABASE HOLDS ──────────────────────────────────────────
- * After the application is filed, the office OPENS handbook signing with the driver at the desk; the
- * driver signs its five places on their own link, with the signature they adopted for the application;
- * then the office COUNTERSIGNS for the carrier with a Representative, which files the signed handbook.
- * The panel shows the one move that is next, and why the others are not yet.
+ * ── THE MOVES, IN THE ORDER THE DATABASE HOLDS ────────────────────────────────────────────────
+ * The envelope the office sent for signing opens the handbook too (D-AW16, C3s4b): the driver files the
+ * application and goes straight on to the handbook's five places on the same link, with the signature
+ * they adopted for the application; then the office COUNTERSIGNS for the carrier with a Representative,
+ * which files the signed handbook. There is no separate opening press any more — "Open handbook signing"
+ * was retired with C3s4b — so the panel shows where the driver is, keeps their link alive, and offers the
+ * countersignature once they are done.
  *
  * ── THE REPRESENTATIVES (D-HB3) ───────────────────────────────────────────────────────────────
  * Added with their signature and removed, as the maintenance inspectors are. One who has countersigned
@@ -32,7 +34,7 @@ const toast = useToastStore();
 const driverId = computed(() => props.driverId);
 const statusQ = useHandbookStatus(driverId);
 const repsQ = useRepresentatives();
-const open = useOpenHandbook(driverId);
+const extend = useExtendHandbookLink(driverId);
 const countersign = useCountersignHandbook(driverId);
 
 const status = computed(() => statusQ.data.value ?? null);
@@ -48,24 +50,15 @@ function forgetRepresentative(id: string): void {
 }
 
 // ── the two acts ───────────────────────────────────────────────────────────────────────────────
-async function openSigning(): Promise<void> {
-  try {
-    await open.mutateAsync(undefined);
-    toast.success("Handbook signing is open", "The driver signs it now, on their own link.");
-  } catch (e) {
-    toast.error("Could not open handbook signing", e instanceof Error ? e.message : undefined);
-  }
-}
-
 /**
- * The same door as Open (APPLICATION-FLOW-V2-PLAN.md A-2): every press keeps the driver's link alive for
- * another of the carrier's link lifetimes (Q-AW41) — the toast says the date the server set, never a
- * number restated here — and a second press never re-stamps who opened it. Nothing
- * else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed one.
+ * APPLICATION-FLOW-V2-PLAN.md A-2: every press keeps the driver's link alive for another of the
+ * carrier's link lifetimes (Q-AW41) — the toast says the date the server set, never a number restated
+ * here. Nothing else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed
+ * one — the countersignature included (`extendHandbookLink` has why it outlived the opening).
  */
 async function extendLink(): Promise<void> {
   try {
-    const { expiresAt } = await open.mutateAsync(undefined);
+    const { expiresAt } = await extend.mutateAsync(undefined);
     toast.success("Link extended", `The driver's link is open until ${formatDisplayDateTime(expiresAt)}.`);
   } catch (e) {
     toast.error("Could not extend the driver's link", e instanceof Error ? e.message : undefined);
@@ -95,16 +88,6 @@ async function countersignAndFile(): Promise<void> {
         The handbook is signed after the application. It opens here once the application is signed and filed.
       </p>
 
-      <div v-else-if="!status.openedAt" class="space-y-3">
-        <p class="text-sm text-ink-secondary">
-          Open it with the driver at the desk. They sign its five places on the same link they used for the
-          application, with the signature they adopted there.
-        </p>
-        <BaseButton variant="primary" size="sm" :disabled="open.isPending.value" @click="openSigning">
-          {{ open.isPending.value ? "Opening…" : "Open handbook signing" }}
-        </BaseButton>
-      </div>
-
       <div v-else class="space-y-3">
         <p class="text-sm font-medium text-ink">
           {{ status.driverComplete ? "The driver has signed every place" : `The driver has signed ${signedCount} of ${driverPlaces.length}` }}
@@ -123,8 +106,8 @@ async function countersignAndFile(): Promise<void> {
               ? `The driver's link expired on ${formatDisplayDateTime(status.linkExpiresAt)}. Extend it before they sign or you countersign.`
               : `The driver's link is open until ${formatDisplayDateTime(status.linkExpiresAt)}.` }}
           </p>
-          <BaseButton variant="secondary" size="sm" :disabled="open.isPending.value" @click="extendLink">
-            {{ open.isPending.value ? "Extending…" : "Extend the driver's link" }}
+          <BaseButton variant="secondary" size="sm" :disabled="extend.isPending.value" @click="extendLink">
+            {{ extend.isPending.value ? "Extending…" : "Extend the driver's link" }}
           </BaseButton>
         </div>
       </div>

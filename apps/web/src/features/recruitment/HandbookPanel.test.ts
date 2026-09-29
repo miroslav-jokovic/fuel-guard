@@ -30,8 +30,8 @@ vi.mock("@/lib/api", () => ({
         state.reps = [...state.reps, added];
         return { ok: true, data: { representative: added } };
       }
-      // The route answers Open/Extend with the link's new expiry (handbook.ts), which the toast states.
-      if (url.endsWith("/handbook/open")) return { ok: true, data: { expiresAt: "2026-10-03T17:00:00.000Z", extended: true } };
+      // The route answers Extend with the link's new expiry (handbook.ts), which the toast states.
+      if (url.endsWith("/handbook/extend")) return { ok: true, data: { expiresAt: "2026-10-03T17:00:00.000Z", extended: true } };
       return { ok: true, data: {} };
     }
     if (url.endsWith("/representatives")) return { ok: true, data: { representatives: state.reps } };
@@ -67,23 +67,22 @@ beforeEach(() => {
 });
 
 describe("before the application is filed", () => {
-  it("says the handbook comes after it, and offers no Open", async () => {
+  it("says the handbook comes after it, and offers nothing to press", async () => {
     state.handbook = status({ canOpen: false });
     const w = mountPanel();
     await settle(w);
     expect(w.text()).toContain("signed after the application");
-    expect(button(w, "Open handbook signing")).toBeUndefined();
+    expect(button(w, "Extend the driver's link")).toBeUndefined();
   });
 });
 
-describe("opening it", () => {
-  it("posts Open for this applicant", async () => {
-    state.handbook = status();
+describe("no opening at the desk (D-AW16, C3s4b)", () => {
+  it("never offers to open handbook signing: the envelope the office sent opened it", async () => {
+    state.handbook = status({ openedAt: "2026-09-29T09:00:00Z" });
     const w = mountPanel();
     await settle(w);
-    await button(w, "Open handbook signing")!.trigger("click");
-    await settle(w);
-    expect(state.calls).toEqual([{ url: "/api/recruitment/applicants/d1/handbook/open", method: "POST", body: {} }]);
+    expect(w.text()).not.toContain("Open handbook signing");
+    expect(w.text()).toContain("The driver has signed 0 of 5");
   });
 });
 
@@ -98,14 +97,14 @@ describe("while the driver signs", () => {
 });
 
 describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", () => {
-  it("shows when the link lapses and extends it through the Open door, once signing is open", async () => {
+  it("shows when the link lapses and extends it, once the handbook is open", async () => {
     state.handbook = status({ openedAt: "2026-09-25T20:08:00Z", driverSigned: ["h1"] });
     const w = mountPanel();
     await settle(w);
     expect(w.text()).toContain("The driver's link is open until");
     await button(w, "Extend the driver's link")!.trigger("click");
     await settle(w);
-    expect(state.calls).toEqual([{ url: "/api/recruitment/applicants/d1/handbook/open", method: "POST", body: {} }]);
+    expect(state.calls).toEqual([{ url: "/api/recruitment/applicants/d1/handbook/extend", method: "POST", body: {} }]);
     // The date the server set — the carrier's lifetime from now (Q-AW41) — never a number restated here.
     const [toast] = useToastStore().toasts;
     expect([toast!.title, toast!.message]).toEqual(["Link extended", `The driver's link is open until ${formatDisplayDateTime("2026-10-03T17:00:00.000Z")}.`]);

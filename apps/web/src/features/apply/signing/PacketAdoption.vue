@@ -13,6 +13,7 @@ import PacketMarkStyles from "@/features/apply/signing/PacketMarkStyles.vue";
 import PacketMarkUpload from "@/features/apply/signing/PacketMarkUpload.vue";
 import { markRequiredFor, type AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoption";
 import { APPLY_COPY } from "@/features/apply/strings";
+import { HANDBOOK_PLACES } from "@/features/apply/signing/envelope";
 
 /**
  * The three screens BEFORE the walk: a resumed link's pinned marks, the adoption form, and A4's
@@ -226,7 +227,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
            only the first ("Give your signature once below — then we take you to each place"). Shown
            on a form whose signature field is disabled, it points at the one thing they cannot do. -->
       <p class="mt-2 text-sm text-ink-muted">
-        {{ reopenedToChange ? copy.changeIntro : copy.adoptIntro(carrier, ceremony.total.value) }}
+        {{ reopenedToChange ? copy.changeIntro : copy.adoptIntro(carrier, ceremony.total.value, HANDBOOK_PLACES) }}
       </p>
       <!-- A resumed link says so, rather than silently opening part-way through. -->
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
