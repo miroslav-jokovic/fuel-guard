@@ -187,6 +187,7 @@ const emit = defineEmits<{
       :already-signed="invitation.data.value?.releasesSigned ?? []"
       :carrier="invitation.data.value?.carrier ?? ''"
       :captures="invitation.data.value?.captures ?? []"
+      :adoptions="invitation.data.value?.adoptions"
       @done="emit('ceremonyDone')"
     />
   </BaseCard>
@@ -233,6 +234,7 @@ const emit = defineEmits<{
       :captures="invitation.data.value?.captures ?? []"
       :stops="packetStops"
       :adopted-marks="packetAdopted"
+      :adoptions="invitation.data.value?.adoptions"
       :sending="sending"
       :error="sendError"
       @send="emit('send')"

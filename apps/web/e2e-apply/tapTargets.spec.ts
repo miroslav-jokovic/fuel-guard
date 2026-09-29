@@ -257,8 +257,13 @@ for (const width of [390, 320]) {
       await s.check("ceremony, adoption: upload");
       await page.getByRole("radio", { name: "Choose a style" }).click();
       await page.getByRole("textbox").first().fill("Susan Godfrey");
+      await page.getByRole("textbox").nth(1).fill("SG");
       await press(page, /^Use this/);
       await s.check("ceremony, confirm");
+      // Screen 13 registered both marks as the link's adoptions, each a PNG the browser drew (C3s1).
+      const adopted = stub.callsTo("POST", /\/adoption$/).map((c) => c.body as { kind: string; typed_text: string; png_base64: string });
+      expect(adopted.map((a) => [a.kind, a.typed_text])).toEqual([["signature", "Susan Godfrey"], ["initials", "SG"]]);
+      for (const a of adopted) expect(Buffer.from(a.png_base64, "base64").subarray(1, 4).toString()).toBe("PNG");
       await press(page, /start signing/);
       for (const title of ["Disclosure regarding background reports", "PSP disclosure and authorization"]) {
         await expect(page.getByRole("heading", { name: title })).toBeVisible();

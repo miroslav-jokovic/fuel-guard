@@ -91,7 +91,10 @@ describe("planStorageReconcile — a deferred upload (D-SCAN11)", () => {
  * like an orphan.
  */
 interface StubCall {
+  /** The FIRST table read — the bucket's primary index. */
   table?: string;
+  /** Every table read, in order, for a bucket indexed by more than one. */
+  tables?: string[];
   bucket?: string;
   columns?: string;
 }
@@ -99,7 +102,8 @@ interface StubCall {
 function stubAdmin(calls: StubCall) {
   return {
     from(table: string) {
-      calls.table = table;
+      calls.table ??= table;
+      calls.tables = [...(calls.tables ?? []), table];
       return {
         select: async (columns?: string) => {
           calls.columns = columns;
@@ -125,6 +129,74 @@ describe("bucket ↔ table bindings", () => {
     await reconcileComplianceDocOrphans(stubAdmin(calls), { apply: false });
     expect(calls.bucket).toBe("compliance-docs");
     expect(calls.table).toBe("documents");
+  });
+
+  /**
+   * D-AW15 (C3s1): an adopted signature is a PNG in `compliance-docs` with a `signature_adoptions` row
+   * and no `documents` row. Swept against `documents` alone it is an orphan, deleted a day after the
+   * driver made it.
+   */
+  it("compliance-docs also reads `signature_adoptions`, which names objects no `documents` row does", async () => {
+    const calls: StubCall = {};
+    await reconcileComplianceDocOrphans(stubAdmin(calls), { apply: false });
+    expect(calls.tables).toEqual(["documents", "signature_adoptions"]);
+  });
+
+  it("keeps an adopted signature's object past the grace, and deletes a true orphan beside it", async () => {
+    const removed: string[] = [];
+    const admin = {
+      from: (table: string) => ({
+        select: async () => ({
+          data: table === "signature_adoptions" ? [{ storage_path: "org/driver/d/adopted.png" }] : [],
+          error: null,
+        }),
+      }),
+      storage: {
+        from: () => ({
+          list: async (prefix: string) =>
+            prefix === ""
+              ? { data: [{ name: "org", id: null }], error: null }
+              : prefix === "org"
+                ? { data: [{ name: "driver", id: null }], error: null }
+                : prefix === "org/driver"
+                  ? { data: [{ name: "d", id: null }], error: null }
+                  : {
+                      data: [
+                        { name: "adopted.png", id: "o1", created_at: "2026-08-01T00:00:00Z" },
+                        { name: "stray.png", id: "o2", created_at: "2026-08-01T00:00:00Z" },
+                      ],
+                      error: null,
+                    },
+          remove: async (paths: string[]) => {
+            removed.push(...paths);
+            return { data: paths.map((p) => ({ name: p })), error: null };
+          },
+        }),
+      },
+    } as never;
+    const r = await reconcileComplianceDocOrphans(admin, { apply: true, nowIso: "2026-08-21T00:00:00Z" });
+    expect(removed).toEqual(["org/driver/d/stray.png"]);
+    expect(r.deleted).toBe(1);
+  });
+
+  it("refuses to sweep when the second index cannot be read, rather than treating its objects as orphans", async () => {
+    const admin = {
+      from: (table: string) => ({
+        select: async () =>
+          table === "signature_adoptions"
+            ? { data: null, error: { message: "permission denied" } }
+            : { data: [], error: null },
+      }),
+      storage: {
+        from: () => ({
+          list: async () => ({ data: [], error: null }),
+          remove: async () => {
+            throw new Error("remove must not be called");
+          },
+        }),
+      },
+    } as never;
+    await expect(reconcileComplianceDocOrphans(admin, { apply: true })).rejects.toThrow("permission denied");
   });
 
   it("hazmat reconciles against `hazmat_documents`", async () => {
@@ -224,7 +296,12 @@ describe("bucket ↔ table bindings", () => {
 
   it("never deletes a `documents` row — a missing object is flagged, the claim survives", async () => {
     const admin = {
-      from: () => ({ select: async () => ({ data: [{ storage_path: "org/driver/d/gone.webp" }], error: null }) }),
+      from: (table: string) => ({
+        select: async () => ({
+          data: table === "documents" ? [{ storage_path: "org/driver/d/gone.webp" }] : [],
+          error: null,
+        }),
+      }),
       storage: {
         from: () => ({
           list: async () => ({ data: [], error: null }),

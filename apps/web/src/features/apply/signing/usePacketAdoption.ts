@@ -139,6 +139,22 @@ export interface PacketAdoptionInput {
    * that a picture exists when what exists is the signature's.
    */
   initialsStaged?: Ref<boolean>;
+  /**
+   * Where a picture goes, when it is not the packet's staging slot (D-AW15, C3s1).
+   *
+   * ⚠ **Screen 13 registers ADOPTIONS**, append-only rows the server keeps for as long as the marks
+   * made with them, where the packet stages captures that A11 prunes at 90 days. Same tabs, same
+   * confirm step, same failure rule (`stageMarkPictures`) — only the destination differs, so it is
+   * passed in rather than the screens being written twice. Absent, the packet's staging is used.
+   */
+  sendMark?: (kind: PacketMarkKind, blob: Blob) => Promise<unknown>;
+  /**
+   * Whether the screen asks for initials whatever the stops say (D-AW15).
+   *
+   * ⚠ The permissions take no initials, so `needsInitials` read off their stops is false — and screen 13
+   * adopts the initials the packet will use, once, with the signature. Absent, the stops decide.
+   */
+  initialsWanted?: Ref<boolean>;
   stage?: typeof stageCapture;
   io?: CaptureIo;
 }
@@ -236,7 +252,7 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
    * since C1 (2026-09-26). Same five members, created here in the same setup.
    */
   const { needsInitials, pinnedKinds, canChange, placesWithMark, alreadyAdopted } =
-    usePacketAdoptionPins({ stops, filedHere, outstanding, served });
+    usePacketAdoptionPins({ stops, filedHere, outstanding, served, initialsWanted: input.initialsWanted });
 
   const markCarriedOver = signaturePicture.carriedOver;
   const markWillPrint = signaturePicture.willPrint;
@@ -308,7 +324,9 @@ export function usePacketAdoption(input: PacketAdoptionInput) {
     working.value = true;
     try {
       await stageMarkPictures(staging, (slot, blob) =>
-        stage(token.value, slot, blob, "image/png", input.io),
+        input.sendMark
+          ? input.sendMark(slot === APPLICATION_CAPTURE_MARK_SLOT.initials ? "initials" : "signature", blob)
+          : stage(token.value, slot, blob, "image/png", input.io),
       );
     } finally {
       working.value = false;

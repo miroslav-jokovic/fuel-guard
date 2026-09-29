@@ -2034,7 +2034,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 20,
-        "why": "no rows yet (M1 is schema only). Two per invitation (signature and initials), more only when the driver re-adopts (D-AW15). Append-only signature evidence; RETENTION_FORBIDDEN lands with its writer (C3s)."
+        "why": "Two per invitation (signature and initials), written by screen 13 since C3s1 (signatureAdoption.ts, via record_signature_adoption); more only when the driver re-adopts before signing, or the office supersedes in C3s2 (D-AW15). Append-only signature evidence, in RETENTION_FORBIDDEN."
       }
     },
     "drug_test_appointments": {

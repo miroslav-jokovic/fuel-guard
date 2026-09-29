@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { effectScope, ref } from "vue";
-import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose } from "@silvicom/shared";
+import { APPLICATION_RELEASE_ORDER, type AuthorizationPurpose, type SignatureAdoptionsView } from "@silvicom/shared";
 import type { ApplyRelease } from "@/features/apply/useApplication";
 import { usePermissionCeremony } from "./usePermissionCeremony";
 
@@ -12,6 +12,8 @@ import { usePermissionCeremony } from "./usePermissionCeremony";
  * ahead would produce a half-signed set that looked complete. AF6 adds two: the adoption is the
  * packet's own (so a confirm step stands between the last keystroke and the first signature), and the
  * counter counts the fixed set of five, so it never renumbers under an applicant whose link refetched.
+ * C3s1 (D-AW15) makes the adoption the LINK's: signature and initials, registered as adoptions rather
+ * than staged for the packet, and pinned from the server once a permission has been signed with them.
  */
 
 const signed = vi.hoisted(() => ({ fn: vi.fn() }));
@@ -31,23 +33,31 @@ const release = (purpose: AuthorizationPurpose): ApplyRelease => ({
   body: `${purpose} body`, intent: `I authorize ${purpose}.`, draft: false,
 });
 const ALL = APPLICATION_RELEASE_ORDER.map(release);
-type Staged = { slot: string; contentType: string };
+type Adopted = { kind: string; text: string };
 
 const run = (
   already: AuthorizationPurpose[] = [],
-  stage: (t: string, slot: string, blob: Blob, contentType: string) => Promise<unknown> = async () => undefined,
+  adopt: (t: string, kind: string, text: string, blob: Blob) => Promise<unknown> = async () => undefined,
+  adoptions: SignatureAdoptionsView | undefined = undefined,
 ) => {
   const alreadySigned = ref(already);
+  const staged = vi.fn();
   const c = effectScope().run(() =>
-    usePermissionCeremony(ref("t".repeat(43)), ref(ALL), alreadySigned, { stage: stage as never }),
+    usePermissionCeremony(ref("t".repeat(43)), ref(ALL), alreadySigned, {
+      adopt: adopt as never,
+      adoptions: ref(adoptions),
+      stage: staged as never,
+    }),
   )!;
-  return { c, alreadySigned };
+  return { c, alreadySigned, staged };
 };
 
-/** Adopt the default (styled) mark and confirm it — the two presses before the first document. */
+/** Adopt the default (styled) marks and confirm them — the two presses before the first document. */
 async function start(c: ReturnType<typeof run>["c"]): Promise<void> {
   c.adoptedName.value = "Susan Godfrey";
+  c.adoptedInitials.value = "SG";
   c.markBlob.value = new Blob(["styled"], { type: "image/png" });
+  c.initialsBlob.value = new Blob(["styled initials"], { type: "image/png" });
   expect(await c.adopt()).toBe(true);
   c.confirm();
 }
@@ -62,6 +72,7 @@ describe("before the first document", () => {
     const { c } = run();
     expect(c.state.value).toBe("adopting");
     c.adoptedName.value = "Susan Godfrey";
+    c.adoptedInitials.value = "SG";
     expect(await c.adopt()).toBe(true);
     expect(c.state.value).toBe("confirming");
     c.confirm();
@@ -77,12 +88,27 @@ describe("before the first document", () => {
     expect(c.state.value).toBe("adopting");
   });
 
-  /** The picture goes to `signature_mark`, which is what the packet later offers as carried over. */
-  it("stages the signature picture into its own slot, once, as a PNG", async () => {
-    const staged: Staged[] = [];
-    const { c } = run([], async (_t, slot, _b, contentType) => staged.push({ slot, contentType }));
+  /** D-AW15: screen 13 asks for the initials too, though no permission takes them. */
+  it("asks for initials, and will not start without them", async () => {
+    const { c } = run();
+    expect(c.needsInitials.value).toBe(true);
+    c.adoptedName.value = "Susan Godfrey";
+    expect(await c.adopt()).toBe(false);
+  });
+
+  /**
+   * Both marks are REGISTERED as the link's adoptions (C3s1), each with its own typed text — never
+   * staged into the packet's capture slots, which A11 prunes at 90 days.
+   */
+  it("registers the signature and the initials as adoptions, each with its own text, and stages nothing", async () => {
+    const adopted: Adopted[] = [];
+    const { c, staged } = run([], async (_t, kind, text) => adopted.push({ kind, text }));
     await start(c);
-    expect(staged).toEqual([{ slot: "signature_mark", contentType: "image/png" }]);
+    expect(adopted).toEqual([
+      { kind: "signature", text: "Susan Godfrey" },
+      { kind: "initials", text: "SG" },
+    ]);
+    expect(staged).not.toHaveBeenCalled();
   });
 
   /** A8b: a PNG that will not upload must not stand between an applicant and five signatures. */
@@ -91,6 +117,7 @@ describe("before the first document", () => {
     await start(c);
     expect(c.state.value).toBe("signing");
     expect(c.drawnMarkFailed.value).toBe(true);
+    expect(c.initialsMarkFailed.value).toBe(true);
   });
 });
 
@@ -180,5 +207,56 @@ describe("the counter and a resumed link", () => {
     await start(c);
     expect(c.current.value?.purpose).toBe(APPLICATION_RELEASE_ORDER[2]);
     expect(c.position.value).toBe(3);
+  });
+
+  /**
+   * C3s1: a driver who adopted and left BEFORE signing anything meets the form with their own marks in
+   * it, still changeable — the server allows a new adoption until one is used (`adoption_in_use`).
+   */
+  it("seeds a link's unused adoption into the form, and leaves it changeable", () => {
+    const { c } = run([], undefined, { signature: "Susan Godfrey", initials: "SG" });
+    expect(c.state.value).toBe("adopting");
+    expect(c.alreadyAdopted.value).toBe(false);
+    expect(c.adoptedName.value).toBe("Susan Godfrey");
+    expect(c.adoptedInitials.value).toBe("SG");
+    expect(c.canChange("signature")).toBe(true);
+    // The picture exists on the server, so the screens say it is kept rather than previewing the name.
+    expect(c.markCarriedOver.value).toBe(true);
+    expect(c.initialsCarriedOver.value).toBe(true);
+  });
+
+  /**
+   * And once permissions were signed with it, the adoption is what the server pins: the resumed panel,
+   * nothing re-sent, and the count of documents that carry it is the walk's — earlier visits included.
+   */
+  it("carries a used adoption on without asking or sending it again", async () => {
+    const adopt = vi.fn();
+    const { c } = run(
+      [APPLICATION_RELEASE_ORDER[0]!, APPLICATION_RELEASE_ORDER[1]!],
+      adopt,
+      { signature: "Susan Godfrey", initials: "SG" },
+    );
+    expect(c.alreadyAdopted.value).toBe(true);
+    expect(c.canChange("signature")).toBe(false);
+    expect(c.placesWithMark("signature")).toBe(2);
+    expect(await c.adopt()).toBe(true);
+    expect(c.state.value).toBe("signing");
+    expect(adopt).not.toHaveBeenCalled();
+    expect(c.drawnMarkFailed.value).toBe(false);
+    await c.signCurrent();
+    expect(signed.fn).toHaveBeenCalledWith("t".repeat(43), APPLICATION_RELEASE_ORDER[2], "Susan Godfrey");
+  });
+
+  /** The name changed and the new adoption did not save: back to the adoption, never a dead end. */
+  it("takes the driver back to adopt when the server says the name is not the adopted one", async () => {
+    const { c } = run();
+    await start(c);
+    signed.fn.mockRejectedValueOnce(
+      Object.assign(new Error("Make it again"), { code: "adoption_name_mismatch" }),
+    );
+    await c.signCurrent();
+    expect(c.state.value).toBe("adopting");
+    expect(c.error.value).toBe("Make it again");
+    expect(c.current.value?.purpose).toBe(APPLICATION_RELEASE_ORDER[0]);
   });
 });

@@ -117,6 +117,18 @@ export async function esignConsentFor(
  * exception away from keeping the two mark rows; it is named in that step for exactly this reason.
  * ⚠ Since Q-HUI14 there are TWO of them to keep or prune, and they must be treated alike — a rule
  * that kept the signature and pruned the initials would make a re-render come out half in one hand.
+ *
+ * ── ⚠ AND SINCE C3s1 A SECOND SOURCE: THE ADOPTION (D-AW15) ───────────────────────────────────
+ * Screen 13 registers the driver's marks as `signature_adoptions` rows, never pruned, and the
+ * permissions are signed with them. The packet still makes its own marks until C3s2 — it offers the
+ * adoption as carried over, but a driver may draw afresh there, which stages a capture. So the picture a
+ * document draws is **the one made most recently at or before its instant**, whichever table holds it:
+ * the permissions (instant: filing) print the adoption and never a packet drawing made after; a packet
+ * drawn afresh prints its own drawing; a packet that carried the adoption over prints the adoption; a
+ * legacy link has captures alone and prints exactly what it printed before. C3s2 replaces this with
+ * each mark's own `adoption_id`, which is the exact answer; this is the right one while only the
+ * permissions record it. ⚠ The adoption read is the latest adopted at or before the instant, which is
+ * the one live at it: an adoption is only ever superseded by a later one.
  */
 export async function signatureMarkBytes(
   admin: SupabaseClient,
@@ -132,7 +144,7 @@ export async function signatureMarkBytes(
 ): Promise<Buffer | null> {
   const slot = APPLICATION_CAPTURE_MARK_SLOT[kind];
   try {
-    return await readSignatureMark(admin, orgId, invitationId, slot, stagedBefore);
+    return await readSignatureMark(admin, orgId, invitationId, kind, stagedBefore);
   } catch (e) {
     // The whole of D-APP8, as a catch block. Whatever went wrong reading an ornament, the
     // §391.51(b)(1) document still has to be producible — and on the recruiter's download path there
@@ -146,14 +158,65 @@ export async function signatureMarkBytes(
   }
 }
 
+/** One place a mark's picture may be read from, and when it was made. */
+interface MarkSource {
+  madeAt: number;
+  read: () => Promise<Buffer | null>;
+}
+
 async function readSignatureMark(
   admin: SupabaseClient,
   orgId: string,
   invitationId: string | null,
-  slot: ApplicationCaptureSlot,
+  kind: PacketMarkKind,
   stagedBefore: string | null,
 ): Promise<Buffer | null> {
   if (!invitationId) return null;
+  const sources = [
+    await capturedMark(admin, orgId, invitationId, APPLICATION_CAPTURE_MARK_SLOT[kind], stagedBefore),
+    await adoptedMark(admin, orgId, invitationId, kind, stagedBefore),
+  ].filter((s): s is MarkSource => s !== null);
+  // Newest first; an older picture is read only when the newer one's bytes are gone.
+  for (const source of sources.sort((a, b) => b.madeAt - a.madeAt)) {
+    const bytes = await source.read();
+    if (bytes) return bytes;
+  }
+  return null;
+}
+
+async function adoptedMark(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+  kind: PacketMarkKind,
+  stagedBefore: string | null,
+): Promise<MarkSource | null> {
+  let query = admin
+    .from("signature_adoptions")
+    .select("storage_path, adopted_at")
+    .eq("org_id", orgId)
+    .eq("invitation_id", invitationId)
+    .eq("kind", kind);
+  if (stagedBefore) query = query.lte("adopted_at", stagedBefore);
+  const { data } = await query.order("adopted_at", { ascending: false }).limit(1);
+  const row = (data ?? [])[0] as { storage_path: string; adopted_at: string } | undefined;
+  if (!row) return null;
+  return {
+    madeAt: Date.parse(row.adopted_at),
+    read: async () => {
+      const { data: blob } = await admin.storage.from(DOCUMENTS_BUCKET).download(row.storage_path);
+      return blob ? Buffer.from(await blob.arrayBuffer()) : null;
+    },
+  };
+}
+
+async function capturedMark(
+  admin: SupabaseClient,
+  orgId: string,
+  invitationId: string,
+  slot: ApplicationCaptureSlot,
+  stagedBefore: string | null,
+): Promise<MarkSource | null> {
   const { data: staged } = await admin
     .from("application_captures")
     .select("id, storage_path, captured_at")
@@ -164,7 +227,18 @@ async function readSignatureMark(
   const capture = staged as { id: string; storage_path: string; captured_at?: string } | null;
   if (!capture) return null;
   if (stagedBefore && capture.captured_at && Date.parse(capture.captured_at) > Date.parse(stagedBefore)) return null;
+  return {
+    // A row without a date sorts as the oldest: it cannot claim to be newer than an adoption.
+    madeAt: capture.captured_at ? Date.parse(capture.captured_at) : 0,
+    read: () => filedOrStagedBytes(admin, orgId, capture),
+  };
+}
 
+async function filedOrStagedBytes(
+  admin: SupabaseClient,
+  orgId: string,
+  capture: { id: string; storage_path: string },
+): Promise<Buffer | null> {
   const { data: filed } = await admin
     .from("documents")
     .select("storage_path")
