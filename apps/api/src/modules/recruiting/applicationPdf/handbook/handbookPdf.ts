@@ -1,4 +1,4 @@
-import { HANDBOOK_CARRIER_PLACEMENT_ID, maskedSsn } from "@silvicom/shared";
+import { HANDBOOK_CARRIER_PLACEMENT_ID, maskedSsn, signingPlaceDestination } from "@silvicom/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, PAGE_HEIGHT, RULE, newDrawing, pdfkitText } from "../../../../lib/pdfDraw.js";
 import { date } from "../packet/packetDraw.js";
 import { drawBand } from "../stamp.js";
@@ -236,6 +236,20 @@ function keepWithSignature(doc: PDFKit.PDFDocument, at: number): void {
   ensureRoom(doc, height + signBlockHeight(doc, sign));
 }
 
+/**
+ * Name this place's box inside the PDF, so the signing walk can open its page and tag it (D-HB12,
+ * `signingPlaceDestination`).
+ *
+ * ⚠ The handbook is flowed text: which page a place lands on is only known HERE, as it is drawn, which
+ * is the whole reason the page cannot be looked up anywhere else. ⚠ `FitR` wants PDF user space
+ * (origin bottom-left) and pdfkit converts only `XYZ`, so the flip is done here. The box is the
+ * signature's own: from the picture's top (`signatureLine` draws it from `y - 4`) to its rule (`y + 24`).
+ */
+function markPlace(doc: PDFKit.PDFDocument, placementId: string, x: number, y: number, width: number): void {
+  const h = doc.page.height;
+  doc.addNamedDestination(signingPlaceDestination(placementId), "FitR", x, h - (y + 24), x + width, h - (y - 4));
+}
+
 /** A signature place: its fields two to a row, each row kept whole. */
 function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign" }>, input: HandbookDocumentInput): void {
   const carrier = b.id === HANDBOOK_CARRIER_PLACEMENT_ID;
@@ -249,6 +263,7 @@ function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign
     b.fields.slice(r * 2, r * 2 + 2).forEach((f, i) => {
       const x = MARGIN + i * (colW + 24);
       if (f.field === "signature") {
+        markPlace(doc, b.id, x, y, colW);
         const picture = carrier ? (input.countersign?.signature ?? null) : input.driverSignature;
         signatureLine(doc, x, y, colW, f.label, mark ? picture : null, mark?.signedName ?? null);
       } else if (f.field === "name") {

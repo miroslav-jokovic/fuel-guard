@@ -94,9 +94,22 @@ function isHandbookCeremony(req: Request): boolean {
     || (req.method === "GET" && /^\/[^/]+\/handbook\.pdf$/.test(req.path));
 }
 
+/**
+ * Is this the packet's reading copy, fetched by the signing walk (D-HB12, decision A, 2026-09-29)?
+ *
+ * ⚠ It sat on the intake's 20 a minute PER ADDRESS, which is why the walk fetched it once and said
+ * "this copy was made before you signed". The owner ruled that both walks redraw the page with the
+ * signature on it after every place, as the handbook already did: up to twenty reads in one walk, at
+ * the desk, several drivers sharing the office's address. That is the handbook's reason exactly, so
+ * it moves to the handbook's bucket: per LINK, 60 a minute, beside the marks it follows.
+ */
+function isPacketReadingCopy(req: Request): boolean {
+  return req.method === "GET" && /^\/[^/]+\/packet\/?$/.test(req.path);
+}
+
 /** Everything the ceremony's per-link bucket takes, and the intake's therefore skips. */
 export function isCeremonyRequest(req: Request): boolean {
-  return isPacketMark(req) || isPermissionDocument(req) || isHandbookCeremony(req);
+  return isPacketMark(req) || isPermissionDocument(req) || isHandbookCeremony(req) || isPacketReadingCopy(req);
 }
 
 /**

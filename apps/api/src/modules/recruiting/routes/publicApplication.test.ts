@@ -491,6 +491,14 @@ describe("the rate limit", () => {
     }
     expect(sawLimit).toBe(true);
   });
+
+  it("reads the packet on the ceremony's bucket, so a walk that redraws it after every place is not cut off (D-HB12)", async () => {
+    // 25 reads from one address: past the intake's 20 a minute, inside the ceremony's 60 per link.
+    holder.client = seed().client;
+    const statuses: number[] = [];
+    for (let i = 0; i < 25; i++) statuses.push((await callFromOneAddress(`/${TOKEN}/packet`)).status);
+    expect(statuses).not.toContain(429);
+  });
 });
 
 /**

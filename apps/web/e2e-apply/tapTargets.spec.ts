@@ -370,6 +370,8 @@ for (const width of [390, 320]) {
           await expect(page.getByText("Page 3", { exact: false }).first()).toBeVisible();
           // D-AW16 (C3s4b): the count spans the packet and the handbook's five places after it.
           await expect(page.getByText(`Place 1 of ${packetStops().length + 5}`)).toBeVisible();
+          // D-HB12: the Sign here tag is ON the place's line, inside the page — the one standard walk.
+          await expect(page.locator("canvas + div .sign-here-tag")).toBeVisible();
           await s.check("signoff, packet: first place");
         }
         if (screen === "signoff.adopted") {
@@ -385,6 +387,9 @@ for (const width of [390, 320]) {
           // The envelope's count carries on from the packet: its places, then the handbook's first.
           const packet = packetStops().length;
           await expect(page.getByText(`Place ${packet + 1} of ${packet + 5}`)).toBeVisible();
+          // D-HB12: the handbook opens on the page its place is on, with the same tag on its line.
+          await expect(page.locator("canvas + div .sign-here-tag")).toBeVisible();
+          await expect(page.getByRole("img", { name: /page 1$/ })).toBeVisible();
           await s.check("filed, handbook open");
         }
       }

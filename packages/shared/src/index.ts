@@ -168,6 +168,7 @@ export * from "./returnToDuty.js";
 export * from "./applicantDisposition.js";
 export * from "./packetPlacements.js";
 export * from "./permissionInstrument.js";
+export * from "./signingPlaceDestination.js";
 export * from "./jurisdictions.js";
 export * from "./aamvaBarcode.js";
 export * from "./aamvaIssuers.js";

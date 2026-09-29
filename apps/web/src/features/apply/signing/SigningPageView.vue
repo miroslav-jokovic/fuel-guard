@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { signingPlaceDestination } from "@silvicom/shared";
 import { loadPdfDocument as loadDocument } from "@/features/apply/signing/pdfDocument";
+import { placeBoxOnPage } from "@/features/apply/signing/signatureBox";
+import type { LocatedPlaces } from "@/features/apply/signing/signingPlaces";
 
 /**
- * The carrier's own page, drawn on a canvas (C1).
+ * One page of a document being signed place by place, drawn on a canvas — the carrier's packet and the
+ * handbook alike (C1; D-HB12 made it both documents' viewer, 2026-09-29, and renamed it from
+ * `PacketPageView`).
+ *
+ * ── THE PLACES (D-HB12) ───────────────────────────────────────────────────────────────────────
+ * Each place is named inside the PDF (`sign:<id>`, a `FitR` box). After loading, this resolves every
+ * id it was handed and emits `located` — which page each is on, and where — because only the bytes
+ * know that for the handbook, whose text flows. The `tag` slot hangs over the box of `tagPlaceId`
+ * whenever its page is the one on screen: that is the **Sign here** tag, the same act the permissions'
+ * viewer already performs over its one box.
  *
  * ── ⚠ WHY NOT `DocumentPreview.vue` ───────────────────────────────────────────────────────────
  * B8's viewer is an `<iframe>` on a blob, and its own header says this: *"the read-only half is
@@ -42,8 +54,35 @@ const props = defineProps<{
   page: number;
   /** For the accessible name, since the canvas itself is an image of a document. */
   label: string;
+  /** The places to find in the document (D-HB12). */
+  places?: readonly string[];
+  /** The place whose box carries the `tag` slot, when its page is on screen. */
+  tagPlaceId?: string | null;
 }>();
-const emit = defineEmits<{ loaded: [pageCount: number]; failed: [] }>();
+const emit = defineEmits<{ loaded: [pageCount: number]; failed: []; located: [places: LocatedPlaces] }>();
+
+/** Where each place is, read from the bytes on screen. Empty until they load, and for a document without names. */
+const located = ref<LocatedPlaces>({});
+
+/**
+ * ⚠ One lookup per place and a failure costs that place only: a document whose destinations do not
+ * resolve still shows its pages, and the walk falls back to its plain Sign button (`PlaceWalk`).
+ */
+async function locate(d: NonNullable<typeof doc.value>): Promise<LocatedPlaces> {
+  const out: LocatedPlaces = {};
+  for (const id of props.places ?? []) {
+    try {
+      const dest = await d.getDestination(signingPlaceDestination(id));
+      if (!dest) continue;
+      const index = await d.getPageIndex(dest[0] as Parameters<typeof d.getPageIndex>[0]);
+      const box = placeBoxOnPage(dest, (await d.getPage(index + 1)).view);
+      if (box) out[id] = { page: index + 1, box };
+    } catch {
+      // Not found, or not a box: this place has no tag.
+    }
+  }
+  return out;
+}
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 const frame = ref<HTMLDivElement | null>(null);
@@ -152,6 +191,8 @@ async function load(): Promise<void> {
     task = loaded.task;
     doc.value = loaded.doc;
     pageCount.value = loaded.doc.numPages;
+    located.value = await locate(loaded.doc);
+    emit("located", located.value);
     await draw();
     emit("loaded", loaded.doc.numPages);
   } catch {
@@ -164,6 +205,12 @@ async function load(): Promise<void> {
 }
 
 watch(() => props.src, load, { immediate: true });
+
+/** The tagged place's box, only while its page is the one drawn. */
+const tagBox = computed(() => {
+  const at = props.tagPlaceId ? located.value[props.tagPlaceId] : undefined;
+  return at && at.page === Math.min(Math.max(props.page, 1), pageCount.value || props.page) ? at.box : null;
+});
 // ⚠ Page changes redraw from the document already in memory — never a second fetch. See the header.
 watch(() => props.page, () => void draw());
 
@@ -197,6 +244,16 @@ onBeforeUnmount(() => {
         role="img"
         :aria-label="label"
       />
+      <!-- The Sign here tag, over the place's own box, in percentages of the page so it stays on the
+           box at every width. Hung from the box's TOP, `PermissionDocumentView`'s reason: a 44 px tag
+           over a short box grows down over the rule, never up over the words above it. -->
+      <div
+        v-if="state === 'ready' && tagBox"
+        class="absolute flex items-start"
+        :style="{ left: `${tagBox.left}%`, top: `${tagBox.top}%`, width: `${tagBox.width}%`, height: `${tagBox.height}%` }"
+      >
+        <slot name="tag" />
+      </div>
       <div
         v-if="state !== 'ready'"
         class="absolute inset-0 flex items-center justify-center bg-surface p-6 text-center"
