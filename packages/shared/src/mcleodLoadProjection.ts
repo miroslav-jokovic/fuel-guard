@@ -22,6 +22,7 @@ export interface RawDispatchMovement {
   trailer_type: string | null;
   commodity: string | null;
   customer_id: string | null;
+  customer_name: string | null;
   weight: number | string | null;
   weight_um: string | null;
   pieces: number | null;
@@ -90,6 +91,7 @@ export interface ProjectedLoad {
   trailer_unit: string | null;
   dispatcher_external_id: string | null;
   customer_code: string | null;
+  customer_name: string | null;
   weight_lbs: number | null;
   pieces: number | null;
   consignee_ref: string | null;
@@ -240,6 +242,7 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       trailer_unit: m.trailer_id,
       dispatcher_external_id: m.dispatcher_user_id,
       customer_code: m.customer_id,
+      customer_name: m.customer_name,
       weight_lbs: projectWeightLbs(m.weight, m.weight_um),
       // Same reading as weight (D-LMR8): McLeod's 0 pieces is "not entered" — the one zero-weight order
       // on the 2026-09-24 board carried 0 pieces too, and zero-weight orders carry pieces on 2 of 8,526.

@@ -35,7 +35,7 @@ const boardRow = (over: Record<string, unknown> = {}) => ({
   external_id: "TMS:900", company_id: "TMS", movement_id: "900", ref: "0135527", bol_number: "TL1",
   dispatcher_external_id: "romann", driver_codes: "DKELLY", vehicle_unit: "702", trailer_unit: "NOPE9",
   trailer_type: "R", commodity: "paints", total_miles: 812, external_status: "P", loaded: "L",
-  customer_id: "BATTSOL", weight: 0, weight_um: "LB", pieces: 0, pallets_how_many: null, consignee_refno: "PO-77",
+  customer_id: "BATTSOL", customer_name: "BATTERY SOLUTIONS LLC", weight: 0, weight_um: "LB", pieces: 0, pallets_how_many: null, consignee_refno: "PO-77",
   ...over,
 });
 const boardStop = (over: Record<string, unknown> = {}) => ({

@@ -32,7 +32,7 @@ const boardRow = (over: Record<string, unknown> = {}) => ({
   external_id: "TMS:900", company_id: "TMS", movement_id: "900", ref: "0135527", bol_number: "TL1",
   dispatcher_external_id: "romann", driver_codes: "DKELLY", vehicle_unit: "702", trailer_unit: "NOPE9",
   trailer_type: "R", commodity: "paints", total_miles: 812, external_status: "P", loaded: "L",
-  customer_id: "BATTSOL", weight: 0, weight_um: "LB", pieces: 0, pallets_how_many: null, consignee_refno: "PO-77",
+  customer_id: "BATTSOL", customer_name: "BATTERY SOLUTIONS LLC", weight: 0, weight_um: "LB", pieces: 0, pallets_how_many: null, consignee_refno: "PO-77",
   ...over,
 });
 const boardStop = (over: Record<string, unknown> = {}) => ({
@@ -123,6 +123,20 @@ describe("LR4 — the projection, raw → core", () => {
     expect(updated.filters()).toEqual(expect.arrayContaining([{ col: "id", val: EXISTING_LOAD }, { col: "org_id", val: ORG }]));
     expect(updated.write!.payload).toMatchObject({ status: "delivered", external_closed_at: "2026-09-24T18:00:00.000Z" });
     expectOrgScoped(rec, ORG, { exempt: ["org_integrations"] });
+  });
+
+  it("the customer's name reaches the load from raw, on the new load and the known one alike (Q-LMR5)", async () => {
+    const { rec } = await run();
+    const [created] = rec.writtenRows("loads").filter((r) => r.source === "tms");
+    expect(created).toMatchObject({ customer_code: "BATTSOL", customer_name: "BATTERY SOLUTIONS LLC" });
+    const patch = rec.forTable("loads").find((q) => q.write?.method === "update")!.write!.payload as Record<string, unknown>;
+    expect(patch.customer_name).toBe("BATTERY SOLUTIONS LLC");
+    // The fake serves every column whatever is asked for, so the read-back must be seen to ASK for it.
+    // (The ingest's own closed_at lookup is a select on the same table; the read-back is the one naming status.)
+    const readBack = rec.forTable("mcleod_dispatch_movements").flatMap((q) => q.ops)
+      .find((o) => o.method === "select" && /\bmovement_status\b/.test(String(o.args[0])));
+    expect(readBack, "no projection read-back on mcleod_dispatch_movements").toBeDefined();
+    expect(String(readBack!.args[0])).toMatch(/\bcustomer_name\b/);
   });
 
   it("a McLeod weight and piece count of 0 land as null — D-LMR8", async () => {

@@ -168,6 +168,7 @@ function markBroken(id: string) {
         </div>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+          <div v-if="load.customer_name"><dt class="text-ink-tertiary">Customer</dt><dd class="text-ink">{{ load.customer_name }}</dd></div>
           <div v-if="load.source === 'tms'"><dt class="text-ink-tertiary">Dispatcher</dt><dd class="text-ink">{{ load.dispatcher_name ?? "—" }}</dd></div>
           <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
           <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>

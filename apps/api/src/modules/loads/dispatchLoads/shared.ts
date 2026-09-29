@@ -18,6 +18,8 @@ export const LOAD_COLUMNS =
   "source, provider, external_id, created_by, submitted_at, approved_by, approved_at, released_at, " +
   "assigned_by, assigned_at, declined_at, decline_reason, cancel_reason, accepted_at, completed_at, " +
   "notes, external_status, external_synced_at, dispatcher_external_id, created_at, updated_at, " +
+  // Q-LMR5 (0383): the McLeod customer, by name — written by the projection, null on a manual load.
+  "customer_name, " +
   "drivers(full_name), vehicles(unit_number), trailers(unit_number)";
 
 export const STOP_COLUMNS =

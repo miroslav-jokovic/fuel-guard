@@ -47,7 +47,8 @@ DECLARE @id2         varchar(32) = '291386';
 -- ----------------------------------------------------------------------------------------
 -- STATEMENT 1 of 24: OPEN LOADS
 --
--- Movements with status P or A that have a stop scheduled in the last 30 days.
+-- Movements with status P or A that have a stop scheduled in the last 30 days, with the
+-- customer's name (added 2026-09-29).
 -- ----------------------------------------------------------------------------------------
 SELECT
       LTRIM(RTRIM(m.company_id)) + ':' + LTRIM(RTRIM(m.id))  AS external_id,
@@ -79,7 +80,10 @@ SELECT
       NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
       o.pieces                                               AS pieces,
       o.pallets_how_many                                     AS pallets_how_many,
-      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
+      -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
+      -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -87,6 +91,8 @@ SELECT
         ON mo.movement_id = m.id AND mo.company_id = m.company_id
       LEFT JOIN dbo.orders AS o
         ON o.id = mo.order_id AND o.company_id = mo.company_id
+      LEFT JOIN dbo.customer AS cu
+        ON cu.id = o.customer_id AND cu.company_id = o.company_id
       LEFT JOIN dbo.continuity AS ct
         ON ct.movement_id = m.id AND ct.company_id = m.company_id AND ct.equipment_type_id = 'T'
       LEFT JOIN dbo.continuity AS cl
@@ -208,7 +214,10 @@ SELECT
       NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
       o.pieces                                               AS pieces,
       o.pallets_how_many                                     AS pallets_how_many,
-      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
+      -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
+      -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -216,6 +225,8 @@ SELECT
         ON mo.movement_id = m.id AND mo.company_id = m.company_id
       LEFT JOIN dbo.orders AS o
         ON o.id = mo.order_id AND o.company_id = mo.company_id
+      LEFT JOIN dbo.customer AS cu
+        ON cu.id = o.customer_id AND cu.company_id = o.company_id
       LEFT JOIN dbo.continuity AS ct
         ON ct.movement_id = m.id AND ct.company_id = m.company_id AND ct.equipment_type_id = 'T'
       LEFT JOIN dbo.continuity AS cl

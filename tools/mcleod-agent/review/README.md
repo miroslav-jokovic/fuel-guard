@@ -1,5 +1,10 @@
 # The read routine, for the carrier's review
 
+> **2026-09-29 — the routine reads the customer's name.** Statements 1 and 4 (open loads, and loads
+> that left the board) gain one `LEFT JOIN dbo.customer` on `company_id` AND `id` and one column,
+> `customer.name`, within the column grant Alex ran. Nothing else changed. Per Alex's condition, this
+> file reaches him before the Board VM runs it.
+>
 > **2026-09-29 — every grant has run.** Alex ran the six "not yet run" lines. Checked the same day
 > under `silvicom_dispatch_ro`, encrypted, statement by statement: on LME `customer` reads exactly
 > `id, name, city, state_id, company_id` (never the whole table), and joined on company and id all

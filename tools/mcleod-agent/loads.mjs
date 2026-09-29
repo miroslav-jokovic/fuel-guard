@@ -227,6 +227,7 @@ export function mapDispatchMovement(row, stopRows) {
     trailer_type: row.trailer_type ? String(row.trailer_type).trim() || null : null,
     commodity: row.commodity ?? null,
     customer_id: row.customer_id ?? null,
+    customer_name: row.customer_name ?? null,
     weight,
     // A unit only means something beside a weight; McLeod fills weight_um on unweighed orders too.
     weight_um: weight == null ? null : (row.weight_um ?? null),

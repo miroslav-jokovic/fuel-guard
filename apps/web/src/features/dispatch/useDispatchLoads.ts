@@ -80,6 +80,8 @@ export interface DispatchLoad {
   dispatcher_external_id?: string | null;
   /** LR7: McLeod's dispatcher by name, or the McLeod id when the roster has not carried them yet. */
   dispatcher_name?: string | null;
+  /** Q-LMR5: McLeod's customer by name. Null on a manual load, and on a McLeod load until the next sync. */
+  customer_name?: string | null;
 }
 
 /** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */
