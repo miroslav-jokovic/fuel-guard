@@ -237,6 +237,23 @@ describe("inviting an applicant from the board", () => {
       }
       expect(calls).toHaveLength(0);
     });
+
+    it("refuses a link that dies before its driver counts as stopped, before adding anybody (Q-AW51)", async () => {
+      const w = mountWith("recruiter");
+      await settle(w);
+      calls.length = 0;
+      await fill(w, "2");
+      const submit = w.findAll("button").find((b) => b.text() === "Add and create the link")!;
+      expect(submit.attributes("disabled")).toBeDefined();
+      expect(w.text()).toContain("At least 3 days: a driver counts as stopped after 48 hours");
+      await submit.trigger("click");
+      await settle(w);
+      // Nothing at all — not the applicant either, who would otherwise be left without a link.
+      expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(0);
+      await fill(w, "3");
+      await settle(w);
+      expect(w.findAll("button").find((b) => b.text() === "Add and create the link")!.attributes("disabled")).toBeUndefined();
+    });
   });
 
   it("refuses to submit without both names", async () => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { INVITE_TTL_DAYS_MAX, rolesThatManage } from "@silvicom/shared";
+import { INVITE_TTL_DAYS_MAX, rolesThatManage, stoppedBeforeLinkExpires } from "@silvicom/shared";
 import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
@@ -73,6 +73,8 @@ const createApplicant = useCreateApplicant();
 const createInvite = useCreateApplicationInvite();
 const settingsQ = useRecruitingSettings();
 const carrierDays = computed(() => settingsQ.data.value?.settings.invite_ttl_days ?? null);
+/** When the carrier counts a driver as stopped — the office's alert (Q-AW50). */
+const carrierHours = computed(() => settingsQ.data.value?.settings.reminder_after_hours ?? null);
 const sendAgain = useSendApplicationLinkAgain();
 
 /** Same gate the driver-page card uses — the section matrix, never a role literal. */
@@ -116,7 +118,25 @@ const daysValid = computed(() => {
   const d = overrideDays.value;
   return d === undefined || (Number.isInteger(d) && d >= 1 && d <= INVITE_TTL_DAYS_MAX);
 });
-const ready = computed(() => firstName.value.trim() !== "" && lastName.value.trim() !== "" && daysValid.value);
+/**
+ * Q-AW51: a link that dies before its driver counts as stopped means the office is never alerted. Checked
+ * HERE, before the applicant is added — the api refuses it too, but only after this drawer has created the
+ * applicant, which would leave them without a link.
+ */
+const daysOutlastDelay = computed(() => {
+  const d = overrideDays.value;
+  return d === undefined || carrierHours.value === null || stoppedBeforeLinkExpires(d, carrierHours.value);
+});
+const daysError = computed(() => {
+  if (!daysValid.value) return `Between 1 and ${INVITE_TTL_DAYS_MAX} days.`;
+  if (!daysOutlastDelay.value) {
+    return `At least ${Math.floor(carrierHours.value! / 24) + 1} days: a driver counts as stopped after ${carrierHours.value} hours, and the office is alerted only while the link is open.`;
+  }
+  return undefined;
+});
+const ready = computed(
+  () => firstName.value.trim() !== "" && lastName.value.trim() !== "" && daysValid.value && daysOutlastDelay.value,
+);
 const working = computed(
   () => checking.value || createApplicant.isPending.value || createInvite.isPending.value || sendAgain.isPending.value,
 );
@@ -214,7 +234,7 @@ async function addNew(): Promise<void> {
           :hint="carrierDays === null
             ? 'Optional — leave blank for the carrier\'s setting.'
             : `Optional — leave blank for the carrier's setting, ${carrierDays} days.`"
-          :error="daysValid ? undefined : `Between 1 and ${INVITE_TTL_DAYS_MAX} days.`"
+          :error="daysError"
         >
           <BaseInput
             :id="id"

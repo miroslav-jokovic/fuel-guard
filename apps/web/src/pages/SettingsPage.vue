@@ -30,7 +30,7 @@ const manageOrRead = session.can("settings") || session.readOnly;
 // Configuration surfaces (org, users, tuning).
 const configCards = [
   { name: "Organization", to: "/settings/org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", show: session.admin },
-  { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "Who gets emailed when high/critical anomalies are detected.", show: session.admin },
+  { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "The carrier's alerts, on or off, and who is emailed.", show: session.admin },
   { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
   { name: "Permissions", to: "/settings/permissions", icon: LockIcon, desc: "What each role can reach, and exactly what a given member sees.", show: session.admin },
   // `roster` and not `settings`: this console decides what DRIVERS see, its route requires the same

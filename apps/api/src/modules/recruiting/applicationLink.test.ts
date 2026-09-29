@@ -13,7 +13,7 @@ import { hashInvitationToken } from "./applicationIntake.js";
 const mailer = vi.hoisted(() => ({ fn: vi.fn(async () => ({ ok: true, provider: "resend", status: 200 })) }));
 vi.mock("../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
 
-const { createApplicationInvite, findExistingApplicants, sendApplicationLinkAgain } = await import("./applicationLink.js");
+const { createApplicationInvite, findExistingApplicants, isApplicationLinkError, sendApplicationLinkAgain } = await import("./applicationLink.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -86,6 +86,22 @@ describe("sending the link again", () => {
     const lifetime = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
     expect(lifetime(await created())).toBe(5);
     expect(lifetime(await created(30))).toBe(30);
+  });
+
+  it("refuses an override that dies before its driver counts as stopped, and writes nothing (Q-AW51)", async () => {
+    const attempt = async (days: number) => {
+      const rec = seed([], {}, { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" });
+      const result = await createApplicationInvite(rec.client, env, { orgId: ORG, userId: USER, driverId: DRIVER, email: null, days });
+      return { result, written: rec.writtenRows("application_invitations").length };
+    };
+    // 2 days is exactly the 48 hours: the link and the alert arrive together, and the sweep skips it.
+    const refused = await attempt(2);
+    expect(refused.result).toMatchObject({ status: 422, code: "link_shorter_than_delay" });
+    expect((refused.result as { message: string }).message).toContain("after 48 hours");
+    expect(refused.written).toBe(0);
+    const accepted = await attempt(3);
+    expect(isApplicationLinkError(accepted.result)).toBe(false);
+    expect(accepted.written).toBe(1);
   });
 
   it("never shortens a link that already outlives the window", async () => {

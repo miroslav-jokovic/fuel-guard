@@ -29,15 +29,25 @@ import { STALE_DRAFT_HOURS } from "./applicationNudge.js";
 export const REMINDER_AFTER_HOURS_MIN = 24;
 export const REMINDER_AFTER_HOURS_MAX = 1440;
 
+/**
+ * Does a driver count as stopped before this link dies? (Q-AW50, and Q-AW51 for one invite's override.)
+ * The ONE statement of the rule: the settings contract refines on it, and the api refuses an invite
+ * whose own lifetime breaks it — a link that dies first is an office alert that never fires.
+ */
+export const stoppedBeforeLinkExpires = (inviteTtlDays: number, reminderAfterHours: number): boolean =>
+  reminderAfterHours < inviteTtlDays * 24;
+export const STOPPED_BEFORE_EXPIRY_MESSAGE =
+  "A driver must count as stopped before the link expires. Make the delay shorter or the link last longer.";
+
 export const recruitingSettingsSchema = z
   .object({
     invite_ttl_days: z.number().int().min(1).max(INVITE_TTL_DAYS_MAX),
     reminders_enabled: z.boolean(),
     reminder_after_hours: z.number().int().min(REMINDER_AFTER_HOURS_MIN).max(REMINDER_AFTER_HOURS_MAX),
   })
-  .refine((s) => s.reminder_after_hours < s.invite_ttl_days * 24, {
+  .refine((s) => stoppedBeforeLinkExpires(s.invite_ttl_days, s.reminder_after_hours), {
     path: ["reminder_after_hours"],
-    message: "A driver must count as stopped before the link expires. Make the delay shorter or the link last longer.",
+    message: STOPPED_BEFORE_EXPIRY_MESSAGE,
   });
 export type RecruitingSettings = z.infer<typeof recruitingSettingsSchema>;
 
