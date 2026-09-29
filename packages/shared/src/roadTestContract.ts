@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AppSection } from "./auth.js";
 
 /**
  * The §391.31 road test, as the carrier's form records it — D2 (`ROAD-TEST-PLAN.md`, D-HM7).
@@ -115,6 +116,19 @@ export const roadTestExaminerCreateSchema = z.object({
     .max(700_000, "That signature image is too large — keep it under 500 KB"),
 });
 export type RoadTestExaminerCreate = z.infer<typeof roadTestExaminerCreateSchema>;
+
+/**
+ * The section whose MANAGERS keep the road-test examiner register — add and retire (owner's ruling,
+ * 2026-09-29, the examiner half of APPLICATION-FLOW-V2-PLAN Q-AW19: "only admin can add").
+ *
+ * `admin`, because it is the one section the matrix holds for the admin alone and no org can widen
+ * (`UNEDITABLE_SECTIONS`, D-PERM7). An examiner's stored signature is printed on every §391.31 form and
+ * certificate the office records in their name (Q-RT2), so who may put a signature on file is a
+ * decision about the carrier's attestation, not part of working a hire. Named here once so the API's
+ * gate and every screen that offers the add read the same fact; recording a road test stays a
+ * `recruitment` act, and so does reading the list.
+ */
+export const ROAD_TEST_EXAMINER_SECTION = "admin" as const satisfies AppSection;
 
 /** An examiner as the office's screen sees them — never the storage path. */
 export interface RoadTestExaminer {

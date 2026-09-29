@@ -91,7 +91,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("who may change the register", () => {
-  it("lists both kinds and offers a recruiter every write — their section is `recruitment: manage`", async () => {
+  it("lists both kinds and offers the admin every write", async () => {
+    asRole("admin");
     const w = await page();
     expect(section(w, "Representatives").text()).toContain("Miroslav Jokovic");
     expect(section(w, "Road-test examiners").text()).toContain("Arvidera Gakhal");
@@ -100,6 +101,21 @@ describe("who may change the register", () => {
     expect(buttons(w, "Add a representative")).toHaveLength(1);
     expect(buttons(w, "Add an examiner")).toHaveLength(1);
   });
+
+  // Q-AW19 (owner, 2026-09-29): "only admin can add" an examiner. A recruiter and a fleet manager both
+  // hold `recruitment: manage` (the fleet manager `settings: manage` too), so the examiner half is refused
+  // on a different section from the Representative half, and each is the matrix's answer.
+  for (const role of ["recruiter", "fleet_manager"]) {
+    it(`offers a ${role} the Representative writes and no examiner write`, async () => {
+      asRole(role);
+      const w = await page();
+      expect(section(w, "Road-test examiners").text()).toContain("Arvidera Gakhal");
+      expect(buttons(w, "Remove")).toHaveLength(1);
+      expect(buttons(w, "Add a representative")).toHaveLength(1);
+      expect(buttons(w, "Retire")).toHaveLength(0);
+      expect(buttons(w, "Add an examiner")).toHaveLength(0);
+    });
+  }
 
   it("shows an auditor the lists and no act at all — `recruitment: view`", async () => {
     expect(sectionAccess("auditor", "recruitment")).toBe("view");
@@ -119,7 +135,12 @@ describe("who may change the register", () => {
     const w = await page();
     expect(section(w, "Representatives").text()).toContain("Nobody signs for the carrier yet");
     expect(section(w, "Representatives").find("input").exists()).toBe(true);
-    expect(section(w, "Road-test examiners").find("input").exists()).toBe(true);
+    // A recruiter may add a Representative and not an examiner (Q-AW19).
+    expect(section(w, "Road-test examiners").find("input").exists()).toBe(false);
+
+    asRole("admin");
+    const admin = await page();
+    expect(section(admin, "Road-test examiners").find("input").exists()).toBe(true);
 
     asRole("auditor");
     const ro = await page();
@@ -138,6 +159,7 @@ describe("taking somebody off", () => {
   });
 
   it("retires an examiner through the retire route, never a DELETE", async () => {
+    asRole("admin");
     const w = await page();
     await buttons(w, "Retire")[0]!.trigger("click");
     await settle(w);
@@ -147,6 +169,7 @@ describe("taking somebody off", () => {
   });
 
   it("sends nothing when the question is declined", async () => {
+    asRole("admin");
     vi.stubGlobal("confirm", () => false);
     const w = await page();
     await buttons(w, "Remove")[0]!.trigger("click");
@@ -198,6 +221,7 @@ describe("adding somebody", () => {
   });
 
   it("posts an examiner to the examiners' route", async () => {
+    asRole("admin");
     const w = await page();
     await buttons(w, "Add an examiner")[0]!.trigger("click");
     await settle(w);
