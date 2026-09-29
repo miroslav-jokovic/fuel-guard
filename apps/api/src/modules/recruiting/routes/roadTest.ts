@@ -21,6 +21,7 @@ import {
   retireRoadTestExaminer,
   type RoadTestError,
 } from "../roadTest.js";
+import { recordPaperCopyGiven, roadTestCertificateCopies } from "../roadTestCertificateCopies.js";
 
 /**
  * The road test (D2) and the examiners who give it — `ROAD-TEST-PLAN.md` RT3.
@@ -136,6 +137,36 @@ export function recruitmentRoadTestRouter(): Router {
         },
       });
       res.status(201).json(result);
+    }),
+  );
+
+  // G-10 (Q-AW19, owner 2026-09-29): whether the driver has had their copy of each certificate, and the
+  // office saying it handed over paper. The act's audit row is written by the service — it IS the record.
+  router.get(
+    "/applicants/:driverId/road-test/copies",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const copies = await roadTestCertificateCopies(admin, req.auth!.orgId!, String(req.params.driverId ?? ""));
+      res.json({ copies });
+    }),
+  );
+
+  router.post(
+    "/applicants/:driverId/road-test/:recordId/paper-copy",
+    requireOrg,
+    requireSection("recruitment"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await recordPaperCopyGiven(
+        admin, req.auth!.orgId!, req.auth!.userId, String(req.params.driverId ?? ""), String(req.params.recordId ?? ""),
+      );
+      if (isRoadTestError(result)) {
+        res.status(statusOf(result)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.json({ copy: result });
     }),
   );
 
