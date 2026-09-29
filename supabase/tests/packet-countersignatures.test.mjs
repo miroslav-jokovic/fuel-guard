@@ -181,6 +181,39 @@ ok("…and none of theirs is left",
 ok("…while another applicant's stays",
   (await one(`select count(*)::int c from application_packet_countersignatures where invitation_id = $1`, [LIVE.inv])).c === 1);
 
+// ── 6a. 0388: a filed handbook implies a countersigned packet (QH2) ───────────────────────────────
+const fileHandbook = (inv) => sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv]);
+const SUMMARY = await applicant();
+await countersign(SUMMARY, { placements: "{}" });
+const summaryRow = (await one(`select id from application_packet_countersignatures where invitation_id = $1`, [SUMMARY.inv])).id;
+ok("the §391.21 summary's row, before it cites its filing, does not satisfy it (PC030)", (await fileHandbook(SUMMARY.inv)) === "PC030");
+await setDoc(summaryRow, await docFor(ORG, SUMMARY.d));
+ok("…and does once it cites the driver's own filing (D-HB10: nothing stamped, still accounted for)",
+  (await fileHandbook(SUMMARY.inv)) === null);
+ok("an invitation with no countersignature at all is refused (PC030)", (await fileHandbook((await applicant()).inv)) === "PC030");
+ok("another column of an unsigned invitation still updates — the guard watches handbook_filed_at only",
+  (await sqlstate(`update application_invitations set expires_at = now() + interval '20 days' where id = $1`, [SECOND.inv])) === null);
+
+// 0388's index: one D-HB11 record per countersignature.
+const record = (cs) => sqlstate(
+  `insert into qualification_records (org_id, driver_id, kind, occurred_on, reference, detail)
+   values ($1, $2, 'employment_application', '2026-09-29', $3, jsonb_build_object('source', 'packet_countersign', 'countersignature_id', $3::text))`,
+  [ORG, LIVE.d, cs]);
+ok("the first record citing a countersigned copy is accepted", (await record(ROW)) === null);
+ok("a second one for the same countersignature is refused (23505)", (await record(ROW)) === "23505");
+// The partial case: a record from ANOTHER source naming the same countersignature (a later correction,
+// which evidence files as a new row) must not be refused. The driver's own record below carries no
+// countersignature_id, and NULLs never collide, so only this case can tell the index's source clause apart.
+ok("a correction naming the same countersignature, from another source, is not refused by it",
+  (await sqlstate(`insert into qualification_records (org_id, driver_id, kind, occurred_on, reference, detail)
+    values ($1, $2, 'employment_application', '2026-09-30', $3, jsonb_build_object('source', 'correction', 'countersignature_id', $3::text))`,
+    [ORG, LIVE.d, ROW])) === null);
+ok("the driver's own §391.51(b)(1) record is not caught by that index",
+  (await sqlstate(`insert into qualification_records (org_id, driver_id, kind, occurred_on, reference, detail)
+    values ($1, $2, 'employment_application', '2026-09-29', 'app', '{"source":"certification"}')`, [ORG, LIVE.d])) === null
+  && (await sqlstate(`insert into qualification_records (org_id, driver_id, kind, occurred_on, reference, detail)
+    values ($1, $2, 'employment_application', '2026-09-29', 'app', '{"source":"certification"}')`, [ORG, LIVE.d])) === null);
+
 // ── 6. RLS: on, no client policy ─────────────────────────────────────────────────────────────────
 ok("RLS is enabled",
   (await one(`select relrowsecurity r from pg_class where relname = 'application_packet_countersignatures'`)).r === true);

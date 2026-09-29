@@ -436,3 +436,12 @@ summary gets no second record, because its stamp draws nothing.
   same second. Both were fixed and re-run killed. The 26th was a no-op mutant. **Next: QH2**, the
   invariant (a filed handbook ⇒ a countersignature with a document) and a unique index on D-HB11's
   record, once QH1 is live on both services.
+- **2026-09-29** — **QH2 built** (migration 0388; in PR once QH1 is live on both services). A BEFORE
+  trigger refuses `handbook_filed_at` null → value unless the invitation's countersignature exists and
+  cites a document (PC030); the summary's `placements = '{}'` row, citing the driver's own filing,
+  satisfies it (D-HB10). A partial unique index makes D-HB11's record one per countersignature.
+  Production held 0 filed handbooks, 0 marks and 0 countersignatures, so nothing filed contradicts it.
+  `handbook-signing.test.mjs`'s CHECK case now switches the new trigger off, rolled back, so 0385's
+  CHECK is still proven on its own. **5 of 5 migration mutants killed.** One first-run survivor was a
+  fixture gap: NULL keys never collide, so a correction naming the same countersignature from another
+  source was added.

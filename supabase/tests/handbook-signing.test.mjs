@@ -148,10 +148,30 @@ ok("deleting the invitation cannot take its handbook marks with it in silence (H
 
 // ── 5. The invitation's stamps stay in order ─────────────────────────────────────────────────────
 const inv3 = await invitation({ sent: false });
-ok("the handbook cannot be filed before the envelope was sent (23514)",
-  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3])) === "23514");
-ok("…but can be filed once it was",
-  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [await invitation()])) === null);
+// 0388's BEFORE trigger (PC030) answers first on an unsent envelope, so it is switched off for this one
+// statement, rolled back: what is under test here is 0385's CHECK on its own.
+await db.exec("begin");
+await db.exec("alter table application_invitations disable trigger trg_application_invitations_handbook_filed_guard");
+const unsent = await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3]);
+await db.exec("rollback");
+ok("the handbook cannot be filed before the envelope was sent (23514)", unsent === "23514", `got ${unsent}`);
+// 0388: and once it was, only with the packet's carrier lines countersigned and cited (QH2).
+const SENT = await invitation();
+const SENT_APP = (await one(`insert into driver_applications (org_id, driver_id, invitation_id, payload, signed_name)
+  values ($1, $2, $3, '{}', 'Jovana') returning id`, [ORG, DRIVER, SENT])).id;
+ok("…and not before the packet is countersigned (PC030)",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === "PC030");
+const CS = (await one(`insert into application_packet_countersignatures (org_id, invitation_id, application_id,
+  representative_id, recorded_by, placements, source_sha256) values ($1, $2, $3, $4, $5, '{p18c}', repeat('a', 64)) returning id`,
+  [ORG, SENT, SENT_APP, REP, OFFICE])).id;
+ok("…nor while the countersignature cites no document yet (PC030)",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === "PC030");
+const COPY = (await one(`insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
+  values (gen_random_uuid(), $1, 'driver', $2, 'employment_application', $3, 'application/pdf', repeat('b', 64)) returning id`,
+  [ORG, DRIVER, `${ORG}/driver/${DRIVER}/copy.pdf`])).id;
+await db.query(`update application_packet_countersignatures set document_id = $2 where id = $1`, [CS, COPY]);
+ok("…but can be filed once it was sent and its packet countersigned",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === null);
 ok("M2b: the separate opening's columns are gone (§8.6 item 5)",
   (await one(`select count(*)::int c from information_schema.columns
               where table_name = 'application_invitations' and column_name like 'handbook_signing_opened%'`)).c === 0);
