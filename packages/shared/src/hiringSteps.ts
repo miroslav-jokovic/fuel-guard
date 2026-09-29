@@ -358,7 +358,8 @@ export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = [
 ];
 
 /**
- * What "Open signing" warns about when it is not done yet (AF5, D-AF6; plan §3.2).
+ * What "Send for signing" (AF5's "Open signing" until C3s3a) warns about when it is not done yet (AF5,
+ * D-AF6; plan §3.2).
  *
  * ⚠ It WARNS and never refuses, like Send: the only refusal is the SQL's (not approved, AI006), and
  * whether the applicant is standing in the office is not something software can check. The list is

@@ -80,7 +80,7 @@ export const APPLY_FLOW_COPY = {
   signInOffice: {
     heading: "Your application is approved",
     body: (carrier: string): string =>
-      `${carrier} has read your application. You sign it in their office, on the same visit as your road test and orientation — they will contact you about coming in.`,
+      `${carrier} has read your application. You sign it in their office, on the same visit as your road test and orientation — they will contact you about coming in, and send a link to your phone while you are there.`,
     note: "Nothing more to do on this link for now. Nothing you filled in has been lost.",
   },
 
@@ -194,6 +194,15 @@ export const APPLY_FLOW_COPY = {
       `You have already started this application for ${carrier}. Confirm your date of birth and your answers come back.`,
     label: "Your date of birth",
     failed: "That does not match this application. Try again, or ask the carrier for a new link and start fresh.",
+    /**
+     * D-AW14, C3s3a: only a link the office SENT for signing counts wrong answers, so only it says how
+     * many are left. "Ask them to send it again" rather than "a new link and start fresh": nothing is
+     * lost, and the driver is in the office when it is sent.
+     */
+    attemptsLeft: (n: number): string =>
+      `That does not match this application. ${n === 1 ? "One more wrong answer" : `${n} more wrong answers`} and this link stops working.`,
+    lockedOut: (carrier: string): string =>
+      `That date of birth did not match too many times, so this link has stopped working. Nothing you have done is lost — ask ${carrier} to send the signing link again.`,
     checking: "Checking…",
     action: "Continue",
   },

@@ -216,10 +216,11 @@ export function publicApplicationRouter(): Router {
   /**
    * Release a gated draft to the person who typed it (D-APP16).
    *
-   * A wrong date of birth is not an error: it returns the same locked view a plain read returns, and
-   * changes nothing about the invitation. There is no attempt counter and no lockout — a driver
-   * mistyping their own birthday must not need a support call, and the throttle that actually stops
-   * guessing is the rate limiter this route already sits behind.
+   * A wrong date of birth is not an error: it returns the same locked view a plain read returns. On the
+   * invited link there is no attempt counter and no lockout — a driver mistyping their own birthday must
+   * not need a support call, and the rate limiter this route sits behind stops guessing. On a link the
+   * office SENT for signing the view says how many tries are left, and the fifth wrong answer stops it:
+   * 410, because only the holder of a live link reaches it (D-AW14, `signLinkUnlock.ts`).
    */
   router.post(
     "/:token/unlock",
@@ -231,7 +232,8 @@ export function publicApplicationRouter(): Router {
         (res.locals.body as ApplicationDraftUnlock).date_of_birth, new Date(),
       );
       if (isIntakeError(result)) {
-        res.status(result.code === "invalid_link" ? 404 : 500).json(apiError(result.code, result.message));
+        const status = result.code === "invalid_link" ? 404 : result.code === "sign_link_locked" ? 410 : 500;
+        res.status(status).json(apiError(result.code, result.message));
         return;
       }
       res.json({ draft: result });

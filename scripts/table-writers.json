@@ -23,8 +23,10 @@
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationLink.ts",
     "apps/api/src/modules/recruiting/applicationReview.ts",
+    "apps/api/src/modules/recruiting/applicationSendForSigning.ts",
     "apps/api/src/modules/recruiting/handbookSigning.ts",
-    "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
+    "apps/api/src/modules/recruiting/routes/applicationInvites.ts",
+    "apps/api/src/modules/recruiting/signLinkUnlock.ts"
   ],
   "asset_types": [
     "apps/api/src/modules/maintenance/inventory/assetTypes.ts"

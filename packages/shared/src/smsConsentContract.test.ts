@@ -13,6 +13,7 @@ import {
   smsApplicationReady,
   smsDrugTestSite,
   smsApplicationReminder,
+  smsSigningLink,
   smsApplicationPhoneLink,
   smsConsentGrantSchema,
   smsHelpReply,
@@ -175,6 +176,7 @@ describe("every message the programme sends (the verification's sample set)", ()
     ready: smsApplicationReady("Silvicom Inc", LINK),
     reminder: smsApplicationReminder("Silvicom Inc", LINK),
     phoneLink: smsApplicationPhoneLink("Silvicom Inc", LINK),
+    signing: smsSigningLink("Silvicom Inc", LINK, 72),
     approved: smsApplicationApproved("Silvicom Inc"),
     help: smsHelpReply("360.silvicominc.com"),
   };
@@ -194,6 +196,9 @@ describe("every message the programme sends (the verification's sample set)", ()
     expect(messages.ready).toContain(LINK);
     expect(messages.reminder).toContain(LINK);
     expect(messages.phoneLink).toContain(LINK);
+    expect(messages.signing).toContain(LINK);
+    // D-AW14: the link really does stop, so the hours are said.
+    expect(messages.signing).toContain("72 hours");
     // It rotates nothing (§6.6.6): telling the driver an earlier link died would be false.
     expect(messages.phoneLink).not.toMatch(/earlier|replaces/);
   });

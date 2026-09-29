@@ -32,7 +32,7 @@ import { sendOrQueueSms } from "./smsOutbox.js";
  * A5b (0345) minted a second, sign-only token here so this email could carry a link to sign from.
  * D-AF3 moved signing into the office, and 0369 refuses every mark until the office opens signing at
  * the desk — so a link sent now would open a packet that refuses every place on it. The sign link is
- * minted by the office's Open signing (`applicationOpenSigning.ts`), on the office's own screen, and
+ * minted by the office's Send for signing (`applicationSendForSigning.ts`), during that visit, and
  * this notice tells the applicant the carrier will be in touch about the visit. No link, because
  * there is nothing on the link for them to do until then.
  *

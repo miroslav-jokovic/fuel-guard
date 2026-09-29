@@ -11,6 +11,7 @@ import {
   ALREADY_SUBMITTED,
   APPLICATION_NOT_SENT,
   isIntakeError,
+  isSentSignDoor,
   requireEsignConsent,
   resolveInvitation,
   type IntakeError,
@@ -18,6 +19,7 @@ import {
 import { loadCarrierWording } from "./carrierWording.js";
 import { identityOnRecord } from "./applicantIdentity.js";
 import { partOneFactsView } from "./applicantIntake.js";
+import { SIGN_LINK_LOCKED, countWrongUnlock } from "./signLinkUnlock.js";
 
 /**
  * The applicant's saved draft (A2) — the other half of what 0225 started.
@@ -70,6 +72,11 @@ export interface DraftView {
    * the bare link, where `GET /:token` serves booleans only. Absent on every other view.
    */
   partOne?: PartOneFactsView;
+  /**
+   * D-AW14 (C3s3a): wrong answers left before a link the office SENT for signing stops. Only on a wrong
+   * answer on that link — every other link keeps D-APP16's no-counter rule, and says nothing.
+   */
+  attemptsLeft?: number;
 }
 
 const EMPTY_VIEW: DraftView = { locked: false, payload: null, furthestSection: null, updatedAt: null, revision: 0 };
@@ -207,10 +214,13 @@ export const DRAFT_REVISION_CONFLICT: IntakeError = {
 /**
  * Release a gated draft to the person who typed it (D-APP16).
  *
- * A wrong answer returns the same "no body" the locked read returns, and changes nothing: no
- * attempt counter, no lockout, no stamp on the invitation. Burning the link on a failed guess would
- * turn a driver mistyping their own birthday into a support call, and the throttle that actually
- * stops guessing is the rate limiter, which is already there.
+ * A wrong answer returns the same "no body" the locked read returns, and on the link the driver was
+ * invited with it changes nothing: no attempt counter, no lockout, no stamp on the invitation. Burning
+ * that link on a failed guess would turn a driver mistyping their own birthday into a support call, and
+ * the throttle that stops guessing there is the rate limiter, which is already there.
+ *
+ * ⚠ A link the office SENT for signing is the exception (D-AW14, C3s3a): it counts, says how many are
+ * left, and stops at the fifth — `signLinkUnlock.ts` says why the two links are held to different rules.
  */
 export async function unlockDraft(
   admin: SupabaseClient,
@@ -233,9 +243,13 @@ export async function unlockDraft(
   // whether a draft exists.
   if (!stored) return viewDraft(row);
   if (!dobMatches(dateOfBirth, stored)) {
+    const counted = isSentSignDoor(invitation) ? await countWrongUnlock(admin, invitation) : null;
+    if (counted !== null && typeof counted !== "number") return counted;
+    if (counted === 0) return SIGN_LINK_LOCKED;
     return {
       locked: true, payload: null, furthestSection: row?.furthest_section ?? null, updatedAt: row?.updated_at ?? null,
       revision: revisionOf(row),
+      ...(counted === null ? {} : { attemptsLeft: counted }),
     };
   }
   return {

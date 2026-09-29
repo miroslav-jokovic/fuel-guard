@@ -42,4 +42,38 @@ describe("the unlock gate", () => {
     expect(w.emitted("unlocked")).toBeUndefined();
     expect(w.text()).toContain(APPLY_COPY.unlock.failed);
   });
+
+  /** D-AW14 (C3s3a): only a SENT sign link counts, so only its answer carries the tries left. */
+  it("says how many tries are left on a sent sign link, and nothing about tries on any other", async () => {
+    const counted = await answer({ locked: true, payload: null, attemptsLeft: 2 });
+    expect(counted.text()).toContain(APPLY_COPY.unlock.attemptsLeft(2));
+    expect(counted.text()).toContain("2 more wrong answers");
+    const last = await answer({ locked: true, payload: null, attemptsLeft: 1 });
+    expect(last.text()).toContain("One more wrong answer");
+    const uncounted = await answer({ locked: true, payload: null });
+    expect(uncounted.text()).not.toContain("wrong answer");
+  });
+
+  it("stops asking once the link has stopped, and says to ask for it again", async () => {
+    unlock.mockRejectedValue(Object.assign(new Error("stopped"), { code: "sign_link_locked" }));
+    const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(APPLY_COPY.unlock.lockedOut("Silvicom Inc"));
+    expect(w.findComponent({ name: "AppDateField" }).exists()).toBe(false);
+    expect(w.findAll("button")).toHaveLength(0);
+  });
+
+  it("treats any other failure as a wrong answer to try again, never as a stopped link", async () => {
+    unlock.mockRejectedValue(Object.assign(new Error("dead"), { code: "invalid_link" }));
+    const w = mount(DraftUnlockGate, { props: { token: "t", carrier: "Silvicom Inc" } });
+    w.findComponent({ name: "AppDateField" }).vm.$emit("update:modelValue", "1980-04-01");
+    await flushPromises();
+    await w.findAll("button").find((b) => b.text().includes(APPLY_COPY.unlock.action))!.trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(APPLY_COPY.unlock.failed);
+    expect(w.text()).not.toContain(APPLY_COPY.unlock.lockedOut("Silvicom Inc"));
+  });
 });
