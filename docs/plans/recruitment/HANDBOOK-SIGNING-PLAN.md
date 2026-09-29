@@ -164,6 +164,7 @@ HB1–HB5 ship in ONE merge after 0374 is visible in production, as RT1–RT3 di
   `p19ac`, `p19bc`, `p22c`)?** They are the same act by the same people, and they print blank on every
   filed packet today. *Recommendation:* yes, as its own step after HB5 (it touches the filed packet's
   renderer, which is frozen per filing, so it needs its own design).
+  **RULED yes by the owner 2026-09-29**, as its own step (APPLICATION-FLOW-V2-PLAN §12).
 - **Q-HB2 · When the handbook is amended, must hired drivers re-sign?** Its own text says amendments
   *"shall become effective 5 calendar days after delivery"*. *Recommendation:* not in this build. A
   later step can offer the new version to the driver app.
