@@ -1,0 +1,33 @@
+-- 0383: the customer's name in the McLeod raw mirror, beside the customer id it already keeps
+-- (LOADS-MIRROR-PLAN.md Q-LMR5). 0384 is the same fact on `loads`.
+--
+-- ── THE GAP THIS CLOSES ──────────────────────────────────────────────────────────────────────────
+-- 0366 gave `loads.customer_code` (McLeod's `orders.customer_id`, filled on every open load) and
+-- noted "name awaits a grant". The grant is in: `customer (id, name, city, state_id, company_id)`,
+-- run by Alex on 2026-09-28 and 2026-09-29 and checked under the connector's own login. A customer code
+-- (char 8) is what a dispatcher never says; the name is what the board is asked to show.
+--
+-- Measured on live `lme` 2026-09-29, the open board: 130 of 130 movements carry an order with a
+-- customer id, and joined on company AND id every one finds exactly one named customer (44
+-- distinct). Joined on id alone the same 130 movements return 238 rows: customer ids repeat across
+-- McLeod companies, which is why `company_id` was the last grant asked for. `customer.name` is
+-- varchar(40); the longest on the board is 37.
+--
+-- ── RAW HERE, CORE IN 0384 ───────────────────────────────────────────────────────────────────────
+-- `mcleod_dispatch_movements.customer_name` — McLeod's `customer.name`, verbatim (D-LMR3: raw keeps
+-- what McLeod said). `loads.customer_name` (0384) is what the page shows, written by the projection
+-- from raw (D-LMR4). Two files because the two tables belong to two modules (`lint:table-modules`).
+-- Only the name: city and state are granted too, but nothing asks for them yet, and a column
+-- nothing writes is a column that reads null forever.
+--
+-- ── SCHEMA ONLY, AND IN ITS OWN MERGE ────────────────────────────────────────────────────────────
+-- A new column on a table written today, and Railway serves a merge ~2m44s before
+-- `migrate.yml` applies its schema. So nothing names them in this merge (`lint:migration-ordering`):
+-- the connector's query, the ingest, the projection and the board follow once production has them,
+-- checked from `information_schema`. Nullable, no default: an existing movement reads null until
+-- the next sync, which is the truth — nobody has asked McLeod for the name yet.
+--
+-- raw-access-waiver: mcleod collector's own DDL on its own raw table — no cross-module read.
+
+alter table mcleod_dispatch_movements
+  add column if not exists customer_name text;  -- customer.name, joined on company_id AND id
