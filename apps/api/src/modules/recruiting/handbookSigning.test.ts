@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { countersignHandbook, driverHandbookStatus, handbookLinkExpiry, extendHandbookLink, isHandbookError } from "./handbookSigning.js";
+import { HANDBOOK_LINK_EXPIRED, countersignHandbook, driverHandbookStatus, handbookLinkExpiry, extendHandbookLink, isHandbookError } from "./handbookSigning.js";
+import { countersignPacket } from "./packetCountersign.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
+
+// Q-HB1: the packet's countersignature runs first in the same press and has its own tests
+// (`packetCountersign.test.ts`). Here it succeeds and hands back the Representative it was given, so
+// these stay about the handbook.
+vi.mock("./packetCountersign.js", async (original) => ({
+  ...(await original<typeof import("./packetCountersign.js")>()),
+  countersignPacket: vi.fn(async (...args: unknown[]) => ({ representative: args[6], documentId: "doc-packet" })),
+}));
 
 /**
  * The office's half of the handbook (HANDBOOK-SIGNING-PLAN.md HB3): keep the driver's link alive, then
@@ -181,6 +190,39 @@ describe("countersigning and filing", () => {
     const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, OTHER_REP);
     expect(isHandbookError(result)).toBe(false);
     expect(rec.writtenRows("qualification_records")[0]!.detail).toMatchObject({ representative_id: REP });
+  });
+});
+
+describe("the packet's carrier lines, in the same press (Q-HB1, D-HB7)", () => {
+  it("countersigns the packet FIRST, and h4c is signed by the Representative the packet's row recorded", async () => {
+    // A retry whose packet row already names REP: the press asked for OTHER_REP, and the handbook must
+    // follow the packet, or one press would put two people's names on the carrier's side.
+    vi.mocked(countersignPacket).mockResolvedValueOnce({
+      representative: { id: REP, fullName: "Miroslav Jokovic", title: "Safety manager", signature: null },
+      documentId: "doc-packet",
+    });
+    const rec = seed();
+    const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, OTHER_REP);
+    expect(!isHandbookError(result) && result.packetDocumentId).toBe("doc-packet");
+    expect(rec.writtenRows("handbook_marks")[0]).toMatchObject({ placement_id: "h4c", representative_id: REP });
+    expect(vi.mocked(countersignPacket).mock.calls.at(-1)!.slice(1, 6)).toEqual([ORG, "u-1", "admin", DRIVER, "inv-1"]);
+  });
+
+  it("files nothing of the handbook when the packet's countersign fails, and hands the claim back", async () => {
+    vi.mocked(countersignPacket).mockResolvedValueOnce({ code: "storage_failed", message: "no" });
+    const rec = seed();
+    const result = await countersignHandbook(rec.client, ORG, "u-1", "admin", DRIVER, REP);
+    expect(isHandbookError(result) && result.code).toBe("storage_failed");
+    expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
+    expect(rec.writtenRows("documents")).toHaveLength(0);
+    const [, release] = rec.writtenRows("application_invitations");
+    expect(release).toMatchObject({ handbook_filing_claimed_at: null });
+  });
+
+  it("answers the packet's lapsed link in the handbook's own words", async () => {
+    vi.mocked(countersignPacket).mockResolvedValueOnce({ code: "link_expired", message: "short" });
+    const result = await countersignHandbook(seed().client, ORG, "u-1", "admin", DRIVER, REP);
+    expect(result).toEqual(HANDBOOK_LINK_EXPIRED);
   });
 });
 

@@ -8,6 +8,14 @@ import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { HANDBOOK_VERSION } from "../applicationPdf/handbook/handbookText.js";
 
+// Q-HB1: the packet's countersignature runs first in the same press and has its own tests
+// (`packetCountersign.test.ts`). Here it succeeds and hands back the Representative it was given, so
+// these stay about the handbook.
+vi.mock("../packetCountersign.js", async (original) => ({
+  ...(await original<typeof import("../packetCountersign.js")>()),
+  countersignPacket: vi.fn(async (...args: unknown[]) => ({ representative: args[6], documentId: "doc-packet" })),
+}));
+
 /**
  * The handbook's office doors (HANDBOOK-SIGNING-PLAN.md HB3), through the mount. The services are
  * pinned in `representatives.test.ts` and `handbookSigning.test.ts`; what only this can see is the

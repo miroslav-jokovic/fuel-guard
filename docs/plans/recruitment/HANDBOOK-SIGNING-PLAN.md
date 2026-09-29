@@ -303,6 +303,19 @@ only when both exist. The one exception is an application filed as the §391.21 
 marks, no carrier lines). Its countersign stamps nothing, and the row records `placements = '{}'`,
 so the invariant still holds and says why.
 
+### 6.7 D-HB11 · The auditor's binder gets the countersigned copy through a SECOND record (built in QH1)
+
+§6.4 left one thing for the build to measure: the DQ binder. Measured on 2026-09-29, `dqBinder/gather.ts`
+embeds whatever document a `qualification_records` row cites, and `dqFile.ts`'s `matchRecord` takes the
+NEWEST record of a kind. Pointing it at the countersignature table would need `evidence -> recruiting`,
+an edge `lint:boundaries` does not allow (recruiting already depends on evidence, so it would be a
+cycle). So the countersign adds a new `employment_application` record citing the countersigned copy:
+`result = 'Countersigned'`, `reference` = the countersignature id (NOT the application id, which is
+how `ensureDriverFiledApplication` finds the driver's own record), `detail.source = 'packet_countersign'`
+with the driver's filing's document id. The first record, citing the driver's filing, is never
+touched. This is the evidence module's own correction model (a new row, never an edit). The §391.21
+summary gets no second record, because its stamp draws nothing.
+
 ---
 
 ## 7. Open questions
@@ -407,3 +420,19 @@ so the invariant still holds and says why.
   no new hire gate. Q-HB3 and Q-HB4 await the owner.
 - **2026-09-29** — **Q-HB3 ruled (a), Q-HB4 yes** (owner): D-HB7..D-HB10 stand as written in §6. Build
   order: the table alone (QH0), then the writer and readers (QH1), then the invariant (QH2).
+- **2026-09-29** — **QH0 merged** (#1132, `19b33ab`), migration 0387 **verified in production**:
+  13 columns, both guard triggers, and `purge_applicant` deletes the table. 23 of 23 migration mutants
+  killed (one first-run survivor was a fixture gap: another org's document naming THIS driver).
+- **2026-09-29** — **QH1 built** (in PR). `packetCountersignGeometry.ts` (the four lines, measured and
+  looked at; the applied-by caption runs to 553.2, because the first render cut it on the two short
+  rules), `packetCountersignStamp.ts` (the filed bytes, stamped; metadata kept), `packetCountersign.ts`
+  (row → stamped copy filed under the ROW's id → `document_id` once → D-HB11's record; every step safe
+  to retry), `handbookSigning.ts` (the packet first, and `h4c` signed by the packet row's
+  Representative), `file.ts` (`ensureApplicationPdf` hands out the countersigned copy once cited;
+  `ensureDriverFiledApplication` is the driver's filing, always). The drawer says one press signs both.
+  Rasterised with a long non-ASCII name and a drawn and a typed signature on pages 18, 19 and 22.
+  **25 of 26 mutants killed.** Two first-run survivors were test gaps: the `document_id` write's
+  null-condition was never asserted, and the metadata test's source was pdf-lib's own output from the
+  same second. Both were fixed and re-run killed. The 26th was a no-op mutant. **Next: QH2**, the
+  invariant (a filed handbook ⇒ a countersignature with a document) and a unique index on D-HB11's
+  record, once QH1 is live on both services.

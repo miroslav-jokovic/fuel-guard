@@ -524,6 +524,9 @@
   "road_test_examiners": [
     "apps/api/src/modules/recruiting/roadTest.ts"
   ],
+  "application_packet_countersignatures": [
+    "apps/api/src/modules/recruiting/packetCountersign.ts"
+  ],
   "handbook_marks": [
     "apps/api/src/modules/recruiting/handbookCeremony.ts",
     "apps/api/src/modules/recruiting/handbookSigning.ts"
