@@ -40,7 +40,17 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { retu
 const mountIt = () =>
   mount(SendForSigningPanel, {
     props: { invitationId: INV, driverId: DRIVER },
-    global: { plugins: [VueQueryPlugin], stubs: { ApplicantTextsStatus: true } },
+    global: {
+      plugins: [VueQueryPlugin],
+      stubs: {
+        ApplicantTextsStatus: true,
+        // HeadlessUI's Dialog throws under jsdom; the stub says what the viewer was handed.
+        DocumentPreview: {
+          props: ["open", "label", "rendered"],
+          template: "<div v-if='open' data-viewer :data-path='rendered?.path' :data-label='label' />",
+        },
+      },
+    },
   });
 
 const button = (w: ReturnType<typeof mountIt>, label: string) =>
@@ -189,11 +199,49 @@ describe("sending the packet for signing", () => {
     expect(w.findAll("button")).toHaveLength(0);
   });
 
-  it("offers a reader no button", async () => {
+  it("offers a reader no Send button", async () => {
     role.value = "auditor";
     const w = mountIt();
     await flushPromises();
     expect(button(w, "Send for signing")).toBeUndefined();
     expect(state.posts).toHaveLength(0);
+  });
+});
+
+/** D-AW17 (C3s5): the envelope's two documents, prefilled, previewed from the row that sends them. */
+describe("previewing the envelope before sending it", () => {
+  it("opens the application and the handbook in the viewer beside the record, and posts nothing", async () => {
+    const w = mountIt();
+    await flushPromises();
+    await button(w, "Preview the application")!.trigger("click");
+    expect(w.find("[data-viewer]").attributes("data-path")).toBe(`/api/recruitment/applications/${INV}/preview.pdf`);
+    await button(w, "Preview the handbook")!.trigger("click");
+    expect(w.find("[data-viewer]").attributes("data-path")).toBe(`/api/recruitment/applicants/${DRIVER}/handbook/preview.pdf`);
+    expect(w.find("[data-viewer]").attributes("data-label")).toContain("handbook");
+    expect(state.posts).toHaveLength(0);
+    expect(windowOpen).not.toHaveBeenCalled();
+  });
+
+  it("lets a reader preview what they may not send", async () => {
+    role.value = "auditor";
+    const w = mountIt();
+    await flushPromises();
+    expect(button(w, "Preview the application")).toBeDefined();
+    expect(button(w, "Preview the handbook")).toBeDefined();
+  });
+
+  it("offers no preview before approval", async () => {
+    state.invite = { ...APPROVED, approved_at: null };
+    const w = mountIt();
+    await flushPromises();
+    expect(button(w, "Preview the application")).toBeUndefined();
+  });
+
+  it("closes the viewer when the drawer moves to another applicant", async () => {
+    const w = mountIt();
+    await flushPromises();
+    await button(w, "Preview the handbook")!.trigger("click");
+    await w.setProps({ invitationId: "ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee" });
+    expect(w.find("[data-viewer]").exists()).toBe(false);
   });
 });

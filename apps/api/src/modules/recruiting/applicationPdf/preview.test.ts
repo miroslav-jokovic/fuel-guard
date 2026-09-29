@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
-import { pdfPageCount as pageCount, pdfText as textOf } from "../../../testing/pdfText.js";
+import { pdfPageCount as pageCount, pdfPageTexts, pdfText as textOf } from "../../../testing/pdfText.js";
 import { PACKET_PLACEMENTS } from "@silvicom/shared";
 import { applicationPreviewPdf, isPreviewError } from "./preview.js";
 import { renderPacketDocument } from "./packetDocument.js";
@@ -125,6 +125,19 @@ describe("previewing an application before it is signed", () => {
    * uniform to discriminate* failure. The counts must move together, and both must exceed the bare
    * template.
    */
+  /**
+   * D-AW17 (C3s5): page 1's `Date:` is prefilled with the day of the preview — the day the walk it is
+   * read on will certify — and nothing beside a signature is dated, because no place is signed.
+   */
+  it("dates page 1 with the day it is previewed, and no signature line", async () => {
+    const preview = await applicationPreviewPdf(seed().client, ORG, INV, {}, new Date("2026-09-29T15:00:00Z"));
+    expect(isPreviewError(preview)).toBe(false);
+    if (isPreviewError(preview)) return;
+    const pages = await pdfPageTexts(preview.pdf);
+    expect(pages[0]).toContain("09/29/2026");
+    expect(pages.slice(1).join(" ")).not.toContain("09/29/2026");
+  });
+
   it("prints the same paper the driver signs, page for page", async () => {
     const payload = { ...PAYLOAD, accidents: FOUR_ACCIDENTS, declares_no_accidents: false };
 

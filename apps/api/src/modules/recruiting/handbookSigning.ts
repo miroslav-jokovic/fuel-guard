@@ -73,8 +73,12 @@ interface HandbookInvitation {
 
 const INVITATION_COLS = "id, submitted_at, signing_opened_at, handbook_filed_at, expires_at";
 
-/** The driver's newest live invitation — the one the checklist reads (`applicantChecklist.ts`). */
-async function currentInvitation(admin: SupabaseClient, orgId: string, driverId: string): Promise<HandbookInvitation | null> {
+/**
+ * The driver's newest live invitation — the one the checklist reads (`applicantChecklist.ts`). Exported
+ * for the office's handbook preview (`handbookPreview.ts`), which must preview the invitation this
+ * module will file.
+ */
+export async function currentInvitation(admin: SupabaseClient, orgId: string, driverId: string): Promise<HandbookInvitation | null> {
   const { data } = await admin
     .from("application_invitations")
     .select(INVITATION_COLS)

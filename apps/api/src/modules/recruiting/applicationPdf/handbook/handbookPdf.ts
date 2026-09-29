@@ -1,6 +1,7 @@
 import { HANDBOOK_CARRIER_PLACEMENT_ID, maskedSsn } from "@silvicom/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, PAGE_HEIGHT, RULE, newDrawing, pdfkitText } from "../../../../lib/pdfDraw.js";
 import { date } from "../packet/packetDraw.js";
+import { drawBand } from "../stamp.js";
 import { HANDBOOK_BLOCKS, HANDBOOK_VERSION, type HandbookBlock, type HandbookRun } from "./handbookText.js";
 
 /**
@@ -44,6 +45,11 @@ export interface HandbookDocumentInput {
   driverSignature: Buffer | null;
   /** Set once the office has countersigned; `appliedBy` is the office user who applied it (D-HB3). */
   countersign: (HandbookRepresentativePrint & { appliedBy: string }) | null;
+  /**
+   * The words across the head of every sheet, or null (D-AW17, C3s5). Only the office's preview sets it:
+   * the driver's reading copy and the filed handbook carry none, for `PreviewAudience.band`'s reason.
+   */
+  band?: string | null;
 }
 
 const BODY = 10;
@@ -269,11 +275,15 @@ function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign
   doc.moveDown(0.4);
 }
 
-/** Every page: which document, which text version, and page x of y — stamped once the count is known. */
-function footers(doc: PDFKit.PDFDocument, carrier: string): void {
+/**
+ * Every page: which document, which text version, and page x of y — stamped once the count is known —
+ * and the office preview's band, in the top margin, on the same pass.
+ */
+function footers(doc: PDFKit.PDFDocument, carrier: string, band: string | null): void {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    if (band) drawBand(doc, band);
     // ⚠ The footer sits below the bottom margin, and pdfkit answers text drawn there by adding a page
     // — measured: 11 pages of handbook became 22, each footer alone on a sheet of its own. Lifting the
     // margin for the stamp is what lets it write there.
@@ -298,7 +308,7 @@ export async function handbookPdf(input: HandbookDocumentInput): Promise<Buffer>
     else if (b.k === "gap") doc.moveDown(0.5);
     else doc.addPage();
   }
-  footers(doc, input.carrier.name);
+  footers(doc, input.carrier.name, input.band ?? null);
   doc.end();
   return done;
 }

@@ -95,6 +95,26 @@ describe("the Representatives (D-HB3)", () => {
   });
 });
 
+describe("the office's handbook preview (D-AW17, C3s5)", () => {
+  it("streams the prefilled handbook as a PDF, and is refused to a role that cannot see recruitment", async () => {
+    holder.client = seed({
+      drivers: [{ full_name: "Susan Godfrey" }], driver_applications: [], organizations: [{ name: "Silvicom Inc", legal_address: null }],
+      application_captures: [], signature_adoptions: [],
+    }).client;
+    const res = await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "recruiter");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
+    expect((await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "dispatcher")).status).toBe(403);
+  });
+
+  it("answers 409 once the handbook is filed", async () => {
+    holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "t", signing_opened_at: "t", handbook_filed_at: "t" }] }).client;
+    const res = await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "recruiter");
+    expect(res.status).toBe(409);
+  });
+});
+
 describe("the handbook's two office acts", () => {
   it("answers 409 to Extend before the application is filed", async () => {
     holder.client = seed().client;
