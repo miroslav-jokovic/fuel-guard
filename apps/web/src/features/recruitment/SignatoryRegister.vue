@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { formatDisplayDate } from "@silvicom/shared";
+import { ROAD_TEST_EXAMINER_SECTION, formatDisplayDate, type AppSection } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
@@ -32,7 +32,12 @@ const emit = defineEmits<{ added: [person: { id: string; full_name: string }]; r
 
 const session = useSessionStore();
 const toast = useToastStore();
-const canManage = computed(() => session.can("recruitment"));
+/**
+ * Whose managers keep each register — the same section the api's add and remove ask. Examiners are the
+ * admin's since 2026-09-29 (`ROAD_TEST_EXAMINER_SECTION`, Q-AW19); Representatives stay recruiting's.
+ */
+const KEEPER: Record<Kind, AppSection> = { representative: "recruitment", examiner: ROAD_TEST_EXAMINER_SECTION };
+const canManage = computed(() => session.can(KEEPER[props.kind]));
 
 const listQ = props.kind === "representative" ? useRepresentatives() : useRoadTestExaminers();
 const takeOff = props.kind === "representative" ? useDeleteRepresentative() : useRetireRoadTestExaminer();

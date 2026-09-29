@@ -2065,3 +2065,8 @@ Append dated lines at the END.
     Both are audit rows. No migration.
   · **Still open under Q-AW19:** the examiner-attestation half (§3.4, any recruiter can print the
     examiner's stored signature). Its counsel note goes in COUNSEL-REVIEW-PACKAGE.md, per §9 item 7.
+- **2026-09-29** — **Q-AW19's examiner half ruled and built** (ROAD-TEST-PLAN §8): only the admin adds or
+  retires a road-test examiner (`ROAD_TEST_EXAMINER_SECTION = "admin"`). §3.4's "any recruiter can print
+  the examiner's stored signature" is narrowed at the source: a recruiter can no longer put a signature
+  on file. Applying the stored one to a test they record stays theirs (Q-RT2). **The owner set the counsel
+  package aside for now**, so Q-AW19's counsel note is not written; §9 item 7 stays open on it.

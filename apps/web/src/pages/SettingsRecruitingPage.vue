@@ -17,11 +17,13 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
  *
  * ── WHO REACHES IT ────────────────────────────────────────────────────────────────────────────
  * The catalogue's `admin.recruiting` entry, `section("recruitment")`: anybody who can view recruiting
- * sees the lists, and `SignatoryRegister` offers the writes on `manage` — both from the section matrix,
- * both what the api asks. It is reached from a card on the Settings page and has no sidebar entry
+ * sees the lists, and `SignatoryRegister` offers the writes to each register's keeper — `recruitment`
+ * manage for Representatives, `ROAD_TEST_EXAMINER_SECTION` (the admin, 2026-09-29) for examiners —
+ * both from the section matrix, both what the api asks. It is reached from a card on the Settings page and has no sidebar entry
  * (owner's ruling 2026-09-28). Its gate is still not `settings`', so a recruiter who holds
  * `settings: none` can use it by URL, though they have no link to it: the owner ruled the admin keeps
- * this register, and a recruiter adds one inline from the panels when a hire needs it.
+ * this register. A recruiter can still add a Representative inline from the handbook panel when a hire
+ * needs one; an examiner only the admin adds, anywhere.
  *
  * ── APPLICATION LINKS (S2, Q-AW41) ────────────────────────────────────────────────────────────
  * The link's lifetime and the reminder, first on the page because it shapes every invitation, where the

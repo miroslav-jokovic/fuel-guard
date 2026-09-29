@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import {
+  ROAD_TEST_EXAMINER_SECTION,
   ROAD_TEST_ITEMS,
   ROAD_TEST_RATINGS,
   ROAD_TEST_RATING_LABELS,
@@ -24,6 +25,7 @@ import {
   AppTextarea,
 } from "@silvicom/ui";
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
+import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
@@ -44,8 +46,9 @@ import {
  * BEFORE pressing what the press will produce).
  *
  * ── THE EXAMINER'S SIGNATURE IS ADDED HERE, ONCE (Q-RT2) ──────────────────────────────────────
- * The owner ruled the examiner's signature is added from the dashboard, as he used to sign on paper.
- * With no examiner on file the panel asks for one first; the filed documents then say who applied
+ * The owner ruled the examiner's signature is added from the dashboard, as he used to sign on paper,
+ * and on 2026-09-29 that only the admin adds it (`ROAD_TEST_EXAMINER_SECTION`, Q-AW19). With no
+ * examiner on file the panel asks the admin for one first, and tells anybody else who adds one; the filed documents then say who applied
  * the signature, so the office's act is visible on the paper. The form is `SignatoryAddForm`, the one
  * Settings → Recruiting also shows (Q-AW42), where an examiner can be added — and retired — before any
  * driver reaches this step.
@@ -58,6 +61,8 @@ import {
 const props = defineProps<{ driverId: string; done: boolean }>();
 
 const toast = useToastStore();
+const session = useSessionStore();
+const canAddExaminer = computed(() => session.can(ROAD_TEST_EXAMINER_SECTION));
 const driverId = computed(() => props.driverId);
 const examinersQ = useRoadTestExaminers();
 const vehiclesQ = useVehiclesQuery();
@@ -188,8 +193,12 @@ const showForm = computed(() => !props.done || adding.value);
 
     <template v-if="showForm">
       <!-- The examiner first: without one there is nobody to sign the form (Q-RT2). -->
+      <p v-if="examiners.length === 0 && !canAddExaminer && !examinersQ.isLoading.value" class="text-xs text-ink">
+        No road-test examiner is on file. An administrator adds one, with their signature, in
+        Settings → Recruiting.
+      </p>
       <SignatoryAddForm
-        v-if="examiners.length === 0 || addingExaminer"
+        v-else-if="canAddExaminer && (examiners.length === 0 || addingExaminer)"
         kind="examiner"
         :cancellable="examiners.length > 0"
         @added="examinerAdded"
@@ -214,7 +223,7 @@ const showForm = computed(() => !props.done || adding.value);
             <BaseInput :id="id" v-model="form.miles" type="number" min="1" inputmode="numeric" />
           </FormField>
         </div>
-        <BaseButton v-if="!addingExaminer" variant="link" size="sm" @click="addingExaminer = true">
+        <BaseButton v-if="canAddExaminer && !addingExaminer" variant="link" size="sm" @click="addingExaminer = true">
           Add another examiner
         </BaseButton>
 

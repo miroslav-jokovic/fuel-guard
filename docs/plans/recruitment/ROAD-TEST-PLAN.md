@@ -237,3 +237,12 @@ Append a dated line per step. Never edit §4.
   · 11 of 12 mutants killed. The survivor removes `.in("entity_id", …)`, which changes no output: the
     match is repeated in TypeScript, and the filter only narrows the read. A first run found a real
     gap, a certificate record citing no document, which is now in the fixture.
+- **2026-09-29** — **Q-AW19's examiner half ruled by the owner: "examiner will be the person that only
+  admin can add".** Adding and retiring an examiner (with their signature) now needs `manage` on
+  `ROAD_TEST_EXAMINER_SECTION` = `admin` (`roadTestContract.ts`). That is the one section the matrix holds
+  for the admin alone, and no org can widen it (D-PERM7). The API (`POST /road-test-examiners`, `…/retire`),
+  Settings → Recruiting's register and the step-13 panel all read that one constant. A recruiter or fleet
+  manager with no examiner on file is told that an administrator adds one in Settings → Recruiting.
+  **Unchanged:** reading the list and recording a road test stay `recruitment` acts. Q-RT2 stands: the
+  office applies the stored signature and every filing names who did. Representatives stay with
+  `recruitment: manage`. No migration: 0372 has no client policy (deny-all), so the API is the only writer.

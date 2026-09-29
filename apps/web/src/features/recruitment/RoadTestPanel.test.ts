@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
-import { ROAD_TEST_ITEMS } from "@silvicom/shared";
+import { ROAD_TEST_ITEMS, sectionAccess } from "@silvicom/shared";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 
 /**
@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   posts: [] as Array<{ url: string; body: unknown }>,
   records: [] as unknown[],
   copies: [] as unknown[],
+  /** The examiner list never answers — the panel as it is while the read is in flight. */
+  examinersPending: false,
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -31,11 +33,21 @@ vi.mock("@/lib/api", () => ({
         ? { ok: true, data: { passed: true, formDocumentId: "f", certificateDocumentId: "c", recordId: "r" } }
         : { ok: true, data: { examiner: { id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" } } };
     }
-    if (url.includes("road-test-examiners")) return { ok: true, data: { examiners: state.examiners } };
+    if (url.includes("road-test-examiners")) {
+      if (state.examinersPending) return new Promise(() => {});
+      return { ok: true, data: { examiners: state.examiners } };
+    }
     if (url.endsWith("/road-test/copies")) return { ok: true, data: { copies: state.copies } };
     return { ok: true, data: { records: state.records } };
   }),
 }));
+// The session, put in one role's shoes from the shared matrix (`AuthorizationsPanel.test.ts`'s idiom).
+const session = vi.hoisted(() => ({ role: "admin" as string, can: (_s: string): boolean => true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+const actAs = (role: string) => {
+  session.role = role;
+  session.can = (s: string) => sectionAccess(role as never, s as never) === "manage";
+};
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: { value: [{ id: TRUCK, unit_number: "1432", year: 2024, make: "FRHT", status: "active" }] } }),
 }));
@@ -51,6 +63,8 @@ const mountPanel = () =>
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  actAs("admin");
+  state.examinersPending = false;
   state.posts = [];
   state.records = [];
   state.copies = [];
@@ -84,6 +98,48 @@ describe("with no examiner on file (Q-RT2)", () => {
   });
 });
 
+/**
+ * Q-AW19 (owner, 2026-09-29): only the admin adds an examiner. A recruiter holds `recruitment: manage`
+ * and a fleet manager `settings: manage` too, and neither is offered the form — they are told who adds one.
+ */
+describe("who may add an examiner", () => {
+  for (const role of ["recruiter", "fleet_manager"]) {
+    it(`tells a ${role} an administrator adds one, and offers no form`, async () => {
+      actAs(role);
+      state.examiners = [];
+      const w = mountPanel();
+      await settle(w);
+      expect(w.text()).toContain("An administrator adds one");
+      expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+    });
+
+    it(`offers a ${role} no "Add another examiner" beside the ones on file`, async () => {
+      actAs(role);
+      state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+      const w = mountPanel();
+      await settle(w);
+      expect(w.text()).toContain("The road test given includes");
+      expect(w.text()).not.toContain("Add another examiner");
+    });
+  }
+
+  it("offers a recruiter no form while the examiner list is still loading", async () => {
+    actAs("recruiter");
+    state.examinersPending = true;
+    const w = mountPanel();
+    await settle(w);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+  });
+
+  it("offers the admin both", async () => {
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("Add another examiner");
+    expect(w.text()).not.toContain("An administrator adds one");
+  });
+});
+
 describe("recording a test", () => {
   const fill = async (w: ReturnType<typeof mount>, rating = "satisfactory") => {
     const combos = w.findAllComponents({ name: "AppCombobox" });
@@ -99,6 +155,17 @@ describe("recording a test", () => {
     await settle(w);
   };
   const button = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => b.text().includes("Record the road test"))!;
+
+  it("lets a recruiter record the test itself — only adding an examiner is the admin's", async () => {
+    actAs("recruiter");
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    const w = mountPanel();
+    await settle(w);
+    await fill(w);
+    await button(w).trigger("click");
+    await settle(w);
+    expect(state.posts.at(-1)!.url).toBe("/api/recruitment/applicants/d1/road-test");
+  });
 
   it("rates all nine items and posts exactly what the API takes", async () => {
     state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import {
+  ROAD_TEST_EXAMINER_SECTION,
   roadTestExaminerCreateSchema,
   roadTestRecordSchema,
   type RoadTestExaminerCreate,
@@ -27,8 +28,10 @@ import { recordPaperCopyGiven, roadTestCertificateCopies } from "../roadTestCert
  * The road test (D2) and the examiners who give it — `ROAD-TEST-PLAN.md` RT3.
  *
  * Gated on the RECRUITMENT section, like D1's recorded acts: `road_test` is not a
- * `TESTING_RECORD_KINDS` member, so a recruiter who works the hire may record it, and the examiner's
- * signature is added from the same drawer (Q-RT2).
+ * `TESTING_RECORD_KINDS` member, so a recruiter who works the hire may record it and read who may
+ * examine. Adding and retiring an examiner is not: since 2026-09-29 (owner, Q-AW19) it is
+ * `ROAD_TEST_EXAMINER_SECTION`'s managers — the admin — because the signature they put on file is
+ * printed on every test recorded in the examiner's name.
  */
 const statusOf = (e: RoadTestError): number =>
   e.code === "not_found" ? 404 : e.code === "invalid_request" ? 400 : e.code === "already_passed" ? 409 : 500;
@@ -50,7 +53,7 @@ export function recruitmentRoadTestRouter(): Router {
   router.post(
     "/road-test-examiners",
     requireOrg,
-    requireSection("recruitment"),
+    requireSection(ROAD_TEST_EXAMINER_SECTION),
     validateBody(roadTestExaminerCreateSchema),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -76,7 +79,7 @@ export function recruitmentRoadTestRouter(): Router {
   router.post(
     "/road-test-examiners/:examinerId/retire",
     requireOrg,
-    requireSection("recruitment"),
+    requireSection(ROAD_TEST_EXAMINER_SECTION),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
