@@ -322,8 +322,8 @@ function evidenceFor(
     case "handbook":
       // Done on the filed record (HB3 writes it with the signed PDF), never on the marks: six signed
       // places with no countersignature and no filed document is a handbook in progress. In flight
-      // while the office has opened it and the driver has places left — after that the next move is
-      // the office's countersignature, so it is ours again.
+      // while it is open (the envelope sent and the application filed, D-AW16) and the driver has places
+      // left — after that the next move is the office's countersignature, so it is ours again.
       return {
         done: hasKind(input, "handbook"),
         inFlight: Boolean(input.handbook?.openedAt) && !input.handbook?.driverComplete,

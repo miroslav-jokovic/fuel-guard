@@ -8,6 +8,7 @@ import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
 import PacketPageRail from "@/features/apply/signing/PacketPageRail.vue";
 import PacketPageView from "@/features/apply/signing/PacketPageView.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
+import { envelopePlaces } from "@/features/apply/signing/envelope";
 
 /**
  * One place on the carrier's packet, one screen (P5, D-PKT6, D-PKT13).
@@ -31,10 +32,12 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * exactly that; the second field is on the adoption screen now, shown while any of the three is
  * still outstanding.
  *
- * ── PROGRESS COUNTS THE PACKET, NOT THE WORK LEFT ─────────────────────────────────────────────
- * "Place 7 of 22" counts against the whole document, including stops a previous session collected.
+ * ── PROGRESS COUNTS THE ENVELOPE, NOT THE WORK LEFT ───────────────────────────────────────────
+ * "Place 7 of 19" counts against the whole envelope, including stops a previous session collected.
  * Counting only what is outstanding would renumber the stops under a driver who came back — their
- * fourth place would be called the first — and the number somebody is watching must not move.
+ * fourth place would be called the first — and the number somebody is watching must not move. Since
+ * C3s4b the "of" includes the handbook's five places that follow the filing (D-AW16, `envelope.ts`), so
+ * the last packet place is not announced as the end.
  *
  * ── WHERE THE OTHER SCREENS WENT ──────────────────────────────────────────────────────────────
  * The three screens before the walk — a resumed link's pinned marks, the adoption form, and A4's
@@ -269,7 +272,7 @@ async function signCurrent(): Promise<void> {
         {{ copy.page(ceremony.current.value.page) }}
       </span>
       <span class="text-xs text-ink-muted">
-        {{ copy.counter(ceremony.position.value, ceremony.total.value) }}
+        {{ copy.counter(ceremony.position.value, envelopePlaces(ceremony.total.value)) }}
       </span>
     </div>
 

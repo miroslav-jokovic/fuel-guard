@@ -21,9 +21,14 @@ import { adoptionForMark } from "./documentAdoption.js";
  *
  * ── WHY THE TOKEN IS ENOUGH ───────────────────────────────────────────────────────────────────
  * `applicationCopy.ts`'s argument holds: this link already signed the application in this person's
- * name. What bounds it is the ORDER the office sets: nothing here works until the application is
- * filed AND the office has opened handbook signing at the desk (0374 refuses a mark otherwise,
- * HB022/HB023), and nothing works after the handbook is filed (HB024).
+ * name. What bounds it is the ORDER: nothing here works until the office has sent the envelope AND the
+ * application is filed (0374 refuses a mark otherwise, HB022/HB023 as 0382 left them), and nothing works
+ * after the handbook is filed (HB024).
+ *
+ * ── ONE ENVELOPE (D-AW16, C3s4b) ──────────────────────────────────────────────────────────────
+ * The envelope the office sent (`signing_opened_at`) opens the handbook — there is no second press at
+ * the desk any more — so the driver who files the packet goes straight on to these five places on the
+ * same phone and link. The sent link's 72 hours and its five-strike stop (C3s3a) guard them too.
  *
  * ── THE SIGNATURE IS THE ONE THEY ALREADY ADOPTED ─────────────────────────────────────────────
  * Since C3s2a it is the link's ADOPTION (D-AW15): screen 13 made it before the permissions, so every
@@ -41,9 +46,13 @@ export const HANDBOOK_NOT_FILED_YET: IntakeError = {
   code: "handbook_application_not_filed",
   message: "The handbook is signed after your application. Finish signing your application first.",
 };
+/**
+ * ⚠ Unreachable on a filed application, which is the only kind that gets this far: the packet's first
+ * place is refused until the envelope is sent (DR036). Kept as the cheap twin of HB023.
+ */
 export const HANDBOOK_NOT_OPENED: IntakeError = {
   code: "handbook_not_opened",
-  message: "The carrier opens the handbook for signing in their office. Ask them when you are there.",
+  message: "The carrier has not sent your application for signing. Ask them when you are there.",
 };
 export const HANDBOOK_ALREADY_FILED: IntakeError = {
   code: "handbook_already_filed",
@@ -65,14 +74,14 @@ export const HANDBOOK_NO_SIGNATURE: IntakeError = {
 /** The link's view of the handbook, for `GET /:token` — null until the application is filed. */
 export async function linkHandbookStatus(
   admin: SupabaseClient,
-  invitation: { id: string; org_id: string; submitted_at: string | null; handbook_signing_opened_at?: string | null; handbook_filed_at?: string | null },
+  invitation: { id: string; org_id: string; submitted_at: string | null; signing_opened_at?: string | null; handbook_filed_at?: string | null },
 ): Promise<LinkHandbookStatus | null> {
   if (!invitation.submitted_at) return null;
   const signedPlacementIds = await handbookPlacesSigned(admin, invitation.org_id, invitation.id);
   return {
     ...handbookStatus({
       submittedAt: invitation.submitted_at,
-      openedAt: invitation.handbook_signing_opened_at ?? null,
+      openedAt: invitation.signing_opened_at ?? null,
       filedAt: invitation.handbook_filed_at ?? null,
       signedPlacementIds,
     }),
@@ -112,7 +121,7 @@ export async function recordHandbookMark(
   // The cheap refusals, in 0374's order. The trigger checks them all again at the insert.
   if (!invitation.submitted_at) return refused(HANDBOOK_NOT_FILED_YET);
   if (invitation.handbook_filed_at) return refused(HANDBOOK_ALREADY_FILED);
-  if (!invitation.handbook_signing_opened_at) return refused(HANDBOOK_NOT_OPENED);
+  if (!invitation.signing_opened_at) return refused(HANDBOOK_NOT_OPENED);
 
   // A-6: the place is recorded under the text the driver READ, and that must be the current text.
   if (body.handbook_version !== HANDBOOK_VERSION) return refused(HANDBOOK_CHANGED);
@@ -178,7 +187,7 @@ export async function applicantHandbookPdf(
   const invitation = await resolveInvitation(admin, token, now);
   if (isIntakeError(invitation)) return invitation;
   if (!invitation.submitted_at) return HANDBOOK_NOT_FILED_YET;
-  if (!invitation.handbook_signing_opened_at) return HANDBOOK_NOT_OPENED;
+  if (!invitation.signing_opened_at) return HANDBOOK_NOT_OPENED;
 
   if (invitation.handbook_filed_at) {
     const filed = await filedHandbookBytes(admin, invitation.org_id, invitation.driver_id, invitation.id);

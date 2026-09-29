@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { countersignHandbook, driverHandbookStatus, handbookLinkExpiry, isHandbookError, openHandbookSigning } from "./handbookSigning.js";
+import { countersignHandbook, driverHandbookStatus, handbookLinkExpiry, extendHandbookLink, isHandbookError } from "./handbookSigning.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 
 /**
- * The office's half of the handbook (HANDBOOK-SIGNING-PLAN.md HB3): open it at the desk, then
- * countersign and file it once the driver has signed their five places.
+ * The office's half of the handbook (HANDBOOK-SIGNING-PLAN.md HB3): keep the driver's link alive, then
+ * countersign and file it once the driver has signed their five places. The envelope the office sent
+ * (`signing_opened_at`) is what opened it (D-AW16, C3s4b).
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DRIVER = "77777777-8888-4999-8aaa-bbbbbbbbbbbb";
@@ -14,7 +15,7 @@ const OTHER_REP = "22222222-3333-4444-8555-666666666666";
 const DRIVER_PLACES = ["h1", "h2", "h3", "h4", "h5"];
 
 const invitation = (over: Record<string, unknown> = {}) => ({
-  id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+  id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z", handbook_filed_at: null,
   // Far enough out that no press in these tests needs to extend it, unless a test says otherwise.
   expires_at: "2099-01-01T00:00:00.000Z", ...over,
 });
@@ -56,44 +57,25 @@ const seed = (over: { invitation?: Record<string, unknown> | null; places?: stri
     },
   });
 
-describe("opening handbook signing", () => {
-  it("refuses before the application is filed (D-HB1: the handbook comes after it)", async () => {
-    const rec = seed({ invitation: { submitted_at: null, handbook_signing_opened_at: null } });
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER);
-    expect(isHandbookError(result) && result.code).toBe("application_not_filed");
-    expect(rec.writtenRows("application_invitations")).toHaveLength(0);
-  });
-
-  it("stamps who opened it, once", async () => {
-    const rec = seed({ invitation: { handbook_signing_opened_at: null } });
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER);
-    expect(isHandbookError(result)).toBe(false);
-    const write = rec.writtenRows("application_invitations")[0]!;
-    expect(write.handbook_signing_opened_by).toBe("u-1");
-    expect(typeof write.handbook_signing_opened_at).toBe("string");
-    expectOrgScoped(rec, ORG);
-  });
-
-  it("is idempotent: a second press on a long-lived link changes nothing", async () => {
-    const rec = seed();
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER);
-    expect(!isHandbookError(result) && result.openedAt).toBe("2026-09-25T11:00:00Z");
-    expect(rec.writtenRows("application_invitations")).toHaveLength(0);
-  });
-});
-
 describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", () => {
   const NOW = new Date("2026-09-26T17:00:00.000Z");
   const FOURTEEN_DAYS_ON = "2026-10-10T17:00:00.000Z";
 
-  it("extends an already-opened, unfiled handbook's link, and never re-stamps who opened it", async () => {
-    // d61557dc's shape on 2026-09-26: filed, opened 09-25 20:08, link lapsing 09-28 18:00 UTC.
-    const rec = seed({ invitation: { handbook_signing_opened_at: "2026-09-25T20:08:00Z", expires_at: "2026-09-28T18:00:00.000Z" } });
-    const result = await openHandbookSigning(rec.client, ORG, "u-2", DRIVER, NOW);
-    expect(result).toEqual({ invitationId: "inv-1", openedAt: "2026-09-25T20:08:00Z", expiresAt: FOURTEEN_DAYS_ON, extended: true });
+  it("extends an unfiled handbook's link, and writes nothing but the new end", async () => {
+    // d61557dc's shape on 2026-09-26: filed, link lapsing 09-28 18:00 UTC.
+    const rec = seed({ invitation: { expires_at: "2026-09-28T18:00:00.000Z" } });
+    const result = await extendHandbookLink(rec.client, ORG, DRIVER, NOW);
+    expect(result).toEqual({ invitationId: "inv-1", expiresAt: FOURTEEN_DAYS_ON, extended: true });
     const writes = rec.writtenRows("application_invitations");
     expect(writes).toEqual([{ expires_at: FOURTEEN_DAYS_ON }]);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("changes nothing on a link that already outlives the window", async () => {
+    const rec = seed();
+    const result = await extendHandbookLink(rec.client, ORG, DRIVER, NOW);
+    expect(result).toEqual({ invitationId: "inv-1", expiresAt: "2099-01-01T00:00:00.000Z", extended: false });
+    expect(rec.writtenRows("application_invitations")).toHaveLength(0);
   });
 
   it("extends by the carrier's own link lifetime when it has chosen one (Q-AW41)", async () => {
@@ -101,7 +83,7 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
       invitation: { expires_at: "2026-09-20T00:00:00.000Z" },
       settings: { invite_ttl_days: 3, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" },
     });
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
+    const result = await extendHandbookLink(rec.client, ORG, DRIVER, NOW);
     expect(!isHandbookError(result) && result.expiresAt).toBe("2026-09-29T17:00:00.000Z");
     expect(rec.writtenRows("application_invitations")).toEqual([{ expires_at: "2026-09-29T17:00:00.000Z" }]);
     expectOrgScoped(rec, ORG);
@@ -109,18 +91,8 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
 
   it("revives a link that has already lapsed", async () => {
     const rec = seed({ invitation: { expires_at: "2026-09-20T00:00:00.000Z" } });
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
+    const result = await extendHandbookLink(rec.client, ORG, DRIVER, NOW);
     expect(!isHandbookError(result) && result.expiresAt).toBe(FOURTEEN_DAYS_ON);
-  });
-
-  it("extends and stamps on the first press", async () => {
-    const rec = seed({ invitation: { handbook_signing_opened_at: null, expires_at: "2026-09-28T18:00:00.000Z" } });
-    const result = await openHandbookSigning(rec.client, ORG, "u-1", DRIVER, NOW);
-    expect(!isHandbookError(result) && result.extended).toBe(true);
-    const writes = rec.writtenRows("application_invitations");
-    expect(writes[0]).toEqual({ expires_at: FOURTEEN_DAYS_ON });
-    expect(writes[1]).toMatchObject({ handbook_signing_opened_by: "u-1", handbook_signing_opened_at: NOW.toISOString() });
-    expectOrgScoped(rec, ORG);
   });
 
   it("never shortens a link, and never extends a filed or unfiled-application one", async () => {
@@ -129,10 +101,10 @@ describe("keeping the driver's link alive (APPLICATION-FLOW-V2-PLAN.md A-2)", ()
     expect(handbookLinkExpiry("2026-10-10T16:59:59.999Z", NOW, 14)).toBe(FOURTEEN_DAYS_ON);
 
     const filed = seed({ invitation: { handbook_filed_at: "2026-09-25T12:00:00Z", expires_at: "2026-09-27T00:00:00.000Z" } });
-    expect(isHandbookError(await openHandbookSigning(filed.client, ORG, "u", DRIVER, NOW))).toBe(true);
+    expect(isHandbookError(await extendHandbookLink(filed.client, ORG, DRIVER, NOW))).toBe(true);
     expect(filed.writtenRows("application_invitations")).toHaveLength(0);
-    const unfiled = seed({ invitation: { submitted_at: null, handbook_signing_opened_at: null, expires_at: "2026-09-27T00:00:00.000Z" } });
-    expect(isHandbookError(await openHandbookSigning(unfiled.client, ORG, "u", DRIVER, NOW))).toBe(true);
+    const unfiled = seed({ invitation: { submitted_at: null, expires_at: "2026-09-27T00:00:00.000Z" } });
+    expect(isHandbookError(await extendHandbookLink(unfiled.client, ORG, DRIVER, NOW))).toBe(true);
     expect(unfiled.writtenRows("application_invitations")).toHaveLength(0);
   });
 
@@ -158,8 +130,8 @@ describe("countersigning and filing", () => {
     expect(rec.writtenRows("handbook_marks")).toHaveLength(0);
   });
 
-  it("refuses before signing was opened, and after it was filed", async () => {
-    const closed = await countersignHandbook(seed({ invitation: { handbook_signing_opened_at: null } }).client, ORG, "u", null, DRIVER, REP);
+  it("refuses an application never sent for signing, and a handbook already filed", async () => {
+    const closed = await countersignHandbook(seed({ invitation: { signing_opened_at: null } }).client, ORG, "u", null, DRIVER, REP);
     expect(isHandbookError(closed) && closed.code).toBe("not_opened");
     const filed = await countersignHandbook(seed({ invitation: { handbook_filed_at: "2026-09-25T12:00:00Z" } }).client, ORG, "u", null, DRIVER, REP);
     expect(isHandbookError(filed) && filed.code).toBe("already_filed");
@@ -213,10 +185,16 @@ describe("countersigning and filing", () => {
 });
 
 describe("the office's view of it", () => {
-  it("reports opened, the places signed, and driver-complete", async () => {
+  it("reports it opened by the envelope, the places signed, and driver-complete (D-AW16)", async () => {
     const result = await driverHandbookStatus(seed().client, ORG, DRIVER);
     expect(isHandbookError(result)).toBe(false);
     expect(!isHandbookError(result) && result.driverComplete).toBe(true);
-    expect(!isHandbookError(result) && result.openedAt).toBe("2026-09-25T11:00:00Z");
+    expect(!isHandbookError(result) && result.openedAt).toBe("2026-09-25T09:00:00Z");
+  });
+
+  it("does not call it open while the application the envelope carries is unfiled (HB022)", async () => {
+    const result = await driverHandbookStatus(seed({ invitation: { submitted_at: null }, places: [] }).client, ORG, DRIVER);
+    expect(!isHandbookError(result) && result.canOpen).toBe(false);
+    expect(!isHandbookError(result) && result.openedAt).toBeNull();
   });
 });

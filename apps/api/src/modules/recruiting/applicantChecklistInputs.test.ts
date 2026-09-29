@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APPLICATION_RELEASE_ORDER } from "@silvicom/shared";
+import { APPLICATION_RELEASE_ORDER, driverPlacements } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
@@ -22,7 +22,7 @@ const TODAY = "2026-09-26";
 const INVITATION = {
   id: INVITE, driver_id: DRIVER, created_at: "2026-09-01T00:00:00Z", revoked_at: null,
   releases_completed_at: null, application_sent_at: null, review_requested_at: null, approved_at: null,
-  signing_opened_at: null, submitted_at: null, handbook_signing_opened_at: null,
+  signing_opened_at: null, submitted_at: null,
 };
 const ALL_SIGNED = APPLICATION_RELEASE_ORDER.map((purpose, i) => ({
   id: `a${i}`, driver_id: DRIVER, purpose, accepted_at: "2026-09-02T00:00:00Z", revokes: null,
@@ -36,6 +36,7 @@ const seed = (opts: {
   trips?: Array<Record<string, unknown>>;
   licences?: Array<Record<string, unknown>>;
   drafts?: Array<Record<string, unknown>>;
+  packetMarks?: Array<Record<string, unknown>>;
 }) => {
   const org = (rows: Array<Record<string, unknown>>) => rows.map((r) => ({ org_id: ORG, ...r }));
   return createSupabaseRecorder({
@@ -45,7 +46,7 @@ const seed = (opts: {
       driver_authorizations: postgrestFixture(org(opts.authorizations ?? ALL_SIGNED)),
       qualification_records: postgrestFixture(org(opts.records ?? [])),
       psp_requests: postgrestFixture([]),
-      application_packet_marks: postgrestFixture([]),
+      application_packet_marks: postgrestFixture(org(opts.packetMarks ?? [])),
       application_drafts: postgrestFixture(org(opts.drafts ?? [{ id: "dr1", invitation_id: INVITE, payload: {} }])),
       driver_employment_history: postgrestFixture([]),
       employer_inquiries: postgrestFixture([]),
@@ -161,6 +162,23 @@ describe("the board and the drawer fold the same input", () => {
     const fresh = await at("2026-08-11");
     expect(fresh.drawer.steps.find((s) => s.key === "mvr")!.state).toBe("done");
     expect(fresh.board.done).toBe(fresh.drawer.done);
+  });
+
+  /**
+   * D-AW16 (C3s4b): the envelope opens the handbook, so a filed application whose envelope was sent has
+   * a handbook in the driver's hands — theirs to sign — with no second opening at the desk.
+   */
+  it("D-AW16: a filed application's handbook is the driver's to sign on the envelope alone, on both", async () => {
+    const { drawer, board } = await bothDoors({
+      invitation: {
+        releases_completed_at: "2026-09-02T00:00:00Z", approved_at: "2026-09-20T00:00:00Z",
+        signing_opened_at: "2026-09-25T09:00:00Z", submitted_at: "2026-09-25T10:00:00Z",
+      },
+      packetMarks: driverPlacements(null).map((p) => ({ invitation_id: INVITE, placement_id: p.id, driver_id: DRIVER })),
+    });
+    expect(drawer.steps.find((s) => s.key === "application_signed")!.state).toBe("done");
+    expect(drawer.steps.find((s) => s.key === "handbook")!.state).toBe("waiting_on_them");
+    expect(board.next).toBe(drawer.next);
   });
 
   it("reads past PostgREST's 1,000-row answer, and scopes every page to the org", async () => {

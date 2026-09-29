@@ -22,7 +22,7 @@ import {
   countersignHandbook,
   driverHandbookStatus,
   isHandbookError,
-  openHandbookSigning,
+  extendHandbookLink,
   type HandbookError,
 } from "../handbookSigning.js";
 
@@ -122,29 +122,24 @@ export function recruitmentHandbookRouter(): Router {
     }),
   );
 
+  // A-2: keep the driver's link alive while the handbook is still to be signed or countersigned. It was
+  // "/handbook/open" until C3s4b, when the envelope began opening the handbook (D-AW16) and this press
+  // kept only its extension (`extendHandbookLink` says why that half had to stay).
   router.post(
-    "/applicants/:driverId/handbook/open",
+    "/applicants/:driverId/handbook/extend",
     requireOrg,
     requireSection("recruitment"),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
-      const result = await openHandbookSigning(admin, orgId, req.auth!.userId, driverId);
+      const result = await extendHandbookLink(admin, orgId, driverId);
       if (isHandbookError(result)) {
         res.status(handbookStatusCode(result)).json(apiError(result.code, result.message));
         return;
       }
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "compliance.handbook_signing_opened",
-        entity: "application_invitations",
-        entityId: result.invitationId,
-        meta: { driverId },
-      });
-      // A-2: the press kept the driver's link alive. Its own row, carrying the invitation and the new
-      // expiry and nothing else — the link is a bearer credential, so nothing about the token is logged.
+      // Its own row, carrying the invitation and the new expiry and nothing else — the link is a bearer
+      // credential, so nothing about the token is logged. A press that changed nothing writes nothing.
       if (result.extended) {
         await writeAudit(admin, {
           orgId,

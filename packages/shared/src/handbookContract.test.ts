@@ -84,6 +84,12 @@ describe("where a handbook stands", () => {
     expect(handbookStatus({ ...base, submittedAt: null }).canOpen).toBe(false);
   });
 
+  it("is open on the envelope's stamp, but only once the application it carries is filed (D-AW16, HB022)", () => {
+    const sent = { ...base, openedAt: "2026-09-25T09:00:00Z" };
+    expect(handbookStatus(sent).openedAt).toBe("2026-09-25T09:00:00Z");
+    expect(handbookStatus({ ...sent, submittedAt: null }).openedAt).toBeNull();
+  });
+
   it("is driver-complete on the five driver places, in order, whatever else is on the ledger", () => {
     const s = handbookStatus({ ...base, signedPlacementIds: ["h5", "h4c", "h1", "h2", "h3", "h4", "p25"] });
     expect(s.driverSigned).toEqual(["h1", "h2", "h3", "h4", "h5"]);

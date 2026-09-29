@@ -185,7 +185,7 @@ export function partTwoV2Link(over: Json = {}): Json {
 /** The packet's driver stops as the server serves them — nothing signed yet. */
 export const packetStops = (): Json[] => driverPlacements(null).map((p) => ({ ...p, signedAt: null }));
 
-/** The handbook as a filed link sees it once the office has opened it, with a signature to borrow. */
+/** The handbook as a filed link sees it: opened by the envelope (D-AW16), with a signature to borrow. */
 export const openHandbook = (): Json => ({
   canOpen: true, openedAt: NOW, driverSigned: [], driverComplete: false, filedAt: null,
   version: "e2e",
