@@ -1938,3 +1938,37 @@ Append dated lines at the END.
     "Place 1 of M" and "Place 15 of M" assertions). One survivor of the first pass was a real gap — nothing checked
     that the checklist's handbook reads the envelope — and now has its test. Every CI gate, every suite, 94
     matrices, the build with CI's placeholders, 12 of 12 browser specs.
+- 2026-09-29 — **C3s4b merged** (#1121, main `faf119b`); both production services verified at `faf119b`, schema 0382.
+- 2026-09-29 — **C3s5 built** (`claude/applicant-flow-c3s5`): prefilled and previewed (D-AW17). No migration.
+  - **Measured first, by rendering, not by reading the plan.** One payload was rendered as the office's packet preview
+    and as a filing, and the text of every page was diffed: the ONLY words the filing had and the preview lacked were
+    dates — page 1's `Date:` and one beside each signature. No name was missing. D-AW17's "p22 printed name" needs
+    nothing: every printed-name line reads the payload's name since AUD-18, and page 22's own line is withdrawn
+    (D-PKT19).
+  - **Packet:** page 1's `Date:` is prefilled with the day of the preview, on the office's copy and on the driver's
+    reading copy (one renderer, `preview.ts`). The filed date is still stamped by the server at certification. The
+    date beside each signature stays blank until that place is signed — it is the day THAT place was signed, and
+    D-AW17 did not ask for it.
+  - **Permissions:** the unsigned copy the driver reads now carries the printed name and today's date, as the signed
+    copy will print them. The name is the adoption the next permission is signed with (`adoptionForMark` — the
+    name `applicationReleases.ts` checks `signed_name` against). The signature box stays empty. A link with no
+    adoption (legacy) gets the date and no name.
+  - **Handbook:** the office now has a preview, `GET /recruitment/applicants/:driverId/handbook/preview.pdf`
+    (view door), drawn by the SAME function as the driver's reading copy (`handbookPreview.ts`
+    `handbookReadingCopy`; A2's lesson), with a `DRAFT - NOT A SIGNED HANDBOOK` band in the top margin
+    (`stamp.ts`'s `drawBand`, now exported) that the driver's copy never carries. Refused once filed, as the packet's
+    is. ⚠ **The masked SSN cannot be in it before the application is filed:** the SSN is asked at the signature
+    and goes straight to `driver_applications` (D-HIRE6 — the draft never holds it), so the office's preview,
+    which comes before sending, shows that line blank. After the filing it prints `•••1234`.
+  - **Office:** "Preview the application" and "Preview the handbook" sit on the Send for signing row, open in the
+    viewer nested in the drawer body (B8's Escape rule), for any role that can read the applicant; only sending is
+    `recruitment: manage`. The viewer closes when the drawer moves to another applicant.
+  - **Not built, on purpose:** the packet's and the handbook's CARRIER lines ("Carrier lines per Q-HB1") — Q-HB1 is
+    still the owner's (HANDBOOK-SIGNING-PLAN §7; recommendation there: yes, as its own step). The handbook's
+    per-place page jump (C3s4b's note) stays unbuilt: the walk shows the whole document above the place, and
+    nothing in D-AW17 needs it. Nothing made stale; §8.6 unchanged.
+  - **Checks:** 13 mutants, all killed; the one survivor of the first pass was a real gap (nothing checked that the
+    driver's own handbook copy carries no DRAFT band) and now has its test. The permission, handbook-signature and
+    handbook-cover pages were rendered and looked at. Every CI gate, every suite (the api's `inspections.test.ts`
+    failed once with "other side closed" — the known flake — and passed 3 of 3 alone), 94 matrices, the build with
+    CI's placeholders, 12 of 12 browser specs.

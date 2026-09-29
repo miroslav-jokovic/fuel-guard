@@ -190,6 +190,12 @@ describe("reading it", () => {
     expect(!isIntakeError(result) && result.filename).toBe("driver-handbook.pdf");
   });
 
+  it("carries no DRAFT band: the office's preview draws the same pages with one, the driver's copy never (C3s5)", async () => {
+    const result = await applicantHandbookPdf(seed().client, TOKEN, NOW);
+    if (isIntakeError(result)) throw new Error(result.code);
+    expect(await pdfText(result.pdf)).not.toMatch(/DRAFT/i);
+  });
+
   it("leaves the carrier's place blank on the reading copy, even with a countersignature on the ledger", async () => {
     // The countersignature is drawn only on the document that files it (`applicantHandbookPdf`).
     const result = await applicantHandbookPdf(seed({ places: ["h1", "h4c"] }).client, TOKEN, NOW);

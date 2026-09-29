@@ -50,8 +50,15 @@ export interface PermissionInstrumentInput {
   body: string;
   intent: string;
   carrier: { name: string; address: string | null };
-  /** Null for the copy the applicant is about to sign: the box, the date and the name are left empty. */
+  /** Null for the copy the applicant is about to sign: the box is left empty. */
   signer: { name: string; signedAt: string; mark: Buffer | null } | null;
+  /**
+   * The printed name and the date on the copy the applicant is ABOUT to sign (D-AW17, C3s5): the name
+   * the signature will carry and today's date, so the unsigned copy reads as it will print once signed.
+   * Ignored once `signer` is set, which prints the signed row's own. The box stays empty either way —
+   * a name on a signature line is a signature, and nobody has signed.
+   */
+  prefill?: { name: string | null; date: string } | null;
 }
 
 const BODY_SIZE = 10;
@@ -166,6 +173,10 @@ function signatureBlock(doc: PDFKit.PDFDocument, input: PermissionInstrumentInpu
     // documents prints it (`packetDraw.ts`'s `date`). MM/DD/YYYY from the one definition.
     onRule(doc, formatDisplayDate(input.signer.signedAt.slice(0, 10), ""), dateX, line, DATE_WIDTH);
     onRule(doc, input.signer.name, MARGIN, nameLine, width);
+  } else if (input.prefill) {
+    // D-AW17: the same two rules, drawn the same way, from what the signed copy will read.
+    onRule(doc, formatDisplayDate(input.prefill.date, ""), dateX, line, DATE_WIDTH);
+    if (input.prefill.name) onRule(doc, input.prefill.name, MARGIN, nameLine, width);
   }
   doc.x = MARGIN;
   doc.y = nameLine + 14 + ROW_GAP;

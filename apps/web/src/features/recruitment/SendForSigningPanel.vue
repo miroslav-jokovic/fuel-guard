@@ -10,6 +10,8 @@ import {
   type SigningSent,
 } from "@silvicom/shared";
 import { formatDate, formatDateTime } from "@/lib/format";
+import type { RenderedDocument } from "@/lib/documentDownload";
+import DocumentPreview from "@/components/DocumentPreview.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import ApplicantTextsStatus from "@/features/recruitment/ApplicantTextsStatus.vue";
@@ -33,6 +35,12 @@ import { useSendForSigning } from "@/features/recruitment/useSendForSigning";
  * ⚠ The resting sentence reads the invitation, not this panel's memory, so an office that reloads, or
  * a colleague at another desk, sees the same thing: a live link and its end, a link that ran out, or
  * one that stopped after five wrong dates of birth.
+ *
+ * ── THE ENVELOPE, PREVIEWED BEFORE IT GOES (D-AW17, C3s5) ─────────────────────────────────────
+ * *"We can review these documents prefilled."* The two documents the envelope carries (D-AW16) — the
+ * carrier's packet and the driver handbook — open here, on the row the office sends them from, drawn by
+ * the same renderers the driver signs (`preview.ts`, `handbookPreview.ts`) under a DRAFT band. Any role
+ * that can read the applicant can read them; only sending is `recruitment: manage`.
  */
 const props = defineProps<{ invitationId: string; driverId: string }>();
 
@@ -90,8 +98,28 @@ const reachedNobody = computed(() => {
   return r !== null && !r.email.sent && r.text.state !== "sent" && r.text.state !== "queued";
 });
 
-// The drawer swaps applicants without unmounting; one applicant's answer must never greet the next.
-watch(() => props.invitationId, () => { result.value = null; });
+/** Which of the envelope's two documents is open in the viewer, if either. */
+const previewing = ref<"packet" | "handbook" | null>(null);
+const previewDocument = computed<RenderedDocument | null>(() => {
+  if (previewing.value === "packet") {
+    return { path: `/api/recruitment/applications/${encodeURIComponent(props.invitationId)}/preview.pdf`, filename: "application-preview.pdf" };
+  }
+  if (previewing.value === "handbook") {
+    return {
+      path: `/api/recruitment/applicants/${encodeURIComponent(props.driverId)}/handbook/preview.pdf`,
+      filename: "handbook-preview.pdf",
+      source: "the carrier's handbook and the applicant's name on file",
+    };
+  }
+  return null;
+});
+
+// The drawer swaps applicants without unmounting; one applicant's answer, or their document, must never
+// greet the next.
+watch(() => props.invitationId, () => {
+  result.value = null;
+  previewing.value = null;
+});
 
 async function press(): Promise<void> {
   try {
@@ -156,11 +184,26 @@ async function press(): Promise<void> {
 
       <ApplicantTextsStatus :driver-id="driverId" :can-manage="canSend" />
 
+      <div class="flex flex-wrap gap-2">
+        <BaseButton size="sm" variant="ghost" @click="previewing = 'packet'">Preview the application</BaseButton>
+        <BaseButton size="sm" variant="ghost" @click="previewing = 'handbook'">Preview the handbook</BaseButton>
+      </div>
+
       <BaseButton v-if="canSend" size="sm" :variant="result || lastSend !== 'none' ? 'secondary' : 'primary'"
         :disabled="send.isPending.value" @click="press">
         {{ send.isPending.value ? "Sending…" : result || lastSend !== "none" ? "Send again" : "Send for signing" }}
       </BaseButton>
       <p v-else class="text-xs text-ink-muted">Somebody who manages recruitment sends it for signing.</p>
     </template>
+
+    <!-- ⚠ Nested in this drawer body, never a sibling of the drawer: HeadlessUI gives Escape to the
+         topmost dialog in the DOM tree, and a sibling viewer's Escape would close the applicant record
+         too (B8; `AuthorizationsPanel` measured it). -->
+    <DocumentPreview
+      :open="previewDocument !== null"
+      :label="previewing === 'handbook' ? 'Driver handbook, before signing' : 'Application, before signing'"
+      :rendered="previewDocument"
+      @close="previewing = null"
+    />
   </section>
 </template>

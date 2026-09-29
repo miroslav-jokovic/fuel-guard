@@ -25,6 +25,7 @@ import {
   extendHandbookLink,
   type HandbookError,
 } from "../handbookSigning.js";
+import { handbookPreviewPdf } from "../handbookPreview.js";
 
 /**
  * The driver handbook and the Representatives who sign it for the carrier — HANDBOOK-SIGNING-PLAN.md
@@ -119,6 +120,25 @@ export function recruitmentHandbookRouter(): Router {
         return;
       }
       res.json({ handbook: result });
+    }),
+  );
+
+  // D-AW17 (C3s5): the handbook as the driver will sign it, prefilled, from the signing row. On the view
+  // door like the packet's preview: printing a document changes nothing about it.
+  router.get(
+    "/applicants/:driverId/handbook/preview.pdf",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await handbookPreviewPdf(admin, req.auth!.orgId!, String(req.params.driverId ?? ""));
+      if (isHandbookError(result)) {
+        res.status(handbookStatusCode(result)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
     }),
   );
 

@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DOCUMENTS_BUCKET, handbookPlacementById, handbookStatus, type HandbookMark, type LinkHandbookStatus } from "@silvicom/shared";
 import { adoptedPacketMarks } from "./applicationPacketMarks.js";
-import { carrierOf, signatureMarkBytes } from "./applicationPdf/sources.js";
-import { handbookPdf } from "./applicationPdf/handbook/handbookPdf.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import {
   isIntakeError,
@@ -12,7 +10,8 @@ import {
   type SubmitContext,
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
-import { handbookMarksForPrint, handbookPlacesSigned, handbookPrintFacts } from "./handbookSigning.js";
+import { handbookPlacesSigned } from "./handbookSigning.js";
+import { handbookReadingCopy } from "./handbookPreview.js";
 import { adoptionForMark } from "./documentAdoption.js";
 
 /**
@@ -193,15 +192,7 @@ export async function applicantHandbookPdf(
     const filed = await filedHandbookBytes(admin, invitation.org_id, invitation.driver_id, invitation.id);
     if (filed) return { pdf: filed, filename: "driver-handbook-signed.pdf" };
   }
-  const [{ marks }, facts, carrier, driverSignature] = await Promise.all([
-    handbookMarksForPrint(admin, invitation.org_id, invitation.id),
-    handbookPrintFacts(admin, invitation.org_id, invitation.driver_id, invitation.id),
-    carrierOf(admin, invitation.org_id),
-    signatureMarkBytes(admin, invitation.org_id, invitation.id, "signature", "handbook"),
-  ]);
-  // The carrier's place stays blank on the reading copy: the countersignature is the office's act,
-  // and it is drawn only on the document that files it.
-  marks.delete("h4c");
-  const pdf = await handbookPdf({ carrier: { name: carrier.name }, ...facts, marks, driverSignature, countersign: null });
+  // The office's preview draws the same pages (D-AW17, C3s5) — one rendering, `handbookPreview.ts`.
+  const pdf = await handbookReadingCopy(admin, invitation.org_id, invitation.driver_id, invitation.id, null);
   return { pdf, filename: "driver-handbook.pdf" };
 }
