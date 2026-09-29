@@ -11,18 +11,29 @@ import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
  */
 const EXAMINER = "44444444-5555-4666-8777-888888888888";
 const TRUCK = "55555555-6666-4777-8888-999999999999";
-const state = vi.hoisted(() => ({ examiners: [] as unknown[], posts: [] as Array<{ url: string; body: unknown }> }));
+const state = vi.hoisted(() => ({
+  examiners: [] as unknown[],
+  posts: [] as Array<{ url: string; body: unknown }>,
+  records: [] as unknown[],
+  copies: [] as unknown[],
+}));
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string, opts?: { method?: string; body?: unknown }) => {
     if (opts?.method === "POST") {
       state.posts.push({ url, body: opts.body });
+      if (url.endsWith("/paper-copy")) {
+        // As the API would: the next read of the copies reports the handover.
+        state.copies = [{ recordId: "r1", given: true, downloadedAt: null, handedOverAt: "2026-09-29T15:30:00Z" }];
+        return { ok: true, data: { copy: state.copies[0] } };
+      }
       return url.endsWith("/road-test")
         ? { ok: true, data: { passed: true, formDocumentId: "f", certificateDocumentId: "c", recordId: "r" } }
         : { ok: true, data: { examiner: { id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" } } };
     }
     if (url.includes("road-test-examiners")) return { ok: true, data: { examiners: state.examiners } };
-    return { ok: true, data: { records: [] } };
+    if (url.endsWith("/road-test/copies")) return { ok: true, data: { copies: state.copies } };
+    return { ok: true, data: { records: state.records } };
   }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
@@ -41,6 +52,8 @@ const mountPanel = () =>
 beforeEach(() => {
   setActivePinia(createPinia());
   state.posts = [];
+  state.records = [];
+  state.copies = [];
 });
 
 describe("with no examiner on file (Q-RT2)", () => {
@@ -112,5 +125,45 @@ describe("recording a test", () => {
     await settle(w);
     await fill(w, "needs_training");
     expect(w.text()).toContain("Not a pass");
+  });
+});
+
+/** G-10 (Q-AW19, owner 2026-09-29): whether the driver has had their copy of each certificate. */
+describe("the driver's copy of the certificate", () => {
+  const passed = (id: string) => ({ id, kind: "road_test", occurred_on: "2026-09-25", performed_by: "Arvidera Gakhal, Maintenance manager" });
+  const mountDone = () =>
+    mount(RoadTestPanel, { props: { driverId: "d1", done: true }, global: { plugins: [VueQueryPlugin] } });
+  const paperButton = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => b.text() === "Handed a paper copy");
+
+  it("offers the paper-copy press on a certificate nobody has had, and posts it for that certificate", async () => {
+    state.records = [passed("r1")];
+    state.copies = [{ recordId: "r1", given: false, downloadedAt: null, handedOverAt: null }];
+    const w = mountDone();
+    await settle(w);
+    expect(w.text()).toContain("has not had their copy");
+    await paperButton(w)!.trigger("click");
+    await settle(w);
+    expect(state.posts.map((p) => p.url)).toEqual(["/api/recruitment/applicants/d1/road-test/r1/paper-copy"]);
+    // The press refetched the copies, so the row now says how it was given.
+    expect(w.get('[data-testid="copy-given"]').text()).toContain("paper copy handed over 09/29/2026");
+    expect(paperButton(w)).toBeUndefined();
+  });
+
+  it("counts a download from the driver's link as given, and offers no press", async () => {
+    state.records = [passed("r1")];
+    state.copies = [{ recordId: "r1", given: true, downloadedAt: "2026-09-26T15:00:00Z", handedOverAt: null }];
+    const w = mountDone();
+    await settle(w);
+    expect(w.get('[data-testid="copy-given"]').text()).toContain("downloaded from their link 09/26/2026");
+    expect(paperButton(w)).toBeUndefined();
+  });
+
+  it("says nothing about a copy for a road test this product did not certify", async () => {
+    state.records = [passed("r-roster")];
+    state.copies = [];
+    const w = mountDone();
+    await settle(w);
+    expect(w.text()).not.toContain("copy");
+    expect(paperButton(w)).toBeUndefined();
   });
 });

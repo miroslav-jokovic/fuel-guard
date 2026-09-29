@@ -7,7 +7,9 @@ import {
   ROAD_TEST_TRAILER_LABELS,
   ROAD_TEST_TRAILER_TYPES,
   formatDisplayDate,
+  formatDisplayDateTime,
   roadTestPassed,
+  type RoadTestCertificateCopy,
   type RoadTestItemKey,
   type RoadTestRating,
   type RoadTestTrailerType,
@@ -25,7 +27,12 @@ import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
-import { useRecordRoadTest, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
+import {
+  useRecordPaperCopy,
+  useRecordRoadTest,
+  useRoadTestCertificateCopies,
+  useRoadTestExaminers,
+} from "@/features/recruitment/useRoadTest";
 
 /**
  * The §391.31 road test, recorded where the hire is worked — D2 (`ROAD-TEST-PLAN.md` RT3).
@@ -42,6 +49,11 @@ import { useRecordRoadTest, useRoadTestExaminers } from "@/features/recruitment/
  * the signature, so the office's act is visible on the paper. The form is `SignatoryAddForm`, the one
  * Settings → Recruiting also shows (Q-AW42), where an examiner can be added — and retired — before any
  * driver reaches this step.
+ *
+ * ── THE DRIVER'S COPY (G-10, Q-AW19, owner 2026-09-29) ───────────────────────────────────────
+ * §391.31(g) owes the driver a copy of the certificate. Each certificate on file says whether they have
+ * had it — downloaded from their link (RT4), or handed over on paper, which only the office can say,
+ * so the office says it here. Nothing else reads it: it is not a hire gate, only a fact on file.
  */
 const props = defineProps<{ driverId: string; done: boolean }>();
 
@@ -63,6 +75,26 @@ const RATING_OPTIONS = ROAD_TEST_RATINGS.map((r) => ({ value: r, label: ROAD_TES
 const TRAILER_OPTIONS = ROAD_TEST_TRAILER_TYPES.map((t) => ({ value: t, label: ROAD_TEST_TRAILER_LABELS[t] }));
 
 const filed = computed(() => (recordsQ.data.value ?? []).filter((r) => r.kind === "road_test"));
+
+// ── the driver's copy of each certificate ──────────────────────────────────────────────────────
+const copiesQ = useRoadTestCertificateCopies(driverId);
+const paperCopy = useRecordPaperCopy(driverId);
+/** Only certificates this product issued are listed; a roster-entered road test has no entry. */
+const copyOf = (recordId: string): RoadTestCertificateCopy | undefined =>
+  (copiesQ.data.value ?? []).find((c) => c.recordId === recordId);
+function howGiven(copy: RoadTestCertificateCopy): string {
+  const ways: string[] = [];
+  if (copy.handedOverAt) ways.push(`paper copy handed over ${formatDisplayDateTime(copy.handedOverAt)}`);
+  if (copy.downloadedAt) ways.push(`downloaded from their link ${formatDisplayDateTime(copy.downloadedAt)}`);
+  return ways.join("; ");
+}
+async function handedPaperCopy(recordId: string): Promise<void> {
+  try {
+    await paperCopy.mutateAsync(recordId);
+  } catch (e) {
+    toast.error("Could not record the copy", e instanceof Error ? e.message : undefined);
+  }
+}
 
 // ── the examiner, when none is on file ─────────────────────────────────────────────────────────
 const addingExaminer = ref(false);
@@ -132,6 +164,22 @@ const showForm = computed(() => !props.done || adding.value);
         <li v-for="row in filed" :key="row.id" class="text-xs">
           <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
           <span class="text-ink-secondary"> · Passed · {{ row.performed_by }}</span>
+          <template v-if="copyOf(row.id)">
+            <p v-if="copyOf(row.id)!.given" class="mt-0.5 text-ink-secondary" data-testid="copy-given">
+              Copy given: {{ howGiven(copyOf(row.id)!) }}
+            </p>
+            <div v-else class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="text-ink">The driver has not had their copy of this certificate yet.</span>
+              <BaseButton
+                variant="link"
+                size="sm"
+                :disabled="paperCopy.isPending.value"
+                @click="handedPaperCopy(row.id)"
+              >
+                Handed a paper copy
+              </BaseButton>
+            </div>
+          </template>
         </li>
       </ul>
     </div>

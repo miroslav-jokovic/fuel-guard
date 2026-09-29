@@ -131,3 +131,20 @@ export interface RoadTestResult {
   certificateDocumentId: string | null;
   recordId: string | null;
 }
+
+/**
+ * Whether the driver has had their copy of one filed certificate (§391.31(g): "a copy of the certificate
+ * shall be given to the person who was examined") — `ROAD-TEST-PLAN.md` §8 (G-10, Q-AW19 (a)).
+ *
+ * Two ways it happens, and each is its own audit row, so both stay facts rather than one flag: the
+ * driver downloads it from their link (RT4, no actor), or the office hands them paper and says so.
+ * `given` is the step's answer — either one — and the two instants say which.
+ */
+export interface RoadTestCertificateCopy {
+  recordId: string;
+  given: boolean;
+  /** The first download from the driver's link, or null. */
+  downloadedAt: string | null;
+  /** When the office recorded handing over a paper copy, or null. */
+  handedOverAt: string | null;
+}

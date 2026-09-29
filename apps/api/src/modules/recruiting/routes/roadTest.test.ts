@@ -211,3 +211,111 @@ describe("retiring an examiner", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+/**
+ * G-10 (Q-AW19, owner 2026-09-29): has the driver had their copy of the certificate (§391.31(g))?
+ *
+ * ⚠ Every fixture below carries a row that must NOT count — another org's audit row naming this very
+ * certificate, a handover of a different certificate, a roster-entered road test with no certificate
+ * of ours — so a read that lost a filter changes an answer instead of passing on an empty table.
+ */
+describe("the driver's copy of the certificate (G-10)", () => {
+  const CERT = "66666666-7777-4888-8999-aaaaaaaaaaaa";
+  const OTHER_CERT = "66666666-7777-4888-8999-bbbbbbbbbbbb";
+  const ROSTER_ROW = "66666666-7777-4888-8999-cccccccccccc";
+  const NO_DOC = "66666666-7777-4888-8999-dddddddddddd";
+  const OTHER_DRIVER = "77777777-8888-4999-8aaa-000000000000";
+  const records = [
+    { id: CERT, org_id: ORG, driver_id: DRIVER, kind: "road_test", document_id: "d-1", detail: { source: "road_test" } },
+    { id: OTHER_CERT, org_id: ORG, driver_id: OTHER_DRIVER, kind: "road_test", document_id: "d-2", detail: { source: "road_test" } },
+    // Entered from the compliance page: a road test on file, but no certificate this product issued.
+    { id: ROSTER_ROW, org_id: ORG, driver_id: DRIVER, kind: "road_test", document_id: "d-3", detail: {} },
+    // Ours, but citing no document — there is nothing to hand over.
+    { id: NO_DOC, org_id: ORG, driver_id: DRIVER, kind: "road_test", document_id: null, detail: { source: "road_test" } },
+  ];
+  const audit = (over: Record<string, unknown>) => ({
+    org_id: ORG, entity: "qualification_records", entity_id: CERT, action: "road_test_certificate_downloaded",
+    created_at: "2026-09-26T15:00:00Z", ...over,
+  });
+  const NOISE = [
+    audit({ org_id: OTHER, action: "road_test_certificate_handed_over", created_at: "2026-09-20T00:00:00Z" }),
+    audit({ entity_id: OTHER_CERT, action: "road_test_certificate_handed_over" }),
+    audit({ entity_id: ROSTER_ROW, action: "road_test_certificate_handed_over" }),
+  ];
+  const copySeed = (auditRows: Record<string, unknown>[], writeFails = false) =>
+    createSupabaseRecorder({
+      tables: {
+        qualification_records: postgrestFixture(records),
+        audit_logs: writeFails
+          ? (q) => ({ data: postgrestFixture(auditRows)(q), writeError: { message: "down" } })
+          : postgrestFixture(auditRows),
+      },
+    });
+  const get = (path: string, token: string) =>
+    fetch(`${baseUrl}/api/recruitment${path}`, { headers: { Authorization: `Bearer ${token}` } });
+
+  it("reports a download from the driver's link as a copy given, and nothing that is not this certificate's", async () => {
+    const rec = copySeed([...NOISE, audit({}), audit({ created_at: "2026-09-27T09:00:00Z" })]);
+    holder.client = rec.client;
+    const res = await get(`/applicants/${DRIVER}/road-test/copies`, "recruiter");
+    expect(res.status).toBe(200);
+    // The FIRST download, and no handover: the other org's handover of this same id did not count.
+    expect(((await res.json()) as { copies: unknown[] }).copies).toEqual([
+      { recordId: CERT, given: true, downloadedAt: "2026-09-26T15:00:00Z", handedOverAt: null },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reports a certificate nobody has had as not given", async () => {
+    holder.client = copySeed(NOISE).client;
+    const body = (await (await get(`/applicants/${DRIVER}/road-test/copies`, "recruiter")).json()) as { copies: unknown[] };
+    expect(body.copies).toEqual([{ recordId: CERT, given: false, downloadedAt: null, handedOverAt: null }]);
+  });
+
+  it("records the office handing over paper, naming who and which certificate", async () => {
+    const rec = copySeed(NOISE);
+    holder.client = rec.client;
+    const res = await post(`/applicants/${DRIVER}/road-test/${CERT}/paper-copy`, "recruiter");
+    expect(res.status).toBe(200);
+    const { copy } = (await res.json()) as { copy: { given: boolean; handedOverAt: string | null } };
+    expect(copy.given).toBe(true);
+    expect(copy.handedOverAt).not.toBeNull();
+    expect(rec.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({
+        org_id: ORG, actor_id: "u-recruiter", action: "road_test_certificate_handed_over",
+        entity: "qualification_records", entity_id: CERT, meta: { driverId: DRIVER, documentId: "d-1" },
+      }),
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("writes nothing a second time — the first handover stands", async () => {
+    const rec = copySeed([...NOISE, audit({ action: "road_test_certificate_handed_over", created_at: "2026-09-28T10:00:00Z" })]);
+    holder.client = rec.client;
+    const res = await post(`/applicants/${DRIVER}/road-test/${CERT}/paper-copy`, "admin");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { copy: { handedOverAt: string } }).copy.handedOverAt).toBe("2026-09-28T10:00:00Z");
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+
+  it("refuses another driver's certificate, a road test that is not one of ours, and one citing no document", async () => {
+    for (const id of [OTHER_CERT, ROSTER_ROW, NO_DOC]) {
+      const rec = copySeed(NOISE);
+      holder.client = rec.client;
+      expect((await post(`/applicants/${DRIVER}/road-test/${id}/paper-copy`, "admin")).status).toBe(404);
+      expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+    }
+  });
+
+  it("answers a failure when the audit row could not be written — it is the whole record", async () => {
+    holder.client = copySeed(NOISE, true).client;
+    expect((await post(`/applicants/${DRIVER}/road-test/${CERT}/paper-copy`, "recruiter")).status).toBe(500);
+  });
+
+  it("refuses a role that does not manage recruitment", async () => {
+    const rec = copySeed(NOISE);
+    holder.client = rec.client;
+    expect((await post(`/applicants/${DRIVER}/road-test/${CERT}/paper-copy`, "dispatcher")).status).toBe(403);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+});

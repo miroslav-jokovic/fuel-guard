@@ -2056,3 +2056,12 @@ Append dated lines at the END.
     `hire_applicant` rather than writing `status`.
 - **2026-09-29** — #1130 merged (`bc0ca4e`); 0386 verified applied; both services at `bc0ca4e`.
   Q-HB1's design is HANDBOOK-SIGNING-PLAN.md §6 (Q-HB3/Q-HB4 await the owner).
+- **2026-09-29** — **Q-AW19 ruled by the owner, both halves (a); G-10 built (ROAD-TEST-PLAN §8).**
+  · **§391.33 equivalency: not built.** The recommendation in §11 ("add the equivalency door") had
+    missed that it reverses D-REC7. Q-RT4 had made equivalency lawful; the owner keeps a real road
+    test for every driver (§391.33(c)). No counsel question follows from this half.
+  · **Certificate handed over: built.** The step-13 drawer shows, per certificate, whether the driver
+    has had their copy (a download from the link, or the office's new "Handed a paper copy" press).
+    Both are audit rows. No migration.
+  · **Still open under Q-AW19:** the examiner-attestation half (§3.4, any recruiter can print the
+    examiner's stored signature). Its counsel note goes in COUNSEL-REVIEW-PACKAGE.md, per §9 item 7.

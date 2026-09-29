@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type {
+  RoadTestCertificateCopy,
   RoadTestExaminer,
   RoadTestExaminerCreate,
   RoadTestRecord,
@@ -77,7 +78,44 @@ export function useRecordRoadTest(driverId: Ref<string>) {
       // Evidence in the §391.51 file AND the thing that moves step 13 — `useHiringEvidence`'s reason.
       void qc.invalidateQueries({ queryKey: ["compliance"] });
       void qc.invalidateQueries({ queryKey: applicantChecklistKey(id.value) });
+      // A pass is a new certificate, and a certificate nobody has had yet (G-10).
+      void qc.invalidateQueries({ queryKey: roadTestCopiesKey(id.value) });
     },
+  });
+}
+
+/**
+ * Whether the driver has had their copy of each certificate (G-10, Q-AW19, owner 2026-09-29): a
+ * download from their link, or the office saying it handed over paper. Keyed under the driver, so the
+ * paper-copy press refreshes exactly this answer.
+ */
+export const roadTestCopiesKey = (driverId: string) => ["recruitment", "road-test-copies", driverId] as const;
+
+export function useRoadTestCertificateCopies(driverId: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => roadTestCopiesKey(driverId.value)),
+    queryFn: async (): Promise<RoadTestCertificateCopy[]> => {
+      const res = await apiFetch<{ copies: RoadTestCertificateCopy[] }>(
+        `/api/recruitment/applicants/${encodeURIComponent(driverId.value)}/road-test/copies`,
+      );
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not load whether the certificate was given.");
+      return res.data?.copies ?? [];
+    },
+  });
+}
+
+export function useRecordPaperCopy(driverId: Ref<string>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (recordId: string): Promise<RoadTestCertificateCopy> => {
+      const res = await apiFetch<{ copy: RoadTestCertificateCopy }>(
+        `/api/recruitment/applicants/${encodeURIComponent(driverId.value)}/road-test/${encodeURIComponent(recordId)}/paper-copy`,
+        { method: "POST", body: {} },
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not record that the copy was given.");
+      return res.data.copy;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: roadTestCopiesKey(driverId.value) }),
   });
 }
 
