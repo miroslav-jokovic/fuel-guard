@@ -230,6 +230,7 @@ describe("the application links (Q-AW41)", () => {
     expect(links(w).text()).toContain("These are the product's defaults");
     expect((inputs(w)[0]!.element as HTMLInputElement).value).toBe("14");
     expect((inputs(w)[1]!.element as HTMLInputElement).value).toBe("48");
+    expect(links(w).text()).toContain("The office is alerted then, and the driver is reminded;");
     // Nothing changed yet, so nothing to save.
     expect(saveButton(w)!.attributes("disabled")).toBeDefined();
   });
@@ -249,19 +250,32 @@ describe("the application links (Q-AW41)", () => {
     const w = await page();
     await inputs(w)[0]!.setValue("2");
     await settle(w);
-    expect(links(w).text()).toContain("The reminder must go before the link expires");
+    expect(links(w).text()).toContain("A driver must count as stopped before the link expires");
     expect(saveButton(w)!.attributes("disabled")).toBeDefined();
   });
 
-  it("switched off, hides the delay and saves it unchanged", async () => {
+  it("switched off, still shows the delay — it times the office's alert — and saves what it holds (C-AL1)", async () => {
     const w = await page();
     links(w).findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", false);
     await settle(w);
-    expect(inputs(w)).toHaveLength(1);
-    await inputs(w)[0]!.setValue("1");
+    expect(inputs(w)).toHaveLength(2);
+    expect(links(w).text()).toContain("Count a driver as stopped after");
+    expect(links(w).text()).toContain("The office is alerted then;");
+    expect(links(w).text()).toContain("Settings → Notifications");
+    await inputs(w)[0]!.setValue("3");
+    await inputs(w)[1]!.setValue("60");
     await saveButton(w)!.trigger("click");
     await settle(w);
-    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 1, reminders_enabled: false, reminder_after_hours: 48 });
+    expect(state.calls.at(-1)!.body).toEqual({ invite_ttl_days: 3, reminders_enabled: false, reminder_after_hours: 60 });
+  });
+
+  it("switched off, still refuses a delay that would come after the link dies (C-AL1)", async () => {
+    const w = await page();
+    links(w).findComponent({ name: "AppSwitch" }).vm.$emit("update:modelValue", false);
+    await inputs(w)[0]!.setValue("2");
+    await settle(w);
+    expect(links(w).text()).toContain("A driver must count as stopped before the link expires");
+    expect(saveButton(w)!.attributes("disabled")).toBeDefined();
   });
 
   it("refuses a link longer than 60 days", async () => {
