@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { pdfText } from "../../../testing/pdfText.js";
-import { ensureApplicationPdf } from "./file.js";
+import { ensureApplicationPdf, ensureDriverFiledApplication } from "./file.js";
 import { APPLICATION_CAPTURE_MARK_SLOT, driverPlacements } from "@silvicom/shared";
 import { PDFDocument } from "pdf-lib";
 
@@ -68,6 +68,9 @@ const seed = (over: {
   record?: Record<string, unknown> | null;
   document?: Record<string, unknown> | null;
   marks?: Array<Record<string, unknown>>;
+  /** Q-HB1: the countersignature row `ensureApplicationPdf` asks for first, and the documents by id. */
+  countersignature?: Record<string, unknown>;
+  documentsById?: Record<string, Record<string, unknown>>;
 } = {}) =>
   createSupabaseRecorder({
     tables: {
@@ -76,7 +79,13 @@ const seed = (over: {
       driver_authorizations: [],
       esign_consents: [],
       qualification_records: over.record === undefined ? [{ document_id: null }] : over.record ? [over.record] : [],
-      documents: over.document ? [over.document] : [],
+      documents: over.documentsById
+        ? (q: RecordedQuery) => {
+          const id = q.filters().find((f) => f.col === "id")?.val as string | undefined;
+          return id && over.documentsById![id] ? [over.documentsById![id]] : [];
+        }
+        : over.document ? [over.document] : [],
+      application_packet_countersignatures: over.countersignature ? [over.countersignature] : [],
       // ⚠ Empty by default, which is an application from BEFORE the ceremony — the case that keeps
       // rendering `render.ts`'s summary (D-PKT5). The tests about the packet pass their own.
       application_packet_marks: over.marks ?? [],
@@ -151,6 +160,43 @@ describe("filing the application PDF", () => {
  * alone cannot say which row is the signature. The staged `application_captures` row is the index,
  * and A8a's identity property is what turns it into an answer: `documents.id` IS the capture id.
  */
+/**
+ * Q-HB1 (D-HB8): once the carrier has countersigned, every reader is handed the countersigned copy,
+ * and the driver's own filing is what the §391.51(b)(1) record keeps citing.
+ */
+describe("the countersigned copy", () => {
+  const FILED = { id: "doc-filed", storage_path: `${ORG}/driver/${DRIVER}/doc-filed.pdf` };
+  const COPY = { id: "doc-copy", storage_path: `${ORG}/driver/${DRIVER}/doc-copy.pdf` };
+
+  it("is what ensureApplicationPdf hands out once the countersignature cites it", async () => {
+    const rec = seed({
+      record: { document_id: "doc-filed" },
+      countersignature: { document_id: "doc-copy" },
+      documentsById: { "doc-filed": FILED, "doc-copy": COPY },
+    });
+    expect(await ensureApplicationPdf(rec.client, ORG, APP_ID))
+      .toEqual({ documentId: "doc-copy", storagePath: COPY.storage_path, rendered: false });
+    const asked = rec.forTable("application_packet_countersignatures")[0]!;
+    expect(asked.filters()).toEqual(expect.arrayContaining([{ col: "org_id", val: ORG }, { col: "application_id", val: APP_ID }]));
+    expect(rec.storageCalls().filter((c) => c.fn === "upload")).toHaveLength(0);
+  });
+
+  it("is not handed out before the countersignature has a document: the driver's filing is", async () => {
+    const rec = seed({ record: { document_id: "doc-filed" }, documentsById: { "doc-filed": FILED, "doc-copy": COPY } });
+    expect((await ensureApplicationPdf(rec.client, ORG, APP_ID))?.documentId).toBe("doc-filed");
+  });
+
+  it("is never what ensureDriverFiledApplication answers — that is the driver's filing, always", async () => {
+    const rec = seed({
+      record: { document_id: "doc-filed" },
+      countersignature: { document_id: "doc-copy" },
+      documentsById: { "doc-filed": FILED, "doc-copy": COPY },
+    });
+    expect((await ensureDriverFiledApplication(rec.client, ORG, APP_ID))?.documentId).toBe("doc-filed");
+    expect(rec.forTable("application_packet_countersignatures")).toHaveLength(0);
+  });
+});
+
 describe("the drawn signature mark", () => {
   const CAPTURE = "aaaaaaaa-1111-4111-8111-111111111111";
   const PNG = Buffer.from("iVBORw0KGgo=", "base64");

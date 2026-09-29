@@ -198,7 +198,10 @@ export function recruitmentHandbookRouter(): Router {
         action: "compliance.handbook_filed",
         entity: "qualification_records",
         entityId: result.recordId,
-        meta: { driverId, representativeId: body.representative_id, documentId: result.documentId },
+        // Q-HB1: the same press countersigned the packet; its copy is named so the audit row accounts
+        // for both documents it filed.
+        meta: { driverId, representativeId: body.representative_id, documentId: result.documentId,
+          packetDocumentId: result.packetDocumentId },
       });
       res.status(201).json(result);
     }),

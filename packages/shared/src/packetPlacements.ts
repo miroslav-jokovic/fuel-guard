@@ -393,6 +393,18 @@ export const driverPlacementIds = (applyingAs: ApplyingAs | null): string[] =>
   driverPlacements(applyingAs).map((p) => p.id);
 
 /**
+ * The carrier's own lines — what the Representative countersigns (Q-HB1, D-HB7; HANDBOOK-SIGNING-PLAN
+ * §6).
+ *
+ * ⚠ Read from the inventory, never listed by hand. The countersignature row records this list AS IT
+ * WAS when it was signed (`application_packet_countersignatures.placements`), so a later ruling that
+ * withdraws one of these lines changes what future countersignatures cover and leaves every earlier
+ * row saying what it really signed.
+ */
+export const carrierPlacementIds = (): string[] =>
+  PACKET_PLACEMENTS.filter((p) => p.party === "carrier").map((p) => p.id);
+
+/**
  * How many of the ceremony's CURRENT stops a link has marked, from the placement ids on its rows.
  *
  * ⚠ **Not the number of rows.** A mark made at a line since withdrawn (L-1: production's 2026-09-17

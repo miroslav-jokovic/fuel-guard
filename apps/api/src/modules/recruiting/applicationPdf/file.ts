@@ -92,7 +92,7 @@ async function renderFiledDocument(
   application: ApplicationRow,
 ): Promise<Buffer> {
   const invitationId = application.invitation_id;
-  const marks = invitationId ? await packetMarksFor(admin, application.org_id, invitationId) : [];
+  const marks = await packetMarksOn(admin, application.org_id, invitationId);
   if (marks.length === 0) return renderApplicationPdf(await gather(admin, application));
   return renderPacketDocument({
     marks,
@@ -119,14 +119,67 @@ async function renderFiledDocument(
   });
 }
 
+const packetMarksOn = (admin: SupabaseClient, orgId: string, invitationId: string | null) =>
+  invitationId ? packetMarksFor(admin, orgId, invitationId) : Promise.resolve([]);
+
 /**
- * File the rendered application, or hand back the one already filed.
+ * Was this application filed as the carrier's packet, or as the §391.21 summary? The MARKS decide
+ * (`renderFiledDocument`'s rule, D-PKT5), and the countersign asks the same question the same way:
+ * the summary has no carrier lines to sign (D-HB10).
+ */
+export async function filedAsPacket(admin: SupabaseClient, orgId: string, invitationId: string | null): Promise<boolean> {
+  return (await packetMarksOn(admin, orgId, invitationId)).length > 0;
+}
+
+/**
+ * The application as the office, the driver and the submit path are handed it (Q-HB1, D-HB8).
+ *
+ * ⚠ The countersigned copy once there is one, the driver's filing before that. The countersigned copy
+ * is the driver's filed bytes with the carrier's four lines stamped on (`packetCountersign.ts`), so it
+ * is the same document with more signatures on it. Handing out the unsigned one after it exists would
+ * give the auditor and the driver a packet whose carrier lines read blank when they are not.
+ *
+ * ⚠ This is the only reader of the countersignature here. Asked by application id, so the three
+ * callers (`applicationSubmit.ts`, `applicationCopy.ts`, `routes/applicationInvites.ts`) change by
+ * nothing.
+ */
+export async function ensureApplicationPdf(
+  admin: SupabaseClient,
+  orgId: string,
+  applicationId: string,
+): Promise<FiledApplicationPdf | null> {
+  const { data: countersigned } = await admin
+    .from("application_packet_countersignatures")
+    .select("document_id")
+    .eq("org_id", orgId)
+    .eq("application_id", applicationId)
+    .not("document_id", "is", null)
+    .maybeSingle();
+  const copyId = (countersigned as { document_id?: string | null } | null)?.document_id ?? null;
+  if (copyId) {
+    const { data: doc } = await admin
+      .from("documents")
+      .select("id, storage_path")
+      .eq("org_id", orgId)
+      .eq("id", copyId)
+      .maybeSingle();
+    const copy = doc as { id: string; storage_path: string } | null;
+    if (copy) return { documentId: copy.id, storagePath: copy.storage_path, rendered: false };
+  }
+  return ensureDriverFiledApplication(admin, orgId, applicationId);
+}
+
+/**
+ * The DRIVER's filing: file the rendered application, or hand back the one already filed.
+ *
+ * ⚠ Never the countersigned copy: this is what the countersign stamps, and what the §391.51(b)(1)
+ * record cites for ever (D-HB8). Everybody else asks `ensureApplicationPdf`.
  *
  * Idempotent by the `qualification_records` citation: `attach_application_document` sets
  * `document_id` only where it is null, so a second render loses the race harmlessly rather than
  * leaving the §391.51(b)(1) record pointing at a different copy of the same document.
  */
-export async function ensureApplicationPdf(
+export async function ensureDriverFiledApplication(
   admin: SupabaseClient,
   orgId: string,
   applicationId: string,

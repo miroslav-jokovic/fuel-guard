@@ -141,6 +141,13 @@ describe("countersigning", () => {
     ]);
   });
 
+  it("tells the office the same press signs the application's carrier lines (Q-HB1, D-HB7)", async () => {
+    state.handbook = status({ openedAt: "t", driverSigned: ["h1", "h2", "h3", "h4", "h5"], driverComplete: true });
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("the application's four carrier lines (pages 18, 19 and 22)");
+  });
+
   it("asks for a Representative first when there is none", async () => {
     state.reps = [];
     state.handbook = status({ openedAt: "t", driverSigned: ["h1", "h2", "h3", "h4", "h5"], driverComplete: true });

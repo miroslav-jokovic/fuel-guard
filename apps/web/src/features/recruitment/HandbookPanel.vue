@@ -22,6 +22,10 @@ import {
  * was retired with C3s4b — so the panel shows where the driver is, keeps their link alive, and offers the
  * countersignature once they are done.
  *
+ * ⚠ Q-HB1 (D-HB7): the same press countersigns the APPLICATION's four carrier lines (pages 18, 19 and
+ * 22) with the same Representative, before the handbook is filed. The hint and the toast say so, because
+ * an office that did not know would go looking for a second button that does not exist.
+ *
  * ── THE REPRESENTATIVES (D-HB3) ───────────────────────────────────────────────────────────────
  * Added with their signature and removed, as the maintenance inspectors are. One who has countersigned
  * a handbook cannot be removed — the server says so, and that sentence is what the toast shows. The
@@ -68,7 +72,7 @@ async function extendLink(): Promise<void> {
 async function countersignAndFile(): Promise<void> {
   try {
     await countersign.mutateAsync({ representative_id: representativeId.value });
-    toast.success("Handbook filed", "The signed handbook is in the driver's file.");
+    toast.success("Handbook filed", "The signed handbook and the countersigned application are in the driver's file.");
   } catch (e) {
     toast.error("Could not file the handbook", e instanceof Error ? e.message : undefined);
   }
@@ -81,7 +85,8 @@ async function countersignAndFile(): Promise<void> {
 
     <template v-else-if="status">
       <p v-if="status.filedAt" class="text-sm text-ink">
-        Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook is in the driver's file.
+        Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook and the countersigned
+        application are in the driver's file.
       </p>
 
       <p v-else-if="!status.canOpen" class="text-sm text-ink-secondary">
@@ -116,7 +121,7 @@ async function countersignAndFile(): Promise<void> {
     <!-- The countersignature: only once the driver is done, and never after filing. -->
     <div v-if="status?.driverComplete && !status.filedAt" class="space-y-4">
       <p class="text-sm font-medium text-ink">Countersign for the carrier</p>
-      <FormField v-if="reps.length > 0" v-slot="{ id }" label="Representative" hint="Their signature prints on the Agreed line.">
+      <FormField v-if="reps.length > 0" v-slot="{ id }" label="Representative" hint="Their signature prints on the handbook's Agreed line and on the application's four carrier lines (pages 18, 19 and 22).">
         <ComboSelect :id="id" v-model="representativeId" :options="repOptions" />
       </FormField>
       <BaseButton

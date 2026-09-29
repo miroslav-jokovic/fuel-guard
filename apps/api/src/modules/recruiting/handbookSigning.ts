@@ -13,6 +13,7 @@ import { carrierOf, signatureMarkBytes } from "./applicationPdf/sources.js";
 import { handbookPdf, type HandbookMarkPrint } from "./applicationPdf/handbook/handbookPdf.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import { representativeForPrint } from "./representatives.js";
+import { countersignPacket, isPacketCountersignError } from "./packetCountersign.js";
 import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
@@ -46,6 +47,7 @@ export interface HandbookError {
     | "representative_not_found"
     | "link_expired"
     | "handbook_changed"
+    | "packet_changed"
     | "filing_in_progress"
     | "storage_failed"
     | "insert_failed";
@@ -275,7 +277,7 @@ export async function countersignHandbook(
   role: string | null,
   driverId: string,
   representativeId: string,
-): Promise<{ documentId: string; recordId: string } | HandbookError> {
+): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
   const inv = await currentInvitation(admin, orgId, driverId);
   if (!inv) return { code: "not_found", message: "This applicant has no application on file." };
   if (inv.handbook_filed_at) return { code: "already_filed", message: "The handbook is already signed and filed." };
@@ -354,10 +356,17 @@ async function fileCountersignedHandbook(
   driverId: string,
   invitationId: string,
   chosen: { id: string; fullName: string; title: string; signature: Buffer | null },
-): Promise<{ documentId: string; recordId: string } | HandbookError> {
-  const made = await carrierMark(admin, orgId, userId, invitationId, chosen);
+): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
+  // Q-HB1 (D-HB7): the packet's four carrier lines first, in the same press and by the same
+  // Representative. On a retry the packet's row keeps the Representative it recorded, and `h4c` is
+  // signed by that one, so one press can never put two people's names on the carrier's side.
+  const packet = await countersignPacket(admin, orgId, userId, role, driverId, invitationId, chosen);
+  if (isPacketCountersignError(packet)) return packet.code === "link_expired" ? HANDBOOK_LINK_EXPIRED : packet;
+  const signer = packet.representative;
+
+  const made = await carrierMark(admin, orgId, userId, invitationId, signer);
   if (isHandbookError(made)) return made;
-  const rep = made.representativeId === chosen.id ? chosen : await representativeForPrint(admin, orgId, made.representativeId);
+  const rep = made.representativeId === signer.id ? signer : await representativeForPrint(admin, orgId, made.representativeId);
   if (!rep) return { code: "representative_not_found", message: "That representative is not on file." };
 
   const [{ marks }, facts, carrier, driverSignature, appliedBy] = await Promise.all([
@@ -413,5 +422,5 @@ async function fileCountersignedHandbook(
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .is("handbook_filed_at", null);
-  return { documentId: filed.documentId, recordId };
+  return { documentId: filed.documentId, recordId, packetDocumentId: packet.documentId };
 }
