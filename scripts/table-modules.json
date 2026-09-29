@@ -1179,6 +1179,17 @@
         "why": "no rows yet (S1 is schema only). One row per org, rewritten in place when the carrier changes its link lifetime or reminder (Q-AW41); growth is bounded by the number of orgs. Configuration, not evidence; deleted with its org."
       }
     },
+    "application_packet_countersignatures": {
+      "module": "recruiting",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "no rows yet (QH0 is schema only). One row per countersigned application, at the handbook countersign (D-HB7). Signature evidence, append-only like handbook_marks; retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+      }
+    },
     "handbook_marks": {
       "module": "recruiting",
       "layer": "core",

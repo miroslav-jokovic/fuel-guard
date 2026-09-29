@@ -296,6 +296,12 @@ export const RETENTION_FORBIDDEN = [
   "application_packet_marks",
   "handbook_marks",
   /**
+   * The carrier's countersignature on the filed packet (0387, HANDBOOK-SIGNING-PLAN.md §6): which
+   * Representative signed the carrier's lines, applied by whom, over which filed bytes. The stamped
+   * copy's signatures stand on it the way a mark's do, and it is append-only by trigger.
+   */
+  "application_packet_countersignatures",
+  /**
    * Part 1 of the applicant's link and what the office did with it (0376, APPLICATION-FLOW-V2-PLAN
    * §8.2). The intake and its licences are what screening READ — the MVR was ordered per licence, the
    * drug-test site found from the address — so a prune would leave a PSP pull and an MVR citing inputs

@@ -61,6 +61,8 @@ const WAIVERS = new Map([
   // behind POST /api/public/application/:token/screen-events. That was the last of the five.
   // recruiting_settings left on 2026-09-28 (APPLICATION-FLOW-V2-PLAN.md S2): recruiting/recruitingSettings.ts
   // writes it behind PUT /api/recruitment/settings. Pinned for the schema-only S1 (0379) only.
+  // application_packet_countersignatures (0387, HANDBOOK-SIGNING-PLAN.md QH0) never needed an entry:
+  // the migration's own `purge_applicant` deletes from it, which this gate counts as a reference.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
