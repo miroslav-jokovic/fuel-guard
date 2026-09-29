@@ -757,7 +757,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW18** | Handbook receipt signed twice (p25 + h5) | — | **Resolved by D-AW16**: withdraw p25. |
 | **Q-AW19** | Road test: examiner attestation; certificate handed over; §391.33 door | — | Record "handed over"; add the equivalency door; counsel note. |
 | **Q-AW20** | 44 px targets: `/apply` only or product-wide? | — | `/apply` first. |
-| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0c; trigger in M2 if the owner wants defence in depth. **RULED by the owner 2026-09-29: add the trigger**, as its own small migration after M2b, not inside the cleanup. |
+| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0c; trigger in M2 if the owner wants defence in depth. **RULED by the owner 2026-09-29: add the trigger**, as its own small migration after M2b, not inside the cleanup. **BUILT — 0386.** |
 | **Q-AW22** | Gap explanation threshold: 30 days (our coverage rule) or 59 (carrier's p5)? | — | 30 — stricter, and the office can ignore short ones. |
 | **Q-AW23** | Orientation videos/live orientation before D4 ships: excluded from the hire gate (§9.3)? | — | Excluded, shown as "not built yet". |
 | **Q-AW24** | The owner said "permissions, application and handbook" are prefilled and reviewed before sending. The permissions must be signed in Part 1, before screening. | (a) permissions prefilled from Part 1, no office review before; (b) office reviews permissions too, delaying screening | (a). |
@@ -2033,3 +2033,24 @@ Append dated lines at the END.
   nothing to read — the api already enforces it), then Q-HB1's design. Telnyx toll-free verification
   `14c37df3…` read 2026-09-29: **"Waiting For Vendor"** since 2026-09-28 16:34 UTC (Telnyx's own review is done;
   no rejection reason).
+- 2026-09-29 — **M2b merged** (#1128, main `6d99b4b`) and **0385 verified applied**: production's `pg_proc` holds one
+  `record_packet_mark` (13), one `record_driver_release` (12) and one `save_application_draft` (6); the
+  `handbook_signing_opened_*` columns are gone; the order check reads `handbook_filed_at IS NULL OR signing_opened_at IS
+  NOT NULL`. **M2 is complete.** **Q-AW51 + Q-AW52 merged** (#1129, main `59d786a`); both services verified at
+  `59d786a`, schema 0385, 16:17 UTC.
+- 2026-09-29 — **Q-AW21 built** (`claude/applicant-flow-aw21-trigger`): migration **0386**.
+  - **What it guards, and what it does not restate:** `applicant → active` is refused (HA011) for every writer — the
+    service role and every lifecycle role through PostgREST included — except inside `hire_applicant`, which the api
+    calls only after `hireBlockers` is empty. The hire's requirements stay in the shared checklist; the trigger guards
+    the door, so nothing can go around them, without a second copy of them in SQL.
+  - **How:** `hire_applicant` sets `fuelguard.hiring_applicant` to the driver's id around its one UPDATE and clears it
+    (the `purging_applicant` pattern, 0380); `hiring_applicant(uuid)` is the one reading of the flag; the trigger is
+    `before update of status`.
+  - **Scope, on purpose:** only `applicant → active`. Terminating an applicant or making them inactive stays a
+    lifecycle role's act (restricted-records pins it), and inserts are untouched. Measured first: the only SQL
+    function that sets `drivers.status` is `hire_applicant`, and no api writer sets an applicant active.
+  - **Checks:** 6 mutants on the migration, all killed. The first pass had a survivor, and it was a real gap: a
+    helper that read an UNSET flag as open passed every case, because the matrix's first hire defined the setting for
+    the rest of the session — the one state a fresh pooled connection in production is in. A case before the first
+    hire now proves NULL is closed. `purge-applicant`'s "a hired driver is refused" now hires through
+    `hire_applicant` rather than writing `status`.

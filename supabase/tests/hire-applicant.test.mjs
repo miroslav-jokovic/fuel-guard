@@ -139,6 +139,18 @@ const day = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
 const hire = (org, driver, date, records) =>
   db.query(`select public.hire_applicant($1, $2, $3::date, null, $4::jsonb) as r`, [org, driver, date, records]);
 
+// ── Q-AW21 (0386), FIRST: on a connection that has never seen the flag ──────────────────────────
+// Before any hire in this session `current_setting('fuelguard.hiring_applicant', true)` is NULL, not
+// '' — the state of a fresh pooled connection in production. The helper must read NULL as closed; every
+// later case runs after a hire has defined the setting and cannot see this.
+{
+  const fresh = (await one(`insert into drivers (org_id, full_name, status) values ($1,'Fresh Session','applicant') returning id`, [ORG])).id;
+  ok("the flag is unset on this connection so far", (await one(`select current_setting('fuelguard.hiring_applicant', true) as f`)).f === null);
+  let refusedFresh = null;
+  try { await db.query(`update drivers set status = 'active' where id = $1`, [fresh]); } catch (e) { refusedFresh = e.code; }
+  ok("HA011 on a connection that has never set the flag — NULL is closed, not open", refusedFresh === "HA011");
+}
+
 // ── the hire itself ────────────────────────────────────────────────────────────────────────────
 const first = (await hire(ORG, APPLICANT, "2026-09-01", drafts(EMP))).rows[0].r;
 
@@ -226,6 +238,45 @@ ok(
   "every filed record carries the org it was filed for",
   (await count(`select count(*)::int as n from qualification_records where driver_id = $1 and org_id = $2`, [APPLICANT, ORG])) === 2,
 );
+
+// ── Q-AW21 (0386): applicant -> active only through hire_applicant ──────────────────────────────
+// The rules are `hireBlockers` in TypeScript; the database guards the DOOR, so nothing can go around them.
+const applicantRow = async (name) =>
+  (await one(`insert into drivers (org_id, full_name, status) values ($1,$2,'applicant') returning id`, [ORG, name])).id;
+const sqlstate = async (sql, params = []) => {
+  try { await db.query(sql, params); return null; } catch (e) { return e.code; }
+};
+const DIRECT = await applicantRow("Direct Write");
+ok("HA011: a direct write of 'active' on an applicant is refused, for the service role too",
+  (await sqlstate(`update drivers set status = 'active' where id = $1`, [DIRECT])) === "HA011");
+ok("…and they are still an applicant", (await one(`select status from drivers where id = $1`, [DIRECT])).status === "applicant");
+await db.exec(`begin; select set_config('request.jwt.claims','{"role":"authenticated","user_role":"admin","org_id":"${ORG}"}',true);`);
+const asAdmin = await sqlstate(`update drivers set status = 'active' where id = $1`, [DIRECT]);
+await db.exec("rollback");
+ok("HA011: an admin through PostgREST is refused too — 0213 let every lifecycle role through", asAdmin === "HA011");
+const flagged = await applicantRow("Other Flag");
+await db.exec("begin");
+await db.query(`select set_config('fuelguard.hiring_applicant', $1, true)`, [DIRECT]);
+const wrongDriver = await sqlstate(`update drivers set status = 'active' where id = $1`, [flagged]);
+await db.exec("rollback");
+ok("HA011: the flag opens the door for its own driver only", wrongDriver === "HA011");
+const hiredThenWrite = await applicantRow("After Hire");
+// Read INSIDE the hire's transaction: a transaction-local flag vanishes at commit anyway, so only here
+// can "it closes the door behind it" be seen at all.
+await db.exec("begin");
+await hire(ORG, hiredThenWrite, "2026-09-02", "[]");
+const leftBehind = (await one(`select coalesce(current_setting('fuelguard.hiring_applicant', true), '') as f`)).f;
+await db.exec("commit");
+ok("the hire closes the door behind it, in its own transaction", leftBehind === "");
+ok("hire_applicant itself still hires", (await one(`select status from drivers where id = $1`, [hiredThenWrite])).status === "active");
+const other = await applicantRow("Not Hired");
+ok("an applicant may still be terminated or made inactive — only the hire is the hire's",
+  (await sqlstate(`update drivers set status = 'inactive' where id = $1`, [other])) === null
+  && (await sqlstate(`update drivers set status = 'terminated' where id = $1`, [await applicantRow("Ended")])) === null);
+ok("a driver who is not an applicant moves freely (inactive -> active)",
+  (await sqlstate(`update drivers set status = 'active' where id = $1`, [other])) === null);
+ok("a row inserted 'active' is a roster driver, not a hire, and is untouched",
+  (await sqlstate(`insert into drivers (org_id, full_name, status) values ($1,'Roster Driver','active')`, [ORG])) === null);
 
 // ── the function is not reachable from a browser session ───────────────────────────────────────
 ok(
