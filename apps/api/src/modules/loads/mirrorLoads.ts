@@ -62,6 +62,7 @@ function loadColumns(l: MirroredLoad, syncedAt: string): Record<string, unknown>
     trailer_id: l.trailer_id,
     dispatcher_external_id: l.dispatcher_external_id,
     customer_code: l.customer_code,
+    customer_name: l.customer_name,
     weight_lbs: l.weight_lbs,
     pieces: l.pieces,
     consignee_ref: l.consignee_ref,

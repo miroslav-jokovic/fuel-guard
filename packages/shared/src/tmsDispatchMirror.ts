@@ -63,6 +63,9 @@ export const tmsDispatchMovementSchema = z.object({
   trailer_type: text,
   commodity: text,
   customer_id: text,
+  // Q-LMR5 (0383): `customer.name`, joined on company and id. Required like every key here — a
+  // connector older than the join fails at this door by name rather than blanking a stored name.
+  customer_name: text,
   weight: z.number().nonnegative().nullable(),
   weight_um: text,
   pieces: z.number().int().nonnegative().nullable(),

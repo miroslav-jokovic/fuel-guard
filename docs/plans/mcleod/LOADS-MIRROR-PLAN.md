@@ -764,3 +764,18 @@ Append a dated line per merge. Never edit a status column.
   orders. Every routine statement was run: LME 1–8, 16, 22–24 OK; `lme_analytics` 9–21 OK (15–18
   refused yesterday). No write permission. **Q-LMR5's customer name is unblocked**; its PU # half
   still waits on the dispatcher check of candidate (a).
+- 2026-09-29 — **0383 + 0384 merged (#1124)**: `customer_name` on `mcleod_dispatch_movements` (raw, 0383)
+  and `loads` (core, 0384), nullable, no default; two files because `lint:table-modules` refuses one
+  migration across two modules. Measured first on live `lme` under the connector's login: 130 of 130
+  open movements carry a customer id, the company-matched join gives exactly one named customer each
+  (44 distinct; 238 rows on id alone), `customer.name` varchar(40), longest 37.
+- 2026-09-29 — **Q-LMR5's customer name, end to end.** `DISPATCH_LOADS` (and so the close read) LEFT JOIN
+  `customer` on company AND id; the contract REQUIRES `customer_name`, so an older connector is refused by
+  name instead of blanking a stored name; the ingest keeps it raw, the projection writes
+  `loads.customer_name`, and the API's load columns carry it. The board shows it under the load number,
+  above the dispatcher, capped at `max-w-32`: measured in the built page at 1440, an uncapped 40-character
+  name widened Load # 119 → 298 px; capped, 168 (+49, inside the 56 px LR7 left). The load page shows
+  "Customer" beside Dispatcher; search matches it. Eight mutants each killed by name — two survived first
+  (the recorder serves every column whatever the read-back asks for; every fixture sent the field) and
+  each got its own test. **`SILVICOM-READ-ROUTINE.sql` changed (statements 1 and 4): Alex receives it
+  before the VM runs it.** PU # (the other half of Q-LMR5) still waits on the dispatcher check.

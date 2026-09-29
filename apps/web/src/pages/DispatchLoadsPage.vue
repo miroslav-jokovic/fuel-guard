@@ -176,7 +176,7 @@ const filtered = computed(() => {
     .filter((load) => {
       if (!term) return true;
       const { pickup, delivery } = boardStops(load.stops);
-      return [load.ref, load.driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, placeOf(pickup), placeOf(delivery)]
+      return [load.ref, load.customer_name, load.driver_name, load.vehicle_unit, load.trailer_unit, load.dispatcher_name, load.commodity, placeOf(pickup), placeOf(delivery)]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(term));
     });
@@ -350,7 +350,11 @@ function openDetail(load: DispatchLoad) {
         <BaseButton type="button" class="font-medium text-link hover:text-link-hover" @click.stop="openDetail(row)">
           {{ row.ref }}
         </BaseButton>
-        <p class="mt-1 truncate text-xs text-ink-muted" title="Dispatcher in McLeod">{{ row.dispatcher_name ?? "No dispatcher" }}</p>
+        <!-- Q-LMR5: under the load number, not a column of its own — LR7 left the row menu 56 px from the
+             edge at 1440. Capped, because a table cell grows to its content and `truncate` alone clips
+             nothing: uncapped, McLeod's longest name (40 characters) widened this column 119 → 298 px. -->
+        <p v-if="row.customer_name" class="mt-1 max-w-32 truncate text-xs text-ink-secondary" :title="row.customer_name">{{ row.customer_name }}</p>
+        <p class="truncate text-xs text-ink-muted" :class="row.customer_name ? '' : 'mt-1'" title="Dispatcher in McLeod">{{ row.dispatcher_name ?? "No dispatcher" }}</p>
       </template>
       <template #cell-driver_name="{ row }">
         <p :class="row.driver_name ? 'text-ink' : 'text-ink-tertiary'">{{ row.driver_name ?? "No driver" }}</p>

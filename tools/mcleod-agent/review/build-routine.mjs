@@ -45,7 +45,7 @@ const PARTS = [
       "and 335 stops at a time. About 32 ms of CPU for all three.",
     ],
     statements: [
-      ["OPEN LOADS", "Movements with status P or A that have a stop scheduled in the last 30 days.", Q.DISPATCH_LOADS],
+      ["OPEN LOADS", "Movements with status P or A that have a stop scheduled in the last 30 days, with the customer's name (added 2026-09-29).", Q.DISPATCH_LOADS],
       ["THE STOPS OF THOSE LOADS", "LME stores longitudes as positive numbers; the connector flips the sign.", Q.DISPATCH_LOAD_STOPS],
       ["THE DISPATCHERS ON THOSE LOADS", "Only users with an open load right now, not the whole users table.", Q.DISPATCH_DISPATCHERS],
     ],
