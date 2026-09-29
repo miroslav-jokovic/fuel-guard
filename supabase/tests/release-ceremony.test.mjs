@@ -119,7 +119,9 @@ const ORDER = ["fcra_disclosure", "psp", "previous_employer", "drug_alcohol"];
 
 const sign = (invitation, purpose, expected = ORDER.length) =>
   db.query(
-    `select public.record_driver_release($1,$2,$3,$4,'v1',$5,$6,'Susan Godfrey','203.0.113.9','UA',$7) as r`,
+    // The 12-argument function (M2b dropped the 11) with no adoption, which records NULL exactly as the
+    // old one did; signature-adoption's matrix is where an adoption is applied.
+    `select public.record_driver_release($1,$2,$3,$4,'v1',$5,$6,'Susan Godfrey','203.0.113.9','UA',$7,null) as r`,
     [ORG, invitation, DRIVER, purpose, `Text for ${purpose}`, `I authorize ${purpose}.`, expected],
   );
 

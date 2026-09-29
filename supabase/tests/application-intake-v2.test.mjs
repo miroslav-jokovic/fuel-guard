@@ -252,13 +252,13 @@ ok("a save against the current revision increments it", s2.revision === 2);
 ok("DA041: a replay of an older copy is refused", (await save6Code(I6, D6, { a: "stale" }, 1)) === "DA041");
 ok("…and did not overwrite the newer save",
   (await one(`select payload from application_drafts where invitation_id=$1`, [I6])).payload.a === 2);
-await db.query(`select public.save_application_draft($1,$2,$3,'{"a":3}'::jsonb,'identity')`, [ORG, I6, D6]);
-ok("the old 5-argument save still works and still moves the revision (the trigger counts every writer)",
+await db.query(`update application_drafts set payload = '{"a":3}'::jsonb where invitation_id = $1`, [I6]);
+ok("a write by another path still moves the revision (the trigger counts every writer)",
   (await one(`select revision from application_drafts where invitation_id=$1`, [I6])).revision === 3);
 ok("…so a copy taken before it is now stale", (await save6Code(I6, D6, { a: 4 }, 2)) === "DA041");
-ok("the old key set resolves to exactly one function",
+ok("the old 5-argument key set resolves to nothing — M2b dropped it (42883)",
   (await code(`select public.save_application_draft(p_org => $1, p_invitation => $2, p_driver => $3, p_payload => '{}'::jsonb, p_section => null)`,
-    [ORG, I6, D6])) === null);
+    [ORG, I6, D6])) === "42883");
 const rev = (await one(`select revision from application_drafts where invitation_id=$1`, [I6])).revision;
 ok("the new key set resolves to exactly one function",
   (await code(`select public.save_application_draft(p_org => $1, p_invitation => $2, p_driver => $3, p_payload => '{}'::jsonb,

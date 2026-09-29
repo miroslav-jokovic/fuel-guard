@@ -120,16 +120,16 @@ const purge = (org, driver, actor = ADMIN) =>
 
 /**
  * An applicant with one row (at least) in every table an application writes. The invitation is
- * filed and its handbook opened, so handbook_marks' insert guard admits a mark.
+ * filed and its envelope sent (which opens the handbook, D-AW16), so handbook_marks' insert guard
+ * admits a mark.
  */
 async function seedApplicant(org, name) {
   const d = (await one(`insert into drivers (org_id, full_name, photo_path, status) values ($1,$2,$3,'applicant') returning id`,
     [org, name, `${org}/drivers/${name}.jpg`])).id;
   const inv = (await one(
-    `insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at,
-       handbook_signing_opened_at, handbook_signing_opened_by)
-     values ($1,$2,$3, now() + interval '5 days', now(), now(), $4) returning id`,
-    [org, d, randomUUID(), ADMIN])).id;
+    `insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at, signing_opened_at)
+     values ($1,$2,$3, now() + interval '5 days', now(), now()) returning id`,
+    [org, d, randomUUID()])).id;
   const adoption = randomUUID();
   await db.query(
     `insert into signature_adoptions (id, org_id, invitation_id, kind, typed_text, storage_path, sha256)

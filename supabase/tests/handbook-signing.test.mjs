@@ -62,13 +62,15 @@ const OTHER = await org("Someone else");
 const OFFICE = (await one(`insert into auth.users (email) values ('office@carrier.test') returning id`)).id;
 const DRIVER = (await one(`insert into drivers (org_id, full_name) values ($1, 'Jovana Petrović-Szczepańska') returning id`, [ORG])).id;
 
+// `sent`: the office sent the envelope (`signing_opened_at`), which opens the handbook (D-AW16). It is the
+// ONLY opening since M2b dropped the separate one (`handbook_signing_opened_at/_by`, §8.6 item 5).
 const invitation = async (over = {}) => {
-  const v = { submitted_at: "now()", opened: true, sent: false, filed: false, expires: "now() + interval '10 days'", ...over };
+  const v = { submitted_at: "now()", sent: true, filed: false, expires: "now() + interval '10 days'", ...over };
   return (await one(
     `insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at,
-       signing_opened_at, handbook_signing_opened_at, handbook_signing_opened_by, handbook_filed_at)
+       signing_opened_at, handbook_filed_at)
      values ($1, $2, md5(random()::text), ${v.expires}, ${v.submitted_at}, ${v.sent ? "now()" : "null"},
-       ${v.opened ? "now()" : "null"}, ${v.opened ? `'${OFFICE}'` : "null"}, ${v.filed ? "now()" : "null"})
+       ${v.filed ? "now()" : "null"})
      returning id`, [ORG, DRIVER])).id;
 };
 
@@ -107,16 +109,11 @@ ok("a representative who has signed nothing can be deleted",
 const LIVE = await invitation();
 ok("a driver mark on a filed application with signing open is accepted", (await mark(LIVE, "h1")) === null);
 ok("the same place twice is refused by the index (23505)", (await mark(LIVE, "h1")) === "23505");
-ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", opened: false }), "h1")) === "HB022");
-ok("before the office opens handbook signing: HB023", (await mark(await invitation({ opened: false }), "h1")) === "HB023");
+ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", sent: false }), "h1")) === "HB022");
+ok("before the office sends the envelope: HB023", (await mark(await invitation({ sent: false }), "h1")) === "HB023");
 // D-AW16 (0382): the envelope the office SENT opens the handbook — no second press.
-const ENVELOPE = await invitation({ opened: false, sent: true });
-ok("0382: sent for signing, packet filed, never opened separately — a handbook mark is accepted",
-  (await mark(ENVELOPE, "h1")) === null);
 ok("0382: sent for signing but the packet NOT filed — still HB022 (packet first, then handbook)",
-  (await mark(await invitation({ submitted_at: "null", opened: false, sent: true }), "h1")) === "HB022");
-ok("0382: neither sent nor opened — still HB023",
-  (await mark(await invitation({ opened: false, sent: false }), "h1")) === "HB023");
+  (await mark(await invitation({ submitted_at: "null" }), "h1")) === "HB022");
 ok("after the handbook is filed: HB024", (await mark(await invitation({ filed: true }), "h1")) === "HB024");
 ok("on an expired link: HB021", (await mark(await invitation({ expires: "now() - interval '1 day'" }), "h1")) === "HB021");
 const REVOKED = await invitation();
@@ -150,17 +147,14 @@ ok("deleting the invitation cannot take its handbook marks with it in silence (H
   (await sqlstate(`delete from application_invitations where id = $1`, [LIVE])) === "HB011");
 
 // ── 5. The invitation's stamps stay in order ─────────────────────────────────────────────────────
-const inv2 = await invitation({ submitted_at: "null", opened: false });
-ok("handbook signing cannot open before the application is filed (23514)",
-  (await sqlstate(`update application_invitations set handbook_signing_opened_at = now(), handbook_signing_opened_by = $2 where id = $1`, [inv2, OFFICE])) === "23514");
-const inv3 = await invitation({ opened: false });
-ok("opening names who opened it (23514 without)",
-  (await sqlstate(`update application_invitations set handbook_signing_opened_at = now() where id = $1`, [inv3])) === "23514");
-ok("the handbook cannot be filed before signing was opened (23514)",
+const inv3 = await invitation({ sent: false });
+ok("the handbook cannot be filed before the envelope was sent (23514)",
   (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3])) === "23514");
-ok("0382: …but can be filed once the envelope was sent, with no separate opening",
-  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`,
-    [await invitation({ opened: false, sent: true })])) === null);
+ok("…but can be filed once it was",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [await invitation()])) === null);
+ok("M2b: the separate opening's columns are gone (§8.6 item 5)",
+  (await one(`select count(*)::int c from information_schema.columns
+              where table_name = 'application_invitations' and column_name like 'handbook_signing_opened%'`)).c === 0);
 ok("0382: 0381's sign-code columns are gone",
   (await one(`select count(*)::int c from information_schema.columns
               where table_name = 'application_invitations' and column_name like 'sign_code%'`)).c === 0);

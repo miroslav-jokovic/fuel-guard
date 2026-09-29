@@ -134,9 +134,6 @@ ok("a JWT-bearing writer is refused (SA010)",
 const mark13 = (inv, placement, page, kind, name, version, adoption, expected = 22) =>
   db.query(`select public.record_packet_mark($1,$2,$3,$4,$5,'Signature','I agree',$6,'203.0.113.9','UA',$7,$8,$9) as r`,
     [ORG, inv, placement, page, kind, name, expected, version, adoption]);
-const mark11 = (inv, placement, page, kind, name, expected = 22) =>
-  db.query(`select public.record_packet_mark($1,$2,$3,$4,$5,'Signature','I agree',$6,'203.0.113.9','UA',$7) as r`,
-    [ORG, inv, placement, page, kind, name, expected]);
 const markCode = async (fn) => { try { await fn(); return null; } catch (e) { return e.code; } };
 
 await approveAndOpen(I1);
@@ -166,8 +163,8 @@ ok("the 13-argument function keeps 0369's refusals (DR034, the same stop twice)"
 
 // A-5 read: NULL is "the pre-versioning text" and does not refuse on its own.
 await approveAndOpen(I2);
-await mark11(I2, "p03", 3, "signature", "Marija Varmeda");
-ok("a legacy 11-argument mark still works beside the overload, and stores no version",
+await mark13(I2, "p03", 3, "signature", "Marija Varmeda", null, null);
+ok("a mark with no version (the pre-versioning text; M2b dropped the 11-argument function that made them) stores none",
   (await one(`select packet_version, adoption_id from application_packet_marks where invitation_id=$1`, [I2])).packet_version === null);
 ok("a versioned mark after a pre-versioning one is not refused by DR037",
   (await markCode(() => mark13(I2, "p10", 10, "signature", "Marija Varmeda", "pkt-v1", sigOther.id))) === null);
@@ -204,19 +201,19 @@ ok("an esign permission cannot carry a paper signing day",
 const D4 = await driver();
 const I4 = await invite(D4);
 const sig4 = await adopt(I4, D4, "signature");
-ok("record_driver_release: the old key set resolves to exactly one function",
+ok("record_driver_release: the old 11-argument key set resolves to nothing — M2b dropped it (42883)",
   (await code(`select public.record_driver_release(p_org => $1, p_invitation => $2, p_driver => $3, p_purpose => 'psp',
      p_version => 'v1', p_text => 't', p_intent => 'i', p_signed_name => 'n', p_ip => '203.0.113.9', p_user_agent => 'UA',
-     p_expected_count => 6)`, [ORG, I4, D4])) === null);
+     p_expected_count => 6)`, [ORG, I4, D4])) === "42883");
 ok("record_driver_release: the new key set resolves to exactly one function",
   (await code(`select public.record_driver_release(p_org => $1, p_invitation => $2, p_driver => $3, p_purpose => 'mvr',
      p_version => 'v1', p_text => 't', p_intent => 'i', p_signed_name => 'n', p_ip => '203.0.113.9', p_user_agent => 'UA',
      p_expected_count => 6, p_adoption_id => $4)`, [ORG, I4, D4, sig4.id])) === null);
 await approveAndOpen(I4);
-ok("record_packet_mark: the old key set resolves to exactly one function",
+ok("record_packet_mark: the old 11-argument key set resolves to nothing — M2b dropped it (42883)",
   (await code(`select public.record_packet_mark(p_org => $1, p_invitation => $2, p_placement => 'p03', p_page => 3,
      p_mark => 'signature', p_anchor => 'a', p_affirmed => 'f', p_signed_name => 'n', p_ip => '203.0.113.9',
-     p_user_agent => 'UA', p_expected_count => 22)`, [ORG, I4])) === null);
+     p_user_agent => 'UA', p_expected_count => 22)`, [ORG, I4])) === "42883");
 ok("record_packet_mark: the new key set resolves to exactly one function",
   (await code(`select public.record_packet_mark(p_org => $1, p_invitation => $2, p_placement => 'p10', p_page => 10,
      p_mark => 'signature', p_anchor => 'a', p_affirmed => 'f', p_signed_name => 'n', p_ip => '203.0.113.9',
@@ -236,9 +233,10 @@ for (const sig of NEW_SIGNATURES) {
   ok(`${name} (new signature): anon and authenticated cannot execute, service_role can`, !g.a && !g.u && g.s);
   ok(`${name} (new signature): no parameter has a default`, g.d === 0);
 }
-ok("the old signatures are kept for the deploy window (dropped in M2)",
-  (await count(`select count(*) n from pg_proc where proname = 'record_packet_mark' and pronamespace = 'public'::regnamespace`)) === 2 &&
-  (await count(`select count(*) n from pg_proc where proname = 'record_driver_release' and pronamespace = 'public'::regnamespace`)) === 2);
+ok("the old signatures are gone (M2b): one function each",
+  (await count(`select count(*) n from pg_proc where proname = 'record_packet_mark' and pronamespace = 'public'::regnamespace`)) === 1 &&
+  (await count(`select count(*) n from pg_proc where proname = 'record_driver_release' and pronamespace = 'public'::regnamespace`)) === 1 &&
+  (await count(`select count(*) n from pg_proc where proname = 'save_application_draft' and pronamespace = 'public'::regnamespace`)) === 1);
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

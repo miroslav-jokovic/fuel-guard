@@ -176,7 +176,9 @@ const markFor = (stop) => (stop[2] === "initials" ? INITIALS : SIGNATURE);
 
 const mark = (invitation, stop, name = markFor(stop), expected = STOPS.length) =>
   db.query(
-    `select public.record_packet_mark($1,$2,$3,$4,$5,$6,$7,$8,'203.0.113.9','UA',$9) as r`,
+    // The 13-argument function (M2b dropped the 11): no packet text and no adoption, which it records
+    // as NULL exactly as the old one did — this matrix is about the stops, signature-adoption's about those.
+    `select public.record_packet_mark($1,$2,$3,$4,$5,$6,$7,$8,'203.0.113.9','UA',$9,null,null) as r`,
     [ORG, invitation, stop[0], stop[1], stop[2], stop[3], stop[4], name, expected],
   );
 
