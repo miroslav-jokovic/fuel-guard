@@ -135,9 +135,9 @@ async function seedApplicant(org, name) {
     `insert into signature_adoptions (id, org_id, invitation_id, kind, typed_text, storage_path, sha256)
      values ($1,$2,$3,'signature',$4,$5,$6)`,
     [adoption, org, inv, name, `${org}/driver/${d}/${adoption}.png`, SHA]);
-  await db.query(
-    `insert into driver_applications (org_id, driver_id, invitation_id, payload, signed_name) values ($1,$2,$3,'{}',$4)`,
-    [org, d, inv, name]);
+  const app = (await one(
+    `insert into driver_applications (org_id, driver_id, invitation_id, payload, signed_name) values ($1,$2,$3,'{}',$4) returning id`,
+    [org, d, inv, name])).id;
   const auth = (await one(
     `insert into driver_authorizations (org_id, driver_id, invitation_id, adoption_id, purpose, disclosure_version,
        disclosure_text, method, signed_name, intent_statement)
@@ -211,6 +211,17 @@ async function seedApplicant(org, name) {
     `insert into application_captures (org_id, invitation_id, driver_id, slot, storage_path, content_type, sha256, promoted_document_id)
      values ($1,$2,$3,'cdl_front',$4,'image/jpeg',$5,$6)`,
     [org, inv, d, `${org}/${inv}/cdl_front.jpg`, SHA, doc]);
+  // 0387: the carrier's countersignature, citing its stamped copy — the one row here that points at a
+  // Representative, the application and a document at once, which is what fixes its place in the order.
+  const repId = (await one(
+    `insert into carrier_representatives (org_id, full_name, title, signature_path, created_by)
+     values ($1,'Rep Resentative','Safety manager',$2,$3) returning id`,
+    [org, `${org}/representatives/${randomUUID()}.png`, ADMIN])).id;
+  const cs = (await one(
+    `insert into application_packet_countersignatures (org_id, invitation_id, application_id, representative_id, recorded_by,
+       placements, source_sha256) values ($1,$2,$3,$4,$5,'{p18c,p19ac,p19bc,p22c}',$6) returning id`,
+    [org, inv, app, repId, ADMIN, SHA])).id;
+  await db.query(`update application_packet_countersignatures set document_id = $2 where id = $1`, [cs, doc]);
   await db.query(
     `insert into certifications (org_id, subject_type, subject_id, kind, effective_from, document_id)
      values ($1,'driver',$2,'cdl','2026-01-01',$3)`, [org, d, doc]);
@@ -285,6 +296,7 @@ ok("another applicant in the same org is untouched", same(await footprint(B.d, B
 const expectCounts = {
   drivers: 1, application_invitations: 1, driver_applications: 1, driver_authorizations: 2, esign_consents: 1,
   signature_adoptions: 1, application_packet_marks: 1, handbook_marks: 1, employer_verification_calls: 1,
+  application_packet_countersignatures: 1,
   employer_inquiries: 1, driver_employment_history: 1, psp_requests: 1, application_intakes: 1,
   application_intake_licences: 1, drug_test_appointments: 1, applicant_travel: 1, application_screen_events: 1,
   sms_outbox: 1, sms_consents: 1, application_edits: 1, application_drafts: 1, application_captures: 1,
@@ -330,6 +342,7 @@ const guarded = [
   ["signature_adoptions", `delete from signature_adoptions where invitation_id = $1`, "SA010", "inv"],
   ["employer_verification_calls", `delete from employer_verification_calls where invitation_id = $1`, "EV010", "inv"],
   ["handbook_marks", `delete from handbook_marks where invitation_id = $1`, "HB011", "inv"],
+  ["application_packet_countersignatures", `delete from application_packet_countersignatures where invitation_id = $1`, "PC010", "inv"],
 ];
 for (const [t, sql, code, key] of guarded) {
   const got = await asService(sql, [B[key]]);
@@ -354,6 +367,9 @@ for (const [t, sql, , key] of guarded) {
     for (const child of ["application_packet_marks", "handbook_marks", "driver_authorizations"])
       await db.query(`delete from ${child} where invitation_id = $1`, [B.inv]);
   }
+  // The countersignature points at the application (0387), so it goes first — under the same flag.
+  if (t === "driver_applications")
+    await db.query(`delete from application_packet_countersignatures where invitation_id = $1`, [B.inv]);
   const got = t === "drivers" ? "skipped" : await asService(sql, [B[key]]);
   await db.exec("rollback");
   if (t !== "drivers") ok(`with the flag naming this applicant, ${t} lets their row go`, got === "OK", `got ${got}`);

@@ -2299,6 +2299,21 @@ async function main() {
         `           select '${org}', d.id, md5(random()::text), now() + interval '10 days', now(), now() from d returning id) ` +
         `insert into handbook_marks (org_id, invitation_id, placement_id, party, handbook_version, signed_name, affirmed) ` +
         `select '${org}', i.id, 'h1', 'driver', 'hb-rls-version', 'RLS Handbook', 'RLS' from i`,
+      // 0387: a countersignature exists only on a FILED, live application whose envelope was sent, and
+      // names a Representative of its own org and the application of its own invitation (PC021..PC026).
+      application_packet_countersignatures: (org) =>
+        `with d as (insert into drivers (org_id, full_name) values ('${org}', 'RLS Countersigned') returning id), ` +
+        `     u as (insert into auth.users (id, email) values (gen_random_uuid(), 'rls-countersign@example.com') returning id), ` +
+        `     r as (insert into carrier_representatives (org_id, full_name, title, signature_path, created_by) ` +
+        `           select '${org}', 'RLS Countersigner', 'Safety manager', '${org}/representatives/rls-cs.png', u.id from u returning id), ` +
+        `     i as (insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at, ` +
+        `             signing_opened_at) ` +
+        `           select '${org}', d.id, md5(random()::text), now() + interval '10 days', now(), now() from d returning id, driver_id), ` +
+        `     a as (insert into driver_applications (org_id, driver_id, invitation_id, payload, signed_name) ` +
+        `           select '${org}', i.driver_id, i.id, '{}', 'RLS Countersigned' from i returning id, invitation_id) ` +
+        `insert into application_packet_countersignatures (org_id, invitation_id, application_id, representative_id, ` +
+        `  recorded_by, placements, source_sha256) ` +
+        `select '${org}', a.invitation_id, a.id, r.id, u.id, '{p18c,p19ac,p19bc,p22c}', repeat('a', 64) from a, r, u`,
       // ── 0376, the applicant flow v2 (APPLICATION-FLOW-V2-PLAN §8.2) ─────────────────────────────
       // Five of its nine tables carry a shape CHECK the synthesiser's placeholder text cannot meet —
       // a two-letter state, a screen slug, all five verification outcomes, a storage key that names
