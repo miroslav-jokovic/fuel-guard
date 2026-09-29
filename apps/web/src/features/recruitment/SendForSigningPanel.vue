@@ -54,11 +54,14 @@ const invite = computed(() => invitesQ.data.value?.find((i) => i.id === props.in
 const canSend = computed(() => Boolean(session.role) && rolesThatManage("recruitment").includes(session.role!));
 const result = ref<SigningSent | null>(null);
 
-/** Where the last send stands, from the invitation. `legacy`: opened on a screen before C3s3a, never sent. */
-const lastSend = computed<"none" | "legacy" | "live" | "ran_out" | "stopped">(() => {
+/**
+ * Where the last send stands, from the invitation. Both stamps, since C3s3a writes the end before it
+ * opens: an end with no opening is a send that failed half-way, and nothing was sent. (A `legacy` state
+ * for links opened on a screen before C3s3a went in M2a, §8.6 item 4 — production had none.)
+ */
+const lastSend = computed<"none" | "live" | "ran_out" | "stopped">(() => {
   const inv = invite.value;
-  if (!inv?.signing_opened_at) return "none";
-  if (!inv.sign_link_expires_at) return "legacy";
+  if (!inv?.signing_opened_at || !inv.sign_link_expires_at) return "none";
   if ((inv.unlock_failures ?? 0) >= SIGN_LINK_UNLOCK_LIMIT) return "stopped";
   return Date.parse(inv.sign_link_expires_at) <= Date.now() ? "ran_out" : "live";
 });
@@ -152,10 +155,6 @@ async function press(): Promise<void> {
           The last link stopped after {{ SIGN_LINK_UNLOCK_LIMIT }} wrong dates of birth. Check it is the
           applicant holding the phone, then send again.
         </AppCallout>
-        <p v-else-if="lastSend === 'legacy'" class="text-xs text-ink-secondary">
-          Opened on this screen {{ formatDate(invite.signing_opened_at!) }}. Signing now happens on the
-          applicant's phone: send it to them.
-        </p>
         <p v-else class="text-xs text-ink-secondary">
           Approved. When the applicant is here, send it to their phone. The link works for
           {{ SIGN_LINK_LIFETIME_HOURS }} hours.

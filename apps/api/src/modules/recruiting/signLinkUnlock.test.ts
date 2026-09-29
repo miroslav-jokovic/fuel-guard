@@ -11,8 +11,9 @@ import { unlockDraft } from "./applicationDraft.js";
  * What must hold, door by door: the sign door and the text door lapse at `sign_link_expires_at` while
  * the invite door keeps the invitation's expiry; a wrong date on a sent sign link is counted with a
  * conditional UPDATE and says how many are left; the fifth clears both travelling hashes in the SAME
- * write, never `revoked_at`, and audits; the invite door and a link opened on a screen before C3s3a
- * keep D-APP16's no-counter rule.
+ * write, never `revoked_at`, and audits; the invite door keeps D-APP16's no-counter rule. Since M2a a
+ * sign token with no end is dead (§8.6 item 4), and the text door keeps the invitation's expiry until
+ * signing is sent.
  */
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -82,9 +83,14 @@ describe("the sent sign link's 72 hours", () => {
     expect(!isIntakeError(r) && r.door).toBe("invite");
   });
 
-  it("leaves a link opened on a screen before C3s3a — no end of its own — on the invitation's expiry", async () => {
-    const r = await resolveInvitation(seed({ inv: { sign_link_expires_at: null } }).client, SIGN, after);
-    expect(!isIntakeError(r) && r.door).toBe("sign");
+  it("refuses a sign token with no end of its own, even while the invitation lives (M2a)", async () => {
+    const r = await resolveInvitation(seed({ inv: { sign_link_expires_at: null } }).client, SIGN, NOW);
+    expect(isIntakeError(r) && r.code).toBe("invalid_link");
+  });
+
+  it("leaves the text door on the invitation's expiry until signing is sent — the application's texts carry it", async () => {
+    const r = await resolveInvitation(seed({ inv: { sign_link_expires_at: null } }).client, TEXT, after);
+    expect(!isIntakeError(r) && r.door).toBe("text");
   });
 
   it("names the door each token came through", async () => {
@@ -183,9 +189,9 @@ describe("links that keep D-APP16's rule", () => {
     expect(invitationWrites(rec)).toHaveLength(0);
   });
 
-  it("counts nothing on a sign link opened on a screen before C3s3a", async () => {
+  it("counts nothing on a text link before signing is sent", async () => {
     const rec = seed({ inv: { sign_link_expires_at: null } });
-    const r = await unlockDraft(rec.client, SIGN, "1980-04-02", NOW);
+    const r = await unlockDraft(rec.client, TEXT, "1980-04-02", NOW);
     expect(!isIntakeError(r) && r.attemptsLeft).toBeUndefined();
     expect(invitationWrites(rec)).toHaveLength(0);
   });

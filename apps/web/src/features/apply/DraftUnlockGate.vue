@@ -48,7 +48,7 @@ async function unlock(): Promise<void> {
     if (res.draft.locked) {
       failed.value = true;
       attemptsLeft.value = res.draft.attemptsLeft ?? null;
-    } else emit("unlocked", { payload: res.draft.payload ?? {}, partOne: res.draft.partOne ?? null, revision: res.draft.revision ?? null });
+    } else emit("unlocked", { payload: res.draft.payload ?? {}, partOne: res.draft.partOne ?? null, revision: res.draft.revision });
   } catch (e) {
     if ((e as { code?: string }).code === "sign_link_locked") stopped.value = true;
     else failed.value = true;

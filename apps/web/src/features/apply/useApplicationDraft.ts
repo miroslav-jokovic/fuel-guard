@@ -55,16 +55,19 @@ export function useApplicationDraft(
   options: {
     enabled: Ref<boolean>;
     section?: Ref<string | null>;
-    /** The revision last read or saved; null (an API from before C3d1b) sends none. The caller sets it on restore. */
-    revision?: Ref<number | null>;
+    /**
+     * The revision last read or saved. The caller sets it on restore; null until then, and no save goes
+     * out while it is null — a save must name the revision it was typed on (required since M2a).
+     */
+    revision: Ref<number | null>;
     /** Where the device copy lives; null keeps none. */
     local?: Ref<LocalCopySpec | null>;
-  } = { enabled: ref(true) },
+  },
 ) {
   const state = ref<DraftSaveState>("idle");
   const savedAt = ref<string | null>(null);
   const notice = ref<DraftReplayNotice>(null);
-  const revision = options.revision ?? ref<number | null>(null);
+  const revision = options.revision;
   /**
    * Counts changes. A save may delete the phone's copy only if nothing changed after it was SENT — not
    * merely if no second save was asked for yet: a change typed while it was in flight is on the phone
@@ -117,7 +120,7 @@ export function useApplicationDraft(
 
   async function flush(): Promise<void> {
     timer = null;
-    if (!options.enabled.value || !token.value || state.value === "conflict") return;
+    if (!options.enabled.value || !token.value || state.value === "conflict" || revision.value === null) return;
     if (inFlight) {
       dirtyWhileSaving = true;
       return;

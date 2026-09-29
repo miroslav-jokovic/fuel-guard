@@ -31,9 +31,9 @@ describe("the unlock gate", () => {
   });
 
   it("treats an unlocked answer with no body as nothing to resume, never as a wrong date", async () => {
-    const w = await answer({ locked: false, payload: null });
-    // No revision served (an API from before C3d1b): null, which asks the server for no check.
-    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null, revision: null });
+    const w = await answer({ locked: false, payload: null, revision: 0 });
+    // Revision 0: nothing saved yet, which the first save names as its expectation.
+    expect(w.emitted("unlocked")![0]![0]).toEqual({ payload: {}, partOne: null, revision: 0 });
     expect(w.text()).not.toContain(APPLY_COPY.unlock.failed);
   });
 

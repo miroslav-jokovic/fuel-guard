@@ -679,7 +679,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Sus" }, section: "identity" }),
+      body: JSON.stringify({ payload: { first_name: "Sus" }, section: "identity", revision: 0 }),
     });
     expect(res.status).toBe(200);
     // Half-typed and invalid against §391.21's schema, and saved anyway — a form that will not save
@@ -694,7 +694,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan", ssn: "123456789" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan", ssn: "123456789" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(400);
     expect(rec.rpcs()).toHaveLength(0);
@@ -705,7 +705,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(409);
     expect(rec.rpcs()).toHaveLength(0);
@@ -715,7 +715,7 @@ describe("the saved draft", () => {
     holder.client = seed(null).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: {}, section: null }),
+      body: JSON.stringify({ payload: {}, section: null, revision: 0 }),
     });
     const unlocked = await call(`/${TOKEN}/unlock`, {
       method: "POST",
@@ -765,7 +765,7 @@ describe("the ESIGN consent", () => {
       holder.client = seed({ consented_at: null }).client;
       const saved = await call(`/${TOKEN}/draft`, {
         method: "PUT",
-        body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+        body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
       });
       expect(saved.status).toBe(200);
     });
@@ -784,7 +784,7 @@ describe("the ESIGN consent", () => {
     holder.client = seed({ consented_at: null }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     const sent = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
     const signed = await call(`/${TOKEN}/release`, {
@@ -801,7 +801,7 @@ describe("the ESIGN consent", () => {
     holder.client = seed({ consented_at: "2026-08-21T09:00:00Z" }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(saved.status).toBe(200);
   });
@@ -1071,7 +1071,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(409);
     expect(await refusal(res)).toBe("esign_consent_required");
@@ -1116,7 +1116,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
     holder.client = rec.client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     const signed = await call(`/${TOKEN}/release`, {
       method: "POST",
