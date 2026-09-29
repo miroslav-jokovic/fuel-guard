@@ -757,3 +757,10 @@ Append a dated line per merge. Never edit a status column.
   `MCLEOD_SQL_SERVERNAME=APPNEW` and remove `MCLEOD_SQL_ENCRYPT=false` in its `.env`. **The close
   backlog is 293** (289 D, 4 V of 303 open, 2026-09-28), not ~181; the query that produces the ids
   file is in the connector README.
+- 2026-09-29 — **Alex ran the six remaining grant lines**: `customer (company_id)` on LME, and
+  `movement`, `movement_order`, `orders`, `stop`, `users` on `lme_analytics`. Checked the same day
+  under `silvicom_dispatch_ro`, encrypted: LME `customer` column grants id/name/city/state_id/
+  company_id = 1, whole table 0; the company-matched join finds one customer for each of 132 open
+  orders. Every routine statement was run: LME 1–8, 16, 22–24 OK; `lme_analytics` 9–21 OK (15–18
+  refused yesterday). No write permission. **Q-LMR5's customer name is unblocked**; its PU # half
+  still waits on the dispatcher check of candidate (a).

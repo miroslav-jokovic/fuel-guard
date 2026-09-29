@@ -1,5 +1,13 @@
 # The read routine, for the carrier's review
 
+> **2026-09-29 — every grant has run.** Alex ran the six "not yet run" lines. Checked the same day
+> under `silvicom_dispatch_ro`, encrypted, statement by statement: on LME `customer` reads exactly
+> `id, name, city, state_id, company_id` (never the whole table), and joined on company and id all
+> 132 open orders find one customer each; statements 1–8, 16 and 22–24 run. On `lme_analytics` all
+> sixteen finance and movement tables read and statements 9–21 run (15 in 3.2 s, the slowest). The
+> finance statements are still refused on LME, as agreed: they go there after one analytics night.
+> No INSERT, UPDATE or DELETE anywhere. The script's markers now say "run 2026-09-29".
+>
 > **2026-09-28 — the grants ran, and the check below was wrong.** Alex ran `SILVICOM-GRANTS.sql`,
 > fixing `customer (…, state)` to `state_id`. "Reads exactly the eleven finance tables" counted the
 > finance TABLES, not what the finance STATEMENTS join: 15–18 also read `movement`,

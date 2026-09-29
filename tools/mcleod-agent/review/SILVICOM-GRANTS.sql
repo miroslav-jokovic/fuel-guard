@@ -1,5 +1,5 @@
 -- ========================================================================================
--- Silvicom 360 - grants for silvicom_dispatch_ro (2026-09-25, corrected 2026-09-28)
+-- Silvicom 360 - grants for silvicom_dispatch_ro (2026-09-25, corrected 2026-09-28, all run 2026-09-29)
 --
 -- SELECT only. No INSERT, UPDATE, DELETE, EXECUTE or schema permission, and no SHOWPLAN.
 --
@@ -25,7 +25,11 @@
 --     read movement, movement_order, orders, stop and users. On LME the login already has
 --     them; on lme_analytics it did not, so those four statements were refused there. Five
 --     lines, Part 2, marked below.
--- Only the lines marked "not yet run" are new; running the whole file again is harmless.
+-- 2026-09-29: Alex ran those six lines. Checked the same day under silvicom_dispatch_ro,
+-- encrypted: on LME the customer join matches on company_id (132 open orders, one customer
+-- each) and statements 1-8, 16 and 22-24 run; on lme_analytics all sixteen tables read and
+-- statements 9-21 run, 15 to 18 included. Still no write permission anywhere.
+-- Nothing in this file is waiting to be run; running the whole file again is harmless.
 -- ========================================================================================
 
 
@@ -40,7 +44,7 @@ GRANT SELECT ON dbo.reference_number TO silvicom_dispatch_ro;
 -- customer: only these columns. No credit, billing or contact fields.
 GRANT SELECT ON dbo.customer (id, name, city, state_id) TO silvicom_dispatch_ro;
 
--- Added 2026-09-28, not yet run: company_id, so the customer join can match the company.
+-- Added 2026-09-28, run 2026-09-29: company_id, so the customer join can match the company.
 GRANT SELECT ON dbo.customer (company_id) TO silvicom_dispatch_ro;
 GO
 
@@ -66,7 +70,7 @@ GRANT SELECT ON dbo.fuel_detail      TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.fuel_detail_hist TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.equipment_item   TO silvicom_dispatch_ro;
 
--- Added 2026-09-28, not yet run. The same five tables the login already reads on LME, and
+-- Added 2026-09-28, run 2026-09-29. The same five tables the login already reads on LME, and
 -- only needed here, on lme_analytics: statements 15 to 18 join them.
 GRANT SELECT ON dbo.movement         TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.movement_order   TO silvicom_dispatch_ro;
