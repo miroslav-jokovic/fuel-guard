@@ -158,13 +158,170 @@ HB1–HB5 ship in ONE merge after 0374 is visible in production, as RT1–RT3 di
 
 ---
 
+## 6. Q-HB1 — the Representative signs the packet's four carrier lines (DESIGN, 2026-09-29)
+
+**Status: APPROVED (owner, 2026-09-29: Q-HB3 (a), Q-HB4 yes).** Q-HB1 was ruled yes on 2026-09-29, and the
+owner asked for the design before any build. D-HB7..D-HB10 below are ruled as written. Every "today" fact below was read at the call site on `main` `bc0ca4e`
+or measured on production the same day. Nothing is built.
+
+### 6.1 What was measured
+
+- **Production:** 0 filed applications, 0 filed packet documents, 1 Representative, 0 handbook marks
+  (read-only, 2026-09-29). So nothing is frozen yet and nothing is in flight.
+- **The carrier lines were NOT measured before today.** The handoff said their geometry was already
+  in `packetSigningGeometry.ts`, but it isn't. That file only *names* them, as what stays blank.
+  `packetMarkGeometry.ts` holds only the driver's lines. Measured today from the template's own rules,
+  then drawn in magenta with cyan span ticks, rasterised at 110 dpi and looked at:
+
+  | Place | Page | Signature rule (x1–x2, y) | Date rule | Notes |
+  |---|---|---|---|---|
+  | `p18c` | 18 | 205.7–553.2, y 110.3 | none | ~23 pt above the carrier's footer |
+  | `p19ac` | 19 | 205.7–412.2, y 492.7 | 463.7–553.2, y 492.7 | `Date:` label at x 414 |
+  | `p19bc` | 19 | 205.7–553.2, y 157.4 | none | |
+  | `p22c` | 22 | 50.9–309.0, y 157.4 | **412.1–553.2, y 141.2** | caption *under* the rule |
+
+  ⚠ **Looking caught one thing reading could not.** `p22c`'s `Date` rule is not level with its
+  signature rule, as on the other pages. It sits beside the `Date` caption, 16 pt lower. A date
+  placed level with the signature floated in blank space. Every coordinate above is still a
+  candidate: the build draws them again on a real filed packet (with its withdrawal notices) and
+  looks at them again, with a long non-ASCII name.
+- **Three of the four lines sit beside a driver line that reads "Not signed here."** Page 19's
+  `p19a`/`p19b` (D-MVR1) and page 22's `p22` (D-PKT19) are withdrawn, and the filed packet prints
+  *"Not signed here. Signed electronically as its own permission."* on them. Only `p18c` sits beside a
+  real packet signature, the single-licence certification. See Q-HB3.
+- **The packet is filed once, at certification** (`file.ts` `ensureApplicationPdf`). Its three
+  readers all go through that one function: the submit path, the office's
+  `GET /drivers/:id/application` (`applicationInvites.ts`) and the driver's own copy
+  (`applicationCopy.ts`). The §391.51(b)(1) `qualification_records` row cites the document, and
+  `attach_application_document` writes the citation only where it is null.
+- **Nothing in Part 391 or 383 makes the carrier's countersignature a condition of the application.**
+  §391.21(a) asks the APPLICANT to complete and sign it. The counsel memorandum mentions the carrier
+  lines once (its page table: *"The applicant is not asked to sign those"*) and asks nothing about
+  them. So the regulation does not set the timing. The design is free to choose it, and the choice
+  should not delay the applicant's filing.
+
+### 6.2 The frozen-file problem: the three options, measured
+
+| | (a) Hold the filing until the office countersigns | (b) File a second copy, countersigned | (c) Countersign only in the handbook's filing |
+|---|---|---|---|
+| The four packet lines | Signed | Signed | **Blank forever.** The ruling isn't met |
+| Driver's copy right after filing | Must refuse, or render and freeze it blank. `applicationCopy.ts` renders on demand | Unchanged | Unchanged |
+| D-APP9 "heals on the next read" | Broken: every read before the countersign would file it | Unchanged | Unchanged |
+| A rejected applicant | §391.51(b)(1) record without a document, possibly forever | Keeps the driver's filing | Same |
+| `qualification_records` / `RETENTION_FORBIDDEN` | Citation delayed, not changed | Untouched. The second copy is cited by a new evidence row (§6.4) | Untouched |
+| Changes D-AW16 | Yes: certification no longer files the packet | No | No |
+
+**Recommendation: (b), with one refinement that matters: STAMP, don't re-render.** The countersigned
+copy is made by loading the **filed bytes** of the driver's packet and drawing the four carrier marks
+onto them with `pdf-lib`. It is not rendered again from the evidence. Rendering again would use
+*that day's* renderer. Any change between filing and countersign (a spelling patch like D-PKT20, an
+overlay fix) would then make the second copy differ from the first in more than the four lines. Two
+"copies" of a federal record that disagree is F6's objection (`preview.pdf` refuses for exactly that
+reason). Stamping makes the difference provable: the countersignature row stores the SHA-256 of the
+bytes it stamped, and a test proves that every page's text other than the four lines is unchanged.
+
+A side effect: **the frozen-file deadline stops applying to Q-HB1.** The driver's filing never carries
+the carrier lines, so it doesn't matter whether this ships before or after the first real applicant
+files. Their packet can be countersigned whenever the office acts.
+
+### 6.3 When: one act with the handbook countersign (proposed D-HB7)
+
+The handbook drawer's **Countersign** press becomes *"Countersign for Silvicom Inc"*. With ONE chosen
+Representative it signs `h4c` **and** the four packet lines, in that order inside the existing
+filing claim (`handbook_filing_claimed_at`, A-10):
+
+1. record the packet countersignature row (§6.4). A retry keeps the Representative already recorded,
+   as `h4c`'s retry does;
+2. stamp and file the countersigned packet, and write its document id onto the row;
+3. only then, record `h4c`, file the handbook and stamp `handbook_filed_at`, as today.
+
+Why together rather than a second press:
+- It is the same act by the same person, and D-HB3's Representatives are exactly who signs these
+  lines. Two presses would mean two Representative choices that can disagree.
+- D-AW16's envelope already puts the driver's packet and handbook in one session, so the packet
+  countersign waits hours at most, not days.
+- **It answers the hire gate without a new gate** (§6.6).
+
+The cost is that a packet can't be countersigned for an applicant who never signs the handbook. That's
+correct: the carrier never took them on. Their filed packet keeps its blank lines, the true record.
+
+### 6.4 Where the mark is stored: a new table, not either existing one (proposed D-HB8)
+
+- **Not `application_packet_marks`.** Its guard raises DR033 once `submitted_at` is set, and that is
+  the packet's closing seal. Loosening it for `party = 'carrier'` would weaken the one guard that
+  says a filed packet takes no more marks from anyone.
+- **Not `handbook_marks`.** Its placement CHECK is `^h[0-9]+[a-z]?$`, and its guard's order (HB022–
+  HB024) is the handbook's. Packet ids in it would need both changed, and the table's name would lie.
+- **New `application_packet_countersignatures`**: ONE row per invitation (unique), because the four
+  lines are one act with one signature:
+  `org_id`, `invitation_id`, `application_id`, `representative_id` (FK **on delete restrict**, so
+  deleting a Representative who signed is refused with 23001, which `representatives.ts` already maps
+  to 409 `has_signed`), `recorded_by`, `signed_at`, `placements text[]` (the carrier ids signed,
+  derived from `PACKET_PLACEMENTS` `party = 'carrier'`, so a future ruling that withdraws one is
+  recorded, not assumed), `source_sha256` (the driver's filing it stamped), `document_id` (null until
+  step 2; written once, by a guarded `null → value` update only), `signed_ip`, `signed_user_agent`.
+  RLS on, no client policies. Append-only apart from that one write, including against a cascade
+  (HB011's pattern). Pinned in `RETENTION_FORBIDDEN`. A guard refuses a row unless the invitation is
+  filed, handbook signing is open and the handbook is not yet filed (h4c's own order).
+  ⚠ Check `merge_driver`'s list (memory `merge-driver-cascade-trap`).
+- **Readers:** `ensureApplicationPdf` answers with the countersigned copy once the row has a
+  `document_id`, and the driver's filing before that. That one change covers all three readers: the
+  office download, the driver's copy and the submit path. The §391.51(b)(1) record keeps citing the
+  driver's filing, because that is the applicant's instrument and the citation is never rewritten.
+  ⚠ The DQ-file export resolves documents through that record, so the build must measure whether it
+  prints the driver's copy and route it through the same resolution. Otherwise the auditor's copy
+  is the one with blank lines.
+
+**Migrations (deploy window):** the table + guard ship ALONE (as 0374 did). The writer and readers
+follow in one merge after it is visible in production. The invariant *"`handbook_filed_at` set ⇒ a
+countersignature with a document"* is a THIRD, small migration after the writer is live. Shipped
+with the table, it would refuse every handbook countersign the old code attempts in the window.
+Production holds 0 handbook marks, so no real handbook would be affected, but the rule is the rule.
+
+### 6.5 What prints (proposed D-HB9)
+
+Stamped onto each of the four lines, with the Representative stored on the row:
+- **the Representative's signature PNG** (D-HB3's upload) on the rule, scaled to the rule's height
+  as the driver's drawn mark is;
+- **a 7 pt caption**: *"<Name>, <Title> · applied by <office user> · MM/DD/YYYY"*. The handbook
+  prints who applied the signature on every page, and the packet has no certificate page, so the
+  caption is how the same fact reaches the paper. It goes below the rule where there is room
+  (`p18c`, `p19ac`, `p19bc`) and to the right of the signature inside the rule's span on `p22c`, whose
+  own caption sits under the rule. Where each goes is measured by rendering, not decided here;
+- **the date** on the carrier's own `Date` rule where the page has one (`p19ac`, `p22c`). It's the
+  countersign's calendar day in the carrier's zone, MM/DD/YYYY from the one definition (memory
+  `dates-are-mmddyyyy-from-one-definition`).
+- Names go through the overlay's embedded Unicode font (the standard fonts can't encode `ć`; today's
+  probe proved it by crashing). The witness line `p22w` stays blank. It is neither party's.
+
+### 6.6 The hire gate (proposed D-HB10)
+
+**No new gate, and no new step.** `handbook` is already in `HIRE_REFUSES_WITHOUT`. Under §6.3 a filed
+handbook implies a countersigned packet, and the third migration makes that true in the database,
+not just in the code order. The checklist's handbook step reads *"Countersigned for the carrier"*
+only when both exist. The one exception is an application filed as the §391.21 **summary** (no packet
+marks, no carrier lines). Its countersign stamps nothing, and the row records `placements = '{}'`,
+so the invariant still holds and says why.
+
+---
+
 ## 7. Open questions
 
 - **Q-HB1 · Should the Representatives also sign the packet's four blank carrier lines (`p18c`,
   `p19ac`, `p19bc`, `p22c`)?** They are the same act by the same people, and they print blank on every
   filed packet today. *Recommendation:* yes, as its own step after HB5 (it touches the filed packet's
   renderer, which is frozen per filing, so it needs its own design).
-  **RULED yes by the owner 2026-09-29**, as its own step (APPLICATION-FLOW-V2-PLAN §12).
+  **RULED yes by the owner 2026-09-29**, as its own step (APPLICATION-FLOW-V2-PLAN §12). Design in
+  §6, awaiting approval before any build.
+- **Q-HB3 · Should the carrier countersign the three lines beside a withdrawn driver line (`p19ac`,
+  `p19bc`, `p22c`)?** The driver's line on those pages reads *"Not signed here. Signed electronically
+  as its own permission."* (a) Sign all four, as ruled. The carrier's line acknowledges the
+  authorization it relies on, and the notice beside it already says where the driver signed. (b) Sign
+  `p18c` only and print a notice on the other three. *Recommendation:* (a). It is what was ruled, and
+  a carrier signature under a release the carrier did receive asserts nothing false.
+  **RULED (a) by the owner 2026-09-29.**
+- **Q-HB4 · Approve §6: (b)-by-stamping, one act with the handbook countersign, the new table, the
+  caption, no new gate?** *Recommendation:* yes, as written. **RULED yes by the owner 2026-09-29.**
 - **Q-HB2 · When the handbook is amended, must hired drivers re-sign?** Its own text says amendments
   *"shall become effective 5 calendar days after delivery"*. *Recommendation:* not in this build. A
   later step can offer the new version to the driver app.
@@ -242,3 +399,11 @@ HB1–HB5 ship in ONE merge after 0374 is visible in production, as RT1–RT3 di
   · **Owed by the office before the first real handbook:** add at least one Representative with a
     signature PNG from the Handbook step's drawer. Then walk one applicant: open handbook signing,
     sign the five places on the link, and countersign.
+- **2026-09-29** — **Q-HB1 design written (§6), nothing built.** Production checked first: both
+  services at `bc0ca4e`, schema 0386 applied, 0 filed packets. The carrier lines' geometry was
+  measured today for the first time (the handoff believed it existed), and drawing it found `p22c`'s
+  date rule 16 pt below its signature rule. Recommended: a second, countersigned copy made by
+  stamping the filed bytes, one act with the handbook countersign, a new one-row-per-invitation table,
+  no new hire gate. Q-HB3 and Q-HB4 await the owner.
+- **2026-09-29** — **Q-HB3 ruled (a), Q-HB4 yes** (owner): D-HB7..D-HB10 stand as written in §6. Build
+  order: the table alone (QH0), then the writer and readers (QH1), then the invariant (QH2).

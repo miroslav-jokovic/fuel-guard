@@ -2054,3 +2054,5 @@ Append dated lines at the END.
     the rest of the session — the one state a fresh pooled connection in production is in. A case before the first
     hire now proves NULL is closed. `purge-applicant`'s "a hired driver is refused" now hires through
     `hire_applicant` rather than writing `status`.
+- **2026-09-29** — #1130 merged (`bc0ca4e`); 0386 verified applied; both services at `bc0ca4e`.
+  Q-HB1's design is HANDBOOK-SIGNING-PLAN.md §6 (Q-HB3/Q-HB4 await the owner).
