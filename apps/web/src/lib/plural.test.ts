@@ -111,7 +111,6 @@ const EXPECTED: Record<string, string> = {
   dispatchers: "dispatcher",
   drivers: "driver",
   entries: "entry",
-  events: "event",
   files: "file",
   "fill-ups": "fill-up",
   fills: "fill",

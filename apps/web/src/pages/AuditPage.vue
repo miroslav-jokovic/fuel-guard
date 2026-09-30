@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useRoute } from "vue-router";
+import { AUDIT_LOG_PAGE_SIZE as PAGE_SIZE } from "@silvicom/shared";
 import { useAuditQuery, type AuditFilters } from "@/features/audit/useAudit";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -34,7 +35,6 @@ const route = useRoute();
 const tab = ref<AuditTab>(route.query.tab === "cards" ? "cards" : "activity");
 const cardFilter = computed(() => (typeof route.query.cardId === "string" ? route.query.cardId : undefined));
 
-const PAGE_SIZE = 50;
 const filters = ref<AuditFilters>({});
 const page = ref(1);
 const cursors = ref<(string | null)[]>([null]);
@@ -48,7 +48,6 @@ watch(filters, () => {
 watch(() => auditPage.value?.nextCursor, (next) => {
   if (next && cursors.value.length === page.value) cursors.value.push(next);
 });
-const total = computed(() => auditPage.value?.total ?? 0);
 const pageRows = computed(() => auditPage.value?.rows ?? []);
 
 /** Two-way proxy for the action search ("" ⇄ undefined). */
@@ -97,11 +96,10 @@ const columns: DataTableColumn[] = [
     </div>
 
     <div v-else id="audit-panel-activity" role="tabpanel" aria-labelledby="audit-tab-activity" class="space-y-6">
+    <!-- No count, by Q-SET5: it was a scan of the org's ~5 M rows on every load and keystroke. -->
     <FilterBar
       v-model:search="search"
       search-placeholder="Search by action (e.g. invite, anomaly, threshold)"
-      :count="total"
-      count-label="events"
     />
 
     <DataTable
@@ -121,10 +119,12 @@ const columns: DataTableColumn[] = [
       </template>
       <template #footer>
         <TablePagination
-          v-if="total > 0"
+          v-if="pageRows.length > 0 || page > 1"
           :page="page"
           :page-size="PAGE_SIZE"
-          :total="total"
+          :total="null"
+          :has-next="auditPage?.hasNext ?? false"
+          :page-rows="pageRows.length"
           :loading="isFetching"
           :jumpable="false"
           @update:page="page = $event"

@@ -125,7 +125,7 @@ policy is live (`lint:migration-ordering`).
 
 ---
 
-## 5. Questions (all four ruled by the owner, 2026-09-30)
+## 5. Questions (all five ruled by the owner, 2026-09-30)
 
 - **Q-SET1 · Which Settings screens stay admin-only, never offered to anyone?**
   - *(a)* Users, Permissions, Card control, EFS integration.
@@ -184,6 +184,23 @@ policy is live (`lint:migration-ordering`).
     bare domain (`example.com`). A stored entry is compared to the email's domain part exactly, so a
     typed `@example.com` would have matched nobody and refused every invitation.
 
+- **Q-SET5 · Does the Audit log keep its exact total?** OPEN, found building SP4 (2026-09-30). The page
+  shows "N events" and "of N", which PostgREST computes with `count: "exact"` on every load and every
+  keystroke of the search. Measured in production the same day: `audit_logs` holds 5,064,662 rows for
+  one org (242 for the other), 1.2 GB. The count is a parallel sequential scan of the whole table,
+  3.2 s warm and **36.9 s cold** (127 k buffers read from disk; the database is Micro and swapping).
+  Under `authenticated` it already runs into the 8 s `statement_timeout`. Through the API it would run
+  as the service role, which has **no** timeout.
+  - *(a)* Keep the exact count. That is a 1.2 GB scan per page load, with no timeout to stop it.
+  - *(b)* Drop it. The pager says "Showing 51–100" and pages on `hasNext`, the way it already decides
+    whether there is a next page (one row over the page size).
+  - *(c)* An estimate (`count: "planned"`), labelled "about". It is cheap, but it is the planner's guess
+    for the whole org and says nothing true once a search is typed.
+  - *Recommendation: **(b)**.* Nobody acts on the number, and it is the most expensive thing the page
+    does. SP4's PR 1 is built as (b), and waits on this ruling before it merges.
+  - **Ruled (b), 2026-09-30** (owner: *"proceed as proposed"*). The same ruling reopened the
+    lifecycle plan's Q1 on the 5.06 M rows behind the count (DATA-LIFECYCLE-PLAN.md §7).
+
 ---
 
 ## 6. Progress log
@@ -240,3 +257,22 @@ Append a dated line per step. Never edit §3.
   deploy of `e3be0dc` had also failed ("failed to fetch snapshot", Railway's builders), leaving web on
   `15e875a`; the next deploy replaces it. SP4 (Audit log through the API) is next —
   HANDOFF-2026-09-30-SP4.md.
+- **2026-09-30** — SP3 live: both services on `247ba66` with schema 0389 `current`. Production
+  `pg_policies` on the five tables holds only the `*_select` policies and anomaly_thresholds' three
+  restrictive driver policies (re-read 15:05 UTC). Still owed: one real Organization save as the admin,
+  which needs the owner (no admin login here). No save has reached `organizations` since 0389.
+- **2026-09-30** — SP4 PR 1 built (no migration): `GET /api/audit/log` on the org module's
+  `auditRouter`, behind `requireSection("settings", "view")` and `requireSurface("admin.settings.audit")`.
+  It is a service-role read filtered on the caller's org. `auditLogContract.ts` holds the row, the query
+  and the page. The cursor is parsed to a timestamp and a uuid before it reaches the `or=` filter, and a
+  typed `%` or `_` in the search is escaped. `useAudit.ts` calls `apiFetch`. Built as Q-SET5 (b): no
+  total, and `TablePagination` gained an uncounted mode (`total: null` plus `hasNext`); its 75 counted
+  callers are unchanged. `auditLog.test.ts` covers the admin; each `settings` holder refused until
+  granted and then reading; each outsider refused by the section gate; paging, the exact-page edge,
+  the prefix and escaping; and four malformed cursors. `AuditPage.test.ts` covers the empty, refused
+  and next-page states. 15 API mutants and 7 web mutants killed. One more web mutant was a no-op: a
+  guard behind a button that was already disabled. The guard was deleted.
+- **2026-09-30** — Owner ruled Q-SET5 (b) (§5). Researching the count's cost found that 5,059,909 of
+  the table's 5,064,904 rows are pre-0352 `vehicle.update`/`driver.update` rows with no actor and
+  `meta = '{}'`. The owner reopened the lifecycle plan's Q1 and ruled (b): archive those rows, then
+  drop them with L7. See DATA-LIFECYCLE-PLAN.md. SP4 PR 2 (drop `audit_select`) is unaffected.
