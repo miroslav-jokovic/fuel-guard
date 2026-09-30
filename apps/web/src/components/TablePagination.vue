@@ -7,20 +7,40 @@ import {
 import { computed, ref, watch } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 
+/**
+ * `total: null` is a keyset-paged list that does not count its rows — the Audit log, where counting
+ * was a scan of a 5 M-row table (Q-SET5). It pages on `hasNext` and `pageRows` instead, and says
+ * "Showing 51–100" with no "of"; there are no page numbers to jump to without a total.
+ */
 const props = withDefaults(
-  defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean; jumpable?: boolean }>(),
-  { pageSize: 20, loading: false, jumpable: true },
+  defineProps<{
+    page: number;
+    pageSize?: number;
+    total: number | null;
+    /** Uncounted mode only: whether a page follows this one. */
+    hasNext?: boolean;
+    /** Uncounted mode only: rows on this page. */
+    pageRows?: number;
+    loading?: boolean;
+    jumpable?: boolean;
+  }>(),
+  { pageSize: 20, hasNext: false, pageRows: 0, loading: false, jumpable: true },
 );
 const emit = defineEmits<{ "update:page": [n: number] }>();
 
-const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
-const from = computed(() => (props.total === 0 ? 0 : (props.page - 1) * props.pageSize + 1));
-const to = computed(() => Math.min(props.page * props.pageSize, props.total));
+const counted = computed(() => props.total !== null);
+const totalPages = computed(() => (props.total === null ? null : Math.max(1, Math.ceil(props.total / props.pageSize))));
+const shown = computed(() => props.total ?? (props.page - 1) * props.pageSize + props.pageRows);
+const from = computed(() => (shown.value === 0 ? 0 : (props.page - 1) * props.pageSize + 1));
+const to = computed(() => Math.min(props.page * props.pageSize, shown.value));
 const canPrev = computed(() => props.page > 1);
-const canNext = computed(() => props.page < totalPages.value);
+const canNext = computed(() => (totalPages.value === null ? props.hasNext : props.page < totalPages.value));
 
 const go = (n: number) => {
-  if (n >= 1 && n <= totalPages.value && n !== props.page) emit("update:page", n);
+  if (n < 1 || n === props.page) return;
+  // Uncounted, only Prev/Next reach this, and Next is disabled without `hasNext`.
+  if (totalPages.value !== null && n > totalPages.value) return;
+  emit("update:page", n);
 };
 
 // "Jump to page" input. Editable draft mirrors the current page; committing (Enter/blur) parses and
@@ -34,7 +54,7 @@ watch(
 );
 const commitJump = () => {
   const n = Math.trunc(Number(draft.value));
-  if (Number.isFinite(n) && n >= 1 && n <= totalPages.value) go(n);
+  if (totalPages.value !== null && Number.isFinite(n) && n >= 1 && n <= totalPages.value) go(n);
   draft.value = String(props.page); // reset invalid/out-of-range input back to the actual page
 };
 
@@ -43,14 +63,14 @@ const commitJump = () => {
 <template>
   <div class="flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6">
     <p class="text-sm text-ink-secondary">
-      <template v-if="total > 0">
+      <template v-if="shown > 0">
         Showing <span class="font-medium">{{ from }}</span>–<span class="font-medium">{{ to }}</span>
-        of <span class="font-medium">{{ total }}</span>
+        <span v-if="counted"> of <span class="font-medium">{{ total }}</span></span>
       </template>
       <template v-else>No results</template>
     </p>
     <div class="flex items-center gap-3">
-      <label v-if="totalPages > 1 && jumpable" class="hidden items-center gap-1.5 text-sm text-ink-muted sm:flex">
+      <label v-if="totalPages !== null && totalPages > 1 && jumpable" class="hidden items-center gap-1.5 text-sm text-ink-muted sm:flex">
         <span>Page</span>
         <input
           type="number"

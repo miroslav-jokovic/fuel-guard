@@ -5,6 +5,7 @@ export * from "./fillAttribution.js";
 export * from "./auth.js";
 export * from "./inviteLink.js";
 export * from "./apiContract.js";
+export * from "./auditLogContract.js";
 export * from "./hazmatApi.js";
 export * from "./hazmatLifecycle.js";
 export * from "./hazmatReview.js";

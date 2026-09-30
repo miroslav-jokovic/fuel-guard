@@ -612,7 +612,7 @@ trustworthy document in the repo.
 
 ## 7. Open questions — owner rulings required
 
-**Q1 — the 4.7M existing `audit_logs` rows. RULED (a) by the owner 2026-09-22 — leave them; L7 partitions around them.** `D-LIFE4` stops the noise; it does not decide what
+**Q1 — the 4.7M existing `audit_logs` rows. RULED (a) by the owner 2026-09-22 — leave them; L7 partitions around them. ⚠ REOPENED and RE-RULED (b) 2026-09-30 — archive them, then drop them with L7; see §8 of that date.** `D-LIFE4` stops the noise; it does not decide what
 happens to 924k/week of already-written actor-less `vehicle.update` rows. Candidates:
 (a) leave them, partition around them, let them age out of the hot set — **recommended**, it decides
 nothing irreversible and L7 delivers the working-set benefit anyway; (b) migrate them to `sync_runs`
@@ -1610,3 +1610,27 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   uncoerced, `maintenance` not published.
   ⚠ Still a PULL surface: `ok` going false is only heard if something watches it. Q9 is open and
   blocks L7.
+- **2026-09-30 — Q1 reopened and re-ruled (b): archive, then drop** (owner: *"proceed as proposed"*,
+  after SETTINGS-PERMISSIONS-PLAN.md SP4 measured what the Audit log's exact count cost). The fact that
+  changed the answer, measured in production: **all 5,059,909** pre-0352 `vehicle.update` /
+  `driver.update` rows with no actor carry **`meta = '{}'`**. They record that some column on an
+  entity changed at an instant, and neither who changed it nor what changed. They cannot answer any
+  question a regulator, auditor or carrier would ask, so they are not evidence. Q1 (a) was ruled
+  before anyone had looked at `meta`. The rest of the table is ~5,000 real rows: 538 `vehicle.update`
+  and 3 `driver.update` with an actor, and every other action. `audit_logs` is 1,231 MB of a
+  4,125 MB database. Since 0352 the table grows 40–110 rows/day, down from 125–180 k.
+  **How (b) is carried out, folded into L7:** Merge A creates the partitioned table. The drain copies
+  only rows that are not `(action in ('vehicle.update','driver.update') and actor_id is null and
+  meta = '{}' and created_at < '2026-09-23')`. Before the swap, the excluded rows are exported as
+  gzip JSONL to Supabase Storage with a row count and sha256 recorded here. The old table is then
+  dropped, not DELETEd. Dropping frees the 1.2 GB at once, where a 5 M-row DELETE would leave the
+  file at full size until a table-locking VACUUM FULL. It is a deliberate, audited service-role act
+  run by the owner, and remains subject to `RETENTION_FORBIDDEN`: it is not a side effect of any job.
+  **Two more items came out of the same research.** (1) `audit_row_change()` writes `meta = '{}'` on
+  every UPDATE today too, so even a real human edit does not record which field changed. Next: record
+  the changed columns, with their old and new values, in `meta`, minus the ignored columns and
+  `updated_at`. That work is ungated and goes first. (2) A retention window for the hot partitions,
+  with older months exported to Storage before detaching, is a separate ruling for after L7. The
+  regulated records are kept in their own append-only tables, not in this log.
+  ⚠ **L7 is still blocked by Q9** (where a platform alarm goes). Its recommendation (a),
+  `PLATFORM_ALERT_EMAIL`, is unruled.

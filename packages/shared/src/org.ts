@@ -99,14 +99,3 @@ export const orgNotificationsFormSchema = orgSettingsFormSchema.pick({
 });
 export type OrgNotificationsForm = z.infer<typeof orgNotificationsFormSchema>;
 
-/** An audit log row as the viewer reads it. */
-export interface AuditLog {
-  id: string;
-  org_id: string;
-  actor_id: string | null;
-  action: string;
-  entity: string | null;
-  entity_id: string | null;
-  meta: Record<string, unknown>;
-  created_at: string;
-}
