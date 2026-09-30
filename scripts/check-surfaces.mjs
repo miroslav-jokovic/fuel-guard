@@ -100,7 +100,7 @@ export function surfaces(src) {
         : null,
       section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
       level: /gate:\s*manage\(/.test(line) ? "manage" : /gate:\s*section\(/.test(line) ? "view" : null,
-      kind: /gate:\s*ALWAYS/.test(line) ? "always" : /gate:\s*STAFF/.test(line) ? "staff" : /gate:\s*ADMIN/.test(line) ? "admin" : "section",
+      kind: /gate:\s*ALWAYS/.test(line) ? "always" : /gate:\s*STAFF/.test(line) ? "staff" : /gate:\s*ADMIN/.test(line) ? "admin" : /gate:\s*directory\(/.test(line) ? "directory" : "section",
     });
   }
   if (out.length < 20) throw new Error(`SURFACES parse found only ${out.length} entries — parser or literal shape changed; fix together`);
@@ -174,6 +174,14 @@ export function findViolations({ cat, icons, routes, sections, roles = null, aut
       errors.push(`surface "${s.key}" names parent "${s.parent}", which is not a surface (D-SURF8 inheritance would silently do nothing).`);
     if (s.reachedFrom && !navKeys.has(s.reachedFrom))
       errors.push(`surface "${s.key}" is reachedFrom "${s.reachedFrom}", which is not a sidebar surface — a screen with no door.`);
+    // The owner's "hide Settings too" (2026-09-30): a directory is shown when a screen behind it is,
+    // so a screen reached from a plain sidebar entry would be a door that opens by a different rule
+    // from the one on the card — and a directory nothing names is an entry nobody, the admin
+    // included, can ever see.
+    if (s.reachedFrom && navKeys.has(s.reachedFrom) && cat.find((d) => d.key === s.reachedFrom)?.kind !== "directory")
+      errors.push(`surface "${s.key}" is reachedFrom "${s.reachedFrom}", which is not a directory() gate — its door would not follow its grant.`);
+    if (s.kind === "directory" && !cat.some((c) => c.reachedFrom === s.key))
+      errors.push(`surface "${s.key}" is a directory that no screen is reachedFrom — it can never be shown.`);
     if (s.reachedFrom && s.parent)
       errors.push(`surface "${s.key}" has both a parent and reachedFrom — it either shares a grant (D-SURF8) or has its own, not both.`);
     if (s.startsOnFor && (s.parent || s.kind !== "section"))
@@ -331,6 +339,9 @@ function selfTest() {
     [[{ key: "p", path: "/parent", kind: "staff" }, { key: "a", path: "/real", kind: "staff", parent: "p", reachedFrom: "p" }], new Set(["p"]), /not both/],
     [[{ key: "a", path: "/real", kind: "admin", startsOnFor: [] }], new Set(["a"]), /is a lock/],
     [[{ key: "a", path: "/real", kind: "section", section: "fuel", level: "view", startsOnFor: ["wizard"] }], new Set(["a"]), /not a UserRole/],
+    // The directory's two: a screen behind a plain entry, and a directory with nothing behind it.
+    [[{ key: "d", path: "/real", kind: "staff" }, { key: "a", path: "/real", kind: "staff", reachedFrom: "d" }], new Set(["d"]), /not a directory\(\) gate/],
+    [[{ key: "d", path: "/real", kind: "directory" }], new Set(["d"]), /can never be shown/],
   ];
   const fails = [];
   for (const [cat, icons, expected] of cases) {
@@ -396,7 +407,7 @@ function selfTest() {
   // carries a directory screen with a starting default, so SP1's detectors are held to that too.
   const clean = findViolations({
     cat: [
-      { key: "a", path: "/real", kind: "section", section: "fuel", level: "manage" },
+      { key: "a", path: "/real", kind: "directory" },
       { key: "b", path: "/parent", kind: "section", section: "fuel", level: "view", reachedFrom: "a", startsOnFor: ["auditor"] },
     ],
     icons: new Set(["a"]), routes, sections, roles: new Set(["admin", "auditor"]),
@@ -408,7 +419,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all twenty-four detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all twenty-six detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 

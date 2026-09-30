@@ -76,7 +76,8 @@ const hiddenCount = computed(() =>
  * gate, so a screen that gains a section gate later stops being listed without anyone editing this.
  */
 const alwaysOn = computed(() =>
-  NAV_SURFACES.filter((s) => !isEditableSurface(s))
+  // A directory is not always available — it follows the screens behind it (Settings, 2026-09-30).
+  NAV_SURFACES.filter((s) => !isEditableSurface(s) && s.gate.kind !== "directory")
     .map((s) => s.label)
     .join(", "),
 );

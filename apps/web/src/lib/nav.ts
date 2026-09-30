@@ -4,6 +4,7 @@ import {
   SURFACE_GROUPS,
   canReachSurface,
   surfaceAllowed,
+  surfaceForPath,
   type SectionClaim,
   type UserRole,
   type ModuleSet,
@@ -83,4 +84,15 @@ export function buildNavGroups(
       }))
       .filter((i) => i.show),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * Does the screen at `path` open for this caller — the catalogue's answer, the one the guard and the
+ * sidebar read. For a link that sits outside the sidebar. The account menu's Settings link asked
+ * `can("settings")` until the owner ruled Settings admin-only by default (2026-09-30), which would
+ * have offered a fleet manager a link the guard then refused.
+ */
+export function pathOpens(path: string, role: UserRole | null, sections: SectionClaim | null, surfaces: SurfaceClaim | null): boolean {
+  const s = surfaceForPath(path);
+  return !!s && surfaceAllowed(s, role, sections, surfaces);
 }

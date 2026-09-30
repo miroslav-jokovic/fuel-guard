@@ -1,53 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { USER_ROLES, type UserRole } from "./constants.js";
-import { callerCanManage, callerCanView, isReadOnly, type SectionClaim } from "./auth.js";
-import { surfaceAllowed, surfaceStartsOn } from "./surfaces.js";
+import { USER_ROLES } from "./constants.js";
+import { callerCanView, type SectionClaim } from "./auth.js";
+import { surfaceAllowed, surfaceGateAllows, surfaceStartsOn } from "./surfaces.js";
 import { ADMIN_ONLY_SURFACES, GRANTABLE_SURFACES, NAV_SURFACES, SURFACES, directoryScreens } from "./surfaceCatalogue.js";
 
 /**
  * The Settings screens as permissions (SETTINGS-PERMISSIONS-PLAN.md SP1, Q-SET1..3 ruled (a) on
- * 2026-09-30).
+ * 2026-09-30, and Q-SET2 revised by the owner the same day: *"make all admin only by default, hide
+ * Settings too"*).
  *
- * The step is worth nothing if it changes who gets in on the day it ships — Q-SET2 ruled exactly
- * that out — and a gate moved from four hand-written places into a catalogue is the kind of change
- * where a wrong answer is invisible in review. So the first block asserts EQUIVALENCE: for every
- * role, with the shipped matrix and no org answers, each screen resolves as the pre-SP1 route did.
- * `BEFORE` is that route gate, transcribed once here as the oracle and nowhere else: `requiresAdmin`
- * (a role test), `requiresAuditAccess` (admin or the read-only reviewer), or the section the old
- * catalogue entry named.
+ * So the day-one answer is one sentence, and the first block asserts it for every role against every
+ * screen the directory links to — iterated from the catalogue, so a screen added later is held to it
+ * without anyone remembering this file: with the shipped matrix and no org answers, only the admin
+ * reaches any Settings screen, or the Settings entry itself.
  */
-const role = (r: UserRole) => r === "admin";
-const BEFORE: Record<string, (r: UserRole) => boolean> = {
-  "admin.settings.org": role,
-  "admin.settings.notifications": role,
-  "admin.settings.permissions": role,
-  "admin.settings.efs": role,
-  "admin.settings.card-control": role,
-  "admin.settings.thresholds": role,
-  "admin.settings.driver-performance": role,
-  "admin.settings.fuel-planning": role,
-  "admin.settings.audit": (r) => r === "admin" || isReadOnly(r),
-  "admin.settings.data": (r) => callerCanManage(r, "settings", null),
-  "admin.settings.driver-app": (r) => callerCanManage(r, "roster", null),
-  "admin.recruiting": (r) => callerCanView(r, "recruitment", null),
-  "admin.reports": (r) => callerCanView(r, "settings", null),
-  "admin.coverage": (r) => callerCanView(r, "settings", null),
-  "admin.reefer-coverage": (r) => callerCanView(r, "settings", null),
-  "admin.recall-audit": (r) => callerCanView(r, "settings", null),
-};
 const surface = (key: string) => SURFACES.find((s) => s.key === key)!;
+const SETTINGS = surface("admin.settings");
 // A driver never reaches a web route (the guard sends them to the app first), so they are not a case.
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
-describe("SP1 changes nobody's access on the day it ships (Q-SET2)", () => {
-  it("covers every screen the Settings directory links to, so a new one cannot skip this test", () => {
-    expect(directoryScreens("admin.settings").map((s) => s.key).sort()).toEqual(Object.keys(BEFORE).sort());
+describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
+  it("links the directory to all sixteen screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(16);
   });
 
   for (const r of OFFICE_ROLES) {
-    it(`resolves each Settings screen for ${r} exactly as its route did before`, () => {
-      for (const [key, before] of Object.entries(BEFORE))
-        expect(surfaceAllowed(surface(key), r, null, null), `${key} for ${r}`).toBe(before(r));
+    it(`resolves every Settings screen, and the Settings entry, for ${r} as ${r === "admin" ? "open" : "closed"}`, () => {
+      for (const s of directoryScreens("admin.settings"))
+        expect(surfaceAllowed(s, r, null, null), `${s.key} for ${r}`).toBe(r === "admin");
+      expect(surfaceAllowed(SETTINGS, r, null, null), `the Settings entry for ${r}`).toBe(r === "admin");
     });
   }
 
@@ -55,6 +36,38 @@ describe("SP1 changes nobody's access on the day it ships (Q-SET2)", () => {
     // `surfaceClaimFor` fails open to `{}`. Before SP1, `{}` meant "no denials"; for a screen that
     // starts off it must still mean off, or a database blip would hand a fleet manager Organization.
     expect(surfaceAllowed(surface("admin.settings.org"), "fleet_manager", null, {})).toBe(false);
+    expect(surfaceAllowed(SETTINGS, "fleet_manager", null, {})).toBe(false);
+  });
+});
+
+describe("the Settings entry follows the screens behind it", () => {
+  it("appears for a role the admin has turned one screen on for, and only that", () => {
+    expect(surfaceAllowed(SETTINGS, "fleet_manager", null, { "admin.settings.org": true })).toBe(true);
+    expect(surfaceAllowed(SETTINGS, "auditor", null, { "admin.settings.org": true })).toBe(false);
+  });
+
+  it("appears for a safety manager given Recruiting, though they hold no settings section", () => {
+    // The directory has no section of its own to refuse them with — its screens ask their own.
+    expect(callerCanView("safety_manager", "settings", null)).toBe(false);
+    expect(surfaceAllowed(SETTINGS, "safety_manager", null, { "admin.recruiting": true })).toBe(true);
+  });
+
+  it("stays hidden when the only screen turned on is one the role's section cannot reach (D-SURF2)", () => {
+    expect(surfaceAllowed(SETTINGS, "dispatcher", null, { "admin.settings.org": true })).toBe(false);
+  });
+
+  it("answers the role half too: a role no Settings screen's section reaches cannot reach the entry", () => {
+    // `canReachSurface` is AND-ed with `surfaceAllowed` in the sidebar, so it must not say yes to the
+    // entry for a role whose sections could never open anything behind it.
+    expect(surfaceGateAllows(SETTINGS, "technician", null)).toBe(false);
+    expect(surfaceGateAllows(SETTINGS, "safety_manager", null)).toBe(true);
+    expect(surfaceGateAllows(SETTINGS, "technician", { recruitment: "view" })).toBe(true);
+  });
+
+  it("is filled from `reachedFrom` alone, so the entry and the cards are one list", () => {
+    expect(SETTINGS.gate.kind).toBe("directory");
+    if (SETTINGS.gate.kind === "directory")
+      expect(SETTINGS.gate.screens.map((s) => s.key)).toEqual(directoryScreens("admin.settings").map((s) => s.key));
   });
 });
 
@@ -63,8 +76,8 @@ describe("a section can open the door, but only an admin's answer walks a role t
     const widened: SectionClaim = { settings: "manage" };
     expect(surfaceAllowed(surface("admin.settings.org"), "dispatcher", widened, null)).toBe(false);
     expect(surfaceAllowed(surface("admin.settings.audit"), "dispatcher", widened, null)).toBe(false);
-    // …while a screen the section decides follows the section, as it always has.
-    expect(surfaceAllowed(surface("admin.settings.data"), "dispatcher", widened, null)).toBe(true);
+    // …while a screen outside Settings still follows the section alone, as it always has.
+    expect(surfaceAllowed(surface("fuel.log"), "dispatcher", { fuel: "manage" }, null)).toBe(true);
   });
 
   it("turns a screen on for a role or a person that holds its section", () => {
@@ -78,15 +91,17 @@ describe("a section can open the door, but only an admin's answer walks a role t
     ).toBe(false);
   });
 
-  it("turns the audit log off for an auditor when the org says so (Q-SET3)", () => {
-    expect(surfaceAllowed(surface("admin.settings.audit"), "auditor", null, { "admin.settings.audit": false })).toBe(false);
+  it("turns the audit log on for an auditor only when the org says so (Q-SET3)", () => {
+    expect(surfaceAllowed(surface("admin.settings.audit"), "auditor", null, null)).toBe(false);
+    expect(surfaceAllowed(surface("admin.settings.audit"), "auditor", null, { "admin.settings.audit": true })).toBe(true);
   });
 
   it("starts off only editable roles: admin keeps every screen, since nobody can answer for them", () => {
     expect(surfaceStartsOn(surface("admin.settings.org"), "admin")).toBe(true);
     expect(surfaceStartsOn(surface("admin.settings.org"), "fleet_manager")).toBe(false);
-    expect(surfaceStartsOn(surface("admin.settings.audit"), "auditor")).toBe(true);
-    expect(surfaceStartsOn(surface("admin.settings.data"), "fleet_manager")).toBe(true);
+    expect(surfaceStartsOn(surface("admin.settings.audit"), "auditor")).toBe(false);
+    // A screen with no starting default still starts on — the rule is Settings', not everyone's.
+    expect(surfaceStartsOn(surface("fuel.log"), "fleet_manager")).toBe(true);
   });
 });
 

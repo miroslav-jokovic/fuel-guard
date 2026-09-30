@@ -518,12 +518,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Inspectors → /shop/inspectors",
     ],
   },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
-    ],
-  },
 ]
 `;
 
@@ -595,12 +589,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Inspectors → /shop/inspectors",
     ],
   },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
-    ],
-  },
 ]
 `;
 
@@ -668,12 +656,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Units → /shop/units",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
-    ],
-  },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
     ],
   },
 ]
@@ -997,12 +979,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Inspectors → /shop/inspectors",
     ],
   },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
-    ],
-  },
 ]
 `;
 
@@ -1069,12 +1045,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Inspectors → /shop/inspectors",
     ],
   },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
-    ],
-  },
 ]
 `;
 
@@ -1137,12 +1107,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Units → /shop/units",
       "Annual inspections → /shop/inspections",
       "Inspectors → /shop/inspectors",
-    ],
-  },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
     ],
   },
 ]
@@ -1560,12 +1524,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Assets → /shop/assets",
       "Units → /shop/units",
       "Annual inspections → /shop/inspections",
-    ],
-  },
-  {
-    "group": "Admin",
-    "items": [
-      "Settings → /settings",
     ],
   },
 ]

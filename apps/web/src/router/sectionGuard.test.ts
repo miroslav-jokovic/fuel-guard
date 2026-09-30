@@ -63,12 +63,14 @@ beforeEach(() => {
 
 describe("the section gates on the navigation guard", () => {
   // ── The defect this meta was added for (Q-SURF5) ────────────────────────────
-  it("lets an auditor open /settings — the page their `settings: view` was granted for", async () => {
-    expect(await landsOn("auditor", "/settings")).toBe("settings");
-  });
-
-  it("still lets an admin and a fleet manager open /settings", async () => {
+  // ⚠ Until 2026-09-30 an auditor and a fleet manager opened /settings on their `settings` section.
+  // The owner then ruled "make all admin only by default, hide Settings too": the directory now opens
+  // exactly when a screen behind it does, and every such screen starts off for everyone but the admin.
+  it("keeps /settings to the admin until a screen behind it is turned on for the role", async () => {
     expect(await landsOn("admin", "/settings")).toBe("settings");
+    expect(await landsOn("fleet_manager", "/settings")).toBe("dashboard");
+    expect(await landsOn("auditor", "/settings")).toBe("dashboard");
+    session.surfaces = { "admin.settings.data": true };
     expect(await landsOn("fleet_manager", "/settings")).toBe("settings");
   });
 
@@ -103,9 +105,12 @@ describe("the section gates on the navigation guard", () => {
     expect(await landsOn("admin", "/settings/users")).toBe("users");
   });
 
-  it("keeps the audit log open to the admin and the read-only reviewer", async () => {
-    expect(await landsOn("auditor", "/settings/audit")).toBe("audit");
+  it("opens the audit log to the admin, and to the auditor only once it is turned on (Q-SET3)", async () => {
     expect(await landsOn("admin", "/settings/audit")).toBe("audit");
+    expect(await landsOn("auditor", "/settings/audit")).toBe("dashboard");
+    session.surfaces = { "admin.settings.audit": true };
+    expect(await landsOn("auditor", "/settings/audit")).toBe("audit");
+    // `settings: none` — the answer cannot lift a role past its section (D-SURF2).
     expect(await landsOn("dispatcher", "/settings/audit")).toBe("dashboard");
   });
 
@@ -161,16 +166,24 @@ describe("the section gates on the navigation guard", () => {
   it("Settings → Recruiting follows the recruitment section, not the settings one (Q-AW42)", async () => {
     // A recruiter holds `settings: none` and `recruitment: manage` — the one role this page is for, and
     // the one a `settings` gate would have turned away. A dispatcher holds `recruitment: none`.
-    expect(await landsOn("recruiter", "/settings")).toBe("dashboard");
-    expect(await landsOn("recruiter", "/settings/recruiting")).toBe("recruiting-settings");
+    // Since 2026-09-30 it starts off for them like every Settings screen; turned on, it opens — and so
+    // does the Settings directory that links to it, though a recruiter holds no settings section.
     expect(await landsOn("admin", "/settings/recruiting")).toBe("recruiting-settings");
+    expect(await landsOn("recruiter", "/settings/recruiting")).toBe("dashboard");
+    session.surfaces = { "admin.recruiting": true };
+    expect(await landsOn("recruiter", "/settings/recruiting")).toBe("recruiting-settings");
+    expect(await landsOn("recruiter", "/settings")).toBe("settings");
     expect(await landsOn("dispatcher", "/settings/recruiting")).toBe("dashboard");
   });
 
   it("the reporting screens now ask what their settings card always asked", async () => {
     // `/reports` and its three siblings had no route gate. Their card on the settings page shows on
-    // `can("settings") || readOnly`, which resolves to exactly rolesThatCanView("settings").
-    for (const p of ["/reports", "/coverage", "/reefer-coverage", "/recall-audit"]) {
+    // `can("settings") || readOnly`, which resolves to exactly rolesThatCanView("settings") — the
+    // section they still ask, beneath a start of off for every role but the admin (2026-09-30).
+    const reports = ["/reports", "/coverage", "/reefer-coverage", "/recall-audit"];
+    for (const p of reports) expect(await landsOn("auditor", p)).toBe("dashboard");
+    session.surfaces = { "admin.reports": true, "admin.coverage": true, "admin.reefer-coverage": true, "admin.recall-audit": true };
+    for (const p of reports) {
       expect(await landsOn("auditor", p)).not.toBe("dashboard");
       expect(await landsOn("dispatcher", p)).toBe("dashboard");
     }
@@ -236,8 +249,11 @@ describe("the section gates on the navigation guard", () => {
 
   it("an uncatalogued authenticated route still resolves — the gate, not the guard, is the net", async () => {
     // The guard falls through to `true` for a route with no surface, on purpose: failing closed
-    // would turn every waiver in check-surfaces.mjs into a locked-out page. `/settings/audit` is
-    // waived there (admin OR readOnly is not a section) and keeps its own meta.
-    expect(await landsOn("auditor", "/settings/audit")).toBe("audit");
+    // would turn every waiver in check-surfaces.mjs into a locked-out page. `/settings/audit` was the
+    // case here until SP1 catalogued it, and the one waiver left (`/use-the-app`) sends an office
+    // role away on its own account — so the fall-through is exercised on a route added for the test.
+    router.addRoute({ path: "/uncatalogued-probe", name: "probe", component: { render: () => null }, meta: { requiresAuth: true } });
+    expect(await landsOn("technician", "/uncatalogued-probe")).toBe("probe");
+    router.removeRoute("probe");
   });
 });

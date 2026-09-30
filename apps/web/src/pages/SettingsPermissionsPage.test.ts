@@ -306,8 +306,11 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
     await openRole(w, FM);
     const screens = w.find('section[aria-label="Screens"]');
     const headings = screens.findAll("li.uppercase").map((li) => li.text());
-    // The directory's group comes straight after the sidebar group that holds the directory.
-    expect(headings.slice(-2)).toEqual(["Admin", "Settings"]);
+    // The directory's group closes the list, after the sidebar group that holds the directory. That
+    // group ("Admin") is gone from the page: its one entry, Settings, is not a switch since
+    // 2026-09-30 — it shows when any screen in this group does.
+    expect(headings.at(-1)).toBe("Settings");
+    expect(headings).not.toContain("Admin");
     const settingsAt = screens.findAll("li").findIndex((li) => li.text() === "Settings" && li.classes().includes("uppercase"));
     const orgAt = screens.findAll("li").findIndex((li) => li.text().startsWith("Organization"));
     expect(orgAt).toBeGreaterThan(settingsAt);
@@ -322,7 +325,7 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
     expect(org.attributes("aria-checked")).toBe("false");
     expect(row(w, "Organization")!.text()).not.toContain("Changed");
     // A screen with no starting default is still drawn on, as every screen was before SP1.
-    expect(toggle(w, "Data & sync")!.attributes("aria-checked")).toBe("true");
+    expect(toggle(w, "Fuel Log")!.attributes("aria-checked")).toBe("true");
     await org.trigger("click");
     await flushPromises();
     expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true }]);
@@ -331,7 +334,7 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
   it("resets a screen that starts off by writing `false`, alone and in the role's reset", async () => {
     (state.surfaces as { overrides: Record<string, Record<string, boolean>> }).overrides.fleet_manager = {
       "admin.settings.org": true,
-      "admin.settings.data": false,
+      "fuel.log": false,
     };
     const w = mountPage();
     await flushPromises();
@@ -344,18 +347,18 @@ describe("the Settings screens (SP1, Q-SET2)", () => {
     calls.setRoleSurface.length = 0;
     await link(w, "Reset role to defaults")!.trigger("click");
     await flushPromises();
-    // Each screen goes back to ITS start: off for Organization, on for Data & sync.
+    // Each screen goes back to ITS start: off for Organization, on for Fuel Log.
     expect(calls.setRoleSurface).toEqual([
       { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false },
-      { role: "fleet_manager", surfaceKey: "admin.settings.data", allowed: true },
+      { role: "fleet_manager", surfaceKey: "fuel.log", allowed: true },
     ]);
   });
 
-  it("starts the Audit log on for the auditor and off for a fleet manager (Q-SET3)", async () => {
+  it("starts the Audit log off for the auditor too, since 2026-09-30 (Q-SET3, Q-SET2 as revised)", async () => {
     const w = mountPage();
     await flushPromises();
     await openRole(w, USER_ROLE_LABELS.auditor);
-    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("true");
+    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("false");
     await openRole(w, FM);
     expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("false");
   });
@@ -522,6 +525,8 @@ describe("the People tab", () => {
     expect(alwaysOn.text()).toContain("Dashboard");
     expect(alwaysOn.text()).toContain("Ask AI");
     expect(alwaysOn.text()).not.toContain("Inspectors");
+    // Nor Settings: it follows the screens behind it (2026-09-30), which are the admin's to answer.
+    expect(alwaysOn.text()).not.toContain("Settings");
   });
 
   it("explains why an admin gets no controls instead of showing live ones", async () => {
