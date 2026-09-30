@@ -65,6 +65,10 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   }
 }
 
+/** The `write_access_cell` calls this test's requests made, by their arguments (SP8). */
+const cellCalls = () =>
+  rec.rpcs().filter((r) => r.fn === "write_access_cell").map((r) => r.args as Record<string, unknown>);
+
 const put = (base: string, body: unknown) =>
   fetch(`${base}/api/surface-access`, {
     method: "PUT",
@@ -161,25 +165,31 @@ describe("GET /api/surface-access", () => {
 });
 
 describe("PUT /api/surface-access", () => {
-  it("denying a screen writes one row, org-scoped, and audits it", async () => {
+  /**
+   * SP8 (Q-SET7 (a), migration 0394): the cell and its audit row are ONE `write_access_cell` call.
+   * The org comes from the token, the answer travels as the boolean's text (the function casts it to
+   * the column's type), and no separate insert, delete or `writeAudit` is left to fail between.
+   */
+  it("denying a screen is one write_access_cell call, org-scoped, carrying the audit meta", async () => {
     await withServer(async (base) => {
       const res = await put(base, { role: "technician", surfaceKey: "maintenance.repair-spend", allowed: false });
       expect(res.status).toBe(200);
     });
-    const inserted = rec.writtenRows("org_role_surface_access");
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]).toMatchObject({
-      org_id: ORG,
-      role: "technician",
-      surface_key: "maintenance.repair-spend",
-      allowed: false,
-      updated_by: USER,
-    });
-    expectOrgScoped(rec, ORG);
-    expect(writeAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ orgId: ORG, action: "permissions.screen_changed" }),
-    );
+    expect(cellCalls()).toEqual([
+      {
+        p_table: "org_role_surface_access",
+        p_org_id: ORG,
+        p_role: "technician",
+        p_user_id: null,
+        p_key: "maintenance.repair-spend",
+        p_value: "false",
+        p_actor: USER,
+        p_action: "permissions.screen_changed",
+        p_meta: { role: "technician", surfaceKey: "maintenance.repair-spend", allowed: false, resetToDefault: false },
+      },
+    ]);
+    expect(rec.writes()).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 
   /**
@@ -187,47 +197,44 @@ describe("PUT /api/surface-access", () => {
    * is indistinguishable from "the org decided this" on the page, and it would keep applying after
    * the shipped gate moved underneath it.
    */
-  it("allowing a screen back DELETES the row instead of storing `true`", async () => {
+  it("allowing a screen back asks for NO row (null) instead of storing `true`", async () => {
     await withServer(async (base) => {
       const res = await put(base, { role: "technician", surfaceKey: "maintenance.inspectors", allowed: true });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
-    expect(rec.forTable("org_role_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
+    expect(cellCalls()).toHaveLength(1);
+    expect(cellCalls()[0]!.p_value).toBeNull();
   });
 
   /**
    * Q-SET2: a screen that starts OFF for a role is turned on by storing `true` — the one role-layer
    * answer that could never be a row before SP1 — and answering `false` is then the reset, which
-   * deletes and stores nothing. The same PUT, the same sparse delta, measured against the screen's
-   * starting value instead of against a constant `true`.
+   * stores nothing. The same PUT, the same sparse delta, measured against the screen's starting value
+   * instead of against a constant `true`.
    */
   it("turning on a screen that starts off STORES `true`, and turning it off again stores nothing", async () => {
     await withServer(async (base) => {
       const res = await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toEqual([
-      expect.objectContaining({ org_id: ORG, role: "fleet_manager", surface_key: "admin.settings.org", allowed: true }),
+    expect(cellCalls()).toEqual([
+      expect.objectContaining({
+        p_org_id: ORG,
+        p_role: "fleet_manager",
+        p_key: "admin.settings.org",
+        p_value: "true",
+        p_meta: expect.objectContaining({ allowed: true, resetToDefault: false }),
+      }),
     ]);
-    expect(writeAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ meta: expect.objectContaining({ allowed: true, resetToDefault: false }) }),
-    );
-    expectOrgScoped(rec, ORG);
 
     rec.reset();
-    vi.mocked(writeAudit).mockClear();
     await withServer(async (base) => {
       const res = await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
-    expect(rec.forTable("org_role_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
-    expect(writeAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ meta: expect.objectContaining({ allowed: false, resetToDefault: true }) }),
-    );
+    expect(cellCalls()).toEqual([
+      expect.objectContaining({ p_value: null, p_meta: expect.objectContaining({ allowed: false, resetToDefault: true }) }),
+    ]);
   });
 
   /** The Audit log starts ON for the auditor (Q-SET3), so for them it is `false` that makes a row. */
@@ -236,13 +243,25 @@ describe("PUT /api/surface-access", () => {
       expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
       expect((await put(base, { role: "fleet_manager", surfaceKey: "fuel.log", allowed: true })).status).toBe(200);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
+    expect(cellCalls().map((c) => c.p_value)).toEqual([null, null]);
+    rec.reset();
     await withServer(async (base) => {
       expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: true })).status).toBe(200);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toEqual([
-      expect.objectContaining({ role: "auditor", surface_key: "admin.settings.audit", allowed: true }),
+    expect(cellCalls()).toEqual([
+      expect.objectContaining({ p_role: "auditor", p_key: "admin.settings.audit", p_value: "true" }),
     ]);
+  });
+
+  it("answers 500 and no success when the function fails — the change and its record did not happen", async () => {
+    rec = createSupabaseRecorder({ rpc: { write_access_cell: { error: { message: "boom" } } } });
+    const res = await withServer(async (base) => {
+      const r = await put(base, { role: "technician", surfaceKey: "maintenance.repair-spend", allowed: false });
+      return { status: r.status, body: (await r.json()) as { ok?: boolean; error?: { code: string } } };
+    });
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBeUndefined();
+    expect(res.body.error?.code).toBe("db_error");
   });
 
   it("refuses each screen Q-SET1 keeps admin-only", async () => {
@@ -252,7 +271,7 @@ describe("PUT /api/surface-access", () => {
         expect(res.status, `${key} should never be offered`).toBe(400);
       });
     }
-    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
   });
 
   it("refuses a key the catalogue does not have", async () => {
@@ -260,7 +279,7 @@ describe("PUT /api/surface-access", () => {
       const res = await put(base, { role: "technician", surfaceKey: "maintenance.ghost", allowed: false });
       expect(res.status).toBe(400);
     });
-    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
   });
 
   it("refuses a screen that is a product constant (Q-SURF3)", async () => {
@@ -356,7 +375,7 @@ const putUser = (base: string, body: unknown) =>
   });
 
 describe("PUT /api/surface-access/user", () => {
-  it("denying a screen for one member writes one row, org- and user-scoped, and audits it", async () => {
+  it("denying a screen for one member is one write_access_cell call, org- and user-scoped", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, {
         userId: SHOP_LEAD,
@@ -365,24 +384,24 @@ describe("PUT /api/surface-access/user", () => {
       });
       expect(res.status).toBe(200);
     });
-    const inserted = rec.writtenRows("user_surface_access");
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]).toMatchObject({
-      org_id: ORG,
-      user_id: SHOP_LEAD,
-      surface_key: "maintenance.repair-spend",
-      allowed: false,
-      updated_by: USER,
-    });
+    // The user_id is the SUBJECT of the cell: without it the function could not tell this member's
+    // row from every other technician's, which is the "no other technician is affected" half of S4.
+    expect(cellCalls()).toEqual([
+      {
+        p_table: "user_surface_access",
+        p_org_id: ORG,
+        p_role: null,
+        p_user_id: SHOP_LEAD,
+        p_key: "maintenance.repair-spend",
+        p_value: "false",
+        p_actor: USER,
+        p_action: "permissions.screen_changed_user",
+        p_meta: { userId: SHOP_LEAD, role: "technician", surfaceKey: "maintenance.repair-spend", allowed: false, resetToRole: false },
+      },
+    ]);
     expectOrgScoped(rec, ORG);
-    expect(writeAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        orgId: ORG,
-        action: "permissions.screen_changed_user",
-        meta: expect.objectContaining({ userId: SHOP_LEAD, role: "technician", allowed: false }),
-      }),
-    );
+    expect(rec.writes()).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 
   /**
@@ -390,7 +409,7 @@ describe("PUT /api/surface-access/user", () => {
    * role-level one above: an org denies Inspectors to `technician`, then gives it back to the shop
    * lead alone. At the role layer a `true` is inert and therefore a reset; here it is the answer.
    */
-  it("allowing a screen back for one member STORES `true` rather than deleting the row", async () => {
+  it("allowing a screen back for one member STORES `true` rather than removing the row", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, {
         userId: SHOP_LEAD,
@@ -399,37 +418,10 @@ describe("PUT /api/surface-access/user", () => {
       });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("user_surface_access")).toMatchObject([{ user_id: SHOP_LEAD, allowed: true }]);
+    expect(cellCalls()).toEqual([expect.objectContaining({ p_user_id: SHOP_LEAD, p_value: "true" })]);
   });
 
-  /**
-   * ⚠ Added while writing S5, whose identical endpoint had the identical gap: dropping the
-   * `user_id` filter from the delete passed every assertion in this file. The code was right; the
-   * test could not see it. Without that filter the write clears the screen for EVERY member of the
-   * org, which is invisible on the screen of the person being edited and turns "custom setup for
-   * each user" into "custom setup for the last user edited".
-   */
-  it("clears exactly one member's cell — the delete carries org, user AND surface", async () => {
-    await withServer(async (base) => {
-      const res = await putUser(base, {
-        userId: SHOP_LEAD,
-        surfaceKey: "maintenance.inspectors",
-        allowed: false,
-      });
-      expect(res.status).toBe(200);
-    });
-    const del = rec.forTable("user_surface_access").find((q) => q.write?.method === "delete");
-    expect(del).toBeDefined();
-    expect(del!.filters()).toEqual(
-      expect.arrayContaining([
-        { col: "org_id", val: ORG },
-        { col: "user_id", val: SHOP_LEAD },
-        { col: "surface_key", val: "maintenance.inspectors" },
-      ]),
-    );
-  });
-
-  it("`allowed: null` is the reset — it deletes the row and stores nothing", async () => {
+  it("`allowed: null` is the reset — the function is asked to remove the row", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, {
         userId: SHOP_LEAD,
@@ -438,8 +430,9 @@ describe("PUT /api/surface-access/user", () => {
       });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
-    expect(rec.forTable("user_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
+    expect(cellCalls()).toEqual([
+      expect.objectContaining({ p_user_id: SHOP_LEAD, p_value: null, p_meta: expect.objectContaining({ resetToRole: true }) }),
+    ]);
   });
 
   /**
@@ -458,7 +451,7 @@ describe("PUT /api/surface-access/user", () => {
         });
         expect(res.status, `${role} is not editable`).toBe(400);
       });
-      expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+      expect(cellCalls()).toHaveLength(0);
     }
   });
 
@@ -478,7 +471,7 @@ describe("PUT /api/surface-access/user", () => {
       });
       expect(res.status).toBe(404);
     });
-    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
     const lookup = rec.forTable("memberships");
     expect(lookup).toHaveLength(1);
     expect(lookup[0]!.filters()).toEqual(
@@ -496,7 +489,7 @@ describe("PUT /api/surface-access/user", () => {
         expect(res.status, `${surfaceKey} should not be answerable`).toBe(400);
       });
     }
-    expect(rec.writtenRows("user_surface_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
   });
 });
 

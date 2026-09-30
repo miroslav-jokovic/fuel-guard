@@ -5,18 +5,27 @@ import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { forgetMembership } from "../../../middleware/membershipCurrent.js";
+import { endSessions, errorCode, LAST_ADMIN_REFUSED, lastAdminError } from "../accessWrites.js";
 import { revokePushTokens } from "../../messaging/index.js";
 import { lookupMemberRole } from "../memberLookup.js";
 
 /**
  * Migration 0392's deferred trigger (SP6) refuses, at commit, any write that would leave the org with
- * no admin — SQLSTATE `AM010`. The count in PATCH below words the ordinary case before it is tried;
- * this answers the case the count cannot see: two admins demoting or removing each other at the same
- * moment, each counting two. Without it the database's refusal reads as a generic 500.
+ * no active admin — SQLSTATE `AM010` (0393 made "active" mean unsuspended). The count in PATCH below
+ * words the ordinary case before it is tried; this answers the case the count cannot see: two admins
+ * demoting, removing or suspending each other at the same moment, each counting two. Since SP8 the
+ * refusal arrives as the error of the 0394 function the handler called, in the same transaction as
+ * the audit row that therefore never lands. Without the mapping it reads as a generic 500.
  */
-const LAST_ADMIN_REFUSED = "AM010";
-const lastAdminError = () =>
-  apiError("last_admin", "This is the only admin — promote someone else to admin first.");
+const refusedLastAdmin = (error: unknown) => errorCode(error) === LAST_ADMIN_REFUSED;
+
+/** DC10's refusal, one sentence for every act on this page that a driver-app login cannot take. */
+const rosterManaged = () =>
+  apiError(
+    "roster_managed",
+    "This is a driver-app login, issued from the Drivers page. Remove it there with Revoke login.",
+  );
 
 /** One row of `org_member_directory()` (0301). */
 interface DirectoryRow {
@@ -25,6 +34,8 @@ interface DirectoryRow {
   full_name: string | null;
   role: string;
   joined_at: string;
+  /** 0393. Absent from a directory still on 0301's shape (the deploy window) — read as "not suspended". */
+  suspended_at?: string | null;
 }
 
 export function membersRouter(): Router {
@@ -68,6 +79,9 @@ export function membersRouter(): Router {
           fullName: m.full_name,
           role: m.role,
           joinedAt: m.joined_at,
+          // Q-SET12 (0393): the Users page shows the state and offers Reinstate from it. `?? null`
+          // because absence must read as "not suspended", never as undefined-and-therefore-unknown.
+          suspendedAt: m.suspended_at ?? null,
         }));
       res.json({ members });
     }),
@@ -103,43 +117,39 @@ export function membersRouter(): Router {
         return;
       }
       if (isRosterIssuedRole(member.role)) {
-        res.status(400).json(
-          apiError(
-            "roster_managed",
-            "This is a driver-app login, issued from the Drivers page. Remove it there with Revoke login.",
-          ),
-        );
+        res.status(400).json(rosterManaged());
         return;
       }
 
-      const { error } = await admin
-        .from("memberships")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("user_id", userId);
-
+      // The membership and its `member.removed` row (carrying the role held) in one transaction —
+      // SP8, Q-SET7 (a). null: nobody to remove in this org by the time the lock was taken.
+      const { data: removed, error } = await admin.rpc("member_remove", {
+        p_org_id: orgId,
+        p_user_id: userId,
+        p_actor: req.auth!.userId,
+        p_action: "member.removed",
+      });
       if (error) {
-        if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
+        if (refusedLastAdmin(error)) res.status(409).json(lastAdminError());
         else res.status(500).json(apiError("db_error", "Could not remove member"));
         return;
       }
+      if (removed === null) {
+        res.status(404).json(apiError("not_found", "Member not found"));
+        return;
+      }
 
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "member.removed",
-        entity: "memberships",
-        entityId: userId,
-      });
-
+      // Q-SET6 (a): removed means signed out now, not at the next token refresh.
+      await endSessions(admin, userId, "member.removed");
       res.json({ ok: true });
     }),
   );
 
   // Revoke a driver's (or any member's) access (admin, offboarding — plan D14). Removes org access,
-  // deactivates any linked driver record, and audits. NOTE: the user's existing ACCESS token stays
-  // valid until it expires (jwt_expiry, D31 = 1h); membership deletion cuts access on the next refresh.
-  // The auth account itself is kept (re-hire); use delete-account for full identity removal.
+  // deactivates any linked driver record, and audits. Since SP7 (Q-SET6 (a)) the person is signed out
+  // at once: their sessions are ended and the API refuses the access token they already hold
+  // (membershipCurrent.ts), so nothing waits for jwt_expiry any more. The auth account itself is kept
+  // (re-hire); use delete-account for full identity removal.
   router.post(
     "/:userId/revoke",
     requireOrg,
@@ -161,34 +171,33 @@ export function membersRouter(): Router {
       // only path that unlinks first (DC10, migration 0329).
       const member = await lookupMemberRole(admin, orgId, userId);
       if (member.ok && isRosterIssuedRole(member.role)) {
-        res.status(400).json(
-          apiError(
-            "roster_managed",
-            "This is a driver-app login, issued from the Drivers page. Remove it there with Revoke login.",
-          ),
-        );
+        res.status(400).json(rosterManaged());
         return;
       }
 
+      const { data: removed, error } = await admin.rpc("member_remove", {
+        p_org_id: orgId,
+        p_user_id: userId,
+        p_actor: req.auth!.userId,
+        p_action: "member.access_revoked",
+      });
+      if (error) {
+        if (refusedLastAdmin(error)) res.status(409).json(lastAdminError());
+        else res.status(500).json(apiError("db_error", "Could not revoke access"));
+        return;
+      }
+      if (removed === null) {
+        res.status(404).json(apiError("not_found", "Member not found"));
+        return;
+      }
+
+      // The offboarding side effects run AFTER the removal committed (SP8), so a revoke the database
+      // refused — the last admin — no longer leaves a deactivated roster row behind it.
       await admin.from("drivers").update({ status: "inactive" }).eq("org_id", orgId).eq("user_id", userId);
       // An offboarded driver's PERSONAL phone must stop receiving load and message content
       // immediately — no token expiry window closes that gap (D14/D53).
       await revokePushTokens(admin, userId);
-
-      const { error } = await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
-      if (error) {
-        if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
-        else res.status(500).json(apiError("db_error", "Could not revoke access"));
-        return;
-      }
-
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "member.access_revoked",
-        entity: "memberships",
-        entityId: userId,
-      });
+      await endSessions(admin, userId, "member.access_revoked");
 
       res.json({ ok: true });
     }),
@@ -198,7 +207,9 @@ export function membersRouter(): Router {
    * Change a member's role and/or name (admin).
    *
    * The role half guards against demoting the org's LAST admin, which would lock everyone out of
-   * member/settings management; the affected user's permissions update on their next token refresh.
+   * member/settings management. Since SP7 (Q-SET6 (a)) a role change ends the person's sessions and
+   * the API refuses their current token at once — the token names the old role, so it is no longer
+   * the membership they hold (membershipCurrent.ts). They sign in again and get the new role.
    *
    * The name half (0301, D-MEM1/D-MEM2) writes the person's profile — keyed by user, not by
    * membership, so the one org-scoped question is asked FIRST: is this person a member of the
@@ -235,47 +246,47 @@ export function membersRouter(): Router {
         // the first case in the database; the second cannot be a trigger's job, because a membership
         // that is not yet linked looks exactly like a legitimate one being provisioned.
         if (isRosterIssuedRole(current.role) || isRosterIssuedRole(newRole)) {
-          res.status(400).json(
-            apiError(
-              "roster_managed",
-              "Driver-app logins are issued and removed on the Drivers page, not here — their role is fixed.",
-            ),
-          );
+          res
+            .status(400)
+            .json(apiError("roster_managed", "Driver-app logins are issued and removed on the Drivers page, not here — their role is fixed."));
           return;
         }
 
-        // Never leave the org without an admin.
+        // Never leave the org without an ACTIVE admin — 0393 made a suspended admin not count, so the
+        // wording's count asks the same question the trigger does.
         if (current.role === "admin" && newRole !== "admin") {
           const { count } = await admin
             .from("memberships")
             .select("user_id", { count: "exact", head: true })
             .eq("org_id", orgId)
-            .eq("role", "admin");
+            .eq("role", "admin")
+            .is("suspended_at", null);
           if ((count ?? 0) <= 1) {
             res.status(400).json(lastAdminError());
             return;
           }
         }
 
-        const { error } = await admin
-          .from("memberships")
-          .update({ role: newRole })
-          .eq("org_id", orgId)
-          .eq("user_id", userId);
+        // The role and its `member.role_changed` row (from/to) in one transaction — SP8, Q-SET7 (a).
+        // The count above words the ordinary refusal; 0392's trigger makes it true under a race.
+        const { data: before, error } = await admin.rpc("member_change_role", {
+          p_org_id: orgId,
+          p_user_id: userId,
+          p_role: newRole,
+          p_actor: req.auth!.userId,
+        });
         if (error) {
-          if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
+          if (refusedLastAdmin(error)) res.status(409).json(lastAdminError());
           else res.status(500).json(apiError("db_error", "Could not update role"));
           return;
         }
-
-        await writeAudit(admin, {
-          orgId,
-          actorId: req.auth!.userId,
-          action: "member.role_changed",
-          entity: "memberships",
-          entityId: userId,
-          meta: { from: current.role, to: newRole },
-        });
+        if (before === null) {
+          res.status(404).json(apiError("not_found", "Member not found"));
+          return;
+        }
+        // The function returns the role it found under its lock; equal to the new one means another
+        // request already made this change and nothing was written here.
+        if (before !== newRole) await endSessions(admin, userId, "member.role_changed");
       }
 
       if (fullName !== undefined) {
@@ -301,6 +312,70 @@ export function membersRouter(): Router {
       res.json({ ok: true });
     }),
   );
+
+  /**
+   * Suspend or reinstate an office member (admin) — Q-SET12 (a), migration 0393.
+   *
+   * Removal deletes the membership and with it every per-person section and screen answer
+   * (`user_section_access` / `user_surface_access` hang off it), so a dispatcher on leave came back as
+   * a fresh invite with the role's defaults. A suspension keeps the row and everything on it and turns
+   * the access off: the token hook mints no org claim for a suspended membership, and the API refuses
+   * a token that names one (membershipCurrent.ts).
+   *
+   * Refused for yourself (you would be signed out mid-click, and an admin's own lockout is what 0392
+   * exists to prevent) and for driver-app logins, whose membership is the credential (DC10) — the
+   * Drivers page's App access is where a driver's login is switched off.
+   *
+   * Suspending ends the person's sessions now (Q-SET6 (a)). Reinstating only clears this process's
+   * cached verdict: they have no session to keep, and simply sign in again.
+   */
+  const setSuspended = (suspend: boolean) =>
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const userId = String(req.params.userId ?? "");
+
+      if (userId === req.auth!.userId) {
+        res.status(400).json(apiError("cannot_suspend_self", "You cannot suspend or reinstate yourself"));
+        return;
+      }
+      const member = await lookupMemberRole(admin, orgId, userId);
+      if (!member.ok) {
+        if (member.reason === "not_found") res.status(404).json(apiError("not_found", "Member not found"));
+        else res.status(500).json(apiError("db_error", "Could not load member"));
+        return;
+      }
+      if (isRosterIssuedRole(member.role)) {
+        res
+          .status(400)
+          .json(apiError("roster_managed", "This is a driver-app login, issued from the Drivers page. Switch it off there with App access."));
+        return;
+      }
+
+      // The state and its `member.suspended` / `member.reinstated` row in one transaction (0394, SP8).
+      const { data: role, error } = await admin.rpc("member_set_suspended", {
+        p_org_id: orgId,
+        p_user_id: userId,
+        p_suspended: suspend,
+        p_actor: req.auth!.userId,
+      });
+      if (error) {
+        if (refusedLastAdmin(error)) res.status(409).json(lastAdminError());
+        else res.status(500).json(apiError("db_error", suspend ? "Could not suspend member" : "Could not reinstate member"));
+        return;
+      }
+      if (role === null) {
+        res.status(404).json(apiError("not_found", "Member not found"));
+        return;
+      }
+
+      if (suspend) await endSessions(admin, userId, "member.suspended");
+      else forgetMembership(userId);
+      res.json({ ok: true, suspended: suspend });
+    });
+
+  router.post("/:userId/suspend", requireOrg, requireRole("admin"), setSuspended(true));
+  router.post("/:userId/reinstate", requireOrg, requireRole("admin"), setSuspended(false));
 
   return router;
 }

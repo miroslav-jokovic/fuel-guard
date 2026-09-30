@@ -18,7 +18,7 @@ import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.j
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { writeAudit } from "../../../lib/audit.js";
+import { writeAccessCell } from "../accessWrites.js";
 import { lookupMemberRole } from "../memberLookup.js";
 
 /**
@@ -33,6 +33,8 @@ import { lookupMemberRole } from "../memberLookup.js";
  *
  * ⚠ The API reads with the SERVICE ROLE, which bypasses RLS, so every query below carries its own
  * `.eq("org_id", …)`. `sectionAccess.test.ts` asserts it with `expectOrgScoped`.
+ * The WRITES go through `write_access_cell` (0394, SP8) with `p_org_id` taken from the token, never
+ * the body, and the tests assert that argument the same way.
  *
  * ── WHAT READS THESE ROWS ───────────────────────────────────────────────────────────────────────
  * Nothing here. `custom_access_token_hook` turns them into the sparse `sections` JWT claim at token
@@ -222,42 +224,27 @@ export function sectionAccessRouter(): Router {
       const shipped = sectionAccess(role as UserRole, section as AppSection);
       const isDefault = access === shipped;
 
-      // Never `.upsert()` with a partial payload (`lint:upserts`): Postgres checks NOT NULL before
-      // conflict arbitration. Delete-then-insert inside one request is the shape 0174/0175 settled
-      // on, and the primary key makes the pair idempotent.
-      const { error: delErr } = await admin
-        .from("org_section_access")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("role", role)
-        .eq("section", section);
-      if (delErr) {
-        res.status(500).json(apiError("db_error", "Could not update permissions"));
-        return;
-      }
-      if (!isDefault) {
-        const { error: insErr } = await admin.from("org_section_access").insert({
-          org_id: orgId,
-          role,
-          section,
-          access,
-          updated_by: req.auth!.userId,
-        });
-        if (insErr) {
-          res.status(500).json(apiError("db_error", "Could not update permissions"));
-          return;
-        }
-      }
-
-      await writeAudit(admin, {
+      // One transaction (SP8, Q-SET7 (a), migration 0394): the cell and its audit row land together or
+      // not at all, and the audit row gains `from`/`to` — the value this write actually replaced, read
+      // under a row lock. A default is written as null, which the function stores as NO row (D-PERM4).
+      // The function is still delete-then-insert inside, never a partial upsert (`lint:upserts`).
+      const written = await writeAccessCell(admin, {
+        table: "org_section_access",
         orgId,
+        role,
+        userId: null,
+        key: section,
+        value: isDefault ? null : access,
         actorId: req.auth!.userId,
         action: "permissions.changed",
-        entity: "org_section_access",
         // The default value travels with the change so the log reads without the reader having to
         // know what the product shipped on the day it was written.
         meta: { role, section, access, shipped, resetToDefault: isDefault },
       });
+      if (!written) {
+        res.status(500).json(apiError("db_error", "Could not update permissions"));
+        return;
+      }
       res.json({ ok: true, role, section, access, isDefault });
     }),
   );
@@ -318,38 +305,17 @@ export function sectionAccessRouter(): Router {
         return;
       }
 
-      // Never `.upsert()` with a partial payload (`lint:upserts`): Postgres checks NOT NULL before
-      // conflict arbitration. Delete-then-insert is the shape 0174/0175 settled on, and the primary
-      // key makes the pair idempotent.
-      const { error: delErr } = await admin
-        .from("user_section_access")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("user_id", userId)
-        .eq("section", section);
-      if (delErr) {
-        res.status(500).json(apiError("db_error", "Could not update permissions"));
-        return;
-      }
-      if (access !== null) {
-        const { error: insErr } = await admin.from("user_section_access").insert({
-          org_id: orgId,
-          user_id: userId,
-          section,
-          access,
-          updated_by: req.auth!.userId,
-        });
-        if (insErr) {
-          res.status(500).json(apiError("db_error", "Could not update permissions"));
-          return;
-        }
-      }
-
-      await writeAudit(admin, {
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0394); `access: null` removes
+      // the row, which is how "follow the role" is stored.
+      const written = await writeAccessCell(admin, {
+        table: "user_section_access",
         orgId,
+        role: null,
+        userId,
+        key: section,
+        value: access,
         actorId: req.auth!.userId,
         action: "permissions.changed_user",
-        entity: "user_section_access",
         // The member's role and what that role would have resolved to travel with the change, so
         // the log reads without the reader having to reconstruct the matrix as it stood that day —
         // the same reason the role-level audit carries `shipped`.
@@ -362,6 +328,10 @@ export function sectionAccessRouter(): Router {
           resetToRole: access === null,
         },
       });
+      if (!written) {
+        res.status(500).json(apiError("db_error", "Could not update permissions"));
+        return;
+      }
       res.json({ ok: true, userId, section, access });
     }),
   );

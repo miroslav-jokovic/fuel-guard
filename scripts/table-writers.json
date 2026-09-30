@@ -284,8 +284,7 @@
     "apps/api/src/modules/maintenance/inventory/tagIssuance.ts"
   ],
   "invites": [
-    "apps/api/src/modules/org/inviteRedemption.ts",
-    "apps/api/src/modules/org/routes/invites.ts"
+    "apps/api/src/modules/org/inviteRedemption.ts"
   ],
   "jobs": [
     "apps/api/src/modules/org/jobs.ts"
@@ -348,7 +347,6 @@
   ],
   "memberships": [
     "apps/api/src/modules/org/inviteRedemption.ts",
-    "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts"
   ],
   "message_reports": [
@@ -379,12 +377,6 @@
   ],
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
-  ],
-  "org_role_surface_access": [
-    "apps/api/src/modules/org/routes/surfaceAccess.ts"
-  ],
-  "org_section_access": [
-    "apps/api/src/modules/org/routes/sectionAccess.ts"
   ],
   "organizations": [
     "apps/api/src/modules/org/digestScheduler.ts",
@@ -486,12 +478,6 @@
   "user_profiles": [
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
-  ],
-  "user_section_access": [
-    "apps/api/src/modules/org/routes/sectionAccess.ts"
-  ],
-  "user_surface_access": [
-    "apps/api/src/modules/org/routes/surfaceAccess.ts"
   ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
