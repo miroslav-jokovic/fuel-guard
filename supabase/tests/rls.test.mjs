@@ -418,26 +418,63 @@ async function main() {
     ).rows?.[0]?.n === 0,
   );
 
-  const dpsAdmin = await asUser(
-    adminA,
-    "insert into driver_performance_settings (org_id) values ($1) returning org_id",
-    [ORG_A],
-  );
-  ok(
-    "admin INSERT driver_performance_settings allowed",
-    !dpsAdmin.error && dpsAdmin.rows?.length === 1,
-    JSON.stringify(dpsAdmin),
-  );
   const dpsMgr = await asUser(
     mgrA,
     "insert into driver_performance_settings (org_id) values ($1)",
     [ORG_A],
   );
   ok(
-    "manager INSERT driver_performance_settings denied (admin-only)",
+    "manager INSERT driver_performance_settings denied",
     !!dpsMgr.error,
     JSON.stringify(dpsMgr),
   );
+
+  // ── SP3 (0389): the Settings tables take no client write, the admin's included ────────────────
+  // Each screen's save goes through the API on section + screen (SP2), which RLS cannot see
+  // (D-SURF4); the write policies were a second door asking a role question. Every row below is
+  // there before the client tries, and the same statement run as the table owner changes it, so a
+  // refusal here is RLS refusing and not an empty table. The office still READS each one, because
+  // the pages load through PostgREST.
+  await db.exec(`
+    insert into driver_performance_settings (org_id) values ('${ORG_A}') on conflict do nothing;
+    insert into route_fuel_settings (org_id) values ('${ORG_A}') on conflict do nothing;
+    insert into fuel_discount_rules (org_id, brand, cents_off) values ('${ORG_A}', 'sp3-brand', 3)
+      on conflict do nothing;
+  `);
+  const SETTINGS_TABLES = [
+    ["organizations", "id", "update organizations set name = name || ' ' where id = $1 returning id",
+      // No INSERT: organizations never had a client INSERT policy — a new org is a platform act.
+      null],
+    ["anomaly_thresholds", "org_id", "update anomaly_thresholds set mpg_drop_pct = 16 where org_id = $1 returning org_id",
+      "insert into anomaly_thresholds (org_id) values ($1) returning org_id"],
+    ["driver_performance_settings", "org_id", "update driver_performance_settings set trailing_weeks = 4 where org_id = $1 returning org_id",
+      "insert into driver_performance_settings (org_id) values ($1) returning org_id"],
+    ["route_fuel_settings", "org_id", "update route_fuel_settings set reserve_pct = 21 where org_id = $1 returning org_id",
+      "insert into route_fuel_settings (org_id) values ($1) returning org_id"],
+    ["fuel_discount_rules", "org_id", "update fuel_discount_rules set cents_off = 4 where org_id = $1 returning org_id",
+      "insert into fuel_discount_rules (org_id, brand, cents_off) values ($1, 'sp3-new', 2) returning org_id"],
+  ];
+  for (const [table, orgCol, update, insert] of SETTINGS_TABLES) {
+    await db.exec("begin");
+    const owner = await db.query(update, [ORG_A]);
+    await db.exec("rollback");
+    ok(`the fixture is real — the table owner's UPDATE of ${table} changes a row`, owner.rows.length >= 1);
+    const upd = await asUser(adminA, update, [ORG_A]);
+    ok(
+      `an admin's client UPDATE of ${table} changes nothing — the API owns the write (0389)`,
+      !upd.error && upd.rows?.length === 0,
+      JSON.stringify(upd),
+    );
+    const read = await asUser(mgrA, `select count(*)::int n from ${table} where ${orgCol} = $1`, [ORG_A]);
+    ok(`a fleet manager still reads their own org's ${table}`, read.rows?.[0]?.n >= 1, JSON.stringify(read));
+    if (!insert) continue;
+    const ins = await asUser(adminA, insert, [ORG_A]);
+    ok(
+      `an admin's client INSERT into ${table} is refused by row-level security (0389)`,
+      /row-level security/.test(ins.error ?? ""),
+      JSON.stringify(ins),
+    );
+  }
 
   const dsMgr = await asUser(
     mgrA,

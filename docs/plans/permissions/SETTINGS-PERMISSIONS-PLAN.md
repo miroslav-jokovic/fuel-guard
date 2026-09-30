@@ -226,3 +226,11 @@ Append a dated line per step. Never edit §3.
   rest of Organization, lower-cased and shape-checked; blank saves `[]`. The hint warns that other
   domains' invitations are refused. `settingsWrites.test.ts` rewritten to expect it saved, plus an
   empty-list case and a malformed-domain case; 5 mutants, all killed. No migration. SP3 is next.
+- **2026-09-30** — SP3 built: migration 0389 drops `organizations_update`, `thresholds_write`,
+  `dps_write`, `route_fuel_settings_write` and `fuel_discount_write`. Production's predicates were
+  re-read first and matched 0004/0053/0300. Every `*_select` policy and anomaly_thresholds'
+  restrictive driver policies stay. No client writer is left in apps/web, apps/driver or apps/admin.
+  `rls.test.mjs` now expects the admin's client UPDATE and INSERT refused on all five tables, and a
+  fleet manager's read still answering. `org-section-access.test.mjs`'s dispatch cases now expect
+  every client write refused, the admin's and a dispatch: manage grant's included, and the
+  dispatcher's read kept. Re-creating each policy fails its cases (5 of 5).
