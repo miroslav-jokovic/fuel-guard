@@ -171,17 +171,13 @@ export const OPEN_ROUTES = new Map<string, string>([
  * here why it is not a section question at all.
  */
 export const ROLE_LIST_WAIVERS = new Map<string, string>([
-  [
-    "modules/roster/routes/credentials.ts [admin,fleet_manager]",
-    "deliberately narrower than rolesThatManage('roster'), which gained safety_manager in the D-ROS12 split: issuing a driver's app login mints a credential handed to a person once and cannot be un-handed. Granted by NAME, and the router's own header makes the argument at length",
-  ],
-  [
-    "modules/roster/routes/drivers.ts [admin,fleet_manager]",
-    "the same act and the same argument as rosterCredentialsRouter — an invitation is the first half of issuing a credential, and /reconcile and /:id/merge are irreversible identity merges. Each carries the ⚠ comment saying why it is narrower than its section",
-  ],
+  // SP11 (Q-SET11): the two roster entries that stood here — credentials.ts and drivers.ts
+  // `[admin,fleet_manager]` — left the ledger because the list is no longer a literal. It is
+  // `DRIVER_IDENTITY_ROLES` in shared, named once beside its reason (a login cannot be un-handed, a
+  // merge cannot be undone) and read by both routers and by the web's buttons.
   [
     "modules/insights/routes/ai.ts [admin,auditor,dispatcher,fleet_manager,safety_manager]",
-    "Ask AI is a `staff`-gated SCREEN with no section of its own (Q-SURF3), and this list is not a section's set — it equals hazmat/view by coincidence, which is exactly the trap a set comparison cannot see. What it means is 'the roles whose data the assistant can answer about'; re-pointing it is a product decision, recorded as Q-SURF7",
+    "Ask AI is a `staff`-gated SCREEN with no section of its own (Q-SURF3), and this list is not a section's set — it equals hazmat/view by coincidence, which is exactly the trap a set comparison cannot see. What it means is 'the roles whose data the assistant can answer about'; re-pointing it is a product decision, recorded as Q-SURF7. Q-SET11 (a) ruled that Ask AI \"reads its section\" without naming one; SP11 did NOT take hazmat/view, because equal-by-coincidence is the trap this waiver exists to name, and left the choice of section to the owner as Q-SET14 (SETTINGS-PERMISSIONS-PLAN.md §5)",
   ],
   [
     "modules/driver-app/routes/me.ts [driver]",

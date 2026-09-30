@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireSection, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -24,7 +24,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/token",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -69,7 +69,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.delete(
     "/samsara/token",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -94,7 +94,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-vehicles",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -112,7 +112,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-trailers",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -228,7 +228,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/sync-drivers",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -247,7 +247,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
   router.post(
     "/samsara/diagnostics",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("samsara.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -271,7 +271,7 @@ export function registerSamsaraIntegrationRoutes(router: Router): void {
    * for six months and no screen said whether that meant "no theft" or "no receiver".
    *
    * The gate is derived (`rolesThatCanView("settings")`), not hand-listed, per CLAUDE.md — this file's
-   * older `requireRole("admin")` writes are the surface T2 generalises and are left alone here.
+   * admin-only writes (`requireAdminOnly("samsara.connection")`, SP11) are a separate, named list.
    */
   router.get(
     "/samsara/webhook",

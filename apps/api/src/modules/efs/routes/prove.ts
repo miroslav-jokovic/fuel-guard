@@ -5,7 +5,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import type { Env } from "../../../env.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { capabilityRegistry } from "../registry.js";
 import { proveCapability, type ProofOutcome } from "../harness/prove.js";
@@ -111,7 +111,7 @@ export function fuelCardProveRouter(): Router {
   router.post(
     "/prove/:capability",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.card-control"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);

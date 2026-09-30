@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import {
+  DRIVER_IDENTITY_ROLES,
   createDriverLoginSchema,
   resetDriverPasswordSchema,
   type CreateDriverLoginRequest,
@@ -51,7 +52,10 @@ export function rosterCredentialsRouter(): Router {
   // cannot be un-handed. A section grants the section; an act this consequential is granted by NAME,
   // the same shape 0212 uses in the other direction to grant a recruiter one write the section does
   // not. Widening this to the section would have been a silent side effect of a rename.
-  router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager"));
+  //
+  // The list is `DRIVER_IDENTITY_ROLES` in shared (SP11, Q-SET11) rather than a literal here, so the
+  // grant is named once, beside its reason, and the Permissions page and this gate read one answer.
+  router.use(requireAuth, requireOrg, requireRole(...DRIVER_IDENTITY_ROLES));
 
   // Create the login: generates the password, returns it ONCE.
   router.post(

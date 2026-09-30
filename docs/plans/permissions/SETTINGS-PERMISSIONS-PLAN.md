@@ -372,6 +372,33 @@ Q-SET11 (a), Q-SET12 (a).
   - *Recommendation: **(a)**.* Leave, investigation and seasonal staff are ordinary. Re-inviting loses
     every per-person override, and those overrides are the control.
 
+### Questions found building SP11 (2026-09-30) — OPEN
+
+Q-SET11 (a) says the rest "read their section". For two of them no section's derived set equals the
+list, so reading a section would change who has access. SP11 left both as they are and asks.
+- **Q-SET13 · Who reads the message-report queue?** `reports_admin_read` lets `[admin, safety_manager]`
+  read every report in the org (and a reporter their own). That is no section's set: safety `manage`
+  adds `fleet_manager`, safety `view` adds `fleet_manager` and `auditor`. Nothing reads the queue.
+  No client selects `message_reports`, and the API only inserts (`messaging/routes/messages.ts`). The
+  review queue 0096's comment describes was never built.
+  - *(a)* Wrap it at safety `view`: the fleet manager and the auditor gain a read that no screen uses.
+  - *(b)* A named list in `namedGrants.ts` (`MESSAGE_MODERATION_ROLES`), waived by name like D-PERM10.
+  - *(c)* Drop the role half and keep `reported_by = auth_user_id()`. When the queue is built, it
+    reads through the API behind a section gate, the SP4 pattern.
+  - *Recommendation: **(c)**.* It is a client read that no product surface uses, the same argument
+    that closed `audit_select` (0391). Choosing the queue's section waits until the queue exists.
+- **Q-SET14 · Which section does Ask AI read?** `POST /api/ai/ask` hand-lists
+  `[admin, fleet_manager, auditor, dispatcher, safety_manager]`. That equals `rolesThatCanView("hazmat")`
+  **by coincidence** (Q-SURF7), and SP11 did not take it: an org granting a recruiter HazmatGuard would
+  then have given them Ask AI. `askData` reads `fuel_transactions`, fuel anomalies, declines and fuel
+  events for almost every answer, plus `driver_scores` and `idle_events`.
+  - *(a)* Keep the named list, moved to `namedGrants.ts` beside its reason (Q-SURF7 (a)).
+  - *(b)* `requireSection("fuel", "view")`. That is the list plus the `accountant`, who already reads
+    fuel spend. **It adds one role.**
+  - *(c)* `hazmat: view`. Equal today, but only by coincidence. Rejected.
+  - *Recommendation: **(b)**.* The assistant's answers are fuel data. An org narrowing Fuel then
+    narrows Ask AI with it, and the one role it adds already reads the same rows on its own pages.
+
 ---
 
 ## 6. Progress log
@@ -486,3 +513,23 @@ Append a dated line per step. Never edit §3.
   refusal test (403 `step_up_required`, no rpc, no write, no audit). Web: one `StepUpPrompt` per page
   (Permissions, Users) through `useStepUpRetry`; the rename drawer moved into `MemberRenameDrawer.vue`
   and owns its prompt like `MemberPasswordResetDrawer`. A retry does not re-ask `confirm()`.
+- **2026-09-30** — SP11 built (Q-SET11 (a)), migration 0396. **Admin only:** Samsara, McLeod, EFS
+  (connection and card control), fuel-card odometer correction, price-network feeds, the rewards
+  freeze and the hazmat policy moved from `requireRole("admin")` to `requireAdminOnly(<key>)`. The keys
+  are in `ADMIN_ONLY_CAPABILITIES` (`packages/shared/src/namedGrants.ts`). The Permissions page lists
+  them under "Admin only", beside `ADMIN_ONLY_SURFACES`. `routeGateLedger.test.ts` fails if a key
+  guards no route, if a route names an unlisted key, or if a bare admin gate appears outside Users,
+  Permissions and two named record acts. **Named grant:** driver credentials, reconcile and merge read
+  `DRIVER_IDENTITY_ROLES`. The web's App-login item and Reconcile button now ask the same list, so a
+  safety manager is no longer offered buttons that 403. **Section reads (API):** the §391.23 inquiry
+  routes are `requireSection("recruitment")` plus the reader test, as PSP is. The driver create/edit
+  gate is `requireAnySection(roster, recruitment)`, and its lifecycle check reads the org's roster
+  answer. **RLS (0396):** production was re-read first. It holds three policies no migration created
+  (`duty_sessions_write`, `duty_segments_write`, `load_events_insert`), each a duplicate of a migrated
+  twin, and 0396 drops them. The duty sessions/segments writes and `load_external_payloads_select`
+  are wrapped at dispatch. `hos_duty_segments_write` is wrapped at settings: its list equals fuel,
+  equipment and settings manage, and D-PERM11 picks Data & sync, the page whose sync writes it. The
+  hazmat policy write stays admin-only with a named waiver. `lint:section-policies` checks these six
+  tables from 0001 (`CHECKED_FROM_START`) and requires each list to be wrapped in its section.
+  **Not done, and asked:** Ask AI and `reports_admin_read` equal no section's set honestly
+  (Q-SET13, Q-SET14). ⚠ Re-read production `pg_policies` on the seven tables before merging.

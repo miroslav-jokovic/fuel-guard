@@ -5,7 +5,6 @@ import {
   INQUIRY_METHOD_LABELS,
   INQUIRY_OUTCOME_LABELS,
   canReadInvestigationHistory,
-  rolesThatManage,
   type InquiryMethod,
 } from "@silvicom/shared";
 import {
@@ -57,9 +56,14 @@ const inquiriesQ = useInquiriesQuery(driverId);
 const record = useRecordInquiry();
 const recordOutcome = useRecordInquiryOutcome();
 
+// The API's two gates, asked the same way (SP11): Recruitment manage from the ORG's answer
+// (`session.can`, the claim `requireSection` reads), and the §391.23(k)(2) reader test, which is the
+// regulation's and not an org's to edit (D-PERM9). It read the shipped matrix until SP11, so a button
+// could stay shown for a recruiter the admin had taken Recruitment away from, and 403.
 const canInvestigate = computed(() => {
   const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!) && canReadInvestigationHistory(role);
+  if (!role) return false;
+  return session.can("recruitment") && canReadInvestigationHistory(role);
 });
 
 /** Only DOT-regulated employers owe a §391.23(a)(2) inquiry. */

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -45,7 +45,7 @@ export function tmsRosterMasterRouter(): Router {
   router.post(
     "/mcleod/roster-master",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("mcleod.connection"),
     asyncHandler(async (req, res) => {
       const parsed = bodySchema.safeParse(req.body);
       if (!parsed.success) {
