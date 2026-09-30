@@ -572,10 +572,49 @@ jobs:
         with:
           cache-disabled: ${{ runner.environment == 'self-hosted' }}
 
+      # ⚠ Retried, but ONLY on an NDK that failed to install (2026-09-30). Gradle downloads two NDKs
+      # while it configures the project, on every run: 27.1.12297006, which React Native pins in its
+      # libs.versions.toml, and 27.0.12077973, which is AGP's own default for expo-sqlite (a CMake
+      # build that names no ndkVersion). The runner image has neither. Google's download was corrupt
+      # often enough to matter: `InstallFailedException … Error on ZipFile unknown archive` failed
+      # native-android on 2 of ~14 main builds in three hours (36cad9a, 466875e). The first of those
+      # blocked migration 0393, because require-ci-green waits for main's CI whenever the PR's
+      # tested-tree shortcut does not apply.
+      #
+      # Why it is a retry and not a pre-install: no file names both versions. Only Gradle knows them,
+      # and a list copied here would go stale on the next Expo upgrade without anyone noticing. Why
+      # not a cache either: the two NDKs are ~2 GB, the same order as this repo's whole 10 GB Actions
+      # cache, and a clean download took 9 s.
+      #
+      # So the step retries up to three times, only when the log says an SDK component failed to
+      # install, clearing the SDK's download staging and any NDK folder left half-installed first. Any
+      # other failure (a Kotlin compile error, above all) fails on the first attempt, as before.
+      # This is where the NDKs get installed: this is the first Gradle call, and Gradle configures
+      # every project on it, so the later steps find them on disk.
       - name: Compile the capture module
         if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
-        run: ./gradlew :capture-native:assembleDebug --no-daemon --console=plain
+        run: |
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          for attempt in 1 2 3; do
+            set +e
+            ./gradlew :capture-native:assembleDebug --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+            status=${PIPESTATUS[0]}
+            set -e
+            [ "$status" -eq 0 ] && exit 0
+            if ! grep -q "InstallFailedException" "$RUNNER_TEMP/gradle.log"; then
+              exit "$status"
+            fi
+            echo "::warning::Attempt ${attempt}: an SDK component failed to install (Google's download) — clearing and retrying."
+            if [ -n "$sdk" ]; then
+              rm -rf "$sdk/.temp" "$sdk/.downloadIntermediates"
+              for d in "$sdk"/ndk/*/; do
+                [ -f "${d}source.properties" ] || rm -rf "$d"
+              done
+            fi
+          done
+          echo "::error::The SDK components Gradle needs failed to install three times."
+          exit 1
 
       # The Android half of D-SCAN9 (plan Step 3.2): CaptureMetrics.kt reproduces
       # packages/capture-engine/fixtures/expected.json on all 24 fixtures. It is a plain JVM test —

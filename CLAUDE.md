@@ -68,10 +68,12 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   against the other side's schema**. A column and its first
   reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
   the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window. **The window was 9m10s, then 2m44s** (migration 0316, 2026-09-05); with the
-  tested-tree shortcut the gate passes in 1 s and `migrate.yml` finishes in ~25 s (dispatch on
-  466875e, 2026-09-30), so the schema now usually lands FIRST. A real migration merge is still owed. The RULE is
-  what holds either way: a gap that short cannot be watched for, and its direction is no longer known.
+  §the-deploy-window. **The window was 9m10s, then 2m44s** (migration 0316, 2026-09-05); since the
+  tested-tree shortcut (2026-09-30) it has two shapes. **Hit** (~83% of merges): 0394 was applied
+  39 s after merge, ~2½ min BEFORE Railway served the code. **Miss** (main moved during the PR run):
+  0395 was applied 7m32s after merge, so the code ran on the OLD schema for **4m36s**, longer than
+  before, because CI is now ~6 min. The RULE holds either way: neither gap can be watched for, and
+  which side lands first depends on the merge.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict
