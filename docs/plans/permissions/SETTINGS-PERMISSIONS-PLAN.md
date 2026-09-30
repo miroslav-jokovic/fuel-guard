@@ -149,12 +149,20 @@ policy is live (`lint:migration-ordering`).
     but it would decide for every future one.
   - **Ruled (a), 2026-09-30.** Every screen that is admin-only today starts "off" for every role that
     cannot open it today, and the admin turns it on per role or per person.
+  - **Revised the same day, after SP1 shipped (#1139).** Owner: *"make all admin only by default, hide
+    Settings too."* EVERY grantable Settings screen now starts off for every role but the admin,
+    including the ones a role could open before: Recruiting, Driver App, Data & sync, the four reports
+    and the auditor's Audit log. The Settings entry is no longer a switch of its own. It is shown
+    exactly when at least one screen behind it is (`directory()` gate), so granting one screen also
+    brings its door, and nobody gets an empty directory. Production had no fleet_manager, recruiter
+    or auditor. The one safety_manager loses Recruiting and Driver App until the admin turns them on.
 - **Q-SET3 · The Audit log.** Today it is admin + auditor, by role.
   - *(a)* `settings: view` + its own screen. It then follows Q-SET2's answer like everything else.
   - *(b)* Keep it by role.
   - *Recommendation: **(a)**.* (b) is the one role test left, and the reason this plan exists.
   - **Ruled (a), 2026-09-30.** Under Q-SET2 (a) its starting default is "off" for every role except
-    admin and auditor, the two that can open it today.
+    admin and auditor, the two that can open it today. Under Q-SET2 as revised, it starts off for the
+    auditor too.
 
 ---
 
@@ -176,3 +184,11 @@ Append a dated line per step. Never edit §3.
   before. Equivalence tested for every office role against the pre-SP1 route gates; 11 mutants, all
   killed. ⚠ Until SP2, a screen turned on for a non-admin opens a page whose saves are still refused
   (admin-only RLS and API gates), e.g. Organization's `organizations_update`.
+- **2026-09-30** — Q-SET2 revised by the owner (§5): every Settings screen is admin-only by default,
+  and the Settings entry is hidden unless a screen behind it is on. Built in its own PR before SP2. The
+  account menu's Settings link now asks the same catalogue question (it was `can("settings")`).
+  ⚠ Links elsewhere still go to Settings screens on the role's section alone, and now bounce for a
+  role nobody has turned the screen on for: the dashboard's coverage tiles (`/coverage`,
+  `/reefer-coverage`), the Anomalies page's `/settings/data` button (`can("safety")`), and the
+  Odometer and Coverage pages' text links. Nothing is exposed (the guard refuses them), but they are
+  dead links. They are SP5 material.

@@ -58,7 +58,18 @@ export type SurfaceGate =
   | { kind: "section"; section: AppSection; level: SectionAccess }
   | { kind: "always" }
   | { kind: "staff" }
-  | { kind: "admin" };
+  | { kind: "admin" }
+  /**
+   * A DIRECTORY entry — today only Settings — which is shown exactly when at least one screen reached
+   * from it is (owner, 2026-09-30: "by default only Admin can see them … hide Settings too").
+   *
+   * ⚠ Derived rather than answered, and on purpose. As its own switch it would be a second answer
+   * to a question the screens already settle: grant Organization to a fleet manager and forget the
+   * Settings switch, and the grant reaches a page nobody can navigate to; leave Settings on with every
+   * screen off, and it opens onto an empty directory. `screens` is filled from `reachedFrom` once the
+   * catalogue is built (`surfaceCatalogue.ts`), so the list is never written twice.
+   */
+  | { kind: "directory"; screens: readonly Surface[] };
 
 export interface Surface {
   /** Stable and storable — this is the primary key an org's override is written against (S3/S4). */
@@ -141,6 +152,8 @@ export const manage = (s: AppSection): SurfaceGate => section(s, "manage");
 export const ALWAYS: SurfaceGate = { kind: "always" };
 export const STAFF: SurfaceGate = { kind: "staff" };
 export const ADMIN: SurfaceGate = { kind: "admin" };
+/** A fresh, empty directory gate per call — its screens are pushed in by the catalogue. */
+export const directory = (): SurfaceGate => ({ kind: "directory", screens: [] });
 
 /**
  * Editable is DERIVED, never stored (Q-SURF3, owner's ruling 2026-09-02). A surface is an org's to
@@ -188,6 +201,9 @@ export function surfaceGateAllows(s: Gated, role: UserRole | null, sections: Sec
       return s.gate.level === "manage"
         ? callerCanManage(role, s.gate.section, sections)
         : callerCanView(role, s.gate.section, sections);
+    // The role half of "any screen behind it": could this role reach one, section-wise.
+    case "directory":
+      return s.gate.screens.some((c) => surfaceGateAllows(c, role, sections));
   }
 }
 
@@ -228,6 +244,7 @@ export function surfaceAllowed(
   sections: SectionClaim | null,
   surfaces: SurfaceClaim | null,
 ): boolean {
+  if (s.gate.kind === "directory") return s.gate.screens.some((c) => surfaceAllowed(c, role, sections, surfaces));
   if (!surfaceGateAllows(s, role, sections)) return false;
   // A detail route is never separately grantable (D-SURF8): denying Loads must also deny the load a
   // bookmark points at, so it answers to its parent's key rather than to one of its own.

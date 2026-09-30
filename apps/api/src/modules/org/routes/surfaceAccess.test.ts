@@ -150,9 +150,10 @@ describe("GET /api/surface-access", () => {
     );
     const byKey = new Map(body.surfaces.map((s) => [s.key, s]));
     expect(byKey.get("admin.settings.org")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: [] });
-    expect(byKey.get("admin.settings.audit")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: ["auditor"] });
-    // A screen the section decides, as it always has, carries no starting default.
-    expect(byKey.get("admin.settings.data")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: null });
+    expect(byKey.get("admin.settings.audit")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: [] });
+    expect(byKey.get("admin.settings.data")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: [] });
+    // The Settings entry itself is not a cell: it follows the screens behind it.
+    expect(byKey.has("admin.settings")).toBe(false);
     expect(byKey.get("fuel.log")).toMatchObject({ reachedFrom: null, startsOnFor: null });
     for (const key of ["admin.users", "admin.settings.permissions", "admin.settings.card-control", "admin.settings.efs"])
       expect(byKey.has(key), `${key} is admin-only by Q-SET1`).toBe(false);
@@ -230,17 +231,17 @@ describe("PUT /api/surface-access", () => {
   });
 
   /** The Audit log starts ON for the auditor (Q-SET3), so for them it is `false` that makes a row. */
-  it("measures the reset per role: the audit log starts on for the auditor and off for a fleet manager", async () => {
+  it("measures the reset per screen: a Settings screen starts off for every role, any other screen on", async () => {
     await withServer(async (base) => {
-      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: true })).status).toBe(200);
-      expect((await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
+      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
+      expect((await put(base, { role: "fleet_manager", surfaceKey: "fuel.log", allowed: true })).status).toBe(200);
     });
     expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
     await withServer(async (base) => {
-      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
+      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: true })).status).toBe(200);
     });
     expect(rec.writtenRows("org_role_surface_access")).toEqual([
-      expect.objectContaining({ role: "auditor", surface_key: "admin.settings.audit", allowed: false }),
+      expect.objectContaining({ role: "auditor", surface_key: "admin.settings.audit", allowed: true }),
     ]);
   });
 

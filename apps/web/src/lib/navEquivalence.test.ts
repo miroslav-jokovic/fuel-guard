@@ -39,6 +39,12 @@ import { buildNavGroups } from "./nav";
  * exactly its job — it turned "I moved two nav items" into a proof that I moved two nav items and
  * nothing else — and it is why the next person to update these should read the diff line by line
  * before they run `-u`.
+ *
+ * ── AND ONCE MORE, ON 2026-09-30 ─────────────────────────────────────────────────────────────────
+ * The owner: *"make all admin only by default, hide Settings too"* (SETTINGS-PERMISSIONS-PLAN.md,
+ * Q-SET2 as revised). Seven snapshots moved — fleet_manager and auditor in each module set, and the
+ * fleet manager of the screen-answer case — and in each the whole change is one group removed:
+ * `Admin → [Settings → /settings]`, which was the only entry either role had in it. Nothing else.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */

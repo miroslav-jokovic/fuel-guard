@@ -4,9 +4,7 @@ import {
   SURFACES,
   USER_ROLES,
   callerCanManage,
-  callerCanView,
   directoryScreens,
-  isReadOnly,
   type SectionClaim,
   type SurfaceClaim,
   type UserRole,
@@ -41,49 +39,36 @@ const cards = (role: UserRole, sections: SectionClaim | null = null, surfaces: S
   return w.findAllComponents(RouterLinkStub).map((l) => l.props("to") as string);
 };
 
-/**
- * Each card's `show:` expression as it was on `main` before SP1, keyed by path — the oracle for the
- * equivalence below, and written here only. `session.admin` was `role === "admin"` and
- * `session.readOnly` was `isReadOnly(role)`.
- */
-const BEFORE: Record<string, (r: UserRole) => boolean> = {
-  "/settings/org": (r) => r === "admin",
-  "/settings/notifications": (r) => r === "admin",
-  "/settings/users": (r) => r === "admin",
-  "/settings/permissions": (r) => r === "admin",
-  "/settings/driver-app": (r) => callerCanManage(r, "roster", null),
-  "/settings/recruiting": (r) => callerCanView(r, "recruitment", null),
-  "/settings/data": (r) => callerCanManage(r, "settings", null),
-  "/settings/efs-soap": (r) => r === "admin",
-  "/settings/card-control": (r) => r === "admin",
-  "/settings/thresholds": (r) => r === "admin",
-  "/settings/driver-performance": (r) => r === "admin",
-  "/settings/fuel-planning": (r) => r === "admin",
-  "/settings/audit": (r) => r === "admin" || isReadOnly(r),
-  "/reports": (r) => callerCanManage(r, "settings", null) || isReadOnly(r),
-  "/coverage": (r) => callerCanManage(r, "settings", null) || isReadOnly(r),
-  "/reefer-coverage": (r) => callerCanManage(r, "settings", null) || isReadOnly(r),
-  "/recall-audit": (r) => callerCanManage(r, "settings", null) || isReadOnly(r),
-};
+/** Every Settings screen turned on — what an admin who answered "yes" to all of them would store. */
+const ALL_ON: SurfaceClaim = Object.fromEntries(directoryScreens("admin.settings").map((s) => [s.key, true]));
+const PATHS = SETTINGS_CARDS.map((c) => SURFACES.find((s) => s.key === c.key)!.path);
 
-describe("the directory's cards come from the catalogue (SP1)", () => {
-  for (const r of USER_ROLES.filter((x) => x !== "driver")) {
-    it(`shows ${r} exactly the cards it saw before, in the same order`, () => {
-      const expected = Object.entries(BEFORE)
-        .filter(([, show]) => show(r))
-        .map(([path]) => path);
-      expect(cards(r)).toEqual(expected);
+/**
+ * Owner, 2026-09-30: *"make all admin only by default"*. So the day-one answer is the whole list for
+ * the admin, in the directory's order, and nothing for anyone else — and "nothing" has to be the
+ * catalogue's answer rather than an empty page, which is why the router test pins that /settings
+ * itself is closed to them too.
+ */
+describe("the directory's cards come from the catalogue", () => {
+  it("shows the admin every card, in the directory's order", () => {
+    expect(cards("admin")).toEqual(PATHS);
+    expect(PATHS).toHaveLength(17);
+  });
+
+  for (const r of USER_ROLES.filter((x) => x !== "driver" && x !== "admin")) {
+    it(`shows ${r} no card until the admin turns one on`, () => {
+      expect(cards(r)).toEqual([]);
     });
   }
 
   it("shows a card the admin turned on for a role that starts without it (Q-SET2)", () => {
-    expect(cards("fleet_manager")).not.toContain("/settings/org");
-    expect(cards("fleet_manager", null, { "admin.settings.org": true })).toContain("/settings/org");
+    expect(cards("fleet_manager", null, { "admin.settings.org": true })).toEqual(["/settings/org"]);
   });
 
-  it("hides a card the admin turned off, which no hand-written expression could see", () => {
-    expect(cards("auditor", null, { "admin.settings.audit": false })).not.toContain("/settings/audit");
-    expect(cards("fleet_manager", null, { "admin.settings.data": false })).not.toContain("/settings/data");
+  it("never shows the four Q-SET1 screens to anyone but the admin, whatever is stored", () => {
+    const shown = cards("fleet_manager", null, ALL_ON);
+    for (const p of ["/settings/users", "/settings/permissions", "/settings/efs-soap", "/settings/card-control"])
+      expect(shown, p).not.toContain(p);
   });
 
   it("has a card for every screen the catalogue reaches from Settings, and no card for a screen that does not exist", () => {
@@ -94,17 +79,17 @@ describe("the directory's cards come from the catalogue (SP1)", () => {
 });
 
 /**
- * The Recruiting card (Q-AW42). It asks `recruitment: view`, the question its route's catalogue entry
- * (`admin.recruiting`) asks — not `admin`, and not `settings`. The case that tells the gates apart is
- * an org that has taken the section away (D-PERM2's overrides).
+ * The Recruiting card (Q-AW42). Turned on, it asks `recruitment: view`, the question its route's
+ * catalogue entry (`admin.recruiting`) asks — not `admin`, and not `settings`. The case that tells the
+ * gates apart is an org that has taken the section away (D-PERM2's overrides).
  */
 describe("the Recruiting card", () => {
-  it("shows for an auditor, who is not an admin and holds `recruitment: view`", () => {
-    expect(cards("auditor")).toContain("/settings/recruiting");
+  it("shows for an auditor it is turned on for, who is not an admin and holds `recruitment: view`", () => {
+    expect(cards("auditor", null, ALL_ON)).toContain("/settings/recruiting");
   });
 
   it("does not show for a fleet manager whose org took the recruitment section away", () => {
-    expect(cards("fleet_manager")).toContain("/settings/recruiting");
-    expect(cards("fleet_manager", { recruitment: "none" })).not.toContain("/settings/recruiting");
+    expect(cards("fleet_manager", null, ALL_ON)).toContain("/settings/recruiting");
+    expect(cards("fleet_manager", { recruitment: "none" }, ALL_ON)).not.toContain("/settings/recruiting");
   });
 });

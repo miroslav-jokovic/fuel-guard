@@ -14,7 +14,7 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
-import { buildNavGroups, type NavGroup } from "@/lib/nav";
+import { buildNavGroups, pathOpens, type NavGroup } from "@/lib/nav";
 import { heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
@@ -258,7 +258,7 @@ async function signOut() {
                       :email="session.email"
                       :name="session.fullName"
                       :role="session.role"
-                      :can-manage="session.can('settings')"
+                      :show-settings="pathOpens('/settings', session.role, session.sections, session.surfaces)"
                       @sign-out="signOut"
                     />
                   </div>
@@ -365,7 +365,7 @@ async function signOut() {
               :name="session.fullName"
               :role="session.role"
               :collapsed="sidebarCollapsed"
-              :can-manage="session.can('settings')"
+              :show-settings="pathOpens('/settings', session.role, session.sections, session.surfaces)"
               @sign-out="signOut"
             />
           </div>

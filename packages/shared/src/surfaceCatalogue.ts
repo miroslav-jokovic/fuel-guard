@@ -2,6 +2,7 @@ import {
   ADMIN,
   ALWAYS,
   STAFF,
+  directory,
   isEditableSurface,
   manage,
   section,
@@ -227,7 +228,7 @@ export const SURFACES: readonly Surface[] = [
   // ── admin ─────────────────────────────────────────────────────────────────────────────────────
   // Settings = org config (its route asks `view` since Q-SURF5, so the auditor's audit-log card is
   // reachable); Users = admin only. Department roles get neither.
-  { key: "admin.settings", label: "Settings", path: "/settings", group: "admin", gate: section("settings") },
+  { key: "admin.settings", label: "Settings", path: "/settings", group: "admin", gate: directory() },
   { key: "admin.users", label: "Users", path: "/settings/users", group: "admin", gate: ADMIN },
 
   // ── NON-NAV surfaces: never in the sidebar, never separately grantable (D-SURF8) ──────────────
@@ -320,12 +321,14 @@ export const SURFACES: readonly Surface[] = [
    *    offered: the first two are how access is given (D-PERM7's escalation), the last two write to
    *    real fuel cards and hold the EFS certificate. `ADMIN_ONLY_SURFACES` below is derived from the
    *    gate, so the list the ruling names and the list the product enforces are one list.
-   *  · Q-SET2 — nobody gains or loses access on the day it ships. A screen that was admin-only
-   *    carries `startsOnFor: []`, so the section gate alone (which gives `settings: manage` to a fleet
-   *    manager) cannot hand it to anyone until the admin turns it on.
-   *  · Q-SET3 — the Audit log is `settings: view` plus its own screen, starting on for the auditor
-   *    and nobody else: `requiresAuditAccess` was `admin || readOnly`, and `auditor` is the only
-   *    read-only role (`isReadOnly`).
+   *  · Q-SET2, REVISED by the owner the same day: *"make all admin only by default, hide Settings
+   *    too"*. Every grantable screen here carries `startsOnFor: []`, so the section gate alone (which
+   *    gives `settings: manage` to a fleet manager, `recruitment` to a recruiter) hands it to nobody
+   *    until the admin turns it on. SP1 had first kept what each role could open before it (the
+   *    ruling as written: "nobody gains or loses"); the revision took Recruiting, Driver App, Data &
+   *    sync, the four reports and the auditor's Audit log away from the roles that had them. The
+   *    Settings entry itself is a `directory()` gate, shown when any of these is.
+   *  · Q-SET3 — the Audit log is `settings: view` plus its own screen, no longer a role test.
    *
    * Planned fueling asks `dispatch` manage rather than `settings`, because that is what the table's
    * own RLS already says (`route_fuel_settings_write`) — the route said admin and the database said
@@ -341,7 +344,7 @@ export const SURFACES: readonly Surface[] = [
   // `roster` and not `settings`: this console decides what DRIVERS see, and its api gates on the
   // `roster` section. The card, the route and the endpoint ask one question — before R0 all three
   // asked the same global boolean and agreed by accident rather than by design.
-  { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), reachedFrom: "admin.settings" },
+  { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), reachedFrom: "admin.settings", startsOnFor: [] },
   /**
    * The carrier's Representatives and road-test examiners (Q-AW42, R1). A card on the Settings page and
    * NOT a sidebar entry, by the owner's ruling of 2026-09-28 (R1 first shipped it in the Admin group).
@@ -349,14 +352,14 @@ export const SURFACES: readonly Surface[] = [
    * A recruiter and a safety manager hold `settings: none`, so they have no link to it — intended: the
    * owner ruled the admin keeps this register (APPLICATION-FLOW-V2-PLAN.md §12, 2026-09-28).
    */
-  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings" },
-  { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.efs", label: "EFS integration", path: "/settings/efs-soap", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.fuel-planning", label: "Planned fueling", path: "/settings/fuel-planning", group: "admin", gate: manage("dispatch"), reachedFrom: "admin.settings", startsOnFor: [] },
-  { key: "admin.settings.audit", label: "Audit log", path: "/settings/audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: ["auditor"] },
+  { key: "admin.settings.audit", label: "Audit log", path: "/settings/audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
 
   /**
    * ── the reporting and detection-health screens, which had NO route gate at all ────────────────
@@ -370,10 +373,10 @@ export const SURFACES: readonly Surface[] = [
    * is the 28-route defect wearing different clothes — the card is hidden and the address still
    * works — and closing it is what this step is for. Directory screens since SP1, like the block above.
    */
-  { key: "admin.reports", label: "Reports", path: "/reports", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
-  { key: "admin.coverage", label: "Detection coverage", path: "/coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
-  { key: "admin.reefer-coverage", label: "Reefer coverage", path: "/reefer-coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
-  { key: "admin.recall-audit", label: "Recall audit", path: "/recall-audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.reports", label: "Reports", path: "/reports", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.coverage", label: "Detection coverage", path: "/coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.reefer-coverage", label: "Reefer coverage", path: "/reefer-coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.recall-audit", label: "Recall audit", path: "/recall-audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
 
   /**
    * The hazmat evidence workspace — reached from the dispatch load and from the review queue, never
@@ -389,6 +392,13 @@ export const SURFACES: readonly Surface[] = [
  * The surfaces that render in the sidebar — everything except the detail routes (D-SURF8) and the
  * screens a directory links to instead (`reachedFrom`, SP1).
  */
+// A directory's screens are the ones that name it — filled from `reachedFrom`, the one place it is
+// written, so the Settings entry cannot drift from the cards behind it.
+for (const s of SURFACES) {
+  const dir = s.reachedFrom ? SURFACES.find((d) => d.key === s.reachedFrom) : undefined;
+  if (dir?.gate.kind === "directory") (dir.gate.screens as Surface[]).push(s);
+}
+
 export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);
 
 /**

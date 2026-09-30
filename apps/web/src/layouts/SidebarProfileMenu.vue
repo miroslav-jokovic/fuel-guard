@@ -18,7 +18,8 @@ const props = defineProps<{
   name?: string | null;
   role: UserRole | null;
   collapsed?: boolean;
-  canManage?: boolean;
+  /** Whether the Settings directory opens for them — the caller asks the catalogue. */
+  showSettings?: boolean;
 }>();
 
 const emit = defineEmits<{ signOut: [] }>();
@@ -102,7 +103,7 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
       </button>
     </div>
     <div class="sidebar-divider mb-1 border-t" />
-    <RouterLink v-if="canManage" to="/settings" class="sidebar-account-item">Settings</RouterLink>
+    <RouterLink v-if="showSettings" to="/settings" class="sidebar-account-item">Settings</RouterLink>
     <button
       type="button"
       class="sidebar-account-item text-danger-700 hover:text-danger-800"
