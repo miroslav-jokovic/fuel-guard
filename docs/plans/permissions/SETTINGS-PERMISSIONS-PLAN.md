@@ -6,7 +6,7 @@ can give or take away, per role and per person, on the existing Permissions page
 `EDITABLE-PERMISSIONS-PLAN.md` (sections, D-PERM*) and `SURFACE-ENTITLEMENTS-PLAN.md` (screens,
 D-SURF*), and adds no third permission system.
 
-Status: **SP1–SP4 live (0391). SP5 next; SP6–SP11 queued from the enterprise audit (§4b), Q-SET6..12 open.**
+Status: **SP1–SP4 live (0391). SP5 next; SP5–SP11 ruled and queued from the enterprise audit (§4b).**
 
 ---
 
@@ -324,7 +324,11 @@ at its call site before being written here.
   - **Ruled (b), 2026-09-30** (owner: *"proceed as proposed"*). The same ruling reopened the
     lifecycle plan's Q1 on the 5.06 M rows behind the count (DATA-LIFECYCLE-PLAN.md §7).
 
-### Questions from the enterprise audit (§4b), OPEN, 2026-09-30
+### Questions from the enterprise audit (§4b) — all ruled as recommended by the owner, 2026-09-30
+
+Owner: *"As recommended and lets finish this properly so after we are done this part is production
+ready and enterprise grade."* Q-SET6 (a), Q-SET7 (a), Q-SET8 (a), Q-SET9 (a), Q-SET10 build now,
+Q-SET11 (a), Q-SET12 (a).
 - **Q-SET6 · When is taken-away access gone?**
   - *(a)* Immediately for remove, revoke, demote and suspend: end every session (`revoke_user_sessions`).
     Matrix changes keep "within an hour", as the page says today.
@@ -461,3 +465,4 @@ Append a dated line per step. Never edit §3.
   Three sweeps (API routes, web gates and links, permission writes) plus production `pg_policies`.
   Nothing built. SP5 is re-scoped to §4b.3 (web only, no ruling needed). SP6–SP11 are queued, and
   Q-SET6..Q-SET12 are open.
+- **2026-09-30** — Owner ruled Q-SET6..Q-SET12 as recommended (§5). SP5–SP11 all proceed.
