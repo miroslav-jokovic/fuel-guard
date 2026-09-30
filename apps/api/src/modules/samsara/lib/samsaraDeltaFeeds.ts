@@ -65,9 +65,11 @@ export type SamsaraPositionsFeedFetcher = (after?: string) => Promise<StatsFeedP
 export function makeSamsaraPositionsFeedFetcher(env: Env, token: string): SamsaraPositionsFeedFetcher {
   return async (after?: string) => {
     const url = new URL("/fleet/vehicles/stats/feed", env.SAMSARA_API_URL);
-    // `gps` alone. Heading, speed, the ECU-speed flag and the reverse-geocoded place name all ride on
-    // the gps stat itself — there is no second type to ask for and no second request to make.
-    url.searchParams.set("types", "gps");
+    // `gps` carries heading, speed, the ECU-speed flag and the reverse-geocoded place name on the one
+    // stat. `engineStates` is the ECU's own On / Idle / Off (D-LM29): the map told engine-on from
+    // engine-off by fix AGE until 2026-09-30, and a stationary truck does not ping on the cadence that
+    // inference assumed. One request still — the feed takes a comma-separated list of types.
+    url.searchParams.set("types", "gps,engineStates");
     if (after) url.searchParams.set("after", after);
     const res = await samsaraFetch(env, token, url);
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);

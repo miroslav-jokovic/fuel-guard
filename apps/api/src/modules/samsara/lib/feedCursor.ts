@@ -27,8 +27,15 @@ export const VEHICLE_STATS_FEED = "vehicle_stats";
  * deltas the 20-minute stats tier needs, and the loss would be SILENT — fuel-drop detection would
  * simply stop seeing the intermediate samples that are the whole reason the feed replaced a snapshot
  * poll. Two tiers reading one feed need two cursors.
+ *
+ * ⚠ It was `"vehicle_positions"` until D-LM29 added `engineStates` to the request, and the rename is
+ * the point: a fresh cursor seeds from the feed's HEAD, which reports every truck's CURRENT engine
+ * state on the first tick. Resuming the old cursor would carry a state only for trucks whose engine
+ * changed after the deploy — a truck switched off on Friday would have none until Monday. It also
+ * avoids resuming a cursor minted for a different `types` list, which the vendor does not document as
+ * valid. The old row stays in `samsara_feed_cursors`; nothing reads it.
  */
-export const VEHICLE_POSITIONS_FEED = "vehicle_positions";
+export const VEHICLE_POSITIONS_FEED = "vehicle_positions_engine";
 
 /**
  * Read this org's cursor for a feed. A MISSING TABLE is not an error here.
