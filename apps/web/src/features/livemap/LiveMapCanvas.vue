@@ -349,6 +349,20 @@ watch(() => props.generatedAt, () => {
   startMotion();
 });
 
+// ⚠ WHICH trucks are drawn changes without a poll whenever the rail's filter or search does, and the
+// map must follow on the click. Until 2026-09-30 nothing watched this: the list filtered at once
+// while every marker stayed on the map until a poll brought new data — and the owner, clearing a
+// status filter, reloaded the page to get the fleet back. Keyed on the ID LIST rather than the
+// array, so a poll that carries the same trucks does not redraw twice (the `generatedAt` watch above
+// owns that case, with motion).
+watch(
+  () => props.vehicles.map((v) => v.vehicleId).join(","),
+  () => {
+    redraw();
+    syncPopover();
+  },
+);
+
 // Selection is not animated — it is a ring appearing, and it must appear on the click rather than
 // on whichever poll happens next.
 //

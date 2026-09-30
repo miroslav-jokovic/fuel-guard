@@ -190,6 +190,36 @@ describe("LiveMapWorkspace (DR5)", () => {
    * The census IS the status filter (D-DR25): the counts used to be stated twice, once in a "Fleet
    * status" panel and once inside the Status dropdown's option labels. Pressing one filters.
    */
+  /**
+   * The owner cleared a status filter by reloading the page (2026-09-30): pressing a tile again did
+   * clear it, but nothing said so, and the map did not follow the list. "All" is the way back, and
+   * the canvas is handed the full fleet again on the click — not on the next poll.
+   */
+  it("returns to every truck from the All button, and hands the map the whole fleet again", async () => {
+    board.data.value = {
+      ...BOARD,
+      vehicles: [
+        BOARD.vehicles[0]!,
+        { ...BOARD.vehicles[0]!, vehicleId: "veh-2", unitNumber: "48", state: "parked" },
+      ],
+    };
+    const wrapper = await mountWorkspace();
+    const button = (label: string) => wrapper.findAll("button").find((b) => b.text().startsWith(label))!;
+    const drawn = () => (wrapper.findComponent({ name: "LiveMapCanvas" }).props("vehicles") as unknown[]).length;
+
+    expect(button("All trucks").attributes("aria-pressed")).toBe("true");
+    expect(drawn()).toBe(2);
+
+    await button("Parked").trigger("click");
+    expect(button("All trucks").attributes("aria-pressed")).toBe("false");
+    expect(drawn()).toBe(1);
+
+    await button("All trucks").trigger("click");
+    expect(button("All trucks").attributes("aria-pressed")).toBe("true");
+    expect(button("Parked").attributes("aria-pressed")).toBe("false");
+    expect(drawn()).toBe(2);
+  });
+
   it("filters from the census button rather than from a second control that repeats it", async () => {
     const wrapper = await mountWorkspace();
     const moving = wrapper.findAll("button").find((b) => b.text().startsWith("Moving"));
