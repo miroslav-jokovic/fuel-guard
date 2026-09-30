@@ -16,7 +16,7 @@ import WhoHasAccessTab from "./WhoHasAccessTab.vue";
  * suspended apart from both, an empty list that says so, and an export that goes to the API.
  */
 const state = vi.hoisted(() => ({ data: null as unknown, pending: false }));
-const calls = vi.hoisted(() => ({ downloads: 0, fail: null as string | null }));
+const calls = vi.hoisted(() => ({ downloads: 0, fail: null as string | null, stepUp: false }));
 const toasts = vi.hoisted(() => ({ success: [] as string[], error: [] as string[] }));
 
 vi.mock("./useAccessReview", async () => {
@@ -25,6 +25,10 @@ vi.mock("./useAccessReview", async () => {
     useAccessReviewQuery: () => ({ data: computed(() => state.data), isPending: ref(state.pending) }),
     downloadAccessReview: vi.fn(async () => {
       calls.downloads++;
+      if (calls.stepUp) {
+        calls.stepUp = false;
+        throw Object.assign(new Error("Confirm your password"), { code: "step_up_required" });
+      }
       if (calls.fail) throw new Error(calls.fail);
     }),
   };
@@ -62,7 +66,17 @@ const fixture = (): AccessReviewState => ({
   modules: [],
 });
 
-const mountTab = () => mount(WhoHasAccessTab, { attachTo: document.body });
+/**
+ * The page's step-up hold (SP9), stubbed: it holds exactly a `step_up_required` refusal and remembers the
+ * retry, which is the contract `useStepUpRetry` gives the Roles and People tabs.
+ */
+const held = { retry: null as null | (() => Promise<void>) };
+const holdForStepUp = (e: unknown, retry: () => Promise<void>) => {
+  if ((e as { code?: string })?.code !== "step_up_required") return false;
+  held.retry = retry;
+  return true;
+};
+const mountTab = () => mount(WhoHasAccessTab, { attachTo: document.body, props: { holdForStepUp } });
 
 async function pick(w: ReturnType<typeof mountTab>, value: string) {
   w.findComponent(AppCombobox).vm.$emit("update:modelValue", value);
@@ -80,6 +94,8 @@ const tableRows = (w: ReturnType<typeof mountTab>, title: string) => {
 };
 
 beforeEach(() => {
+  calls.stepUp = false;
+  held.retry = null;
   // jsdom has no `matchMedia`, so DataTable would draw its narrow card view; the rows read here are
   // the wide table's (see DataTable.test.ts for the same switch).
   Object.defineProperty(window, "matchMedia", {
@@ -181,5 +197,19 @@ describe("Who has access", () => {
     await w.findAll("button").find((b) => b.text() === "Export access review (CSV)")!.trigger("click");
     await flushPromises();
     expect(toasts.error[0]).toContain("Could not record the export");
+  });
+
+  it("holds a step-up refusal for the page's password prompt, then downloads on the retry (SP9)", async () => {
+    calls.stepUp = true;
+    const w = mountTab();
+    await w.findAll("button").find((b) => b.text() === "Export access review (CSV)")!.trigger("click");
+    await flushPromises();
+    expect(held.retry).not.toBeNull();
+    expect(toasts.error).toEqual([]);
+    expect(toasts.success).toEqual([]);
+    await held.retry!();
+    await flushPromises();
+    expect(calls.downloads).toBe(2);
+    expect(toasts.success).toEqual(["Access review exported"]);
   });
 });

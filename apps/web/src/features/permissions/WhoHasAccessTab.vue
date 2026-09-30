@@ -38,6 +38,11 @@ import { downloadAccessReview, useAccessReviewQuery } from "./useAccessReview";
  * this tab holds — see `useAccessReview.ts`. Its success toast says it was recorded, because an
  * admin exporting a list of everyone's access should know that act is itself in the audit log.
  */
+/**
+ * The page's ONE password prompt (SP9), handed down as the Roles and People tabs get it: the export
+ * requires a fresh password, and a refusal must open that prompt and then download, not toast.
+ */
+const props = defineProps<{ holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean }>();
 const toast = useToastStore();
 const review = useAccessReviewQuery();
 const picked = ref("");
@@ -110,6 +115,7 @@ async function exportReview() {
     await downloadAccessReview();
     toast.success("Access review exported", "The export is recorded in the audit log.");
   } catch (e) {
+    if (props.holdForStepUp(e, () => exportReview())) return;
     toast.error("Could not export the access review", (e as Error).message);
   } finally {
     exporting.value = false;

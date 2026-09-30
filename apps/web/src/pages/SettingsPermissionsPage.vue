@@ -78,7 +78,7 @@ const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
       <PeopleTab :hold-for-step-up="holdForStepUp" />
     </div>
     <div v-else id="permissions-panel-access" role="tabpanel" aria-labelledby="permissions-tab-access">
-      <WhoHasAccessTab />
+      <WhoHasAccessTab :hold-for-step-up="holdForStepUp" />
     </div>
 
     <SlideOver :open="stepUpFor !== null" title="Confirm your password" @close="cancel">
