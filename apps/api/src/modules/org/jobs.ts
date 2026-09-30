@@ -1,4 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isShuttingDown,
+  ProcessShuttingDownError,
+  SHUTDOWN_RELEASED_ERROR,
+  trackJob,
+} from "../../lib/shutdown.js";
 
 /**
  * Background job ledger (migration 0027). Every long-running background operation runs THROUGH this so
@@ -370,6 +376,8 @@ export async function runJob(
   work: (report: ProgressReporter, jobId: string) => Promise<Record<string, unknown> | void>,
   opts: StartJobOpts = {},
 ): Promise<RunJobResult> {
+  // A job started after SIGTERM would only be released again seconds later (lib/shutdown.ts).
+  if (isShuttingDown()) throw new ProcessShuttingDownError(kind);
   let jobId: string;
   try {
     jobId = await startJob(admin, orgId, kind, opts);
@@ -377,22 +385,36 @@ export async function runJob(
     if (e instanceof JobConflictError) return { conflict: true };
     throw e;
   }
-  void (async () => {
+  let released = false;
+  const settled = (async () => {
     const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: live jobs keep their lease fresh
     try {
       const report: ProgressReporter = (done, total) =>
         updateJobProgress(admin, jobId, done, total);
       const stats = await work(report, jobId);
-      await finishJob(admin, jobId, { status: "done", stats: stats ?? {} });
+      // A run shutdown already handed back stays handed back: a later `done` would claim a slot
+      // the next process may already hold.
+      if (!released) await finishJob(admin, jobId, { status: "done", stats: stats ?? {} });
     } catch (e) {
-      await finishJob(admin, jobId, {
-        status: "failed",
-        error: e instanceof Error ? e.message : String(e),
-      });
+      if (!released) {
+        await finishJob(admin, jobId, {
+          status: "failed",
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     } finally {
       stopHeartbeat();
     }
   })();
+  const untrack = trackJob(jobId, {
+    kind,
+    settled,
+    release: async () => {
+      released = true;
+      await finishJob(admin, jobId, { status: "failed", error: SHUTDOWN_RELEASED_ERROR });
+    },
+  });
+  void settled.finally(untrack);
   return { jobId };
 }
 

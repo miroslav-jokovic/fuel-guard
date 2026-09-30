@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SCORING_JOB_KINDS,
@@ -7,6 +7,12 @@ import {
   reclaimInterruptedJobs,
   JobConflictError,
 } from "./jobs.js";
+import {
+  drainJobs,
+  ProcessShuttingDownError,
+  resetShutdownStateForTests,
+  SHUTDOWN_RELEASED_ERROR,
+} from "../../lib/shutdown.js";
 
 /** Minimal fake covering exactly the call chains jobs.ts uses:
  *  from().insert().select().single()  and  from().update().eq().
@@ -207,5 +213,41 @@ describe("runJob", () => {
     const failed = updates.find((u) => u.patch.status === "failed");
     expect(failed?.patch).toMatchObject({ status: "failed", error: "boom" });
     expect(failed?.patch.lease_expires_at).toBeNull();
+  });
+});
+
+/** lib/shutdown.ts, from runJob's side (EFS audit 2026-09-30). */
+describe("runJob at shutdown", () => {
+  afterEach(() => resetShutdownStateForTests());
+
+  it("refuses to start a job once shutdown has begun, and writes no row", async () => {
+    const { admin, inserts } = makeFake();
+    await drainJobs(0);
+    await expect(runJob(admin, "org1", "efs_soap_posted", async () => undefined)).rejects.toBeInstanceOf(
+      ProcessShuttingDownError,
+    );
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("a run shutdown released is failed with the release text, and a late finish does not overwrite it", async () => {
+    const { admin, updates } = makeFake();
+    let finish: () => void = () => undefined;
+    await runJob(admin, "org1", "efs_card_sync", () => new Promise<void>((r) => { finish = r; }));
+    const out = await drainJobs(0);
+    expect(out.released).toEqual(["efs_card_sync job-1"]);
+    const released = updates.filter((u) => u.patch.status === "failed");
+    expect(released).toHaveLength(1);
+    expect(released[0]?.patch).toMatchObject({ error: SHUTDOWN_RELEASED_ERROR, lease_expires_at: null });
+    finish();
+    await flush();
+    expect(updates.some((u) => u.patch.status === "done")).toBe(false);
+  });
+
+  it("a run that finishes by itself is untracked, so shutdown has nothing to release", async () => {
+    const { admin } = makeFake();
+    await runJob(admin, "org1", "efs_soap_posted", async () => ({ rows: 1 }));
+    await flush();
+    await flush();
+    expect(await drainJobs(0)).toEqual({ finished: [], released: [] });
   });
 });

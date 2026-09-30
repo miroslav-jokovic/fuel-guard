@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { startQueueWorker } from "./queue/worker.js";
 import { startQueueMetricsLogger } from "./queue/metrics.js";
+import { installShutdownHandlers } from "./lib/shutdown.js";
 
 /**
  * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
@@ -86,3 +87,7 @@ if (
 }
 
 // A consumer-only process is kept alive by the queue loop's timers; a scheduler process by its intervals.
+
+// The queue loop stops claiming on shutdown and executeJob hands back what is still running
+// (lib/shutdown.ts); the scheduler intervals simply stop at exit.
+installShutdownHandlers({ name: `worker:${role}` });

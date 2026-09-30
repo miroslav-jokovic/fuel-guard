@@ -125,6 +125,33 @@ railway logs --service "@fleetguard/web" --environment production | grep -i sche
 
 The second should print `in-process schedulers disabled`, and nothing else.
 
+## A deploy drains running jobs — two settings, both load-bearing
+
+Until 2026-09-30 every deploy killed whatever job was mid-run. The EFS posted-feed poll runs about
+once a minute per org, so nearly every merge caught one: all 27 `efs_soap_posted` failures in that
+week were `reclaimed (lease expired)`. Each dead row held its slot for its five-minute lease — so
+the feed went dark for 5–7 minutes per deploy — and `financialFreshness` turned each into a critical
+alert for every office user (90 in one week). `apps/api/src/lib/shutdown.ts` now handles SIGTERM:
+stop starting jobs, wait for the running ones, hand back the rest so the new process runs them at
+once. It depends on two things no gate can see:
+
+1. **`railway.json`'s `startCommand` must start `node` itself** — `node --import tsx
+   apps/api/src/index.ts`, from the repo root. Measured 2026-09-30: `pnpm` forwards SIGTERM to its
+   child but exits at once with 143 instead of waiting, and in a container the first process exiting
+   stops the container. Putting `pnpm --filter ./apps/api start` back silently turns the drain off
+   again. The command has no `cd`, `&&` or `$VAR` on purpose: Railway's docs do not say whether a
+   Nixpacks start command runs through a shell, and this form works either way. Nothing in the API
+   reads `process.cwd()` — the web `dist` is resolved from `app.ts`'s own location — so starting from
+   the root changes nothing but the process tree.
+2. **`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=45` on both `@fleetguard/api` and `@fleetguard/web`.**
+   Railway's default is 0 — *"it is given 0 seconds to gracefully shutdown before being forcefully
+   stopped with a SIGKILL"*. The code reads the same variable for its wait (minus 10 s for the
+   hand-back), so the two cannot disagree. A posted poll is 4 s median, 14 s p99; the 9-minute card
+   sweep does not fit and is handed back.
+
+To check it worked, the old deployment's log should end with
+`[shutdown] api: SIGTERM — … waiting up to 35s` and then `N finished, M released`.
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.

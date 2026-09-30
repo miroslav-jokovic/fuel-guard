@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { testEnv } from "../../testing/testEnv.js";
-import { planFreshnessFindings, runFinancialFreshnessOnce, STALE_AFTER_HOURS } from "./financialFreshness.js";
+import {
+  planFreshnessFindings,
+  pollStaleAfterMinutes,
+  runFinancialFreshnessOnce,
+  STALE_AFTER_HOURS,
+} from "./financialFreshness.js";
+import type { RecordedQuery } from "../../testing/supabaseRecorder.js";
 import type { FinancialIntegration } from "../mcleod/index.js";
 
 /**
@@ -103,13 +109,84 @@ describe("planFreshnessFindings", () => {
     );
     expect(fs.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-12"]);
   });
+
+  /**
+   * EFS audit 2026-09-30: 27 `efs_soap_posted` failures in a week, every one a deploy killing a run,
+   * every one followed by a success within minutes — and 90 critical notifications. A recurring poll
+   * is judged by its last success, not by each failed run.
+   */
+  const minutesAgo = (m: number) => new Date(NOW.getTime() - m * 60_000).toISOString();
+  const polls = (lastDone: string | null) => ({ lastDone: { efs_soap_posted: lastDone }, staleAfterMinutes: 60 });
+  const postedFailure = { id: "job-p", kind: "efs_soap_posted", error: "reclaimed (lease expired / interrupted run)", finished_at: minutesAgo(30) };
+
+  it("a failed poll that a later poll succeeded after says nothing", () => {
+    expect(planFreshnessFindings(ORG, noMcleod, [postedFailure], NOW, polls(minutesAgo(2)))).toEqual([]);
+  });
+
+  it("a failed poll inside the staleness window says nothing either — the outage finding speaks for it", () => {
+    expect(planFreshnessFindings(ORG, noMcleod, [postedFailure], NOW, polls(minutesAgo(45)))).toEqual([]);
+  });
+
+  it("a feed with no success past the window is ONE finding keyed by the day, not one per failed run", () => {
+    const failures = [1, 2, 3].map((n) => ({ ...postedFailure, id: `job-${n}`, finished_at: minutesAgo(n * 10) }));
+    const fs = planFreshnessFindings(ORG, noMcleod, failures, NOW, polls(minutesAgo(3 * 60 + 5)));
+    expect(fs).toHaveLength(1);
+    expect(fs[0]).toMatchObject({
+      title: "EFS transactions have not updated in 3 hours",
+      severity: "warning",
+      dedupeKey: "finance:poll-stale:efs_soap_posted:org1:2026-09-03",
+      entityType: "integration",
+    });
+  });
+
+  it("past six hours the stale feed is critical", () => {
+    const [f] = planFreshnessFindings(ORG, noMcleod, [], NOW, polls(minutesAgo(7 * 60)));
+    expect(f?.severity).toBe("critical");
+  });
+
+  it("a feed that has never succeeded still reports each failure — there is no success to measure from", () => {
+    const fs = planFreshnessFindings(ORG, noMcleod, [postedFailure], NOW, polls(null));
+    expect(fs.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-p"]);
+  });
+
+  it("a payload-carrying kind is never superseded by an unrelated success", () => {
+    const fs = planFreshnessFindings(
+      ORG,
+      noMcleod,
+      [{ id: "job-w", kind: "efs_window_refetch", error: "x", finished_at: minutesAgo(30) }],
+      NOW,
+      polls(minutesAgo(1)),
+    );
+    expect(fs.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-w"]);
+  });
+
+  it("the window is four poll cycles and never under an hour", () => {
+    expect(pollStaleAfterMinutes(1)).toBe(60);
+    expect(pollStaleAfterMinutes(15)).toBe(60);
+    expect(pollStaleAfterMinutes(30)).toBe(120);
+  });
 });
 
-function recorder(over: { syncedAt?: string | null; failed?: Record<string, unknown>[]; sentKeys?: string[]; emails?: string[] | null }) {
+function recorder(over: {
+  syncedAt?: string | null;
+  failed?: Record<string, unknown>[];
+  /** Successful runs. The recorder does not filter, so the `jobs` fixture answers on `status`. */
+  done?: Record<string, unknown>[];
+  sentKeys?: string[];
+  emails?: string[] | null;
+}) {
+  const jobsFor = (q: RecordedQuery) => {
+    const status = q.filters().find((f) => f.col === "status")?.val;
+    const kind = q.filters().find((f) => f.col === "kind")?.val;
+    const rows = status === "done" ? (over.done ?? []) : status === "failed" ? (over.failed ?? []) : [];
+    // `.eq("kind", k)` for the last-success read, `.in("kind", [...])` for the failed-jobs read.
+    const kinds = kind === undefined ? null : Array.isArray(kind) ? kind : [kind];
+    return kinds ? rows.filter((r) => kinds.includes(r.kind)) : rows;
+  };
   return createSupabaseRecorder({
     tables: {
       org_integrations: over.syncedAt === undefined ? [] : [{ last_synced_at: over.syncedAt }],
-      jobs: over.failed ?? [],
+      jobs: jobsFor,
       notification_events: (over.sentKeys ?? []).map((dedupe_key) => ({ dedupe_key })),
       memberships: [{ user_id: "u-owner" }, { user_id: "u-acct" }, { user_id: "u-owner" }],
       organizations: [{ notifications_enabled: true, notification_emails: over.emails === undefined ? ["office@example.test"] : over.emails }],
@@ -165,6 +242,18 @@ describe("runFinancialFreshnessOnce", () => {
     const fresh = await runFinancialFreshnessOnce(rec.client, env, ORG, NOW);
     expect(fresh.map((f) => f.dedupeKey)).toEqual(["finance:job-failed:job-12"]);
     expect(notifyCalls.every((c) => c.dedupeKey === "finance:job-failed:job-12")).toBe(true);
+  });
+
+  it("a deploy-killed poll followed by a success sends nothing, and the success is read for this org only", async () => {
+    const rec = recorder({
+      syncedAt: hoursAgo(3),
+      failed: [{ id: "job-k", kind: "efs_soap_posted", error: "released at shutdown (deploy)", finished_at: hoursAgo(1) }],
+      done: [{ kind: "efs_soap_posted", finished_at: new Date(NOW.getTime() - 60_000).toISOString() }],
+    });
+    expect(await runFinancialFreshnessOnce(rec.client, env, ORG, NOW)).toEqual([]);
+    expect(notifyCalls).toHaveLength(0);
+    expect(emails).toHaveLength(0);
+    expectOrgScoped(rec, ORG);
   });
 
   it("no notification e-mail configured: the ledger rows are still written, the email is not sent", async () => {
