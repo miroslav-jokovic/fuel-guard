@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardLast4, efsStatusEquals } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { writeAudit } from "../../../lib/audit.js";
+import { notify } from "../../messaging/index.js";
+import { usersWhoManage } from "../../org/index.js";
 import { isSecretBoxConfigured } from "../../../lib/secretBox.js";
 import { signalCardStatusChangedExternally, signalStatusPollRefused } from "../../../lib/cardControlSignals.js";
 import { getCardSummaries, type CardSummaryRow } from "../lib/efsCardOps.js";
@@ -199,6 +201,10 @@ async function recordExternalChanges(
     return 0;
   }
   const ours = new Set(((data ?? []) as { efs_card_id: string }[]).map((r) => r.efs_card_id));
+  const external = changes.filter((c) => !ours.has(c.row.id));
+  // Who hears it: everyone who may MANAGE fuel, from the section matrix — the people who can act on a
+  // card. Read once per poll, and only when there is something to say.
+  const recipients = external.length ? await fuelManagers(admin, orgId) : [];
   let recorded = 0;
   for (const { summary, row } of changes) {
     if (ours.has(row.id)) continue;
@@ -212,9 +218,56 @@ async function recordExternalChanges(
       meta: { from: row.status, to, last4: cardLast4(summary.cardNumber), via: "efs_status_poll" },
     });
     signalCardStatusChangedExternally({ orgId, efsCardId: row.id, from: row.status, to });
+    await notifyStatusChange(admin, orgId, recipients, row, to, cardLast4(summary.cardNumber));
     recorded += 1;
   }
   return recorded;
+}
+
+async function fuelManagers(admin: SupabaseClient, orgId: string): Promise<string[]> {
+  try {
+    return await usersWhoManage(admin, orgId, "fuel");
+  } catch (e) {
+    // The audit row is the record and it is already written; a missed tap on the shoulder is not
+    // worth failing the poll over.
+    console.error(`[efs-cards] org ${orgId}: could not read fuel managers — ${e instanceof Error ? e.message : e}`);
+    return [];
+  }
+}
+
+/**
+ * The office alert for one external change (category `card_status_changed`, migration 0397).
+ *
+ * Every direction is announced, not only locks: a card UNLOCKED in the WEX portal is the change with
+ * money attached — on 2026-09-30 the first poll found ••••7464 reactivated and fuelled while this page
+ * still called it Inactive. Critical when either side is Fraud, a warning otherwise.
+ *
+ * Deduped per card, per new state, per hour: a card flapping between two states cannot fill an inbox,
+ * and a genuine second change an hour later still arrives. `notify()` itself never throws.
+ */
+async function notifyStatusChange(
+  admin: SupabaseClient,
+  orgId: string,
+  recipients: readonly string[],
+  row: MirrorRow,
+  to: string,
+  last4: string | null,
+): Promise<void> {
+  const fraud = /fraud/i.test(row.status) || /fraud/i.test(to);
+  const hour = new Date().toISOString().slice(0, 13);
+  for (const userId of recipients) {
+    await notify(admin, {
+      orgId,
+      userId,
+      category: "card_status_changed",
+      title: `Fuel card ••••${last4 ?? "????"} is now ${to}`,
+      body: `It was ${row.status}. The change was made at EFS — in the WEX portal or by EFS itself — not in Silvicom 360.`,
+      severity: fraud ? "critical" : "warning",
+      entityType: "efs_card",
+      entityId: row.id,
+      dedupeKey: `card_status_changed:${row.id}:${to.toLowerCase()}:${hour}`,
+    });
+  }
 }
 
 function errorText(error: unknown): string {
