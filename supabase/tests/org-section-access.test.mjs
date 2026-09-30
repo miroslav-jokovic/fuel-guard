@@ -934,25 +934,35 @@ ok(
   await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, TOUCH_IDLE, [ORG]),
 );
 
+// 0300 C put discount rules and route fuel settings under DISPATCH; SP3 (0389) then took the client
+// write away from everyone. Planned fueling is its own screen (Q-SET2), which RLS cannot see
+// (D-SURF4), so the API is the one writer and asks the section AND the screen. A dispatch grant
+// alone therefore writes nothing here any more — not even the admin's, and not a dispatcher given
+// dispatch: manage. The pages still load both tables through PostgREST, so the read stays.
 const NEW_DISCOUNT = `insert into fuel_discount_rules (org_id, brand, cents_off) values ($1, 'p6-brand', 3)`;
-ok(
-  "a claim-less dispatcher writes a discount rule — the 0078 list, now under DISPATCH (0300 C)",
-  await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DISCOUNT, [ORG]),
-);
-ok(
-  "taking FUEL from the dispatcher changes nothing — the planner's inputs are dispatch's",
-  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "none" }, NEW_DISCOUNT, [ORG]),
-);
-ok(
-  "taking DISPATCH manage from them closes it",
-  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, NEW_DISCOUNT, [ORG])),
-);
 await db.query(`insert into route_fuel_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
 const TOUCH_ROUTE = `update route_fuel_settings set reserve_pct = 21 where org_id = $1`;
 ok(
-  "route fuel settings answer the same dispatch question, both ways",
-  (await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_ROUTE, [ORG])) &&
-    !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_ROUTE, [ORG])),
+  "the fixture is real — the table owner touches the org's route fuel settings",
+  (await db.query(`${TOUCH_ROUTE} returning org_id`, [ORG])).rows.length === 1,
+);
+for (const [who, user, role, sections] of [
+  ["a claim-less dispatcher", DISPATCHER, "dispatcher", null],
+  ["a dispatcher granted dispatch: manage", DISPATCHER, "dispatcher", { dispatch: "manage" }],
+  ["the admin", BOSS, "admin", null],
+]) {
+  ok(
+    `${who} cannot write a discount rule from the client — the API owns it (0389)`,
+    !(await wrote(user, ORG, role, sections, NEW_DISCOUNT, [ORG])),
+  );
+  ok(
+    `${who} cannot touch route fuel settings from the client either (0389)`,
+    !(await wrote(user, ORG, role, sections, TOUCH_ROUTE, [ORG])),
+  );
+}
+ok(
+  "a claim-less dispatcher still READS the org's route fuel settings — the page loads through PostgREST",
+  (await asUserWith(DISPATCHER, ORG, "dispatcher", null, `select org_id from route_fuel_settings where org_id = $1`, [ORG])).rows?.length === 1,
 );
 
 // D. A role that a RESTRICTIVE policy already refuses is dead text in a permissive list (D-PERM12).
