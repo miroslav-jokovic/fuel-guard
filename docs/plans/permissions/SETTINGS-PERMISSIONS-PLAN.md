@@ -234,3 +234,9 @@ Append a dated line per step. Never edit §3.
   fleet manager's read still answering. `org-section-access.test.mjs`'s dispatch cases now expect
   every client write refused, the admin's and a dispatch: manage grant's included, and the
   dispatcher's read kept. Re-creating each policy fails its cases (5 of 5).
+- **2026-09-30** — Q-SET4 merged (#1142, `e3be0dc`) and SP3 merged (#1143, `2247fba`). GitHub never
+  delivered `2247fba`'s push event: no Actions run and no Railway deploy started, so 0389 was not
+  applied. This line's own merge re-triggers the pipeline on a head that contains SP3. Railway's web
+  deploy of `e3be0dc` had also failed ("failed to fetch snapshot", Railway's builders), leaving web on
+  `15e875a`; the next deploy replaces it. SP4 (Audit log through the API) is next —
+  HANDOFF-2026-09-30-SP4.md.
