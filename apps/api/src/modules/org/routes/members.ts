@@ -8,6 +8,16 @@ import { writeAudit } from "../../../lib/audit.js";
 import { revokePushTokens } from "../../messaging/index.js";
 import { lookupMemberRole } from "../memberLookup.js";
 
+/**
+ * Migration 0392's deferred trigger (SP6) refuses, at commit, any write that would leave the org with
+ * no admin — SQLSTATE `AM010`. The count in PATCH below words the ordinary case before it is tried;
+ * this answers the case the count cannot see: two admins demoting or removing each other at the same
+ * moment, each counting two. Without it the database's refusal reads as a generic 500.
+ */
+const LAST_ADMIN_REFUSED = "AM010";
+const lastAdminError = () =>
+  apiError("last_admin", "This is the only admin — promote someone else to admin first.");
+
 /** One row of `org_member_directory()` (0301). */
 interface DirectoryRow {
   user_id: string;
@@ -109,7 +119,8 @@ export function membersRouter(): Router {
         .eq("user_id", userId);
 
       if (error) {
-        res.status(500).json(apiError("db_error", "Could not remove member"));
+        if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
+        else res.status(500).json(apiError("db_error", "Could not remove member"));
         return;
       }
 
@@ -166,7 +177,8 @@ export function membersRouter(): Router {
 
       const { error } = await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
       if (error) {
-        res.status(500).json(apiError("db_error", "Could not revoke access"));
+        if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
+        else res.status(500).json(apiError("db_error", "Could not revoke access"));
         return;
       }
 
@@ -240,7 +252,7 @@ export function membersRouter(): Router {
             .eq("org_id", orgId)
             .eq("role", "admin");
           if ((count ?? 0) <= 1) {
-            res.status(400).json(apiError("last_admin", "This is the only admin — promote someone else to admin first."));
+            res.status(400).json(lastAdminError());
             return;
           }
         }
@@ -251,7 +263,8 @@ export function membersRouter(): Router {
           .eq("org_id", orgId)
           .eq("user_id", userId);
         if (error) {
-          res.status(500).json(apiError("db_error", "Could not update role"));
+          if ((error as { code?: string }).code === LAST_ADMIN_REFUSED) res.status(409).json(lastAdminError());
+          else res.status(500).json(apiError("db_error", "Could not update role"));
           return;
         }
 

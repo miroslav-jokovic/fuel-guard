@@ -244,17 +244,20 @@ ok(
 );
 
 // ── 4b. The path the API cannot guard at all: an admin's own JWT through PostgREST ────────────
+// Until 0392 `memberships_write` let this token DELETE any membership in its org, and 0329's trigger
+// was what refused a driver's. 0392 dropped the policy (SP6): the browser now writes no membership at
+// all, so the same DELETE finds no row it is allowed to see as writable and removes nothing — for a
+// driver and for an office member alike. The row count is the assertion: RLS refuses a DELETE by
+// matching zero rows, not by raising, so "no error" would prove nothing.
+const adminDeletes = (uid) =>
+  asAdmin(
+    `do $$ declare n int; begin delete from memberships where org_id = '${ORG}' and user_id = '${uid}'; get diagnostics n = row_count; if n <> 0 then raise exception 'deleted % rows, expected 0', n; end if; end $$`,
+  );
+ok("an org admin's browser token deletes no driver's membership (0392 dropped memberships_write)", (await adminDeletes(WEDGED)) === null);
+ok("…and no office member's either — the Users page is the only door", (await adminDeletes(OFFICE2)) === null);
 ok(
-  "an org admin's browser token cannot delete a driver's membership either — the guard is in the DB",
-  /roster/i.test((await asAdmin(`delete from memberships where org_id = $1 and user_id = $2`, [ORG, WEDGED])) ?? ""),
-);
-// ⚠ Deliberately inside one transaction: `asAdmin` rolls back, so the row must still be there for
-// the count to mean anything. The check is that the DELETE reported a row, not that it vanished.
-ok(
-  "…while the same token can still remove an office member, which is what that policy is for",
-  (await asAdmin(
-    `do $$ declare n int; begin delete from memberships where org_id = '${ORG}' and user_id = '${OFFICE2}'; get diagnostics n = row_count; if n <> 1 then raise exception 'deleted % rows, expected 1', n; end if; end $$`,
-  )) === null,
+  "…and the office member is still there, so the zero above was the policy and not a missing row",
+  (await memberships(OFFICE2)).length === 1,
 );
 
 // revokeDriverLogin's order: unlink the roster row FIRST, then drop the membership. This is the ONE
