@@ -616,10 +616,24 @@ jobs:
   # "all of CI passed". `if: always()` plus the explicit result check is deliberate — without it a
   # cancelled or skipped dependency would leave this job skipped, and a skipped required check reads
   # to branch protection as nothing at all rather than as a failure.
+  #
+  # It also RECORDS what was proven (2026-09-30). On a pull request, once every job has passed, it
+  # posts a `ci/tested-tree` commit status on the PR head whose description is the git tree of the
+  # merge commit this run tested. When the PR is merged with main unmoved, main's merge commit has
+  # that identical tree, and require-ci-green reads the status to ship a migration or a driver
+  # release without waiting for a second full run of this workflow on main — which proved nothing
+  # new and cost every migration merge 6.5–11 minutes. .github/actions/require-ci-green/tested-tree.sh
+  # has the rules. The status is informational to branch protection: `build` stays the required check.
+  #
+  # Only for a PR from this repository: a fork's token cannot write statuses, and a fork's PR could
+  # never be what a deploy reads anyway, since the gate only ever looks at a merge commit on main.
   build:
     if: always()
     needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices, native-android]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - name: Require every CI job to have succeeded
         env:
@@ -633,3 +647,17 @@ jobs:
             fi
           done
           echo "All CI jobs succeeded."
+
+      # Runs only if the step above passed, so a status is never posted for a red run.
+      - name: Record the tree this run proved green
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          tree=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${GITHUB_SHA}" --jq .tree.sha)
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=success -f context=ci/tested-tree -f description="$tree" -f target_url="$RUN_URL" >/dev/null
+          echo "Recorded ci/tested-tree on ${HEAD_SHA::7}: merge ${GITHUB_SHA::7} has tree $tree"

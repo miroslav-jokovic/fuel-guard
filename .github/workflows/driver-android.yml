@@ -52,6 +52,7 @@ jobs:
     permissions:
       contents: read
       actions: read # the CI gate reads workflow run status
+      statuses: read   # CI gate reads the ci/tested-tree status a PR run left
     steps:
       - uses: actions/checkout@v4
 

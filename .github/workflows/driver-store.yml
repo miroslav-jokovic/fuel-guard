@@ -50,6 +50,7 @@ concurrency:
 permissions:
   contents: write # to record the built fingerprint on the tag's GitHub Release
   actions: read # the CI gate reads workflow run status
+  statuses: read   # CI gate reads the ci/tested-tree status a PR run left
 
 jobs:
   build:
