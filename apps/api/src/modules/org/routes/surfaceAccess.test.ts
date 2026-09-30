@@ -166,7 +166,7 @@ describe("GET /api/surface-access", () => {
 
 describe("PUT /api/surface-access", () => {
   /**
-   * SP8 (Q-SET7 (a), migration 0394): the cell and its audit row are ONE `write_access_cell` call.
+   * SP8 (Q-SET7 (a), migration 0395): the cell and its audit row are ONE `write_access_cell` call.
    * The org comes from the token, the answer travels as the boolean's text (the function casts it to
    * the column's type), and no separate insert, delete or `writeAudit` is left to fail between.
    */

@@ -95,7 +95,7 @@ export function invitesRouter(): Router {
       const minted = mintLinkToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
-      // The invite and its `invite.created` row in one transaction (SP8, Q-SET7 (a), migration 0394):
+      // The invite and its `invite.created` row in one transaction (SP8, Q-SET7 (a), migration 0395):
       // an invitation is the grant of a role to an email address, so it is an access change like a
       // role edit, and it does not exist without its record. A duplicate (org_id, email) raises 23505.
       const { data: inviteId, error } = await admin.rpc("invite_create", {
@@ -218,7 +218,7 @@ export function invitesRouter(): Router {
       }
 
       // The delete and its `invite.deleted` row — carrying the whole invite, since after this it is
-      // the only record the invitation existed — in one transaction (SP8, migration 0394). The function
+      // the only record the invitation existed — in one transaction (SP8, migration 0395). The function
       // re-checks the status under its lock: AM020 is the case the read above could not see, the
       // invite resent or accepted between that read and this write.
       const { data: deleted, error } = await admin.rpc("invite_delete", {

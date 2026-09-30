@@ -58,7 +58,7 @@ export async function deliverInvite(
 
 /**
  * The second, separate row an invitation's delivery writes (SP8). The grant itself — `invite.created`
- * or `invite.resent` — is recorded inside the 0394 function's transaction; the email is sent after
+ * or `invite.resent` — is recorded inside the 0395 function's transaction; the email is sent after
  * that commits, because it cannot be rolled back, so whether it went is a fact of its own. Best
  * effort: `writeAudit` logs a failure, and a missing delivery row loses nothing the grant row holds.
  */

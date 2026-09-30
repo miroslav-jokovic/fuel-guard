@@ -137,7 +137,7 @@ describe("GET /api/section-access", () => {
 
 describe("PUT /api/section-access", () => {
   /**
-   * SP8 (Q-SET7 (a), migration 0394): the cell and its audit row are ONE call to
+   * SP8 (Q-SET7 (a), migration 0395): the cell and its audit row are ONE call to
    * `write_access_cell`, so there is no separate delete, insert or `writeAudit` left to fail between.
    * These pin what the route hands the function: the org from the TOKEN, the actor, the action name
    * and the meta the log has always carried (the function adds `from`/`to` itself).

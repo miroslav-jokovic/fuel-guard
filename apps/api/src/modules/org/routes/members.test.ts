@@ -28,7 +28,7 @@ const DRIVER = "00000000-0000-4000-8000-000000000003";
 /** An office member suspended under Q-SET12 (0393). */
 const SUSPENDED = "00000000-0000-4000-8000-000000000004";
 
-/** The 0394 member functions' default answers: the role held before the change. */
+/** The 0395 member functions' default answers: the role held before the change. */
 const MEMBER_RPCS = {
   org_member_directory: undefined as unknown,
   member_change_role: "technician",
@@ -59,7 +59,7 @@ const { writeAudit } = await import("../../../lib/audit.js");
 const { forgetMembership } = await import("../../../middleware/membershipCurrent.js");
 const { revokePushTokens } = await import("../../messaging/index.js");
 
-/** The 0394/0363 calls a request made, by name (SP7/SP8). */
+/** The 0395/0363 calls a request made, by name (SP7/SP8). */
 const rpcCalls = (fn: string) => rec.rpcs().filter((r) => r.fn === fn).map((r) => r.args);
 const sessionsEnded = () => rpcCalls("revoke_user_sessions");
 

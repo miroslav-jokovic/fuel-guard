@@ -66,7 +66,7 @@ async function post(path: string, body: unknown): Promise<{ status: number; json
 }
 
 const tokenFromLink = (link: string) => new URL(link).searchParams.get("token")!;
-/** The arguments of the one call to a 0394 function (SP8), or undefined when it was not called. */
+/** The arguments of the one call to a 0395 function (SP8), or undefined when it was not called. */
 const rpcArgs = (fn: string) => rec.rpcs().find((r) => r.fn === fn)?.args as Record<string, unknown> | undefined;
 const auditActions = () => vi.mocked(writeAudit).mock.calls.map((c) => c[1].action);
 

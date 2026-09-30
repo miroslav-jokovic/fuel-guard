@@ -33,7 +33,7 @@ import { lookupMemberRole } from "../memberLookup.js";
  *
  * ⚠ The API reads with the SERVICE ROLE, which bypasses RLS, so every query below carries its own
  * `.eq("org_id", …)`. `sectionAccess.test.ts` asserts it with `expectOrgScoped`.
- * The WRITES go through `write_access_cell` (0394, SP8) with `p_org_id` taken from the token, never
+ * The WRITES go through `write_access_cell` (0395, SP8) with `p_org_id` taken from the token, never
  * the body, and the tests assert that argument the same way.
  *
  * ── WHAT READS THESE ROWS ───────────────────────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export function sectionAccessRouter(): Router {
       const shipped = sectionAccess(role as UserRole, section as AppSection);
       const isDefault = access === shipped;
 
-      // One transaction (SP8, Q-SET7 (a), migration 0394): the cell and its audit row land together or
+      // One transaction (SP8, Q-SET7 (a), migration 0395): the cell and its audit row land together or
       // not at all, and the audit row gains `from`/`to` — the value this write actually replaced, read
       // under a row lock. A default is written as null, which the function stores as NO row (D-PERM4).
       // The function is still delete-then-insert inside, never a partial upsert (`lint:upserts`).
@@ -305,7 +305,7 @@ export function sectionAccessRouter(): Router {
         return;
       }
 
-      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0394); `access: null` removes
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0395); `access: null` removes
       // the row, which is how "follow the role" is stored.
       const written = await writeAccessCell(admin, {
         table: "user_section_access",

@@ -36,7 +36,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * ⚠ The API reads with the SERVICE ROLE, which bypasses RLS, so every query below carries its own
  * `.eq("org_id", …)`; `surfaceAccess.test.ts` asserts it with `expectOrgScoped`.
- * The WRITES go through `write_access_cell` (0394, SP8) with `p_org_id` taken from the token, never
+ * The WRITES go through `write_access_cell` (0395, SP8) with `p_org_id` taken from the token, never
  * the body, and the tests assert that argument the same way.
  */
 
@@ -275,7 +275,7 @@ export function surfaceAccessRouter(): Router {
       // The contract has already refused a key that is not grantable, so this cannot miss.
       const startsOn = surfaceStartsOn(GRANTABLE_SURFACES.find((s) => s.key === surfaceKey)!, role as UserRole);
 
-      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0394). The starting value is
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0395). The starting value is
       // written as null — no row (D-SURF6's sparseness) — and a real answer as the boolean's text,
       // which the function casts back to the column's type and records as a boolean `from`/`to`.
       const isStart = allowed === startsOn;
@@ -345,7 +345,7 @@ export function surfaceAccessRouter(): Router {
         return;
       }
 
-      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0394); `allowed: null` removes
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0395); `allowed: null` removes
       // the row, which is how "follow the role" is stored.
       const written = await writeAccessCell(admin, {
         table: "user_surface_access",

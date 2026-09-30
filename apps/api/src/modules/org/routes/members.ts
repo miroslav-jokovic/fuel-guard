@@ -15,7 +15,7 @@ import { lookupMemberRole } from "../memberLookup.js";
  * no active admin — SQLSTATE `AM010` (0393 made "active" mean unsuspended). The count in PATCH below
  * words the ordinary case before it is tried; this answers the case the count cannot see: two admins
  * demoting, removing or suspending each other at the same moment, each counting two. Since SP8 the
- * refusal arrives as the error of the 0394 function the handler called, in the same transaction as
+ * refusal arrives as the error of the 0395 function the handler called, in the same transaction as
  * the audit row that therefore never lands. Without the mapping it reads as a generic 500.
  */
 const refusedLastAdmin = (error: unknown) => errorCode(error) === LAST_ADMIN_REFUSED;
@@ -352,7 +352,7 @@ export function membersRouter(): Router {
         return;
       }
 
-      // The state and its `member.suspended` / `member.reinstated` row in one transaction (0394, SP8).
+      // The state and its `member.suspended` / `member.reinstated` row in one transaction (0395, SP8).
       const { data: role, error } = await admin.rpc("member_set_suspended", {
         p_org_id: orgId,
         p_user_id: userId,

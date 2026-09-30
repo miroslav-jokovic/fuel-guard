@@ -4,7 +4,7 @@ import { forgetMembership } from "../../middleware/membershipCurrent.js";
 
 /**
  * The API's half of SP8 (SETTINGS-PERMISSIONS-PLAN §4b, Q-SET7 (a)): every change to who may do what
- * is ONE call to a function migration 0394 wrote, which reads the before-state under a row lock, makes
+ * is ONE call to a function migration 0395 wrote, which reads the before-state under a row lock, makes
  * the change and inserts the audit row in the same transaction. Before it, each write was a delete, an
  * insert and a `writeAudit()` whose `false` nobody read — so a failure between them could leave a
  * change nobody could account for, or an audit row for a change that never landed.
@@ -16,7 +16,7 @@ import { forgetMembership } from "../../middleware/membershipCurrent.js";
 
 /** 0392/0393's deferred trigger: the write would leave the organisation with no active admin. */
 export const LAST_ADMIN_REFUSED = "AM010";
-/** 0394's invite_delete / invite_reissue: the invite's status does not allow the act (re-checked under lock). */
+/** 0395's invite_delete / invite_reissue: the invite's status does not allow the act (re-checked under lock). */
 export const INVITE_STATUS_REFUSED = "AM020";
 /** Postgres unique_violation — invite_create's duplicate (org_id, email). */
 export const UNIQUE_VIOLATION = "23505";
@@ -28,7 +28,7 @@ export function errorCode(error: unknown): string | undefined {
   return (error as { code?: string } | null)?.code;
 }
 
-/** The four access tables `write_access_cell` accepts (0394 refuses any other name with 22023). */
+/** The four access tables `write_access_cell` accepts (0395 refuses any other name with 22023). */
 export type AccessTable = "org_section_access" | "user_section_access" | "org_role_surface_access" | "user_surface_access";
 
 export interface AccessCellWrite {
