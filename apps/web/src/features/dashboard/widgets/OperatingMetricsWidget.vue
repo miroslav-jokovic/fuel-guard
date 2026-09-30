@@ -27,6 +27,7 @@ import {
 import { AppCard as BaseCard, AppIconChip } from "@silvicom/ui";
 import { useFuelRangeTotals, type FuelFilters } from "@/composables/useFuelLog";
 import { fuelTileDestinations } from "@/composables/dashboardFuelLinks";
+import { useOpens } from "@/composables/useOpens";
 import { useFindingsSummaryQuery, ledgerTiles } from "@/composables/useFindingsSummary";
 import { applyMoneyGate } from "../moneyGate";
 import { useFleetWidgetData, fmtInt, type FleetRange } from "../fleetWidgetData";
@@ -51,6 +52,7 @@ const { s, isLoading, canSeeMoney, mpgTotal, mpgSub, mpgTitle, rangeLabel } = us
 const fuelRange = computed<FuelFilters>(() => ({ from: range.value.from, to: range.value.to }));
 const { data: fuelTotals, isLoading: fuelLoading } = useFuelRangeTotals(fuelRange);
 const { data: findings } = useFindingsSummaryQuery();
+const opens = useOpens();
 
 const ledgerStats = computed(() =>
   ledgerTiles(findings.value, { open: InvoiceIcon, money: CurrencyDollarIcon },
@@ -141,11 +143,18 @@ const metricStrip = computed(() =>
       reads upside-down until those two numbers are in front of you.
     -->
     <dl class="grid grid-cols-1 divide-x divide-y divide-edge-subtle md:grid-cols-3 xl:grid-cols-4">
-      <RouterLink
+      <!--
+        A tile is a link only when its page opens for the reader (SP5, plan §4b): `/coverage` and
+        `/reefer-coverage` start off for everyone but the admin since Q-SET2, and `/fuel-spend` asks
+        `fuel: manage`. The figure is the dashboard's own and stays; only the promise of a page goes.
+      -->
+      <component
+        :is="opens(stat.to) ? RouterLink : 'div'"
         v-for="stat in metricStrip"
         :key="stat.label"
-        :to="stat.to"
-        class="group flex min-w-0 items-start gap-3 px-4 py-3 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+        v-bind="opens(stat.to) ? { to: stat.to } : {}"
+        class="group flex min-w-0 items-start gap-3 px-4 py-3"
+        :class="opens(stat.to) && 'hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring'"
       >
         <!--
           The chip LEADS, as it does in `StatCard`'s hero and KPI anatomies and in all eleven comps
@@ -178,7 +187,7 @@ const metricStrip = computed(() =>
           </dd>
           <dd class="truncate text-xs text-ink-tertiary">{{ stat.sub }}</dd>
         </div>
-      </RouterLink>
+      </component>
     </dl>
   </BaseCard>
 </template>

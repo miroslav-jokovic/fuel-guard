@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import DeclaredProductsCard from "@/features/hazmat/DeclaredProductsCard.vue";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
@@ -121,6 +122,9 @@ const runError = computed<string | null>(() => {
 });
 
 const session = useSessionStore();
+// SP5: this page is `hazmat` view and Loads is `dispatch` view, so a hazmat reviewer without dispatch
+// was offered a way back that the guard answered with the dashboard.
+const opens = useOpens();
 const canReview = computed(() => session.role != null && HAZMAT_REVIEW_ROLES.includes(session.role));
 const canCancel = computed(() => ["draft", "submitted", "needs_review"].includes(load.value?.status ?? ""));
 const primaryLabel = computed(() =>
@@ -134,7 +138,7 @@ const canPrimary = computed(() => ["draft", "submitted"].includes(load.value?.st
     <PageHeader description="Hazmat load — analysis, placards and findings.">
       <template #actions>
         <BaseButton v-if="latestRun" variant="ghost" size="sm" :disabled="packet.loading.value" @click="packet.download(id!)">{{ packet.loading.value ? "Preparing…" : "Defense packet" }}</BaseButton>
-        <BaseButton variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
+        <BaseButton v-if="opens('/loads')" variant="ghost" size="sm" to="/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
 

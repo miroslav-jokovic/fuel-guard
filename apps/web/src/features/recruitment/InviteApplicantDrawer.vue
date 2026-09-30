@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { INVITE_TTL_DAYS_MAX, rolesThatManage, stoppedBeforeLinkExpires } from "@silvicom/shared";
+import { INVITE_TTL_DAYS_MAX, stoppedBeforeLinkExpires } from "@silvicom/shared";
 import { AppButton as BaseButton, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import { useSessionStore } from "@/stores/session";
@@ -78,10 +78,9 @@ const carrierHours = computed(() => settingsQ.data.value?.settings.reminder_afte
 const sendAgain = useSendApplicationLinkAgain();
 
 /** Same gate the driver-page card uses — the section matrix, never a role literal. */
-const canInvite = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canInvite = computed(() => session.can("recruitment"));
 
 const firstName = ref("");
 const lastName = ref("");

@@ -1,11 +1,9 @@
 import { Router } from "express";
 import {
-  USER_ROLES,
-  canWriteDriverLifecycle,
   hireApplicantSchema,
   type HireApplicant,
 } from "@silvicom/shared";
-import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -32,9 +30,17 @@ export function recruitmentHireRouter(): Router {
   router.use(requireAuth);
 
   const canView = requireSection("recruitment", "view");
-  // Derived from the predicate 0213's trigger mirrors, not from a role list — a hand-written list
-  // here is how the API and the trigger come to disagree about who may hire.
-  const canHire = requireRole(...USER_ROLES.filter(canWriteDriverLifecycle));
+  // `roster: manage`, read from the ORG's matrix (the `sections` claim) — SP5, plan §4b, owner ruling
+  // 2026-09-30. This was `requireRole(...USER_ROLES.filter(canWriteDriverLifecycle))`, which is the
+  // same predicate (`canWriteDriverLifecycle` IS `canManageSection(role, "roster")`) asked of the
+  // SHIPPED matrix: a role the admin granted roster manage was refused the hire, and a role the admin
+  // narrowed out of it was still let through. The web's Hire… asks `session.can("roster")`, the same
+  // question, so the button and the endpoint cannot disagree again.
+  //
+  // 0213's trigger still names the three shipped roles, and that does not reopen the gap: it passes a
+  // null `auth_role()`, which is the service role this route writes with, so for the API this
+  // middleware is the whole gate. The trigger is the lock on a CLIENT write to `drivers.status`.
+  const canHire = requireSection("roster");
 
   router.get(
     "/drivers/:driverId/hire-preview",

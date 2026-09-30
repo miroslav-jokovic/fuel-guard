@@ -18,6 +18,7 @@ import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
+import GatedLink from "@/components/GatedLink.vue";
 
 const toast = useToastStore();
 const session = useSessionStore();
@@ -363,7 +364,7 @@ onMounted(load);
       </div>
       <p class="mt-2 text-xs text-ink-tertiary">
         Looking for drivers? Driver-app logins aren't invited by email — issue a username + password
-        from the <RouterLink to="/drivers" class="text-brand-700 underline">Drivers page</RouterLink> (App access column).
+        from the <GatedLink to="/drivers" class="text-brand-700 underline">Drivers page</GatedLink> (App access column).
       </p>
     </BaseCard>
 

@@ -42,8 +42,16 @@ vi.mock("@/lib/api", () => ({
   }),
 }));
 
+/**
+ * The session the bell's `useOpens()` reads (SP5). An admin opens the qualification file; a
+ * technician holds `roster: none`, so the same notification must be read without going anywhere.
+ */
+const session = vi.hoisted(() => ({ role: "admin" as string, admin: true, sections: null, surfaces: null as Record<string, boolean> | null }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+
+let router: ReturnType<typeof createRouter>;
 function mountBell() {
-  const router = createRouter({
+  router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: "/", component: { template: "<div />" } },
@@ -67,6 +75,9 @@ describe("NotificationBell (C6)", () => {
   beforeEach(() => {
     calls.length = 0;
     unreadState = 1;
+    session.role = "admin";
+    session.admin = true;
+    session.surfaces = null;
   });
 
   it("shows the unread badge and renders a C3-emitted dq_expired event", async () => {
@@ -89,6 +100,19 @@ describe("NotificationBell (C6)", () => {
     expect(read!.init?.body).toEqual({ ids: ["00000000-0000-4000-8000-0000000000e1"] });
     // The invalidated refetch now reports zero unread — the badge is gone.
     expect(w.get("button[aria-label]").attributes("aria-label")).toBe("Notifications");
+    expect(router.currentRoute.value.path).toBe("/compliance/00000000-0000-4000-8000-0000000000d1");
+  });
+
+  it("marks it read but stays put when the destination does not open for the reader (SP5)", async () => {
+    session.role = "admin";
+    session.surfaces = { "safety.driver-qualification": false };
+    const w = mountBell();
+    await flushPromises();
+    const item = w.findAll("button").find((b) => b.text().includes("Marcus Reyes"))!;
+    await item.trigger("click");
+    await flushPromises();
+    expect(calls.find((c) => c.path === "/api/me/notifications/read")).toBeDefined();
+    expect(router.currentRoute.value.path).toBe("/");
   });
 
   it("Mark all read posts without ids — the clear-the-badge action", async () => {

@@ -315,7 +315,8 @@ describe("the window the page asks about", () => {
   const AFTER_UTC_ROLLOVER = new Date("2026-09-21T02:00:00.000Z"); // 21:00 on the 20th, Central
 
   beforeEach(() => {
-    sessionMock.canView = grants("fuel", "dispatch");
+    // `settings` because the exports are `/api/reports/*`, `settings` view, and the menu asks that (SP5).
+    sessionMock.canView = grants("fuel", "dispatch", "settings");
     vi.useFakeTimers();
     vi.setSystemTime(AFTER_UTC_ROLLOVER);
   });
@@ -357,5 +358,25 @@ describe("the window the page asks about", () => {
     expect(q.get("from")).toBe("2026-08-21T06:00:00.000Z"); // MDT, UTC-6 — Chicago would be 05:00
     // The day AFTER `to`, exclusive — never a T23:59:59.999 that drops the last sliver of a second.
     expect(q.get("to")).toBe("2026-09-21T06:00:00.000Z");
+  });
+});
+
+/**
+ * SP5 (plan §4b): the Export menu asks the endpoint's own gate — `/api/reports/*` is
+ * `requireSection("settings", "view")` — and not "settings manage, or the auditor role", which kept
+ * the menu from a role the org granted `settings: view` and offered it to one the org had narrowed.
+ */
+describe("the Export menu asks what the export endpoints ask (SP5)", () => {
+  const hasExport = (w: ReturnType<typeof mountShell>) => w.findAll("button").some((b) => b.text().includes("Transactions CSV"));
+
+  it("shows for a settings VIEWER who manages nothing, and hides for a caller without settings", () => {
+    // A role whose dashboard opens on the Fleet tab, which is where the menu lives.
+    sessionMock.role = "safety_manager";
+    sessionMock.can = () => false;
+    sessionMock.canView = grants("fuel", "settings");
+    expect(hasExport(mountShell())).toBe(true);
+    sessionMock.canView = grants("fuel");
+    sessionMock.can = (s: AppSection) => s === "fuel";
+    expect(hasExport(mountShell())).toBe(false);
   });
 });

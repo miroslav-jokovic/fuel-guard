@@ -4,6 +4,15 @@ import { createRouter, createMemoryHistory } from "vue-router";
 import { analyzePolicyExceptions, type SpendLine } from "@silvicom/shared";
 import { computed, ref } from "vue";
 
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+
+
 // The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
 // the strip has its own; stubbed to "fully covered" so it renders without asserting anything here.
 vi.mock("./usePriceCoverage", async (orig) => {
@@ -131,6 +140,24 @@ describe("DiscountCaptureTab", () => {
     expect(t).toContain("Nothing here can be priced yet");
     expect(t).not.toContain("Billed against contract");
     expect(t).not.toContain("NaN");
+  });
+
+  // SP5 (plan §4b): Truck Stops is `dispatch` view and Fuel spend is `fuel` manage — not the same
+  // set — so the name is a link only where the page opens, and words otherwise.
+  it("names Truck Stops as a link where it opens and as words where it does not (SP5)", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    const props = { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" };
+    expect(mount(DiscountCaptureTab, { props, ...withRouter }).find('a[href="/truck-stops"]').exists()).toBe(true);
+    session.surfaces = { "dispatch.truck-stops": false };
+    try {
+      const w = mount(DiscountCaptureTab, { props, ...withRouter });
+      expect(w.find('a[href="/truck-stops"]').exists()).toBe(false);
+      expect(w.text()).toContain("Truck Stops");
+    } finally {
+      session.surfaces = null;
+    }
   });
 
   it("says so when a quote had to be carried forward from the day before", () => {

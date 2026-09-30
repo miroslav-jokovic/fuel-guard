@@ -1,6 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import RiskList from "./RiskList.vue";
+
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 
 /**
  * The two risk lists' container (DR7a's sibling, 2026-09-16).

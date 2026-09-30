@@ -84,9 +84,11 @@ export const settingsRoutes: RouteRecordRaw[] = [
   },
   {
     // Driver-app control plane (hardening plan Phase 5, D-PM6). `roster` and not `settings`: this
-    // console decides what DRIVERS see, and its API half gates on rolesThatManage("roster")
-    // (driverAppSettings.ts) — the route now asks the same question the endpoint answers.
-    // (admin + fleet_manager) — org-wide app policy is fleet management, not org administration.
+    // console decides what DRIVERS see. The catalogue gates the screen on `roster: manage`, and its
+    // API half (driverAppSettings.ts) asks the same question with `requireSection("roster")` for the
+    // org settings and the closure queue — the ORG's matrix, not the shipped one. The per-driver
+    // exceptions tab writes through `requireSection("dispatch")` instead, a separate section (SP5
+    // corrected this comment, which named `rolesThatManage("roster")` and "admin + fleet_manager").
     path: "/settings/driver-app",
     name: "driver-app-settings",
     component: () => import("@/pages/DriverAppSettingsPage.vue"),

@@ -6,7 +6,6 @@ import {
   canReadInvestigationHistory,
   hasStructuredPspData,
   pspRecordSource,
-  rolesThatManage,
   type QualificationRecordRow,
 } from "@silvicom/shared";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -77,15 +76,19 @@ const importRecord = useImportPspRecord();
 const orderOpen = ref(false);
 
 /**
- * The same intersection the API guard is built from, derived from the same two predicates rather
- * than listed: manage the Recruitment section AND be permitted to read investigation history. It
- * refuses exactly one role — the fleet_manager, who would otherwise be filing evidence into a class
- * they cannot open.
+ * The same intersection the API guard is built from (`canFile` in `psp/routes/psp.ts`), derived from
+ * the same two predicates rather than listed: manage the Recruitment section AND be permitted to read
+ * investigation history. As shipped it refuses exactly one role — the fleet_manager, who would
+ * otherwise be filing evidence into a class they cannot open.
+ *
+ * SP5: the first half is the ORG'S answer (`session.can`, the `sections` claim `requireSection`
+ * reads), not the shipped matrix it read until then. The second half stays a role test on purpose:
+ * it is the §391.53(a)(1) reader test (D-PERM9), which belongs to the regulation, not the org.
  */
 const canFile = computed(() => {
   const role = session.role;
   if (!role) return false;
-  return rolesThatManage("recruitment").includes(role) && canReadInvestigationHistory(role);
+  return session.can("recruitment") && canReadInvestigationHistory(role);
 });
 
 const rows = computed<QualificationRecordRow[]>(() =>

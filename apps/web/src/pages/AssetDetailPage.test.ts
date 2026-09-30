@@ -95,7 +95,12 @@ vi.mock("@/features/inventory/useInventory", async () => {
   };
 });
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true }) }));
-vi.mock("vue-router", () => ({
+vi.mock("vue-router", async (importOriginal) => ({
+  // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+  // three names it takes from vue-router stay real under this mock.
+  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+    await importOriginal<typeof import("vue-router")>(),
+  ),
   // ⚠ `meta: {}` is not padding. vue-router guarantees every route has a meta object, and
   // `PageHeader` asks it whether a page backdrop is behind the header (D-DT18); a mock that omits
   // it under-specifies the router and this page's header throws on a property real routes always

@@ -8,12 +8,23 @@ import type { NotificationCategory } from "@silvicom/shared";
  * only for pairs it is certain about. Returning null is the honest default: a notification with no
  * destination still informs; a notification that navigates somewhere wrong teaches people not to
  * click any of them.
+ *
+ * `opens` is the reader's own answer (SP5, plan §4b): a destination the guard would refuse them is no
+ * destination, for the same reason — pressing a hazmat alert as a dispatcher without `hazmat` used to
+ * land on the dashboard, which reads as a broken link. The bell passes `useOpens()`; the default
+ * answers "yes" so the map itself stays testable on its own.
  */
 export function notificationRoute(
   category: NotificationCategory | string,
   entityType: string | null,
   entityId: string | null,
+  opens: (to: string) => boolean = () => true,
 ): string | null {
+  const to = destination(category, entityType, entityId);
+  return to && opens(to) ? to : null;
+}
+
+function destination(category: string, entityType: string | null, entityId: string | null): string | null {
   if (category.startsWith("dq_") && entityType === "driver" && entityId) {
     return `/compliance/${entityId}`;
   }

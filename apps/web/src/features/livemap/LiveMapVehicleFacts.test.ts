@@ -1,8 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
+
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 
 /**
  * The load line of a selected truck (2026-09-28). Until then it printed `loads.status` raw —
@@ -63,5 +71,43 @@ describe("LiveMapVehicleFacts — the load line", () => {
       nextStop: { seq: 2, kind: "dropoff", name: "Consignee", city: "Green Bay", state: "WI", appointmentStart: null, appointmentEnd: null, status: "pending" },
     });
     expect(w.text().replace(/\s+/g, " ")).toContain("Next stop: Consignee — Green Bay, WI");
+  });
+});
+
+/**
+ * SP5 (plan §4b): each door on the card opens only where its page does. The map is `dispatch` view;
+ * a truck is `equipment`, a driver `roster`, and Loads can be switched off per person. Mounted without
+ * the catch-all router above, so the links are judged against the app's real route table.
+ */
+describe("LiveMapVehicleFacts — its doors (SP5)", () => {
+  const RouterLink = { props: ["to"], template: `<a :href="String(to)"><slot /></a>` };
+  const compact = () =>
+    mount(LiveMapVehicleFacts, {
+      props: {
+        vehicle: { ...vehicle({ id: "l1", ref: "0003", status: "in_transit", source: "tms", externalStatus: "P", nextStop: null }), driver: { id: "d1", name: "Reyes" } } as LiveMapVehicle,
+        board,
+        density: "compact",
+      },
+      global: { stubs: { RouterLink } },
+    });
+
+  it("opens the load, the truck and the driver for the admin", () => {
+    const hrefs = compact().findAll("a").map((a) => a.attributes("href"));
+    expect(hrefs).toEqual(expect.arrayContaining(["/loads/l1", "/vehicles/veh-1", "/drivers/d1"]));
+  });
+
+  it("keeps the load as words and drops the driver for a person whose Loads and Drivers are off", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    session.surfaces = { "dispatch.loads": false, "fleet.drivers": false };
+    try {
+      const w = compact();
+      const hrefs = w.findAll("a").map((a) => a.attributes("href"));
+      expect(hrefs).toEqual(["/vehicles/veh-1"]);
+      expect(w.text()).toContain("0003 · In transit");
+    } finally {
+      session.surfaces = null;
+    }
   });
 });

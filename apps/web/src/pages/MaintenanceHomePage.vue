@@ -23,6 +23,7 @@ import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
 import type { StockLineDto, UnitKitDto } from "@silvicom/shared";
 
 /**
@@ -93,6 +94,18 @@ const { data: today, isLoading: todayLoading } = useMovementsQuery(todayFilter);
 const session = useSessionStore();
 const counting = ref(false);
 
+/**
+ * Every door on this page is asked of its own page (SP5, plan §4b). They all share this page's
+ * `maintenance` section, which is why nobody noticed they were ungated — but Parts and Units are each
+ * a screen the admin can switch off per role and per person (D-SURF1), and a tile or a row pointing at
+ * a switched-off one was a door the guard answered with the dashboard. Scan and the repair ledger
+ * answer to this page's own screen (D-SURF8) and so open whenever it does; they are asked anyway, so
+ * that fact lives in the catalogue and not in a guess written here.
+ */
+const opens = useOpens();
+const partsOpen = computed(() => opens("/shop/inventory"));
+const unitsOpen = computed(() => opens("/shop/units"));
+
 const catalogueFilter = ref({ page: 1 });
 const { data: catalogue, isLoading: catalogueLoading } = usePartsQuery(catalogueFilter);
 
@@ -128,7 +141,7 @@ const unitPath = (u: UnitKitDto) =>
              Scan leads: it is the verb of the job — a technician arrives at this screen holding a
              carton or standing at a bin, and every shelf verb is one trigger pull away behind it.
              A count is the deliberate, slower act, and it is picked from a location. -->
-        <BaseButton variant="primary" to="/shop/scan">
+        <BaseButton v-if="opens('/shop/scan')" variant="primary" to="/shop/scan">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Scan
         </BaseButton>
         <BaseButton @click="counting = true">
@@ -142,7 +155,7 @@ const unitPath = (u: UnitKitDto) =>
     <AppCallout v-if="firstRun" tone="brand">
       No parts on the shelves yet. Add the first part and the shop starts keeping count of it.
       <template #actions>
-        <BaseButton variant="primary" size="sm" :to="{ path: '/shop/inventory', query: { new: '1' } }">
+        <BaseButton v-if="partsOpen" variant="primary" size="sm" :to="{ path: '/shop/inventory', query: { new: '1' } }">
           <AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" aria-hidden="true" /> Add a part
         </BaseButton>
       </template>
@@ -158,7 +171,7 @@ const unitPath = (u: UnitKitDto) =>
           :icon="ExclamationTriangleIcon"
           tone="warning"
           :loading="lowStock.isLoading.value"
-          to="/shop/inventory?stock=low"
+          :to="partsOpen ? '/shop/inventory?stock=low' : undefined"
         />
         <StatCard
           label="Short of kit"
@@ -168,7 +181,7 @@ const unitPath = (u: UnitKitDto) =>
           :icon="TruckIcon"
           :tone="shortTotal > 0 ? 'danger' : 'neutral'"
           :loading="shortUnits.isLoading.value"
-          to="/shop/units?kit=short"
+          :to="unitsOpen ? '/shop/units?kit=short' : undefined"
         />
         <StatCard
           label="Moved today"
@@ -188,7 +201,7 @@ const unitPath = (u: UnitKitDto) =>
           :icon="GaugeIcon"
           tone="success"
           :loading="spendLoading"
-          to="/shop/repair-spend"
+          :to="opens('/shop/repair-spend') ? '/shop/repair-spend' : undefined"
         />
       </div>
 
@@ -197,7 +210,7 @@ const unitPath = (u: UnitKitDto) =>
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-sm font-semibold text-ink">To order</h2>
             <RouterLink
-              v-if="lowTotal > PREVIEW_ROWS"
+              v-if="lowTotal > PREVIEW_ROWS && partsOpen"
               to="/shop/inventory?stock=low"
               class="text-sm font-medium text-link hover:text-link-hover"
             >
@@ -210,8 +223,8 @@ const unitPath = (u: UnitKitDto) =>
             :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
             :loading="lowStock.isLoading.value"
             :error="lowStock.isError.value ? 'Could not load the reorder list' : null"
-            :row-class="() => 'cursor-pointer'"
-            @row-click="(row) => $router.push(`/shop/inventory/${row.partId}`)"
+            :row-class="() => (partsOpen ? 'cursor-pointer' : '')"
+            @row-click="(row) => partsOpen && $router.push(`/shop/inventory/${row.partId}`)"
             @retry="() => lowStock.refetch()"
           >
             <template #cell-quantityOnHand="{ row }">
@@ -227,7 +240,7 @@ const unitPath = (u: UnitKitDto) =>
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-sm font-semibold text-ink">Short of kit</h2>
             <RouterLink
-              v-if="shortTotal > PREVIEW_ROWS"
+              v-if="shortTotal > PREVIEW_ROWS && unitsOpen"
               to="/shop/units?kit=short"
               class="text-sm font-medium text-link hover:text-link-hover"
             >
@@ -240,8 +253,8 @@ const unitPath = (u: UnitKitDto) =>
             row-key="unitId"
             :loading="shortUnits.isLoading.value"
             :error="shortUnits.isError.value ? 'Could not load the fleet' : null"
-            :row-class="() => 'cursor-pointer'"
-            @row-click="(row) => $router.push(unitPath(row as unknown as UnitKitDto))"
+            :row-class="() => (unitsOpen ? 'cursor-pointer' : '')"
+            @row-click="(row) => unitsOpen && $router.push(unitPath(row as unknown as UnitKitDto))"
             @retry="() => shortUnits.refetch()"
           >
             <template #cell-shortBy="{ value }">

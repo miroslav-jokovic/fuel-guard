@@ -35,7 +35,16 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const role = vi.hoisted(() => ({ value: "recruiter" as string }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return role.value; } }) }));
+// `can` is the real matrix over the mocked role — the gate asks `session.can("recruitment")` (SP5).
+vi.mock("@/stores/session", async () => {
+  const { canManageSection } = await import("@silvicom/shared");
+  return {
+    useSessionStore: () => ({
+      get role() { return role.value; },
+      can: (s: string) => canManageSection(role.value as never, s as never),
+    }),
+  };
+});
 
 const mountIt = () =>
   mount(SendForSigningPanel, {

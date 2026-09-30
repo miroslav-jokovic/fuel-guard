@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import { surfaceForPath, surfaceAllowed } from "@silvicom/shared";
+import { routeOpens } from "@/lib/routeOpens";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -56,53 +56,10 @@ declare module "vue-router" {
     heroDark?: string;
   }
 }
-import { authRoutes } from "./routes/auth";
-import { coreRoutes } from "./routes/core";
-import { dispatchRoutes } from "./routes/dispatch";
-import { hazmatRoutes } from "./routes/hazmat";
-import { fleetRoutes } from "./routes/fleet";
-import { driverRoutes } from "./routes/drivers";
-import { recruitmentRoutes } from "./routes/recruitment";
-import { fuelRoutes } from "./routes/fuel";
-import { financeRoutes } from "./routes/finance";
-import { maintenanceRoutes } from "./routes/maintenance";
-import { settingsRoutes } from "./routes/settings";
-import { legalRoutes } from "./routes/legal";
-import { systemRoutes, notFoundRoute } from "./routes/system";
+import { ROUTE_TABLE } from "./table";
 
-/**
- * The route table, composed from one module per product area.
- *
- * It was a single 437-line array until 2026-08-25, which put this file at 480 of the 500-line
- * budget — close enough that the next feature to add a route broke the build, and one did. Splitting
- * it by area is mechanical, but the file decides where every URL in the product lands, so the split
- * shipped with `routeTable.test.ts`: two snapshots captured against the unsplit table, one blind to
- * declaration order and one deliberately sensitive to it. They are the evidence that this
- * rearrangement changed nothing.
- *
- * ⚠ Order between the areas below is not load-bearing — vue-router v4 ranks matches by specificity,
- * so a static segment beats a param wherever it is declared, and the `resolution` snapshot pins
- * that. Order WITHIN an area file is likewise free. What is not free is a catch-all: `path:
- * "/:pathMatch(.*)*"` matches everything, so it must be appended after every real route, and this
- * is the only place that can guarantee it.
- */
-const routes: RouteRecordRaw[] = [
-  ...authRoutes,
-  ...coreRoutes,
-  ...dispatchRoutes,
-  ...hazmatRoutes,
-  ...fleetRoutes,
-  ...driverRoutes,
-  ...recruitmentRoutes,
-  ...fuelRoutes,
-  ...financeRoutes,
-  ...maintenanceRoutes,
-  ...settingsRoutes,
-  ...legalRoutes,
-  ...systemRoutes,
-  // Must stay last: it matches everything. See `routes/system.ts`.
-  notFoundRoute,
-];
+/** The table lives in `./table.ts` (SP5); the design-system lab is prepended below, never there. */
+const routes: RouteRecordRaw[] = [...ROUTE_TABLE];
 
 const designSystemLabEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DESIGN_SYSTEM_LAB === "true";
@@ -140,23 +97,18 @@ router.beforeEach(async (to) => {
   // Authenticated with an org.
   if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
     return { name: "dashboard" };
-  if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
 
   /**
-   * The section gate, read from the catalogue rather than from a per-route meta (S2, D-SURF3).
+   * The screen gate: `requiresAdmin`, then the catalogue (S2, D-SURF3) — asked through `routeOpens`,
+   * the ONE function every link in the app also asks through `useOpens()` (SP5, plan §4b). The
+   * decision used to be written inline here, which left each link to restate it; the SP5 sweep
+   * found those restatements disagreeing with this guard in both directions.
    *
    * `to.matched[0].path` is the DECLARED path — `/drivers/:id`, not `/drivers/abc` — which is what
    * the catalogue is keyed on. The route table is flat (no `children`), so `matched[0]` is always
    * the route itself; a nested table would need `matched.at(-1)` and `lint:surfaces` would catch
-   * the mismatch as an uncatalogued path.
-   *
-   * An uncatalogued route falls through to `true` deliberately. It is NOT a silent hole: the same
-   * gate that checks the catalogue's paths also fails the build on an authenticated route missing
-   * from it, so "not catalogued" is a state that cannot reach main without a waiver saying why.
-   * Failing closed here instead would turn every such waiver into a locked-out page.
+   * the mismatch as an uncatalogued path. Why an uncatalogued route opens is in `routeOpens`.
    */
-  const surface = surfaceForPath(to.matched[0]?.path ?? to.path);
-  if (surface && !surfaceAllowed(surface, session.role, session.sections, session.surfaces))
-    return { name: "dashboard" };
+  if (!routeOpens(to.matched[0]?.path ?? to.path, to.meta, session)) return { name: "dashboard" };
   return true;
 });

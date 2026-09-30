@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
+import GatedLink from "@/components/GatedLink.vue";
 import { orgProfileFormSchema } from "@silvicom/shared";
 import { useOrgSettingsQuery, useSaveOrgProfile } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
@@ -192,10 +192,9 @@ async function onSave() {
 
       <p class="text-xs text-ink-muted">
         Looking for alert recipients? They now live in
-        <RouterLink
-          to="/settings/notifications"
-          class="font-medium text-link hover:text-link-hover"
-          >Settings → Notifications</RouterLink
+        <!-- SP5: Organization and Notifications are separate screens since SP1, each turned on per role. -->
+        <GatedLink to="/settings/notifications" class="font-medium text-link hover:text-link-hover"
+          >Settings → Notifications</GatedLink
         >.
       </p>
 

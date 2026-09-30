@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { buildTrail } from "@/lib/breadcrumbs";
 import { hasHeroPlate } from "@/lib/layout";
 import BreadcrumbTrail from "@/components/ui/BreadcrumbTrail.vue";
+import { useOpens } from "@/composables/useOpens";
 
 const props = withDefaults(
   defineProps<{
@@ -17,6 +18,8 @@ const props = withDefaults(
 );
 const route = useRoute();
 const router = useRouter();
+/** Each crumb links only where the guard opens it (SP5); `BreadcrumbTrail` renders the rest as text. */
+const opens = useOpens();
 const resolvedTitle = computed(() => props.title ?? (route.meta.title as string) ?? "Silvicom 360");
 
 /**
@@ -72,7 +75,7 @@ const trail = computed(() =>
     ]"
   >
     <div class="min-w-0">
-      <BreadcrumbTrail :trail="trail" />
+      <BreadcrumbTrail :trail="trail" :opens="opens" />
       <!--
         One step up on a plate (D-DT22): a 24px greeting beside a photograph ~100px tall read as a
         caption to the picture rather than the page's title — the image out-weighed the words it was

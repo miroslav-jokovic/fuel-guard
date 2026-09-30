@@ -52,7 +52,14 @@ vi.mock("@/composables/useFuelLog", () => ({
 vi.mock("@/features/fuel/useCreateFillUp", () => ({
   useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
 }));
-vi.mock("vue-router", () => ({ useRouter: () => ({ push: () => {} }) }));
+vi.mock("vue-router", async (importOriginal) => ({
+  // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+  // three names it takes from vue-router stay real under this mock.
+  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+    await importOriginal<typeof import("vue-router")>(),
+  ),
+  useRouter: () => ({ push: () => {} }),
+}));
 vi.mock("@/composables/useCardAssignments", () => ({
   useCardAssignments: () => ({ data: { value: [] } }),
   maskCardRef: (r: string) => r,

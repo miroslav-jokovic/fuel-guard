@@ -14,7 +14,7 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
-import { buildNavGroups, pathOpens, type NavGroup } from "@/lib/nav";
+import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
@@ -27,8 +27,10 @@ import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 import SidebarNavSection from "@/layouts/SidebarNavSection.vue";
 import { useSidebarSections } from "@/composables/useSidebarSections";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
+import { useOpens } from "@/composables/useOpens";
 
 const session = useSessionStore();
+const opens = useOpens(); // SP5: "Back" to `meta.parent` only where the guard opens it (hazmat load → Loads).
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
@@ -258,7 +260,6 @@ async function signOut() {
                       :email="session.email"
                       :name="session.fullName"
                       :role="session.role"
-                      :show-settings="pathOpens('/settings', session.role, session.sections, session.surfaces)"
                       @sign-out="signOut"
                     />
                   </div>
@@ -365,7 +366,6 @@ async function signOut() {
               :name="session.fullName"
               :role="session.role"
               :collapsed="sidebarCollapsed"
-              :show-settings="pathOpens('/settings', session.role, session.sections, session.surfaces)"
               @sign-out="signOut"
             />
           </div>
@@ -411,7 +411,7 @@ async function signOut() {
               aria-hidden="true"
             />
           </button>
-          <template v-if="route.meta.parent">
+          <template v-if="route.meta.parent && opens(route.meta.parent as string)">
             <span class="h-5 w-px bg-edge-subtle" aria-hidden="true" />
             <RouterLink
               :to="(route.meta.parent as string)"

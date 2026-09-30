@@ -80,10 +80,21 @@ vi.mock("@/features/maintenance/useMaintenanceSpend", async () => {
     }),
   };
 });
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
-vi.mock("vue-router", async () => {
+// The real shape (SP5): every door on the page now asks the guard's function, which reads the role
+// and the screen answers. A technician holds `maintenance: manage` as shipped.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("technician");
+  return { useSessionStore: () => s, __session: s };
+});
+vi.mock("vue-router", async (importOriginal) => {
   const { h } = await import("vue");
   return {
+    // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+    // three names it takes from vue-router stay real under this mock.
+    ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+      await importOriginal<typeof import("vue-router")>(),
+    ),
     useRoute: () => ({ query: {}, params: {}, meta: { title: "Shop" }, matched: [], path: "/shop" }),
     useRouter: () => ({ push: vi.fn(), replace: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
     // A link that renders its destination, so a test can read where a tile goes.
@@ -97,11 +108,16 @@ vi.mock("vue-router", async () => {
 });
 
 const HomePage = (await import("@/pages/MaintenanceHomePage.vue")).default;
+const { __session: session } = (await import("@/stores/session")) as unknown as {
+  __session: import("@/testing/fakeSession").FakeSession;
+};
 const page = () =>
   mount(HomePage, { global: { stubs: { SlideOver: true, StartCountDrawer: true } } });
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  session.role = "technician";
+  session.surfaces = null;
   low.value = { lines: [], total: 0 };
   short.value = { units: [], total: 0 };
   catalogue.value = { parts: [], total: 1 };
@@ -157,5 +173,31 @@ describe("first run", () => {
     expect(w.text()).toContain("No parts on the shelves yet");
     expect(w.text()).toContain("Add a part");
     expect(w.text()).not.toContain("Low stock");
+  });
+});
+
+/**
+ * SP5 (plan §4b): every door on the home asks whether its page opens for the reader. Parts and Units
+ * are each a screen the admin can switch off for one person (D-SURF1); the figure stays, the door goes.
+ */
+describe("doors that open only where their page does (SP5)", () => {
+  it("drops the Units door from the tile, the list and its rows when Units is off for this person", () => {
+    short.value = {
+      units: Array.from({ length: 12 }, (_, i) => unit({ unitId: `u${i}`, unitNumber: `7${i}` })),
+      total: 12,
+    };
+    expect(page().html()).toContain("/shop/units?kit=short");
+    session.surfaces = { "maintenance.units": false };
+    const w = page();
+    expect(w.text()).toContain("Short of kit");
+    expect(w.html()).not.toContain("/shop/units?kit=short");
+    expect(w.text()).not.toContain("All 12 units");
+  });
+
+  it("drops Add a part when Parts is off for this person", () => {
+    catalogue.value = { parts: [], total: 0 };
+    expect(page().text()).toContain("Add a part");
+    session.surfaces = { "maintenance.parts": false };
+    expect(page().text()).not.toContain("Add a part");
   });
 });

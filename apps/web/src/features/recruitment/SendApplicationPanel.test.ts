@@ -40,7 +40,18 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const role = vi.hoisted(() => ({ value: "recruiter" as string }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return role.value; } }) }));
+// `can` is the real matrix over the mocked role — the gate asks `session.can("recruitment")` (SP5).
+const claim = vi.hoisted(() => ({ sections: null as Record<string, string> | null }));
+vi.mock("@/stores/session", async () => {
+  const { callerCanManage } = await import("@silvicom/shared");
+  return {
+    useSessionStore: () => ({
+      get role() { return role.value; },
+      // The ORG's matrix, as the store derives it: the `sections` claim layered over the shipped one.
+      can: (s: string) => callerCanManage(role.value as never, s as never, claim.sections as never),
+    }),
+  };
+});
 
 const mountIt = () =>
   mount(SendApplicationPanel, {
@@ -58,6 +69,7 @@ beforeEach(() => {
   state.steps = [];
   state.text = undefined;
   role.value = "recruiter";
+  claim.sections = null;
 });
 
 describe("sending the application", () => {
@@ -122,6 +134,16 @@ describe("sending the application", () => {
     expect(w.text()).toContain("Sent 09/20/2026");
     expect(w.text()).toContain("the one sent before stops working");
     expect(button(w, "Send again")).toBeDefined();
+  });
+
+  // SP5: the ORG's grant reaches the button — it read the shipped matrix, where a dispatcher holds
+  // `recruitment: none`, so a dispatcher the org made a recruiter had no way to send.
+  it("offers the button to a role the org granted recruitment manage", async () => {
+    role.value = "dispatcher";
+    claim.sections = { recruitment: "manage" };
+    const w = mountIt();
+    await flushPromises();
+    expect(button(w, "Send the application")).toBeDefined();
   });
 
   it("offers a reader no button", async () => {

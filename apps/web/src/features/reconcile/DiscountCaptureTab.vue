@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RouterLink } from "vue-router";
+import GatedLink from "@/components/GatedLink.vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -105,7 +105,8 @@ function exportLines() {
       <p class="mt-1 max-w-2xl text-sm text-ink-muted">
         No fill in this window matched a Pilot quote, so what these fills should have cost is unknown. Quotes come
         from the daily Pilot price report, which is uploaded on
-        <RouterLink to="/truck-stops" class="font-medium text-brand-700 underline">Truck Stops</RouterLink> — or
+        <!-- SP5: text where Truck Stops (`dispatch` view) does not open; Fuel spend is `fuel` manage. -->
+        <GatedLink to="/truck-stops" class="font-medium text-brand-700 underline">Truck Stops</GatedLink> — or
         narrow the dates to a period that already has them.
       </p>
     </BaseCard>

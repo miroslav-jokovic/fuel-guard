@@ -110,6 +110,18 @@ beforeEach(() => {
   });
 });
 
+// SP5: a theft case hands the reader to Alerts only where Alerts opens (`useOpens`, the guard's own
+// function), which reads the session — the real shape from `testing/fakeSession`, the admin unless a
+// test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+const { __session: session } = (await import("@/stores/session")) as unknown as {
+  __session: import("@/testing/fakeSession").FakeSession;
+};
+
 async function mountPage(query = "") {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -311,6 +323,20 @@ describe("the Findings inbox", () => {
   // The two sources have different detail surfaces (D-FUI7's per-kind close affordance, one layer up).
   // A money finding opens the ledger drawer; a theft case has no detail ROUTE, so it hands the reader
   // to the page that can work it rather than opening an empty drawer or the wrong one.
+  it("keeps a theft case where it is for a reader Alerts does not open for (SP5)", async () => {
+    listed.value = [theftRow()];
+    listed.total = 1;
+    session.role = "accountant";
+    try {
+      const { w, router } = await mountPage();
+      await w.findAll("tbody tr")[0]!.trigger("click");
+      await flushPromises();
+      expect(router.currentRoute.value.path).toBe("/findings");
+    } finally {
+      session.role = "admin";
+    }
+  });
+
   it("sends a theft case to the page that can work it, rather than the ledger drawer", async () => {
     listed.value = [theftRow()];
     listed.total = 1;
