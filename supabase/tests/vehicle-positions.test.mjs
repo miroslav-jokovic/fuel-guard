@@ -225,6 +225,77 @@ ok("an empty payload is a no-op, not an error", Number((await record(ORG_A, []))
 ok("a null payload is a no-op too", Number((await one(
   `select public.record_vehicle_positions($1, null::jsonb) n`, [ORG_A])).n) === 0);
 
+// ── 0394: the engine state, advanced on its OWN clock (D-LM29) ──────────────────────────────────
+// The failure these pin is the one 0394's header argues from: gating the engine columns behind the
+// position's guard drops the engine-off event of a truck that stopped sending GPS when it switched
+// off — which is every parked truck, and the whole reason the columns exist.
+const E1 = await truck(ORG_A, "8901");
+const engineOf = async (v) =>
+  one(`select engine_state s, engine_state_at at, lat from vehicle_positions where vehicle_id = $1`, [v]);
+
+ok("a first fix carrying an engine state stores both",
+  Number((await record(ORG_A, [fixAt(E1, 10, { engine_state: "Idle", engine_state_at: T(9) })])).n) === 1
+  && (await engineOf(E1)).s === "Idle");
+
+ok("an engine-only row (no coordinate) advances the engine state of a truck already on the map",
+  Number((await record(ORG_A, [{ vehicle_id: E1, engine_state: "Off", engine_state_at: T(12) }])).n) === 0
+  && (await engineOf(E1)).s === "Off");
+
+ok("an engine event riding with an OLDER re-delivered fix still lands — the two clocks are separate",
+  (await (async () => {
+    await record(ORG_A, [fixAt(E1, 5, { lat: 1.0, engine_state: "On", engine_state_at: T(14) })]);
+    const r = await engineOf(E1);
+    return r.s === "On" && Number(r.lat) === 44.5;
+  })()));
+
+ok("an OLDER engine event is refused rather than overwriting the newer one",
+  (await (async () => {
+    await record(ORG_A, [{ vehicle_id: E1, engine_state: "Off", engine_state_at: T(13) }]);
+    return (await engineOf(E1)).s === "On";
+  })()));
+
+ok("a truck named twice in one payload advances to its NEWEST event, not an arbitrary one",
+  (await (async () => {
+    await record(ORG_A, [
+      { vehicle_id: E1, engine_state: "Off", engine_state_at: T(30) },
+      { vehicle_id: E1, engine_state: "Idle", engine_state_at: T(20) },
+    ]);
+    return (await engineOf(E1)).s === "Off";
+  })()));
+
+ok("a newer POSITION does not clear the engine state — the fix carries none, and absent is not Off",
+  (await (async () => {
+    await record(ORG_A, [fixAt(E1, 40)]);
+    return (await engineOf(E1)).s === "Off";
+  })()));
+
+const E2 = await truck(ORG_A, "8902");
+ok("an engine-only row for a truck with NO position is skipped, not inserted — lat/lng are NOT NULL",
+  Number((await record(ORG_A, [{ vehicle_id: E2, engine_state: "On", engine_state_at: T(10) }])).n) === 0
+  && Number((await one(`select count(*) n from vehicle_positions where vehicle_id = $1`, [E2])).n) === 0);
+
+ok("an unknown engine value is dropped, the fix still lands with no engine state",
+  Number((await record(ORG_A, [fixAt(E2, 10, { engine_state: "Running", engine_state_at: T(10) })])).n) === 1
+  && (await engineOf(E2)).s === null && (await engineOf(E2)).at === null);
+
+ok("a state without a time is dropped — it cannot be ordered against the next one",
+  (await (async () => {
+    await record(ORG_A, [{ vehicle_id: E2, engine_state: "On", engine_state_at: null }]);
+    return (await engineOf(E2)).s === null;
+  })()));
+
+ok("the table refuses half a pair written directly",
+  (await sqlstate(`update vehicle_positions set engine_state = 'On' where vehicle_id = $1`, [E2])) === "23514");
+ok("and refuses a value outside Samsara's enum",
+  (await sqlstate(`update vehicle_positions set engine_state = 'idle', engine_state_at = now() where vehicle_id = $1`,
+    [E2])) === "23514");
+
+ok("the engine write is tenant-scoped by the argument — another org cannot move this truck's engine",
+  (await (async () => {
+    await record(ORG_B, [{ vehicle_id: E1, engine_state: "Idle", engine_state_at: T(59) }]);
+    return (await engineOf(E1)).s === "Off";
+  })()));
+
 ok("the writer is not reachable by a browser role",
   (await one(`select has_function_privilege('authenticated',
      'public.record_vehicle_positions(uuid, jsonb)', 'execute') g`)).g === false);
