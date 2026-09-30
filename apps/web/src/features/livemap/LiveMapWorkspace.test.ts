@@ -41,6 +41,7 @@ const BOARD: LiveMapBoard = {
   scopeReason: "Showing every truck: loads carry no dispatcher yet.",
   bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400, fuelFreshSeconds: 900 },
   truncated: false,
+  untracked: [],
   vehicles: [
     {
       vehicleId: "veh-1",
@@ -48,6 +49,8 @@ const BOARD: LiveMapBoard = {
       driver: { id: "drv-1", name: "Jordan Ellis" },
       state: "moving",
       ageSeconds: 12,
+      engineState: null,
+      inShop: false,
       load: null,
       fuel: { percent: 68, at: "2026-09-16T11:58:00.000Z" },
       position: {
@@ -240,8 +243,10 @@ describe("LiveMapWorkspace (DR5)", () => {
     expect(details.get("summary").text()).toBe("1 truck in the fleet · refreshes every 5s");
     expect(details.text()).toContain(BOARD.scopeReason);
     // Read from `bounds`, which this board deliberately sets to something other than production's.
-    expect(details.text()).toContain("No fix for over 90 min");
-    expect(details.text()).toContain("Not moving, heard from within 900s");
+    expect(details.text()).toContain("no signal for over 90 min");
+    expect(details.text()).toContain("heard from within 900s");
+    // D-LM29 gave parked a sentence of its own: engine off, whatever the age.
+    expect(details.text()).toContain("Engine off");
   });
 
   /**

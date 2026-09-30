@@ -33,6 +33,8 @@
  * robust choice rather than a tuned one, and it is the same figure the feed's own staleness bound
  * uses, so a dispatcher and the freshness card cannot call the same outage by two different names.
  */
+import type { EngineState } from "./idleSessions.js";
+
 
 /**
  * At or below this, a truck is not moving. 3 mph, and deliberately not 0: a parked truck's GPS speed
@@ -103,6 +105,11 @@ export interface VehicleStateInput {
   sampledAt: string | null | undefined;
   /** Null when the ping carried no speed; absent is not 0 (0341's column is nullable for this). */
   speedMph: number | null | undefined;
+  /**
+   * The ECU's own engine state, Samsara's spelling (0394, D-LM29). Null or absent when the feed has
+   * not reported one for this truck — which is NOT `Off`, and falls back to the ping-rate inference.
+   */
+  engineState?: EngineState | null;
 }
 
 export interface VehicleStateBounds {
@@ -145,6 +152,23 @@ export function secondsSince(
  * of 171 trucks sat between one and five minutes old in production. D-LM10 is the other half: the
  * panel shows the AGE per truck alongside the state, and `secondsSince` is what it shows.
  */
+/**
+ * ── D-LM29: THE ENGINE STATE DECIDES, THE PING RATE ONLY FILLS IN ────────────────────────────────
+ * The ping-rate inference in the header measured false for a stationary truck on 2026-09-30: fix
+ * ages of not-moving trucks spread evenly over 0–350 s, and 29 flipped `stopped` ↔ `parked` in 2.5
+ * minutes. So when the ECU has told us, it is believed:
+ *
+ *   · `Off` → `parked`, AT ANY FIX AGE. A switched-off truck's gateway goes quiet — that silence is the
+ *     engine being off, not the signal being lost, and Samsara's own dashboard calls it "Off for 3d"
+ *     rather than offline. This is what took the sold-awaiting-pickup trucks, the shop trucks and
+ *     the weekend yard out of `offline`, where 42 of 48 had sat for over a day.
+ *   · `On` / `Idle` with a fix past the offline bound → `offline`. The engine was last reported
+ *     RUNNING and the truck has gone silent: that is the lost signal `offline` exists to name.
+ *   · `On` / `Idle`, fresh, not moving → `stopped`.
+ *
+ * A moving speed on a FRESH fix still wins over `Off`: the feed delivers the two stats separately,
+ * and for a few seconds after a start the newest GPS can be ahead of the newest engine event.
+ */
 export function deriveVehicleState(
   position: VehicleStateInput | null | undefined,
   now: string | number | Date,
@@ -158,9 +182,10 @@ export function deriveVehicleState(
   // No fix at all is `offline`, not a fourth kind of unknown. A truck we have never heard from and a
   // truck we stopped hearing from need the same thing from a dispatcher: find out why.
   if (age == null) return "offline";
-  if (age > offline) return "offline";
 
   const speed = position?.speedMph;
+  const engine = position?.engineState ?? null;
+  const fresh = age <= offline;
   // `> stoppedSpeed`, so exactly 3 mph is NOT moving — the threshold is the top of the noise band, and
   // a truck sitting at the boundary belongs on the quiet side of it.
   //
@@ -169,10 +194,17 @@ export function deriveVehicleState(
   // passes every test in this file. They are kept because they make the intent legible and because
   // they stop being redundant the moment somebody rewrites this as `speed <= stoppedSpeed` — where
   // `NaN <= 3` is ALSO false and the branch would invert. A reader must not mistake them for the
-  // thing that handles a missing speed; the ping-rate fall-through below is that thing.
-  if (typeof speed === "number" && Number.isFinite(speed) && speed > stoppedSpeed) return "moving";
+  // thing that handles a missing speed; the ping-rate fall-through at the end is that thing.
+  const moving = typeof speed === "number" && Number.isFinite(speed) && speed > stoppedSpeed;
 
-  // Not moving. The ping rate now decides which kind of not-moving it is — see the header.
+  if (engine === "Off") return fresh && moving ? "moving" : "parked";
+  if (!fresh) return "offline";
+
+  if (moving) return "moving";
+  if (engine === "On" || engine === "Idle") return "stopped";
+
+  // Not moving, and the ECU has not said. The ping rate is the fallback — see the header, and D-LM29
+  // above for why it is only a fallback now.
   return age <= engineOn ? "stopped" : "parked";
 }
 

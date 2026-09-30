@@ -36,6 +36,8 @@ const vehicle = (o: Partial<LiveMapVehicle> = {}): LiveMapVehicle => ({
   },
   state: "moving",
   ageSeconds: 5,
+  engineState: null,
+  inShop: false,
   // A fresh tank by default (`Q-LM20`). The cases that matter set their own — a stale reading on a
   // live truck is a quarter of this fleet, not an edge case.
   fuel: { percent: 68, at: "2026-09-15T17:58:00.000Z" },

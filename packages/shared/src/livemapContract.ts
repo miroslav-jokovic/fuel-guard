@@ -13,6 +13,7 @@
  * dispatch one (the LM-F ruling, applied at the source rather than hidden in a component).
  */
 import type { VehicleMapState } from "./livemap.js";
+import type { EngineState } from "./idleSessions.js";
 
 /** Where a truck is, exactly as `vehicle_positions` holds it. */
 export interface LiveMapPosition {
@@ -102,6 +103,17 @@ export interface LiveMapVehicle {
   position: LiveMapPosition;
   /** `deriveVehicleState`, computed once here so the map and any other reader cannot disagree. */
   state: VehicleMapState;
+  /**
+   * The ECU's own engine state behind `state` (D-LM29), Samsara's spelling. Null when the feed has
+   * not reported one, in which case `state` fell back to the ping-rate inference.
+   */
+  engineState: EngineState | null;
+  /**
+   * The roster has this truck in the shop (`vehicles.status = 'maintenance'`, McLeod's `S`). It stays
+   * on the board — Q-LM8a ruled a dispatcher wants to see a shop truck on a map — but it is said, so a
+   * truck parked for 40 days at the shop is not read as a truck that went missing (LS3).
+   */
+  inShop: boolean;
   /** Age of the FIX in seconds. D-LM10 — shown per truck, never hidden behind the marker. */
   ageSeconds: number;
   /**
@@ -147,6 +159,11 @@ export interface LiveMapBounds {
   fuelFreshSeconds: number;
 }
 
+export interface LiveMapUntracked {
+  vehicleId: string;
+  unitNumber: string;
+}
+
 export interface LiveMapBoard {
   /** The instant every `state` and `ageSeconds` was computed against. One clock for the whole board. */
   generatedAt: string;
@@ -155,6 +172,13 @@ export interface LiveMapBoard {
   scopeReason: string;
   bounds: LiveMapBounds;
   vehicles: LiveMapVehicle[];
+  /**
+   * Trucks in the fleet the board CANNOT draw: not retired, but no position has ever been stored —
+   * in practice a truck with no Samsara gateway fitted yet (LS3; 12 of 193 on 2026-09-22). They were
+   * silently absent from the census before; a count that is short without saying so is the thing the
+   * owner compared against Samsara and found wrong.
+   */
+  untracked: LiveMapUntracked[];
   /**
    * PostgREST caps every response at 1,000 rows regardless of `.limit()`, and this fleet is ~200 — so
    * this is false today and is here because the day it is true, a board that silently dropped a

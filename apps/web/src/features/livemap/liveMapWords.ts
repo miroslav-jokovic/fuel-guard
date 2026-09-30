@@ -200,10 +200,21 @@ export function boardSummarySentence({ shown, total, scope, pollSeconds }: Board
  */
 export function offlineBoundSentence(bounds: LiveMapBoard["bounds"]): string {
   const minutes = Math.round(bounds.offlineBoundSeconds / 60);
-  return `No fix for over ${minutes} min`;
+  // D-LM29: offline is a truck last reported RUNNING that went silent. A switched-off truck going
+  // quiet is parked, however long ago, so "no fix for N min" alone would describe the old rule.
+  return `Engine last reported on, no signal for over ${minutes} min`;
 }
 
-/** The same, for the `stopped`/`parked` seam, which is a cadence rather than a stopwatch (D-LM9b). */
+/**
+ * The same, for the `stopped`/`parked` seam. Since D-LM29 the ECU's engine state decides it and the
+ * ping-rate bound is only the fallback for a truck the ECU has not reported on — so the sentence
+ * leads with the engine and names the bound as what it now is.
+ */
 export function engineOnBoundSentence(bounds: LiveMapBoard["bounds"]): string {
-  return `Not moving, heard from within ${bounds.engineOnBoundSeconds}s`;
+  return `Not moving, engine running (no engine report: heard from within ${bounds.engineOnBoundSeconds}s)`;
+}
+
+/** The parked half of the seam, which had no sentence at all: a stopped truck's opposite. */
+export function parkedSentence(): string {
+  return "Engine off — however long ago; a switched-off truck going quiet is not a lost signal";
 }
