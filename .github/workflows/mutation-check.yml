@@ -64,15 +64,24 @@ concurrency:
 
 jobs:
   mutate:
-    runs-on: ubuntu-latest
+    # Same machine switch as ci.yml (CI_RUNNER; its header says why).
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      # Same order as .github/actions/setup, for the same reason: on the Mac, Node 22 must exist before
+      # corepack can be enabled; on GitHub's machines corepack comes first so the pnpm cache can run.
+      - uses: actions/setup-node@v4
+        if: runner.environment == 'self-hosted'
+        with:
+          node-version: 22
 
       - name: Enable Corepack
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm

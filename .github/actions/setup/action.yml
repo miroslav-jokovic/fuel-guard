@@ -25,11 +25,23 @@ inputs:
 runs:
   using: composite
   steps:
+    # ⚠ Order differs by machine, and the reason is corepack. `setup-node`'s pnpm cache needs pnpm on
+    # the PATH, so on GitHub's machines corepack is enabled FIRST, from the Node their image ships.
+    # The Mac's only Node before this step is Homebrew's, and Node 25+ no longer bundles corepack —
+    # the first run on the Mac (2026-09-30) failed every job with `corepack: command not found`. So
+    # there Node 22 comes first, and there is no Actions cache to need pnpm early: the store is on
+    # disk and outlives the job.
+    - uses: actions/setup-node@v4
+      if: runner.environment == 'self-hosted'
+      with:
+        node-version: 22
+
     - name: Enable Corepack
       shell: bash
       run: corepack enable
 
     - uses: actions/setup-node@v4
+      if: runner.environment == 'github-hosted'
       with:
         node-version: 22
         cache: pnpm

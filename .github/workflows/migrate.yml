@@ -25,7 +25,8 @@ on:
 
 jobs:
   migrate:
-    runs-on: ubuntu-latest
+    # Same machine switch as ci.yml (CI_RUNNER; its header says why).
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       actions: read # the CI gate reads workflow run status

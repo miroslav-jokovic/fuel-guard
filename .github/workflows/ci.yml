@@ -24,6 +24,19 @@ name: CI
 # scripts/run-tests.mjs rather than listed here, and the non-api/web unit suites are selected by
 # EXCLUSION, so a package added tomorrow is tested by this workflow without anyone editing it.
 
+# ── Where it runs (owner ruling, 2026-09-30) ────────────────────────────────────────────────────
+#
+# On the owner's MacBook, through five self-hosted runners labelled `silvicom-mac`, whenever the
+# repository variable CI_RUNNER says so; on GitHub's ubuntu machines when it is unset. The switch is
+# a variable rather than an edit so that a Mac that is asleep, travelling or broken costs one
+# `gh variable delete CI_RUNNER` to route around, and no commit. Measured before the move: a green
+# run was 6.5–11 minutes on ubuntu (typecheck-build and native-android the long poles), paid TWICE
+# per merge — once on the PR and again on main, which migrate.yml waits for. The repository went
+# private the same day, so a fork's pull request can never reach the Mac.
+#
+# Every step below is written to work on BOTH. Where one differs, the step says `runner.os` or
+# `runner.environment` and why, next to it.
+
 on:
   push:
     branches: [main]
@@ -33,6 +46,14 @@ on:
 # mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
 # cancelled, because migrate.yml gates production schema changes on the CI run for that exact SHA
 # (.github/actions/require-ci-green) and a cancelled run reads to it as a failed deploy.
+# ⚠ On the Mac, vitest is capped at 3 workers per job. Its default is one per core, so five jobs
+# sharing 14 cores started ~65 workers: the first run measured a load average of 58 with 0% idle,
+# and eight tests that take under a second on an idle Mac hit vitest's 5 s timeout (the capture
+# parity test: 0.8 s idle). 5 runners × 3 ≈ the 14 cores. Empty on GitHub's machines, where each job
+# has its own four cores and vitest ignores an empty value.
+env:
+  VITEST_MAX_WORKERS: ${{ vars.CI_RUNNER && '3' || '' }}
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -43,7 +64,7 @@ jobs:
   # are ~95s; giving each its own would spend more on runner start-up than the checks themselves
   # cost, and would turn one red X into twenty.
   gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,10 +79,20 @@ jobs:
       - name: Install gitleaks
         env:
           GITLEAKS_VERSION: 8.18.4
+        # The asset is per OS and CPU. Unpacked into this job's own temp dir rather than /usr/local/bin:
+        # on the Mac five runners share one machine, and a shared path is written by whichever job
+        # got there last.
         run: |
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)   asset=linux_x64 ;;
+            macOS-ARM64) asset=darwin_arm64 ;;
+            *) echo "::error::no gitleaks asset for ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_${asset}.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gitleaks" version
 
       # Invoked as plain node, not `pnpm lint:secrets`, so it still runs before the workspace is set
       # up at all — scripts/scan-secrets.mjs imports nothing but node builtins. Same check, same
@@ -283,7 +314,7 @@ jobs:
   # These two stay together because the third step needs the second one's output: lint:light-dark
   # reads apps/web/dist, which only exists after a build.
   typecheck-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: ci-test-anon-key
@@ -310,14 +341,19 @@ jobs:
       # sent again from the kept photo. Here because they need `dist`, and this is the only job that
       # builds. `apps/web/playwright.apply.config.ts` says why they are not in `e2e/` (smoke.yml runs that
       # folder against production).
+      # GitHub's machines start empty, so Chromium is cached through the Actions cache; the Mac keeps
+      # its own download between runs and an upload/restore round trip would only cost time.
       - name: Cache Playwright's Chromium
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json') }}
 
+      # `--with-deps` installs Chromium's system libraries with apt, which only exists on Linux; macOS
+      # already has what Chromium needs.
       - name: Install Chromium
-        run: pnpm --filter @silvicom/web exec playwright install --with-deps chromium
+        run: pnpm --filter @silvicom/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
 
       - name: The applicant's page in a browser
         run: pnpm --filter @silvicom/web e2e:apply
@@ -332,7 +368,7 @@ jobs:
   # apps/api indefinitely (>5 min against an 18s baseline), because suites here rely on a fresh
   # module registry per file. Do not reach for it again without fixing that first.
   test-api:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -342,7 +378,7 @@ jobs:
         run: pnpm --filter @silvicom/api test
 
   test-web:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -359,7 +395,7 @@ jobs:
   # somebody adds the thirteenth its suites would simply never run — the same shape of bug
   # `lint:tests` exists to catch one level down, at the file.
   test-packages:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -372,7 +408,7 @@ jobs:
   # failure it was written to prevent: a matrix that nobody notices stopped running. They now run
   # concurrently WITHIN the job instead, bounded by core count.
   matrices:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       # build-shared stays ON here, and it is not obvious why: `@silvicom/shared` resolves to src
@@ -402,7 +438,7 @@ jobs:
   # minutes, not seconds; that trade has not been made. Until it is, SCANNER-UPGRADE-PLAN.md §3.4
   # stands: an iOS build on the Mac is a required manual step of every native PR.
   native-android:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -431,7 +467,11 @@ jobs:
       # this action's default is broken until it names its packages. We name the half that still
       # exists. Nothing here needed `tools`: the job prebuilds, compiles `:capture-native` and runs a
       # plain JVM test, and AGP resolves build-tools and platforms by itself.
+      #
+      # Skipped on the Mac: it has an SDK at ANDROID_HOME (set in each runner's .env), and this action
+      # would install cmdline-tools into it from whichever of the five runners got there first.
       - uses: android-actions/setup-android@v3
+        if: runner.environment == 'github-hosted'
         with:
           packages: platform-tools
 
@@ -449,7 +489,11 @@ jobs:
           APP_VARIANT: store
         run: pnpm exec expo prebuild --platform android --no-install --clean
 
+      # The Mac's ~/.gradle outlives the job, so saving it to the Actions cache would be a round trip
+      # for nothing.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: ${{ runner.environment == 'self-hosted' }}
 
       - name: Compile the capture module
         working-directory: apps/driver/android
@@ -501,7 +545,7 @@ jobs:
   build:
     if: always()
     needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices, native-android]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Require every CI job to have succeeded
         env:

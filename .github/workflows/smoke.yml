@@ -11,7 +11,8 @@ on:
 jobs:
   smoke:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    # Same machine switch as ci.yml (CI_RUNNER; its header says why).
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
       # Reuse the deployment verification URL; the Railway service serves both API and SPA.
@@ -30,9 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile --prod=false
-      - run: pnpm --filter ./apps/web exec playwright install --with-deps chromium
+      - run: pnpm --filter ./apps/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
       - name: Run unauthenticated smoke tests
         env:
           BASE_URL: ${{ env.API_URL }}
