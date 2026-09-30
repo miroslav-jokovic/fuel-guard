@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PART_ONE_SCREENS } from "@silvicom/shared";
+import { cardPhoto, shootWithScanner } from "./liveScanner";
 import { openHandbook, packetStops, partOneLink, partTwoV2Link, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
@@ -126,24 +127,6 @@ async function chooseState(page: Page, id: string, check?: () => Promise<void>):
   await page.getByRole("option", { name: /Illinois/ }).first().click();
 }
 
-/** A photograph of a card, textured enough to pass the browser's gate (`offline.spec.ts`'s). */
-async function cardPhoto(page: Page): Promise<Buffer> {
-  const b64 = await page.evaluate(() => {
-    const c = document.createElement("canvas");
-    c.width = 1600;
-    c.height = 1000;
-    const g = c.getContext("2d")!;
-    for (let y = 0; y < 1000; y += 20) {
-      for (let x = 0; x < 1600; x += 20) {
-        g.fillStyle = `rgb(${(x * 7) % 255},${(y * 3) % 255},${(x + y) % 255})`;
-        g.fillRect(x, y, 20, 20);
-      }
-    }
-    return c.toDataURL("image/jpeg", 0.9).split(",")[1]!;
-  });
-  return Buffer.from(b64, "base64");
-}
-
 async function photograph(page: Page): Promise<void> {
   const chooser = page.waitForEvent("filechooser");
   await press(page, "Take photo");
@@ -172,7 +155,8 @@ for (const width of [390, 320]) {
 
       await step(page, 1);
       await s.check("part1.cdl_front");
-      await photograph(page);
+      // The CDL's two sides go through the live scanner (2026-09-30), measured while it is open.
+      await shootWithScanner(page, () => s.check("part1.cdl_front, live scanner"));
       await s.check("part1.cdl_front, photo to review");
       await press(page, "Use this photo");
       await expect(page.getByText("Received.")).toBeVisible();
@@ -180,7 +164,7 @@ for (const width of [390, 320]) {
       await press(page, "Continue");
 
       await step(page, 2);
-      await photograph(page);
+      await shootWithScanner(page, () => s.check("part1.cdl_back, live scanner"));
       await press(page, "Use this photo");
       await expect(page.getByText("Received.")).toBeVisible();
       await s.check("part1.cdl_back");

@@ -792,6 +792,8 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW50** (2026-09-29, S2's open note) | Should switching driver reminders OFF also silence the office's alert? S2 built it ON (`applicationNudgeSweep.ts` alerts before it checks `reminders_enabled`). Two defects found at the call sites: the form HID the delay while reminders were off, though the delay still times the office's alert; and the contract only held the delay before the link's expiry while reminders were on, so off + a delay past the link's life was an alert that never came (the sweep skips expired invitations). | (a) keep the alert on; always show the delay; the delay must come before expiry in both states; name the carrier's notification switch as the way to stop office alerts; (b) reminders off silences the office too (one line in the sweep) | **RULED (a) by the owner 2026-09-29; BUILT as C-AL1.** The switch is about the driver; with reminders off the office's alert is the only signal left. ⚠ **Consequence the ruling did not name:** the shortest delay is 24 h (0379), so a **1-day link can no longer be saved** in either state — before, it could with reminders off. 0379's CHECK stays looser; the contract is the stricter of the two. |
 | **Q-AW51** (2026-09-29, found building C-AL1) | The invite drawer's per-invite override (`expires_in_days`, 1–60) is not checked against the carrier's delay. A link sent for fewer hours than the delay expires before its driver can count as stopped, so the office is never alerted about that applicant — Q-AW50's defect, on one invitation instead of the carrier's default. | (a) the api refuses an override of `days × 24 ≤ reminder_after_hours` with the same sentence, and the drawer's hint names the carrier's delay; (b) accept it: a short link is a deliberate choice; (c) the sweep alerts on a link that died unfinished | **(a)** — it is the same rule as Q-AW50, and the api already reads the carrier's settings to fill a missing override. No migration. Not built: the ruling was about the settings. **RULED (a) by the owner 2026-09-29.** Not built yet. |
 | **Q-AW52** (2026-09-29, found building C-AL1) | The carrier's master notification switch (`organizations.notifications_enabled`) gates the stalled-application alert, the digest, DQ alerts, fuel and feed alarms — but its only screen, Settings → Notifications (admin only), labels it "Email recipients when high/critical anomalies are detected". C-AL1's copy points office users at it, truthfully ("which stops its other alerts too"), but the checkbox they find there says something narrower. | (a) relabel that checkbox and its section to say it is the carrier's notifications, listing what it stops; (b) split it into per-kind switches (a migration); (c) leave it | **(a)**, a copy change on one admin page, its own small PR. (b) only if the owner wants anomaly emails off with everything else on. **RULED (a) by the owner 2026-09-29.** Not built yet. |
+| **Q-AW53** (2026-09-30, live scanner) | The medical card is a letter-size page, not an ID-1 card, so the live scanner's fixed card outline does not fit it, and it still opens the camera app. An in-page page scanner needs edge detection and perspective correction. | (a) jscanify (MIT) over OpenCV.js, loaded only on that screen — several MB on a driver's data plan; (b) keep the camera app for it; (c) a paid SDK (Scanbot covers both documents and IDs) | **(b) until the CDL scanner is measured on real phones** — Q-AW54 is how. If drivers re-shoot the CDL less through the scanner, (a) is worth its download for the medical card; if not, nothing is lost. |
+| **Q-AW54** (2026-09-30, live scanner) | The server cannot tell a scanner photograph from a camera-app one. `CapturedPage.provenance.captureMode` says `web_live_camera` or `web_file_input` in the browser, but `stageCapture` sends only slot, type and hash, so "does the scanner reduce re-shoots and rejected documents?" — the reason it was built — cannot be answered from data. | (a) a nullable `application_captures.capture_mode` column (migration), then the confirm body carries it in a LATER merge (`lint:migration-ordering`); (b) log it only (`[capture-verify]` line); (c) nothing | **(a)**: one column, then one field. Needed before Q-AW53 or Q-AW32 can be decided on evidence. |
 
 ---
 
@@ -2090,3 +2092,29 @@ Append dated lines at the END.
     `select count(*) from application_captures` after the owner's next test.
   · **Consequence for Q-AW32:** its ruled (a) — floors from ~50 recruiter-judged captures — had collected nothing,
     because there were no captures. Its clock starts at this deploy.
+- **2026-09-30** — **The CDL's two sides are photographed through a live scanner in the page; owner ruling the
+  same day ("build Phase 1", free/open-source).** This amends D-AW9 and §6.6 item 1: "Take photo" on a phone opens
+  the rear camera INSIDE the page with a card outline, instead of the camera app. The camera app stays one press
+  away in every state, and remains the path for the medical card (Q-AW53), the selfie and a computer (QR first).
+  · **How each side is taken:** the back takes itself — the frame whose PDF417 READ is the one kept, a sharpness
+    test that needs no threshold. The front waits for the shutter, then takes the first frame after the press that
+    is as sharp as the driver's own aim just before it (`liveFrame.settled`: relative, 90% of the look-back's best,
+    1.2 s deadline). Auto-capturing the front needs an absolute floor — Q-AW32 — so it is not built.
+  · **Nothing downstream changed:** the scanner is one more PICKER into `useApplicationCaptures`, so its photo goes
+    through the same gate, downscale, EXIF strip, "Use this photo / Retake", kept copy and server re-hash
+    (D-AW9). It is recorded as `captureMode: "web_live_camera"` in the browser — see Q-AW54 for the server.
+  · **D-APP11's premise re-checked, not assumed:** iOS 11 capped `getUserMedia` at 1280×720; current iPhones are
+    reported to grant 3840×2160 (addpipe), focus is continuous but not steerable from a page, `ImageCapture.takePhoto`
+    only from Safari 18.4. So the scanner measures what it was GRANTED, cut to the outline, against the gate's own
+    1200 px floor BEFORE the driver aims, and sends a short phone to its camera app (`too_low`).
+  · **Measured in Chromium:** a `3840×2160` request from an upright (2160×3840) camera came back 2160×2160 — cropped
+    to a square, 44% of the pixels lost. `4096×4096`, width alone and no size all came back whole, so the request
+    is aspect-neutral (`LIVE_CONSTRAINTS`, pinned by a unit test).
+  · **Browser proof:** the `scanner` project runs Chromium's fake camera on a licence carrying AAMVA §D.13's own
+    example as a real PDF417, under production's CSP: the back closes itself and fills Part 1 (DOB 1986); a denied
+    camera hands over to the camera app and the page stops offering the scanner; a 640×480 camera is refused before
+    aiming with its track already ended; closing ends every track. Every existing walk now photographs the CDL
+    through the scanner, and the 44 px sweep measures the open scanner at 390 and 320 px.
+  · **Not proven from here — owed on real phones before this is called done (§9):** an iPhone (Safari) and an
+    Android (Chrome), each: the camera opens inline (not full-screen), the granted size clears 1200 px under the
+    outline, the back of a real CDL takes itself, the front's shutter gives a legible photo, a locked phone resumes.

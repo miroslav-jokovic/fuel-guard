@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, toRef, watch } from "vue";
+import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCheckbox } from "@silvicom/ui";
 import { APPLICATION_CAPTURE_KEEP_DAYS, type ApplicationCaptureSlot, type ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
+import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
+import LiveLicenceScanner from "./LiveLicenceScanner.vue";
 import PartOneHandoff from "./PartOneHandoff.vue";
 import type { PartOneAnswers, PhotoScreen, ScreenErrors } from "./partOneScreens";
 import type { BarcodeState } from "./usePartOne";
@@ -62,12 +64,37 @@ const rejected = APPLY_COPY.documents.rejected;
 const onStaged = (slot: ApplicationCaptureSlot, original: Blob): void => {
   if (props.readsBarcode && slot === props.photo) emit("staged", original);
 };
+/**
+ * The live scanner (2026-09-30) — for the CDL's two sides, on a phone, in a browser that has a camera API.
+ * The medical card is a letter-size page and the selfie is the front camera; both keep the camera app. A
+ * computer keeps the QR handoff first. Once the scanner has said it cannot run here (`unavailable`), the
+ * page stops offering it and "Take photo" goes straight to the camera app.
+ */
+const liveOff = ref(false);
+const liveSlot = computed<"cdl_front" | "cdl_back" | null>(() =>
+  (props.photo === "cdl_front" || props.photo === "cdl_back") && !props.desktop ? props.photo : null,
+);
+const liveOffered = computed(
+  () => liveSlot.value !== null && !liveOff.value && typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia),
+);
+/** The picker the scanner is: a promise the screen holds while the scanner is open, settled by what it emits. */
+const scanning = ref<{ resolve: (photo: PickedPhoto | null) => void } | null>(null);
+const live = (): Promise<PickedPhoto | null> => new Promise((resolve) => (scanning.value = { resolve }));
+const finishScan = (photo: PickedPhoto | null): void => {
+  const open = scanning.value;
+  scanning.value = null;
+  open?.resolve(photo);
+};
+
 const captures = useApplicationCaptures(toRef(props, "token"), toRef(props, "captures"), {
   only: [props.photo],
   onStaged,
+  live,
 });
 // `only` is one slot, so there is exactly one view.
 const slot = computed(() => captures.slots.value[0]!);
+/** Retake reopens what took the photo — unless that was the scanner and the page has since stopped offering it. */
+const retakeFrom = computed(() => (slot.value.source === "live" && !liveOffered.value ? "camera" : slot.value.source));
 const working = computed(() => slot.value.state === "working");
 /** The handoff is for a slot nobody has filled — not one on file, not a photo this browser holds. */
 const handoff = computed(() => Boolean(props.desktop) && !slot.value.pending && slot.value.state !== "done");
@@ -149,7 +176,7 @@ const barcodeNote = computed(() => {
       <BaseButton variant="primary" size="touch" block :disabled="working" @click="captures.use(photo)">
         {{ working ? copy.sending : copy.use }}
       </BaseButton>
-      <BaseButton size="touch" block :disabled="working" @click="captures.take(photo, slot.source)">
+      <BaseButton size="touch" block :disabled="working" @click="captures.take(photo, retakeFrom)">
         {{ slot.source === "file" ? copy.chooseAnother : copy.retake }}
       </BaseButton>
     </div>
@@ -159,7 +186,7 @@ const barcodeNote = computed(() => {
         size="touch"
         block
         :disabled="working"
-        @click="captures.take(photo, 'camera')"
+        @click="captures.take(photo, liveOffered ? 'live' : 'camera')"
       >
         {{ working ? APPLY_COPY.documents.working : slot.state === "done" ? copy.takeAgain : copy.take }}
       </BaseButton>
@@ -178,5 +205,13 @@ const barcodeNote = computed(() => {
       <p v-if="answers.selfie_skipped" class="mt-1 text-xs text-ink-tertiary">{{ copy.selfie.cannotHint }}</p>
     </div>
     <p v-if="errors.photo" class="text-sm text-danger-700" role="alert">{{ errors.photo }}</p>
+
+    <LiveLicenceScanner
+      v-if="scanning && liveSlot"
+      :photo="liveSlot"
+      @captured="finishScan"
+      @cancel="finishScan(null)"
+      @unavailable="liveOff = true"
+    />
   </div>
 </template>

@@ -8,6 +8,7 @@ import { prepareZXingModule as prepareWriter, writeBarcode } from "zxing-wasm/wr
 import { AAMVA_ELEMENTS, AAMVA_ISSUERS, parseAamvaBarcode } from "@silvicom/shared";
 import { readPdf417Texts } from "./licenceBarcodeReader";
 import { readLicenceBarcode } from "./readLicenceBarcode";
+import { aamvaStandardExample } from "./aamvaStandardExample";
 
 /**
  * The licence barcode, against the standard it implements and through a real decoder (AW5).
@@ -30,28 +31,7 @@ const annex = readFileSync(join(SOURCES, "annex-d-12-13.txt"), "utf8");
 const resolve = createRequire(import.meta.url).resolve;
 const wasm = (name: string): Uint8Array => new Uint8Array(readFileSync(resolve(`zxing-wasm/${name}`)));
 
-/** §D.13's example as bytes: each printed line ends in the name of its separator (LF / CR). */
-function standardExample(): string {
-  const start = annex.indexOf("@LFRSCR");
-  const end = annex.indexOf("ZVZVA01CR") + "ZVZVA01CR".length;
-  const lines = annex
-    .slice(start, end)
-    .split("\n")
-    .filter((l) => l.trim() !== "" && !l.includes("© AAMVA"));
-  return lines
-    .map((l, i) => {
-      if (i === 0) return "@\n\u001e\r";
-      const line = l.replace(/^\s+/, "");
-      // ⚠ `DAK` is F11 — FIXED at eleven characters (Table D.3 p.) — and the PDF's text layer gives
-      // "232690000 " (ten): a run of spaces printed as one. Padded to its fixed width, both of the
-      // header's numbers below land to the byte; left as extracted, both are one short.
-      if (line.startsWith("DAK")) return `${line.slice(0, -2).trimEnd().padEnd(3 + 11, " ")}\n`;
-      if (line.endsWith("LF")) return `${line.slice(0, -2)}\n`;
-      if (line.endsWith("CR")) return `${line.slice(0, -2)}\r`;
-      throw new Error(`unterminated example line: ${line}`);
-    })
-    .join("");
-}
+const standardExample = (): string => aamvaStandardExample(annex);
 
 const EXAMPLE_READ = {
   aamvaVersion: 10,

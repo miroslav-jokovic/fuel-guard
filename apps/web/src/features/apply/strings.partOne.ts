@@ -172,6 +172,33 @@ export const APPLY_PART_ONE_COPY = {
       notIntact: "That photo did not arrive intact. Take it again.",
       required: "Take the photo to continue.",
       /**
+       * The live scanner (2026-09-30): the camera inside the page, for the CDL's two sides. The back takes
+       * itself once its barcode reads; the front waits for the button. Every refusal names the way on — the
+       * camera app is one press away in all of them.
+       */
+      live: {
+        starting: "Opening the camera…",
+        aim: {
+          cdl_front: "Fit the front of your CDL inside the frame, then press the button.",
+          cdl_back: "Fit the back of your CDL inside the frame. The photo takes itself once the barcode is clear.",
+        },
+        settling: "Hold still…",
+        taking: "Got it.",
+        shutter: "Take photo",
+        close: "Close the camera",
+        cameraApp: "Use the camera app instead",
+        upload: "Upload a photo instead",
+        tryAgain: "Try again",
+        videoLabel: "Camera view",
+        refused: {
+          unsupported: "This browser cannot show the camera on this page. Use your camera app instead.",
+          denied: "Camera access is off for this page. Use your camera app instead, or allow the camera in your browser settings and try again.",
+          no_camera: "We could not find a camera. Use your camera app, or upload a photo.",
+          busy: "The camera stopped, or another app is using it. Close that app and try again, or use your camera app.",
+          too_low: "This phone's camera gives too few pixels on this page for a clear photo. Your camera app takes a sharper one.",
+        },
+      },
+      /**
        * §6.6.6, the desktop handoff (C3b2b2). A computer has no camera worth photographing a licence
        * with, so the same link is offered to the phone — by QR code first, by text only to a number the
        * applicant already agreed to be texted on. This page moves on by itself once the photo arrives.

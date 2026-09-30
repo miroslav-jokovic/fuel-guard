@@ -13,7 +13,7 @@ import {
 import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
-import { createWebFileProvider, type WebCaptureProvider } from "./webFileProvider";
+import { createWebFileProvider, type PickedPhoto, type WebCaptureProvider } from "./webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
 
 /**
@@ -58,7 +58,7 @@ export type CaptureSlotState = "empty" | "working" | "review" | "done" | "reject
  * D-APP11); `file` is "Upload a photo instead", for a driver whose browser was refused the camera, or who
  * photographed the card earlier. Both go through the same provider and the same gate.
  */
-export type CaptureSource = "camera" | "file";
+export type CaptureSource = "camera" | "file" | "live";
 
 /**
  * Why a slot is `failed`, because the driver's next move differs. `network`: the photograph is still
@@ -117,6 +117,12 @@ export function useApplicationCaptures(
     onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
     /** Where a photograph waits for `confirm` (C3d2). Defaults to what `ApplyPage` provides; null keeps none. */
     local?: Ref<LocalCopySpec | null> | null;
+    /**
+     * The live scanner (2026-09-30), for the `live` source: opens it for a slot and resolves with what it
+     * took — or with the camera app's photo, if the driver went there from inside it — or null if closed.
+     * One more PICKER, not a provider: the gate, the downscale and the EXIF strip after it stay one pipeline.
+     */
+    live?: (slot: ApplicationCaptureSlot) => Promise<PickedPhoto | null>;
   } = {},
 ) {
   const local_ = options.local !== undefined ? options.local : injectLocalCopy();
@@ -129,12 +135,21 @@ export function useApplicationCaptures(
    * the downscale and the EXIF strip after it are one pipeline, and two providers would be two of them.
    */
   let source: CaptureSource = "camera";
+  /** The slot the next `scan()` is for — the live scanner frames the CDL's two sides differently. */
+  let target: ApplicationCaptureSlot | null = null;
   /** Which camera the next `scan()` opens: the front one for the selfie (AW6), the rear for a document. */
   let facing: "environment" | "user" = "environment";
   const provider =
     options.provider ??
     createWebFileProvider(BUNDLED_DEFAULT_CONFIG, {
-      pick: async () => (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera(facing))),
+      pick: async () => {
+        if (source === "live" && options.live && target) {
+          const got = await options.live(target);
+          picked = got?.file ?? null;
+          return got;
+        }
+        return (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera(facing)));
+      },
     });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
@@ -222,6 +237,7 @@ export function useApplicationCaptures(
     const before = local[slot] ? { ...local[slot] } : null;
     source = from;
     facing = slot === "selfie" ? "user" : "environment";
+    target = slot;
     mark(slot, "working", { source: from });
     try {
       const result = await provider.scan();
