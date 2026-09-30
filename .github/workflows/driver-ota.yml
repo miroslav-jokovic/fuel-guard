@@ -48,6 +48,7 @@ concurrency:
 permissions:
   contents: read
   actions: write # to dispatch the Android build when the native side changed, and to read the CI gate
+  statuses: read   # CI gate reads the ci/tested-tree status a PR run left
 
 jobs:
   publish:

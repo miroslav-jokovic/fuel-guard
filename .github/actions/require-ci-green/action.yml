@@ -13,7 +13,14 @@ description: >
   workflows start at the same moment CI does, so "no run yet" and "still running" are the normal
   first states, not errors.
 
-  The calling job MUST grant `permissions: actions: read`.
+  SHORTCUT (2026-09-30): before polling, tested-tree.sh asks whether a pull request's CI already
+  proved this exact tree green — ci.yml's `build` job records the tree it tested as a
+  `ci/tested-tree` status on the PR head, which is this merge commit's parent. If it did, the gate
+  passes at once instead of waiting a whole second CI run on main; if anything about that does not
+  hold, it polls exactly as below. Main's own CI still runs on every push — it is the record, and
+  what the smoke chain follows — the gate just no longer waits for it when it would prove nothing new.
+
+  The calling job MUST grant `permissions: actions: read`, `contents: read` and `statuses: read`.
 
 inputs:
   workflow:
@@ -61,6 +68,16 @@ runs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
+
+        # Same tree as a green PR run = same code, already proven. tested-tree.sh says why and what it
+        # checks; any doubt, including an API error, exits non-zero and falls through to the poll.
+        if proof=$("${GITHUB_ACTION_PATH}/tested-tree.sh" "$sha"); then
+          read -r head pr_run <<<"$proof"
+          echo "✓ ${sha::7} has the tree a green PR run tested (on ${head::7}) — ${pr_run}"
+          echo "CI gate: ✓ `${sha::7}` is the exact tree CI tested green on the pull request (head `${head::7}`, [run](${pr_run})); main's own run was not waited for." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        echo "No green PR run for this exact tree — waiting for main's CI."
 
         deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
         echo "Waiting for '${WORKFLOW}' to conclude for commit ${sha::7} (timeout ${TIMEOUT_MINUTES}m)..."
