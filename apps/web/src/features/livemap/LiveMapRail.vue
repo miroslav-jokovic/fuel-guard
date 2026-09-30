@@ -10,7 +10,6 @@ import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
 import {
   LIVE_MAP_SORTS,
   MAP_STATES,
-  STATE_COLOR_CLASS,
   STATE_LABEL,
   sortVehicles,
   type LiveMapSort,
@@ -21,6 +20,7 @@ import {
   offlineBoundSentence,
   rowMetric,
 } from "./liveMapWords";
+import LiveMapStateGlyph from "./LiveMapStateGlyph.vue";
 
 /**
  * The fleet rail — search, the census, the ordering and the list, down the left of the map (D-DR25).
@@ -156,8 +156,8 @@ function toggleState(state: VehicleMapState): void {
         >
           <span class="flex w-full items-center justify-between gap-1.5">
           <span class="flex min-w-0 items-center gap-1.5">
-            <!-- `bg-current` so the dot wears the state's own token rather than a second colour map. -->
-            <span class="size-2 shrink-0 rounded-full bg-current" :class="STATE_COLOR_CLASS[state]" aria-hidden="true" />
+            <!-- The marker itself, from the map's own geometry (D-LM30) — the legend IS the shape. -->
+            <LiveMapStateGlyph :state="state" class="size-4" />
             <span class="truncate font-normal text-ink-secondary">{{ STATE_LABEL[state] }}</span>
           </span>
           <span class="tabular-nums text-ink">{{ counts[state] }}</span>
@@ -219,6 +219,7 @@ function toggleState(state: VehicleMapState): void {
           >
             <span class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex items-center gap-2">
+                <LiveMapStateGlyph :state="v.state" class="size-3.5" />
                 <span class="font-medium text-ink">{{ v.unitNumber }}</span>
                 <span :class="[BADGE_BASE, vehicleStateTone(v.state)]">{{ STATE_LABEL[v.state] }}</span>
                 <!--
