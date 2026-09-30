@@ -46,6 +46,13 @@ on:
 # mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
 # cancelled, because migrate.yml gates production schema changes on the CI run for that exact SHA
 # (.github/actions/require-ci-green) and a cancelled run reads to it as a failed deploy.
+#
+# ⚠ `cancel-in-progress: false` did NOT deliver that, and the group key now does (2026-09-30). A
+# concurrency group holds one RUNNING and one PENDING run; a newer pending run cancels the older
+# pending one whatever cancel-in-progress says. When #1154, #1153 and #1150 merged within 19 s, the
+# middle two main runs were cancelled, and migrate.yml refused migration 0393 on 5255378 with
+# "CI concluded 'cancelled'" while the code expecting it went live. So a push to main gets a group
+# of its own SHA — nothing can supersede it — and only a pull request's runs share a group.
 # ⚠ On the Mac, vitest is capped at 3 workers per job. Its default is one per core, so five jobs
 # sharing 14 cores started ~65 workers: the first run measured a load average of 58 with 0% idle,
 # and eight tests that take under a second on an idle Mac hit vitest's 5 s timeout (the capture
@@ -55,7 +62,7 @@ env:
   VITEST_MAX_WORKERS: ${{ vars.CI_RUNNER && '3' || '' }}
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
