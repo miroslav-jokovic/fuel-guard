@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./handlers/index.js";
 import { pgQueueDriver } from "./pgDriver.js";
 import { executeJob } from "./worker.js";
+import { isShuttingDown } from "../lib/shutdown.js";
 import type { JobContext } from "./types.js";
 import type { JobKind } from "../modules/org/index.js";
 
@@ -67,7 +68,7 @@ export function startInprocessJobDrain(env: Env): void {
 
   let running = false;
   const tick = async (): Promise<void> => {
-    if (running) return;
+    if (running || isShuttingDown()) return;
     running = true;
     try {
       await drainOnce(env, getSupabaseAdmin(env));

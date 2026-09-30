@@ -23,11 +23,45 @@ import { runMonthClosesOnce } from "./monthClose.js";
  * so a sweep that stays down re-alerts once a day, not once every six hours and not never.
  *
  * Which jobs: the three that feed the finance pages. A failed job is keyed by its id, so it is
- * reported exactly once and a retry that also fails is a new finding, not a suppressed one.
+ * reported exactly once and a retry that also fails is a new finding, not a suppressed one — EXCEPT
+ * the recurring poll, which is judged by its last success instead (`RECURRING_POLL_KINDS`, 2026-09-30).
  */
 export const STALE_AFTER_HOURS = 26;
 export const FINANCE_JOB_KINDS = ["financial_projection", "efs_window_refetch", "efs_soap_posted"] as const;
 const CHECK_INTERVAL_MS = 6 * 3_600_000;
+
+/**
+ * Kinds that re-run on a timer with no payload, so the NEXT success answers for an earlier failure.
+ *
+ * ── WHY A FAILED POLL IS NOT A FINDING BY ITSELF (EFS audit, 2026-09-30) ─────────────────────────
+ * `efs_soap_posted` runs about once a minute per org. Reporting every failed run by job id produced
+ * 90 critical notifications in the week to 2026-09-30, and all 27 failures behind them were deploys
+ * killing a run mid-flight (`reclaimed (lease expired)`, see lib/shutdown.ts) — each followed by a
+ * successful poll within minutes. The office was told the finance data was broken 90 times while it
+ * was never more than a few minutes old. For a recurring poll the question that matters is "has it
+ * succeeded recently", so:
+ *   • a failure with a LATER success is superseded and says nothing;
+ *   • a feed whose last success is older than `pollStaleAfterMinutes` is ONE finding a day, however
+ *     many runs failed in between — the outage, not its every symptom.
+ * `financial_projection` and `efs_window_refetch` stay per-job: each run carries its own payload (a
+ * backfill, a window list), so a later success of a different run repairs nothing.
+ */
+export const RECURRING_POLL_KINDS: readonly string[] = ["efs_soap_posted"];
+
+/**
+ * How old a poll's last success may be before it is a finding: four missed cycles, never under an
+ * hour. An hour is what a deploy storm plus EFS's own slow afternoons produce without anything being
+ * wrong (measured 2026-09-30: nine merges in two hours, getCardSummaries answering in 20 s).
+ */
+export function pollStaleAfterMinutes(pollMinutes: number): number {
+  return Math.max(60, 4 * pollMinutes);
+}
+
+export interface PollState {
+  /** Last successful `finished_at` per recurring kind for this org; null = never succeeded. */
+  lastDone: Record<string, string | null>;
+  staleAfterMinutes: number;
+}
 
 export interface FreshnessFinding {
   title: string;
@@ -60,6 +94,7 @@ export function planFreshnessFindings(
   integration: FinancialIntegration,
   failed: FailedJobRow[],
   now: Date,
+  polls: PollState = { lastDone: {}, staleAfterMinutes: pollStaleAfterMinutes(15) },
 ): FreshnessFinding[] {
   const findings: FreshnessFinding[] = [];
   const day = now.toISOString().slice(0, 10);
@@ -87,7 +122,28 @@ export function planFreshnessFindings(
       entityId: null,
     });
   }
+  for (const kind of RECURRING_POLL_KINDS) {
+    const last = polls.lastDone[kind];
+    // Never succeeded: nothing to measure staleness from, and its failures (if any) are reported below.
+    if (!last) continue;
+    const ageMinutes = (now.getTime() - Date.parse(last)) / 60_000;
+    if (!(ageMinutes > polls.staleAfterMinutes)) continue;
+    const hours = Math.floor(ageMinutes / 60);
+    findings.push({
+      title: `EFS transactions have not updated in ${hours >= 1 ? `${hours} hour${hours === 1 ? "" : "s"}` : `${Math.floor(ageMinutes)} minutes`}`,
+      body: `The last successful ${kind.replace(/_/g, " ")} poll finished ${last.slice(0, 16).replace("T", " ")} UTC. Fuel purchases since then are not in the fuel or finance pages yet.`,
+      severity: ageMinutes > 6 * 60 ? "critical" : "warning",
+      dedupeKey: `finance:poll-stale:${kind}:${orgId}:${day}`,
+      entityType: "integration",
+      entityId: null,
+    });
+  }
   for (const job of failed) {
+    // A poll that has ever succeeded is judged by the staleness finding above: a failure followed by
+    // a success is superseded, and one not yet followed by one is inside the window that finding
+    // watches. Only a feed that has NEVER worked reports its failures one by one — there is no
+    // success to measure an outage from.
+    if (RECURRING_POLL_KINDS.includes(job.kind) && polls.lastDone[job.kind]) continue;
     findings.push({
       title: `Finance job failed: ${job.kind.replace(/_/g, " ")}`,
       body: job.error ? `The job ended with: ${job.error}` : "The job ended in failure with no error text.",
@@ -98,6 +154,25 @@ export function planFreshnessFindings(
     });
   }
   return findings;
+}
+
+/** Last successful finish per recurring poll kind, for this org only. */
+async function lastPollSuccesses(admin: SupabaseClient, orgId: string): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {};
+  for (const kind of RECURRING_POLL_KINDS) {
+    const { data, error } = await admin
+      .from("jobs")
+      .select("finished_at")
+      .eq("org_id", orgId)
+      .eq("kind", kind)
+      .eq("status", "done")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    out[kind] = ((data as { finished_at: string | null } | null)?.finished_at) ?? null;
+  }
+  return out;
 }
 
 async function alreadySent(admin: SupabaseClient, orgId: string, keys: string[]): Promise<Set<string>> {
@@ -117,11 +192,15 @@ export async function runFinancialFreshnessOnce(
   now: Date = new Date(),
 ): Promise<FreshnessFinding[]> {
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-  const [integration, failed] = await Promise.all([
+  const [integration, failed, lastDone] = await Promise.all([
     readFinancialIntegration(admin, orgId),
     recentFailedJobs(admin, orgId, FINANCE_JOB_KINDS, since),
+    lastPollSuccesses(admin, orgId),
   ]);
-  const planned = planFreshnessFindings(orgId, integration, failed, now);
+  const planned = planFreshnessFindings(orgId, integration, failed, now, {
+    lastDone,
+    staleAfterMinutes: pollStaleAfterMinutes(env.EFS_SOAP_POSTED_POLL_MINUTES),
+  });
   if (!planned.length) return [];
   const sent = await alreadySent(admin, orgId, planned.map((f) => f.dedupeKey));
   const fresh = planned.filter((f) => !sent.has(f.dedupeKey));
