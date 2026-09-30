@@ -50,6 +50,9 @@ export function orgSettingsRouter(): Router {
         state: form.state ? form.state : null,
         postal_code: form.postal_code ? form.postal_code : null,
         operating_hours: form.operating_hours,
+        // Q-SET4 (a). An empty list is `[]`, never null: the column is `not null default '{}'`
+        // (0003), and empty is how it says "any domain may be invited".
+        allowed_domains: form.allowed_domains,
       });
       if (!saved) {
         res.status(500).json(apiError("db_error", "Could not save the organization"));

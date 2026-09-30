@@ -165,11 +165,24 @@ describe("each organizations save writes only its own screen's columns", () => {
     expect(rec.writtenRows("organizations")).toEqual([NOTIFICATIONS]);
   });
 
-  it("Organization writes the profile and hours — never the notifications, never allowed_domains", async () => {
-    const body = { ...PROFILE, notifications_enabled: false, notification_emails: [], allowed_domains: ["evil.test"] };
+  it("Organization writes the profile, hours and allowed domains — never the notifications", async () => {
+    const body = { ...PROFILE, notifications_enabled: false, notification_emails: [], allowed_domains: [" Silvicominc.COM "] };
     expect(await call("admin", "PUT", "/api/org-settings/profile", body)).toBe(200);
     const [row] = rec.writtenRows("organizations");
-    expect(Object.keys(row!).sort()).toEqual(Object.keys(PROFILE).sort());
+    expect(Object.keys(row!).sort()).toEqual([...Object.keys(PROFILE), "allowed_domains"].sort());
+    // Q-SET4 (a): saved, and in the form `isEmailDomainAllowed` compares against.
+    expect(row!.allowed_domains).toEqual(["silvicominc.com"]);
+  });
+
+  it("saves an emptied allowed-domains list as [] — 'any domain', never null", async () => {
+    expect(await call("admin", "PUT", "/api/org-settings/profile", { ...PROFILE, allowed_domains: [] })).toBe(200);
+    expect(rec.writtenRows("organizations")[0]!.allowed_domains).toEqual([]);
+  });
+
+  it("refuses an allowed domain that no email could match, and writes nothing", async () => {
+    // "@silvicominc.com" is compared to an email's domain part exactly, so it would refuse every invite.
+    expect(await call("admin", "PUT", "/api/org-settings/profile", { ...PROFILE, allowed_domains: ["@silvicominc.com"] })).toBe(400);
+    expect(rec.writtenRows("organizations")).toEqual([]);
   });
 
   it("writes an empty DOT number or address as null — an honest 'not recorded'", async () => {
