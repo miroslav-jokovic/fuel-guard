@@ -9,7 +9,12 @@ import {
 import { apiError } from "../lib/http.js";
 import { verifyAccessToken, getProjectJwks, projectTokenAudience } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";
+import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { membershipVerdict } from "./membershipCurrent.js";
 import * as Sentry from "@sentry/node";
+
+/** The token is genuine but names a membership that was removed, re-roled or suspended since (SP7). */
+class AccessChanged extends Error {}
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
@@ -24,10 +29,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   const locals = getAppLocals(req);
+  // A token is signed AND its membership is still the one it names (SP7, Q-SET6 (a) —
+  // membershipCurrent.ts says why and what it costs). A test that injects `verifyToken` replaces the
+  // whole verification, signature and membership alike, exactly as it did before.
   const verify =
     locals.verifyToken ??
-    ((t: string) =>
-      verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env)));
+    (async (t: string) => {
+      const ctx = await verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env));
+      if ((await membershipVerdict(getSupabaseAdmin(locals.env), ctx)) === "stale") throw new AccessChanged();
+      return ctx;
+    });
 
   verify(token)
     .then((ctx) => {
@@ -39,7 +50,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       if (ctx.role) Sentry.setTag("role", ctx.role);
       next();
     })
-    .catch(() => {
+    .catch((err: unknown) => {
+      if (err instanceof AccessChanged) {
+        res.status(401).json(apiError("access_changed", "Your access to this organization has changed. Sign in again."));
+        return;
+      }
       res.status(401).json(apiError("unauthorized", "Invalid or expired token"));
     });
 }
