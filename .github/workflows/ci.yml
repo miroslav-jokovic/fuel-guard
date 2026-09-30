@@ -24,17 +24,17 @@ name: CI
 # scripts/run-tests.mjs rather than listed here, and the non-api/web unit suites are selected by
 # EXCLUSION, so a package added tomorrow is tested by this workflow without anyone editing it.
 
-# ── Where it runs (owner ruling, 2026-09-30) ────────────────────────────────────────────────────
+# ── Where it runs ─────────────────────────────────────────────────────────────────────────────
 #
-# On the owner's MacBook, through five self-hosted runners labelled `silvicom-mac`, whenever the
-# repository variable CI_RUNNER says so; on GitHub's ubuntu machines when it is unset. The switch is
-# a variable rather than an edit so that a Mac that is asleep, travelling or broken costs one
-# `gh variable delete CI_RUNNER` to route around, and no commit. Measured before the move: a green
-# run was 6.5–11 minutes on ubuntu (typecheck-build and native-android the long poles), paid TWICE
-# per merge — once on the PR and again on main, which migrate.yml waits for. The repository went
-# private the same day, so a fork's pull request can never reach the Mac.
+# On GitHub's ubuntu machines. The owner's MacBook was tried through self-hosted runners on
+# 2026-09-30 and reversed the same day: it saved ~nothing end to end (367 s against 393–678 s),
+# because seven jobs on one machine contend for its cores and queue behind other workflows. The
+# repository is public again, so these minutes are free. The measured story is in
+# docs/plans/ci/HANDOFF-2026-09-30-CI-SPEED.md; what actually shortened a merge is the native-android
+# path filter below and require-ci-green accepting the PR's tested tree.
 #
-# Every step below is written to work on BOTH. Where one differs, the step says `runner.os` or
+# The switch it left is harmless and stays: every job says `vars.CI_RUNNER || 'ubuntu-latest'`,
+# and the variable is deleted. Where a step differs by machine it says `runner.os` or
 # `runner.environment` and why, next to it.
 
 on:
@@ -437,13 +437,81 @@ jobs:
   # GitHub's macOS runners are billed at ten times the Linux rate and an Xcode build of this app is
   # minutes, not seconds; that trade has not been made. Until it is, SCANNER-UPGRADE-PLAN.md §3.4
   # stands: an iOS build on the Mac is a required manual step of every native PR.
+  #
+  # ── It only does the work when something it reads has changed (2026-09-30) ──────────────────────
+  # It was the long pole of every run (362–634 s on ubuntu, five green main runs) and only 7 of the
+  # 159 merges between 2026-09-23 and 09-30 touched anything it reads — none of them apps/driver.
+  # So on a pull request the first step diffs the synthetic merge commit against its first parent
+  # (the base it is tested against: exactly the change this PR would make to main), and every later
+  # step is skipped when none of NATIVE_INPUTS moved.
+  #
+  # The JOB still runs and succeeds; only its steps skip. That is the choice, over a job-level `if:`
+  # with `build` taught to accept `skipped` from this one job: `build` is the required check, and a
+  # required check whose verdict depends on another job's output is one more thing that can be
+  # wrong in the one place a mistake merges. Here `build` is untouched and a skipped job still reads
+  # as a failure, as it always has. Workflow-level `paths:` is not an option at all — it skips the
+  # whole workflow, and a required check that never reports blocks the merge for ever.
+  #
+  # On a push to main it ALWAYS does the full build, deliberately. Main's run is not what a PR
+  # author waits for, so the build costs little there, and it means a path this list forgot is
+  # caught on main at the latest rather than never.
+  #
+  # NATIVE_INPUTS is a written list because it cannot be derived: no manifest names what a prebuild
+  # and two Gradle tasks read. Each entry is here for a reason, and the reason is the maintenance
+  # rule — anything this job starts reading goes on the list in the same PR:
+  #   apps/driver/                  the app, app.config.ts, its config plugins, the capture module
+  #                                 (apps/driver/modules/capture-native) and check-android-manifest.mjs
+  #   packages/capture-engine/      the parity test reads its fixtures/ (capture-native's build.gradle
+  #                                 points `scanner.fixturesDir` there)
+  #   pnpm-lock.yaml, package.json, pnpm-workspace.yaml, .npmrc, .nvmrc
+  #                                 what gets installed, and where: autolinking finds native modules
+  #                                 by walking node_modules, and .npmrc's node-linker=hoisted decides
+  #                                 that layout
+  #   .github/workflows/ci.yml, .github/actions/setup/
+  #                                 this job and its toolchain
+  # NOT on it, on purpose: packages/shared. The driver's JS imports it, but nothing here runs the
+  # driver's JS — app.config.ts imports only node:fs and expo/config — and shared changes with most
+  # contract work, so listing it would give back most of the saving for no coverage.
   native-android:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    env:
+      NATIVE_INPUTS: >-
+        apps/driver/ packages/capture-engine/ pnpm-lock.yaml package.json pnpm-workspace.yaml
+        .npmrc .nvmrc .github/workflows/ci.yml .github/actions/setup/
     steps:
+      # Depth 2 on a pull request is the merge commit plus both its parents, which is all the diff
+      # below needs; a push to main never reads history here.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did anything this job reads change?
+        id: native
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Push to main: always build."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A failed diff must not read as "nothing changed" — set -e fails the step instead.
+          set -eo pipefail
+          # shellcheck disable=SC2086 # NATIVE_INPUTS is a space-separated list of pathspecs.
+          changed=$(git diff --name-only HEAD^1 HEAD -- $NATIVE_INPUTS)
+          if [ -n "$changed" ]; then
+            echo "Native inputs changed — building:"
+            echo "$changed" | sed 's/^/  /'
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing this job reads changed against $(git rev-parse --short HEAD^1) — skipping the build."
+            echo "native-android: nothing it reads changed; build skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: ./.github/actions/setup
+        if: steps.native.outputs.build == 'true'
 
       - uses: actions/setup-java@v4
+        if: steps.native.outputs.build == 'true'
         with:
           distribution: temurin
           java-version: "17"
@@ -471,7 +539,7 @@ jobs:
       # Skipped on the Mac: it has an SDK at ANDROID_HOME (set in each runner's .env), and this action
       # would install cmdline-tools into it from whichever of the five runners got there first.
       - uses: android-actions/setup-android@v3
-        if: runner.environment == 'github-hosted'
+        if: steps.native.outputs.build == 'true' && runner.environment == 'github-hosted'
         with:
           packages: platform-tools
 
@@ -484,6 +552,7 @@ jobs:
       # one nobody exercises on a laptop. The only difference the flag makes to this project is that
       # expo-dev-client leaves the plugin list.
       - name: Prebuild the Android project (store variant)
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver
         env:
           APP_VARIANT: store
@@ -492,10 +561,12 @@ jobs:
       # The Mac's ~/.gradle outlives the job, so saving it to the Actions cache would be a round trip
       # for nothing.
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.native.outputs.build == 'true'
         with:
           cache-disabled: ${{ runner.environment == 'self-hosted' }}
 
       - name: Compile the capture module
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
         run: ./gradlew :capture-native:assembleDebug --no-daemon --console=plain
 
@@ -509,6 +580,7 @@ jobs:
       # plan's §3.4 native checklist beside the xcodebuild step. The asymmetry is deliberate and is
       # the reason Android's port is held tighter than iOS's by machinery rather than by memory.
       - name: Check the capture module's metric parity against the reference
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
         run: ./gradlew :capture-native:testDebugUnitTest --no-daemon --console=plain
 
@@ -525,12 +597,14 @@ jobs:
       # plain exec with no ignoreExitValue — with no auth token that is a failed build, not a
       # skipped upload (D-PR11).
       - name: Merge the release manifest
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: ./gradlew :app:processReleaseManifest --no-daemon --console=plain
 
       - name: The shipped manifest is what app.config.ts asked for
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver
         run: >-
           node scripts/check-android-manifest.mjs

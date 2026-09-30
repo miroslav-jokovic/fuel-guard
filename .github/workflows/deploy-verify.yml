@@ -54,22 +54,88 @@ jobs:
             exit 1
           fi
 
+      # ── Only when Railway will deploy this commit at all (2026-09-30) ─────────────────────────────
+      # railway.json's watchPatterns tell Railway which paths are worth a deploy; a push touching only
+      # the rest (docs, *.md, .github, the driver app, tests) builds nothing, and the hosts correctly
+      # stay on the previous commit. This job used to wait for them anyway and fail: of 339 runs on
+      # main from 2026-09-16 to 09-30, 60 of the 78 failures were commits with nothing to deploy — so
+      # a red run here meant nothing, and the real ones were lost among them.
+      #
+      # The patterns are READ from railway.json, never restated: a copy here would be right until
+      # the day somebody edits one list and not the other. Each becomes a git pathspec — `X` to
+      # `:(glob)X`, `!X` to `:(exclude,glob)X` — and the push is diffed against them. Railway calls its
+      # patterns gitignore-style, where a slash-less pattern like `.gitignore` matches at any depth;
+      # git's glob anchors it at the root instead. That difference can only make this job WAIT for a
+      # deploy of a nested .gitignore that never comes — the old false alarm, never a skipped check.
+      #
+      # Anything unexpected — a workflow_dispatch (no `before`), a branch's first push, a fetch that
+      # fails — falls through to verifying, as before.
+      - name: Does this push change anything Railway deploys?
+        id: deploys
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -o pipefail
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git fetch --no-tags --depth=1 origin "$BEFORE"; then
+            echo "No usable previous commit — verifying."
+            echo "deploys=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          specs=()
+          while IFS= read -r spec; do specs+=("$spec"); done < <(jq -r '(.build.watchPatterns // [])[]
+            | if startswith("!") then ":(exclude,glob)" + .[1:] else ":(glob)" + . end' railway.json)
+          if ! changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- "${specs[@]}"); then
+            echo "Could not diff ${BEFORE::7}..${GITHUB_SHA::7} — verifying."
+            echo "deploys=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$changed" ]; then
+            echo "Railway deploys this push; it changes:"
+            echo "$changed" | sed 's/^/  /'
+            echo "deploys=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "✓ Nothing to deploy: ${BEFORE::7}..${GITHUB_SHA::7} touches only paths railway.json's watchPatterns exclude."
+            echo "✓ Nothing to deploy — \`${GITHUB_SHA::7}\` touches only paths railway.json's watchPatterns exclude." >> "$GITHUB_STEP_SUMMARY"
+            echo "deploys=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Railway builds and migrations both take a few minutes; poll rather than guess a sleep.
+      #
+      # A host serving a LATER commit of main also passes (2026-09-30). When the next merge lands
+      # while this job is still waiting, Railway deploys that one instead, and the host never serves
+      # this exact SHA — 12 of the 18 remaining failures in the window above were that, the next
+      # merge 0–14 minutes behind. What is live then contains this commit, so this commit is
+      # deployed; the later commit's own run still verifies the later commit. "Later" is asked of
+      # GitHub's compare API (`ahead` = live descends from this commit), so a host that is on some
+      # OTHER branch's commit, or behind, still fails.
       - name: Wait for the ${{ matrix.host }} host to serve this commit
+        if: steps.deploys.outputs.deploys == 'true'
         env:
           TARGET_URL: ${{ vars[matrix.url_var] }}
           EXPECTED: ${{ github.sha }}
           HOST: ${{ matrix.host }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           deadline=$(( $(date +%s) + 900 ))
+          checked="" contains=""
           while [ "$(date +%s)" -lt "$deadline" ]; do
             body=$(curl -sS --max-time 15 "${TARGET_URL%/}/api/version" || echo '{}')
             live=$(echo "$body" | jq -r '.commit // empty')
             schema=$(echo "$body" | jq -r '.schema.state // "unknown"')
             echo "[$HOST] live=${live:-none} schema=${schema}"
-            if [ "$live" = "$EXPECTED" ]; then
+            if [ -n "$live" ] && [ "$live" != "$EXPECTED" ] && [ "$live" != "$checked" ]; then
+              checked="$live"
+              rel=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED}...${live}" --jq .status 2>/dev/null || echo unknown)
+              echo "  live is ${rel} of ${EXPECTED::7}"
+              contains=$([ "$rel" = "ahead" ] && echo yes || echo "")
+            fi
+            if [ "$live" = "$EXPECTED" ] || { [ "$live" = "$checked" ] && [ -n "$contains" ]; }; then
               if [ "$schema" = "current" ]; then
-                echo "✓ ${TARGET_URL} is serving ${EXPECTED::7} with a matching schema."
+                if [ "$live" = "$EXPECTED" ]; then
+                  echo "✓ ${TARGET_URL} is serving ${EXPECTED::7} with a matching schema."
+                else
+                  echo "✓ ${TARGET_URL} is serving ${live::7}, a later commit of main that contains ${EXPECTED::7}, with a matching schema."
+                  echo "✓ [${HOST}] superseded: serving \`${live::7}\`, which contains \`${EXPECTED::7}\`." >> "$GITHUB_STEP_SUMMARY"
+                fi
                 exit 0
               fi
               echo "  commit matches; waiting for migrations (schema=${schema})"
