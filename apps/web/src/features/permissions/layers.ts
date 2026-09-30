@@ -6,6 +6,7 @@ import {
   type SectionClaim,
   type SurfaceClaim,
   type UserRole,
+  surfaceStartsOn,
 } from "@silvicom/shared";
 
 /**
@@ -77,19 +78,29 @@ export interface SurfaceCell {
 /**
  * One screen cell.
  *
- * ⚠ There is no shipped per-screen default to compare against, and the absence is the design rather
- * than a gap: a screen's shipped answer IS its section gate (D-SURF2), which is asked separately by
- * `sectionReaches` below. What an org's row can do is narrow within that, so "no row anywhere" reads
- * as allowed — the catalogue as it shipped.
+ * A screen's shipped answer is its section gate (D-SURF2), which `sectionReaches` below asks
+ * separately — and, since SP1, its starting default (`startsOn`). For most screens that is `true`,
+ * the catalogue as it always shipped. For a screen Q-SET2 starts OFF for this role it is `false`,
+ * and "no row anywhere" must read as off here, or the page would draw Organization as switched on
+ * for a fleet manager whom the guard refuses.
  */
 export function surfaceCell(
   roleOverride: boolean | undefined,
   userOverride: boolean | undefined,
+  startsOn = true,
 ): SurfaceCell {
   if (userOverride !== undefined) return { allowed: userOverride, layer: "user" };
   if (roleOverride !== undefined) return { allowed: roleOverride, layer: "role" };
-  return { allowed: true, layer: "default" };
+  return { allowed: startsOn, layer: "default" };
 }
+
+/**
+ * Where a catalogue entry starts for a role, asked through the same shared function the guard falls
+ * back to, so a cell and the router cannot disagree about "no answer". The entry arrives from the API
+ * rather than from the bundled catalogue — every read brings its own yardstick (`usePermissions.ts`).
+ */
+export const entryStartsOn = (s: { startsOnFor: UserRole[] | null }, role: UserRole | null): boolean =>
+  surfaceStartsOn({ startsOnFor: s.startsOnFor ?? undefined }, role);
 
 /**
  * The claims a MEMBER's preview is drawn from — their own answers over their role's (D-SURF6).

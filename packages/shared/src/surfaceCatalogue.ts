@@ -2,6 +2,7 @@ import {
   ADMIN,
   ALWAYS,
   STAFF,
+  isEditableSurface,
   manage,
   section,
   type Surface,
@@ -231,10 +232,10 @@ export const SURFACES: readonly Surface[] = [
 
   // ── NON-NAV surfaces: never in the sidebar, never separately grantable (D-SURF8) ──────────────
   // A `parent` means "this screen is reached from another one and shares its grant". They exist so
-  // the router guard can resolve `/loads/:id` — or `/settings/data` — to a permission, which is what
-  // makes "deny Loads" also deny the load a bookmark points at. They carry their OWN gate, because a
-  // child is not always the parent's level: `/settings` asks `view` and `/settings/data` asks
-  // `manage`, and inheriting the gate rather than stating it would quietly widen the second.
+  // the router guard can resolve `/loads/:id` to a permission, which is what makes "deny Loads" also
+  // deny the load a bookmark points at. They carry their OWN gate, because a child is not always the
+  // parent's level, and inheriting the gate rather than stating it would quietly widen it. (The
+  // Settings screens were children too, until SP1 made each its own grant — see `reachedFrom` below.)
   { key: "dispatch.loads.detail", label: "Load", path: "/loads/:id", group: "dispatch", gate: section("dispatch"), module: "dispatch", parent: "dispatch.loads" },
   { key: "fleet.drivers.detail", label: "Driver", path: "/drivers/:id", group: "fleet", gate: section("roster"), parent: "fleet.drivers" },
   { key: "safety.driver-qualification.detail", label: "Driver Qualification", path: "/compliance/:id", group: "safety", gate: section("roster"), parent: "safety.driver-qualification" },
@@ -306,17 +307,41 @@ export const SURFACES: readonly Surface[] = [
   // `dispatch.loads.new` (`/loads/new`) left in LR6 (LOADS-MIRROR-PLAN.md, Q-LMR7): loads come from
   // McLeod only, so there is no create screen to grant. No stored access row named it (checked in
   // production 2026-09-24), and an unknown stored key grants and denies nothing anyway (0296).
-  { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), parent: "admin.settings" },
+
   /**
-   * ⚠ `manage("settings")` and not `recruitment`: this screen decides the text an applicant legally
-   * signs. A recruiter processing applications has no business rewriting a federal authorization,
-   * and the blast radius of a bad edit is every signature taken afterwards. The API's READ is
-   * `recruitment view` for the same reason in reverse — a recruiter does need to find out that an
-   * unpublished instrument is what is stopping every applicant they invite.
+   * ── THE SETTINGS DIRECTORY'S SCREENS (SETTINGS-PERMISSIONS-PLAN.md SP1) ────────────────────────
+   * Each is `reachedFrom: "admin.settings"` — out of the sidebar, a card on `/settings`, and its OWN
+   * grant. Until SP1 they were `parent: "admin.settings"` (D-SURF8), so "Settings" was one switch, and
+   * ten of them were not in this file at all: they were decided by `requiresAdmin` on the route, a
+   * `session.admin` on the card, and waived by `lint:surfaces` as "a role test, no section to read".
+   * The owner ruled on 2026-09-30 that every one of them becomes a permission (Q-SET1..3 (a)):
+   *
+   *  · Q-SET1 — Users, Permissions, Card control and EFS integration stay `ADMIN` and are never
+   *    offered: the first two are how access is given (D-PERM7's escalation), the last two write to
+   *    real fuel cards and hold the EFS certificate. `ADMIN_ONLY_SURFACES` below is derived from the
+   *    gate, so the list the ruling names and the list the product enforces are one list.
+   *  · Q-SET2 — nobody gains or loses access on the day it ships. A screen that was admin-only
+   *    carries `startsOnFor: []`, so the section gate alone (which gives `settings: manage` to a fleet
+   *    manager) cannot hand it to anyone until the admin turns it on.
+   *  · Q-SET3 — the Audit log is `settings: view` plus its own screen, starting on for the auditor
+   *    and nobody else: `requiresAuditAccess` was `admin || readOnly`, and `auditor` is the only
+   *    read-only role (`isReadOnly`).
+   *
+   * Planned fueling asks `dispatch` manage rather than `settings`, because that is what the table's
+   * own RLS already says (`route_fuel_settings_write`) — the route said admin and the database said
+   * dispatch, and SP2 moves its write behind an endpoint on the same section.
+   *
+   * ⚠ The five keys that existed before SP1 keep their spelling. None could hold a stored answer —
+   * a child was never answerable (`answerableSurfaceKey`) — but a key is an identity, and nothing is
+   * gained by renaming one.
    */
-  // `roster` and not `settings`: this console decides what DRIVERS see, and `driverAppSettings.ts`
-  // gates on rolesThatManage("roster"). The card, the route and the endpoint ask one question —
-  // before R0 all three asked the same global boolean and agreed by accident rather than by design.
+  { key: "admin.settings.org", label: "Organization", path: "/settings/org", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.notifications", label: "Notifications", path: "/settings/notifications", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.permissions", label: "Permissions", path: "/settings/permissions", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // `roster` and not `settings`: this console decides what DRIVERS see, and its api gates on the
+  // `roster` section. The card, the route and the endpoint ask one question — before R0 all three
+  // asked the same global boolean and agreed by accident rather than by design.
+  { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), reachedFrom: "admin.settings" },
   /**
    * The carrier's Representatives and road-test examiners (Q-AW42, R1). A card on the Settings page and
    * NOT a sidebar entry, by the owner's ruling of 2026-09-28 (R1 first shipped it in the Admin group).
@@ -324,12 +349,18 @@ export const SURFACES: readonly Surface[] = [
    * A recruiter and a safety manager hold `settings: none`, so they have no link to it — intended: the
    * owner ruled the admin keeps this register (APPLICATION-FLOW-V2-PLAN.md §12, 2026-09-28).
    */
-  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), parent: "admin.settings" },
-  { key: "admin.settings.driver-app", label: "Driver App", path: "/settings/driver-app", group: "admin", gate: manage("roster"), parent: "admin.settings" },
+  { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings" },
+  { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.settings.efs", label: "EFS integration", path: "/settings/efs-soap", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.fuel-planning", label: "Planned fueling", path: "/settings/fuel-planning", group: "admin", gate: manage("dispatch"), reachedFrom: "admin.settings", startsOnFor: [] },
+  { key: "admin.settings.audit", label: "Audit log", path: "/settings/audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: ["auditor"] },
 
   /**
    * ── the reporting and detection-health screens, which had NO route gate at all ────────────────
-   * Reached from the "Reports & detection health" cards on the settings page, which show on
+   * Reached from the "Reports & detection health" cards on the settings page, which showed on
    * `session.can("settings") || session.readOnly`. That expression resolves to exactly
    * [admin, fleet_manager, auditor] — which IS `rolesThatCanView("settings")`, because the auditor is
    * the only `readOnly` role and the only one holding `settings: "view"` without `manage`. So this is
@@ -337,12 +368,12 @@ export const SURFACES: readonly Surface[] = [
    *
    * ⚠ It IS a narrowing at the URL: today any staff role can type `/reports` and get the page. That
    * is the 28-route defect wearing different clothes — the card is hidden and the address still
-   * works — and closing it is what this step is for.
+   * works — and closing it is what this step is for. Directory screens since SP1, like the block above.
    */
-  { key: "admin.reports", label: "Reports", path: "/reports", group: "admin", gate: section("settings"), parent: "admin.settings" },
-  { key: "admin.coverage", label: "Detection coverage", path: "/coverage", group: "admin", gate: section("settings"), parent: "admin.settings" },
-  { key: "admin.reefer-coverage", label: "Reefer coverage", path: "/reefer-coverage", group: "admin", gate: section("settings"), parent: "admin.settings" },
-  { key: "admin.recall-audit", label: "Recall audit", path: "/recall-audit", group: "admin", gate: section("settings"), parent: "admin.settings" },
+  { key: "admin.reports", label: "Reports", path: "/reports", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.coverage", label: "Detection coverage", path: "/coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.reefer-coverage", label: "Reefer coverage", path: "/reefer-coverage", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
+  { key: "admin.recall-audit", label: "Recall audit", path: "/recall-audit", group: "admin", gate: section("settings"), reachedFrom: "admin.settings" },
 
   /**
    * The hazmat evidence workspace — reached from the dispatch load and from the review queue, never
@@ -354,8 +385,30 @@ export const SURFACES: readonly Surface[] = [
   { key: "safety.hazmat-load.detail", label: "Hazmat Load", path: "/hazmat/loads/:id", group: "safety", gate: section("hazmat"), module: "hazmatguard", parent: "safety.hazmat-review" },
 ];
 
-/** The surfaces that render in the sidebar — everything except the detail routes (D-SURF8). */
-export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined);
+/**
+ * The surfaces that render in the sidebar — everything except the detail routes (D-SURF8) and the
+ * screens a directory links to instead (`reachedFrom`, SP1).
+ */
+export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);
+
+/**
+ * The screens an organisation may answer for, per role and per person: a section gate (Q-SURF3 —
+ * `isEditableSurface`) and a grant of its own (not a `parent`, D-SURF8). The Permissions page's
+ * rows, the API's accepted keys and the stored-row filter all read this one list.
+ */
+export const GRANTABLE_SURFACES: readonly Surface[] = SURFACES.filter((s) => isEditableSurface(s) && s.parent === undefined);
+
+/**
+ * Q-SET1 (owner's ruling 2026-09-30): the screens that stay admin-only and are never offered —
+ * Users, Permissions, Card control and EFS integration. DERIVED from the `ADMIN` gate rather than
+ * listed, so the ruling cannot be restated in one place and contradicted in another; a test pins the
+ * four keys, so a fifth `ADMIN` gate is a decision somebody has to make on purpose.
+ */
+export const ADMIN_ONLY_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.gate.kind === "admin");
+
+/** The screens a directory surface links to, in catalogue order — `/settings`'s cards (SP1). */
+export const directoryScreens = (directoryKey: string): readonly Surface[] =>
+  SURFACES.filter((s) => s.reachedFrom === directoryKey);
 
 /** The surface a declared route path belongs to, or undefined if the route is not catalogued. */
 export function surfaceForPath(path: string): Surface | undefined {

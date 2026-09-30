@@ -22,6 +22,7 @@ import {
   mergedSectionClaim,
   mergedSurfaceClaim,
   sectionCell,
+  entryStartsOn,
   sectionReaches,
   surfaceCell,
 } from "./layers";
@@ -124,8 +125,9 @@ const screens = computed(() => {
   const data = memberSurfaces.data.value;
   if (!data) return { groups: [], unlisted: [] };
   return groupScreens(data.surfaces, (s) => {
-    const cell = surfaceCell(data.roleOverrides[s.key], data.userOverrides[s.key]);
-    const roleAnswer = data.roleOverrides[s.key] ?? true;
+    const startsOn = entryStartsOn(s, data.role);
+    const cell = surfaceCell(data.roleOverrides[s.key], data.userOverrides[s.key], startsOn);
+    const roleAnswer = data.roleOverrides[s.key] ?? startsOn;
     return {
       key: s.key,
       label: s.label,

@@ -1,71 +1,29 @@
 <script setup lang="ts">
 import { AppIcon } from "@silvicom/ui";
-import {
-  AdjustmentsHorizontalIcon,
-  BellIcon,
-  BooksCheckIcon,
-  BuildingOffice2Icon,
-  ClipboardDocumentCheckIcon,
-  ClipboardDocumentListIcon,
-  ConnectIcon,
-  LockIcon,
-  DatabaseSyncIcon,
-  DevicePhoneMobileIcon,
-  MapIcon,
-  RadarIcon,
-  ReeferTruckIcon,
-  ReportChartIcon,
-  UsersIcon,
-  TrophyIcon,
-} from "@silvicom/ui/icons";
+import { SURFACES, surfaceAllowed } from "@silvicom/shared";
 import { RouterLink } from "vue-router";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
+import { SETTINGS_CARDS } from "@/lib/settingsCards";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SettingsSection from "@/components/ui/SettingsSection.vue";
 
 const session = useSessionStore();
-const manageOrRead = session.can("settings") || session.readOnly;
 
-// Configuration surfaces (org, users, tuning).
-const configCards = [
-  { name: "Organization", to: "/settings/org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", show: session.admin },
-  { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "The carrier's alerts, on or off, and who is emailed.", show: session.admin },
-  { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
-  { name: "Permissions", to: "/settings/permissions", icon: LockIcon, desc: "What each role can reach, and exactly what a given member sees.", show: session.admin },
-  // `roster` and not `settings`: this console decides what DRIVERS see, its route requires the same
-  // section, and driverAppSettings.ts gates on rolesThatManage("roster"). The card, the route and the
-  // endpoint now ask one question — before R0 all three asked the same global boolean and agreed by
-  // accident rather than by construction.
-  { name: "Driver App", to: "/settings/driver-app", icon: DevicePhoneMobileIcon, desc: "Which features drivers see, app behavior, per-driver exceptions, and the minimum app version.", show: session.can("roster") },
-  // `recruitment` and not `settings`, for the Driver App card's reason: the card, the route's catalogue
-  // entry (`admin.recruiting`) and the api ask one question. This card is its only way in (owner's
-  // ruling 2026-09-28: under Settings, not in the sidebar, kept by the admin) — a recruiter, who cannot
-  // open this page, has none, and does not need one.
-  { name: "Recruiting", to: "/settings/recruiting", icon: BooksCheckIcon, desc: "How long application links stay open, the reminder, and who signs the handbook and the road test.", show: session.canView("recruitment") },
-  { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.can("settings") },
-  // ⚠ Listed here from the day the page shipped, and deliberately so: `routeReachability.test.ts`
-  // exists because ten of eleven `/settings/*` routes were on this page and one was reachable only
-  // by typing the URL. This is also the page that answers "why can no applicant send anything" —
-  // until all six instruments are published, every signing path refuses.
-  { name: "EFS integration", to: "/settings/efs-soap", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
-  { name: "Card control", to: "/settings/card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", show: session.admin },
-  { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },
-  // R8 found this page declared, admin-gated and reachable ONLY by typing the URL: ten of the eleven
-  // `/settings/*` routes were listed here and this one was not. `routeReachability.test.ts` is what
-  // stops the next one going unnoticed for as long as this one did.
-  { name: "Driver performance", to: "/settings/driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", show: session.admin },
-  { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", show: session.admin },
-  { name: "Audit log", to: "/settings/audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", show: session.admin || session.readOnly },
-].filter((c) => c.show);
-
-// Reporting & detection-health surfaces — moved off the daily sidebar into Settings.
-const reportCards = [
-  { name: "Reports", to: "/reports", icon: ReportChartIcon, desc: "Fuel spend, MPG, and anomaly summaries to review or export.", show: manageOrRead },
-  { name: "Detection coverage", to: "/coverage", icon: RadarIcon, desc: "Which trucks and rules the anomaly engine can score today.", show: manageOrRead },
-  { name: "Reefer coverage", to: "/reefer-coverage", icon: ReeferTruckIcon, desc: "Which trucks have reefer-fueling detection enabled.", show: manageOrRead },
-  { name: "Recall audit", to: "/recall-audit", icon: ClipboardDocumentCheckIcon, desc: "Sampled review of how much the detection engine catches.", show: manageOrRead },
-].filter((c) => c.show);
+/**
+ * A card shows exactly when its screen opens (SP1): the same `surfaceAllowed` the router guard asks,
+ * over the same role, section claim and screen claim. Until SP1 each card wrote its own expression
+ * — nine of them `session.admin` — which is why none of those nine could be offered as a permission.
+ * The name and the path come from the catalogue too, so a card cannot link somewhere its label does
+ * not describe. `lib/settingsCards.ts` holds only what a card looks like.
+ */
+const visible = SETTINGS_CARDS.flatMap((c) => {
+  const s = SURFACES.find((x) => x.key === c.key);
+  if (!s || !surfaceAllowed(s, session.role, session.sections, session.surfaces)) return [];
+  return [{ name: s.label, to: s.path, icon: c.icon, desc: c.desc, block: c.block }];
+});
+const configCards = visible.filter((c) => c.block === "config");
+const reportCards = visible.filter((c) => c.block === "reports");
 </script>
 
 <template>

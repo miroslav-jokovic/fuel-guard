@@ -1,6 +1,6 @@
 import type { AppSection, SectionAccess, SectionClaim } from "./auth.js";
 import type { UserRole } from "./constants.js";
-import { callerCanView, callerCanManage } from "./auth.js";
+import { callerCanView, callerCanManage, EDITABLE_ROLES } from "./auth.js";
 import type { ModuleKey, ModuleSet } from "./entitlements.js";
 import { moduleEnabled } from "./entitlements.js";
 
@@ -74,6 +74,32 @@ export interface Surface {
   module?: ModuleKey;
   /** Detail routes point at their list surface (D-SURF8) and are never separately grantable. */
   parent?: string;
+  /**
+   * A screen reached from a DIRECTORY rather than from the sidebar, which is nonetheless its own
+   * grant (SETTINGS-PERMISSIONS-PLAN.md SP1). Names the directory's key — today only `admin.settings`.
+   *
+   * ⚠ Not a `parent`, and the difference is the whole point. A `parent` shares its grant (D-SURF8):
+   * until SP1 every Settings screen was a child of `admin.settings`, so an admin could take away
+   * "Settings" whole and nothing smaller, and the ten screens that were really decided by
+   * `role === "admin"` could not be offered at all. `reachedFrom` keeps them out of the sidebar
+   * (`NAV_SURFACES`) the way `parent` did, and gives each its own key, its own row on the Permissions
+   * page and its own answer. Denying the directory therefore no longer denies the screens behind it;
+   * checked in production 2026-09-30 before the split, no stored override named any `admin.*` key.
+   */
+  reachedFrom?: string;
+  /**
+   * Q-SET2 (owner's ruling 2026-09-30): the screen starts OFF for every editable role not named here,
+   * and the admin turns it on per role or per person. Absent means the section decides, as it always
+   * has for every other screen.
+   *
+   * ⚠ A list of who starts ON, not of who starts off, and that is deliberate. The ruling is "nobody
+   * gains access on the day it ships"; a list of roles to switch off would switch ON any role added
+   * to `USER_ROLES` later, which is a deploy granting access — the exact thing Q-SET2 ruled out. A
+   * list of who keeps it fails closed instead. The locked roles (D-PERM7/D-PERM8) are not subject to
+   * it: nobody can answer for `admin`, so a default it could not be switched out of would be a lock,
+   * and `admin` holds every section anyway.
+   */
+  startsOnFor?: readonly UserRole[];
   /** Live count rendered beside the entry. The value is injected per request, not stored here. */
   badge?: "hazmatReview" | "messagesUnread";
 }
@@ -125,6 +151,18 @@ export const ADMIN: SurfaceGate = { kind: "admin" };
 export const isEditableSurface = (s: Surface): boolean => s.gate.kind === "section";
 
 /**
+ * Where a screen's answer lives before anybody has given one — `true` unless the catalogue says the
+ * screen starts off for this role (Q-SET2, `startsOnFor`). The Permissions page reads the same
+ * function so a cell and the guard cannot disagree about what "no row" means.
+ *
+ * Only an editable role can start off: see `startsOnFor` for why `admin` is exempt.
+ */
+export function surfaceStartsOn(s: Pick<Surface, "startsOnFor">, role: UserRole | null): boolean {
+  if (!s.startsOnFor || !role || !(EDITABLE_ROLES as readonly string[]).includes(role)) return true;
+  return s.startsOnFor.includes(role);
+}
+
+/**
  * The ROLE half of a surface's gate — does this caller's role (as the org may have re-answered it)
  * reach this screen? Deliberately separate from the module half, because the two are known at
  * different times: a role is in the token, and the org's modules arrive from a query.
@@ -166,7 +204,8 @@ export function canReachSurface(
 
 /**
  * An org's answers, sparse: `role → surface key → allowed` (D-SURF6). A key that is absent is not
- * denied — it is UNCHANGED, and the surface's own gate answers.
+ * denied — it is UNCHANGED, and the surface's own gate answers, then its starting default
+ * (`surfaceStartsOn`, Q-SET2).
  */
 export type SurfaceOverrides = Partial<Record<UserRole, Record<string, boolean>>>;
 
@@ -193,6 +232,9 @@ export function surfaceAllowed(
   // A detail route is never separately grantable (D-SURF8): denying Loads must also deny the load a
   // bookmark points at, so it answers to its parent's key rather than to one of its own.
   const key = s.parent ?? s.key;
-  return surfaces?.[key] ?? true;
+  // No answer falls to the screen's starting default, not to `true` (Q-SET2). This is also what
+  // keeps the fail-open in `surfaceClaimFor` safe: an unreadable claim is `{}`, and `{}` now means
+  // "as shipped" — which for a screen that starts off is still off.
+  return surfaces?.[key] ?? surfaceStartsOn(s, role);
 }
 

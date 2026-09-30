@@ -135,6 +135,28 @@ describe("GET /api/surface-access", () => {
     // Every offered screen names the section it can never reach past (D-SURF2).
     expect(body.surfaces.every((s) => s.section !== null)).toBe(true);
   });
+
+  /**
+   * SP1: the Settings screens are cells now, each with its own key — and the four Q-SET1 ruled
+   * admin-only are not. The directory and the starting default travel with each row, because the
+   * page cannot group the row or draw its switch without them.
+   */
+  it("offers each Settings screen as its own cell, with where it is reached from and who it starts on for", async () => {
+    const body = await withServer(
+      async (base) =>
+        (await (await fetch(`${base}/api/surface-access`)).json()) as {
+          surfaces: Array<{ key: string; reachedFrom: string | null; startsOnFor: string[] | null }>;
+        },
+    );
+    const byKey = new Map(body.surfaces.map((s) => [s.key, s]));
+    expect(byKey.get("admin.settings.org")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: [] });
+    expect(byKey.get("admin.settings.audit")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: ["auditor"] });
+    // A screen the section decides, as it always has, carries no starting default.
+    expect(byKey.get("admin.settings.data")).toMatchObject({ reachedFrom: "admin.settings", startsOnFor: null });
+    expect(byKey.get("fuel.log")).toMatchObject({ reachedFrom: null, startsOnFor: null });
+    for (const key of ["admin.users", "admin.settings.permissions", "admin.settings.card-control", "admin.settings.efs"])
+      expect(byKey.has(key), `${key} is admin-only by Q-SET1`).toBe(false);
+  });
 });
 
 describe("PUT /api/surface-access", () => {
@@ -171,6 +193,65 @@ describe("PUT /api/surface-access", () => {
     });
     expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
     expect(rec.forTable("org_role_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
+  });
+
+  /**
+   * Q-SET2: a screen that starts OFF for a role is turned on by storing `true` — the one role-layer
+   * answer that could never be a row before SP1 — and answering `false` is then the reset, which
+   * deletes and stores nothing. The same PUT, the same sparse delta, measured against the screen's
+   * starting value instead of against a constant `true`.
+   */
+  it("turning on a screen that starts off STORES `true`, and turning it off again stores nothing", async () => {
+    await withServer(async (base) => {
+      const res = await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("org_role_surface_access")).toEqual([
+      expect.objectContaining({ org_id: ORG, role: "fleet_manager", surface_key: "admin.settings.org", allowed: true }),
+    ]);
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meta: expect.objectContaining({ allowed: true, resetToDefault: false }) }),
+    );
+    expectOrgScoped(rec, ORG);
+
+    rec.reset();
+    vi.mocked(writeAudit).mockClear();
+    await withServer(async (base) => {
+      const res = await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false });
+      expect(res.status).toBe(200);
+    });
+    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
+    expect(rec.forTable("org_role_surface_access").some((q) => q.write?.method === "delete")).toBe(true);
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meta: expect.objectContaining({ allowed: false, resetToDefault: true }) }),
+    );
+  });
+
+  /** The Audit log starts ON for the auditor (Q-SET3), so for them it is `false` that makes a row. */
+  it("measures the reset per role: the audit log starts on for the auditor and off for a fleet manager", async () => {
+    await withServer(async (base) => {
+      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: true })).status).toBe(200);
+      expect((await put(base, { role: "fleet_manager", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
+    });
+    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
+    await withServer(async (base) => {
+      expect((await put(base, { role: "auditor", surfaceKey: "admin.settings.audit", allowed: false })).status).toBe(200);
+    });
+    expect(rec.writtenRows("org_role_surface_access")).toEqual([
+      expect.objectContaining({ role: "auditor", surface_key: "admin.settings.audit", allowed: false }),
+    ]);
+  });
+
+  it("refuses each screen Q-SET1 keeps admin-only", async () => {
+    for (const key of ["admin.settings.permissions", "admin.settings.card-control", "admin.settings.efs"]) {
+      await withServer(async (base) => {
+        const res = await put(base, { role: "fleet_manager", surfaceKey: key, allowed: true });
+        expect(res.status, `${key} should never be offered`).toBe(400);
+      });
+    }
+    expect(rec.writtenRows("org_role_surface_access")).toHaveLength(0);
   });
 
   it("refuses a key the catalogue does not have", async () => {

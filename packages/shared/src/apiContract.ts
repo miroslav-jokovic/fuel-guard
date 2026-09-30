@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { newPasswordSchema } from "./passwordResetContract.js";
 import { USER_ROLES } from "./constants.js";
-import { isEditableSurface } from "./surfaces.js";
-import { SURFACES } from "./surfaceCatalogue.js";
+import { GRANTABLE_SURFACES, SURFACES } from "./surfaceCatalogue.js";
 import { isEditableRole, isEditableSection } from "./auth.js";
 
 /**
@@ -82,7 +81,7 @@ const answerableSurfaceKey = () =>
     .string()
     .refine((k) => SURFACES.some((s) => s.key === k), "No such screen")
     .refine(
-      (k) => SURFACES.some((s) => s.key === k && isEditableSurface(s) && s.parent === undefined),
+      (k) => GRANTABLE_SURFACES.some((s) => s.key === k),
       "That screen is not an organisation's to change",
     );
 

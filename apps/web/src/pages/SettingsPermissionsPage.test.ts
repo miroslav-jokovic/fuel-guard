@@ -6,9 +6,8 @@ import {
   APP_SECTIONS,
   EDITABLE_ROLES,
   EDITABLE_SECTIONS,
-  NAV_SURFACES,
+  GRANTABLE_SURFACES,
   USER_ROLE_LABELS,
-  isEditableSurface,
   sectionAccess,
 } from "@silvicom/shared";
 import { AppCombobox } from "@silvicom/ui";
@@ -44,12 +43,14 @@ const ROLE_LABEL = USER_ROLE_LABELS[ROLE];
 const defaults = Object.fromEntries(
   EDITABLE_ROLES.map((r) => [r, Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess(r, s)]))]),
 );
-const catalogue = NAV_SURFACES.filter(isEditableSurface).map((s) => ({
+const catalogue = GRANTABLE_SURFACES.map((s) => ({
   key: s.key,
   label: s.label,
   group: s.group,
   section: s.gate.kind === "section" ? s.gate.section : null,
   level: s.gate.kind === "section" ? s.gate.level : null,
+  reachedFrom: s.reachedFrom ?? null,
+  startsOnFor: s.startsOnFor ? [...s.startsOnFor] : null,
 }));
 
 const state = vi.hoisted(() => ({
@@ -288,6 +289,96 @@ describe("the Roles tab", () => {
   });
 });
 
+/**
+ * SETTINGS-PERMISSIONS-PLAN.md SP1. Each Settings screen is its own row now, and Q-SET2 starts the
+ * ones that were admin-only OFF for every other role. The switch has to draw that starting value —
+ * not `true`, which is what every screen started at before — or the page would show Organization
+ * as on for a fleet manager whom the guard sends away. And the reset at the role layer is "write the
+ * starting value", which for these screens is `false`: a reset that still wrote `true` would be a
+ * grant with a misleading name.
+ */
+describe("the Settings screens (SP1, Q-SET2)", () => {
+  const FM = USER_ROLE_LABELS.fleet_manager;
+
+  it("files the Settings screens under their own Settings group, not beside the Settings entry", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    const screens = w.find('section[aria-label="Screens"]');
+    const headings = screens.findAll("li.uppercase").map((li) => li.text());
+    // The directory's group comes straight after the sidebar group that holds the directory.
+    expect(headings.slice(-2)).toEqual(["Admin", "Settings"]);
+    const settingsAt = screens.findAll("li").findIndex((li) => li.text() === "Settings" && li.classes().includes("uppercase"));
+    const orgAt = screens.findAll("li").findIndex((li) => li.text().startsWith("Organization"));
+    expect(orgAt).toBeGreaterThan(settingsAt);
+  });
+
+  it("draws a screen that starts off as an off switch with no Changed tag, and turning it on writes `true`", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    expect(sectionAccess("fleet_manager", "settings")).toBe("manage");
+    const org = toggle(w, "Organization")!;
+    expect(org.attributes("aria-checked")).toBe("false");
+    expect(row(w, "Organization")!.text()).not.toContain("Changed");
+    // A screen with no starting default is still drawn on, as every screen was before SP1.
+    expect(toggle(w, "Data & sync")!.attributes("aria-checked")).toBe("true");
+    await org.trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true }]);
+  });
+
+  it("resets a screen that starts off by writing `false`, alone and in the role's reset", async () => {
+    (state.surfaces as { overrides: Record<string, Record<string, boolean>> }).overrides.fleet_manager = {
+      "admin.settings.org": true,
+      "admin.settings.data": false,
+    };
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    expect(toggle(w, "Organization")!.attributes("aria-checked")).toBe("true");
+    expect(row(w, "Organization")!.text()).toContain("Changed");
+    await row(w, "Organization")!.findAll("button").find((b) => b.text() === "Reset")!.trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false }]);
+    calls.setRoleSurface.length = 0;
+    await link(w, "Reset role to defaults")!.trigger("click");
+    await flushPromises();
+    // Each screen goes back to ITS start: off for Organization, on for Data & sync.
+    expect(calls.setRoleSurface).toEqual([
+      { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false },
+      { role: "fleet_manager", surfaceKey: "admin.settings.data", allowed: true },
+    ]);
+  });
+
+  it("starts the Audit log on for the auditor and off for a fleet manager (Q-SET3)", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, USER_ROLE_LABELS.auditor);
+    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("true");
+    await openRole(w, FM);
+    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("false");
+  });
+
+  it("offers a dispatcher Planned fueling as an off switch, because they hold its section", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, USER_ROLE_LABELS.dispatcher);
+    expect(sectionAccess("dispatcher", "dispatch")).toBe("manage");
+    expect(toggle(w, "Planned fueling")!.attributes("aria-checked")).toBe("false");
+    expect(row(w, "Planned fueling")!.text()).not.toContain("Needs");
+  });
+
+  it("names the Settings group as unlisted for a role that holds no Settings screen's section", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w);
+    expect(sectionAccess(ROLE, "settings")).toBe("none");
+    expect(toggle(w, "Organization")).toBeUndefined();
+    expect(w.text()).toMatch(/Not listed: .*Settings/);
+  });
+});
+
 describe("the People tab", () => {
   const openPeople = async (userId = "u-tech") => {
     const w = mountPage();
@@ -354,6 +445,39 @@ describe("the People tab", () => {
       { userId: "u-tech", surfaceKey: "maintenance.repair-spend", allowed: null },
     ]);
     expect(toasts.success[0]![1]).toMatch(/page/i);
+  });
+
+  /**
+   * Q-SET2 in the person's row: a fleet manager given Organization personally follows a role that
+   * starts it OFF, so the link must say "Hidden" — "Shown" was the only answer it could give before
+   * SP1, and here it would promise the opposite of what the click does.
+   */
+  it("names Hidden as the role's answer for a screen that starts off for that role", async () => {
+    state.members = [
+      ...(state.members as object[]),
+      { userId: "u-fm", email: "ops@silvicom.test", fullName: "Ops Lead", role: "fleet_manager", joinedAt: "2026-01-03T00:00:00Z" },
+    ];
+    state.memberSections = {
+      userId: "u-fm",
+      role: "fleet_manager",
+      shipped: Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess("fleet_manager", s)])),
+      roleOverrides: {},
+      userOverrides: {},
+      editableSections: EDITABLE_SECTIONS,
+    };
+    state.memberSurfaces = {
+      userId: "u-fm",
+      role: "fleet_manager",
+      roleOverrides: {},
+      userOverrides: { "admin.settings.org": true },
+      surfaces: catalogue,
+    };
+    const w = await openPeople("u-fm");
+    expect(toggle(w, "Organization")!.attributes("aria-checked")).toBe("true");
+    expect(toggle(w, "Notifications")!.attributes("aria-checked")).toBe("false");
+    await link(w, "Follow role (Hidden)")!.trigger("click");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([{ userId: "u-fm", surfaceKey: "admin.settings.org", allowed: null }]);
   });
 
   it("gives one person back a screen their whole role has lost", async () => {

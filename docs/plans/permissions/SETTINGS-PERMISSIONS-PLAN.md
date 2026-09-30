@@ -167,3 +167,12 @@ Append a dated line per step. Never edit §3.
   under Q-AW19.
 - **2026-09-30** — Owner: *"proceed as recommended."* Q-SET1 (a), Q-SET2 (a) and Q-SET3 (a) ruled
   (§5). SP1 is next.
+- **2026-09-30** — SP1 built (catalogue + directory, no migration). Each Settings screen has its own key
+  with `reachedFrom: "admin.settings"` in place of `parent`; `startsOnFor` carries Q-SET2 (Organization,
+  Notifications, Anomaly thresholds, Driver performance and Planned fueling start off for every role but
+  the admin; the Audit log starts on only for the auditor, Q-SET3); `ADMIN_ONLY_SURFACES` is derived from
+  the `ADMIN` gate (Q-SET1). The directory's cards and the Permissions page's new Settings group read the
+  catalogue. `requireSurface` now passes the caller's id — per-person answers never reached the API
+  before. Equivalence tested for every office role against the pre-SP1 route gates; 11 mutants, all
+  killed. ⚠ Until SP2, a screen turned on for a non-admin opens a page whose saves are still refused
+  (admin-only RLS and API gates), e.g. Organization's `organizations_update`.
