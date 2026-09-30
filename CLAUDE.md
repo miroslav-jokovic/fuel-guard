@@ -68,8 +68,9 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   against the other side's schema**. A column and its first
   reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
   the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window. **The window was 9m10s, then 2m44s** (migration 0316, 2026-09-05); the first
-  migration after the tested-tree shortcut has not been measured yet — the doc says how. The RULE is
+  §the-deploy-window. **The window was 9m10s, then 2m44s** (migration 0316, 2026-09-05); with the
+  tested-tree shortcut the gate passes in 1 s and `migrate.yml` finishes in ~25 s (dispatch on
+  466875e, 2026-09-30), so the schema now usually lands FIRST. A real migration merge is still owed. The RULE is
   what holds either way: a gap that short cannot be watched for, and its direction is no longer known.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.

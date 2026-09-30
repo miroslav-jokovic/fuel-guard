@@ -147,3 +147,30 @@ Where a merge's 15–20 min goes:
   `test-web`** (`vitest --shard=i/2` over a matrix), since both are import-bound (ci.yml's comment:
   601 s importing vs 105 s running). Not built. It needs its own measurement. Fix 2 is the one that
   removes whole minutes from a merge, and only for migration/driver-release merges.
+- 2026-09-30 — **Fix 2 proven end to end.**
+  - Positive on a real merge: `466875e` (#1158) has tree `7a47d91`, and its head `10f2ae4` carries
+    that tree. `tested-tree.sh` → exit 0.
+  - A `migrate.yml` dispatch on `466875e` passed the gate in **1 s**, and the job took **24 s**
+    total, where it used to poll main's CI for ~6 min.
+  - Real negatives: `cfbe724` and `a3b7e7b` (main moved during the PR run), plus `bcacd46` and
+    `033fa2a` (no status).
+  - Hit rate on history: 138 of 167 merges (83%), and 27 of 32 migration merges.
+- 2026-09-30 — **Found and fixed: main CI runs WERE being cancelled (#1158).** A concurrency group
+  keeps one running and one PENDING run, and a newer pending run cancels the older one regardless of
+  `cancel-in-progress`.
+  - When #1154, #1153 and #1150 merged within 19 s, CI on `cfbe724` and `5255378` was cancelled, so
+    `migrate.yml` refused 0393 while code expecting it was live.
+  - The recovery dispatch on `36cad9a` then failed on a native-android NDK download flake
+    (`Error on ZipFile unknown archive`). Recovered with `gh run rerun --failed` + a `migrate.yml`
+    dispatch: 0393 applied ~17:52 UTC.
+  - ci.yml and mutation-check.yml now key main's group on the SHA. Seen working: CI on `a3b7e7b`
+    and `466875e` ran concurrently.
+- ⚠ **Open, the owner's call:** on main, native-android always builds, and a Google NDK download
+  flake there blocks a migration whenever the shortcut does not apply. Either main uses the same
+  path filter (then a missed input is never caught), or accept it and rerun.
+- ⚠ **Local trap:** do not run deploy-verify's step script in a local checkout. Its
+  `git fetch --depth=1` grafts shallow boundaries into the shared repo (it happened; repaired with
+  `git fetch --unshallow`).
+- ⚠ **Known flake, unfixed:** `e2e-apply/tapTargets.spec.ts` "at 390 px › Part 1" timed out waiting
+  for 2 `/adoption` POSTs on #1158 (its own comment records the same failure on #1122). It passed
+  on rerun.

@@ -145,9 +145,15 @@ already proved green: `ci.yml`'s `build` job records the tested tree as a `ci/te
 the PR head, and `.github/actions/require-ci-green/tested-tree.sh` accepts it. The common case is a
 PR merged while main has not moved.
 
-- **Predicted, not yet measured:** merge to schema applied drops from ~5 min to ~1.5–2 min, which is
-  `migrate.yml`'s own install, link and push. Railway serves in 2–13 min, so for most migration
-  merges the **schema is applied before the new code is served**.
+- **Measured on the gate, 2026-09-30:** a `migrate.yml` dispatch on `466875e` (#1158's merge, whose
+  tree its PR run tested) passed the CI gate in **1 s**, and the whole job took **24 s** from creation
+  to completion. It had been ~6 min of polling main's CI. Railway serves in 2–13 min, so for most
+  migration merges the **schema is applied before the new code is served**. Still owed: merge to
+  `schema.applied` on a real migration merge. That adds the push trigger's latency, which a
+  dispatch skips.
+- **How often it applies:** for 138 of the 167 merges between 2026-09-23 and 09-30 (27 of the 32
+  that carried a migration), main had not moved between the PR's last green CI start and the
+  merge. The other ~17% wait for main's CI as before.
 - **That is the direction the rules already handle.** An added column that old code never names is
   harmless. The hazard sits in a drop or a rename, where old code reads a column that is already
   gone, and that was always four steps across releases rather than one merge.
