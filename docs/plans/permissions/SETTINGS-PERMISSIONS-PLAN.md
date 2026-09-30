@@ -282,3 +282,11 @@ Append a dated line per step. Never edit §3.
   `purge_applicant` is security definer. `rls.test.mjs` now expects every role in the `user_role` enum
   refused, read from the enum rather than listed, so the auditor and the admin are included. Recreating
   0004's policy, keeping it undropped, and an org-wide read policy each fail the cases (3 of 3).
+- **2026-09-30** — **SP4 live.** #1145 (`1de0ea1`, the Audit log through `GET /api/audit/log`), #1146
+  (`a975fb5`, 0390: audited updates record `meta.changed`) and #1147 (`033fa2a`, 0391) are all merged.
+  Both services are on `033fa2a` with schema 0391 `current`. Production `pg_policies` on `audit_logs`:
+  **0** (RLS still enabled, so every client role is denied). The first two `*.update` rows after 0390
+  applied both carry `changed`. Verify deployment timed out once on `1de0ea1`: the web deploy outran the
+  check's wait and was superseded by `a975fb5`. Nothing was broken. Still owed by the owner: open the
+  Audit log as the admin in production, and SP3's one Organization save. **SP5 is next** (§6's dead
+  links and gate mismatches).
