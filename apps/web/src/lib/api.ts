@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { stepUpHeader } from "./stepUp";
+import { clearStepUp, stepUpHeader } from "./stepUp";
 
 // Same-origin by default (single-service deploy): paths already include `/api`, so "" → "/api/…".
 // Set VITE_API_URL only when the API lives on a different origin (split-service deploy).
@@ -63,6 +63,55 @@ export async function fetchObjectUrl(
   return URL.createObjectURL(await res.blob());
 }
 
+/** `requireAuth`'s answer to a signed token whose membership changed since it was minted (SP7). */
+export const ACCESS_CHANGED = "access_changed";
+
+let accessChangeInFlight: Promise<void> | null = null;
+
+/**
+ * The API refused a genuine token because the membership it names is gone, re-roled or suspended
+ * (SP7, Q-SET6 (a) — `apps/api/src/middleware/membershipCurrent.ts`). The token cannot be repaired
+ * in place; only a new one can say what this person may do now.
+ *
+ * So try a refresh first. When the admin removed, demoted or suspended them, the API also ended
+ * their sessions, the refresh FAILS, and they are signed out and sent to the login page — the
+ * "removal is immediate" the Users page promises. When it succeeds (the rare case where the sessions
+ * outlived the change), the new token carries the new claims, and the session store's
+ * `onAuthStateChange` listener adopts it and re-fetches `/api/me` exactly as it does on sign-in — that
+ * listener IS the store's re-initialisation, so nothing here has to reach into the store (which would
+ * also be a circular import: the store calls `apiFetch`).
+ *
+ * The sign-out is a full navigation, not a router push, on purpose: the query cache still holds data
+ * fetched under the access they no longer have, and a page load is the one reset that cannot miss a
+ * cache, a store or the in-memory step-up token (cleared first anyway — audit P0-4).
+ *
+ * ⚠ Once per burst. A page fires several queries at once and every one of them gets this 401; without
+ * the shared promise each would rotate the refresh token in parallel, and all but the first would fail
+ * on a token the first had just spent — signing out somebody whose refresh had succeeded.
+ *
+ * The caller still receives the original 401: the request it made was refused, whatever happens next.
+ */
+async function onAccessChanged(): Promise<void> {
+  accessChangeInFlight ??= (async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data.session) {
+        clearStepUp();
+        try {
+          // `local`: the server already ended the sessions; a round trip would only be refused.
+          await supabase.auth.signOut({ scope: "local" });
+        } catch {
+          /* the stored tokens are what matter, and the page load below discards them either way */
+        }
+        window.location.assign("/login");
+      }
+    } finally {
+      accessChangeInFlight = null;
+    }
+  })();
+  return accessChangeInFlight;
+}
+
 /** Call the Silvicom 360 API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,
@@ -111,6 +160,7 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     const err = (payload as { error?: { code: string; message: string } })?.error;
+    if (res.status === 401 && err?.code === ACCESS_CHANGED) await onAccessChanged();
     return {
       ok: false,
       status: res.status,

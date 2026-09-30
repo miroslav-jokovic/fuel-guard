@@ -63,6 +63,10 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   }
 }
 
+/** The `write_access_cell` calls this test's requests made, by their arguments (SP8). */
+const cellCalls = () =>
+  rec.rpcs().filter((r) => r.fn === "write_access_cell").map((r) => r.args as Record<string, unknown>);
+
 const put = (base: string, body: unknown) =>
   fetch(`${base}/api/section-access`, {
     method: "PUT",
@@ -132,19 +136,36 @@ describe("GET /api/section-access", () => {
 });
 
 describe("PUT /api/section-access", () => {
-  it("stores an override, naming the org and the actor", async () => {
+  /**
+   * SP8 (Q-SET7 (a), migration 0395): the cell and its audit row are ONE call to
+   * `write_access_cell`, so there is no separate delete, insert or `writeAudit` left to fail between.
+   * These pin what the route hands the function: the org from the TOKEN, the actor, the action name
+   * and the meta the log has always carried (the function adds `from`/`to` itself).
+   */
+  it("stores an override through write_access_cell, naming the org and the actor", async () => {
     await withServer(async (base) => {
       const res = await put(base, { role: "dispatcher", section: "safety", access: "manage" });
       expect(res.status).toBe(200);
     });
-    const written = rec.writtenRows("org_section_access");
-    expect(written).toEqual([
-      { org_id: ORG, role: "dispatcher", section: "safety", access: "manage", updated_by: USER },
+    expect(cellCalls()).toEqual([
+      {
+        p_table: "org_section_access",
+        p_org_id: ORG,
+        p_role: "dispatcher",
+        p_user_id: null,
+        p_key: "safety",
+        p_value: "manage",
+        p_actor: USER,
+        p_action: "permissions.changed",
+        p_meta: { role: "dispatcher", section: "safety", access: "manage", shipped: "none", resetToDefault: false },
+      },
     ]);
-    expectOrgScoped(rec, ORG);
+    // Nothing is written around the function, and no second audit row is written beside it.
+    expect(rec.writes()).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 
-  it("deletes the row instead of storing the default, so absence keeps meaning 'unchanged'", async () => {
+  it("writes the default as null, so the function stores NO row and absence keeps meaning 'unchanged'", async () => {
     // `dispatcher` ships with `safety: none`, so setting `none` is a reset.
     expect(sectionAccess("dispatcher", "safety")).toBe("none");
     const body = await withServer(async (base) => {
@@ -152,27 +173,32 @@ describe("PUT /api/section-access", () => {
       return (await res.json()) as { isDefault: boolean };
     });
     expect(body.isDefault).toBe(true);
-    expect(rec.writtenRows("org_section_access")).toEqual([]);
-    const deletes = rec.writes().filter((q) => q.write?.method === "delete");
-    expect(deletes).toHaveLength(1);
-    expect(deletes[0]!.filters()).toContainEqual({ col: "org_id", val: ORG });
+    expect(cellCalls()).toHaveLength(1);
+    expect(cellCalls()[0]).toMatchObject({ p_org_id: ORG, p_value: null, p_meta: expect.objectContaining({ resetToDefault: true }) });
   });
 
-  it("audits every change, carrying the default it departed from", async () => {
+  it("carries the default it departed from in the audit meta", async () => {
     await withServer(async (base) => {
       await put(base, { role: "recruiter", section: "equipment", access: "view" });
     });
-    expect(writeAudit).toHaveBeenCalledTimes(1);
-    const arg = vi.mocked(writeAudit).mock.calls[0]![1];
-    expect(arg.action).toBe("permissions.changed");
-    expect(arg.orgId).toBe(ORG);
-    expect(arg.meta).toMatchObject({
+    expect(cellCalls()[0]!.p_meta).toEqual({
       role: "recruiter",
       section: "equipment",
       access: "view",
       shipped: "none",
       resetToDefault: false,
     });
+  });
+
+  it("answers 500 and no success when the function fails — the change and its record did not happen", async () => {
+    rec = createSupabaseRecorder({ rpc: { write_access_cell: { error: { code: "40001", message: "serialization" } } } });
+    const res = await withServer(async (base) => {
+      const r = await put(base, { role: "dispatcher", section: "safety", access: "manage" });
+      return { status: r.status, body: (await r.json()) as { ok?: boolean; error?: { code: string } } };
+    });
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBeUndefined();
+    expect(res.body.error?.code).toBe("db_error");
   });
 
   /**
@@ -230,35 +256,37 @@ const putUser = (base: string, body: unknown) =>
   });
 
 describe("PUT /api/section-access/user", () => {
-  it("narrowing one member writes one row, org- and user-scoped, and audits it", async () => {
+  it("narrowing one member is one write_access_cell call, org- and user-scoped, carrying the audit meta", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "none" });
       expect(res.status).toBe(200);
     });
-    const inserted = rec.writtenRows("user_section_access");
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0]).toMatchObject({
-      org_id: ORG,
-      user_id: DISPATCHER,
-      section: "safety",
-      access: "none",
-      updated_by: USER,
-    });
-    expectOrgScoped(rec, ORG);
-    expect(writeAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        orgId: ORG,
-        action: "permissions.changed_user",
+    expect(cellCalls()).toEqual([
+      {
+        p_table: "user_section_access",
+        p_org_id: ORG,
+        p_role: null,
+        p_user_id: DISPATCHER,
+        p_key: "safety",
+        p_value: "none",
+        p_actor: USER,
+        p_action: "permissions.changed_user",
         // The member's role and what that role resolves to travel with the change, so the log reads
         // years later without the reader reconstructing the matrix as it stood that day.
-        meta: expect.objectContaining({
+        p_meta: {
           userId: DISPATCHER,
           role: "dispatcher",
+          section: "safety",
+          access: "none",
           roleDefault: sectionAccess("dispatcher", "safety"),
-        }),
-      }),
-    );
+          resetToRole: false,
+        },
+      },
+    ]);
+    // The membership lookup before it is org-scoped; the write itself carries the token's org.
+    expectOrgScoped(rec, ORG);
+    expect(rec.writes()).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 
   /**
@@ -275,38 +303,25 @@ describe("PUT /api/section-access/user", () => {
       });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("user_section_access")).toHaveLength(1);
+    expect(cellCalls()[0]!.p_value).toBe(sectionAccess("dispatcher", "safety"));
   });
 
-  /**
-   * The delete-then-insert pair (`lint:upserts`: never a partial upsert) clears exactly ONE cell.
-   * Without the `user_id` filter it clears that section for every member of the org, which is
-   * invisible on the screen of the person being edited and is how "custom setup for each user"
-   * would quietly become "custom setup for the last user edited".
-   */
-  it("clears exactly one member's cell — the delete carries org, user AND section", async () => {
-    await withServer(async (base) => {
-      const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "none" });
-      expect(res.status).toBe(200);
-    });
-    const del = rec.forTable("user_section_access").find((q) => q.write?.method === "delete");
-    expect(del).toBeDefined();
-    expect(del!.filters()).toEqual(
-      expect.arrayContaining([
-        { col: "org_id", val: ORG },
-        { col: "user_id", val: DISPATCHER },
-        { col: "section", val: "safety" },
-      ]),
-    );
-  });
-
-  it("`access: null` is the reset — it deletes the row and stores nothing", async () => {
+  it("`access: null` is the reset — the function is asked to remove the row", async () => {
     await withServer(async (base) => {
       const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: null });
       expect(res.status).toBe(200);
     });
-    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
-    expect(rec.forTable("user_section_access").some((q) => q.write?.method === "delete")).toBe(true);
+    expect(cellCalls()).toHaveLength(1);
+    expect(cellCalls()[0]).toMatchObject({ p_user_id: DISPATCHER, p_value: null, p_meta: expect.objectContaining({ resetToRole: true }) });
+  });
+
+  it("answers 500 when the function fails", async () => {
+    rec = createSupabaseRecorder({
+      tables: { memberships: [{ role: "dispatcher" }] },
+      rpc: { write_access_cell: { error: { message: "boom" } } },
+    });
+    const status = await withServer(async (base) => (await putUser(base, { userId: DISPATCHER, section: "safety", access: "none" })).status);
+    expect(status).toBe(500);
   });
 
   /**
@@ -321,7 +336,7 @@ describe("PUT /api/section-access/user", () => {
         const res = await putUser(base, { userId: DISPATCHER, section: "safety", access: "manage" });
         expect(res.status, `${role} is not editable`).toBe(400);
       });
-      expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+      expect(cellCalls()).toHaveLength(0);
     }
   });
 
@@ -337,7 +352,7 @@ describe("PUT /api/section-access/user", () => {
       const res = await putUser(base, { userId: OUTSIDER, section: "safety", access: "manage" });
       expect(res.status).toBe(404);
     });
-    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
     const lookup = rec.forTable("memberships");
     expect(lookup).toHaveLength(1);
     expect(lookup[0]!.filters()).toEqual(
@@ -359,7 +374,7 @@ describe("PUT /api/section-access/user", () => {
       const res = await putUser(base, { userId: DISPATCHER, section: "admin", access: "manage" });
       expect(res.status).toBe(400);
     });
-    expect(rec.writtenRows("user_section_access")).toHaveLength(0);
+    expect(cellCalls()).toHaveLength(0);
   });
 });
 

@@ -12,13 +12,21 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
-import { BADGE_BASE, inviteTone } from "@/lib/badges";
+import { BADGE_BASE, inviteTone, suspendedBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
 import GatedLink from "@/components/GatedLink.vue";
+import {
+  bulkRemoveConfirmText,
+  isSuspended,
+  offersAccessActions,
+  reinstateMember,
+  removeMember,
+  suspendMember,
+} from "@/features/settings/memberAccess";
 
 const toast = useToastStore();
 const session = useSessionStore();
@@ -180,14 +188,9 @@ async function resend(id: string) {
   }
 }
 
-async function removeMember(userId: string) {
-  const res = await apiFetch(`/api/members/${userId}`, { method: "DELETE" });
-  if (res.ok) {
-    toast.success("Member removed");
-    await load();
-  } else {
-    toast.error("Could not remove member", res.error?.message);
-  }
+/** Remove / suspend / reinstate: confirm, act, toast (`memberAccess.ts`), then reload on success. */
+async function memberAct(run: (m: OrgMember) => Promise<boolean>, m: OrgMember) {
+  if (await run(m)) await load();
 }
 
 // Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
@@ -201,7 +204,8 @@ const roleOptions = OFFICE_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS
 async function changeRole(userId: string, newRole: string) {
   const m = members.value.find((x) => x.userId === userId);
   if (!m || m.role === newRole) return;
-  if (userId === session.userId && newRole !== "admin" && !confirm("Change your own role? You may lose admin access after your next sign-in.")) {
+  // Q-SET6 (a): a role change signs the person out at once (SP7), yourself included.
+  if (userId === session.userId && newRole !== "admin" && !confirm("Change your own role? You will be signed out now and lose admin access.")) {
     await load();
     return;
   }
@@ -259,7 +263,7 @@ const selectedIds = ref<Set<string>>(new Set());
 const bulkBusy = ref(false);
 async function bulkRemove() {
   const ids = [...selectedIds.value].filter((id) => id !== session.userId);
-  if (ids.length === 0 || !confirm(`Remove ${ids.length} member${ids.length > 1 ? "s" : ""}?`)) return;
+  if (ids.length === 0 || !confirm(bulkRemoveConfirmText(ids.length))) return;
   bulkBusy.value = true;
   // Count what actually happened. This loop used to discard every response and then report success
   // unconditionally, so a refused removal — the API now refuses a driver-app login (DC10) — would
@@ -397,6 +401,9 @@ onMounted(load);
         <template #cell-fullName="{ row }">
           <span v-if="row.fullName" class="font-medium text-ink">{{ row.fullName }}</span>
           <span v-else class="text-ink-tertiary">No name yet</span>
+          <span v-if="suspendedBadge(row.suspendedAt)" :class="[BADGE_BASE, toneClass(suspendedBadge(row.suspendedAt)!.tone), 'ml-2']">
+            {{ suspendedBadge(row.suspendedAt)!.label }}
+          </span>
         </template>
         <template #cell-email="{ row }">{{ row.email ?? row.userId }}</template>
         <template #cell-role="{ row }">
@@ -407,7 +414,11 @@ onMounted(load);
           <KebabMenu>
             <BaseButton class="kebab-item" @click="openRename(row)">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
             <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="resetting = row">Send password reset…</BaseButton>
-            <BaseButton v-if="row.userId !== session.userId" class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</BaseButton>
+            <template v-if="offersAccessActions(row, session.userId)">
+              <BaseButton v-if="isSuspended(row)" class="kebab-item" @click="memberAct(reinstateMember, row)">Reinstate member…</BaseButton>
+              <BaseButton v-else class="kebab-item" @click="memberAct(suspendMember, row)">Suspend member…</BaseButton>
+              <BaseButton class="kebab-item kebab-item-danger" @click="memberAct(removeMember, row)">Remove member…</BaseButton>
+            </template>
           </KebabMenu>
         </template>
       </DataTable>

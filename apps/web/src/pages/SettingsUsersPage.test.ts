@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import SettingsUsersPage from "@/pages/SettingsUsersPage.vue";
@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   invites: [] as unknown[],
   /** A resend rotates the link; the API says so with this flag (invites.ts, 2026-09-04). */
   rotated: false,
+  /** The API refuses a suspension (the last admin, AM010 → 409). */
+  refuseSuspend: false,
 }));
 /** Toasts are the ONLY place the rotation is told to the admin, so a test has to be able to read them. */
 const toasts = vi.hoisted(() => [] as Array<{ kind: string; title: string; detail?: string }>);
@@ -25,6 +27,8 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
     calls.push({ path, init });
     if (path === "/api/members" && !init?.method) return { ok: true, data: { members: state.members } };
+    if (state.refuseSuspend && path.endsWith("/suspend"))
+      return { ok: false, status: 409, error: { code: "last_admin", message: "This is the only admin — promote someone else to admin first." } };
     if (path === "/api/invites" && !init?.method) return { ok: true, data: { invites: state.invites } };
     if (path === "/api/invites" && init?.method === "POST")
       return { ok: true, data: { emailSent: true, rotated: state.rotated, link: "https://app.example/accept-invite?token=abc" } };
@@ -51,6 +55,7 @@ beforeEach(() => {
   calls.length = 0;
   toasts.length = 0;
   state.rotated = false;
+  state.refuseSuspend = false;
   document.body.innerHTML = "";
   state.members = [
     { userId: "u-admin", email: "boss@silvicom.test", fullName: "Miki Boss", role: "admin", joinedAt: "2026-01-01T00:00:00Z" },
@@ -144,6 +149,131 @@ describe("SettingsUsersPage — names", () => {
     expect(patch.init?.body).toEqual({ fullName: "Shop Lead" });
     // A successful rename reloads the list rather than editing the row by hand.
     expect(calls.filter((c) => c.path === "/api/members" && !c.init?.method).length).toBeGreaterThanOrEqual(2);
+    w.unmount();
+  });
+});
+
+/**
+ * SP7 + Q-SET12 (a): an office member can be suspended and reinstated from the row's menu, the list
+ * says who is suspended, and every access act confirms what it does — including, since Q-SET6 (a),
+ * that the person is signed out at once.
+ */
+describe("SettingsUsersPage — suspend, reinstate, remove", () => {
+  let confirmSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    confirmSpy = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmSpy);
+    state.members = [
+      { userId: "u-admin", email: "boss@silvicom.test", fullName: "Miki Boss", role: "admin", joinedAt: "2026-01-01T00:00:00Z", suspendedAt: null },
+      // No `suspendedAt` at all — an API on the previous build. Absence must read as active.
+      { userId: "u-tech", email: "shop@silvicom.test", fullName: "Shop Lead", role: "technician", joinedAt: "2026-01-02T00:00:00Z" },
+      { userId: "u-leave", email: "leave@silvicom.test", fullName: "On Leave", role: "dispatcher", joinedAt: "2026-01-03T00:00:00Z", suspendedAt: "2026-09-30T12:00:00Z" },
+      // A driver-app login, which the API filters out today; the page must not depend on that.
+      { userId: "u-driver", email: "aaron@drivers.test", fullName: "Aaron R", role: "driver", joinedAt: "2026-01-04T00:00:00Z", suspendedAt: null },
+    ];
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Open a row's kebab and list the items it rendered (the popover renders outside the row). */
+  async function menuOf(w: ReturnType<typeof mountPage>, email: string): Promise<string[]> {
+    await rowOf(w, email).find("button").trigger("click");
+    await flushPromises();
+    return [...document.querySelectorAll("button.kebab-item")].map((b) => b.textContent!.trim());
+  }
+  const pick = async (label: string) => {
+    [...document.querySelectorAll<HTMLButtonElement>("button.kebab-item")].find((b) => b.textContent!.trim() === label)!.click();
+    await flushPromises();
+  };
+
+  it("badges a suspended member, and nobody else", async () => {
+    const w = mountPage();
+    await flushPromises();
+    expect(rowOf(w, "leave@silvicom.test").text()).toContain("Suspended");
+    expect(rowOf(w, "shop@silvicom.test").text()).not.toContain("Suspended");
+    expect(rowOf(w, "boss@silvicom.test").text()).not.toContain("Suspended");
+    w.unmount();
+  });
+
+  it("offers Suspend on an active member and Reinstate on a suspended one", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const active = await menuOf(w, "shop@silvicom.test");
+    expect(active).toContain("Suspend member…");
+    expect(active).not.toContain("Reinstate member…");
+    w.unmount();
+    const w2 = mountPage();
+    await flushPromises();
+    const held = await menuOf(w2, "leave@silvicom.test");
+    expect(held).toContain("Reinstate member…");
+    expect(held).not.toContain("Suspend member…");
+    w2.unmount();
+  });
+
+  it("offers no access act on yourself, or on a driver-app login", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const self = await menuOf(w, "boss@silvicom.test");
+    expect(self.filter((l) => /Suspend|Reinstate|Remove/.test(l))).toEqual([]);
+    w.unmount();
+    const w2 = mountPage();
+    await flushPromises();
+    const driver = await menuOf(w2, "aaron@drivers.test");
+    expect(driver.filter((l) => /Suspend|Reinstate|Remove/.test(l))).toEqual([]);
+    w2.unmount();
+  });
+
+  it("suspends after a confirmation that says they are signed out now and keep their permissions", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await menuOf(w, "shop@silvicom.test");
+    await pick("Suspend member…");
+    const asked = String(confirmSpy.mock.calls.at(-1)![0]);
+    expect(asked).toContain("signed out now");
+    expect(asked).toContain("personal permissions are kept");
+    expect(calls.find((c) => c.path === "/api/members/u-tech/suspend")?.init?.method).toBe("POST");
+    expect(calls.filter((c) => c.path === "/api/members" && !c.init?.method).length).toBeGreaterThanOrEqual(2);
+    w.unmount();
+  });
+
+  it("sends nothing when the admin cancels the confirmation", async () => {
+    confirmSpy.mockReturnValue(false);
+    const w = mountPage();
+    await flushPromises();
+    await menuOf(w, "shop@silvicom.test");
+    await pick("Suspend member…");
+    expect(calls.some((c) => c.path.endsWith("/suspend"))).toBe(false);
+    w.unmount();
+  });
+
+  it("reinstates after a confirmation that says their permissions come back", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await menuOf(w, "leave@silvicom.test");
+    await pick("Reinstate member…");
+    expect(String(confirmSpy.mock.calls.at(-1)![0])).toContain("personal permissions they had before");
+    expect(calls.find((c) => c.path === "/api/members/u-leave/reinstate")?.init?.method).toBe("POST");
+    w.unmount();
+  });
+
+  it("confirms a removal by saying they are signed out immediately, then DELETEs", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await menuOf(w, "shop@silvicom.test");
+    await pick("Remove member…");
+    expect(String(confirmSpy.mock.calls.at(-1)![0])).toContain("signed out immediately");
+    expect(calls.find((c) => c.path === "/api/members/u-tech")?.init?.method).toBe("DELETE");
+    w.unmount();
+  });
+
+  it("reports a refused suspension instead of announcing it", async () => {
+    state.refuseSuspend = true;
+    const w = mountPage();
+    await flushPromises();
+    await menuOf(w, "shop@silvicom.test");
+    await pick("Suspend member…");
+    expect(toasts.some((t) => t.kind === "success" && t.title === "Member suspended")).toBe(false);
+    expect(toasts.at(-1)).toMatchObject({ kind: "error", title: "Could not suspend member" });
     w.unmount();
   });
 });

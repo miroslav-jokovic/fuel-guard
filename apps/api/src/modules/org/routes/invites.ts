@@ -10,10 +10,10 @@ import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.j
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { deliverInvite } from "../inviteDelivery.js";
+import { auditDelivery, deliverInvite } from "../inviteDelivery.js";
 import { mintLinkToken } from "../../../lib/linkToken.js";
 import { admitInvitedUser, isRedemptionError, type LiveInvite } from "../inviteRedemption.js";
-import { writeAudit } from "../../../lib/audit.js";
+import { errorCode, INVITE_STATUS_REFUSED, UNIQUE_VIOLATION } from "../accessWrites.js";
 import { sendEmail } from "../../../lib/mailer.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at, full_name";
@@ -95,38 +95,38 @@ export function invitesRouter(): Router {
       const minted = mintLinkToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
-      const { data: invite, error } = await admin
-        .from("invites")
-        .insert({
-          org_id: orgId,
-          email,
-          role,
-          full_name: fullName ?? null,
-          invited_by: req.auth!.userId,
-          token: minted.hash,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select(INVITE_COLS)
-        .single();
-      if (error || !invite) {
-        res.status(409).json(apiError("invite_exists", "An invite for this email already exists"));
+      // The invite and its `invite.created` row in one transaction (SP8, Q-SET7 (a), migration 0395):
+      // an invitation is the grant of a role to an email address, so it is an access change like a
+      // role edit, and it does not exist without its record. A duplicate (org_id, email) raises 23505.
+      const { data: inviteId, error } = await admin.rpc("invite_create", {
+        p_org_id: orgId,
+        p_email: email,
+        p_role: role,
+        p_full_name: fullName ?? null,
+        p_token_hash: minted.hash,
+        p_expires_at: expiresAt.toISOString(),
+        p_actor: req.auth!.userId,
+      });
+      if (error || !inviteId) {
+        if (errorCode(error) === UNIQUE_VIOLATION) res.status(409).json(apiError("invite_exists", "An invite for this email already exists"));
+        else res.status(500).json(apiError("db_error", "Could not create invite"));
         return;
       }
+      // Read back for the response, which has always carried the row as the list shows it.
+      const { data: invite } = await admin
+        .from("invites")
+        .select(INVITE_COLS)
+        .eq("id", inviteId as string)
+        .eq("org_id", orgId)
+        .maybeSingle();
 
       // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
       // regardless so the admin can copy/share it if email delivery is misconfigured.
       const delivery = await deliverInvite(env, (org.name as string) ?? "Silvicom 360", email, minted.token);
       if (!delivery.sent)
         console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
+      await auditDelivery(admin, orgId, req.auth!.userId, inviteId as string, email, delivery);
 
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "invite.created",
-        entity: "invites",
-        entityId: invite.id,
-        meta: { email, role, fullName: fullName ?? null, emailSent: delivery.sent, reason: delivery.reason },
-      });
       // `link` is returned to the ADMIN who created the invite, deliberately. The comment on
       // InviteDelivery.link has promised this since the mailer was written and the response never
       // carried it, so "email didn't arrive" had no recovery path but a resend into the same void.
@@ -145,22 +145,21 @@ export function invitesRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const id = String(req.params.id ?? "");
-      const { error } = await admin
-        .from("invites")
-        .update({ status: "revoked" })
-        .eq("id", id)
-        .eq("org_id", orgId);
+      // The status and its `invite.revoked` row (email, role, and the status it replaced) in one
+      // transaction — SP8. null: no such invite in this org, and nothing was written.
+      const { data: before, error } = await admin.rpc("invite_revoke", {
+        p_org_id: orgId,
+        p_invite_id: id,
+        p_actor: req.auth!.userId,
+      });
       if (error) {
         res.status(500).json(apiError("db_error", "Could not revoke invite"));
         return;
       }
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "invite.revoked",
-        entity: "invites",
-        entityId: id,
-      });
+      if (before === null) {
+        res.status(404).json(apiError("not_found", "Invite not found"));
+        return;
+      }
       res.json({ ok: true });
     }),
   );
@@ -218,26 +217,25 @@ export function invitesRouter(): Router {
         return;
       }
 
-      const { error } = await admin
-        .from("invites")
-        .delete()
-        .eq("id", id)
-        .eq("org_id", orgId);
+      // The delete and its `invite.deleted` row — carrying the whole invite, since after this it is
+      // the only record the invitation existed — in one transaction (SP8, migration 0395). The function
+      // re-checks the status under its lock: AM020 is the case the read above could not see, the
+      // invite resent or accepted between that read and this write.
+      const { data: deleted, error } = await admin.rpc("invite_delete", {
+        p_org_id: orgId,
+        p_invite_id: id,
+        p_actor: req.auth!.userId,
+      });
       if (error) {
-        res.status(500).json(apiError("db_error", "Could not delete invite"));
+        if (errorCode(error) === INVITE_STATUS_REFUSED)
+          res.status(409).json(apiError("invalid_status", "Revoke the invitation first — that is what makes the emailed link unusable"));
+        else res.status(500).json(apiError("db_error", "Could not delete invite"));
         return;
       }
-
-      // Written AFTER the delete and carrying the whole row: this audit entry is the only thing left
-      // that says the invitation existed, so it has to hold what the row held.
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "invite.deleted",
-        entity: "invites",
-        entityId: id,
-        meta: { email: existing.email, role: existing.role, status: existing.status },
-      });
+      if (deleted === null) {
+        res.status(404).json(apiError("not_found", "Invite not found"));
+        return;
+      }
       res.json({ ok: true });
     }),
   );
@@ -280,19 +278,23 @@ export function invitesRouter(): Router {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const { error } = await admin
-        .from("invites")
-        .update({
-          status: "pending",
-          token: minted.hash,
-          expires_at: expiresAt.toISOString(),
-          invited_by: req.auth!.userId,
-        })
-        .eq("id", id)
-        .eq("org_id", orgId);
-
+      // New token, pending again, and the `invite.resent` row (with the status it replaced) in one
+      // transaction — SP8. A resend is an access change in itself: the old link stops working.
+      const { data: before, error } = await admin.rpc("invite_reissue", {
+        p_org_id: orgId,
+        p_invite_id: id,
+        p_token_hash: minted.hash,
+        p_expires_at: expiresAt.toISOString(),
+        p_actor: req.auth!.userId,
+      });
       if (error) {
-        res.status(500).json(apiError("db_error", "Could not resend invite"));
+        if (errorCode(error) === INVITE_STATUS_REFUSED)
+          res.status(409).json(apiError("invalid_status", "Only pending, revoked, or expired invites can be resent"));
+        else res.status(500).json(apiError("db_error", "Could not resend invite"));
+        return;
+      }
+      if (before === null) {
+        res.status(404).json(apiError("not_found", "Invite not found"));
         return;
       }
 
@@ -312,14 +314,7 @@ export function invitesRouter(): Router {
       if (!emailSent)
         console.error(`[invites] resend not sent for ${existing.email} (${delivery.reason})`);
 
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "invite.resent",
-        entity: "invites",
-        entityId: id,
-        meta: { email: existing.email, emailSent },
-      });
+      await auditDelivery(admin, orgId, req.auth!.userId, id, existing.email, delivery);
 
       res.json({ ok: true, emailSent, reason: delivery.reason, link: delivery.link, rotated: true });
     }),

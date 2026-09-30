@@ -44,6 +44,7 @@ vi.mock("../../../middleware/auth.js", () => ({
 vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => true) }));
 
 const { invitesRouter } = await import("./invites.js");
+const { writeAudit } = await import("../../../lib/audit.js");
 
 async function post(path: string, body: unknown): Promise<{ status: number; json: Json }> {
   const app = express();
@@ -65,15 +66,22 @@ async function post(path: string, body: unknown): Promise<{ status: number; json
 }
 
 const tokenFromLink = (link: string) => new URL(link).searchParams.get("token")!;
+/** The arguments of the one call to a 0395 function (SP8), or undefined when it was not called. */
+const rpcArgs = (fn: string) => rec.rpcs().find((r) => r.fn === fn)?.args as Record<string, unknown> | undefined;
+const auditActions = () => vi.mocked(writeAudit).mock.calls.map((c) => c[1].action);
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  rec = createSupabaseRecorder({
+const recorder = (rpc: Record<string, unknown> = {}) =>
+  createSupabaseRecorder({
     tables: {
       organizations: [{ id: ORG, name: "Silvicom Inc", allowed_domains: ["example.test"] }],
       invites: [{ id: INVITE, org_id: ORG, email: "vinnie@example.test", role: "dispatcher", status: "pending" }],
     },
+    rpc: { invite_create: INVITE, invite_reissue: "pending", invite_revoke: "pending", ...rpc },
   });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  rec = recorder();
 });
 
 describe("POST /api/invites", () => {
@@ -83,10 +91,56 @@ describe("POST /api/invites", () => {
     const token = tokenFromLink(json.link);
     expect(token.length).toBeGreaterThanOrEqual(40);
     expect(json.link).toBe(`https://app.example.test/accept-invite?token=${token}`);
-    const inserted = rec.writtenRows("invites")[0]!;
-    expect(inserted.token).toBe(hashLinkToken(token));
-    expect(inserted.token).not.toBe(token);
-    expect(inserted.org_id).toBe(ORG);
+    const created = rpcArgs("invite_create")!;
+    expect(created.p_token_hash).toBe(hashLinkToken(token));
+    expect(created.p_token_hash).not.toBe(token);
+    expect(created.p_org_id).toBe(ORG);
+    // The response still carries the row, as the list shows it.
+    expect(json.invite).toMatchObject({ id: INVITE, email: "vinnie@example.test" });
+  });
+
+  /**
+   * SP8 (Q-SET7 (a)): the invite and its `invite.created` row are ONE transaction inside
+   * `invite_create`, so the route writes no invite row itself and no `invite.created` beside it. The
+   * email goes after that commits, and whether it went is the separate `invite.delivered` row.
+   */
+  it("creates the invite and its record in one call, then records the delivery separately", async () => {
+    await post("/", { email: "vinnie@example.test", role: "dispatcher", fullName: "Vinnie D" });
+    expect(rpcArgs("invite_create")).toMatchObject({
+      p_org_id: ORG,
+      p_email: "vinnie@example.test",
+      p_role: "dispatcher",
+      p_full_name: "Vinnie D",
+      p_actor: USER,
+    });
+    expect(rec.writes()).toHaveLength(0);
+    expect(auditActions()).toEqual(["invite.delivered"]);
+    expect(vi.mocked(writeAudit).mock.calls[0]![1]).toMatchObject({
+      orgId: ORG,
+      entityId: INVITE,
+      meta: { email: "vinnie@example.test", emailSent: false, reason: "mail_disabled" },
+    });
+  });
+
+  it("answers 409 invite_exists on the function's unique violation, and sends nothing", async () => {
+    rec = recorder({ invite_create: { error: { code: "23505", message: "duplicate key" } } });
+    const { status, json } = await post("/", { email: "vinnie@example.test", role: "dispatcher" });
+    expect(status).toBe(409);
+    expect(json.error.code).toBe("invite_exists");
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("answers 500, not invite_exists, when the function fails for another reason", async () => {
+    rec = recorder({ invite_create: { error: { code: "57014", message: "timeout" } } });
+    const { status, json } = await post("/", { email: "vinnie@example.test", role: "dispatcher" });
+    expect(status).toBe(500);
+    expect(json.error.code).toBe("db_error");
+  });
+
+  it("refuses an address outside the allowed domains BEFORE the grant is attempted", async () => {
+    const { status } = await post("/", { email: "vinnie@elsewhere.test", role: "dispatcher" });
+    expect(status).toBe(422);
+    expect(rpcArgs("invite_create")).toBeUndefined();
   });
 
   it("asks GoTrue for nothing — no auth user, no one-time token, no second clock", async () => {
@@ -97,7 +151,7 @@ describe("POST /api/invites", () => {
   it("promises the seven days the row actually holds", async () => {
     const before = Date.now();
     const { json } = await post("/", { email: "vinnie@example.test", role: "dispatcher" });
-    const expires = new Date(rec.writtenRows("invites")[0]!.expires_at as string).getTime();
+    const expires = new Date(rpcArgs("invite_create")!.p_expires_at as string).getTime();
     expect(expires - before).toBeGreaterThan(6.9 * 86_400_000);
     expect(expires - before).toBeLessThan(7.1 * 86_400_000);
     expect(json.emailSent).toBe(false); // MAIL_PROVIDER none — the link is still returned
@@ -111,10 +165,49 @@ describe("POST /api/invites/:id/resend", () => {
     expect(status).toBe(200);
     expect(json.rotated).toBe(true);
     const token = tokenFromLink(json.link);
-    const update = rec.forTable("invites").find((q) => q.write?.method === "update")!;
-    expect(update.write!.payload).toMatchObject({ status: "pending", token: hashLinkToken(token), invited_by: USER });
-    expect(update.filters()).toContainEqual({ col: "id", val: INVITE });
-    expect(update.filters()).toContainEqual({ col: "org_id", val: ORG });
+    expect(rpcArgs("invite_reissue")).toMatchObject({
+      p_org_id: ORG,
+      p_invite_id: INVITE,
+      p_token_hash: hashLinkToken(token),
+      p_actor: USER,
+    });
+    expect(rec.writes()).toHaveLength(0);
+    // `invite.resent` is written by the function; the route writes only the delivery.
+    expect(auditActions()).toEqual(["invite.delivered"]);
     expect(rec.authCalls).toEqual([]);
+  });
+
+  it("answers 409 invalid_status when the function refuses the status under its lock (AM020)", async () => {
+    rec = recorder({ invite_reissue: { error: { code: "AM020", message: "accepted" } } });
+    const { status, json } = await post(`/${INVITE}/resend`, {});
+    expect(status).toBe(409);
+    expect(json.error.code).toBe("invalid_status");
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when the function finds no such invite in this org", async () => {
+    rec = recorder({ invite_reissue: null });
+    expect((await post(`/${INVITE}/resend`, {})).status).toBe(404);
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/invites/:id/revoke", () => {
+  it("revokes through invite_revoke with the token's org, and writes no audit row of its own", async () => {
+    const { status } = await post(`/${INVITE}/revoke`, {});
+    expect(status).toBe(200);
+    expect(rpcArgs("invite_revoke")).toEqual({ p_org_id: ORG, p_invite_id: INVITE, p_actor: USER });
+    expect(rec.writes()).toHaveLength(0);
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when there is no such invite in this org", async () => {
+    rec = recorder({ invite_revoke: null });
+    expect((await post(`/${INVITE}/revoke`, {})).status).toBe(404);
+  });
+
+  it("answers 500 when the function fails", async () => {
+    rec = recorder({ invite_revoke: { error: { message: "boom" } } });
+    expect((await post(`/${INVITE}/revoke`, {})).status).toBe(500);
   });
 });

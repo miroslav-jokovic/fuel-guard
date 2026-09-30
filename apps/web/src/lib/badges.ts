@@ -198,6 +198,18 @@ export function archivedBadge(archivedAt: string | null | undefined): DqBadge | 
 }
 
 /**
+ * An office member's suspension (Q-SET12, migration 0393) → badge, or null for an active member.
+ *
+ * Null rather than "Active" for `archivedBadge`'s reason: a badge on every row of the Users page
+ * would mean nothing. `warning`, not `danger` — a suspension is a reversible hold on access, and the
+ * page's red is kept for the one act that is not (Remove). `null`/`undefined` both read as active,
+ * because an API on the previous build sends no `suspendedAt` at all.
+ */
+export function suspendedBadge(suspendedAt: string | null | undefined): DqBadge | null {
+  return suspendedAt ? { label: "Suspended", tone: "warning" } : null;
+}
+
+/**
  * A stock line's level (INVENTORY-PLAN.md I4, D-INV4).
  *
  * ── IT ASKS `isLowStock`; IT DOES NOT RE-IMPLEMENT IT ──────────────────────────────────────────

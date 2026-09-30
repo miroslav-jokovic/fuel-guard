@@ -199,6 +199,12 @@ export const orgMemberSchema = z.object({
   fullName: z.string().nullable(),
   role: roleSchema,
   joinedAt: z.string(),
+  /**
+   * Q-SET12 (0393): when set, the member is suspended — signed out, their token refused, their
+   * membership and per-person permissions kept for a reinstatement. Optional as well as nullable on
+   * purpose: an API still on the old build omits it, and absence must read as NOT suspended.
+   */
+  suspendedAt: z.string().nullable().optional(),
 });
 export type OrgMember = z.infer<typeof orgMemberSchema>;
 
