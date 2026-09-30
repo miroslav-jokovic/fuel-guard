@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rolesThatManage } from "@silvicom/shared";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
@@ -68,6 +69,21 @@ const mirrorRow = (n: number, status: string) => ({
   status,
 });
 
+/** Every notify() the poll made. `vi.mock` is hoisted, so the array is too. */
+const notified = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+vi.mock("../../messaging/index.js", () => ({
+  notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
+    notified.push(input);
+    return "evt";
+  }),
+}));
+/** Two fuel managers — one of them listed twice, as a user with two memberships would be. */
+const MANAGERS = [{ user_id: "u-fleet" }, { user_id: "u-admin" }, { user_id: "u-fleet" }];
+
+beforeEach(() => {
+  notified.length = 0;
+});
+
 afterEach(() => {
   __resetEfsSessions();
   __resetSoapPacing();
@@ -75,7 +91,7 @@ afterEach(() => {
 
 describe("pollEfsCardStatus", () => {
   it("an unchanged status spelled differently is no change: no audit, no detail read, stored spelling kept", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "HOLD")], efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "HOLD")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster([{ n: 1, status: "Active" }, { n: 2, status: "Hold" }])]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expect(result).toMatchObject({ cardsSeen: 2, statusChanges: 0, externalChanges: 0, newCards: 0, detailed: 0, refused: false });
@@ -87,7 +103,7 @@ describe("pollEfsCardStatus", () => {
   });
 
   it("a status changed outside Silvicom 360 is written, re-read once, and audited with both states", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expect(result).toMatchObject({ statusChanges: 1, externalChanges: 1, detailed: 1, refused: false });
@@ -111,6 +127,7 @@ describe("pollEfsCardStatus", () => {
         efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")],
         efs_card_mutations: [{ efs_card_id: mirrorRow(2, "").id }],
         audit_logs: [],
+        memberships: MANAGERS,
       },
     });
     const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]);
@@ -127,7 +144,7 @@ describe("pollEfsCardStatus", () => {
   });
 
   it("a new card is mirrored and read once, and is not an external change", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "INACTIVE" }])]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expect(result).toMatchObject({ newCards: 1, statusChanges: 0, externalChanges: 0, detailed: 1 });
@@ -136,7 +153,7 @@ describe("pollEfsCardStatus", () => {
 
   it("a fleet-wide 'change' in one poll is held back: stored statuses kept, no audit, no detail reads", async () => {
     const cards = Array.from({ length: 10 }, (_, k) => k + 1);
-    const rec = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     // The shape of the failure the guard is for: the roster spelling a state the detail read does not.
     const v = vendor([loginOk, roster(cards.map((n) => ({ n, status: "A" })))]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
@@ -148,14 +165,14 @@ describe("pollEfsCardStatus", () => {
 
   it("up to five changes pass the guard on a small fleet — two cards locked at once is ordinary", async () => {
     const cards = Array.from({ length: 10 }, (_, k) => k + 1);
-    const rec = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster(cards.map((n) => ({ n, status: n <= 5 ? "HOLD" : "ACTIVE" })))]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expect(result).toMatchObject({ statusChanges: 5, refused: false, externalChanges: 5 });
   });
 
   it("an empty roster writes nothing — a vendor blip is not a fleet with no cards", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster([])]);
     const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expect(result.cardsSeen).toBe(0);
@@ -163,13 +180,59 @@ describe("pollEfsCardStatus", () => {
   });
 
   it("scopes every query to the org and never writes a card number in the clear", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [] } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
     const v = vendor([loginOk, roster([{ n: 1, status: "HOLD" }, { n: 2, status: "ACTIVE" }])]);
     await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
     expectOrgScoped(rec, ORG);
     const written = JSON.stringify([...rec.writtenRows("efs_cards"), ...rec.writtenRows("audit_logs")]);
     expect(written).not.toContain(pan(1));
     expect(written).not.toContain(pan(2));
+  });
+});
+
+describe("the office alert for an external change (category card_status_changed, 0397)", () => {
+  it("tells each fuel manager once, names the card and both states, and deep-links the card", async () => {
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "INACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "ACTIVE" }])]);
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    expect(notified.map((n) => n.userId).sort()).toEqual(["u-admin", "u-fleet"]);
+    expect(notified[0]).toMatchObject({
+      orgId: ORG,
+      category: "card_status_changed",
+      title: "Fuel card ••••0002 is now ACTIVE",
+      severity: "warning",
+      entityType: "efs_card",
+      entityId: mirrorRow(2, "").id,
+    });
+    expect(String(notified[0]!.body)).toContain("It was INACTIVE");
+    expect(String(notified[0]!.dedupeKey)).toMatch(new RegExp(`^card_status_changed:${mirrorRow(2, "").id}:active:\\d{4}-\\d{2}-\\d{2}T\\d{2}$`));
+    // Recipients come from the section matrix, never a re-typed role list.
+    const roles = rec.forTable("memberships").flatMap((q) => q.filters().filter((f) => f.col === "role").map((f) => f.val));
+    expect(roles).toEqual([rolesThatManage("fuel")]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a card marked Fraud is critical", async () => {
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "FRAUD" }])]);
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    expect(new Set(notified.map((n) => n.severity))).toEqual(new Set(["critical"]));
+  });
+
+  it("our own write, a held batch and an unchanged fleet tell nobody anything", async () => {
+    const own = createSupabaseRecorder({
+      tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [{ efs_card_id: mirrorRow(2, "").id }], audit_logs: [], memberships: MANAGERS },
+    });
+    await pollEfsCardStatus(own.client, env, creds, { fetchImpl: vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]).fetchImpl });
+    __resetEfsSessions();
+    const cards = Array.from({ length: 10 }, (_, k) => k + 1);
+    const held = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
+    await pollEfsCardStatus(held.client, env, creds, { fetchImpl: vendor([loginOk, roster(cards.map((n) => ({ n, status: "A" })))]).fetchImpl });
+    expect(notified).toHaveLength(0);
+    // Nobody to tell means nobody is looked up — asserted on the own-write poll, the one that reaches
+    // the attribution step with a change in hand and must still find nothing external in it.
+    expect(own.forTable("memberships")).toHaveLength(0);
+    expect(held.forTable("memberships")).toHaveLength(0);
   });
 });
 
