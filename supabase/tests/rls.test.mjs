@@ -230,15 +230,18 @@ async function main() {
     ).error,
   );
 
+  // 0391 (SP4): no client role reads audit_logs — not the admin, not the auditor. The Audit log reads
+  // through GET /api/audit/log, which asks the screen's grant; the roles come from the `user_role`
+  // enum itself, so a role added later is covered without editing this list.
   await db.exec(`insert into audit_logs (org_id, action) values ('${ORG_A}','test.event')`);
-  ok(
-    "admin can read audit_logs",
-    ((await asUser(adminA, "select count(*)::int n from audit_logs")).rows?.[0]?.n ?? 0) >= 1,
-  );
-  ok(
-    "fleet_manager cannot read audit_logs (0)",
-    (await asUser(mgrA, "select count(*)::int n from audit_logs")).rows?.[0]?.n === 0,
-  );
+  const everyRole = (await db.query(`select unnest(enum_range(null::user_role))::text as r`)).rows.map((x) => x.r);
+  ok("the audit_logs refusal covers every role in user_role", everyRole.length >= 9 && everyRole.includes("auditor"), everyRole.join(","));
+  for (const role of everyRole) {
+    ok(
+      `${role} cannot read audit_logs through the client (0)`,
+      (await asUser({ org_id: ORG_A, user_role: role }, "select count(*)::int n from audit_logs")).rows?.[0]?.n === 0,
+    );
+  }
 
   ok(
     "storage write under own org prefix allowed",
