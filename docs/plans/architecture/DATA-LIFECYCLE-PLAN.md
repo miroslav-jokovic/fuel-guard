@@ -951,6 +951,17 @@ it only sees what `ok` folds in; (c) surface it in the admin console — pull-on
 **Recommendation: (a)**, built with L8's growth judge as its first two consumers, and (b) on top if
 the owner already has a monitor.
 
+**Q10 — may an audit row record a changed column's VALUES? OPENED 2026-09-30 by 0390.** 0390 records
+which columns an UPDATE changed (`meta.changed`, names only). The next step, `{from, to}` per column,
+is what an enterprise audit trail usually holds. Here it would copy values that sit behind other
+permissions into a table with no per-column permission: the driver's date of birth, address, phone,
+CDL number and pay rate, and the truck's purchase cost and insurance policy. Anyone granted the Audit
+log would then read them. Candidates: (a) names only, permanently; (b) values for columns classified
+non-sensitive, with the classification declared per column in `scripts/table-modules.json` (the
+registry L1 extended) and enforced by a gate, so a new column defaults to names-only; (c) values for
+everything. **Recommendation: (b)**, but only once someone asks for a value the names cannot answer.
+Until then (a) holds at no cost. (c) is ruled out by the permission model, not by preference.
+
 ## 8. Progress log
 
 Append dated lines at the END. Never edit a row above (see `plan-progress-log-not-table-rows`).
@@ -1634,3 +1645,10 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   regulated records are kept in their own append-only tables, not in this log.
   ⚠ **L7 is still blocked by Q9** (where a platform alarm goes). Its recommendation (a),
   `PLATFORM_ALERT_EMAIL`, is unruled.
+- **2026-09-30 — 0390: an audited UPDATE records which columns changed.** `audit_row_change()` never
+  wrote `meta`, so every update row read `{}`. It now writes `{"changed": [...]}`: the non-ignored
+  columns, sorted, never `updated_at`. INSERT and DELETE keep `{}`. Names only, because values would
+  copy roster and ownership data past its permission (Q10, opened). 0352's filtering is unchanged, and
+  the triggers are not recreated. `audit-telemetry-ignored.test.mjs` gains four cases: two names
+  sorted; telemetry in the same statement not named; a date of birth named and its value absent; an
+  insert keeping `{}`. Six mutants, all killed, bytes sha256-restored.
