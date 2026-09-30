@@ -6,7 +6,7 @@ can give or take away, per role and per person, on the existing Permissions page
 `EDITABLE-PERMISSIONS-PLAN.md` (sections, D-PERM*) and `SURFACE-ENTITLEMENTS-PLAN.md` (screens,
 D-SURF*), and adds no third permission system.
 
-Status: **proposed, nothing built.** Owner questions are in §5.
+Status: **ruled 2026-09-30 — Q-SET1 (a), Q-SET2 (a), Q-SET3 (a); SP1 next.** The rulings are in §5.
 
 ---
 
@@ -86,7 +86,7 @@ Nothing new has to be invented. The Settings screens just have to be put into th
 
 ---
 
-## 3. Steps (proposed; waiting on §5)
+## 3. Steps (ruled 2026-09-30; built in order, one PR each)
 
 - **SP1 · Catalogue + directory (web + shared, no migration, no behaviour change).**
   - Each Settings screen gets its own surface key and `defaultOffFor` (Q-SET2). The ruled admin-only
@@ -125,14 +125,16 @@ policy is live (`lint:migration-ordering`).
 
 ---
 
-## 5. Open questions (the owner rules; nothing is built until then)
+## 5. Questions (all three ruled by the owner, 2026-09-30)
 
 - **Q-SET1 · Which Settings screens stay admin-only, never offered to anyone?**
   - *(a)* Users, Permissions, Card control, EFS integration.
   - *(b)* (a) plus Organization. It holds the carrier's legal name and address that print on every
     signed document.
   - *(c)* only Users and Permissions.
-  - *Recommendation: **(a)**.*
+  - *Recommendation: **(a)**.* **Ruled (a), 2026-09-30.** Users, Permissions, Card control and EFS
+    integration stay admin-only and are never offered. Everything else in Settings becomes grantable,
+    Organization included.
     - Users and Permissions are how access is given, so granting them is D-PERM7's escalation.
     - Card control and EFS integration write to real fuel cards and hold the EFS certificate. Both
       already demand a fresh sign-in, and both belong to whoever answers for the money.
@@ -145,10 +147,14 @@ policy is live (`lint:migration-ordering`).
   - *Recommendation: **(a)**.* A permission change should be something an admin does, not something
     a deploy does. Production has no fleet_manager today, so (b) would change nothing visible now,
     but it would decide for every future one.
+  - **Ruled (a), 2026-09-30.** Every screen that is admin-only today starts "off" for every role that
+    cannot open it today, and the admin turns it on per role or per person.
 - **Q-SET3 · The Audit log.** Today it is admin + auditor, by role.
   - *(a)* `settings: view` + its own screen. It then follows Q-SET2's answer like everything else.
   - *(b)* Keep it by role.
   - *Recommendation: **(a)**.* (b) is the one role test left, and the reason this plan exists.
+  - **Ruled (a), 2026-09-30.** Under Q-SET2 (a) its starting default is "off" for every role except
+    admin and auditor, the two that can open it today.
 
 ---
 
@@ -159,3 +165,5 @@ Append a dated line per step. Never edit §3.
 - **2026-09-29** — Plan written from a sweep of every Settings route, card, API gate and RLS policy.
   Nothing built. Waiting on Q-SET1..Q-SET3. Same day, #1137 (examiners admin-only) shipped separately
   under Q-AW19.
+- **2026-09-30** — Owner: *"proceed as recommended."* Q-SET1 (a), Q-SET2 (a) and Q-SET3 (a) ruled
+  (§5). SP1 is next.
