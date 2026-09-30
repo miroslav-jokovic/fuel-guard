@@ -309,10 +309,14 @@ const { map } = useMapLibre({
         // a yard, and a board that omits trucks is worse than a crowded one.
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
+        // D-LM30: with overlap allowed, draw ORDER decides which truck a pile shows. Moving on top,
+        // offline underneath, the selected truck above all — `toFeatureCollection` sets the key.
+        "symbol-sort-key": ["get", "sortKey"],
       },
       paint: {
-        // Faded rather than a fifth colour. An offline truck is a position we no longer stand
-        // behind, and "we are less sure about this one" is what translucency says.
+        // Faded as well as hollow (D-LM30 gave offline its own shape; the fade stays because D-LM24's
+        // colour measurements were taken as composited at 0.65). An offline truck is a position we no
+        // longer stand behind, and "we are less sure about this one" is what translucency says.
         "icon-opacity": ["match", ["get", "state"], "offline", 0.65, 1],
       },
     });
