@@ -7,6 +7,7 @@ import {
   type InviteCreateRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -23,6 +24,7 @@ export function invitesRouter(): Router {
   router.use(requireAuth);
 
   // Send a test email to the caller's own address and report the provider's exact response (admin).
+  // No step-up (SP9 leaves it out on purpose): it mails the caller's OWN address and changes no access.
   router.post(
     "/mail-test",
     requireOrg,
@@ -69,6 +71,7 @@ export function invitesRouter(): Router {
     "/",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(inviteCreateSchema),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
@@ -141,6 +144,7 @@ export function invitesRouter(): Router {
     "/:id/revoke",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -188,6 +192,7 @@ export function invitesRouter(): Router {
     "/:id",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -248,6 +253,7 @@ export function invitesRouter(): Router {
     "/:id/resend",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

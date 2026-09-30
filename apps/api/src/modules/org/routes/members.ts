@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { memberUpdateSchema, isRosterIssuedRole, type MemberUpdateRequest } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -92,6 +93,7 @@ export function membersRouter(): Router {
     "/:userId",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -154,6 +156,7 @@ export function membersRouter(): Router {
     "/:userId/revoke",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -218,11 +221,19 @@ export function membersRouter(): Router {
    * whole answer and a partial one is the 2026-08-10 incident. ⚠ Renaming a DRIVER member here writes
    * a profile that outranks the roster's name (D-MEM3) — the roster stays as the company's record and
    * is edited on the Drivers page.
+   *
+   * Step-up (SP9, Q-SET8 (a)): the password again for every write on this page, and that includes a
+   * RENAME. The ruling says "every write on the Users page", and a rename is one of them — but it is
+   * also the same PATCH as a re-role, and asking for the password on half this route's bodies would
+   * mean reading the body before the gate, a conditional gate that the ledger cannot see and a future
+   * body field could slip past. One route, one rule: a name-only PATCH asks too, and pays one prompt
+   * per five minutes like every other edit here.
    */
   router.patch(
     "/:userId",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(memberUpdateSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -374,8 +385,11 @@ export function membersRouter(): Router {
       res.json({ ok: true, suspended: suspend });
     });
 
-  router.post("/:userId/suspend", requireOrg, requireRole("admin"), setSuspended(true));
-  router.post("/:userId/reinstate", requireOrg, requireRole("admin"), setSuspended(false));
+  // Step-up on both (SP9, Q-SET8 (a)). Reinstating is the milder act, but it hands a login back, and a
+  // stolen session that could reinstate an accomplice's suspended account has escalated as surely as
+  // one that re-roles it.
+  router.post("/:userId/suspend", requireOrg, requireRole("admin"), requireFreshAuth(), setSuspended(true));
+  router.post("/:userId/reinstate", requireOrg, requireRole("admin"), requireFreshAuth(), setSuspended(false));
 
   return router;
 }

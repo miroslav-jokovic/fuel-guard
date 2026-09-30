@@ -15,6 +15,7 @@ import {
   type UserSectionAccessSetRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -216,6 +217,7 @@ export function sectionAccessRouter(): Router {
     "/",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(sectionAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -282,6 +284,7 @@ export function sectionAccessRouter(): Router {
     "/user",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(userSectionAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

@@ -67,12 +67,20 @@ const calls = vi.hoisted(() => ({
   setMemberSurface: [] as unknown[],
 }));
 const toasts = vi.hoisted(() => ({ success: [] as Array<[string, string?]>, error: [] as unknown[] }));
+/** How many writes the API refuses with `step_up_required` before a token is held (SP9). */
+const stepUp = vi.hoisted(() => ({ refusals: 0 }));
 
 vi.mock("@/features/permissions/usePermissions", async () => {
   const { ref: r, computed } = await import("vue");
   const query = (get: () => unknown) => ({ data: computed(get), isPending: r(false) });
   const mutation = (sink: unknown[]) => ({
     mutateAsync: vi.fn(async (v: unknown) => {
+      // SP9: the API refuses a write without a step-up token, as `usePermissions.put` throws it — an
+      // Error that keeps the code. Counted down, so the retry after the password is accepted.
+      if (stepUp.refusals > 0) {
+        stepUp.refusals -= 1;
+        throw Object.assign(new Error("Confirm your password to continue."), { code: "step_up_required" });
+      }
       sink.push(v);
     }),
     isPending: r(false),
@@ -110,6 +118,7 @@ beforeEach(() => {
   calls.setMemberSurface = [];
   toasts.success = [];
   toasts.error = [];
+  stepUp.refusals = 0;
   state.sections = {
     // ⚠ The overridden cell is one whose shipped default is NOT the value being written, and not
     // `none` either. With `safety` (shipped `none`) here, a "reset" that wrote `none` instead of the
@@ -584,5 +593,65 @@ describe("the Who has access tab (SP10, Q-SET10)", () => {
     await flushPromises();
     const labels = w.findAll('[role="tab"]').map((t) => t.text());
     expect(labels).toEqual(expect.arrayContaining(["Roles", "People", "Who has access"]));
+  });
+});
+
+describe("SP9 · a change asks for the password, then happens (Q-SET8 (a))", () => {
+  /**
+   * The API refuses every write on this page without a step-up token. What only the page decides is
+   * that the refusal becomes the password prompt — not a "Could not save" toast — and that the SAME
+   * write goes out once the password is confirmed, so the admin does not click the control twice.
+   * The drawer and the prompt are stubbed to their contract: the prompt's own password round trip is
+   * `lib/stepUp.ts`'s, and it is not what is under test here.
+   */
+  const promptStubs = {
+    ...stubs,
+    SlideOver: { template: "<div v-if='open'><slot /></div>", props: ["open", "title", "description"] },
+    StepUpPrompt: {
+      template: "<div data-test='step-up'>{{ reason }}<button data-test='step-up-ok' @click=\"$emit('confirmed')\">ok</button></div>",
+      props: ["reason"],
+      emits: ["confirmed", "cancel"],
+    },
+  };
+  const mountWithPrompt = () =>
+    mount(SettingsPermissionsPage, { global: { plugins: [createPinia()], stubs: promptStubs }, attachTo: document.body });
+
+  it("a role's section change refused for step-up opens the prompt, and is sent again after it", async () => {
+    stepUp.refusals = 1;
+    const w = mountWithPrompt() as unknown as W;
+    await flushPromises();
+    await openRole(w);
+    await segment(w, "Fuel access", "View")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-test='step-up']").text()).toContain("Confirm your password");
+    expect(calls.setRoleSection).toEqual([]);
+    expect(toasts.error).toEqual([]);
+
+    await w.find("[data-test='step-up-ok']").trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSection).toEqual([{ role: ROLE, section: "fuel", access: "view" }]);
+    expect(w.find("[data-test='step-up']").exists()).toBe(false);
+    expect(toasts.success).toHaveLength(1);
+    w.unmount();
+  });
+
+  it("a person's screen change refused for step-up opens the same prompt, and is sent again after it", async () => {
+    stepUp.refusals = 1;
+    const w = mountWithPrompt() as unknown as W;
+    await flushPromises();
+    await w.findAll('[role="tab"]').find((t) => t.text() === "People")!.trigger("click");
+    await flushPromises();
+    await w.findComponent(AppCombobox).vm.$emit("update:modelValue", "u-tech");
+    await flushPromises();
+    await link(w, "Follow role (Shown)")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-test='step-up']").exists()).toBe(true);
+    expect(calls.setMemberSurface).toEqual([]);
+
+    await w.find("[data-test='step-up-ok']").trigger("click");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([{ userId: "u-tech", surfaceKey: "maintenance.repair-spend", allowed: null }]);
+    expect(toasts.error).toEqual([]);
+    w.unmount();
   });
 });

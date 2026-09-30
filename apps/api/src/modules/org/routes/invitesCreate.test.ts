@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 import { hashLinkToken } from "../../../lib/linkToken.js";
 
 /** Whatever the endpoint answered — the tests read named fields off it. */
@@ -28,9 +29,15 @@ const INVITE = "11111111-2222-4333-8444-555555555555";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client, findAuthUserIdByEmail: vi.fn() }));
-vi.mock("../../../lib/appLocals.js", () => ({
-  getAppLocals: () => ({ env: { MAIL_PROVIDER: "none", WEB_APP_URL: "https://app.example.test" } }),
-}));
+vi.mock("../../../lib/appLocals.js", async () => {
+  // SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return {
+    getAppLocals: () => ({
+      env: { MAIL_PROVIDER: "none", WEB_APP_URL: "https://app.example.test", SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY },
+    }),
+  };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "admin", email: "admin@example.test" };
@@ -46,7 +53,7 @@ vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => true) })
 const { invitesRouter } = await import("./invites.js");
 const { writeAudit } = await import("../../../lib/audit.js");
 
-async function post(path: string, body: unknown): Promise<{ status: number; json: Json }> {
+async function post(path: string, body: unknown, stepUp = true): Promise<{ status: number; json: Json }> {
   const app = express();
   app.use(express.json());
   app.use("/api/invites", invitesRouter());
@@ -56,7 +63,7 @@ async function post(path: string, body: unknown): Promise<{ status: number; json
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/invites${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(USER, ORG) : {}) },
       body: JSON.stringify(body),
     });
     return { status: res.status, json: await res.json().catch(() => null) };
@@ -209,5 +216,25 @@ describe("POST /api/invites/:id/revoke", () => {
   it("answers 500 when the function fails", async () => {
     rec = recorder({ invite_revoke: { error: { message: "boom" } } });
     expect((await post(`/${INVITE}/revoke`, {})).status).toBe(500);
+  });
+});
+
+describe("SP9 · an invitation write needs the password again (Q-SET8 (a))", () => {
+  /**
+   * An invitation grants a role to an email address, so the owner's 2026-09-30 ruling covers it like a
+   * role edit. Refused before the handler: no function ran, so no invitation, no rotated link, no email
+   * and no audit row. (Delete is pinned in invitesDelete.test.ts.)
+   */
+  it.each([
+    ["POST /", "/", { email: "vinnie@example.test", role: "dispatcher" }],
+    ["POST /:id/resend", `/${INVITE}/resend`, {}],
+    ["POST /:id/revoke", `/${INVITE}/revoke`, {}],
+  ])("%s without a step-up token answers 403 step_up_required and writes nothing", async (_name, path, body) => {
+    const { status, json } = await post(path, body, false);
+    expect(status).toBe(403);
+    expect((json as { error: { code: string } }).error.code).toBe("step_up_required");
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 });

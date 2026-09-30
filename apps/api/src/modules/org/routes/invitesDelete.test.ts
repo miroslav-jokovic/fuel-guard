@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 
 /**
  * Deleting an invitation (2026-09-02).
@@ -27,7 +28,11 @@ const USER = "user-1";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: { MAIL_PROVIDER: "none" } }) }));
+// SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { MAIL_PROVIDER: "none", SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "admin", email: "admin@example.test" };
@@ -43,7 +48,7 @@ vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => undefine
 const { invitesRouter } = await import("./invites.js");
 const { writeAudit } = await import("../../../lib/audit.js");
 
-async function del(id: string): Promise<{ status: number }> {
+async function del(id: string, stepUp = true): Promise<{ status: number }> {
   const app = express();
   app.use(express.json());
   app.use("/api/invites", invitesRouter());
@@ -53,6 +58,7 @@ async function del(id: string): Promise<{ status: number }> {
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/invites/${id}`, {
       method: "DELETE",
+      headers: stepUp ? stepUpHeaders(USER, ORG) : {},
     });
     return { status: res.status };
   } finally {
@@ -126,5 +132,15 @@ describe("DELETE /api/invites/:id", () => {
   it("answers 404 when the function finds nothing to delete", async () => {
     rec = seed("revoked", null);
     expect((await del("inv-1")).status).toBe(404);
+  });
+});
+
+describe("SP9 · deleting an invitation needs the password again (Q-SET8 (a))", () => {
+  it("without a step-up token answers 403 and asks the function for nothing", async () => {
+    rec = seed("revoked");
+    expect((await del("inv-1", false)).status).toBe(403);
+    expect(deleteCalls()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 });

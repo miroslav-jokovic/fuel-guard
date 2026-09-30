@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 
 /**
  * The screen-entitlement API (D-SURF1, SURFACE-ENTITLEMENTS-PLAN.md S3).
@@ -34,7 +35,11 @@ const OTHER_TECH = "00000000-0000-4000-8000-000000000011";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
+// SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "admin", email: "tester@example.test" };
@@ -69,10 +74,11 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 const cellCalls = () =>
   rec.rpcs().filter((r) => r.fn === "write_access_cell").map((r) => r.args as Record<string, unknown>);
 
-const put = (base: string, body: unknown) =>
+/** A write as the page makes it: with the step-up token the password prompt minted (SP9). */
+const put = (base: string, body: unknown, stepUp = true) =>
   fetch(`${base}/api/surface-access`, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(USER, ORG) : {}) },
     body: JSON.stringify(body),
   });
 
@@ -367,10 +373,10 @@ describe("surfaceClaimFor", () => {
 // the query actually applied — a handler that dropped that filter reads one member's answers for
 // everybody, and only an assertion about a DIFFERENT member can see it.
 
-const putUser = (base: string, body: unknown) =>
+const putUser = (base: string, body: unknown, stepUp = true) =>
   fetch(`${base}/api/surface-access/user`, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(USER, ORG) : {}) },
     body: JSON.stringify(body),
   });
 
@@ -722,5 +728,25 @@ describe("GET /api/surface-access/user/:userId", () => {
     const { status } = await get("not-a-uuid");
     expect(status).toBe(400);
     expect(rec.forTable("memberships")).toHaveLength(0);
+  });
+});
+
+describe("SP9 · a screen-access write needs the password again (Q-SET8 (a))", () => {
+  /**
+   * The owner ruled 2026-09-30 that every write on the Permissions page takes the same five-minute
+   * step-up card control uses. Refused before the handler: no function call, no row, no audit.
+   */
+  it.each([
+    ["PUT /", (base: string) => put(base, { role: "technician", surfaceKey: "maintenance.repair-spend", allowed: false }, false)],
+    ["PUT /user", (base: string) => putUser(base, { userId: SHOP_LEAD, surfaceKey: "maintenance.repair-spend", allowed: false }, false)],
+  ])("%s without a step-up token answers 403 step_up_required and writes nothing", async (_name, send) => {
+    await withServer(async (base) => {
+      const res = await send(base);
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("step_up_required");
+    });
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 });

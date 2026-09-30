@@ -19,17 +19,34 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
 import GatedLink from "@/components/GatedLink.vue";
+import MemberRenameDrawer from "@/features/settings/MemberRenameDrawer.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { apiRefusal, useStepUpRetry } from "@/composables/useStepUpRetry";
 import {
   bulkRemoveConfirmText,
+  bulkRemoveMembers,
   isSuspended,
   offersAccessActions,
   reinstateMember,
   removeMember,
   suspendMember,
+  type StepUpHold,
 } from "@/features/settings/memberAccess";
 
 const toast = useToastStore();
 const session = useSessionStore();
+
+/**
+ * SP9 (Q-SET8 (a), ruled 2026-09-30): every write on this page — invitations, roles, suspend, reinstate,
+ * remove — asks for the admin's password again, the five-minute step-up card control uses. ONE prompt
+ * for the page, in a drawer, because the token `lib/stepUp.ts` then holds covers every other write
+ * here for its five minutes. The two drawers that write (rename, password reset) keep their own prompt
+ * in their body — a second drawer beside an open one would be two dialogs both owning Escape.
+ */
+const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
+/** True when `res` was a step-up refusal: the prompt is showing and `retry` runs once it is confirmed. */
+const heldForStepUp = (res: { ok: boolean; error?: { code: string; message: string } }, retry: () => Promise<void>) =>
+  !res.ok && holdForStepUp(apiRefusal(res.error, ""), retry);
 
 const invites = ref<Invite[]>([]);
 const members = ref<OrgMember[]>([]);
@@ -141,6 +158,10 @@ async function invite() {
     method: "POST",
     body: { email: addr, role: role.value, fullName: inviteName.value.trim() },
   });
+  if (heldForStepUp(res, invite)) {
+    submitting.value = false;
+    return;
+  }
   if (res.ok) {
     handleInviteResult(addr, res.data);
     email.value = "";
@@ -155,6 +176,7 @@ async function invite() {
 
 async function revoke(id: string) {
   const res = await apiFetch(`/api/invites/${id}/revoke`, { method: "POST" });
+  if (heldForStepUp(res, () => revoke(id))) return;
   if (res.ok) {
     toast.success("Invitation revoked");
     await load();
@@ -168,7 +190,12 @@ async function remove(id: string) {
   // window.confirm, matching the destructive-action precedent on the pages beside this one. The
   // email is in the sentence because the row it names is about to stop being on screen.
   if (!confirm(`Delete the invitation for ${inv?.email ?? "this address"}? The audit log keeps a record.`)) return;
+  await removeConfirmed(id);
+}
+/** Split from `remove` so a step-up retry does not ask "are you sure?" a second time. */
+async function removeConfirmed(id: string) {
   const res = await apiFetch(`/api/invites/${id}`, { method: "DELETE" });
+  if (heldForStepUp(res, () => removeConfirmed(id))) return;
   if (res.ok) {
     toast.success("Invitation deleted");
     await load();
@@ -180,6 +207,7 @@ async function remove(id: string) {
 async function resend(id: string) {
   const inv = invites.value.find((i) => i.id === id);
   const res = await apiFetch<InviteResult>(`/api/invites/${id}/resend`, { method: "POST" });
+  if (heldForStepUp(res, () => resend(id))) return;
   if (res.ok) {
     handleInviteResult(inv?.email ?? "the recipient", res.data);
     await load();
@@ -189,9 +217,8 @@ async function resend(id: string) {
 }
 
 /** Remove / suspend / reinstate: confirm, act, toast (`memberAccess.ts`), then reload on success. */
-async function memberAct(run: (m: OrgMember) => Promise<boolean>, m: OrgMember) {
-  if (await run(m)) await load();
-}
+const memberAct = (run: (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) => Promise<void>, m: OrgMember) =>
+  run(m, holdForStepUp, load);
 
 // Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
 // so the inline picker snaps back to the true value.
@@ -209,7 +236,14 @@ async function changeRole(userId: string, newRole: string) {
     await load();
     return;
   }
+  await sendRole(m, newRole);
+}
+/** Split from `changeRole` so a step-up retry does not ask the self-demotion question twice. The
+ *  reload runs on a refusal too, so the picker shows the true role until the password is given. */
+async function sendRole(m: OrgMember, newRole: string) {
+  const userId = m.userId;
   const res = await apiFetch(`/api/members/${userId}`, { method: "PATCH", body: { role: newRole } });
+  if (heldForStepUp(res, () => sendRole(m, newRole))) return load();
   if (res.ok) {
     toast.success("Role updated", `${m.email ?? userId} is now ${USER_ROLE_LABELS[newRole as UserRole]}`);
   } else {
@@ -218,33 +252,8 @@ async function changeRole(userId: string, newRole: string) {
   await load();
 }
 
-/**
- * Rename a member (0301). A drawer rather than an inline cell: a name is typed once and confirmed,
- * not toggled, and the drawer can say what the roster does for a driver (D-MEM3) where a cell could not.
- */
-const renaming = ref<OrgMember | null>(null);
+const renaming = ref<OrgMember | null>(null); // 0301 — the drawer owns the save and its step-up
 const resetting = ref<OrgMember | null>(null); // 0363 — the drawer owns the send and its step-up
-const renameValue = ref("");
-const renameBusy = ref(false);
-function openRename(m: OrgMember) {
-  renaming.value = m;
-  renameValue.value = m.fullName ?? "";
-}
-async function saveRename() {
-  const m = renaming.value;
-  const name = renameValue.value.trim();
-  if (!m || name.length === 0) return;
-  renameBusy.value = true;
-  const res = await apiFetch(`/api/members/${m.userId}`, { method: "PATCH", body: { fullName: name } });
-  renameBusy.value = false;
-  if (res.ok) {
-    toast.success("Name updated", `${m.email ?? m.userId} is now ${name}`);
-    renaming.value = null;
-    await load();
-  } else {
-    toast.error("Could not update name", res.error?.message);
-  }
-}
 // ── search + multi-select (members) ─────────────────────────────────────────
 const search = ref("");
 const filteredMembers = computed(() => {
@@ -265,22 +274,9 @@ async function bulkRemove() {
   const ids = [...selectedIds.value].filter((id) => id !== session.userId);
   if (ids.length === 0 || !confirm(bulkRemoveConfirmText(ids.length))) return;
   bulkBusy.value = true;
-  // Count what actually happened. This loop used to discard every response and then report success
-  // unconditionally, so a refused removal — the API now refuses a driver-app login (DC10) — would
-  // have been announced as done. A bulk action that cannot fail out loud is how a fleet-wide mistake
-  // stays invisible until somebody cannot sign in.
-  let removed = 0;
-  const failed: string[] = [];
-  for (const id of ids) {
-    const res = await apiFetch(`/api/members/${id}`, { method: "DELETE" });
-    if (res.ok) removed++;
-    else failed.push(res.error?.message ?? id);
-  }
+  await bulkRemoveMembers(ids, holdForStepUp, load);
   bulkBusy.value = false;
   selectedIds.value = new Set();
-  if (failed.length === 0) toast.success(`${removed} member${removed === 1 ? "" : "s"} removed`);
-  else toast.error(`Removed ${removed} of ${ids.length}`, failed[0]);
-  await load();
 }
 
 const memberColumns: DataTableColumn[] = [
@@ -412,7 +408,7 @@ onMounted(load);
         <template #cell-joinedAt="{ row }">{{ formatDate(row.joinedAt) }}</template>
         <template #actions="{ row }">
           <KebabMenu>
-            <BaseButton class="kebab-item" @click="openRename(row)">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
+            <BaseButton class="kebab-item" @click="renaming = row">{{ row.fullName ? "Edit name" : "Add name" }}</BaseButton>
             <BaseButton v-if="row.userId !== session.userId" class="kebab-item" @click="resetting = row">Send password reset…</BaseButton>
             <template v-if="offersAccessActions(row, session.userId)">
               <BaseButton v-if="isSuspended(row)" class="kebab-item" @click="memberAct(reinstateMember, row)">Reinstate member…</BaseButton>
@@ -439,29 +435,9 @@ onMounted(load);
       </BaseCard>
     </section>
 
-    <SlideOver
-      :open="renaming !== null"
-      :title="renaming?.fullName ? 'Edit name' : 'Add name'"
-      :description="renaming?.email ?? undefined"
-      @close="renaming = null"
-    >
-      <form id="rename-member" class="space-y-4" @submit.prevent="saveRename">
-        <FormField
-          v-slot="{ id }"
-          label="Name"
-          :hint="renaming?.role === 'driver' ? 'A driver is named by the roster until you set a name here; the roster row itself is edited on the Drivers page.' : 'How this person appears across Silvicom 360.'"
-        >
-          <BaseInput :id="id" v-model="renameValue" type="text" required maxlength="120" autocomplete="off" />
-        </FormField>
-      </form>
-      <template #footer>
-        <div class="flex items-center justify-end gap-3">
-          <BaseButton :disabled="renameBusy" @click="renaming = null">Cancel</BaseButton>
-          <BaseButton variant="primary" type="submit" form="rename-member" :disabled="renameBusy || renameValue.trim().length === 0">
-            {{ renameBusy ? "Saving…" : "Save name" }}
-          </BaseButton>
-        </div>
-      </template>
+    <MemberRenameDrawer :member="renaming" @close="renaming = null" @saved="renaming = null; load()" />
+    <SlideOver :open="stepUpFor !== null" title="Confirm your password" @close="cancel">
+      <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
     </SlideOver>
     <MemberPasswordResetDrawer :member="resetting" @close="resetting = null" />
 

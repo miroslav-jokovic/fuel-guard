@@ -13,6 +13,7 @@ import {
   type UserSurfaceAccessSetRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -267,6 +268,7 @@ export function surfaceAccessRouter(): Router {
     "/",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(surfaceAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -323,6 +325,7 @@ export function surfaceAccessRouter(): Router {
     "/user",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(userSurfaceAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

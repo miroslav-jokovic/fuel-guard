@@ -477,3 +477,12 @@ Append a dated line per step. Never edit §3.
   the carrier's calendar, and writes `permissions.exported` before it sends the file. If that audit
   write fails, no file is sent. Driver-app logins are left out, as on the Users page. Suspended members
   are listed apart and never counted as holders. No migration.
+- **2026-09-30** — **SP9 built** (branch `claude/settings-sp9-step-up`, stacked on SP7b/SP8b; not
+  merged). `requireFreshAuth()` sits after `requireRole("admin")` on all 15 writes: section-access and
+  surface-access PUT (role + user), members DELETE / revoke / PATCH / suspend / reinstate, invites create
+  / resend / revoke / delete. A name-only PATCH asks too: it is the same route, and a body-dependent
+  gate is one the ledger cannot see. Left open on purpose: every GET, `POST /api/invites/accept`, the
+  public redeem route, and `POST /api/invites/mail-test` (it changes no access). Each route file has a
+  refusal test (403 `step_up_required`, no rpc, no write, no audit). Web: one `StepUpPrompt` per page
+  (Permissions, Users) through `useStepUpRetry`; the rename drawer moved into `MemberRenameDrawer.vue`
+  and owns its prompt like `MemberPasswordResetDrawer`. A retry does not re-ask `confirm()`.

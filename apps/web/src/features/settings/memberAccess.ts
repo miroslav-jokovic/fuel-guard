@@ -1,5 +1,6 @@
 import { isRosterIssuedRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { apiRefusal } from "@/composables/useStepUpRetry";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -46,28 +47,80 @@ export const suspendConfirmText = (m: OrgMember) =>
 export const reinstateConfirmText = (m: OrgMember) =>
   `Reinstate ${who(m)}? They can sign in again with the role and personal permissions they had before.`;
 
-/** Ask, act, report. `true` when the API made the change, so the caller reloads. */
+/**
+ * The page's `holdForStepUp` (useStepUpRetry): true when the refusal was `step_up_required`, the
+ * password prompt is now showing, and `retry` will run once it is confirmed.
+ */
+export type StepUpHold = (error: unknown, retry: () => Promise<void>) => boolean;
+
+/**
+ * Ask, act, report — then `after` (the page's reload) when the API made the change.
+ *
+ * Since SP9 (Q-SET8 (a), 2026-09-30) every one of these routes asks for the password again, so the
+ * send is split from the question: a step-up refusal hands `send` to the page's prompt, and the retry
+ * runs WITHOUT asking "are you sure?" a second time — the admin already answered it, and a second
+ * confirm after typing a password reads as the first one having been lost. EfsSoapPage's
+ * `disableConfirmed` is the same split for the same reason.
+ */
 async function act(
   question: string,
   path: string,
   method: "POST" | "DELETE",
   done: [string, string],
   failed: string,
-): Promise<boolean> {
+  hold: StepUpHold,
+  after: () => Promise<void>,
+): Promise<void> {
   // window.confirm, the destructive-action pattern this page already uses for deleting an invitation.
-  if (!confirm(question)) return false;
+  if (!confirm(question)) return;
   const toast = useToastStore();
-  const res = await apiFetch(path, { method });
-  if (res.ok) toast.success(done[0], done[1]);
-  else toast.error(failed, res.error?.message);
-  return res.ok;
+  const send = async (): Promise<void> => {
+    const res = await apiFetch(path, { method });
+    if (!res.ok && hold(apiRefusal(res.error, failed), send)) return;
+    if (!res.ok) {
+      toast.error(failed, res.error?.message);
+      return;
+    }
+    toast.success(done[0], done[1]);
+    await after();
+  };
+  await send();
 }
 
-export const removeMember = (m: OrgMember) =>
-  act(removeConfirmText(m), `/api/members/${m.userId}`, "DELETE", ["Member removed", `${who(m)} was signed out.`], "Could not remove member");
+export const removeMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(removeConfirmText(m), `/api/members/${m.userId}`, "DELETE", ["Member removed", `${who(m)} was signed out.`], "Could not remove member", hold, after);
 
-export const suspendMember = (m: OrgMember) =>
-  act(suspendConfirmText(m), `/api/members/${m.userId}/suspend`, "POST", ["Member suspended", `${who(m)} was signed out.`], "Could not suspend member");
+export const suspendMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(suspendConfirmText(m), `/api/members/${m.userId}/suspend`, "POST", ["Member suspended", `${who(m)} was signed out.`], "Could not suspend member", hold, after);
 
-export const reinstateMember = (m: OrgMember) =>
-  act(reinstateConfirmText(m), `/api/members/${m.userId}/reinstate`, "POST", ["Member reinstated", `${who(m)} can sign in again.`], "Could not reinstate member");
+export const reinstateMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(reinstateConfirmText(m), `/api/members/${m.userId}/reinstate`, "POST", ["Member reinstated", `${who(m)} can sign in again.`], "Could not reinstate member", hold, after);
+
+/**
+ * Remove several members, one DELETE each (the API answers one member at a time), counting what
+ * actually happened. The loop used to discard every response and report success unconditionally, so a
+ * refused removal — the API refuses a driver-app login (DC10) — was announced as done. A bulk action
+ * that cannot fail out loud is how a fleet-wide mistake stays invisible until somebody cannot sign in.
+ *
+ * A step-up refusal (SP9) stops the loop where it is and hands the REST of the list, with the tally so
+ * far, to the prompt: without a token the first DELETE is refused and nothing was removed; if the
+ * token lapsed mid-list, the members already removed stay counted in the one toast at the end.
+ */
+export async function bulkRemoveMembers(
+  ids: string[],
+  hold: StepUpHold,
+  after: () => Promise<void>,
+  tally: { removed: number; failed: string[]; total: number } = { removed: 0, failed: [], total: ids.length },
+): Promise<void> {
+  const toast = useToastStore();
+  for (const [i, id] of ids.entries()) {
+    const res = await apiFetch(`/api/members/${id}`, { method: "DELETE" });
+    if (!res.ok && hold(apiRefusal(res.error, "Could not remove member"), () => bulkRemoveMembers(ids.slice(i), hold, after, tally))) return;
+    if (res.ok) tally.removed++;
+    else tally.failed.push(res.error?.message ?? id);
+  }
+  const { removed, failed, total } = tally;
+  if (failed.length === 0) toast.success(`${removed} member${removed === 1 ? "" : "s"} removed`);
+  else toast.error(`Removed ${removed} of ${total}`, failed[0]);
+  await after();
+}

@@ -5,6 +5,9 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import RolesTab from "@/features/permissions/RolesTab.vue";
 import PeopleTab from "@/features/permissions/PeopleTab.vue";
 import WhoHasAccessTab from "@/features/permissions/WhoHasAccessTab.vue";
+import SlideOver from "@/components/SlideOver.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { useStepUpRetry } from "@/composables/useStepUpRetry";
 
 /**
  * Permissions (SURFACE-ENTITLEMENTS-PLAN.md S6; EDITABLE-PERMISSIONS-PLAN.md P5).
@@ -47,6 +50,17 @@ const tabs: TabItem[] = [
   { value: "access", label: "Who has access" },
 ];
 const tab = ref("roles");
+
+/**
+ * ── EVERY CHANGE HERE ASKS FOR THE PASSWORD, ONCE PER FIVE MINUTES (SP9) ─────────────────────────
+ * Q-SET8 (a), ruled 2026-09-30: each write on this page is behind the same step-up card control
+ * uses, because a stolen admin session that can edit this matrix can hand anyone every other
+ * capability in the product. ONE prompt for the page, not one per tab: both tabs write, and the
+ * token `lib/stepUp.ts` holds covers either for its five minutes, so a second prompt would ask for a
+ * password the admin has already given. It opens in a drawer so the tab that asked stays mounted and
+ * its write re-runs as it was — the same `useStepUpRetry` MemberPasswordResetDrawer uses.
+ */
+const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 </script>
 
 <template>
@@ -58,14 +72,18 @@ const tab = ref("roles");
     <AppTabs v-model="tab" :tabs="tabs" label="Permission views" id-prefix="permissions" />
 
     <div v-if="tab === 'roles'" id="permissions-panel-roles" role="tabpanel" aria-labelledby="permissions-tab-roles">
-      <RolesTab />
+      <RolesTab :hold-for-step-up="holdForStepUp" />
     </div>
     <div v-else-if="tab === 'people'" id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
-      <PeopleTab />
+      <PeopleTab :hold-for-step-up="holdForStepUp" />
     </div>
     <div v-else id="permissions-panel-access" role="tabpanel" aria-labelledby="permissions-tab-access">
       <WhoHasAccessTab />
     </div>
+
+    <SlideOver :open="stepUpFor !== null" title="Confirm your password" @close="cancel">
+      <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
+    </SlideOver>
 
     <details class="border-t border-edge-subtle pt-4">
       <summary class="cursor-pointer text-sm font-medium text-ink-muted">What this page does not decide</summary>
