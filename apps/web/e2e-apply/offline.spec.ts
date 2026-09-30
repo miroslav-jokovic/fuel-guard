@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PART_ONE_SCREENS } from "@silvicom/shared";
-import { partOneLink, partTwoLink, stubApi, TOKEN, type Stub } from "./stubApi";
+import { partOneLink, partTwoLink, STORAGE_UPLOAD, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
  * §6.8's network bar, in a real browser: "network cut mid-screen: zero lost answers; a cut upload is
@@ -155,7 +155,7 @@ function lastConfirm(stub: Stub): { sha256: string; uploaded: Buffer } {
 
 test("a photo whose upload was cut is sent again from the phone after a reload, never taken again (C3d2)", async ({ page }) => {
   const stub = await takeFront(page);
-  stub.cut(/^\/__storage\//);
+  stub.cut(STORAGE_UPLOAD);
   await page.getByRole("button", { name: "Use this photo" }).click();
   await expect(page.getByText("That did not send. Check your signal, then press “Use this photo” again.")).toBeVisible();
   const cutAttempt = stub.state.cutBodies.at(-1)!;
@@ -181,7 +181,7 @@ test("a photo whose upload was cut is sent again from the phone after a reload, 
  */
 test("a photo held while the phone is offline goes by itself when the signal returns (C3d2)", async ({ page, context }) => {
   const stub = await takeFront(page);
-  stub.cut(/^\/__storage\//);
+  stub.cut(STORAGE_UPLOAD);
   await context.setOffline(true);
   await page.getByRole("button", { name: "Use this photo" }).click();
   await expect(page.getByText("That did not send. Check your signal, then press “Use this photo” again.")).toBeVisible();

@@ -2070,3 +2070,23 @@ Append dated lines at the END.
   the examiner's stored signature" is narrowed at the source: a recruiter can no longer put a signature
   on file. Applying the stored one to a test they record stays theirs (Q-RT2). **The owner set the counsel
   package aside for now**, so Q-AW19's counsel note is not written; §9 item 7 stays open on it.
+- **2026-09-30** — **No applicant photograph had ever been received in production; fixed.** Reported by the owner
+  ("it is not allowing me to upload any image"). Measured before touching anything: `application_captures` had
+  **0 rows** and the `application-captures` bucket **0 objects** — so C3b2b's scanner screen, C3d2's kept photo and
+  AW6's selfie had never delivered one picture. Cause: "Use this photo" read the photograph back from its own object
+  URL with `fetch(blob:…)`, and production's CSP (`appHttp.ts`) has no `blob:` in `connect-src`, so Chromium refused
+  it ("Failed to fetch", reproduced under the live header, passing with `blob:` added) and the screen reported a lost
+  signal. Nothing saw it because `vite preview` sends no CSP and every unit test stubbed `fetch` to answer — the
+  same blind spot as the viewer's `frame-src` (2026-09-19).
+  · **Fix:** the web provider hands its bytes over (`WebCaptureProvider.takeBytes`, once) and `use` sends them; no
+    `fetch` of a `blob:` URL remains in the web app (swept). `connect-src` NOT widened — the page no longer needs it.
+  · **The blind spot closed:** `e2e:apply` now serves `dist` through the API's own `createApp`
+    (`apps/api/src/scripts/serveWebDist.ts`), so the specs run under production's CSP, served not copied; the stub's
+    upload moved to a `*.supabase.co`-shaped URL (supabase-js 2.110's `createSignedUploadUrl` shape) so `connect-src`'s
+    Supabase rule is exercised too; unit-test `fetch` stubs now REFUSE as the CSP does.
+  · **Checks:** the old read-back fails 4 browser specs and 20+ unit tests; a non-Supabase upload host fails 4 specs.
+  · **Still unproven until a real walk after deploy:** that production's `SUPABASE_URL` is a `*.supabase.co` host
+    (reading the Railway variable was refused this session). The first real photograph answers it — check
+    `select count(*) from application_captures` after the owner's next test.
+  · **Consequence for Q-AW32:** its ruled (a) — floors from ~50 recruiter-judged captures — had collected nothing,
+    because there were no captures. Its clock starts at this deploy.

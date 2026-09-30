@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ref } from "vue";
-import type { CaptureProvider, CapturedPage, ScanResult } from "@silvicom/capture-engine";
+import type { CapturedPage, ScanResult } from "@silvicom/capture-engine";
 import type { ApplicationCaptureView } from "@silvicom/shared";
 import type { CaptureIo } from "./stageCapture";
+import type { WebCaptureProvider } from "./webFileProvider";
 import { useApplicationCaptures } from "./useApplicationCaptures";
 
 /**
@@ -26,9 +27,10 @@ vi.mock("./webImageIo", async (importOriginal) => ({
   },
 }));
 vi.mock("./webFileProvider", () => ({
-  createWebFileProvider: (_config: unknown, options: { pick: () => Promise<File | null> }): CaptureProvider => ({
+  createWebFileProvider: (_config: unknown, options: { pick: () => Promise<File | null> }): WebCaptureProvider => ({
     id: "default",
     version: "0",
+    takeBytes: () => new Blob(["x"], { type: "image/webp" }),
     isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
     scan: async () => {
       await options.pick();
@@ -56,9 +58,12 @@ const page = (): CapturedPage =>
     integrityHash: "a1".repeat(32),
   }) as unknown as CapturedPage;
 
-const provider = (result: ScanResult): CaptureProvider => ({
+/** The bytes every accepted test page stands for — what `use` must send, byte for byte. */
+const BYTES = "the encoded licence";
+const provider = (result: ScanResult, takeBytes: (uri: string) => Blob | null = () => new Blob([BYTES], { type: "image/webp" })): WebCaptureProvider => ({
   id: "test",
   version: "0",
+  takeBytes,
   isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
   scan: async () => result,
   cancel: () => {},
@@ -84,18 +89,19 @@ function spyIo(over: Partial<CaptureIo> = {}): CaptureIo & { calls: string[] } {
 }
 
 /**
- * ⚠ Two stubs, and both shapes are load-bearing — this file failed in CI while passing locally
- * because of them (Node 22 there, Node 26 here).
+ * ⚠ Two stubs, and both shapes are load-bearing.
  *
- * The fetch stub returns a bare `{ blob() }` rather than a real `Response`: the composable only ever
- * calls `.blob()`, and constructing a `Response` around a jsdom `Blob` is a different piece of
- * machinery on every Node line. And `URL` is NOT replaced wholesale — spreading the class into an
+ * `fetch` REFUSES, exactly as production's CSP refuses `fetch("blob:…")` (no `blob:` in `connect-src`).
+ * It used to answer with the bytes — and that stub is how every applicant photograph failing in
+ * production until 2026-09-30 passed here: the composable read its own object URL back, and only a
+ * browser serving the real header could say no. The bytes now come from `takeBytes`. And `URL` is NOT
+ * replaced wholesale — spreading the class into an
  * object literal produces `{}` plus the two added statics, so `new URL(...)` stops existing for
  * everything else in the process, including the fetch machinery this very stub sits in front of.
  * Only the one static the pipeline calls is spied on; jsdom supplies both.
  */
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => ({ blob: async () => new Blob(["x"], { type: "image/webp" }) })));
+  vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -347,7 +353,7 @@ describe("take, look, then send (§6.6.1)", () => {
 
   it("Retake replaces the held photograph and lets go of the old one, still without a request", async () => {
     let n = 0;
-    const two: CaptureProvider = {
+    const two: WebCaptureProvider = {
       ...provider({ ok: true, pages: [page()] }),
       scan: async () => {
         const p = page();
@@ -366,7 +372,7 @@ describe("take, look, then send (§6.6.1)", () => {
 
   it("a Retake the driver closes leaves the photograph they had on the screen", async () => {
     let result: ScanResult = { ok: true, pages: [page()] };
-    const flip: CaptureProvider = { ...provider(result), scan: async () => result };
+    const flip: WebCaptureProvider = { ...provider(result), scan: async () => result };
     const captures = useApplicationCaptures(ref(TOKEN), ref([]), { provider: flip, io: spyIo() });
     await captures.take("cdl_front");
     result = { ok: false, reason: "CAPTURE_CANCELLED" };
@@ -454,5 +460,49 @@ describe("Upload a photo instead (§6.6.6)", () => {
     await captures.take("selfie");
     await captures.take("cdl_front");
     expect(pickers.camera.mock.calls).toEqual([["user"], ["environment"]]);
+  });
+});
+
+describe("the bytes that are sent (2026-09-30)", () => {
+  /**
+   * THE regression. Production's CSP refuses `fetch("blob:…")`, so a photograph read back from its own
+   * object URL never reached the upload: zero rows in `application_captures`, from the day the scanner
+   * shipped. `fetch` here refuses the same way — and the upload still gets the provider's bytes.
+   */
+  it("sends the bytes the provider handed over, and never reads the photograph back from its URL", async () => {
+    const uploaded: string[] = [];
+    const io = spyIo({
+      upload: async (_url: string, blob: Blob) => {
+        uploaded.push(await blob.text());
+      },
+    });
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] }),
+      io,
+      only: ["cdl_front"],
+      local: null,
+    });
+    await captures.take("cdl_front");
+    await captures.use("cdl_front");
+
+    expect(slotState(captures.slots.value, "cdl_front")).toBe("done");
+    expect(uploaded).toEqual([BYTES]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a page whose bytes its provider cannot produce, before anything is asked of the network", async () => {
+    const io = spyIo();
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), {
+      provider: provider({ ok: true, pages: [page()] }, () => null),
+      io,
+      only: ["cdl_front"],
+      local: null,
+    });
+    await captures.take("cdl_front");
+    await captures.use("cdl_front");
+
+    expect(slotState(captures.slots.value, "cdl_front")).toBe("failed");
+    expect(io.calls).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
