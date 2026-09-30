@@ -84,3 +84,17 @@ module feeds both the map canvas and the rail, so the legend cannot drift from t
   `vehicle_positions_engine` so the first tick seeds every truck's CURRENT engine state from the
   feed head. Findings 4 and 5 corrected above; the "offline" half of finding 2 turns out to be
   D-LM29's to fix, not a separate LS3 rule.
+- 2026-09-30 18:12 UTC — LS1b live (#1160). The fresh cursor seeded **every** non-retired truck's
+  engine state on the first tick (190 of 190: Off 83, On 74, Idle 33). The D-LM29 rule, measured
+  against the old one on the same rows at the same instant:
+
+  | | moving | stopped | parked | offline |
+  |---|---|---|---|---|
+  | ping-rate rule | 65 | 20 | 56 | 49 |
+  | engine-state rule | 65 | 36 | 83 | **6** |
+
+  43 `offline` → `parked` (engine off), 20 `parked` → `stopped` (idling), 4 `stopped` → `parked`.
+  Six snapshots 25 s apart: **52 trucks changed state under the old rule, 14 under the new**, and
+  the 14 are mostly moving ↔ stopped, which is traffic. The six still `offline` were last reported
+  RUNNING and went silent 1–13 days ago (579, 802, 769, 707, 663, 563) — a gateway that lost power
+  with the engine on, which is exactly what the word should name. LS1c ships.

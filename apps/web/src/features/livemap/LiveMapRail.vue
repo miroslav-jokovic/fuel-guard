@@ -18,6 +18,7 @@ import {
   boardSummarySentence,
   engineOnBoundSentence,
   offlineBoundSentence,
+  parkedSentence,
   rowMetric,
 } from "./liveMapWords";
 import LiveMapStateGlyph from "./LiveMapStateGlyph.vue";
@@ -282,6 +283,10 @@ function toggleState(state: VehicleMapState): void {
         <p>
           <span class="font-medium text-ink">{{ STATE_LABEL.stopped }}</span>
           · {{ engineOnBoundSentence(board.bounds) }}
+        </p>
+        <p>
+          <span class="font-medium text-ink">{{ STATE_LABEL.parked }}</span>
+          · {{ parkedSentence() }}
         </p>
       </ExplainerPanel>
     </div>

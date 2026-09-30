@@ -72,6 +72,9 @@ export const FLEET_WIDE_SCOPE_REASON =
  */
 const HIDDEN_VEHICLE_STATUS = "retired";
 
+/** `vehicle_status` for a truck in the shop — McLeod's `tractor_status = 'S'` (D-FC, 2026-09-22). */
+const IN_SHOP_VEHICLE_STATUS = "maintenance";
+
 export interface LiveMapBoardOptions {
   /** Injected by tests; production takes the clock once, here. */
   now?: Date;
@@ -102,7 +105,10 @@ export async function readLiveMapBoard(
     // written by something that did not set it, and "we do not know" is not "retired".
     if (identity.status === HIDDEN_VEHICLE_STATUS) continue;
 
-    const state = deriveVehicleState({ sampledAt: p.sampled_at, speedMph: p.speed_mph }, now);
+    const state = deriveVehicleState(
+      { sampledAt: p.sampled_at, speedMph: p.speed_mph, engineState: p.engine_state },
+      now,
+    );
     vehicles.push({
       vehicleId: p.vehicle_id,
       unitNumber: identity.unitNumber,
@@ -118,6 +124,8 @@ export async function readLiveMapBoard(
         receivedAt: p.received_at,
       },
       state,
+      engineState: p.engine_state ?? null,
+      inShop: identity.status === IN_SHOP_VEHICLE_STATUS,
       // `?? 0` is unreachable — `sampled_at` is NOT NULL in 0341 and the row came from that table —
       // but the contract says number and a cast would be a lie the type system stops checking.
       ageSeconds: Math.round(secondsSince(p.sampled_at, now) ?? 0),
@@ -147,8 +155,26 @@ export async function readLiveMapBoard(
       fuelFreshSeconds: FUEL_FRESH_SECONDS,
     },
     vehicles,
+    untracked: untrackedTrucks(identities.byVehicleId, positions.rows),
     truncated: positions.truncated || identities.truncated || loads.truncated,
   };
+}
+
+/**
+ * The fleet's trucks with no stored position, retired ones excluded by the same ruling as the board.
+ * Sorted by unit so the rail's list does not reshuffle on every poll.
+ */
+function untrackedTrucks(
+  identities: Map<string, { unitNumber: string; status: string | null }>,
+  rows: readonly { vehicle_id: string }[],
+): LiveMapBoard["untracked"] {
+  const placed = new Set(rows.map((r) => r.vehicle_id));
+  const out: LiveMapBoard["untracked"] = [];
+  for (const [vehicleId, identity] of identities) {
+    if (placed.has(vehicleId) || identity.status === HIDDEN_VEHICLE_STATUS) continue;
+    out.push({ vehicleId, unitNumber: identity.unitNumber });
+  }
+  return out.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
 }
 
 function toLoadContext(

@@ -355,3 +355,56 @@ describe("the live map board", () => {
     expect(b.generatedAt).toBe(NOW.toISOString());
   });
 });
+
+// D-LM29 / LS3, the 2026-09-30 status audit.
+describe("the live map board — engine state, the shop, and trucks it cannot draw", () => {
+  it("derives state from the ECU engine state and serves it", async () => {
+    const rec = recorder({
+      positions: [
+        position({ vehicle_id: "veh-1", speed_mph: 0, sampled_at: agoSec(21 * 86400), engine_state: "Off" }),
+        position({ vehicle_id: "veh-2", speed_mph: 0, sampled_at: agoSec(4000), engine_state: "Idle" }),
+        position({ vehicle_id: "veh-3", speed_mph: 0, sampled_at: agoSec(200), engine_state: "Idle" }),
+      ],
+      vehicles: [vehicle(), vehicle({ id: "veh-2", unit_number: "1208" }), vehicle({ id: "veh-3", unit_number: "1209" })],
+    });
+    const b = await board(rec);
+    const byId = new Map(b.vehicles.map((v) => [v.vehicleId, v]));
+    // Off three weeks ago is parked — the sold-awaiting-pickup truck, not a lost signal.
+    expect(byId.get("veh-1")).toMatchObject({ state: "parked", engineState: "Off" });
+    // Last reported running and silent for over an hour: THAT is offline.
+    expect(byId.get("veh-2")).toMatchObject({ state: "offline", engineState: "Idle" });
+    // Running, pinging slowly: stopped, where the ping-rate rule said parked.
+    expect(byId.get("veh-3")).toMatchObject({ state: "stopped", engineState: "Idle" });
+  });
+
+  it("serves a null engine state as null, never as Off", async () => {
+    const b = await board(recorder({ positions: [position({ engine_state: null })] }));
+    expect(b.vehicles[0]!.engineState).toBeNull();
+  });
+
+  it("keeps a shop truck on the board and says it is in the shop (Q-LM8a)", async () => {
+    const b = await board(recorder({ vehicles: [vehicle({ status: "maintenance" })] }));
+    expect(b.vehicles).toHaveLength(1);
+    expect(b.vehicles[0]!.inShop).toBe(true);
+    const active = await board(recorder());
+    expect(active.vehicles[0]!.inShop).toBe(false);
+  });
+
+  it("names the fleet's trucks with no position instead of dropping them silently, retired excluded", async () => {
+    const rec = recorder({
+      positions: [position()],
+      vehicles: [
+        vehicle(),
+        vehicle({ id: "veh-813", unit_number: "813" }),
+        vehicle({ id: "veh-797", unit_number: "797" }),
+        vehicle({ id: "veh-old", unit_number: "501", status: "retired" }),
+      ],
+    });
+    const b = await board(rec);
+    expect(b.untracked).toEqual([
+      { vehicleId: "veh-797", unitNumber: "797" },
+      { vehicleId: "veh-813", unitNumber: "813" },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+});

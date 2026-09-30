@@ -21,6 +21,8 @@ const vehicle = (load: LiveMapVehicle["load"]): LiveMapVehicle => ({
   driver: null,
   state: "moving",
   ageSeconds: 12,
+  engineState: null,
+  inShop: false,
   fuel: null,
   load,
   position: {

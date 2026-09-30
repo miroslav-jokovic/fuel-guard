@@ -33,6 +33,8 @@ const vehicle = (o: Partial<LiveMapVehicle> = {}): LiveMapVehicle => ({
   },
   state: "moving",
   ageSeconds: 5,
+  engineState: null,
+  inShop: false,
   fuel: { percent: 68, at: "2026-09-15T17:58:00.000Z" },
   load: null,
   ...o,
@@ -217,7 +219,7 @@ describe("offlineBoundSentence", () => {
       offlineBoundSeconds: 1_800,
       fuelFreshSeconds: 900,
     };
-    expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
+    expect(offlineBoundSentence(bounds)).toBe("Engine last reported on, no signal for over 30 min");
   });
 
   /**
@@ -232,6 +234,8 @@ describe("offlineBoundSentence", () => {
       offlineBoundSeconds: 900,
       fuelFreshSeconds: 900,
     };
-    expect(engineOnBoundSentence(bounds)).toBe("Not moving, heard from within 45s");
+    expect(engineOnBoundSentence(bounds)).toBe(
+      "Not moving, engine running (no engine report: heard from within 45s)",
+    );
   });
 });

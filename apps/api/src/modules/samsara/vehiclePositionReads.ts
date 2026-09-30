@@ -26,6 +26,8 @@ export interface VehiclePositionRow {
   formatted_location: string | null;
   sampled_at: string;
   received_at: string | null;
+  /** The ECU's newest engine state (0394, D-LM29). Null until the feed has reported one. */
+  engine_state: "On" | "Idle" | "Off" | null;
 }
 
 export interface VehiclePositionsResult {
@@ -58,7 +60,8 @@ export async function readVehiclePositions(
   const { data, error } = await admin
     .from("vehicle_positions")
     .select(
-      "vehicle_id, lat, lng, heading_degrees, speed_mph, is_ecu_speed, formatted_location, sampled_at, received_at",
+      "vehicle_id, lat, lng, heading_degrees, speed_mph, is_ecu_speed, formatted_location, sampled_at, received_at, " +
+        "engine_state",
     )
     .eq("org_id", orgId)
     .order("sampled_at", { ascending: false })
