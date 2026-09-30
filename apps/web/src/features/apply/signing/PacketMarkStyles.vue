@@ -65,6 +65,17 @@ const emit = defineEmits<{
    * about the initials every time the name changed, including on a link that asks for none.
    */
   initialsChange: [Blob | null];
+  /**
+   * True while the latest render has not published both marks yet; false once it has.
+   *
+   * ⚠ **The parent cannot tell "not drawn yet" from "could not be drawn" without it.** A styled mark
+   * is the one tab whose picture is optional (`markRequiredFor`), so a null blob lets the driver
+   * through and `stageMarkPictures` records it as the rasteriser failing. Before this event a press in
+   * the window between typing and the font arriving — `document.fonts.load` on a cold cache — was
+   * exactly that: nothing sent, `drawnMarkFailed` up, and the paper carrying typed text in place of
+   * the hand the driver had just chosen. Found as a CI flake (2026-09-30), not by a driver.
+   */
+  rendering: [boolean];
 }>();
 
 const copy = APPLY_COPY.packet;
@@ -139,10 +150,17 @@ async function render(): Promise<void> {
    * phone. ⚠ Both are rendered on every change: the initials are in the same hand, so a style switch
    * that re-rendered only the signature would show the new face above the old one.
    */
-  await renderOne(props.name, ticket, previewUrl, (blob) => emit("change", blob));
-  await renderOne(props.initials ?? "", ticket, initialsPreviewUrl, (blob) =>
-    emit("initialsChange", blob),
-  );
+  emit("rendering", true);
+  try {
+    await renderOne(props.name, ticket, previewUrl, (blob) => emit("change", blob));
+    await renderOne(props.initials ?? "", ticket, initialsPreviewUrl, (blob) =>
+      emit("initialsChange", blob),
+    );
+  } finally {
+    // Only the latest render may say it is done: an older one finishing says nothing about the pair
+    // the driver is looking at.
+    if (ticket === latest) emit("rendering", false);
+  }
 }
 
 /**
@@ -161,6 +179,10 @@ watch(
 onMounted(() => void loadSignatureFaces());
 
 onBeforeUnmount(() => {
+  // ⚠ A render still in flight is disowned, not awaited: the driver has left for Draw or Upload, whose
+  // tab re-emits its own mark, and a styled PNG landing after the switch would be staged under it.
+  latest += 1;
+  emit("rendering", false);
   show(previewUrl, null);
   show(initialsPreviewUrl, null);
 });

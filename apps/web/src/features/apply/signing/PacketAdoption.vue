@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -126,6 +126,13 @@ const initialsMarkReady = computed(
     || !ceremony.value.needsInitials.value
     || ceremony.value.initialsBlob.value !== null,
 );
+/**
+ * A styled mark still being drawn (`PacketMarkStyles`'s `rendering`). ⚠ `markReady` lets a styled tab
+ * through with no picture, on purpose — a rasteriser that cannot draw must not stop the walk — so
+ * without this a press before the font arrived was read as that failure and nothing was sent. Waiting
+ * is what separates "not drawn yet" from "could not be drawn".
+ */
+const markRendering = ref(false);
 /** ⚠ The same length the composable enforces, and the same reason: one initial is a real one. */
 const initialsReady = computed(
   () => !ceremony.value.needsInitials.value || ceremony.value.adoptedInitials.value.trim().length >= 1,
@@ -291,6 +298,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       :initials="ceremony.needsInitials.value ? ceremony.adoptedInitials.value : ''"
       @change="ceremony.markBlob.value = $event"
       @initials-change="ceremony.initialsBlob.value = $event"
+      @rendering="markRendering = $event"
     />
 
     <!-- ⚠ The pad's OWN label and hint are replaced rather than a second line printed above it. Its
@@ -346,6 +354,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
             || !initialsReady
             || !markReady
             || !initialsMarkReady
+            || markRendering
         "
         @click="adoptAndStart"
       >
