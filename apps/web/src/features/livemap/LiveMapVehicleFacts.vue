@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { loadBoardState, type LiveMapBoard, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
-import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
+import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
-import { formatAge, fuelMetric } from "./liveMapWords";
+import { engineWords, formatAge, fuelMetric } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
 
@@ -91,6 +91,7 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
   <div :class="compact ? 'space-y-3' : 'space-y-6'">
     <div class="flex items-center gap-2">
       <span :class="[BADGE_BASE, vehicleStateTone(vehicle.state)]">{{ STATE_LABEL[vehicle.state] }}</span>
+      <span v-if="vehicle.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
       <span class="text-xs text-ink-muted">Fix {{ formatAge(vehicle.ageSeconds) }}</span>
     </div>
 
@@ -112,6 +113,10 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
       <div>
         <dt class="text-xs text-ink-muted">Heading</dt>
         <dd class="text-ink">{{ heading }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-muted">Engine</dt>
+        <dd class="text-ink">{{ engineWords(vehicle.engineState) ?? "—" }}</dd>
       </div>
       <div class="col-span-2">
         <dt class="text-xs text-ink-muted">Location</dt>

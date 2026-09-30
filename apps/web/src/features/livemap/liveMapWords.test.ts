@@ -3,6 +3,7 @@ import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
 import {
   boardSummarySentence,
   engineOnBoundSentence,
+  engineWords,
   formatAge,
   fuelMetric,
   offlineBoundSentence,
@@ -237,5 +238,17 @@ describe("offlineBoundSentence", () => {
     expect(engineOnBoundSentence(bounds)).toBe(
       "Not moving, engine running (no engine report: heard from within 45s)",
     );
+  });
+});
+
+describe("engineWords", () => {
+  it("says Running for both of the ECU's running states, and never the word idle (D-LM9)", () => {
+    expect(engineWords("On")).toBe("Running");
+    expect(engineWords("Idle")).toBe("Running");
+  });
+  it("says Off for Off, and nothing at all when the feed has not reported — absent is not Off", () => {
+    expect(engineWords("Off")).toBe("Off");
+    expect(engineWords(null)).toBeNull();
+    expect(engineWords(undefined)).toBeNull();
   });
 });
