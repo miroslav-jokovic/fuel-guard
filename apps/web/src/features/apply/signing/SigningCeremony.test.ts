@@ -78,11 +78,25 @@ const click = async (w: ReturnType<typeof mountIt>, text: string) => {
 };
 
 /** Through the adoption and its confirm step, as an applicant would: the name, then the initials. */
-async function adopt(w: ReturnType<typeof mountIt>): Promise<void> {
+/**
+ * Type both marks, then wait for "Use this" to light up. ⚠ Waited for, not flushed once: the button
+ * holds while the styled marks are still being drawn (`PacketMarkStyles`'s `rendering`), and the first
+ * test in the file pays for the faces' cold import — one `flushPromises` was a timing guess that
+ * failed the moment the button started waiting.
+ */
+async function typeMarks(w: ReturnType<typeof mountIt>): Promise<void> {
   const [name, initials] = w.findAll("input");
   await name!.setValue("Susan Godfrey");
   await initials!.setValue("SG");
-  await flushPromises();
+  await vi.waitFor(async () => {
+    await flushPromises();
+    const use = w.findAll("button").find((b) => b.text() === APPLY_COPY.permissions.adoption.adoptAction);
+    expect(use?.attributes("disabled")).toBeUndefined();
+  });
+}
+
+async function adopt(w: ReturnType<typeof mountIt>): Promise<void> {
+  await typeMarks(w);
   await click(w, APPLY_COPY.permissions.adoption.adoptAction);
   await click(w, APPLY_COPY.permissions.adoption.confirmAction);
 }
@@ -107,9 +121,7 @@ describe("the permissions, as documents", () => {
     const copy = APPLY_COPY.permissions.adoption;
     expect(w.text()).toContain(copy.adoptHeadingWithInitials);
     expect(w.text()).toContain(copy.initialsLabel);
-    await w.findAll("input")[0]!.setValue("Susan Godfrey");
-    await w.findAll("input")[1]!.setValue("SG");
-    await flushPromises();
+    await typeMarks(w);
     await click(w, copy.adoptAction);
     // The packet's sentence names pages off its stops; this screen has none, and must not say "undefined".
     expect(w.text()).toContain(copy.confirmInitialsWhere([]));
