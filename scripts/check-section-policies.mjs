@@ -148,8 +148,11 @@ const TABLE_SECTIONS = {
  * the org's answer does not reach the policy. A policy waived by name (the hazmat policy, admin only
  * by ruling) is exempt from both halves, as everywhere else in this gate.
  *
- * `message_reports` is NOT here: its list equals no section's set and is waiting on a ruling (SP11's
- * report). Adding it before that ruling would fail the gate, which is the gate being right.
+ * `message_reports` (module `messaging`, no section) is here for the other half: it holds no role
+ * list at all since 0396 (Q-SET13 (c) — a reporter reads their own, nobody reads the queue by role),
+ * and a sectionless table has no wrapper to demand, so what the opt-in buys is that a role list
+ * re-appearing on it fails as an unwaived literal. That needed `drop policy` to be read too: 0096's
+ * `reports_admin_read` is checked from the start, and only the drop in 0396 retires it.
  */
 const CHECKED_FROM_START = new Set([
   "driver_duty_sessions",
@@ -157,6 +160,7 @@ const CHECKED_FROM_START = new Set([
   "hos_duty_segments",
   "load_events",
   "load_external_payloads",
+  "message_reports",
   "hazmat_policies",
 ]);
 
@@ -224,9 +228,23 @@ export function extractPolicies(sql) {
       const w = WRAPPER.exec(m[3].slice(0, l.index));
       return w ? { section: w[1], level: w[2] } : null;
     });
-    policies.push({ policy, table, lists, wraps, waived: fileWaived || waived.has(policy) });
+    policies.push({ policy, table, lists, wraps, waived: fileWaived || waived.has(policy), at: m.index });
   }
   return policies;
+}
+
+/**
+ * The `drop policy` statements of one migration, with their offsets, so a policy a later migration
+ * dropped stops being read as live. Without this the gate could only follow a policy through a
+ * re-creation under the SAME name: 0396 renamed `reports_admin_read` to `reports_own_read`, and 0096's
+ * definition — a role list on a sectionless table — would have gone on failing the gate from a
+ * policy production no longer holds.
+ */
+export function extractDrops(sql) {
+  const body = sql.replace(/--[^\n]*/g, "");
+  return [...body.matchAll(/drop\s+policy\s+(?:if\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?\s+on\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)/gi)].map(
+    (m) => ({ policy: m[1].toLowerCase(), table: m[2].toLowerCase(), at: m.index }),
+  );
 }
 
 /**
@@ -236,18 +254,29 @@ export function extractPolicies(sql) {
  * grandfathered as before — but a policy they created and a later migration re-creates is checked,
  * which is how 0300 brought `ftxn_insert` (0004) and the two 0078 lists into scope.
  */
+/**
+ * Apply one migration's creates and drops to `latest`, in the order the file runs them: 0396 drops a
+ * name and re-creates it, and drops another for good.
+ */
+function foldPolicies(latest, sql, file, readsTable = () => true) {
+  const events = [...extractPolicies(sql), ...extractDrops(sql).map((d) => ({ ...d, drop: true }))].sort((a, b) => a.at - b.at);
+  for (const p of events) {
+    if (!readsTable(p.table)) continue;
+    if (p.drop) latest.delete(`${p.table}.${p.policy}`);
+    else latest.set(`${p.table}.${p.policy}`, { ...p, file });
+  }
+  return latest;
+}
+
 function latestPolicies(migrationsDir) {
   const latest = new Map();
   for (const f of readdirSync(migrationsDir).filter((x) => x.endsWith(".sql")).sort()) {
     const num = Number(f.slice(0, 4));
     if (!Number.isFinite(num)) continue;
     const grandfathered = num <= SQL_BOUNDARY;
-    for (const p of extractPolicies(readFileSync(join(migrationsDir, f), "utf8"))) {
-      // Below the boundary only the opted-in tables are read (SP11); every other table stays
-      // grandfathered exactly as before.
-      if (grandfathered && !CHECKED_FROM_START.has(p.table)) continue;
-      latest.set(`${p.table}.${p.policy}`, { ...p, file: f });
-    }
+    // Below the boundary only the opted-in tables are read (SP11); every other table stays
+    // grandfathered exactly as before.
+    foldPolicies(latest, readFileSync(join(migrationsDir, f), "utf8"), f, (t) => !grandfathered || CHECKED_FROM_START.has(t));
   }
   return [...latest.values()];
 }
@@ -314,6 +343,16 @@ function selfTest(matrix, manifest) {
   for (const p of [...extractPolicies("create policy p on t for all using (auth_role() in ('admin','old'));"), ...extractPolicies("create policy p on t for all using (auth_role() in ('admin','new'));")])
     superseded.set(`${p.table}.${p.policy}`, p);
   if (![...superseded.get("t.p").lists[0]].includes("new")) fails.push("a later definition does not supersede an earlier one");
+  const [drop] = extractDrops(`
+    drop policy if exists "p_gone" on public.t2;
+    -- drop policy p_commented on t2;`);
+  if (drop?.policy !== "p_gone" || drop?.table !== "t2" || extractDrops("-- drop policy p on t;").length)
+    fails.push("the drop extractor misreads `drop policy if exists \"…\" on schema.table`, or reads one inside a comment");
+  // Order within a file is the order it runs: a drop then a re-create leaves the policy live, a
+  // create then a drop leaves nothing.
+  const liveAfter = (sql) => foldPolicies(new Map(), sql, "self-test.sql");
+  if (!liveAfter("drop policy if exists p on t; create policy p on t for all using (true);").has("t.p")) fails.push("a drop followed by a re-create leaves no live policy");
+  if (liveAfter("create policy p on t for all using (true); drop policy p on t;").has("t.p")) fails.push("a dropped policy is still read as live");
 
   // The wrapper must be read per list, so a bare literal on an opted-in table cannot pass as wrapped.
   const [wrapped] = extractPolicies("create policy w on t for all using (auth_section_or_default('dispatch', 'manage', auth_role() = any (array['admin'])));");

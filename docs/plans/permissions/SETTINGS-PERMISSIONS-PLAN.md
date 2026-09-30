@@ -372,7 +372,7 @@ Q-SET11 (a), Q-SET12 (a).
   - *Recommendation: **(a)**.* Leave, investigation and seasonal staff are ordinary. Re-inviting loses
     every per-person override, and those overrides are the control.
 
-### Questions found building SP11 (2026-09-30) — OPEN
+### Questions found building SP11 (2026-09-30) — Q-SET13/14 RULED (c)/(b), built; Q-SET15 OPEN
 
 Q-SET11 (a) says the rest "read their section". For two of them no section's derived set equals the
 list, so reading a section would change who has access. SP11 left both as they are and asks.
@@ -398,6 +398,20 @@ list, so reading a section would change who has access. SP11 left both as they a
   - *(c)* `hazmat: view`. Equal today, but only by coincidence. Rejected.
   - *Recommendation: **(b)**.* The assistant's answers are fuel data. An org narrowing Fuel then
     narrows Ask AI with it, and the one role it adds already reads the same rows on its own pages.
+- **Q-SET15 · Should the Ask AI screen ask the question its endpoint asks?** The catalogue entry is
+  `gate: STAFF` (`surfaceCatalogue.ts`, Q-SURF3), so every office role sees Ask AI in the sidebar,
+  while `POST /api/ai/ask` now asks `fuel: view`. A recruiter or technician opens a page whose only
+  action answers 403. That gap predates SP11: the hand list refused them, and the accountant too.
+  Q-SET14 (b) narrowed the gap by one role. Closing it moves a surface Q-SURF3 ruled on, so SP11 did
+  not.
+  - *(a)* `gate: { kind: "section", section: "fuel", level: "view" }`. The link, the guard
+    (`routeOpens`) and the endpoint then ask one question, which is SP5's rule. The surface becomes
+    editable by derivation and an org's Fuel answer moves it. Cost: the catalogue line, the
+    `navEquivalence` snapshots, one guard test.
+  - *(b)* Keep `staff`, and have the page say "Ask AI answers from fuel data, which your role does
+    not read" on a 403. That is a second copy of the endpoint's answer.
+  - *Recommendation: **(a)**.* Deriving beats restating, and the page has nothing to offer a caller
+    its endpoint refuses.
 
 ---
 
@@ -539,3 +553,20 @@ Append a dated line per step. Never edit §3.
   `requireSection("fuel","view")` (adds the accountant); **the HOS table** stays wrapped at
   `settings: manage` as built. Not yet applied to the SP11 branch — the next session builds them into
   0396 before it is pushed.
+- **2026-09-30** — **SP11's two rulings built into 0396 and the API** (branch
+  `claude/settings-sp11-role-literals`, rebased onto `f490b75`, i.e. after SP9). **Q-SET13 (c):**
+  `reports_admin_read` is dropped and re-created as `reports_own_read`, which reads `reported_by =
+  auth_user_id()` only. Production was re-read first: it held `reports_admin_read` (0096's predicate)
+  and `reports_own` (insert), nothing else. `message_reports` joined `CHECKED_FROM_START`, and
+  `lint:section-policies` now reads `drop policy` in file order (`extractDrops`, `foldPolicies`, with
+  self-tests). Before this, the gate only followed a policy re-created under the same name, and
+  0096's list would have kept failing after the rename. The matrix pins that no role and no grant
+  reads another person's report, that the reporter (as three roles) reads their own, and that an
+  `INSERT … RETURNING` gets its row back. **Q-SET14 (b):** `POST /api/ai/ask` is
+  `requireSection("fuel", "view")`. Its `ROLE_LIST_WAIVERS` entry is gone, and `namedGrantGates.test.ts`
+  pins the shipped set plus the accountant, a Fuel grant and revoke, and that a HazmatGuard grant does
+  NOT reach it. That block starts its own app: `/api/ai` shares `strictLimiter`'s 30-request store
+  with `/api/integrations`, and the earlier block had spent 24 of them, so refusals read as 429.
+  `routeGateLedger` now lists SP10's `/api/access-review` with the Users/Permissions endpoints. Nine
+  mutants were run and all nine killed. **Found, not built:** the Ask AI screen is still `staff`-gated
+  while its endpoint asks Fuel (Q-SET15).

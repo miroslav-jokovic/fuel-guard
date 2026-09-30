@@ -39,7 +39,8 @@ const EVERYTHING: SectionClaim = Object.fromEntries(EDITABLE_SECTIONS.map((s) =>
 let server: Server;
 let baseUrl: string;
 
-beforeAll(async () => {
+/** A fresh app, and so fresh rate-limit stores — see the Ask AI block for why that matters. */
+async function listen(): Promise<void> {
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
   app.locals.verifyToken = async (t: string): Promise<AuthContext> => {
     const found = TOKENS.get(t);
@@ -52,7 +53,8 @@ beforeAll(async () => {
       resolve();
     });
   });
-});
+}
+beforeAll(listen);
 afterAll(async () => closeTestServer(server));
 beforeEach(() => {
   holder.client = createSupabaseRecorder({ tables: { drivers: [], driver_employment_history: [], audit_logs: [] } }).client;
@@ -166,5 +168,32 @@ describe("requireAdminOnly: the integration acts Q-SET11 ruled the admin's alone
 
   it("admits the admin, whose role no org answer can narrow", async () => {
     for (const [m, p] of ACTS) expect(await refused(m, p, token("admin", {})), p).toBe(false);
+  });
+});
+
+describe("Ask AI reads the Fuel section (Q-SET14 (b)) — the data its answers are made of", () => {
+  const ASK = "/api/ai/ask";
+
+  // `/api/ai` shares `strictLimiter` — one store, 30 requests in 15 minutes — with `/api/integrations`,
+  // which the admin-only block above spends 24 of. Past the limit every call answers 429, which
+  // `refused` reads as "not refused", and the refusal cases fail for a reason that is not the gate.
+  // A fresh app gives this block its own budget, so the result does not depend on test order.
+  beforeAll(async () => {
+    await closeTestServer(server);
+    await listen();
+  });
+
+  it("admits exactly fuel: view with no overrides — the list it replaced, plus the accountant", async () => {
+    for (const r of ["admin", "fleet_manager", "dispatcher", "safety_manager", "auditor", "accountant"] as const)
+      expect(await refused("POST", ASK, token(r), { question: "q" }), r).toBe(false);
+    for (const r of ["recruiter", "technician", "driver"] as const) expect(await refused("POST", ASK, token(r), { question: "q" }), r).toBe(true);
+  });
+
+  it("follows the org's Fuel answer, and NOT its HazmatGuard one — the coincidence the old list equalled", async () => {
+    expect(await refused("POST", ASK, token("recruiter", { fuel: "view" }), { question: "q" })).toBe(false);
+    expect(await refused("POST", ASK, token("dispatcher", { fuel: "none" }), { question: "q" })).toBe(true);
+    // hazmat/view was the set the hand list happened to equal: granting it must not reach the assistant.
+    expect(await refused("POST", ASK, token("recruiter", { hazmat: "manage" }), { question: "q" })).toBe(true);
+    expect(await refused("POST", ASK, token("admin", { fuel: "none" }), { question: "q" })).toBe(false);
   });
 });

@@ -17,9 +17,10 @@
 // caller. They are therefore re-created below exactly as production has them, BEFORE 0396 runs. A
 // matrix built from the migrations alone would pass whether or not 0396 dropped anything.
 //
-// Two policies are pinned as still being ROLE tests, not section reads: `reports_admin_read` (its list
-// equals no section's set; waiting on a ruling) and `hazmat_policies_admin_write` (admin only by
-// Q-SET11). For both, an org grant must NOT move them.
+// Two policies are pinned as NOT section reads. `hazmat_policies_admin_write` is admin only by
+// Q-SET11, and an org grant must not move it. `reports_admin_read` became `reports_own_read` by
+// Q-SET13 (c): its list equalled no section's set and nothing read the queue, so the role half went and
+// only "a reporter reads their own" is left — no role and no grant reads anybody else's report.
 //
 // Run:  node supabase/tests/sp11-role-literal-policies.test.mjs
 //
@@ -205,22 +206,37 @@ await pin(
   { list: ["admin", "fleet_manager", "dispatcher", "auditor"], section: "dispatch", level: "view", grant: "accountant", revoke: "auditor" },
 );
 
-// ── message_reports · STILL a role test (no section's set; waiting on a ruling) ────────────────
+// ── message_reports · a reporter reads their own, and NOBODY reads the queue by role (Q-SET13 (c)) ─
+// The fixture report was filed by REPORTER; every `as()` caller is USER, somebody else. Before 0396
+// the admin and the safety manager read it; now no role does, and no section grant brings it back.
 const reportsSeen = (r, s) => seen(r, s, `select id from message_reports where message_id = $1`, [MESSAGE]);
-for (const r of ROLES) {
-  const expected = ["admin", "safety_manager"].includes(r) ? 1 : 0;
-  ok(`reports_admin_read: ${r} with no override reads ${expected} report(s), as before`, (await reportsSeen(r, null)) === expected);
-}
-ok("reports_admin_read: an org's safety grant does NOT move it (unwrapped, pending a ruling)", (await reportsSeen("fleet_manager", { safety: "manage" })) === 0);
-{
+for (const r of ROLES)
+  ok(`reports_own_read: ${r} does not read somebody else's report (the role half is gone)`, (await reportsSeen(r, null)) === 0);
+ok("reports_own_read: an admin granted every section still reads no one else's report", (await reportsSeen("admin", { safety: "manage", settings: "manage" })) === 0);
+ok("reports_own_read: a safety manager granted safety: manage reads no one else's report", (await reportsSeen("safety_manager", { safety: "manage" })) === 0);
+/** Run one statement as REPORTER — the person who filed the fixture report. */
+async function asReporter(role, sql, params = []) {
   await db.exec("begin");
-  await db.exec("set local role authenticated");
-  await db.query("select set_config('request.jwt.claims', $1, true)", [
-    JSON.stringify({ sub: REPORTER, org_id: ORG, user_role: "dispatcher", role: "authenticated" }),
-  ]);
-  const own = (await db.query(`select id from message_reports where message_id = $1`, [MESSAGE])).rows.length;
-  await db.exec("rollback");
-  ok("reports_admin_read: the reporter still reads their own report (the reported_by branch)", own === 1);
+  try {
+    await db.exec("set local role authenticated");
+    await db.query("select set_config('request.jwt.claims', $1, true)", [
+      JSON.stringify({ sub: REPORTER, org_id: ORG, user_role: role, role: "authenticated" }),
+    ]);
+    return await db.query(sql, params);
+  } catch (e) {
+    return { error: e.message };
+  } finally {
+    await db.exec("rollback");
+  }
+}
+for (const r of ["dispatcher", "driver", "admin"]) {
+  const own = await asReporter(r, `select id from message_reports where message_id = $1`, [MESSAGE]);
+  ok(`reports_own_read: the reporter (as ${r}) still reads their own report`, own.rows?.length === 1, own.error ?? "");
+}
+{
+  // Why the own half stays: an INSERT … RETURNING must pass a SELECT policy for the row it returns.
+  const res = await asReporter("dispatcher", `insert into message_reports (org_id, message_id, reported_by, reason) values ($1,$2,$3,'other') returning id`, [ORG, MESSAGE, REPORTER]);
+  ok("reports_own_read: a reporter's INSERT … RETURNING gets its row back", res.rows?.length === 1, res.error ?? "");
 }
 
 // ── hazmat_policies · admin only, by ruling ─────────────────────────────────────────────────────
@@ -249,6 +265,11 @@ const wrappedNow = (await db.query(
       and coalesce(qual, with_check) like '%auth_section_or_default%'`,
 )).rows.length;
 ok("all five section policies read auth_section_or_default", wrappedNow === 5, String(wrappedNow));
+ok(
+  "message_reports holds the reporter's insert and the reporter's read, and nothing named admin",
+  JSON.stringify(await policies("message_reports")) === JSON.stringify(["reports_own", "reports_own_read"]),
+  JSON.stringify(await policies("message_reports")),
+);
 
 await db.close();
 

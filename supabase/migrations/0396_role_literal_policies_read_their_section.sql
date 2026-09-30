@@ -52,25 +52,38 @@
 --   load_external_payloads    [admin, fleet_manager, dispatcher, auditor] = rolesThatCanView('dispatch')
 --                             exactly; read by the dispatch board beside the load it describes.
 --   message_reports           [admin, safety_manager] equals NO section's set (safety manage adds
---                             fleet_manager). NOT wrapped — wrapping would have to invent an answer,
---                             which is D-PERM9's rule. Left as it is and raised with the owner (SP11's
---                             report, plan §6); the `reported_by` branch was never in question.
+--                             fleet_manager), so wrapping it would have had to invent an answer
+--                             (D-PERM9). The owner ruled Q-SET13 (c), 2026-09-30: the role half goes.
+--                             Nothing reads the queue — no client selects `message_reports`, the API
+--                             only inserts (`messaging/routes/messages.ts`), and the review queue
+--                             0096's comment describes was never built — so it is a client read no
+--                             product surface uses, the argument that closed `audit_select` (0391).
+--                             When the queue is built it reads through the API behind a section gate
+--                             (the SP4 pattern); choosing that section waits until the queue exists.
+--                             The `reported_by = auth_user_id()` half stays: `reports_own` (0096) is
+--                             an INSERT a client may ask `RETURNING` of, and under RLS the returned
+--                             row must pass a SELECT policy too. Renamed `reports_own_read`, because a
+--                             policy called `admin_read` that admits no admin is a lie the next reader
+--                             has to see through; `lint:section-policies` honours the drop, so 0096's
+--                             definition is not read as live.
 --   hazmat_policies           admin only (Q-SET11 (a): the hazmat policy is on the admin-only list the
 --                             API reads as `requireAdminOnly("hazmat.policy")`). Re-created in the
 --                             `= any (array[...])` spelling, identical in meaning, so the gate READS it
 --                             and the waiver below names the ruling instead of being dead text.
 --
 -- ── WHY APPLYING THIS IS SAFE IN THE DEPLOY WINDOW ─────────────────────────────────────────────
--- Policies only; no TypeScript reads anything new. With no override row, `auth_section_or_default`
+-- Policies only; no TypeScript reads anything new. The one read that NARROWS — an admin or safety
+-- manager selecting other people's message reports — has no caller in any client or in the API, so
+-- there is nothing for a merge served ahead of this migration to disagree with. With no override row, `auth_section_or_default`
 -- answers exactly the role list it wraps (D-PERM4), so every claim-less token — every token until an
 -- admin edits the matrix — gets the answer it had. `sp11-role-literal-policies.test.mjs` asserts that
 -- for every role on every re-pointed policy, and that an org grant or revoke now moves each one.
 --
--- cross-module-waiver: one ruling (Q-SET11) applied to policies on tables in five modules
--- (driver-app, samsara, loads, mcleod, hazmat); batching by module would be five migrations performing
--- the same mechanical edit, for the reason 0293 and 0300 gave.
+-- cross-module-waiver: one ruling (Q-SET11) applied to policies on tables in six modules
+-- (driver-app, samsara, loads, mcleod, messaging, hazmat); batching by module would be six migrations
+-- performing the same mechanical edit, for the reason 0293 and 0300 gave.
 --
--- Rollback: re-create each policy with the predicate it carried before (0086, 0109, 0150, 0092), and
+-- Rollback: re-create each policy with the predicate it carried before (0086, 0109, 0150, 0096, 0092), and
 -- re-create the three drift duplicates from the table above if anybody wants them back.
 
 -- ── driver_duty_sessions (dispatch) ─────────────────────────────────────────────────────────────
@@ -109,6 +122,12 @@ create policy load_external_payloads_select on public.load_external_payloads for
   and public.auth_section_or_default('dispatch', 'view',
     public.auth_role() = any (array['admin','fleet_manager','dispatcher','auditor']))
 );
+
+-- ── message_reports: a reporter reads their own; nobody reads the queue by role (Q-SET13 (c)) ─────
+drop policy if exists reports_admin_read on message_reports;
+drop policy if exists reports_own_read on message_reports;
+create policy reports_own_read on message_reports for select
+  using (org_id = auth_org_id() and reported_by = auth_user_id());
 
 -- ── hazmat_policies: admin only, by ruling ──────────────────────────────────────────────────────
 drop policy if exists hazmat_policies_admin_write on hazmat_policies;

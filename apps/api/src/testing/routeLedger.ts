@@ -175,10 +175,9 @@ export const ROLE_LIST_WAIVERS = new Map<string, string>([
   // `[admin,fleet_manager]` — left the ledger because the list is no longer a literal. It is
   // `DRIVER_IDENTITY_ROLES` in shared, named once beside its reason (a login cannot be un-handed, a
   // merge cannot be undone) and read by both routers and by the web's buttons.
-  [
-    "modules/insights/routes/ai.ts [admin,auditor,dispatcher,fleet_manager,safety_manager]",
-    "Ask AI is a `staff`-gated SCREEN with no section of its own (Q-SURF3), and this list is not a section's set — it equals hazmat/view by coincidence, which is exactly the trap a set comparison cannot see. What it means is 'the roles whose data the assistant can answer about'; re-pointing it is a product decision, recorded as Q-SURF7. Q-SET11 (a) ruled that Ask AI \"reads its section\" without naming one; SP11 did NOT take hazmat/view, because equal-by-coincidence is the trap this waiver exists to name, and left the choice of section to the owner as Q-SET14 (SETTINGS-PERMISSIONS-PLAN.md §5)",
-  ],
+  // SP11 (Q-SET14 (b), owner 2026-09-30): the Ask AI entry that stood here left the ledger — the
+  // route reads `requireSection("fuel", "view")` now, the section its answers are made of, so it is no
+  // longer a literal to argue for.
   [
     "modules/driver-app/routes/me.ts [driver]",
     "the driver app's own surface — a role test, not a section question. Every row it returns is scoped to the caller's own driver record",

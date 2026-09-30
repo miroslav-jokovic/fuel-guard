@@ -5592,8 +5592,8 @@ END)
   constraint message_reports_reported_by_fkey: FOREIGN KEY (reported_by) REFERENCES auth.users(id) ON DELETE SET NULL
   index: index idx_message_reports_org on public.message_reports using btree (org_id, created_at desc)
   index: unique index message_reports_pkey on public.message_reports using btree (id)
-  policy reports_admin_read [PERMISSIVE/SELECT] roles=["public"] using=((org_id = auth_org_id()) AND ((auth_role() = ANY (ARRAY['admin'::text, 'safety_manager'::text])) OR (reported_by = auth_user_id()))) check=-
   policy reports_own [PERMISSIVE/INSERT] roles=["public"] using=- check=((org_id = auth_org_id()) AND (reported_by = auth_user_id()))
+  policy reports_own_read [PERMISSIVE/SELECT] roles=["public"] using=((org_id = auth_org_id()) AND (reported_by = auth_user_id())) check=-
   trigger: create trigger trg_message_reports_org_immutable before update on public.message_reports for each row execute function forbid_org_change()
 
 -- ============================================================================
