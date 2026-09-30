@@ -70,13 +70,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Same order as .github/actions/setup, for the same reason: on the Mac, Node 22 must exist before
+      # corepack can be enabled; on GitHub's machines corepack comes first so the pnpm cache can run.
+      - uses: actions/setup-node@v4
+        if: runner.environment == 'self-hosted'
+        with:
+          node-version: 22
+
       - name: Enable Corepack
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
-          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
