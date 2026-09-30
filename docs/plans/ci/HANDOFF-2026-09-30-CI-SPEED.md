@@ -139,3 +139,11 @@ Where a merge's 15–20 min goes:
   `761d086` and the merge has `19b235a` → exit 1.
 - ⚠ **Consequence written into MIGRATION-DISCIPLINE.md §2026-09-30:** the schema can now land before
   the code. Merge → `schema.applied` is **not yet measured**, and the first real migration PR owes it.
+- 2026-09-30 — **Measured Fix 1, and it barely moves PR wall time.** native-android now takes 12–13 s
+  instead of 275–403 s when nothing native changed. But across the ~37 PR runs of 09-29..30,
+  test-api and test-web each ran ~330 s, only 20–40 s under native, so the run just waits on them
+  instead: 326/369/374 s after vs a ~370 s median before. The saving is ~5.5 runner-minutes per PR
+  and a shorter queue, not a faster merge. **The next wall-time lever is sharding `test-api` and
+  `test-web`** (`vitest --shard=i/2` over a matrix), since both are import-bound (ci.yml's comment:
+  601 s importing vs 105 s running). Not built. It needs its own measurement. Fix 2 is the one that
+  removes whole minutes from a merge, and only for migration/driver-release merges.

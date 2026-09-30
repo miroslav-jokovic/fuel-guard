@@ -40,7 +40,9 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. **On a PR, `native-android` skips its
   build unless one of its `NATIVE_INPUTS` changed** (ci.yml says which and why; anything the job
   starts reading goes on that list in the same PR); on main it always builds. A green PR run is
-  @@CI_NUMBER@@ It was 15.7 min before the 2026-09-05 split, and "~3 min" in this file for weeks after
+  **~5.5–6 min** (326–374 s, first three with native skipped, 2026-09-30; median ~370 s over the 37
+  before). Skipping native saved runner minutes, NOT wall time: `test-api` and `test-web` run ~330 s
+  each and are the long pole now. It was 15.7 min before the 2026-09-05 split, and "~3 min" in this file for weeks after
   it had stopped being true. Put a new gate in `gates`; put anything needing `apps/web/dist` in
   `typecheck-build`, which is the only job that builds.
 - **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
