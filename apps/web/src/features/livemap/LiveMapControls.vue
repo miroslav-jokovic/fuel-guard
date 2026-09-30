@@ -82,12 +82,19 @@ const activeLabel = computed(
       floating-ui's `shift` would drag it back, but then it covers the button that opened it.
     -->
     <KebabMenu placement="left-start" :trigger-label="`Basemap: ${activeLabel}`">
+      <!--
+        ⚠ ICON ONLY, owner's ruling 2026-09-30 ("maybe we should leave just the map icon"), which
+        narrows D-LM22: the button no longer shows the active basemap's name on the map. The name is
+        not lost — it is the trigger's accessible name above and the hover title here, and the open
+        panel marks it with `aria-current`. Same 32 px square, surface and ring as the zoom pair, so
+        the three controls read as one column instead of two sizes of button.
+      -->
       <template #trigger>
         <span
-          class="flex items-center gap-1.5 rounded-surface bg-surface px-2.5 py-1.5 text-xs text-ink-secondary shadow-card ring-1 ring-edge-subtle"
+          class="flex size-8 items-center justify-center rounded-surface bg-surface text-ink-secondary shadow-card ring-1 ring-edge-subtle"
+          :title="`Basemap: ${activeLabel}`"
         >
-          <AppIcon :icon="MapIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
-          {{ activeLabel }}
+          <AppIcon :icon="MapIcon" class="size-4" aria-hidden="true" />
         </span>
       </template>
       <!--

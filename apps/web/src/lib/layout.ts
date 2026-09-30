@@ -56,6 +56,17 @@ export function resolveLayout(meta: RouteMeta, isAuthenticated: boolean): Layout
  * document's width and then resized. The URL is also the only place the tab already survives a
  * reload — `DashboardPage` keeps `?tab=` in sync for exactly these two readers.
  */
+/**
+ * The document gutter — the horizontal padding `AppShell` gives every non-full-bleed page.
+ *
+ * ⚠ ONE definition because a full-bleed page can still need it for a single row. The Dashboard's
+ * Dispatch tab drops the gutter so the map reaches the edges, and until 2026-09-30 that took its tab
+ * strip to the sidebar's edge with it, while Fleet overview's sat 32 px in — the owner saw the tabs
+ * jump sideways between the two. The row now asks for THIS gutter rather than restating the three
+ * breakpoints, so the day the shell's gutter changes the tab strip moves with it.
+ */
+export const PAGE_GUTTER_CLASS = "px-4 sm:px-6 lg:px-8";
+
 export function isFullBleed(route: { meta: RouteMeta; query?: Record<string, unknown> }): boolean {
   const declared = route.meta.fullBleed;
   return typeof declared === "function" ? declared(route) === true : declared === true;

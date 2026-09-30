@@ -163,6 +163,24 @@ function toggleState(state: VehicleMapState): void {
         order. The bar is decorative — the tiles carry the same numbers as text.
       -->
       <div class="space-y-2" role="group" aria-label="Filter by status">
+        <!--
+          "All" — the way back that was missing. A tile toggles off when pressed again, but nothing
+          said so, and the owner cleared a filter by reloading the page (2026-09-30). Pressed while no
+          status is chosen, so it also reads as the census's current state: every truck is shown.
+        -->
+        <BaseButton
+          variant="ghost"
+          size="row"
+          class="px-2.5 ring-1 ring-inset"
+          :class="states.length === 0 ? 'bg-surface-subtle ring-edge-strong' : 'ring-edge-subtle'"
+          :aria-pressed="states.length === 0"
+          @click="emit('update:states', [])"
+        >
+          <span class="flex w-full items-center justify-between gap-1.5">
+            <span class="text-xs font-normal text-ink-muted">All trucks</span>
+            <span class="text-sm font-semibold tabular-nums text-ink">{{ censusTotal }}</span>
+          </span>
+        </BaseButton>
         <div
           v-if="censusTotal > 0"
           class="flex h-1.5 gap-px overflow-hidden rounded-full bg-surface-subtle"

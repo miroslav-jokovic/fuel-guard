@@ -15,7 +15,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { moduleEnabled } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
-import { heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
+import { PAGE_GUTTER_CLASS, heroPlate, heroVars, isFullBleed, sidebarIsCollapsed } from "@/lib/layout";
 import { useColorScheme } from "@/composables/useColorScheme";
 import { useModulesQuery } from "@/composables/useModules";
 import NotificationBell from "@/components/NotificationBell.vue";
@@ -452,7 +452,7 @@ async function signOut() {
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
         <div
           class="relative"
-          :class="fullBleed ? 'h-full' : 'w-full px-4 sm:px-6 lg:px-8'"
+          :class="fullBleed ? 'h-full' : ['w-full', PAGE_GUTTER_CLASS]"
           :style="heroStyle"
         >
           <!--

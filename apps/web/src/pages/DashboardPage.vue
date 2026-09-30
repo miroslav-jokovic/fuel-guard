@@ -30,6 +30,7 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { greeting } from "@/lib/greeting";
+import { PAGE_GUTTER_CLASS } from "@/lib/layout";
 import TabWidgets from "@/features/dashboard/TabWidgets.vue";
 import { visibleTabs, initialTab, showsTabStrip } from "@/features/dashboard/dashboardTabs";
 
@@ -184,7 +185,16 @@ const EXPORTS = [
       Pinned by "keeps the strip after picking the workspace tab, so there is a way back" and
       "keeps the Customize teleport target on the workspace tab" in `DashboardPage.shell.test.ts`.
     -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <!--
+      On the workspace tab the SHELL has dropped its gutter so the map can reach the edges, and this
+      row went with it — flush against the sidebar while Fleet overview's strip sat inside the gutter.
+      So the row takes the shell's own gutter back (and the top gap the shell's `py-6` gives a
+      document), and only the map below it is full-bleed.
+    -->
+    <div
+      class="flex flex-wrap items-center justify-between gap-3"
+      :class="workspace ? [PAGE_GUTTER_CLASS, 'pt-6'] : ''"
+    >
       <AppTabs
         v-if="showsStrip"
         v-model="activeKey"
