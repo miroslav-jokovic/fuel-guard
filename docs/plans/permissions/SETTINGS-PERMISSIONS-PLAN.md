@@ -466,3 +466,14 @@ Append a dated line per step. Never edit §3.
   Nothing built. SP5 is re-scoped to §4b.3 (web only, no ruling needed). SP6–SP11 are queued, and
   Q-SET6..Q-SET12 are open.
 - **2026-09-30** — Owner ruled Q-SET6..Q-SET12 as recommended (§5). SP5–SP11 all proceed.
+- **2026-09-30** — **SP10 built** (branch `claude/settings-sp10-who-has-access`, not yet merged). A "Who
+  has access" tab on Permissions: pick a section or screen (every grantable screen plus Q-SET1's four
+  admin-only ones) and every office member is listed with their answer and the layer that gave it —
+  Default / Role / Personal, or Fixed by role, Admin only, No section access, Module off. `GET
+  /api/access-review` returns the org's layers in one response (paged past PostgREST's 1,000 cap);
+  `whoHasAccess` in shared resolves them through `resolveSectionAccess` / `surfaceAllowed`, and the
+  People tab's precedence (`sectionCell`, `surfaceCell`) moved to shared so the file and the page share
+  it. `GET /api/access-review/export.csv` renders the CSV server-side from the same function, dated on
+  the carrier's calendar, and writes `permissions.exported` before it sends the file. If that audit
+  write fails, no file is sent. Driver-app logins are left out, as on the Users page. Suspended members
+  are listed apart and never counted as holders. No migration.
