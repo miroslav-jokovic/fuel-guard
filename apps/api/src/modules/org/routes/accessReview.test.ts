@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
@@ -26,7 +27,11 @@ const auth = vi.hoisted(() => ({ role: "admin" as string }));
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
+// SP9: the export requires a step-up token, verified against the key `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: auth.role, email: "tester@example.test" } as Request["auth"];
@@ -168,7 +173,7 @@ describe("GET /api/access-review/export.csv", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-01T02:00:00Z"));
     const { status, type, text } = await withServer(async (base) => {
-      const res = await fetch(`${base}/api/access-review/export.csv`);
+      const res = await fetch(`${base}/api/access-review/export.csv`, { headers: stepUpHeaders(USER, ORG) });
       return { status: res.status, type: res.headers.get("content-type"), text: await res.text() };
     });
     expect(status).toBe(200);
@@ -193,7 +198,7 @@ describe("GET /api/access-review/export.csv", () => {
   it("produces no file when the export cannot be recorded", async () => {
     audit.ok = false;
     const res = await withServer(async (base) => {
-      const r = await fetch(`${base}/api/access-review/export.csv`);
+      const r = await fetch(`${base}/api/access-review/export.csv`, { headers: stepUpHeaders(USER, ORG) });
       return { status: r.status, body: await r.text() };
     });
     expect(res.status).toBe(500);
@@ -203,8 +208,18 @@ describe("GET /api/access-review/export.csv", () => {
 
   it("refuses anyone but an admin, and records nothing", async () => {
     auth.role = "auditor";
-    const status = await withServer(async (base) => (await fetch(`${base}/api/access-review/export.csv`)).status);
+    const status = await withServer(async (base) => (await fetch(`${base}/api/access-review/export.csv`, { headers: stepUpHeaders(USER, ORG) })).status);
     expect(status).toBe(403);
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("refuses an export without a fresh password (SP9) — no file and nothing recorded", async () => {
+    const res = await withServer(async (base) => {
+      const r = await fetch(`${base}/api/access-review/export.csv`);
+      return { status: r.status, body: await r.text() };
+    });
+    expect(res.status).toBe(403);
+    expect(JSON.parse(res.body).error.code).toBe("step_up_required");
     expect(writeAudit).not.toHaveBeenCalled();
   });
 });

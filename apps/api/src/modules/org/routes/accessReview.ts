@@ -14,6 +14,7 @@ import {
   type UserRole,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -166,6 +167,11 @@ export function accessReviewRouter(): Router {
     "/export.csv",
     requireOrg,
     requireRole("admin"),
+    // SP9 (Q-SET8 (a)): the export is the one READ that also requires the password. It hands over, in one
+    // file, every person's access to every screen and section, which is the map an attacker holding a
+    // stolen session would want first, and it is an audited act. The plain JSON read above is not
+    // gated: the Permissions page shows the same answers one screen at a time already.
+    requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;

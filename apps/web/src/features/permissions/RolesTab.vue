@@ -41,6 +41,13 @@ import {
  * measured rather than incidental — RLS reads sections per row and nothing in RLS reads a surface —
  * so each card's header and each toast say what is actually true of the thing that was just saved.
  */
+/**
+ * Every write on this tab is behind the password step-up (SP9, Q-SET8 (a), 2026-09-30). The page owns
+ * the ONE prompt (`useStepUpRetry` in SettingsPermissionsPage.vue) and hands its `holdForStepUp` down,
+ * so a refusal here opens that prompt and the same write re-runs once the password is confirmed —
+ * one prompt per five minutes of editing, whichever tab the admin is on.
+ */
+const props = defineProps<{ holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean }>();
 const toast = useToastStore();
 const modules = useModulesQuery();
 const sections = useSectionAccessQuery();
@@ -142,6 +149,7 @@ async function saveSection(v: { section: AppSection; access: SectionAccess }) {
     await setSection.mutateAsync({ role: role.value, ...v });
     toast.success("Access updated", SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSection(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
@@ -156,6 +164,7 @@ async function saveSurface(v: { surfaceKey: string; allowed: boolean }) {
     await setSurface.mutateAsync({ role: role.value, ...v });
     toast.success("Screens updated", SURFACE_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSurface(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
@@ -188,6 +197,7 @@ async function resetRole() {
     }
     toast.success(`${USER_ROLE_LABELS[r]} reset to defaults`, SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => resetRole())) return;
     toast.error("Could not reset that role", (e as Error).message);
   }
 }

@@ -11,6 +11,7 @@ import type {
   UserRole,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { apiRefusal } from "@/composables/useStepUpRetry";
 
 /**
  * The permissions page's data layer (S6).
@@ -86,10 +87,17 @@ async function get<T>(path: string): Promise<T> {
   return res.data;
 }
 
-/** ⚠ `apiFetch` serialises the body itself — never `JSON.stringify` into it. */
+/**
+ * ⚠ `apiFetch` serialises the body itself — never `JSON.stringify` into it.
+ *
+ * The refusal is thrown as `apiRefusal` — an Error that keeps the API's `code` — because every one
+ * of these four writes is behind the password step-up since SP9 (Q-SET8 (a), 2026-09-30), and the
+ * tabs can only turn a `step_up_required` into the page's password prompt if the code survives the
+ * throw. A bare `new Error(message)` here made the refusal read as "Could not save that change".
+ */
 async function put(path: string, body: object): Promise<void> {
   const res = await apiFetch(path, { method: "PUT", body });
-  if (!res.ok) throw new Error(res.error?.message ?? "Could not save that change");
+  if (!res.ok) throw apiRefusal(res.error, "Could not save that change");
 }
 
 export const useSectionAccessQuery = () =>

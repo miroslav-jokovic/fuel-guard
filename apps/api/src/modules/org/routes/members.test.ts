@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 
 /**
  * `GET /api/members` and `PATCH /api/members/:id` after 0301 (S9).
@@ -39,7 +40,11 @@ const MEMBER_RPCS = {
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
+// SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: ADMIN, orgId: ORG, role: "admin", email: "admin@example.test" };
@@ -67,6 +72,7 @@ async function call(
   method: string,
   path: string,
   body?: unknown,
+  stepUp = true,
 ): Promise<{ status: number; json: { members?: unknown[]; error?: { code?: string } } | null }> {
   const app = express();
   app.use(express.json());
@@ -77,7 +83,8 @@ async function call(
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/members${path}`, {
       method,
-      headers: { "content-type": "application/json" },
+      // Every write here sends the step-up token the password prompt minted (SP9); a GET ignores it.
+      headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(ADMIN, ORG) : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: res.status, json: (await res.json().catch(() => null)) as { members?: unknown[]; error?: { code?: string } } | null };
@@ -466,5 +473,35 @@ describe("POST /api/members/:id/suspend and /reinstate", () => {
     rec = recorder({ member_set_suspended: null });
     expect((await call("POST", `/${MEMBER}/suspend`)).status).toBe(404);
     expect(sessionsEnded()).toHaveLength(0);
+  });
+});
+
+describe("SP9 · every member write needs the password again (Q-SET8 (a))", () => {
+  /**
+   * The owner ruled 2026-09-30 that every write on the Users page takes the same five-minute step-up
+   * card control uses. A rename rides along: it is the same PATCH as a role change, and one route
+   * cannot ask for the password on half its bodies without reading the body first — see members.ts.
+   * Refused before the handler, so no function ran, nobody's sessions ended and nothing was audited.
+   */
+  it.each([
+    ["DELETE /:id", "DELETE", `/${MEMBER}`, undefined],
+    ["POST /:id/revoke", "POST", `/${MEMBER}/revoke`, undefined],
+    ["PATCH /:id (role)", "PATCH", `/${MEMBER}`, { role: "dispatcher" }],
+    ["PATCH /:id (name only)", "PATCH", `/${MEMBER}`, { fullName: "Shop Lead" }],
+    ["POST /:id/suspend", "POST", `/${MEMBER}/suspend`, undefined],
+    ["POST /:id/reinstate", "POST", `/${SUSPENDED}/reinstate`, undefined],
+  ])("%s without a step-up token answers 403 step_up_required and writes nothing", async (_name, method, path, body) => {
+    const { status, json } = await call(method, path, body, false);
+    expect(status).toBe(403);
+    expect(json?.error?.code).toBe("step_up_required");
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
+    expect(forgetMembership).not.toHaveBeenCalled();
+    expect(revokePushTokens).not.toHaveBeenCalled();
+  });
+
+  it("a read needs no step-up — the list still loads without the token", async () => {
+    expect((await call("GET", "", undefined, false)).status).toBe(200);
   });
 });

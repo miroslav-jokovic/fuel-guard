@@ -5,6 +5,7 @@ import type { Server } from "node:http";
 import { sectionAccess } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 
 /**
  * The permission-override API (D-PERM1, EDITABLE-PERMISSIONS-PLAN.md P1).
@@ -30,7 +31,11 @@ const OUTSIDER = "00000000-0000-4000-8000-000000000011";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: {} }) }));
+// SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "admin", email: "tester@example.test" };
@@ -67,10 +72,11 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 const cellCalls = () =>
   rec.rpcs().filter((r) => r.fn === "write_access_cell").map((r) => r.args as Record<string, unknown>);
 
-const put = (base: string, body: unknown) =>
+/** A write as the page makes it: with the step-up token the password prompt minted (SP9). */
+const put = (base: string, body: unknown, stepUp = true) =>
   fetch(`${base}/api/section-access`, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(USER, ORG) : {}) },
     body: JSON.stringify(body),
   });
 
@@ -248,10 +254,10 @@ describe("PUT /api/section-access", () => {
 // the API reads with the service role, so the `.eq("org_id")` filters are the only isolation there
 // is, and the admin/driver role lock has nowhere else to live on the write path.
 
-const putUser = (base: string, body: unknown) =>
+const putUser = (base: string, body: unknown, stepUp = true) =>
   fetch(`${base}/api/section-access/user`, {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(stepUp ? stepUpHeaders(USER, ORG) : {}) },
     body: JSON.stringify(body),
   });
 
@@ -534,5 +540,27 @@ describe("GET /api/section-access/user/:userId", () => {
     const { status } = await get("not-a-uuid");
     expect(status).toBe(400);
     expect(rec.forTable("memberships")).toHaveLength(0);
+  });
+});
+
+describe("SP9 · a section-access write needs the password again (Q-SET8 (a))", () => {
+  /**
+   * The owner ruled 2026-09-30 that every write on the Permissions page takes the same five-minute
+   * step-up card control uses. The refusal must come BEFORE the handler: no function call, so no cell
+   * changed and no audit row claiming it did. A write that reached `write_access_cell` and was then
+   * refused would still have handed the stolen session its grant.
+   */
+  it.each([
+    ["PUT /", (base: string) => put(base, { role: "dispatcher", section: "safety", access: "manage" }, false)],
+    ["PUT /user", (base: string) => putUser(base, { userId: DISPATCHER, section: "safety", access: "none" }, false)],
+  ])("%s without a step-up token answers 403 step_up_required and writes nothing", async (_name, send) => {
+    await withServer(async (base) => {
+      const res = await send(base);
+      expect(res.status).toBe(403);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("step_up_required");
+    });
+    expect(rec.rpcs()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 });

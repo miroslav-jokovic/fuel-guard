@@ -103,3 +103,15 @@ describe("apiFetch on 401 access_changed", () => {
     expect(auth.signOut).not.toHaveBeenCalled();
   });
 });
+
+describe("apiDownload's refusal keeps the API's code (SP9)", () => {
+  // A download behind `requireFreshAuth` (the access-review export) must reach the page's
+  // `holdForStepUp` as `step_up_required`; a bare sentence would only ever be toasted.
+  it("throws an Error carrying code and message", async () => {
+    respond(403, { error: { code: "step_up_required", message: "Confirm your password" } });
+    const { apiDownload } = await load();
+    const err = (await apiDownload("/api/access-review/export.csv", "a.csv").catch((e: unknown) => e)) as Error & { code?: string };
+    expect(err.message).toBe("Confirm your password");
+    expect(err.code).toBe("step_up_required");
+  });
+});

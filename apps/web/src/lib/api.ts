@@ -194,13 +194,18 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   });
   if (!res.ok) {
     let message = res.statusText;
+    let code: string | undefined;
     try {
-      const body = (await res.json()) as { error?: { message?: string } };
+      const body = (await res.json()) as { error?: { code?: string; message?: string } };
       message = body?.error?.message ?? message;
+      code = body?.error?.code;
     } catch {
       // a non-JSON error body; the status text is what we have
     }
-    throw new Error(message);
+    // The API's `code` travels with the Error (SP9): a download behind `requireFreshAuth` must reach
+    // `holdForStepUp` as `step_up_required`, not as a bare sentence the page can only toast. Callers
+    // that read `.message` see exactly what they did before.
+    throw Object.assign(new Error(message), code ? { code } : {});
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
