@@ -47,6 +47,12 @@ export const NOTIFICATION_CATEGORIES = [
    * in the notification_events CHECK (0232).
    */
   "application_stalled",
+  /**
+   * A fuel card's status changed at EFS without us — the WEX portal, or EFS's own hold (EFS audit,
+   * 2026-09-30; the status poll in efsCardStatusPoll.ts). Office-facing and mutable: somebody who
+   * works in the WEX portal all day may silence it. Mirrored in the notification_events CHECK (0397).
+   */
+  "card_status_changed",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -75,6 +81,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   dq_license_status: "Licence status changes",
   dq_mvr_received: "New driving records",
   application_stalled: "Stalled applications",
+  card_status_changed: "Fuel card status changes",
 };
 
 /**

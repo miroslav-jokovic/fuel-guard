@@ -4,7 +4,7 @@ import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { dqBinderHandler } from "./dqBinder.js";
 import { documentDeriveHandler } from "./documentDerive.js";
-import { efsCardSyncHandler } from "./efsCardSync.js";
+import { efsCardStatusHandler, efsCardSyncHandler } from "./efsCardSync.js";
 import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
@@ -44,6 +44,8 @@ export function registerAllHandlers(): void {
   registerHandler("efs_process_import", efsProcessingHandler);
   // Card mirror sweep. Vendor-calling on the SHARED EFS service account, so kindCaps pins it to 1.
   registerHandler("efs_card_sync", efsCardSyncHandler);
+  // The status poll: same account, same cap of one.
+  registerHandler("efs_card_status", efsCardStatusHandler);
   registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
   registerHandler("rebuild", rebuildHandler);

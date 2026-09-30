@@ -70,8 +70,21 @@ const locationQuerySchema = z.object({
  * grace: late enough that a working system is quiet, early enough that a sweep which did not run is
  * visible before the next one is due.
  */
-const staleAfterMinutes = (env: { EFS_CARD_SYNC_HOURS: number }): number =>
+const detailStaleAfterMinutes = (env: { EFS_CARD_SYNC_HOURS: number }): number =>
   Math.round(env.EFS_CARD_SYNC_HOURS * 60) + 120;
+
+/**
+ * The same question for the ROSTER clock (`synced_at`), which the status poll now moves every few
+ * minutes (EFS audit, 2026-09-30). Three missed polls, never under fifteen minutes. Until the poll
+ * existed both clocks moved daily and one threshold served both — which is how a card's status could
+ * be 25 hours old and still drawn as current. With the poll off (0), the roster is daily again.
+ *
+ * Exported for its test.
+ */
+export const staleAfterMinutes = (env: { EFS_CARD_SYNC_HOURS: number; EFS_CARD_STATUS_POLL_MINUTES: number }): number =>
+  env.EFS_CARD_STATUS_POLL_MINUTES > 0
+    ? Math.max(15, 3 * env.EFS_CARD_STATUS_POLL_MINUTES)
+    : detailStaleAfterMinutes(env);
 
 /** Map a vendor failure to a status an operator can act on, without echoing EFS verbatim. */
 export function efsErrorResponse(res: import("express").Response, error: unknown): void {
@@ -211,6 +224,8 @@ export function fuelCardsRouter(): Router {
       total: count ?? data?.length ?? 0,
       capabilities: access,
       staleAfterMinutes: staleAfterMinutes(env),
+      // The detail pass's clock (`detail_synced_at`) — still daily; override state hangs off it.
+      detailStaleAfterMinutes: detailStaleAfterMinutes(env),
     });
   }));
 
@@ -331,6 +346,8 @@ export function fuelCardsRouter(): Router {
       },
       capabilities: access,
       staleAfterMinutes: staleAfterMinutes(env),
+      // The detail pass's clock (`detail_synced_at`) — still daily; override state hangs off it.
+      detailStaleAfterMinutes: detailStaleAfterMinutes(env),
     });
   }));
 
