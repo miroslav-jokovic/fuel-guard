@@ -46,6 +46,14 @@ on:
 # mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
 # cancelled, because migrate.yml gates production schema changes on the CI run for that exact SHA
 # (.github/actions/require-ci-green) and a cancelled run reads to it as a failed deploy.
+# ⚠ On the Mac, vitest is capped at 3 workers per job. Its default is one per core, so five jobs
+# sharing 14 cores started ~65 workers: the first run measured a load average of 58 with 0% idle,
+# and eight tests that take under a second on an idle Mac hit vitest's 5 s timeout (the capture
+# parity test: 0.8 s idle). 5 runners × 3 ≈ the 14 cores. Empty on GitHub's machines, where each job
+# has its own four cores and vitest ignores an empty value.
+env:
+  VITEST_MAX_WORKERS: ${{ vars.CI_RUNNER && '3' || '' }}
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
