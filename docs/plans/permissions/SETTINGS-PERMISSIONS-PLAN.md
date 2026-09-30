@@ -276,3 +276,9 @@ Append a dated line per step. Never edit §3.
   the table's 5,064,904 rows are pre-0352 `vehicle.update`/`driver.update` rows with no actor and
   `meta = '{}'`. The owner reopened the lifecycle plan's Q1 and ruled (b): archive those rows, then
   drop them with L7. See DATA-LIFECYCLE-PLAN.md. SP4 PR 2 (drop `audit_select`) is unaffected.
+- **2026-09-30** — SP4 PR 1 merged (#1145, `1de0ea1`). SP4 PR 2 built: migration 0391 drops
+  `audit_select`, the table's only policy. Production was re-read first and matched 0004. No client
+  reader is left: the only `from("audit_logs")` readers are service-role, no view reads the table, and
+  `purge_applicant` is security definer. `rls.test.mjs` now expects every role in the `user_role` enum
+  refused, read from the enum rather than listed, so the auditor and the admin are included. Recreating
+  0004's policy, keeping it undropped, and an org-wide read policy each fail the cases (3 of 3).
