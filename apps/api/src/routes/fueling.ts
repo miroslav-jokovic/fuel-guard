@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { registerPlanRoutes, registerMapRoutes, registerStationRoutes } from "../modules/routing/index.js";
+import { registerPlanRoutes, registerMapRoutes, registerStationRoutes, registerFuelSettingsRoutes } from "../modules/routing/index.js";
 import { registerNetworkRoutes } from "../modules/posted-prices/index.js";
 import { registerStatementRoutes } from "../modules/fuel-spend/index.js";
 import { registerDiscountRuleRoutes, registerFuelExportRoutes } from "../modules/fuel/index.js";
@@ -17,6 +17,7 @@ import { registerFeedFreshnessRoutes, registerEfsExportRoutes } from "../modules
  *  - `fueling/stations`  — the Truck Stops listing with each station's effective planning price
  *  - `fueling/spend`     — rebuild of the daily fuel-spend rollup (reads go direct to PostgREST)
  *  - `fueling/exports`   — a scoped CSV per fuel list, from the module that owns each table (P2)
+ *  - `fueling/settings`  — Settings → Planned fueling's save (SP2, SETTINGS-PERMISSIONS-PLAN.md)
  * All share ONE router + the `requireAuth` gate, so mounting (`/api/fueling`) and behavior are unchanged.
  */
 export function fuelingRouter(): Router {
@@ -27,6 +28,7 @@ export function fuelingRouter(): Router {
   registerNetworkRoutes(router);
   registerStatementRoutes(router);
   registerDiscountRuleRoutes(router);
+  registerFuelSettingsRoutes(router);
   registerStationRoutes(router);
   registerSpendRoutes(router);
   registerExceptionRoutes(router);

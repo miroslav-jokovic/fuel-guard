@@ -54,6 +54,36 @@ export const orgSettingsFormSchema = z.object({
 });
 export type OrgSettingsForm = z.infer<typeof orgSettingsFormSchema>;
 
+/**
+ * The two halves of `organizations` that two Settings screens write (SETTINGS-PERMISSIONS-PLAN.md
+ * SP2), each behind its own screen's permission. PICKED from the one schema above, not restated.
+ *
+ * ⚠ Split for more than the permission. Both pages used to send the WHOLE row, each passing the
+ * other's fields "through unchanged" — and the Notifications page did not pass the DOT number or
+ * the address, which the save wrote as null. Saving Notifications erased them (measured
+ * 2026-09-30: production's carrier row held both, one Notifications save from losing them). A
+ * page that can only send its own fields cannot erase anybody else's.
+ *
+ * `allowed_domains` is in neither, deliberately: the Organization page shows it, but no save has
+ * ever written it (checked back to the initial commit), and it decides who may be invited. Making
+ * it save now would switch that restriction on as a side effect — it waits on the owner (Q-SET4).
+ */
+export const orgProfileFormSchema = orgSettingsFormSchema.pick({
+  name: true,
+  dot_number: true,
+  address_line1: true,
+  city: true,
+  state: true,
+  postal_code: true,
+  operating_hours: true,
+});
+export type OrgProfileForm = z.infer<typeof orgProfileFormSchema>;
+export const orgNotificationsFormSchema = orgSettingsFormSchema.pick({
+  notifications_enabled: true,
+  notification_emails: true,
+});
+export type OrgNotificationsForm = z.infer<typeof orgNotificationsFormSchema>;
+
 /** An audit log row as the viewer reads it. */
 export interface AuditLog {
   id: string;
