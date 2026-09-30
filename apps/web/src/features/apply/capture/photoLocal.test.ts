@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import { effectScope, ref } from "vue";
-import type { CaptureProvider, CapturedPage } from "@silvicom/capture-engine";
+import type { CapturedPage } from "@silvicom/capture-engine";
 import type { ApplicationCaptureView } from "@silvicom/shared";
 import { PHOTO_COPY_TTL_MS, keepPhoto, readKeptPhoto, serverIsNewer, type KeptPhoto } from "./photoLocal";
 import { readCopy } from "../deviceCopies";
 import type { CaptureIo } from "./stageCapture";
+import type { WebCaptureProvider } from "./webFileProvider";
 import { useApplicationCaptures } from "./useApplicationCaptures";
 
 /**
@@ -26,8 +27,9 @@ const BYTES = "the encoded licence";
 
 const page = (): CapturedPage =>
   ({ originalOfRecord: { uri: "blob:taken", width: 1568, height: 990, bytes: 19, mediaType: "image/webp" }, integrityHash: HASH }) as unknown as CapturedPage;
-const provider: CaptureProvider = {
+const provider: WebCaptureProvider = {
   id: "t", version: "0", cancel: () => {},
+  takeBytes: () => new Blob([BYTES], { type: "image/webp" }),
   isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
   scan: async () => ({ ok: true, pages: [page()] }),
 };
@@ -63,7 +65,9 @@ const offline = () => Promise.reject(new TypeError("Failed to fetch"));
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
-  vi.stubGlobal("fetch", vi.fn(async () => ({ blob: async () => new Blob([BYTES], { type: "image/webp" }) })));
+  // ⚠ `fetch` refuses, as production's CSP does for a `blob:` URL (no `blob:` in `connect-src`, 2026-09-30):
+  // the bytes kept and sent are the ones the provider handed over (`takeBytes`), never read back.
+  vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   // jsdom has no createObjectURL at all; the put-back path makes one for the preview.
   (URL as unknown as { createObjectURL: (b: Blob) => string }).createObjectURL = vi.fn(() => "blob:put-back");

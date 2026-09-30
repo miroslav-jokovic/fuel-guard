@@ -21,12 +21,27 @@ import { driverPlacements, PERMISSION_SIGNATURE_DESTINATION, signingPlaceDestina
  *
  * ⚠ Everything that is not the page's own origin is refused — Supabase, Sentry, fonts. The specs must
  * never reach a real service, and a request nobody stubbed failing loudly is better than one quietly
- * answered by production.
+ * answered by production. The one exception is the storage upload, answered here on a Supabase-shaped
+ * host (`STORAGE_ORIGIN`) — see there for why it may not be on this origin.
  */
 
 /** Where `playwright.apply.config.ts` serves the built app — one number, read by both. */
 export const APPLY_E2E_PORT = 4191;
 export const ORIGIN = `http://127.0.0.1:${APPLY_E2E_PORT}`;
+
+/**
+ * Where the capture start sends the photograph: a Supabase host, because production's does.
+ *
+ * ⚠ It used to be this origin (`/__storage/…`), which `connect-src 'self'` always allows — so the specs
+ * could not see the second rule a real upload must pass, `https://*.supabase.co`. Now the page is served
+ * under production's CSP (`serveWebDist.ts`) and the URL has the shape `createSignedUploadUrl` returns
+ * (supabase-js 2.110: `SUPABASE_URL + /storage/v1/object/upload/sign/<bucket>/<path>?token=…`), so a CSP
+ * that stopped admitting Supabase fails here. The host resolves nowhere: `page.route` answers it inside
+ * the browser, and no request leaves the machine.
+ */
+export const STORAGE_ORIGIN = "https://e2e-stub.supabase.co";
+/** The upload's path on `STORAGE_ORIGIN`, for `cut()`. */
+export const STORAGE_UPLOAD = /^\/storage\/v1\/object\/upload\/sign\//;
 
 export const TOKEN = "e2e".repeat(14) + "x";
 export const CARRIER = "Silvicom Inc";
@@ -236,8 +251,9 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
   // Anything that is not this origin: refused (see the header).
   await page.route((url) => url.origin !== origin, (route) => route.abort("blockedbyclient"));
 
-  // The storage upload the capture start hands out, on this origin so no real bucket is ever named.
-  await page.route(`${origin}/__storage/**`, async (route) => {
+  // The storage upload the capture start hands out (`STORAGE_ORIGIN`). Registered after the refusal above,
+  // so it wins for this one host: Playwright tries the most recently registered route first.
+  await page.route(`${STORAGE_ORIGIN}/storage/v1/object/upload/sign/**`, async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     state.calls.push({ method: req.method(), path, body: null });
@@ -280,7 +296,8 @@ export async function stubApi(page: Page, bundle: Json): Promise<Stub> {
       const captureId = `cap-${++seq}`;
       return json(route, 201, {
         captureId, storagePath: `e2e/${captureId}`, uploadToken: "t",
-        uploadUrl: `${origin}/__storage/upload/${captureId}`, slot: b.slot,
+        uploadUrl: `${STORAGE_ORIGIN}/storage/v1/object/upload/sign/application-captures/e2e/${captureId}?token=t`,
+        slot: b.slot,
       });
     }
     const confirm = /^\/capture\/([^/]+)$/.exec(rest);

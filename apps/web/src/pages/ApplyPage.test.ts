@@ -34,6 +34,7 @@ vi.mock("vue-router", () => ({ useRoute: () => ({ params: { token: "t".repeat(43
 vi.mock("@/features/apply/capture/webFileProvider", () => ({
   createWebFileProvider: () => ({
     id: "t", version: "0", cancel: () => {},
+    takeBytes: () => new Blob(["x"], { type: "image/webp" }),
     isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
     scan: async () => ({
       ok: true,

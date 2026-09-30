@@ -1,7 +1,6 @@
 import { computed, onScopeDispose, reactive, ref, type Ref } from "vue";
 import {
   BUNDLED_DEFAULT_CONFIG,
-  type CaptureProvider,
   type RejectionReason,
 } from "@silvicom/capture-engine";
 import {
@@ -14,7 +13,7 @@ import {
 import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
-import { createWebFileProvider } from "./webFileProvider";
+import { createWebFileProvider, type WebCaptureProvider } from "./webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
 
 /**
@@ -98,7 +97,11 @@ export function useApplicationCaptures(
   token: Ref<string>,
   already: Ref<ApplicationCaptureView[]>,
   options: {
-    provider?: CaptureProvider;
+    /**
+     * A WEB provider, because this composable sends bytes and only the provider that issued a page can
+     * produce them (`takeBytes`). Reading them back from the page's URL is what production's CSP refused.
+     */
+    provider?: WebCaptureProvider;
     io?: CaptureIo;
     /**
      * The slots this screen asks for, when it is not all of them (AF3). The identity step takes the
@@ -236,7 +239,10 @@ export function useApplicationCaptures(
       }
       const page = result.pages[0];
       const contentType = page ? captureContentType(page.originalOfRecord.mediaType) : null;
-      if (!page || !contentType) {
+      // Taken now, while the page is fresh: `use` sends these bytes and never reads the URL (the header of
+      // `webFileProvider.ts` — reading it back is what production's CSP refused).
+      const blob = page ? provider.takeBytes(page.originalOfRecord.uri) : null;
+      if (!page || !contentType || !blob) {
         if (page) URL.revokeObjectURL(page.originalOfRecord.uri);
         forget(slot);
         mark(slot, "failed", { failure: "network", source: from, pending: false });
@@ -244,7 +250,7 @@ export function useApplicationCaptures(
       }
       // The new photograph REPLACES whatever the slot showed, and that one is revoked on the spot (X6).
       forget(slot);
-      held[slot] = { uri: page.originalOfRecord.uri, integrityHash: page.integrityHash, contentType, original: picked };
+      held[slot] = { uri: page.originalOfRecord.uri, blob, integrityHash: page.integrityHash, contentType, original: picked };
       previews[slot] = page.originalOfRecord.uri;
       mark(slot, "review", { source: from, pending: true });
     } catch {
@@ -268,9 +274,7 @@ export function useApplicationCaptures(
     busy.value = slot;
     mark(slot, "working");
     try {
-      // The provider hands back an object URL rather than the blob; reading it back is how the bytes
-      // are recovered without widening the engine's contract for one consumer.
-      const blob: Blob = photo.blob !== undefined ? photo.blob : await fetch(photo.uri).then((r) => r.blob());
+      const blob = photo.blob;
       // C3d2: on the phone BEFORE the first byte goes, so no cut after this point can lose it. A put that
       // fails (storage blocked) resolves, and the send goes ahead as it did before C3d2.
       const where = spec();
@@ -402,6 +406,10 @@ interface Held {
   original: File | null;
   /** Put back from the phone (C3d2): already kept, so `use` does not write it again. */
   kept?: boolean;
-  /** The bytes themselves, when they are already in hand (a put-back photograph), so `use` need not re-read its own URL. */
-  blob?: Blob;
+  /**
+   * The bytes `use` sends — always in hand, from the provider (`takeBytes`) or from the phone (C3d2).
+   * ⚠ Never recovered by `fetch(uri)`: that is a connection under CSP, and production's `connect-src` has
+   * no `blob:` (2026-09-30, the header of `webFileProvider.ts`).
+   */
+  blob: Blob;
 }
