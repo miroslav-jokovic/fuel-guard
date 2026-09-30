@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { orgSettingsFormSchema, type OrgSettingsForm } from "@silvicom/shared";
-import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
+import { orgNotificationsFormSchema } from "@silvicom/shared";
+import { useOrgSettingsQuery, useSaveOrgNotifications } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -11,7 +11,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
-const save = useSaveOrgSettings();
+const save = useSaveOrgNotifications();
 
 const form = reactive({
   notifications_enabled: true,
@@ -32,14 +32,11 @@ const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
 
 async function onSave() {
-  const o = data.value;
-  if (!o) return;
+  if (!data.value) return;
   const emails = form.emails.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
-  // Pass the org's other settings through unchanged — this page only edits the notification fields.
-  const result = orgSettingsFormSchema.safeParse({
-    name: o.name,
-    allowed_domains: o.allowed_domains ?? [],
-    operating_hours: o.operating_hours,
+  // Only this page's two fields go (SP2). It used to send the whole row, passing the rest "through
+  // unchanged" — except the DOT number and the address, which it left out and the save then nulled.
+  const result = orgNotificationsFormSchema.safeParse({
     notifications_enabled: form.notifications_enabled,
     notification_emails: emails,
   });
@@ -54,7 +51,7 @@ async function onSave() {
   }
   fieldErr.value = {};
   try {
-    await save.mutateAsync(result.data as OrgSettingsForm);
+    await save.mutateAsync(result.data);
     toast.success("Notification settings saved");
   } catch (e) {
     toast.error("Could not save notifications", e instanceof Error ? e.message : undefined);

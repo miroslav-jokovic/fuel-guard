@@ -164,6 +164,20 @@ policy is live (`lint:migration-ordering`).
     admin and auditor, the two that can open it today. Under Q-SET2 as revised, it starts off for the
     auditor too.
 
+- **Q-SET4 · "Allowed domains" on the Organization page has never saved.** OPEN, found building SP2
+  (2026-09-30). The field shows `organizations.allowed_domains` and accepts edits, but no save has ever
+  written it, back to the initial commit. The column is not inert: invitations refuse an email outside
+  the list when the list is non-empty (`isEmailDomainAllowed`, `invites.ts`). Production's two orgs
+  both hold `{}`, so nobody is restricted today.
+  - *(a)* Make it save, through SP2's Organization endpoint. The first save with a domain typed in then
+    starts refusing invitations to other domains. That is the field's stated purpose, but nobody has
+    ever seen it do that.
+  - *(b)* Take the field off the page, and leave the column for platform admins (`apps/admin`).
+  - *(c)* Leave it as it is. It's a control that silently does nothing.
+  - *Recommendation: **(a)**,* with the page saying plainly that it restricts invitations. That is
+    what the hint text already promises. SP2 shipped with it still unsaved and labelled, so that
+    SP2 changes no behaviour.
+
 ---
 
 ## 6. Progress log
@@ -192,3 +206,13 @@ Append a dated line per step. Never edit §3.
   `/reefer-coverage`), the Anomalies page's `/settings/data` button (`can("safety")`), and the
   Odometer and Coverage pages' text links. Nothing is exposed (the guard refuses them), but they are
   dead links. They are SP5 material.
+- **2026-09-30** — SP2 built. Organization and Notifications save through `PUT /api/org-settings/profile`
+  and `/notifications`. Planned fueling saves through `PUT /api/fueling/settings`. Each asks its
+  screen's section and then the screen (`requireSurface`). Thresholds, Driver performance and discount
+  rules moved from `requireSection("admin")` to the same pair. After this, a Settings screen the admin
+  grants can save, where before it opened and refused. On the way: the Notifications page's save had
+  been writing the DOT number and address as null, because each page wrote the whole row. Now each
+  endpoint writes only its own columns. The two web writers came off the table-writers ratchet.
+  Q-SET4 (allowed domains never saved) is open. **SP3 may go once this is live:** drop
+  `organizations_update`, `thresholds_write`, `dps_write`, `route_fuel_settings_write`,
+  `fuel_discount_write`.

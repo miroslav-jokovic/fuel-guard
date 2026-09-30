@@ -1,5 +1,6 @@
 import type { Router } from "express";
 import { requireSection, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -31,12 +32,15 @@ export function registerPerformanceIntegrationRoutes(router: Router): void {
   );
 
 
-  // P6.1: the settings write comes off the browser and through the owner. Admin only, exactly
-  // as the dps_write RLS policy (0053) always said.
+  // P6.1: the settings write comes off the browser and through the owner. Admin only, as the
+  // dps_write RLS policy (0053) said, until SP2 (SETTINGS-PERMISSIONS-PLAN.md) made Driver
+  // performance a screen an admin can grant: the screen's section, then the screen (D-SURF5), which
+  // starts off for every role but the admin (Q-SET2).
   router.post(
     "/driver-performance/settings",
     requireOrg,
-    requireSection("admin"),
+    requireSection("settings"),
+    requireSurface("admin.settings.driver-performance"),
     validateBody(performanceSettingsFormSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

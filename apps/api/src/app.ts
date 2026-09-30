@@ -21,7 +21,7 @@ import { registerAllHandlers } from "./queue/handlers/index.js";
 import { invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
-import { dashboardLayoutRouter, savedViewsRouter } from "./modules/org/index.js";
+import { dashboardLayoutRouter, orgSettingsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
@@ -229,6 +229,8 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/surface-access", surfaceAccessRouter());
   // A bookmark belonging to the caller — no role gate; see the router's header.
   app.use("/api/saved-views", savedViewsRouter());
+  // SP2 (SETTINGS-PERMISSIONS-PLAN.md): Organization and Notifications save here, each on its own screen.
+  app.use("/api/org-settings", orgSettingsRouter());
   // The caller's own Dashboard arrangement (LM10, D-DW3). A preference, not a permission, so it sits
   // beside saved views rather than beside the two access routers above: no role gate, no audit row.
   app.use("/api/dashboard-layout", dashboardLayoutRouter());

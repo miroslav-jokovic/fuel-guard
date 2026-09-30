@@ -388,7 +388,7 @@
   ],
   "organizations": [
     "apps/api/src/modules/org/digestScheduler.ts",
-    "apps/web/src/composables/useOrgSettings.ts"
+    "apps/api/src/modules/org/routes/orgSettings.ts"
   ],
   "part_stock": [
     "apps/api/src/modules/maintenance/inventory/stockSettings.ts",
@@ -421,7 +421,7 @@
   ],
   "route_fuel_settings": [
     "apps/api/src/modules/posted-prices/routes/networks.ts",
-    "apps/web/src/composables/useRouteFuelSettings.ts"
+    "apps/api/src/modules/routing/routeFuelSettings.ts"
   ],
   "route_geometries": [
     "apps/api/src/modules/routing/routeGeometry.ts"

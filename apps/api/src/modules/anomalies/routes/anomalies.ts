@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema, type AnomalyTransition, type AnomalyStatus } from "@silvicom/shared";
 import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -15,12 +16,15 @@ export function anomaliesRouter(): Router {
   router.use(requireAuth);
 
   // P6.1: the thresholds write comes off the browser and through the owner. Registered BEFORE
-  // the /:id routes so the literal segment can never be captured as an id. Mirrors the RLS
-  // write policy exactly: admin only (rolesThatManage("admin") is the derived form of it).
+  // the /:id routes so the literal segment can never be captured as an id. Admin-only until SP2
+  // (SETTINGS-PERMISSIONS-PLAN.md), which made Anomaly thresholds a screen an admin can grant: it
+  // asks the screen's section, then the screen (D-SURF5 — no other screen saves thresholds), and
+  // the screen starts off for every role but the admin (Q-SET2), so nobody gains it by deploy.
   router.post(
     "/thresholds",
     requireOrg,
-    requireSection("admin"),
+    requireSection("settings"),
+    requireSurface("admin.settings.thresholds"),
     validateBody(thresholdsFormSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

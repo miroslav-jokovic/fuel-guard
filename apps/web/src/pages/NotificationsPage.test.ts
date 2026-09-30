@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 
 /**
@@ -10,12 +10,21 @@ import { createPinia, setActivePinia } from "pinia";
  * and the rest without a word. Pinned: it is named as the carrier's alerts, and the page says what it stops,
  * including the one alert that ignores it.
  */
+const saved = vi.hoisted(() => [] as unknown[]);
 vi.mock("@/composables/useOrgSettings", () => ({
   useOrgSettingsQuery: () => ({
-    data: ref({ name: "Silvicom Inc", notifications_enabled: true, notification_emails: ["ops@silvicominc.com"] }),
+    // The row as the page reads it — DOT number and address included, which is what the save must
+    // leave alone (SP2).
+    data: ref({
+      name: "Silvicom Inc",
+      dot_number: "1234567",
+      address_line1: "1 Main St",
+      notifications_enabled: true,
+      notification_emails: ["ops@silvicominc.com"],
+    }),
     isLoading: ref(false),
   }),
-  useSaveOrgSettings: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
+  useSaveOrgNotifications: () => ({ mutateAsync: vi.fn(async (v: unknown) => void saved.push(v)), isPending: ref(false) }),
 }));
 
 const NotificationsPage = (await import("@/pages/NotificationsPage.vue")).default;
@@ -43,5 +52,20 @@ describe("the carrier's alert switch", () => {
       expect(w.text(), alert).toContain(alert);
     }
     expect(w.text()).toContain("An EFS certificate that has already expired is emailed even when this is off");
+  });
+});
+
+/**
+ * SP2. This page used to send the whole `organizations` row, "passing the rest through" — without
+ * the DOT number or the address, which the save then wrote as null. It now sends its two fields to
+ * an endpoint that can write only those.
+ */
+describe("saving", () => {
+  it("sends the two notification fields and nothing else", async () => {
+    setActivePinia(createPinia());
+    const w = mount(NotificationsPage, { global: { stubs: { PageHeader: true } } });
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect(saved).toEqual([{ notifications_enabled: true, notification_emails: ["ops@silvicominc.com"] }]);
   });
 });

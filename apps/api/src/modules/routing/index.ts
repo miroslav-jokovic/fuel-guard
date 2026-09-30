@@ -19,3 +19,4 @@ export { saveFuelPlanHistory } from "./fuelPlanHistory.js";
 export { registerPlanRoutes } from "./routes/plans.js";
 export { registerStationRoutes } from "./routes/stations.js";
 export { registerMapRoutes } from "./routes/mapProxies.js";
+export { registerFuelSettingsRoutes } from "./routes/fuelSettings.js";

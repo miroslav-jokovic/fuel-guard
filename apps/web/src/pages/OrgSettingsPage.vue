@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { orgSettingsFormSchema, type OrgSettingsForm } from "@silvicom/shared";
-import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
+import { orgProfileFormSchema } from "@silvicom/shared";
+import { useOrgSettingsQuery, useSaveOrgProfile } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -12,7 +12,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
-const save = useSaveOrgSettings();
+const save = useSaveOrgProfile();
 
 const form = reactive({
   name: "",
@@ -21,13 +21,14 @@ const form = reactive({
   city: "",
   state: "",
   postalCode: "",
+  // ⚠ Shown and never saved — no save has written `allowed_domains` since the initial commit, and it
+  // decides who may be invited, so SP2 did not start writing it as a side effect. The owner's call
+  // (Q-SET4, SETTINGS-PERMISSIONS-PLAN.md §5): save it, or take the field off.
   allowedDomains: "",
   open24_7: false,
   start: "05:00",
   end: "20:00",
   tz: "America/Chicago",
-  notifications_enabled: true,
-  emails: "",
 });
 
 watch(
@@ -47,8 +48,6 @@ watch(
     form.start = form.open24_7 ? "05:00" : oStart; // keep sensible values behind the toggle
     form.end = form.open24_7 ? "20:00" : oEnd;
     form.tz = o.operating_hours?.tz ?? "America/Chicago";
-    form.notifications_enabled = o.notifications_enabled;
-    form.emails = (o.notification_emails ?? []).join(", ");
   },
   { immediate: true },
 );
@@ -57,28 +56,18 @@ const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
 
 async function onSave() {
-  const emails = form.emails
-    .split(/[,\s]+/)
-    .map((e) => e.trim())
-    .filter(Boolean);
-  const domains = form.allowedDomains
-    .split(/[,\s]+/)
-    .map((d) => d.trim().toLowerCase())
-    .filter(Boolean);
-  const result = orgSettingsFormSchema.safeParse({
+  // Only this page's own columns (SP2) — Notifications saves its two on its own screen.
+  const result = orgProfileFormSchema.safeParse({
     name: form.name,
     dot_number: form.dotNumber.trim(),
     address_line1: form.addressLine1.trim(),
     city: form.city.trim(),
     state: form.state.trim(),
     postal_code: form.postalCode.trim(),
-    allowed_domains: domains,
     // 24/7 is encoded as start === end (the off-hours rule then never fires).
     operating_hours: form.open24_7
       ? { start: "00:00", end: "00:00", tz: form.tz }
       : { start: form.start, end: form.end, tz: form.tz },
-    notifications_enabled: form.notifications_enabled,
-    notification_emails: emails,
   });
   if (!result.success) {
     const m: Record<string, string> = {};
@@ -91,7 +80,7 @@ async function onSave() {
   }
   fieldErr.value = {};
   try {
-    await save.mutateAsync(result.data as OrgSettingsForm);
+    await save.mutateAsync(result.data);
     toast.success("Settings saved");
   } catch (e) {
     toast.error("Could not save settings", e instanceof Error ? e.message : undefined);

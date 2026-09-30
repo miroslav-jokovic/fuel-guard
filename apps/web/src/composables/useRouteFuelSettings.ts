@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
 import { fuelPolicyFromSettings, routeFuelSettingsFormSchema, type FuelPolicy, type RouteFuelSettingsForm } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -36,17 +37,18 @@ export function useRouteFuelSettings() {
   });
 }
 
-/** Save the org's planned-fueling settings (admin only, enforced by RLS). */
+/**
+ * Save the org's planned-fueling settings — through the API since SP2, which asks the screen's own
+ * permission (`dispatch` manage + Planned fueling); the browser upserted the table until then.
+ */
 export function useSaveRouteFuelSettings() {
   const qc = useQueryClient();
   const session = useSessionStore();
   return useMutation({
     mutationFn: async (form: RouteFuelSettingsForm): Promise<void> => {
       if (!session.orgId) throw new Error("No active organization.");
-      const { error } = await supabase
-        .from("route_fuel_settings")
-        .upsert({ org_id: session.orgId, ...form, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
-      if (error) throw new Error(error.message);
+      const r = await apiFetch("/api/fueling/settings", { method: "PUT", body: form });
+      if (!r.ok) throw new Error(r.error?.message ?? "Could not save planned-fueling settings");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["route_fuel_settings"] }),
   });
