@@ -11,10 +11,13 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { formatDateTime as fmtDateTime } from "@/lib/format";
+import GatedLink from "@/components/GatedLink.vue";
+import { useOpens } from "@/composables/useOpens";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
 const { data: vehicles } = useVehiclesQuery();
+const opens = useOpens();
 
 const unit = (id: string) => vehicles.value?.find((v) => v.id === id)?.unit_number ?? id;
 const trucks = computed(() => data.value?.perTruck ?? []);
@@ -178,10 +181,12 @@ const columns: DataTableColumn[] = [
           Fueling-time confidence
         </h3>
         <p class="text-xs text-ink-tertiary">
-          Last telematics match: {{ fmtDateTime(data.lastReconciledAt) }} ·
-          <RouterLink to="/settings/data" class="text-link hover:text-link-hover"
-            >Re-sync</RouterLink
-          >
+          Last telematics match: {{ fmtDateTime(data.lastReconciledAt) }}
+          <!-- SP5: Coverage is `settings` view, Data & sync is `settings` manage — a reader of one may not open the other. -->
+          <template v-if="opens('/settings/data')">
+            ·
+            <RouterLink to="/settings/data" class="text-link hover:text-link-hover">Re-sync</RouterLink>
+          </template>
         </p>
       </div>
       <div class="mt-2 flex flex-wrap gap-2 text-sm">
@@ -235,11 +240,9 @@ const columns: DataTableColumn[] = [
         @retry="refetch"
       >
         <template #cell-vehicleId="{ row }">
-          <RouterLink
-            :to="`/vehicles/${row.vehicleId}`"
-            class="text-link hover:text-link-hover"
-            >{{ unit(row.vehicleId) }}</RouterLink
-          >
+          <GatedLink :to="`/vehicles/${row.vehicleId}`" class="text-link hover:text-link-hover">{{
+            unit(row.vehicleId)
+          }}</GatedLink>
         </template>
         <template #cell-fills="{ value }">{{ value.toLocaleString() }}</template>
         <template #cell-blindFills="{ row }">

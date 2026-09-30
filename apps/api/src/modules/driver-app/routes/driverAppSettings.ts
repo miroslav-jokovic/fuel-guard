@@ -34,12 +34,18 @@ const httpFor = (code: string): number =>
 /**
  * Driver-app control plane — /api/driver-app/* (hardening plan Phase 5, D-PM6).
  *
- * Two write populations, deliberately different:
- *   * ORG SETTINGS (what every driver sees + behavior config) ride `fleet: manage`
- *     — admin + fleet_manager, the roles that own org-wide operating policy.
- *   * PER-DRIVER OVERRIDES (pilots, exceptions) additionally admit `dispatcher`
- *     (`dispatch: manage`) — day-to-day exception handling is dispatch work.
- * Reads admit the matching view roles so an auditor can inspect without touching.
+ * Two write populations, deliberately different, each a section read from the ORG's matrix (the
+ * `sections` claim) by `requireSection` — never a role list:
+ *   * ORG SETTINGS (what every driver sees + behavior config) and the closure queue ride
+ *     `roster: manage` (`settingsManage`) — the section that issues and revokes a driver's login.
+ *   * PER-DRIVER OVERRIDES (pilots, exceptions) ride `dispatch: manage` (`overridesManage`) — a
+ *     SEPARATE section, not a widening of the first: day-to-day exception handling is dispatch work,
+ *     so a role holding roster manage without dispatch manage can set org policy but not an exception.
+ * Reads take the matching `view` level of the same section, so an auditor can inspect without touching.
+ *
+ * ⚠ This header said `fleet: manage` and "admin + fleet_manager" until SP5 (plan §4b, 2026-09-30),
+ * and the web route's comment said `rolesThatManage("roster")`. Neither was what the code did; both
+ * now say what it does. No behaviour changed with them.
  *
  * This router is the ONLY door to these tables (0134: RLS on, zero policies) and every write is
  * audited with before-less after-state (the tables are current-value; history lives in audit_log).

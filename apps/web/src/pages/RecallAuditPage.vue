@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { RouterLink } from "vue-router";
 import { useAuditSample, useRecallMetrics, useRecordVerdict, type SampledFill } from "@/features/anomalies/useRecallAudit";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
+import GatedLink from "@/components/GatedLink.vue";
 import type { AuditVerdict } from "@silvicom/shared";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
@@ -17,6 +18,13 @@ const { data: sample, isLoading, isError, error, refetch, isFetching } = useAudi
 const { data: metrics } = useRecallMetrics();
 const { data: vehicles } = useVehiclesQuery();
 const record = useRecordVerdict();
+/**
+ * The page is `settings` VIEW; recording a verdict is `POST /api/audit/transaction/:id`, which is
+ * `requireSection("settings")` — manage (SP5, plan §4b). Before SP5 the two buttons showed to every
+ * reader of the page and a viewer's press came back 403. A viewer now reads the batch without them.
+ */
+const session = useSessionStore();
+const canJudge = computed(() => session.can("settings"));
 
 const unit = (id: string | null) => (id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? id) : "—");
 
@@ -104,7 +112,7 @@ function loadNewBatch() {
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <RouterLink v-if="f.vehicleId" :to="`/vehicles/${f.vehicleId}`" class="text-sm font-semibold text-link hover:text-link-hover">{{ unit(f.vehicleId) }}</RouterLink>
+              <GatedLink v-if="f.vehicleId" :to="`/vehicles/${f.vehicleId}`" class="text-sm font-semibold text-link hover:text-link-hover" plain-class="text-sm font-semibold text-ink">{{ unit(f.vehicleId) }}</GatedLink>
               <span v-else class="text-sm font-semibold text-ink">—</span>
               <span class="text-xs text-ink-tertiary">{{ fmtDate(f.fueledAt) }}</span>
             </div>
@@ -117,7 +125,7 @@ function loadNewBatch() {
               <div class="col-span-2"><dt class="text-xs text-ink-tertiary">Samsara saw</dt><dd class="truncate text-ink-secondary">{{ [f.observedCity, f.observedState].filter(Boolean).join(", ") || "—" }}</dd></div>
             </dl>
           </div>
-          <div class="flex shrink-0 gap-2">
+          <div v-if="canJudge" class="flex shrink-0 gap-2">
             <BaseButton
               :disabled="record.isPending.value"
               class="rounded-control bg-success-600 px-3 py-2 text-sm font-semibold text-ink-inverse hover:bg-success-500 disabled:opacity-50"

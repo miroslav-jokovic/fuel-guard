@@ -255,7 +255,10 @@ const integrity = computed(() => {
     </PageHeader>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <!-- SP5 (plan §4b): each fuel card asks its endpoint's gate, `requireSection("fuel")` — manage — as
+           "Repair fuel data" already did; the page's own gate is `settings`, which is not the same set. -->
       <JobActionCard
+        v-if="session.can('fuel')"
         title="Import EFS reports"
         kind="efs_ingest"
         endpoint="/api/transactions/ingest-efs"
@@ -297,16 +300,18 @@ const integrity = computed(() => {
         description="If the Fuel Log's source records show all your EFS data but dashboard graphs are missing days, the derived fuel events are out of sync with the stored report lines. This rebuilds them from the stored data — no file re-upload needed. Safe to run any time; it only adds or corrects rows."
       />
       <JobActionCard
+        v-if="session.can('fuel')"
         title="Reconcile fuel with telematics"
         kind="backfill"
         endpoint="/api/transactions/backfill"
         action-label="Reconcile new fills"
-        :secondary-label="session.admin ? 'Re-check all history' : undefined"
+        secondary-label="Re-check all history"
         :secondary-body="{ full: true }"
         secondary-confirm="Re-check EVERY historical fill against Samsara live? Slower — only needed after a detection-logic change."
         description="Match fuel-card fills to Samsara — location, fueling-time odometer and tank level. 'Reconcile new fills' catches any not-yet-reconciled rows (fast). 'Re-check all history' re-touches every fill (only after a logic change)."
       />
       <JobActionCard
+        v-if="session.can('fuel')"
         title="Rebuild anomalies"
         kind="rebuild"
         endpoint="/api/transactions/rebuild"

@@ -8,6 +8,7 @@ import {
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
 import { useRouter } from "vue-router";
+import { useOpens } from "@/composables/useOpens";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -247,9 +248,11 @@ const columns: DataTableColumn[] = [
  * page that can work it rather than opening an empty drawer or, worse, the wrong one.
  */
 const router = useRouter();
+const opens = useOpens();
 function openFinding(row: Record<string, unknown>): void {
   if (row.source === "exception") { selected.value = String(row.id); return; }
-  void router.push({ path: "/anomalies", query: { case: String(row.id) } });
+  // SP5: Findings is `fuel` view, Alerts is `safety` view — no hand-off to a page the guard refuses.
+  if (opens("/anomalies")) void router.push({ path: "/anomalies", query: { case: String(row.id) } });
 }
 
 /**

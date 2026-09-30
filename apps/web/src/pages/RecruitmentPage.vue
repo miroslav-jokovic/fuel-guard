@@ -4,8 +4,6 @@ import { useRouter } from "vue-router";
 import {
   HIRING_PHASE_LABELS,
   canPurgeApplicant,
-  canWriteDriverLifecycle,
-  rolesThatManage,
   type HiringPhase,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
@@ -195,7 +193,10 @@ function openApplicant(id: string): void {
  * blocks. They see everything else on this board.
  */
 const session = useSessionStore();
-const canHire = computed(() => canWriteDriverLifecycle(session.role));
+// SP5: `roster: manage` from the ORG's matrix — the gate `POST /api/recruitment/hire` now reads
+// (`requireSection("roster")`). `canWriteDriverLifecycle` was the same predicate on the SHIPPED
+// matrix, so an org's grant or narrowing of the roster section never reached the button.
+const canHire = computed(() => session.can("roster"));
 const hiring = ref<PipelineApplicant | null>(null);
 
 /**
@@ -203,13 +204,12 @@ const hiring = ref<PipelineApplicant | null>(null);
  *
  * It lived only inside a driver's Employment tab, which meant somebody had to be created as a
  * driver under Fleet before they could be invited to become one. Hiring is gated harder (0213
- * refuses a recruiter's status change in a trigger, so `canHire` is `canWriteDriverLifecycle`);
+ * refuses a recruiter's status change in a trigger, so `canHire` is `roster: manage`);
  * inviting is recruitment's own work and takes the section gate.
  */
-const canInvite = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canInvite = computed(() => session.can("recruitment"));
 const inviting = ref(false);
 
 const archiving = ref<PipelineApplicant | null>(null);

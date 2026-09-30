@@ -53,15 +53,26 @@ vi.mock("@/composables/useFindingsSummary", async (importOriginal) => ({
     data: computed(() => ({ open: 4, recoveredThisQuarter: 12_500, quarterFrom: "2026-07-01" })),
   }),
 }));
-vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ canView: () => true, can: () => true, readOnly: false, role: "admin", sections: null }),
-}));
+// The real shape (SP5): each tile is a link only where its page opens, which `useOpens` answers
+// from the role and the screen answers — so an answer-everything stub would say nothing about it.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 
 async function renderStrip() {
   const { default: OperatingMetricsWidget } = await import("./OperatingMetricsWidget.vue");
   return mount(OperatingMetricsWidget, {
     props: { range: { from: "2026-09-01", to: "2026-09-15" } },
-    global: { stubs: { RouterLink: { template: "<a><slot /></a>" } } },
+    global: {
+      stubs: {
+        RouterLink: {
+          props: ["to"],
+          template: `<a :href="typeof to === 'string' ? to : to.path"><slot /></a>`,
+        },
+      },
+    },
   });
 }
 
@@ -149,5 +160,36 @@ describe("the window this card asks about (D-PREC5)", () => {
     expect(sent.from).not.toContain("T");
     expect(sent.to).not.toContain("T");
     expect(sent.to).not.toContain("Z");
+  });
+});
+
+/**
+ * SP5 (plan §4b): a tile is a link only where its page opens for the reader. Detection coverage and
+ * Reefer coverage are Settings screens that start off for everyone but the admin (Q-SET2), and Fuel
+ * spend asks `fuel: manage` — the dispatcher's strip used to link all three into the guard's refusal.
+ */
+describe("the strip's doors (SP5)", () => {
+  it("links every tile for the admin", async () => {
+    const hrefs = (await renderStrip()).findAll("a").map((a) => a.attributes("href"));
+    expect(hrefs).toEqual(expect.arrayContaining(["/coverage", "/reefer-coverage", "/fuel-spend"]));
+  });
+
+  it("keeps a fleet manager's figures and drops the doors to screens they do not have", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    session.role = "fleet_manager";
+    try {
+      const w = await renderStrip();
+      const hrefs = w.findAll("a").map((a) => a.attributes("href"));
+      expect(hrefs).not.toContain("/coverage");
+      expect(hrefs).not.toContain("/reefer-coverage");
+      expect(w.text()).toContain("Telematics coverage");
+      session.surfaces = { "admin.coverage": true };
+      expect((await renderStrip()).findAll("a").map((a) => a.attributes("href"))).toContain("/coverage");
+    } finally {
+      session.role = "admin";
+      session.surfaces = null;
+    }
   });
 });

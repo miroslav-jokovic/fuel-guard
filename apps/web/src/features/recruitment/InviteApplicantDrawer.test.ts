@@ -31,9 +31,16 @@ const role = vi.hoisted(() => ({ value: "recruiter" as string | null }));
  * until the two calls they were supposed to prove never fired. The store is stubbed instead, which is
  * `PspRecordsSection.test.ts:103`'s precedent in this same folder.
  */
-vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ get role() { return role.value; } }),
-}));
+// `can` is the real matrix over the mocked role — the gate asks `session.can("recruitment")` (SP5).
+vi.mock("@/stores/session", async () => {
+  const { canManageSection } = await import("@silvicom/shared");
+  return {
+    useSessionStore: () => ({
+      get role() { return role.value; },
+      can: (s: string) => canManageSection(role.value as never, s as never),
+    }),
+  };
+});
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {

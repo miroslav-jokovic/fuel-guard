@@ -35,6 +35,10 @@ const CTX: Record<string, AuthContext> = {
   auditor: ctx("auditor"),
   recruiter: ctx("recruiter"),
   driver: ctx("driver"),
+  // SP5: the org's matrix, not the shipped one. A dispatcher holds `roster: view` as shipped; this
+  // org granted it manage. A fleet manager holds `roster: manage` as shipped; this org narrowed it.
+  grantedDispatcher: { ...ctx("dispatcher"), sections: { roster: "manage" } } as AuthContext,
+  narrowedFleet: { ...ctx("fleet_manager"), sections: { roster: "view" } } as AuthContext,
 };
 
 let server: Server;
@@ -140,6 +144,20 @@ describe("who may hire", () => {
     rec = seed();
     holder.client = rec.client;
     expect((await call("/hire", { method: "POST", body: HIRE })).status).toBe(401);
+  });
+
+  it("reads the org's roster grant: a role the org gave roster manage may hire", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    expect((await call("/hire", { method: "POST", token: "grantedDispatcher", body: HIRE })).status).toBe(200);
+  });
+
+  it("reads the org's roster narrowing: a role the org took roster manage from may not hire", async () => {
+    rec = seed();
+    holder.client = rec.client;
+    const res = await call("/hire", { method: "POST", token: "narrowedFleet", body: HIRE });
+    expect(res.status).toBe(403);
+    expect(rec.queries).toHaveLength(0);
   });
 
   it("refuses a read-only auditor's hire while letting them read the preview", async () => {

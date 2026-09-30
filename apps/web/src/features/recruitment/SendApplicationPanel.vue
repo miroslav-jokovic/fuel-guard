@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
-import { APPLICATION_SEND_WARNS_ON, hiringStep, rolesThatManage } from "@silvicom/shared";
+import { APPLICATION_SEND_WARNS_ON, hiringStep } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -42,7 +42,8 @@ const sentAt = computed(
   () => invitesQ.data.value?.find((i) => i.id === props.invitationId)?.application_sent_at ?? null,
 );
 
-const canSend = computed(() => Boolean(session.role) && rolesThatManage("recruitment").includes(session.role!));
+// SP5: the org's answer (the `sections` claim), which is what the route's `requireSection` reads.
+const canSend = computed(() => session.can("recruitment"));
 const result = ref<ApplicationSent | null>(null);
 
 /** The screening steps not done yet, in the checklist's own words. */

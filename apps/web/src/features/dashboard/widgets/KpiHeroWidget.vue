@@ -11,6 +11,7 @@
 import { computed } from "vue";
 import { CurrencyDollarIcon, FireIcon, GaugeIcon, ShieldExclamationIcon } from "@silvicom/ui/icons";
 import StatCard from "@/components/ui/StatCard.vue";
+import { useOpens } from "@/composables/useOpens";
 import { applyMoneyGate } from "../moneyGate";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
 import { viz, fmtMoney, fmtCompact } from "@/lib/chartTheme";
@@ -63,7 +64,16 @@ const statsRaw = computed(() => {
   ];
 });
 
-const stats = computed(() => applyMoneyGate(statsRaw.value, canSeeMoney.value));
+/*
+ * Each tile drills into its page only when that page opens for the reader (SP5, plan §4b). Before it,
+ * all four linked for anybody who could see the strip, which is gated `fuel`: a dispatcher holds
+ * `safety: none` and was offered "Active alerts" → `/anomalies`, which the guard bounced back to this
+ * dashboard. `StatCard` renders a plain tile when `to` is absent, so the figure stays.
+ */
+const opens = useOpens();
+const stats = computed(() =>
+  applyMoneyGate(statsRaw.value, canSeeMoney.value).map((t) => ({ ...t, to: opens(t.to) ? t.to : undefined })),
+);
 </script>
 
 <template>

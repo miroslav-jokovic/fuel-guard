@@ -6,6 +6,7 @@ import { BellIcon } from "@silvicom/ui/icons";
 import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { notificationRoute } from "@/lib/notificationRoute";
+import { useOpens } from "@/composables/useOpens";
 import {
   useMarkNotificationsRead,
   useNotificationsQuery,
@@ -22,6 +23,7 @@ const open = ref(false);
 const router = useRouter();
 const { notifications, unread } = useNotificationsQuery();
 const markRead = useMarkNotificationsRead();
+const opens = useOpens();
 
 const SEVERITY_TONE: Record<OfficeNotification["severity"], string> = {
   info: "info",
@@ -37,9 +39,10 @@ function agoLabel(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+// Reading is always recorded; going somewhere only when the destination opens for this reader (SP5).
 function openItem(n: OfficeNotification): void {
   if (n.read_at === null) markRead.mutate([n.id]);
-  const to = notificationRoute(n.category, n.entity_type, n.entity_id);
+  const to = notificationRoute(n.category, n.entity_type, n.entity_id, opens);
   if (to) {
     open.value = false;
     void router.push(to);

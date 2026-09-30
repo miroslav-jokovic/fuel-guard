@@ -94,14 +94,22 @@ vi.mock("@/features/recruitment/useEmployment", async (importOriginal) => ({
  * against, so no kebab renders) unless a test sets it. Only `role` is replaced — the section and
  * surface answers stay the store's own.
  */
-const who = vi.hoisted(() => ({ role: null as string | null }));
+const who = vi.hoisted(() => ({ role: null as string | null, sections: null as Record<string, string> | null }));
 vi.mock("@/stores/session", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/stores/session")>();
+  const { callerCanManage } = await import("@silvicom/shared");
   return {
     ...real,
     useSessionStore: () =>
       new Proxy(real.useSessionStore(), {
-        get: (target, key) => (key === "role" && who.role !== null ? who.role : Reflect.get(target, key)),
+        get: (target, key) => {
+          if (who.role === null) return Reflect.get(target, key);
+          if (key === "role") return who.role;
+          // SP5: the page's gates are `session.can(...)`, which closes over the REAL store's role — so
+          // the stand-in role answers them too, through the same shared matrix the store would read.
+          if (key === "can") return (s: string) => callerCanManage(who.role as never, s as never, who.sections as never);
+          return Reflect.get(target, key);
+        },
       }),
   };
 });
@@ -151,6 +159,7 @@ const router = createRouter({
 const mounted: Array<{ unmount: () => void }> = [];
 afterEach(() => {
   who.role = null;
+  who.sections = null;
   while (mounted.length) mounted.pop()!.unmount();
   document.body.innerHTML = "";
 });
@@ -328,5 +337,40 @@ describe("deleting an applicant permanently", () => {
     const items = await menuItems(wrapper);
     expect(items).toContain("Restore");
     expect(items).not.toContain("Delete permanently…");
+  });
+});
+
+/**
+ * SP5 (plan §4b): "Hire…" asks `roster: manage` from the ORG's matrix, which is what
+ * `POST /api/recruitment/hire` now reads (`requireSection("roster")`). Both read the shipped matrix
+ * before — `canWriteDriverLifecycle` — so an org's grant or narrowing of the roster reached neither.
+ */
+describe("who is offered Hire…", () => {
+  const menuItems = async (wrapper: Awaited<ReturnType<typeof mountBoard>>) => {
+    await wrapper.find("tbody tr button[aria-label='Actions']").trigger("click");
+    return [...document.querySelectorAll<HTMLElement>(".kebab-item")].map((b) => b.textContent?.trim() ?? "");
+  };
+  // Each board is unmounted once read: the menu teleports to `body`, and a second board's items would
+  // otherwise be read beside the first's.
+  const itemsOnLiveBoard = async () => {
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Waiting on", /Everyone/);
+    const items = await menuItems(wrapper);
+    wrapper.unmount();
+    return items;
+  };
+
+  it("is offered to a recruiter the org granted roster manage", async () => {
+    who.role = "recruiter";
+    expect(await itemsOnLiveBoard()).not.toContain("Hire…");
+    who.sections = { roster: "manage" };
+    expect(await itemsOnLiveBoard()).toContain("Hire…");
+  });
+
+  it("is not offered to a fleet manager the org narrowed to viewing the roster", async () => {
+    who.role = "fleet_manager";
+    expect(await itemsOnLiveBoard()).toContain("Hire…");
+    who.sections = { roster: "view" };
+    expect(await itemsOnLiveBoard()).not.toContain("Hire…");
   });
 });

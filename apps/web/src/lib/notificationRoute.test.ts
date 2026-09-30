@@ -21,6 +21,12 @@ describe("notificationRoute", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });
 
+  it("returns null for a destination the reader's guard would refuse (SP5)", () => {
+    const opens = (to: string) => !to.startsWith("/hazmat");
+    expect(notificationRoute("hazmat_review", "load", "L1", opens)).toBeNull();
+    expect(notificationRoute("dq_expired", "driver", "d1", opens)).toBe("/compliance/d1");
+  });
+
   it("anything uncertain returns null — no destination beats a wrong one", () => {
     expect(notificationRoute("dq_expired", "driver", null)).toBeNull();
     expect(notificationRoute("dq_expired", "load", "x")).toBeNull();

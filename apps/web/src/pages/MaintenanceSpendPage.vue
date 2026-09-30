@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { lastFullMonth } from "@/lib/dateWindow";
-import { useSessionStore } from "@/stores/session";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -11,6 +10,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate as fmtDate } from "@/lib/format";
+import { useOpens } from "@/composables/useOpens";
 
 /**
  * Repair spend — the shop's own list of what the ledger booked against maintenance (R7 of the
@@ -24,7 +24,6 @@ import { formatDate as fmtDate } from "@/lib/format";
  * behind the maintenance gate, which a technician holds and the accounting gate does not, and a
  * figure read from the fleet report would fail for the very role the page exists for.
  */
-const session = useSessionStore();
 const defaultWindow = lastFullMonth();
 const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
@@ -37,7 +36,13 @@ const { data, isLoading, isError, error, refetch, isFetching } = useMaintenanceS
 const entries = computed(() => data.value?.entries ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const pending = computed(() => data.value?.pendingSources ?? null);
-const canReadFinance = computed(() => session.canView("accounting"));
+/**
+ * SP5 (plan §4b): the link asks the fleet report's own gate — `accounting` view AND the person's
+ * Fleet report screen — through the guard's function, rather than restating the section half of it
+ * as `canView("accounting")` did, which a per-person "off" on the Fleet report never reached.
+ */
+const opens = useOpens();
+const canReadFinance = computed(() => opens("/fleet-report"));
 
 const fmtUsd = (n: number | string) => Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 

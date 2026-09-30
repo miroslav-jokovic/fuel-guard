@@ -6,7 +6,6 @@ import {
   SIGN_LINK_LIFETIME_HOURS,
   SIGN_LINK_UNLOCK_LIMIT,
   hiringStep,
-  rolesThatManage,
   type SigningSent,
 } from "@silvicom/shared";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -51,7 +50,8 @@ const checklistQ = useApplicantChecklistQuery(toRef(props, "driverId"));
 const invitesQ = useApplicationInvitesQuery(toRef(props, "driverId"));
 
 const invite = computed(() => invitesQ.data.value?.find((i) => i.id === props.invitationId) ?? null);
-const canSend = computed(() => Boolean(session.role) && rolesThatManage("recruitment").includes(session.role!));
+// SP5: the org's answer (the `sections` claim), which is what the route's `requireSection` reads.
+const canSend = computed(() => session.can("recruitment"));
 const result = ref<SigningSent | null>(null);
 
 /**

@@ -15,7 +15,21 @@ import { AppIcon } from "@silvicom/ui";
 import { ChevronRightIcon } from "@silvicom/ui/icons";
 import type { Crumb } from "@/lib/breadcrumbs";
 
-const props = defineProps<{ trail: Crumb[] }>();
+const props = withDefaults(
+  defineProps<{
+    trail: Crumb[];
+    /**
+     * Whether a crumb's page opens for the reader (SP5, plan §4b). A crumb whose target the guard
+     * would refuse renders as TEXT: the trail still says where the page sits, it just stops offering
+     * a door that bounces to the dashboard — a hazmat load's parent is Loads, which is `dispatch`
+     * while the load itself is `hazmat`. A PROP, not a `useOpens()` here, for the reason in the header: this component
+     * knows nothing about the router or the session, which is what lets the lab render it. Absent,
+     * every crumb links, which is what the lab wants.
+     */
+    opens?: (to: string) => boolean;
+  }>(),
+  { opens: () => true },
+);
 
 /**
  * One crumb is the current page, which the `<h1>` directly beneath already states. Rendering a
@@ -42,11 +56,13 @@ const current = computed(() => props.trail[props.trail.length - 1]);
         :class="i < links.length - 1 ? 'hidden sm:flex' : ''"
       >
         <RouterLink
+          v-if="opens(crumb.to)"
           :to="crumb.to"
           class="rounded-control transition-colors hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           {{ crumb.label }}
         </RouterLink>
+        <span v-else>{{ crumb.label }}</span>
         <AppIcon :icon="ChevronRightIcon" class="size-3 shrink-0" aria-hidden="true" />
       </li>
       <li aria-current="page" class="truncate text-ink-secondary">{{ current!.label }}</li>

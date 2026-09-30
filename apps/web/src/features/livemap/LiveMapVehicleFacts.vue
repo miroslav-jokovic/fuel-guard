@@ -4,6 +4,8 @@ import { loadBoardState, type LiveMapBoard, type LiveMapVehicle, type LoadStatus
 import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { formatAge, fuelMetric } from "./liveMapWords";
+import GatedLink from "@/components/GatedLink.vue";
+import { useOpens } from "@/composables/useOpens";
 
 /**
  * What one truck is doing right now — the body of both readings of a selection (D-DR5).
@@ -47,6 +49,7 @@ const props = defineProps<{
 }>();
 
 const compact = computed(() => props.density === "compact");
+const opens = useOpens();
 
 // The load's status in the Loads board's words (`loadBoardState`), never the raw enum: until
 // 2026-09-28 this printed `in_transit`, and a McLeod load McLeod has planned but not started would
@@ -122,9 +125,11 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
       <p v-if="!vehicle.load" class="text-sm text-ink-muted">
         No load on this truck. Loads arrive with the dispatch feed.
       </p>
-      <RouterLink v-else :to="`/loads/${vehicle.load.id}`" class="block text-sm text-link hover:text-link-hover">
+      <!-- SP5 (plan §4b): each door here opens only where its page does. The map is `dispatch` view; a
+           truck is `equipment`, a driver `roster`, and Loads can be switched off per person. -->
+      <GatedLink v-else :to="`/loads/${vehicle.load.id}`" class="block text-sm text-link hover:text-link-hover" plain-class="block text-sm text-ink">
         {{ vehicle.load.ref ?? "Load" }} · <span :title="loadState?.mcleodWords ?? undefined">{{ loadState?.label }}</span>
-      </RouterLink>
+      </GatedLink>
       <p v-if="vehicle.load?.nextStop" class="text-xs text-ink-muted">
         Next stop: {{ vehicle.load.nextStop.name ?? vehicle.load.nextStop.kind }}
         <template v-if="vehicle.load.nextStop.city">
@@ -135,11 +140,11 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
     </div>
 
     <div class="flex gap-4" :class="compact ? 'border-t border-edge pt-3' : 'hidden'">
-      <RouterLink :to="`/vehicles/${vehicle.vehicleId}`" class="text-sm text-link hover:text-link-hover">
+      <RouterLink v-if="opens(`/vehicles/${vehicle.vehicleId}`)" :to="`/vehicles/${vehicle.vehicleId}`" class="text-sm text-link hover:text-link-hover">
         Open truck
       </RouterLink>
       <RouterLink
-        v-if="vehicle.driver"
+        v-if="vehicle.driver && opens(`/drivers/${vehicle.driver.id}`)"
         :to="`/drivers/${vehicle.driver.id}`"
         class="text-sm text-link hover:text-link-hover"
       >

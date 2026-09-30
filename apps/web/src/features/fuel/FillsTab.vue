@@ -22,6 +22,7 @@
  */
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useOpens } from "@/composables/useOpens";
 import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, fleetMpgScope, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
@@ -230,11 +231,16 @@ const total = computed(() => data.value?.total ?? 0);
 const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
 
 // A flagged row opens that truck's cases (all statuses) on the Alerts page; clear rows aren't interactive.
+// Nor is a flagged one when Alerts does not open for the reader (SP5, plan §4b): the Fuel Log is
+// `fuel` view and Alerts is `safety` view, so an accountant was handed a pointer that the guard
+// answered with the dashboard.
+const opens = useOpens();
+const alertsOpen = computed(() => opens("/anomalies"));
 function onRowClick(row: FuelTransaction) {
-  if (row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
+  if (alertsOpen.value && row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
 }
 // `group` is DataTable's, via `pin-first-column`; this only adds what is specific to a fill.
-const rowClass = (row: FuelTransaction) => (row.has_anomaly ? "cursor-pointer" : "");
+const rowClass = (row: FuelTransaction) => (alertsOpen.value && row.has_anomaly ? "cursor-pointer" : "");
 
 // Station-local (matches the EFS report), not the browser's timezone.
 const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);

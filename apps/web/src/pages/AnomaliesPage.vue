@@ -13,6 +13,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
 import { useAnomaliesPage } from "./useAnomaliesPage";
+import { useOpens } from "@/composables/useOpens";
 
 const {
   filters, search, reeferOnly, setReeferOnly,
@@ -26,6 +27,9 @@ const {
   selectedIds, setSelected, selectedCount, isActionable, busy, bulkTransition, rowAction,
   selectedRow, fmt,
 } = useAnomaliesPage();
+// SP5: the button goes where Data & sync is — asked of that page's gate (a Settings screen that starts
+// off for everyone but the admin), not of `safety` manage, which a safety manager holds and the page never asked.
+const opens = useOpens();
 </script>
 
 <template>
@@ -73,7 +77,7 @@ const {
       <template #actions>
         <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         <BaseButton
-          v-if="session.can('safety')"
+          v-if="opens('/settings/data')"
           variant="ghost"
           size="sm"
           to="/settings/data"

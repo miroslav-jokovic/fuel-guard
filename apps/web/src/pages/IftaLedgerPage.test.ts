@@ -6,6 +6,15 @@ import { computeIftaPosition, tieOutMiles, type IftaFuelPurchase, type IftaJuris
 import { metersFromMiles } from "@silvicom/shared";
 import type { IftaPeriodData } from "@/features/ifta/useIftaPeriod";
 
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+
+
 /**
  * The ledger, mounted.
  *

@@ -11,6 +11,7 @@ import { useColorScheme, type ColorScheme } from "@/composables/useColorScheme";
 import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import { RouterLink } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
+import { useOpens } from "@/composables/useOpens";
 
 const props = defineProps<{
   email: string | null;
@@ -18,9 +19,14 @@ const props = defineProps<{
   name?: string | null;
   role: UserRole | null;
   collapsed?: boolean;
-  /** Whether the Settings directory opens for them — the caller asks the catalogue. */
-  showSettings?: boolean;
 }>();
+
+/**
+ * The Settings link shows exactly when the guard would open `/settings` (SP5). The shell used to pass
+ * that in as a prop computed by `pathOpens`; the menu asks the guard's own function directly now, so
+ * there is no second copy of the question for a caller to get wrong.
+ */
+const opens = useOpens();
 
 const emit = defineEmits<{ signOut: [] }>();
 
@@ -103,7 +109,7 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
       </button>
     </div>
     <div class="sidebar-divider mb-1 border-t" />
-    <RouterLink v-if="showSettings" to="/settings" class="sidebar-account-item">Settings</RouterLink>
+    <RouterLink v-if="opens('/settings')" to="/settings" class="sidebar-account-item">Settings</RouterLink>
     <button
       type="button"
       class="sidebar-account-item text-danger-700 hover:text-danger-800"

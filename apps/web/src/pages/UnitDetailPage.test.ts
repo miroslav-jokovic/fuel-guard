@@ -87,7 +87,12 @@ vi.mock("@/composables/useTrailers", async () => {
   return { useTrailersQuery: () => ({ data: r([]) }) };
 });
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
-vi.mock("vue-router", () => ({
+vi.mock("vue-router", async (importOriginal) => ({
+  // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+  // three names it takes from vue-router stay real under this mock.
+  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+    await importOriginal<typeof import("vue-router")>(),
+  ),
   useRoute: () => ({ params: { kind: "tractor", id: TRUCK }, query: {}, meta: { title: "Unit" }, matched: [] }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));

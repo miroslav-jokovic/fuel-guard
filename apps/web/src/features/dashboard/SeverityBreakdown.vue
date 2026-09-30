@@ -5,6 +5,9 @@ import { ShieldExclamationIcon } from "@silvicom/ui/icons";
 import ChartCard from "./ChartCard.vue";
 import DonutBreakdown from "./DonutBreakdown.vue";
 import { viz } from "@/lib/chartTheme";
+import { useOpens } from "@/composables/useOpens";
+
+const opens = useOpens();
 
 const props = defineProps<{
   severity: Record<"critical" | "high" | "medium" | "low", number>;
@@ -34,7 +37,9 @@ const rows = computed(() =>
     class="h-full"
   >
     <template #meta>
+      <!-- Only when the Alerts page opens for the reader (SP5): the donut is dashboard data, the page is `safety` view. -->
       <RouterLink
+        v-if="opens('/anomalies')"
         to="/anomalies"
         class="rounded-control px-1.5 py-0.5 text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
