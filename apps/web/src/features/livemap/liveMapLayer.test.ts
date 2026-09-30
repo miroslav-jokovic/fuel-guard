@@ -11,6 +11,7 @@ import {
   toFeatureCollection,
   sortVehicles,
 } from "./liveMapLayer";
+import { GLYPHS, STATE_GLYPH } from "./liveMapGlyphs";
 
 /**
  * The decisions the live map makes about what to draw, held still.
@@ -43,9 +44,25 @@ const vehicle = (o: Partial<LiveMapVehicle> = {}): LiveMapVehicle => ({
 });
 
 describe("iconNameFor", () => {
-  it("gives a truck with a bearing an arrow, in its own state's colour", () => {
+  it("gives a moving truck with a bearing an arrow", () => {
     expect(iconNameFor(vehicle())).toBe("live-moving-arrow");
-    expect(iconNameFor(vehicle({ state: "parked" }))).toBe("live-parked-arrow");
+  });
+
+  // D-LM30. Before it, every state drew an arrow, so a truck parked since Friday pointed at Friday's
+  // bearing and only colour told the four states apart.
+  it("gives every other state its own silhouette, whatever bearing its last fix carried", () => {
+    expect(iconNameFor(vehicle({ state: "stopped" }))).toBe("live-stopped");
+    expect(iconNameFor(vehicle({ state: "parked" }))).toBe("live-parked");
+    expect(iconNameFor(vehicle({ state: "offline" }))).toBe("live-offline");
+  });
+
+  it("draws the four states as four different shapes, not four colours of one", () => {
+    const shapes = MAP_STATES.map((state) => GLYPHS[STATE_GLYPH[state]].parts.map((p) => p.d).join("|"));
+    expect(new Set(shapes).size).toBe(MAP_STATES.length);
+  });
+
+  it("lets only the arrow rotate — nothing else claims a direction", () => {
+    expect(Object.entries(GLYPHS).filter(([, g]) => g.rotates).map(([n]) => n)).toEqual(["moving-arrow"]);
   });
 
   /**
@@ -98,6 +115,21 @@ describe("toFeatureCollection", () => {
     const props = toFeatureCollection([v]).features[0]!.properties;
     expect(props.heading).toBe(0);
     expect(props.icon).toBe("live-moving-dot");
+  });
+
+  it("draws a non-moving truck upright, not turned to the bearing of its last fix", () => {
+    const props = toFeatureCollection([vehicle({ state: "parked" })]).features[0]!.properties;
+    expect(props.heading).toBe(0);
+    expect(toFeatureCollection([vehicle()]).features[0]!.properties.heading).toBe(275);
+  });
+
+  it("stacks moving over stopped over parked over offline, and the selected truck over all", () => {
+    const key = (state: LiveMapVehicle["state"], sel?: string) =>
+      toFeatureCollection([vehicle({ state })], undefined, sel).features[0]!.properties.sortKey;
+    expect(key("moving")).toBeGreaterThan(key("stopped"));
+    expect(key("stopped")).toBeGreaterThan(key("parked"));
+    expect(key("parked")).toBeGreaterThan(key("offline"));
+    expect(key("offline", "veh-1")).toBeGreaterThan(key("moving"));
   });
 });
 

@@ -137,6 +137,26 @@ only because the table was empty and the feature unreleased.
 reading a column this merge removes — and detecting it means proving no remaining source names it.
 Named here rather than left to be discovered.
 
+### 2026-09-30: the schema can now land FIRST
+
+`migrate.yml`'s CI gate used to wait for a second full CI run on main's merge commit (6.5–11 min
+that day). It no longer does when that commit's git tree is exactly the one the pull request's CI
+already proved green: `ci.yml`'s `build` job records the tested tree as a `ci/tested-tree` status on
+the PR head, and `.github/actions/require-ci-green/tested-tree.sh` accepts it. The common case is a
+PR merged while main has not moved.
+
+- **Predicted, not yet measured:** merge to schema applied drops from ~5 min to ~1.5–2 min, which is
+  `migrate.yml`'s own install, link and push. Railway serves in 2–13 min, so for most migration
+  merges the **schema is applied before the new code is served**.
+- **That is the direction the rules already handle.** An added column that old code never names is
+  harmless. The hazard sits in a drop or a rename, where old code reads a column that is already
+  gone, and that was always four steps across releases rather than one merge.
+- **What changes is that neither order can be assumed.** A PR merged after main moved still takes
+  the old path, polling main's CI, so the old order still applies to it.
+- **To measure:** on the first migration merge after 2026-09-30, record the merge time, the
+  migrate.yml `Apply` step's end time and the first `/api/version` on each host showing the new
+  commit, as in the two tables above. Then replace the prediction with the numbers.
+
 ### Open question — closing the window instead of policing it
 
 The gate makes the window survivable; it does not remove it. Removing it means **ordering the app

@@ -37,9 +37,19 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
   `build`. `native-android` prebuilds the Android project, compiles the capture module's Kotlin
   (nothing else in CI does) and runs its metric-parity unit test. **There is no iOS job** — macOS
   runners bill at ~10× Linux — so Swift is compiled and its parity checked by hand, per
-  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. A green
-  run is ~3 minutes (measured 2026-09-05; it was 15.7 before the split). Put a new gate in `gates`;
-  put anything needing `apps/web/dist` in `typecheck-build`, which is the only job that builds.
+  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. **On a PR, `native-android` skips its
+  build unless one of its `NATIVE_INPUTS` changed** (ci.yml says which and why; anything the job
+  starts reading goes on that list in the same PR); on main it always builds. A green PR run is
+  **~5.5–6 min** (326–374 s, first three with native skipped, 2026-09-30; median ~370 s over the 37
+  before). Skipping native saved runner minutes, NOT wall time: `test-api` and `test-web` run ~330 s
+  each and are the long pole now. It was 15.7 min before the 2026-09-05 split, and "~3 min" in this file for weeks after
+  it had stopped being true. Put a new gate in `gates`; put anything needing `apps/web/dist` in
+  `typecheck-build`, which is the only job that builds.
+- **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
+  `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-ota/android/store)
+  accepts it when main's merge commit has that exact tree — else it polls main's run as before.
+  Rules in `.github/actions/require-ci-green/tested-tree.sh`. `deploy-verify` passes pushes that
+  touch only paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit.
 - **Browser tests run in `typecheck-build`** since 2026-09-28 (C3d3b1): `pnpm --filter @silvicom/web
   e2e:apply` runs `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
   (`e2e-apply/stubApi.ts`, raw JSON) — after the build, with Chromium cached. They are the ONLY
@@ -52,14 +62,15 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
 - Schema changes ONLY as the next-numbered file in `supabase/migrations/` (`lint:migrations`). Never
   edit an applied migration. `migrate.yml` auto-applies to production Supabase on merge to main,
   gated on CI green — a merged migration IS a deployed migration.
-- ...but NOT an immediately deployed one. Railway serves a merge ~3 min in while `migrate.yml` waits
-  for CI green, so **a merge can be served against the previous schema**. A column and its first
+- ...but NOT an immediately deployed one, and since 2026-09-30 **not in a fixed order either**. Railway
+  serves a merge in 2–13 min; `migrate.yml` no longer waits for main's CI when the PR's tested tree
+  is main's tree (above), so it can now apply the schema FIRST. Either way **a merge can be served
+  against the other side's schema**. A column and its first
   reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
   the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window. **The window was 9m10s and is now 2m44s** — measured on migration 0316,
-  2026-09-05, after CI went from 15.7 to ~3 minutes — which makes the RULE more important, not
-  less: a gap that short cannot be watched for. It will not go much lower by speeding up CI;
-  `migrate.yml` itself accounts for ~2 of the 5 minutes from merge to schema applied.
+  §the-deploy-window. **The window was 9m10s, then 2m44s** (migration 0316, 2026-09-05); the first
+  migration after the tested-tree shortcut has not been measured yet — the doc says how. The RULE is
+  what holds either way: a gap that short cannot be watched for, and its direction is no longer known.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict
