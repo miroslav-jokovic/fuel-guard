@@ -128,12 +128,14 @@ describe("GET /api/surface-access", () => {
     );
     const keys = body.surfaces.map((s) => s.key);
     expect(keys).toContain("maintenance.inspectors");
-    // Q-SURF3: product constants are not offered as cells. Dashboard carries no role gate, Ask AI
-    // is any staff role, Users is admin-only — none of them an org's to deny. Fuel Log and the two
+    // Q-SURF3: product constants are not offered as cells. Dashboard carries no role gate, Users
+    // is admin-only — none of them an org's to deny. Fuel Log and the two
     // hazmat pages WERE on this list until D-SURF10 (2026-09-03) put every page in a section's group
     // behind that section; they are cells now, and their absence here would be the old defect back.
     expect(keys).not.toContain("dashboard");
-    expect(keys).not.toContain("ask-ai");
+    // Ask AI WAS a product constant (`staff`) until Q-SET15 (owner 2026-09-30) made it admin-only by
+    // default and grantable: a Fuel-gated cell that starts off, like the Settings screens.
+    expect(keys).toContain("ask-ai");
     expect(keys).not.toContain("admin.users");
     expect(keys).toContain("fuel.log");
     expect(keys).toContain("safety.hazmat-review");
@@ -289,7 +291,7 @@ describe("PUT /api/surface-access", () => {
   });
 
   it("refuses a screen that is a product constant (Q-SURF3)", async () => {
-    for (const key of ["dashboard", "ask-ai", "admin.users"]) {
+    for (const key of ["dashboard", "admin.users"]) {
       await withServer(async (base) => {
         const res = await put(base, { role: "technician", surfaceKey: key, allowed: false });
         expect(res.status, `${key} should not be an org's to deny`).toBe(400);

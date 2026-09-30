@@ -171,29 +171,62 @@ describe("requireAdminOnly: the integration acts Q-SET11 ruled the admin's alone
   });
 });
 
-describe("Ask AI reads the Fuel section (Q-SET14 (b)) — the data its answers are made of", () => {
+describe("Ask AI: the Fuel section, and a screen that starts admin-only (Q-SET14 (b), Q-SET15)", () => {
   const ASK = "/api/ai/ask";
 
   // `/api/ai` shares `strictLimiter` — one store, 30 requests in 15 minutes — with `/api/integrations`,
-  // which the admin-only block above spends 24 of. Past the limit every call answers 429, which
-  // `refused` reads as "not refused", and the refusal cases fail for a reason that is not the gate.
+  // which the admin-only block above spends 24 of. Past the limit every call answers 429, which would
+  // read as "not refused", and the refusal cases would fail for a reason that is not the gate.
   // A fresh app gives this block its own budget, so the result does not depend on test order.
   beforeAll(async () => {
     await closeTestServer(server);
     await listen();
   });
 
-  it("admits exactly fuel: view with no overrides — the list it replaced, plus the accountant", async () => {
-    for (const r of ["admin", "fleet_manager", "dispatcher", "safety_manager", "auditor", "accountant"] as const)
-      expect(await refused("POST", ASK, token(r), { question: "q" }), r).toBe(false);
-    for (const r of ["recruiter", "technician", "driver"] as const) expect(await refused("POST", ASK, token(r), { question: "q" }), r).toBe(true);
+  type Row = { role?: string; user_id?: string; surface_key: string; allowed: boolean };
+  /** The org's stored screen answers, filtered the way PostgREST would (the recorder does not filter). */
+  function answers(roleRows: Row[], userRows: Row[] = []): void {
+    const by = (rows: Row[], col: "role" | "user_id") => (q: { filters(): Array<{ col: string; val: unknown }> }) => {
+      const want = q.filters().find((f) => f.col === col)?.val;
+      return rows.filter((r) => r[col] === want);
+    };
+    holder.client = createSupabaseRecorder({
+      tables: { org_role_surface_access: by(roleRows, "role"), user_surface_access: by(userRows, "user_id"), audit_logs: [] },
+    }).client;
+  }
+  /** Which gate answered: "section" (fuel), "screen" (ask-ai), or null when the request got through. */
+  async function gate(t: string): Promise<"section" | "screen" | null> {
+    const res = await fetch(`${baseUrl}${ASK}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${t}` },
+      body: JSON.stringify({ question: "q" }),
+    });
+    if (res.status !== 403) return null;
+    const json = (await res.json()) as { error?: { code?: string; message?: string } };
+    if (json.error?.message === "Insufficient role") return "section";
+    return json.error?.code === "surface_denied" ? "screen" : null;
+  }
+
+  it("with nothing stored, only the admin gets through — every other role stops at the screen or the section", async () => {
+    answers([]);
+    expect(await gate(token("admin"))).toBe(null);
+    for (const r of ["fleet_manager", "dispatcher", "safety_manager", "auditor", "accountant"] as const) expect(await gate(token(r)), r).toBe("screen");
+    for (const r of ["recruiter", "technician"] as const) expect(await gate(token(r)), r).toBe("section");
+  });
+
+  it("an admin turning the screen on for a role or one person lets them through; the section still has to allow it", async () => {
+    answers([{ role: "dispatcher", surface_key: "ask-ai", allowed: true }], [{ user_id: "u-auditor", surface_key: "ask-ai", allowed: true }]);
+    expect(await gate(token("dispatcher"))).toBe(null);
+    expect(await gate(token("auditor"))).toBe(null);
+    expect(await gate(token("fleet_manager")), "a grant to another role reaches nobody else").toBe("screen");
+    // A screen grant cannot reach past its section (D-SURF2): the dispatcher's org took Fuel away.
+    expect(await gate(token("dispatcher", { fuel: "none" }))).toBe("section");
   });
 
   it("follows the org's Fuel answer, and NOT its HazmatGuard one — the coincidence the old list equalled", async () => {
-    expect(await refused("POST", ASK, token("recruiter", { fuel: "view" }), { question: "q" })).toBe(false);
-    expect(await refused("POST", ASK, token("dispatcher", { fuel: "none" }), { question: "q" })).toBe(true);
-    // hazmat/view was the set the hand list happened to equal: granting it must not reach the assistant.
-    expect(await refused("POST", ASK, token("recruiter", { hazmat: "manage" }), { question: "q" })).toBe(true);
-    expect(await refused("POST", ASK, token("admin", { fuel: "none" }), { question: "q" })).toBe(false);
+    answers([{ role: "recruiter", surface_key: "ask-ai", allowed: true }]);
+    expect(await gate(token("recruiter", { fuel: "view" }))).toBe(null);
+    expect(await gate(token("recruiter", { hazmat: "manage" }))).toBe("section");
+    expect(await gate(token("admin", { fuel: "none" }))).toBe(null);
   });
 });
