@@ -6,7 +6,7 @@ can give or take away, per role and per person, on the existing Permissions page
 `EDITABLE-PERMISSIONS-PLAN.md` (sections, D-PERM*) and `SURFACE-ENTITLEMENTS-PLAN.md` (screens,
 D-SURF*), and adds no third permission system.
 
-Status: **ruled 2026-09-30 — Q-SET1 (a), Q-SET2 (a), Q-SET3 (a); SP1 next.** The rulings are in §5.
+Status: **SP1–SP4 live (0391). SP5 next; SP5–SP11 ruled and queued from the enterprise audit (§4b).**
 
 ---
 
@@ -125,6 +125,129 @@ policy is live (`lint:migration-ordering`).
 
 ---
 
+## 4b. The enterprise audit (2026-09-30, at `origin/main` `6e1a26d`, after SP4 went live)
+
+**Owner, 2026-09-30:** *"our goal is to have permissions and settings part really professional and
+enterprise grade so we have full control."* SP5 as written in §3 is four defects. This section asks the
+larger question — is there any path left where the matrix is not the answer, or where a change to it is
+not controlled, recorded and immediate — and records what three sweeps (every API route, every web
+gate and link, every permission write) and production's `pg_policies` found. Each finding was checked
+at its call site before being written here.
+
+### 4b.1 What already holds (so nobody re-audits it)
+- **Every API route is gated or pinned open with a reason.** `routeGateLedger.test.ts` builds the real
+  app, walks every route, and fails on one with no gate unless it is in the shrink-only `OPEN_ROUTES` /
+  `AUTH_ONLY_MOUNTS` (`testing/routeLedger.ts`). `feed-pulse` is there on purpose: six screens mount its
+  freshness strip, so it is not `settings: view`. **§3's SP5 item on `feed-pulse` is closed by reading,
+  not by a change.**
+- **Every service-role permission write is org-scoped** and asserted with `expectOrgScoped`; per-person
+  targets are checked against the caller's org (`lookupMemberRole`) and a composite FK.
+- **An admin cannot lock themselves out through the matrix** (admin and driver are not editable, the
+  hook never grants `admin`), cannot remove themselves, and the last admin cannot be demoted by the API.
+- **The four matrix tables have no client write policy**; the API is their only writer, and every
+  change to them writes an audit row.
+- **Production RLS: 206 of 224 policies** read the matrix, scope by org, or scope by driver. Of the other
+  18, seven are ruled role tests — the five federal readers (D-PERM9) and the two hazmat review policies
+  (D-PERM10).
+
+### 4b.2 Gaps, in the order they matter
+1. **A browser can bypass the Users page.** `memberships_write` and `invites_admin_all` (0004, `FOR ALL`,
+   `auth_role() = 'admin'`) were never dropped; both are live. With them, an admin's own token can change a
+   role, delete a member or mint an admin invite through PostgREST — **with no audit row, no last-admin
+   guard and no allowed-domains check**. No client uses them (searched web, driver and admin: zero
+   `from("memberships"|"invites")`), so closing them costs nothing. This is SP3's argument, on the two
+   tables that grant access itself.
+2. **The last-admin rule is a count in the handler**, not an invariant: two concurrent demotions can
+   leave zero admins, and gap 1 skips it entirely. Nothing in the database refuses it.
+3. **Taking access away is not immediate.** Removing, revoking or demoting a user ends none of their
+   sessions (`revoke_user_sessions` exists, 0363, and only password reset calls it). Sections live in
+   the JWT, so the old access runs until the token refreshes — up to an hour — in the API and in RLS.
+   Screens (`requireSurface`) are read from the database per request and are immediate in the API.
+   **Office users have no suspended state**: the only verbs are delete and revoke. Drivers do (a Supabase
+   ban).
+4. **The audit trail cannot answer "what was it before".** The four matrix audits record the new value
+   and the shipped default, not the previous override; `member.removed` omits the role held;
+   `invite.revoked` has no meta. And **no caller checks `writeAudit`'s result** — a failed audit leaves
+   the change committed and the response `ok`. The matrix writes are a delete then an insert with no
+   transaction, and the audit is a third statement.
+5. **`audit_logs` is append-only by convention only.** The service role can UPDATE or DELETE any row;
+   there is no trigger. (The lifecycle plan's L7 must delete 5.06 M pre-0352 rows, so a trigger needs a
+   named retention path — see Q-SET9.)
+6. **Changing who can do what needs no fresh sign-in.** `requireFreshAuth` guards card control, EFS,
+   the admin password reset and the applicant purge — not section access, screen access, members or
+   invites.
+7. **No reverse view.** The Permissions page answers "what can this person do"; nothing answers "who can
+   open Card control" or produces the list an access review needs.
+8. **The web asks the shipped matrix where the org's answer exists.** Eleven recruitment write
+   affordances test `rolesThatManage("recruitment").includes(session.role)` and RecruitmentPage's
+   hire actions test `canWriteDriverLifecycle(role)` — the shipped matrix, not `session.can(...)`. An
+   admin who grants a role `recruitment: manage` gets an API that accepts and buttons that stay hidden;
+   one who narrows it gets buttons that 403.
+9. **Links and buttons that bounce** (SP5's content, now measured in full):
+   - With the shipped matrix and no overrides, beyond §6's four:
+     - The dashboard sends people to screens their role can't open: the Gallons/Fuel spend tiles for
+       dispatcher, safety manager, auditor and accountant; the KPI hero's Driver performance, Idling and
+       Anomalies links, the severity widget's "View all" and the Fuel Log's anomaly row click for
+       dispatcher and accountant; the top drivers/vehicles lists for the accountant.
+     - The hazmat load's "← Loads" link and breadcrumb bounce for a safety manager.
+   - Buttons whose endpoint is stricter than their page:
+     - "Send digest now" on Reports, and "Clean"/"Missed" on Recall audit, need `settings: manage` on
+       pages that only need `settings: view`.
+     - The Dashboard's Export menu uses `can('settings') || readOnly` where the API asks
+       `settings: view`.
+     - Data & sync's three `/api/transactions/*` buttons have no gate at all.
+   - Under org overrides, about fifteen more — every in-page link to a sibling screen that has its own
+     key (Reports → Recall audit, Organization → Notifications, Maintenance home → its five screens,
+     notification deep links).
+   - `pathOpens` cannot fix these as it stands: it matches the catalogue path exactly, so
+     `/vehicles/abc` or `/fuel-log?tab=x` answer **false**. The router's own match has to be used.
+10. **Role literals beside the matrix that nobody has ruled on.**
+    - API: Samsara sync and diagnostics, the fuel-card mileage override, posted-price networks, the
+      McLeod/Samsara/performance integration routes and `PUT /api/hazmat/policy` are `requireRole("admin")`;
+      `POST /api/ai/ask` hand-lists five roles; driver credentials, reconcile and merge are
+      `[admin, fleet_manager]` with a comment.
+    - RLS: eleven pre-0260 policies that `lint:section-policies` grandfathers wholesale —
+      `driver_duty_sessions` ×2, `duty_equipment_segments` ×2, `hos_duty_segments_write`,
+      `load_events_insert`, `load_external_payloads_select`, `message_reports.reports_admin_read`,
+      `hazmat_policies_admin_write`, plus gap 1's two.
+    - Each is either a Q-SET1-style "admin only, never offered" (then it belongs on a named list that is
+      derived, like `ADMIN_ONLY_SURFACES`) or a section (then it reads the matrix). Today it is neither,
+      and the Permissions page cannot show it.
+
+### 4b.3 The queue (one PR each; every migration ships alone after the code that stops needing it)
+- **SP5 · Links and buttons agree with where they lead (web only).**
+  - `session.opens(path)` resolves the path through the router (`router.resolve(...).matched[0]`) and
+    asks `surfaceAllowed` plus the module. It replaces `pathOpens` at its two callers and gates every
+    link in 4b.2 item 9.
+  - The item 8 affordances move to `session.can(...)`.
+  - Data & sync's buttons, the digest, Recall audit's marks and the Export menu each ask their
+    endpoint's own section.
+  - The Driver App comments are made true.
+  - A test pins every catalogued link: a role-matrix walk renders each page and fails on a visible link
+    whose target the same caller cannot open.
+- **SP6 · Access is granted in one place (migration).**
+  - Drop `memberships_write` and `invites_admin_all`; their SELECT policies stay.
+  - Add a database invariant that an org keeps at least one admin (a constraint trigger on
+    `memberships`).
+  - Matrices assert every client write refused and the last admin undeletable, even by the service role.
+- **SP7 · Taking access away is immediate** (Q-SET6).
+  - Remove, revoke and demote end the person's sessions.
+  - Office users get a suspended state that blocks login, API and RLS at once and can be undone.
+- **SP8 · The trail is complete** (Q-SET7, Q-SET9).
+  - The matrix, member and invite writes become one RPC each: change and audit in one transaction,
+    with before and after recorded.
+  - `audit_logs` gets an append-only trigger with the retention path named.
+- **SP9 · Changing access needs a fresh sign-in** (Q-SET8). `requireFreshAuth` on section access, screen
+  access, members and invites.
+- **SP10 · Who has access** (Q-SET10).
+  - The reverse view: per screen and section, every person with the answering layer.
+  - A CSV an access review can file.
+- **SP11 · The unruled role literals** (Q-SET11). Each API gate and RLS policy in 4b.2 item 10 becomes a
+  section read, or is added to a derived admin-only list the Permissions page shows as "Admin only".
+  `lint:section-policies` loses its pre-0260 grandfathering for those tables.
+
+---
+
 ## 5. Questions (all five ruled by the owner, 2026-09-30)
 
 - **Q-SET1 · Which Settings screens stay admin-only, never offered to anyone?**
@@ -200,6 +323,54 @@ policy is live (`lint:migration-ordering`).
     does. SP4's PR 1 is built as (b), and waits on this ruling before it merges.
   - **Ruled (b), 2026-09-30** (owner: *"proceed as proposed"*). The same ruling reopened the
     lifecycle plan's Q1 on the 5.06 M rows behind the count (DATA-LIFECYCLE-PLAN.md §7).
+
+### Questions from the enterprise audit (§4b) — all ruled as recommended by the owner, 2026-09-30
+
+Owner: *"As recommended and lets finish this properly so after we are done this part is production
+ready and enterprise grade."* Q-SET6 (a), Q-SET7 (a), Q-SET8 (a), Q-SET9 (a), Q-SET10 build now,
+Q-SET11 (a), Q-SET12 (a).
+- **Q-SET6 · When is taken-away access gone?**
+  - *(a)* Immediately for remove, revoke, demote and suspend: end every session (`revoke_user_sessions`).
+    Matrix changes keep "within an hour", as the page says today.
+  - *(b)* (a), and a matrix change also ends the sessions of everyone it narrows.
+  - *(c)* Keep the hour everywhere.
+  - *Recommendation: **(a)**.* Removing a person is the moment an access control is audited, and an
+    hour of a fired dispatcher's token is the finding. A matrix narrowing is a policy edit that can touch
+    every dispatcher at once; logging them all out mid-shift is worse than the hour. The per-request
+    `requireSurface` read already makes screen changes immediate in the API.
+- **Q-SET7 · If the audit row cannot be written, does the change happen?**
+  - *(a)* No: change and audit commit together in one RPC, or neither does.
+  - *(b)* Yes, and alert.
+  - *Recommendation: **(a)** for permission, member and invite writes.* An access change nobody can
+    account for is the one thing an access log exists to prevent. Other audited writes stay as they are.
+- **Q-SET8 · Does changing access need a fresh password?**
+  - *(a)* Yes, the same five-minute step-up card control uses, for every write on the Permissions and
+    Users pages and on invites.
+  - *(b)* Only for granting admin and for removing a person.
+  - *(c)* No.
+  - *Recommendation: **(a)**.* One prompt per five minutes of editing, and a stolen session can no longer
+    hand itself or anyone else more access.
+- **Q-SET9 · Is `audit_logs` enforced append-only in the database?**
+  - *(a)* Yes: a trigger refuses UPDATE and DELETE for everyone except one named retention function
+    (L7's archive-then-drop).
+  - *(b)* Convention only, as today.
+  - *Recommendation: **(a)**.* `RETENTION_FORBIDDEN` already says it; the database should too.
+- **Q-SET10 · Who-has-access view and export: build it now or later?**
+  - *Recommendation: build it now (SP10).* It is the report an auditor asks for first, and a customer's
+    security questionnaire asks whether it exists.
+- **Q-SET11 · The unruled role literals (§4b.2 item 10).**
+  - *(a)* Rule each one here: an integration's setup and credentials (Samsara sync and diagnostics,
+    McLeod, performance, posted-price networks, fuel-card mileage, hazmat policy) go to the admin-only
+    list with Users, Permissions, Card control and EFS. The rest (duty sessions and segments, HOS
+    segments, load events, external payloads, message reports, AI ask) read their section.
+  - *(b)* Everything becomes a section.
+  - *Recommendation: **(a)**,* item by item in the PR, with each moved one's behaviour pinned first.
+- **Q-SET12 · Office users get a suspended state?**
+  - *(a)* Yes: `memberships.suspended_at`. The hook stops issuing `org_id`, sessions end, and the Users
+    page shows and reverses it. It is audited.
+  - *(b)* No: remove and re-invite.
+  - *Recommendation: **(a)**.* Leave, investigation and seasonal staff are ordinary. Re-inviting loses
+    every per-person override, and those overrides are the control.
 
 ---
 
@@ -290,3 +461,8 @@ Append a dated line per step. Never edit §3.
   check's wait and was superseded by `a975fb5`. Nothing was broken. Still owed by the owner: open the
   Audit log as the admin in production, and SP3's one Organization save. **SP5 is next** (§6's dead
   links and gate mismatches).
+- **2026-09-30** — Enterprise audit (§4b) after the owner asked for "enterprise grade ... full control".
+  Three sweeps (API routes, web gates and links, permission writes) plus production `pg_policies`.
+  Nothing built. SP5 is re-scoped to §4b.3 (web only, no ruling needed). SP6–SP11 are queued, and
+  Q-SET6..Q-SET12 are open.
+- **2026-09-30** — Owner ruled Q-SET6..Q-SET12 as recommended (§5). SP5–SP11 all proceed.
