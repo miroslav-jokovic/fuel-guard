@@ -29,10 +29,12 @@ runs:
       shell: bash
       run: corepack enable
 
+    # The pnpm store is cached through the Actions cache on GitHub's machines, which start empty. On
+    # the Mac the store is on disk and outlives the job, so a restore would only re-download it.
     - uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: pnpm
+        cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
 
     - name: Install dependencies
       shell: bash

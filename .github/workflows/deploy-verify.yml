@@ -27,7 +27,8 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Same machine switch as ci.yml (CI_RUNNER; its header says why).
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       # Report on every host rather than stopping at the first one that lags. "The API is behind" and
