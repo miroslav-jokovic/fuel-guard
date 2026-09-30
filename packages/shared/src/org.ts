@@ -43,7 +43,21 @@ export const orgSettingsFormSchema = z.object({
   city: z.string().trim().max(100).or(z.literal("")).nullish(),
   state: z.string().trim().max(20).or(z.literal("")).nullish(),
   postal_code: z.string().trim().max(20).or(z.literal("")).nullish(),
-  allowed_domains: z.array(z.string().trim().toLowerCase().min(1)).default([]),
+  /**
+   * The invitation allowlist: when non-empty, an invite to any other domain is refused at creation
+   * AND at acceptance (`isEmailDomainAllowed`). Shaped as a bare domain because a stored entry is
+   * compared to the email's domain part exactly — "@example.com" or "https://example.com" would
+   * match nobody and so refuse every invitation, which is the worst way for a typo to fail (Q-SET4).
+   */
+  allowed_domains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, "Enter each domain like example.com"),
+    )
+    .default([]),
   operating_hours: z.object({
     start: timeHHMM,
     end: timeHHMM,
@@ -64,12 +78,13 @@ export type OrgSettingsForm = z.infer<typeof orgSettingsFormSchema>;
  * 2026-09-30: production's carrier row held both, one Notifications save from losing them). A
  * page that can only send its own fields cannot erase anybody else's.
  *
- * `allowed_domains` is in neither, deliberately: the Organization page shows it, but no save has
- * ever written it (checked back to the initial commit), and it decides who may be invited. Making
- * it save now would switch that restriction on as a side effect — it waits on the owner (Q-SET4).
+ * `allowed_domains` is the Organization screen's. No save wrote it from the initial commit until
+ * the owner ruled Q-SET4 (a), 2026-09-30: it saves, and the page says plainly that it refuses
+ * invitations to other domains.
  */
 export const orgProfileFormSchema = orgSettingsFormSchema.pick({
   name: true,
+  allowed_domains: true,
   dot_number: true,
   address_line1: true,
   city: true,

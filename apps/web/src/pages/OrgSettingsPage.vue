@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { orgProfileFormSchema } from "@silvicom/shared";
 import { useOrgSettingsQuery, useSaveOrgProfile } from "@/composables/useOrgSettings";
@@ -21,9 +21,6 @@ const form = reactive({
   city: "",
   state: "",
   postalCode: "",
-  // ⚠ Shown and never saved — no save has written `allowed_domains` since the initial commit, and it
-  // decides who may be invited, so SP2 did not start writing it as a side effect. The owner's call
-  // (Q-SET4, SETTINGS-PERMISSIONS-PLAN.md §5): save it, or take the field off.
   allowedDomains: "",
   open24_7: false,
   start: "05:00",
@@ -54,6 +51,10 @@ watch(
 
 const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
+// The schema reports a bad entry at `allowed_domains.<index>`; the field is one input, so any of them.
+const domainsError = computed(() =>
+  Object.entries(fieldErr.value).find(([k]) => k.startsWith("allowed_domains"))?.[1],
+);
 
 async function onSave() {
   // Only this page's own columns (SP2) — Notifications saves its two on its own screen.
@@ -64,6 +65,11 @@ async function onSave() {
     city: form.city.trim(),
     state: form.state.trim(),
     postal_code: form.postalCode.trim(),
+    // Blank means no restriction, sent as [] (Q-SET4) — a stray trailing comma is not a domain.
+    allowed_domains: form.allowedDomains
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => d !== ""),
     // 24/7 is encoded as start === end (the off-hours rule then never fires).
     operating_hours: form.open24_7
       ? { start: "00:00", end: "00:00", tz: form.tz }
@@ -138,11 +144,13 @@ async function onSave() {
           v-slot="{ id }"
           class="mt-4"
           label="Allowed email domains (comma-separated)"
-          hint="Only emails from these domains can be invited. Leave empty to allow any domain."
+          hint="Invitations to any other domain are refused — even ones already sent. Leave empty to allow any domain."
+          :error="domainsError"
         >
           <BaseInput
             :id="id"
             v-model="form.allowedDomains"
+            :invalid="Boolean(domainsError)"
             placeholder="silvicominc.com, example.com — leave blank to allow any domain"
           />
         </FormField>

@@ -125,7 +125,7 @@ policy is live (`lint:migration-ordering`).
 
 ---
 
-## 5. Questions (all three ruled by the owner, 2026-09-30)
+## 5. Questions (all four ruled by the owner, 2026-09-30)
 
 - **Q-SET1 · Which Settings screens stay admin-only, never offered to anyone?**
   - *(a)* Users, Permissions, Card control, EFS integration.
@@ -177,6 +177,12 @@ policy is live (`lint:migration-ordering`).
   - *Recommendation: **(a)**,* with the page saying plainly that it restricts invitations. That is
     what the hint text already promises. SP2 shipped with it still unsaved and labelled, so that
     SP2 changes no behaviour.
+  - **Ruled (a), 2026-09-30** (owner: *"as recommended"*). It saves through `PUT
+    /api/org-settings/profile`, behind the Organization screen, and the hint now reads as a warning:
+    invitations to any other domain are refused, even ones already sent (acceptance re-checks). An
+    emptied field saves `[]`, which means any domain. Built with one addition: each entry must be a
+    bare domain (`example.com`). A stored entry is compared to the email's domain part exactly, so a
+    typed `@example.com` would have matched nobody and refused every invitation.
 
 ---
 
@@ -216,3 +222,7 @@ Append a dated line per step. Never edit §3.
   Q-SET4 (allowed domains never saved) is open. **SP3 may go once this is live:** drop
   `organizations_update`, `thresholds_write`, `dps_write`, `route_fuel_settings_write`,
   `fuel_discount_write`.
+- **2026-09-30** — Owner ruled Q-SET4 (a), "as recommended" (§5). Allowed domains now saves with the
+  rest of Organization, lower-cased and shape-checked; blank saves `[]`. The hint warns that other
+  domains' invitations are refused. `settingsWrites.test.ts` rewritten to expect it saved, plus an
+  empty-list case and a malformed-domain case; 5 mutants, all killed. No migration. SP3 is next.
