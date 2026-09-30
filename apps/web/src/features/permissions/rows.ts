@@ -1,4 +1,4 @@
-import { SURFACES, SURFACE_GROUPS } from "@silvicom/shared";
+import { REVIEW_LAYER_LABELS, SURFACES, SURFACE_GROUPS, type ReviewLayer } from "@silvicom/shared";
 import { LAYER_LABELS, type AccessLayer } from "./layers";
 import { SECTION_LABELS } from "./labels";
 import type { SurfaceCatalogueEntry } from "./usePermissions";
@@ -85,4 +85,16 @@ export function groupScreens(
     }
   }
   return { groups, unlisted };
+}
+
+/**
+ * The marker on a "Who has access" row (SP10). The three layers a cell can hold keep the People
+ * tab's own tag, so "Personal" means one thing on both tabs; the four reasons no cell exists — a
+ * locked role, an admin-only screen, a section that does not reach, a module the org has not
+ * enabled — are neutral, because none of them is an answer anybody on this page gave.
+ */
+export function reviewLayerTag(layer: ReviewLayer): RowTag {
+  return layer === "user" || layer === "role" || layer === "default"
+    ? layerTag(layer)
+    : { label: REVIEW_LAYER_LABELS[layer], tone: "neutral" };
 }

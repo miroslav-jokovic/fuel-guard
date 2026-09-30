@@ -24,6 +24,8 @@ export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";
 export { auditRouter } from "./routes/audit.js";
 export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";
+// SP10 (Q-SET10): who has access, and the access-review export — reads the two routers' tables.
+export { accessReviewRouter } from "./routes/accessReview.js";
 // The carrier's own identity, read by any module rendering a filing that must name it (0282).
 export { carrierCityStateZip, getCarrierIdentity } from "./carrierIdentity.js";
 export type { CarrierIdentity } from "./carrierIdentity.js";

@@ -3,25 +3,12 @@ import type { AppSection } from "@silvicom/shared";
 /**
  * Reader-facing names for the twelve sections.
  *
- * The section KEYS are the product's vocabulary and live in `packages/shared/src/auth.ts`; only the
- * words a person reads live here, and only this feature reads them — every other surface in the app
- * names a section through the sidebar, which takes its labels from the surface catalogue. One home,
- * inside the one feature that needs it, rather than a fifth copy in shared for a single caller.
+ * Moved to `@silvicom/shared` (`accessLayers.ts`) by SP10 (Q-SET10) and re-exported here unchanged.
+ * Until then this feature was their only reader and one home inside it was right; the access-review
+ * CSV the API renders is a second reader in a second app, and a copy of these words there would be a
+ * file that names a section differently from the page an auditor checks it against.
  */
-export const SECTION_LABELS: Record<AppSection, string> = {
-  fuel: "Fuel",
-  dispatch: "Dispatch",
-  safety: "Safety",
-  hazmat: "HazmatGuard",
-  roster: "Roster",
-  equipment: "Equipment",
-  recruitment: "Recruitment",
-  admin: "Admin",
-  settings: "Settings",
-  accounting: "Accounting",
-  billing: "Billing",
-  maintenance: "Maintenance",
-};
+export { SECTION_LABELS } from "@silvicom/shared";
 
 /**
  * The regulatory reader tests, which an org's matrix does not reach and must never appear to

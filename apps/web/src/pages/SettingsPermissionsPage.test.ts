@@ -575,3 +575,14 @@ describe("the page itself", () => {
     expect(w.text()).not.toContain("Pick a member");
   });
 });
+
+describe("the Who has access tab (SP10, Q-SET10)", () => {
+  // The reverse view sits beside Roles and People in the same tab strip, rather than on a page of
+  // its own: it answers the same question backwards, from the same layers.
+  it("is offered as a third tab of the page's own tab strip", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const labels = w.findAll('[role="tab"]').map((t) => t.text());
+    expect(labels).toEqual(expect.arrayContaining(["Roles", "People", "Who has access"]));
+  });
+});

@@ -18,7 +18,7 @@ import { requestMetrics } from "./middleware/requestMetrics.js";
 import { applicationIntakeLimiter, isApplicationLink, packetCeremonyLimiter } from "./middleware/applicationLimits.js";
 import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
-import { invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
+import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, savedViewsRouter } from "./modules/org/index.js";
@@ -227,6 +227,8 @@ function mountApiRouters(app: Express, env: Env): void {
   // The per-org permission overrides (D-PERM1). Admin-only inside the router; every write audits.
   app.use("/api/section-access", sectionAccessRouter());
   app.use("/api/surface-access", surfaceAccessRouter());
+  // SP10 (Q-SET10): who has access, per screen and section, and the audited access-review CSV.
+  app.use("/api/access-review", accessReviewRouter());
   // A bookmark belonging to the caller — no role gate; see the router's header.
   app.use("/api/saved-views", savedViewsRouter());
   // SP2 (SETTINGS-PERMISSIONS-PLAN.md): Organization and Notifications save here, each on its own screen.

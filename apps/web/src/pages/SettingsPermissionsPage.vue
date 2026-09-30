@@ -4,6 +4,7 @@ import { AppTabs, type TabItem } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import RolesTab from "@/features/permissions/RolesTab.vue";
 import PeopleTab from "@/features/permissions/PeopleTab.vue";
+import WhoHasAccessTab from "@/features/permissions/WhoHasAccessTab.vue";
 
 /**
  * Permissions (SURFACE-ENTITLEMENTS-PLAN.md S6; EDITABLE-PERMISSIONS-PLAN.md P5).
@@ -22,6 +23,11 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
  * person's answer outlives their role changing underneath them, and it is the only layer where
  * "shown" is a real answer rather than a reset (D-SURF6, D-SURF7).
  *
+ * ── A THIRD TAB, THE SAME QUESTION ASKED BACKWARDS (SP10, Q-SET10) ───────────────────────────
+ * "Who has access" answers "who can open Card control" — the question an access review asks first,
+ * which the two tabs above can only answer one member at a time. It edits nothing: every change is
+ * still made on Roles or People, and this view recomputes from the same layers when one is.
+ *
  * ── WHY THE PAGE NO LONGER EXPLAINS ITSELF AT THE TOP ───────────────────────────────────────────
  * The first editable version opened with a paragraph on the two staleness contracts and closed with
  * a paragraph on what the page does not govern. Both were true and both were in the wrong place: the
@@ -38,6 +44,7 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
 const tabs: TabItem[] = [
   { value: "roles", label: "Roles" },
   { value: "people", label: "People" },
+  { value: "access", label: "Who has access" },
 ];
 const tab = ref("roles");
 </script>
@@ -53,8 +60,11 @@ const tab = ref("roles");
     <div v-if="tab === 'roles'" id="permissions-panel-roles" role="tabpanel" aria-labelledby="permissions-tab-roles">
       <RolesTab />
     </div>
-    <div v-else id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
+    <div v-else-if="tab === 'people'" id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
       <PeopleTab />
+    </div>
+    <div v-else id="permissions-panel-access" role="tabpanel" aria-labelledby="permissions-tab-access">
+      <WhoHasAccessTab />
     </div>
 
     <details class="border-t border-edge-subtle pt-4">
