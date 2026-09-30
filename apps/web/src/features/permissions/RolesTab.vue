@@ -15,7 +15,7 @@ import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
 import SidebarPreview from "./SidebarPreview.vue";
 import { SECTION_CAVEATS, SECTION_LABELS } from "./labels";
-import { SECTION_SAVE_NOTE, SURFACE_SAVE_NOTE, accessLabel, sectionReaches } from "./layers";
+import { SECTION_SAVE_NOTE, SURFACE_SAVE_NOTE, accessLabel, entryStartsOn, sectionReaches } from "./layers";
 import { CHANGED_TAG, groupScreens, needLabel } from "./rows";
 import {
   useSectionAccessQuery,
@@ -115,7 +115,7 @@ const screens = computed(() => {
     return {
       key: s.key,
       label: s.label,
-      allowed: override ?? true,
+      allowed: override ?? entryStartsOn(s, r),
       inherited: false,
       reachable,
       need: needLabel(s),
@@ -160,8 +160,16 @@ async function saveSurface(v: { surfaceKey: string; allowed: boolean }) {
   }
 }
 
-/** `allowed: true` is inert at the role layer, so writing it is the reset (D-SURF6). */
-const resetSurface = (surfaceKey: string) => saveSurface({ surfaceKey, allowed: true });
+/**
+ * Sending the screen's STARTING value is the reset at this layer: the endpoint compares and deletes
+ * (D-SURF6). That was always `true` until Q-SET2 gave some screens a start of off for some roles.
+ */
+const startsOn = (r: UserRole, surfaceKey: string): boolean => {
+  const entry = surfaces.data.value?.surfaces.find((s) => s.key === surfaceKey);
+  return entry ? entryStartsOn(entry, r) : true;
+};
+const resetSurface = (surfaceKey: string) =>
+  role.value && saveSurface({ surfaceKey, allowed: startsOn(role.value, surfaceKey) });
 
 /**
  * "Reset role" is one write per changed cell, because the API answers one cell at a time and a
@@ -176,7 +184,7 @@ async function resetRole() {
       await setSection.mutateAsync({ role: r, section, access: shipped(r, section) });
     }
     for (const surfaceKey of Object.keys(surfaces.data.value?.overrides[r] ?? {})) {
-      await setSurface.mutateAsync({ role: r, surfaceKey, allowed: true });
+      await setSurface.mutateAsync({ role: r, surfaceKey, allowed: startsOn(r, surfaceKey) });
     }
     toast.success(`${USER_ROLE_LABELS[r]} reset to defaults`, SECTION_SAVE_NOTE);
   } catch (e) {

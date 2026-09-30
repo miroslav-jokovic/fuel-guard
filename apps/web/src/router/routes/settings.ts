@@ -1,8 +1,13 @@
 import type { RouteRecordRaw } from "vue-router";
 
 /**
- * Settings, and the org-level configuration that lives under it. Several of these carry
- * `requiresAdmin` or `requiresAuditAccess`; the guard in `../index.ts` is what enforces them.
+ * Settings, and the org-level configuration that lives under it.
+ *
+ * Every route here is a surface in `surfaceCatalogue.ts` since SP1 (SETTINGS-PERMISSIONS-PLAN.md),
+ * and the guard in `../index.ts` reads its gate from there. `requiresAdmin` stays only on the four
+ * screens Q-SET1 keeps admin-only — Users, Permissions, Card control, EFS integration — where the
+ * catalogue's `ADMIN` gate says the same; the rest are permissions an admin can give per role or
+ * per person, and start off for everyone who could not open them before (Q-SET2).
  */
 export const settingsRoutes: RouteRecordRaw[] = [
   {
@@ -63,7 +68,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/ThresholdsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Anomaly Thresholds",
       parent: "/settings",
     },
@@ -74,7 +78,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/DriverPerformanceSettingsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Driver Performance",
       parent: "/settings",
     },
@@ -95,7 +98,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/FuelPlanningSettingsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Planned Fueling",
       parent: "/settings",
     },
@@ -121,13 +123,13 @@ export const settingsRoutes: RouteRecordRaw[] = [
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Organization", parent: "/settings" },
+    meta: { requiresAuth: true, title: "Organization", parent: "/settings" },
   },
   {
     path: "/settings/notifications",
     name: "notifications",
     component: () => import("@/pages/NotificationsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Notifications", parent: "/settings" },
+    meta: { requiresAuth: true, title: "Notifications", parent: "/settings" },
   },
   {
     path: "/settings/audit",
@@ -135,7 +137,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/AuditPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAuditAccess: true,
       title: "Audit Log",
       parent: "/settings",
     },

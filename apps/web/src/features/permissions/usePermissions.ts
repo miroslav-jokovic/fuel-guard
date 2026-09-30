@@ -35,6 +35,10 @@ export interface SurfaceCatalogueEntry {
   /** Always present in practice — only a section-gated screen is offered (Q-SURF3). */
   section: AppSection | null;
   level: SectionAccess | null;
+  /** The directory it is a card on (SP1) — its row sits in that directory's group, not the sidebar's. */
+  reachedFrom: string | null;
+  /** Q-SET2: when present, the roles it starts ON for; every other editable role starts off. */
+  startsOnFor: UserRole[] | null;
 }
 
 export interface RoleSectionAccess {

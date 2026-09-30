@@ -12,15 +12,16 @@ import { useSessionStore } from "@/stores/session";
  * sidebar entry gated on a section and no route gate at all, and `/settings` had the mismatch
  * reversed and bounced the one role it was added for.
  *
- * What remains here are the gates that are NOT section questions, and so have no catalogue entry to
- * read: `requiresAdmin` (a role test — D-PERM7 makes the `admin` section ungrantable, so it can
- * never be answered from the matrix) and `requiresAuditAccess` (admin OR the read-only reviewer).
+ * What remains here is `requiresAdmin`, on the four screens Q-SET1 keeps admin-only (Users,
+ * Permissions, Card control, EFS integration). The catalogue says the same thing with an `ADMIN`
+ * gate, so this is a second lock rather than a second home. `requiresAuditAccess` (admin OR the
+ * read-only reviewer) went with SP1: the Audit log is a `settings: view` screen now (Q-SET3), and
+ * the catalogue's `startsOnFor: ["auditor"]` is how the reviewer keeps it.
  */
 declare module "vue-router" {
   interface RouteMeta {
     requiresAuth?: boolean;
     requiresAdmin?: boolean;
-    requiresAuditAccess?: boolean;
     title?: string;
     parent?: string;
     /**
@@ -140,8 +141,6 @@ router.beforeEach(async (to) => {
   if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
     return { name: "dashboard" };
   if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
-  if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly))
-    return { name: "dashboard" };
 
   /**
    * The section gate, read from the catalogue rather than from a per-route meta (S2, D-SURF3).
