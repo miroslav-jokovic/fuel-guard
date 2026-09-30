@@ -24,6 +24,8 @@
 //      machine-derived `idle_*` columns and grant idle avoidability to a truck. Who set one and when
 //      is a real question, so they must not be swept up by an `idle_%` pattern.
 //
+//   8. WHAT CHANGED IS RECORDED (0390). `meta.changed` names the non-ignored columns, never a value.
+//
 // Applies EVERY migration, same as rls.test.mjs, so the trigger under test is the one production runs.
 //
 // Run:  node supabase/tests/audit-telemetry-ignored.test.mjs
@@ -195,6 +197,34 @@ ok(
   "setting a telemetry column to its current value audits nothing",
   (await updateAndCount("vehicles", "vehicle", TRUCK, "current_odometer = current_odometer", [])) === 0,
 );
+
+// ── 8. an audited update records WHICH columns changed, by name only (0390) ───────────────────────
+// Before 0390 every update row read `meta = '{}'`: it could say that truck 754 changed, never whether
+// that was its VIN or its plate. Names only — values sit behind other permissions (0390's header).
+const lastMeta = async (id, action) =>
+  (await one(`select meta from audit_logs where entity_id = $1 and action = $2 order by created_at desc, id desc limit 1`, [id, action]))
+    .meta;
+await db.query(`update vehicles set plate = $2, vin = $3 where id = $1`, [TRUCK, "IL-12345", "1FUJGLD59HLJS7777"]);
+ok(
+  "a two-column update records both names, sorted",
+  JSON.stringify(await lastMeta(TRUCK, "vehicle.update")) === JSON.stringify({ changed: ["plate", "vin"] }),
+  JSON.stringify(await lastMeta(TRUCK, "vehicle.update")),
+);
+await db.query(`update vehicles set current_odometer = $2, unit_number = $3 where id = $1`, [TRUCK, 333333, "756"]);
+ok(
+  "ignored telemetry in the same statement is not named — nor is updated_at",
+  JSON.stringify(await lastMeta(TRUCK, "vehicle.update")) === JSON.stringify({ changed: ["unit_number"] }),
+  JSON.stringify(await lastMeta(TRUCK, "vehicle.update")),
+);
+await db.query(`update drivers set date_of_birth = $2 where id = $1`, [DRIVER, "1980-02-03"]);
+const dobMeta = await lastMeta(DRIVER, "driver.update");
+ok(
+  "a driver's date of birth is named, and its value is nowhere in the row",
+  JSON.stringify(dobMeta) === JSON.stringify({ changed: ["date_of_birth"] }) && !JSON.stringify(dobMeta).includes("1980"),
+  JSON.stringify(dobMeta),
+);
+const TRUCK3 = (await one(`insert into vehicles (org_id, unit_number, tank_capacity_gal) values ($1,'801',150) returning id`, [ORG])).id;
+ok("insert keeps meta {} — the whole row is the change", JSON.stringify(await lastMeta(TRUCK3, "vehicle.insert")) === "{}");
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
