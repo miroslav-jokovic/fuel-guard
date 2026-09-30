@@ -165,9 +165,21 @@ Where a merge's 15–20 min goes:
     dispatch: 0393 applied ~17:52 UTC.
   - ci.yml and mutation-check.yml now key main's group on the SHA. Seen working: CI on `a3b7e7b`
     and `466875e` ran concurrently.
-- ⚠ **Open, the owner's call:** on main, native-android always builds, and a Google NDK download
-  flake there blocks a migration whenever the shortcut does not apply. Either main uses the same
-  path filter (then a missed input is never caught), or accept it and rerun.
+- 2026-09-30 — **The NDK flake, fixed at its source instead of either option offered.**
+  - It was not rare: `InstallFailedException … Error on ZipFile unknown archive` failed native-android
+    on 2 of ~14 main builds in three hours.
+  - Gradle downloads two NDKs on every run, and the runner image has neither: 27.1.12297006 (React
+    Native's libs.versions.toml) and 27.0.12077973 (AGP's default, for expo-sqlite's CMake build).
+  - Why neither option: filtering main loses its safety net, and accepting re-runs keeps the fault.
+  - The fix: the compile step, the first Gradle call and the one where NDKs install, retries up to
+    3 times, **only** on `InstallFailedException`, clearing SDK staging and half-installed NDK
+    folders first. Why a retry and not a pre-install or a cache: the ci.yml comment explains.
+  - Proven with a fake gradlew, 4 cases (ok, Kotlin error → 1 attempt, flake once → 2, flake
+    always → 3), plus a mutant with the error guard removed (the Kotlin case then retried 3×).
+    Real proof is the next corrupt download: look for its `::warning::Attempt` annotation.
+- 2026-09-30 — **Merge → schema applied, measured on real migration merges.** 0394 (hit): +39 s,
+  schema ~2½ min before the code. 0395 (miss): +7m32s, 4m36s of code on the old schema. Numbers in
+  MIGRATION-DISCIPLINE.md §2026-09-30. Nothing further owed on Fix 2.
 - ⚠ **Local trap:** do not run deploy-verify's step script in a local checkout. Its
   `git fetch --depth=1` grafts shallow boundaries into the shared repo (it happened; repaired with
   `git fetch --unshallow`).

@@ -148,9 +148,21 @@ PR merged while main has not moved.
 - **Measured on the gate, 2026-09-30:** a `migrate.yml` dispatch on `466875e` (#1158's merge, whose
   tree its PR run tested) passed the CI gate in **1 s**, and the whole job took **24 s** from creation
   to completion. It had been ~6 min of polling main's CI. Railway serves in 2–13 min, so for most
-  migration merges the **schema is applied before the new code is served**. Still owed: merge to
-  `schema.applied` on a real migration merge. That adds the push trigger's latency, which a
-  dispatch skips.
+  migration merges the **schema is applied before the new code is served**.
+- **Measured on the first two real migration merges after it, 2026-09-30:**
+
+  ```
+  0394 (#1155, shortcut HIT)                 0395 (shortcut MISS: #1161 merged during its PR run)
+  17:54:23Z  merge to main                   18:24:23Z  merge to main
+  17:54:37Z  gate passes (tested tree)       18:24:41Z  gate: no tested tree — polls main's CI
+  17:55:02Z  0394 applied        (+39 s)     18:27:19Z  Railway serving, schema BEHIND (+2m56s)
+  ~17:57:36Z Railway serving     (+~3m13s)   18:31:55Z  0395 applied                   (+7m32s)
+  ```
+
+  On a hit the window runs the other way, **schema first by ~2½ min**. On a miss it is **4m36s of
+  new code on the old schema**, longer than 0316's 2m44s, because a green CI run is now ~6 min
+  rather than 3. So `lint:migration-ordering` matters more on exactly the merges the shortcut
+  cannot help.
 - **How often it applies:** for 138 of the 167 merges between 2026-09-23 and 09-30 (27 of the 32
   that carried a migration), main had not moved between the PR's last green CI start and the
   merge. The other ~17% wait for main's CI as before.
