@@ -6,10 +6,11 @@ import type { LiveMapBoard, LiveMapVehicle, VehicleMapState } from "@silvicom/sh
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
-import { BADGE_BASE, vehicleStateTone } from "@/lib/badges";
+import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import {
   LIVE_MAP_SORTS,
   MAP_STATES,
+  STATE_COLOR_CLASS,
   STATE_LABEL,
   sortVehicles,
   type LiveMapSort,
@@ -105,6 +106,17 @@ const rows = computed(() =>
   sortVehicles(props.filtered, sort.value).map((vehicle) => ({ vehicle, metric: rowMetric(vehicle) })),
 );
 
+/** Every truck the four tiles count — the bar's denominator. */
+const censusTotal = computed(() => MAP_STATES.reduce((n, state) => n + props.counts[state], 0));
+/** Counted across the whole board, like the tiles — not only the trucks the filter leaves. */
+const inShopCount = computed(() => props.vehicles.filter((v) => v.inShop).length);
+/**
+ * ⚠ `?? []` is the deploy window, not caution: this rail can be served by a web build whose API has
+ * not deployed yet, and a board without `untracked` must render as "none" rather than throw.
+ */
+const untracked = computed(() => props.board?.untracked ?? []);
+const untrackedUnits = computed(() => untracked.value.map((u) => u.unitNumber).join(", "));
+
 /** Pressing a census button filters to that status; pressing the active one clears it. */
 function toggleState(state: VehicleMapState): void {
   const next = props.states.includes(state) ? props.states.filter((s) => s !== state) : [...props.states, state];
@@ -140,30 +152,64 @@ function toggleState(state: VehicleMapState): void {
       </div>
 
       <!--
-        The census, which is also the status filter. `aria-pressed` rather than a checkbox group: each
-        one is a toggle whose label already carries its count, and a reader who wants the plain
-        control still has the same four values in the same order.
+        ── THE CENSUS, WHICH IS ALSO THE STATUS FILTER (LS4, the 2026-09-30 audit) ─────────────────
+        It was four equal ghost buttons with an 8 px dot, and it did not read as a summary of the
+        fleet. Now: one proportion bar that answers "how is the fleet split" at a glance, then four
+        tiles whose NUMBER is the largest thing in the rail and whose mark is the map's own marker
+        (D-LM30), so the legend is the shape a dispatcher is about to look for.
+
+        `aria-pressed` rather than a checkbox group: each tile is a toggle whose label already carries
+        its count, and a reader who wants the plain control still has the same four values in the same
+        order. The bar is decorative — the tiles carry the same numbers as text.
       -->
-      <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Filter by status">
-        <BaseButton
-          v-for="state in MAP_STATES"
-          :key="state"
-          variant="ghost"
-          size="row"
-          class="px-2 ring-1 ring-inset"
-          :class="states.includes(state) ? 'bg-surface-subtle ring-edge' : 'ring-transparent'"
-          :aria-pressed="states.includes(state)"
-          @click="toggleState(state)"
+      <div class="space-y-2" role="group" aria-label="Filter by status">
+        <div
+          v-if="censusTotal > 0"
+          class="flex h-1.5 gap-px overflow-hidden rounded-full bg-surface-subtle"
+          aria-hidden="true"
         >
-          <span class="flex w-full items-center justify-between gap-1.5">
-          <span class="flex min-w-0 items-center gap-1.5">
-            <!-- The marker itself, from the map's own geometry (D-LM30) — the legend IS the shape. -->
-            <LiveMapStateGlyph :state="state" class="size-4" />
-            <span class="truncate font-normal text-ink-secondary">{{ STATE_LABEL[state] }}</span>
+          <!-- `flex-grow` by count: a proportion, not a width anybody has to compute. -->
+          <span
+            v-for="state in MAP_STATES"
+            v-show="counts[state] > 0"
+            :key="state"
+            class="bg-current"
+            :class="STATE_COLOR_CLASS[state]"
+            :style="{ flexGrow: counts[state] }"
+          />
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <BaseButton
+            v-for="state in MAP_STATES"
+            :key="state"
+            variant="ghost"
+            size="row"
+            class="px-2.5 py-1.5 ring-1 ring-inset"
+            :class="states.includes(state) ? 'bg-surface-subtle ring-edge-strong' : 'ring-edge-subtle'"
+            :aria-pressed="states.includes(state)"
+            @click="toggleState(state)"
+          >
+            <span class="flex w-full flex-col items-start gap-0.5">
+              <span class="flex items-center gap-1.5">
+                <LiveMapStateGlyph :state="state" class="size-4" />
+                <span class="text-xs font-normal text-ink-muted">{{ STATE_LABEL[state] }}</span>
+              </span>
+              <span class="text-lg font-semibold tabular-nums text-ink">{{ counts[state] }}</span>
+            </span>
+          </BaseButton>
+        </div>
+        <!--
+          LS3: what the four numbers do NOT include, said rather than left for a reader to find by
+          comparing against Samsara. Shop trucks ARE in the numbers (Q-LM8a keeps them on the map);
+          untracked ones cannot be, because a truck with no gateway has no place to draw.
+        -->
+        <p v-if="inShopCount > 0 || untracked.length > 0" class="text-xs text-ink-muted">
+          <template v-if="inShopCount > 0">{{ inShopCount }} in the shop</template>
+          <template v-if="inShopCount > 0 && untracked.length > 0"> · </template>
+          <span v-if="untracked.length > 0" :title="untrackedUnits">
+            {{ untracked.length }} with no tracker, not on the map
           </span>
-          <span class="tabular-nums text-ink">{{ counts[state] }}</span>
-          </span>
-        </BaseButton>
+        </p>
       </div>
 
       <!--
@@ -223,6 +269,7 @@ function toggleState(state: VehicleMapState): void {
                 <LiveMapStateGlyph :state="v.state" class="size-3.5" />
                 <span class="font-medium text-ink">{{ v.unitNumber }}</span>
                 <span :class="[BADGE_BASE, vehicleStateTone(v.state)]">{{ STATE_LABEL[v.state] }}</span>
+                <span v-if="v.inShop" :class="[BADGE_BASE, toneClass('neutral')]">In shop</span>
                 <!--
                   D-LM20: the speed while the feed is keeping up, the fix age the moment it is not.
                   `rowMetric` decides which and says why; the two are styled apart because they are

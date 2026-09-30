@@ -218,3 +218,15 @@ export function engineOnBoundSentence(bounds: LiveMapBoard["bounds"]): string {
 export function parkedSentence(): string {
   return "Engine off — however long ago; a switched-off truck going quiet is not a lost signal";
 }
+
+/**
+ * The ECU's engine state in the card's words (D-LM29). `Idle` and `On` both read "Running": the
+ * difference between them is whether the wheels turn, which the card's Speed row already says, and
+ * the word `idle` stays off this surface for D-LM9's reason — the `idle` module owns the judgement
+ * that word carries. Null when the feed has not reported one; the card shows a dash, never "Off".
+ */
+export function engineWords(state: LiveMapVehicle["engineState"] | undefined): string | null {
+  if (state === "On" || state === "Idle") return "Running";
+  if (state === "Off") return "Off";
+  return null;
+}
