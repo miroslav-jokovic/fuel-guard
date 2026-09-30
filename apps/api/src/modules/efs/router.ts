@@ -12,6 +12,7 @@ import {
 import { mountedCapabilities, type AcceptedRequest, type MountedCapability } from "./registry.js";
 import type { Env } from "../../env.js";
 import type { CardScope } from "./services/efsCardControlAccess.js";
+import { recordCardRefusal } from "./routes/refusalAudit.js";
 
 /**
  * One handler, looped over the registry. No hand-written route per capability.
@@ -115,16 +116,17 @@ async function handle(capability: MountedCapability, req: Request, res: Response
   const prepared = await prepare(req, res, contract.scope as CardScope, contract.key);
   if (!prepared) return;
 
-  await run(res, prepared.ctx, accepted, contract.intent, prepared.ctx.efsCardId);
+  await run(res, prepared.ctx, accepted, contract, prepared.ctx.efsCardId);
 }
 
 async function run(
   res: Response,
   ctx: Parameters<AcceptedRequest["run"]>[0],
   accepted: AcceptedRequest,
-  intent: string,
+  contract: MountedCapability["contract"],
   efsCardId: string,
 ): Promise<void> {
+  const intent = contract.intent;
   try {
     const outcome = await accepted.run({
       ...ctx,
@@ -141,6 +143,12 @@ async function run(
     if (error instanceof ActionRefusalError) {
       if (error.code === "step_up_required") { stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, error.message); return; }
       res.status(400).json({ error: { code: error.code, message: error.message } });
+      // Decided against the card's FRESH document — the refusal least visible anywhere else, since
+      // no ledger row was opened for it (refusalAudit.ts).
+      await recordCardRefusal(() => ctx.admin, {
+        orgId: ctx.orgId, userId: ctx.userId, efsCardId, capabilityKey: contract.key,
+        scope: contract.scope, code: error.code, blockedBy: "fresh_document",
+      });
       return;
     }
     controlErrorResponse(res, error);

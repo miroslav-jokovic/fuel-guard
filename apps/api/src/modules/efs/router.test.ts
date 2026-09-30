@@ -81,7 +81,7 @@ const gatedBehaviour = defineBehaviour(gatedContract, {
   preflightStepUp: (body) => (body.uses > 3 ? "Confirm your password to do the thing." : null),
 });
 
-function seededClient(): SupabaseRecorder {
+function seededClient(opts: { promoted?: boolean } = {}): SupabaseRecorder {
   return createSupabaseRecorder({
     rpc: { bump_card_write_counter: { allowed: true } },
     tables: {
@@ -91,7 +91,7 @@ function seededClient(): SupabaseRecorder {
        * Without it every write below refuses `not_promoted` — which is the gate working, and exactly
        * why the plan insists the backfill ship in the same change as the gate.
        */
-      efs_capability_promotions: promotedCapabilitiesTable("test_gated"),
+      efs_capability_promotions: opts.promoted === false ? [] : promotedCapabilitiesTable("test_gated"),
       efs_card_control_settings: {
         data: {
           org_id: ORG,
@@ -163,8 +163,12 @@ afterEach(() => { vi.unstubAllGlobals(); });
 /** Captured before any stub replaces it, so the suite can still talk to its own server. */
 const REAL_FETCH = globalThis.fetch;
 
-const post = (uses: number, version = "0123456789abcdef0123456789abcdef"): Promise<Response> => {
-  recorder = seededClient();
+const post = (
+  uses: number,
+  version = "0123456789abcdef0123456789abcdef",
+  seed: { promoted?: boolean } = {},
+): Promise<Response> => {
+  recorder = seededClient(seed);
   holder.client = recorder.client;
   // Anything reaching EFS is a test failure, not a network call: every case here is refused or
   // stopped before dispatch, and a real fetch would say so by hanging or throwing.
@@ -246,3 +250,29 @@ describe("a card the mirror has only ever seen in the roster (Step 7.5)", () => 
     expect(payload.error.code).toBe("invalid_request");
   });
 });
+
+/**
+ * EFS audit 2026-09-30: a refused prompts edit left no trace in production — no ledger row, no audit
+ * row, and the deploy's logs gone. A gate refusal now writes `card.action_refused` (refusalAudit.ts),
+ * after the answer and without changing it.
+ */
+describe("a gate refusal leaves an audit row", () => {
+  it("an unpromoted capability answers not_promoted AND records who was refused, on which card, by which gate", async () => {
+    const res = await post(1, undefined, { promoted: false });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("card_control_not_promoted");
+    expect(recorder.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({
+        org_id: ORG,
+        actor_id: ADMIN.userId,
+        action: "card.action_refused",
+        entity_id: CARD_ID,
+        meta: { capability: "test_gated", scope: "lock", code: "card_control_not_promoted", blockedBy: "not_promoted" },
+      }),
+    ]);
+    // A refusal is not an attempt: no slot charged, no ledger row opened.
+    expect(counterBumps()).toBe(0);
+    expect(recorder.writtenRows("efs_card_mutations")).toHaveLength(0);
+  });
+});
+
