@@ -1,19 +1,19 @@
 import { Router } from "express";
 import {
+  DRIVER_IDENTITY_ROLES,
   EMPLOYED_DRIVER_STATUSES,
   isApplicantStatus,
-  canWriteDriverLifecycle,
+  callerCanManage,
   driverCreateSchema,
   driverUpdateSchema,
   deriveFullName,
   touchesDriverLifecycle,
   resolveDriverUpdate,
-  rolesThatManage,
   type DriverCreateRequest,
   type DriverUpdateContext,
   type DriverUpdateRequest,
 } from "@silvicom/shared";
-import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAnySection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -80,11 +80,15 @@ export function rosterDriversRouter(): Router {
    * the leak the `recruitment` section was introduced to close. So the two section role-sets are
    * UNIONED here, by name, on these two routes only, and migration 0212 mirrors it in
    * `drivers_write`. Everything else on this router stays fleet-only, including enrolment for app
-   * access (admin + fleet_manager), which hands out a login.
+   * access (`DRIVER_IDENTITY_ROLES`), which hands out a login.
+   *
+   * A UNION of two section questions (`requireAnySection`), not the union of their shipped role sets
+   * it was until SP11: the spread form computed its list once at module load, so an org that took
+   * Recruitment away from its recruiters still saw them write here, and one that granted it to
+   * somebody saw them refused. Same four roles under the shipped matrix — admin, fleet_manager,
+   * safety_manager, recruiter.
    */
-  const canWriteDriver = requireRole(
-    ...new Set([...rolesThatManage("roster"), ...rolesThatManage("recruitment")]),
-  );
+  const canWriteDriver = requireAnySection(["roster", "manage"], ["recruitment", "manage"]);
 
   // List the org's drivers (managers + dispatch/audit read).
   router.get(
@@ -205,7 +209,9 @@ export function rosterDriversRouter(): Router {
       // the admin client is even constructed, so a rejected edit touches no database at all — and
       // refused on the FIELD rather than on the value `terminated`, so un-terminating is closed with
       // it. Migration 0213 mirrors this on the PostgREST path, which the service role here bypasses.
-      if (touchesDriverLifecycle(body) && !canWriteDriverLifecycle(req.auth!.role)) {
+      // Asked of the ORG's roster answer (the `sections` claim), the question `requireSection` and
+      // the hire route ask — `canWriteDriverLifecycle` reads the shipped matrix only (SP11).
+      if (touchesDriverLifecycle(body) && !callerCanManage(req.auth!.role, "roster", req.auth!.sections)) {
         res
           .status(403)
           .json(apiError("forbidden", "Changing a driver's employment status is a fleet action."));
@@ -301,7 +307,7 @@ export function rosterDriversRouter(): Router {
   router.post(
     "/reconcile",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...DRIVER_IDENTITY_ROLES),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -327,7 +333,7 @@ export function rosterDriversRouter(): Router {
   router.post(
     "/:id/merge",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole(...DRIVER_IDENTITY_ROLES),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

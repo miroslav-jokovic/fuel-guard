@@ -36,6 +36,7 @@ import { useSavedViews } from "@/composables/useSavedViews";
 import { useTableColumns } from "@/composables/useTableColumns";
 import {
   SAVED_VIEW_TABLES,
+  canManageDriverIdentity,
   builtInViewsFor,
   matchesDqFilters,
   dqStateFilterOptions,
@@ -302,7 +303,10 @@ async function onSubmit(input: DriverInput) {
     >
       <template #actions>
         <template v-if="session.can('roster')">
+          <!-- Merging drivers is irreversible and granted by NAME (DRIVER_IDENTITY_ROLES, SP11), so a
+               safety manager — who manages the roster — is not offered a button the API refuses. -->
           <BaseButton
+            v-if="canManageDriverIdentity(session.role)"
             title="Fold duplicate / name-only drivers into their Samsara record"
             @click="openReconcile"
           >

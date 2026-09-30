@@ -17,7 +17,9 @@
  *      line. Policies written before the boundary are grandfathered wholesale: re-deriving the
  *      final policy state of 260 migrations by regex would be a guess, and a wrong guess in a
  *      gate is worse than a bounded one. The point is that the accounting/billing/maintenance
- *      sections (program phase P4) are born checked.
+ *      sections (program phase P4) are born checked. Since SP11 (0396) the grandfathering is
+ *      per TABLE rather than wholesale: `CHECKED_FROM_START` names the tables whose history was
+ *      re-derived by hand against production, and those are read from 0001 and must be wrapped.
  *
  * The route-mount half of D-SEP10 ("every mounted router carries a requireRole") is deliberately
  * NOT here: role gates live per-verb inside router trees, so a static mount scan would pin
@@ -115,7 +117,52 @@ const TABLE_SECTIONS = {
   // exactly rolesThatManage("dispatch"); Q-PERM10 had noticed the coincidence before it was a ruling.
   route_fuel_settings: "dispatch",
   fuel_discount_rules: "dispatch",
+  // Added with 0396 (SP11, Q-SET11 (a)). Four tables whose MODULE maps to no section (driver-app,
+  // samsara, mcleod — platform machinery) but whose pre-0260 policy carried a role list that is
+  // exactly one section's derived set, and whose only human surface is that section's page:
+  //
+  // `driver_duty_sessions` / `duty_equipment_segments` (module `driver-app`): the driver writes them
+  // through RPCs; the office's list is exactly rolesThatManage("dispatch"), and the dispatch board is
+  // where a shift is read and ended.
+  driver_duty_sessions: "dispatch",
+  duty_equipment_segments: "dispatch",
+  // `hos_duty_segments` (module `samsara`): its list [admin, fleet_manager] equals THREE sections'
+  // manage sets, so equality does not choose; D-PERM11 does — the page that writes it is Data &
+  // sync (`POST /samsara/sync-hos`, `requireSection("settings")`). 0396's header has the argument.
+  hos_duty_segments: "settings",
+  // `load_external_payloads` (module `mcleod`): read beside the load on the dispatch board, and its
+  // list is exactly rolesThatCanView("dispatch").
+  load_external_payloads: "dispatch",
 };
+
+/**
+ * Tables whose WHOLE policy history is checked, below the boundary too, and whose every role list
+ * must sit inside `auth_section_or_default('<its section>', …)` — SP11's per-table opt-out of the
+ * pre-0260 grandfathering (SETTINGS-PERMISSIONS-PLAN.md §4b.3, Q-SET11).
+ *
+ * The boundary exists because re-deriving 260 migrations' final state by regex would be a guess. For
+ * these tables the guess has been made by hand, against production's `pg_policies`, in 0396 — so the
+ * table no longer needs the grandfathering and should not keep it. The wrapper requirement is what
+ * makes the opt-in bite: the four dispatch lists EQUAL their section's set, so a set comparison alone
+ * would pass a regression that re-created one as a bare literal — the exact state 0396 ended, in which
+ * the org's answer does not reach the policy. A policy waived by name (the hazmat policy, admin only
+ * by ruling) is exempt from both halves, as everywhere else in this gate.
+ *
+ * `message_reports` (module `messaging`, no section) is here for the other half: it holds no role
+ * list at all since 0396 (Q-SET13 (c) — a reporter reads their own, nobody reads the queue by role),
+ * and a sectionless table has no wrapper to demand, so what the opt-in buys is that a role list
+ * re-appearing on it fails as an unwaived literal. That needed `drop policy` to be read too: 0096's
+ * `reports_admin_read` is checked from the start, and only the drop in 0396 retires it.
+ */
+const CHECKED_FROM_START = new Set([
+  "driver_duty_sessions",
+  "duty_equipment_segments",
+  "hos_duty_segments",
+  "load_events",
+  "load_external_payloads",
+  "message_reports",
+  "hazmat_policies",
+]);
 
 /** The section a table's policies are checked against: its own override, else its module's default. */
 function sectionForTable(manifest, table) {
@@ -155,6 +202,9 @@ function expectedSets(matrix, section) {
  */
 const ROLE_LIST = /auth_role\(\)\s*(?:in\s*\(([^)]*)\)|=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\))/gi;
 
+/** `auth_section_or_default('<section>', '<level>',` ending right where a role list begins. */
+const WRAPPER = /(?:public\.)?auth_section_or_default\(\s*'(\w+)'\s*,\s*'(manage|view)'\s*,\s*(?:public\.)?$/i;
+
 /**
  * Every `create policy` in one migration's text, with its table, the role lists in its body, and
  * whether a per-policy waiver line precedes it. Comments are stripped BEFORE policies are read (so a
@@ -170,12 +220,31 @@ export function extractPolicies(sql) {
   for (const m of body.matchAll(/create\s+policy\s+"?([a-z_][a-z0-9_]*)"?\s+on\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)([\s\S]*?)(?=create\s+policy|$)/gi)) {
     const policy = m[1].toLowerCase();
     const table = m[2].toLowerCase();
-    const lists = [...m[3].matchAll(ROLE_LIST)].map((l) =>
-      new Set([...(l[1] ?? l[2]).matchAll(/'(\w+)'/g)].map((x) => x[1])),
-    );
-    policies.push({ policy, table, lists, waived: fileWaived || waived.has(policy) });
+    const matches = [...m[3].matchAll(ROLE_LIST)];
+    const lists = matches.map((l) => new Set([...(l[1] ?? l[2]).matchAll(/'(\w+)'/g)].map((x) => x[1])));
+    // The section and level of the `auth_section_or_default(...)` a list is the default branch of,
+    // or null for a bare literal — read from the text immediately before the list (SP11).
+    const wraps = matches.map((l) => {
+      const w = WRAPPER.exec(m[3].slice(0, l.index));
+      return w ? { section: w[1], level: w[2] } : null;
+    });
+    policies.push({ policy, table, lists, wraps, waived: fileWaived || waived.has(policy), at: m.index });
   }
   return policies;
+}
+
+/**
+ * The `drop policy` statements of one migration, with their offsets, so a policy a later migration
+ * dropped stops being read as live. Without this the gate could only follow a policy through a
+ * re-creation under the SAME name: 0396 renamed `reports_admin_read` to `reports_own_read`, and 0096's
+ * definition — a role list on a sectionless table — would have gone on failing the gate from a
+ * policy production no longer holds.
+ */
+export function extractDrops(sql) {
+  const body = sql.replace(/--[^\n]*/g, "");
+  return [...body.matchAll(/drop\s+policy\s+(?:if\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?\s+on\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)/gi)].map(
+    (m) => ({ policy: m[1].toLowerCase(), table: m[2].toLowerCase(), at: m.index }),
+  );
 }
 
 /**
@@ -185,25 +254,49 @@ export function extractPolicies(sql) {
  * grandfathered as before — but a policy they created and a later migration re-creates is checked,
  * which is how 0300 brought `ftxn_insert` (0004) and the two 0078 lists into scope.
  */
+/**
+ * Apply one migration's creates and drops to `latest`, in the order the file runs them: 0396 drops a
+ * name and re-creates it, and drops another for good.
+ */
+function foldPolicies(latest, sql, file, readsTable = () => true) {
+  const events = [...extractPolicies(sql), ...extractDrops(sql).map((d) => ({ ...d, drop: true }))].sort((a, b) => a.at - b.at);
+  for (const p of events) {
+    if (!readsTable(p.table)) continue;
+    if (p.drop) latest.delete(`${p.table}.${p.policy}`);
+    else latest.set(`${p.table}.${p.policy}`, { ...p, file });
+  }
+  return latest;
+}
+
 function latestPolicies(migrationsDir) {
   const latest = new Map();
   for (const f of readdirSync(migrationsDir).filter((x) => x.endsWith(".sql")).sort()) {
     const num = Number(f.slice(0, 4));
-    if (!Number.isFinite(num) || num <= SQL_BOUNDARY) continue;
-    for (const p of extractPolicies(readFileSync(join(migrationsDir, f), "utf8"))) {
-      latest.set(`${p.table}.${p.policy}`, { ...p, file: f });
-    }
+    if (!Number.isFinite(num)) continue;
+    const grandfathered = num <= SQL_BOUNDARY;
+    // Below the boundary only the opted-in tables are read (SP11); every other table stays
+    // grandfathered exactly as before.
+    foldPolicies(latest, readFileSync(join(migrationsDir, f), "utf8"), f, (t) => !grandfathered || CHECKED_FROM_START.has(t));
   }
   return [...latest.values()];
 }
 
 function checkNewPolicies(matrix, manifest, migrationsDir) {
   const errors = [];
-  for (const { file: f, table, policy, lists, waived } of latestPolicies(migrationsDir)) {
+  for (const { file: f, table, policy, lists, wraps, waived } of latestPolicies(migrationsDir)) {
     if (!lists.length || waived) continue;
     const module = manifest.tables[table]?.module;
     const section = sectionForTable(manifest, table);
-    for (const roles of lists) {
+    for (const [i, roles] of lists.entries()) {
+      if (CHECKED_FROM_START.has(table) && section) {
+        const w = wraps[i];
+        const want = w ? expectedSets(matrix, section)[w.level] : null;
+        if (!w || w.section !== section || !setsEqual(roles, want))
+          errors.push(
+            `${f}: policy ${policy} on ${table} must read the org's answer — wrap its list as auth_section_or_default('${section}', '<level>', …) with that level's derived set (SP11; found ${w ? `'${w.section}', '${w.level}'` : "a bare literal"})`,
+          );
+        continue;
+      }
       if (!section) {
         errors.push(`${f}: policy ${policy} on ${table} names roles but module ${module ?? "?"} maps to no section — add a "-- section-policy-waiver(${policy}): <reason>" line above it or extend MODULE_SECTIONS`);
         continue;
@@ -250,6 +343,23 @@ function selfTest(matrix, manifest) {
   for (const p of [...extractPolicies("create policy p on t for all using (auth_role() in ('admin','old'));"), ...extractPolicies("create policy p on t for all using (auth_role() in ('admin','new'));")])
     superseded.set(`${p.table}.${p.policy}`, p);
   if (![...superseded.get("t.p").lists[0]].includes("new")) fails.push("a later definition does not supersede an earlier one");
+  const [drop] = extractDrops(`
+    drop policy if exists "p_gone" on public.t2;
+    -- drop policy p_commented on t2;`);
+  if (drop?.policy !== "p_gone" || drop?.table !== "t2" || extractDrops("-- drop policy p on t;").length)
+    fails.push("the drop extractor misreads `drop policy if exists \"…\" on schema.table`, or reads one inside a comment");
+  // Order within a file is the order it runs: a drop then a re-create leaves the policy live, a
+  // create then a drop leaves nothing.
+  const liveAfter = (sql) => foldPolicies(new Map(), sql, "self-test.sql");
+  if (!liveAfter("drop policy if exists p on t; create policy p on t for all using (true);").has("t.p")) fails.push("a drop followed by a re-create leaves no live policy");
+  if (liveAfter("create policy p on t for all using (true); drop policy p on t;").has("t.p")) fails.push("a dropped policy is still read as live");
+
+  // The wrapper must be read per list, so a bare literal on an opted-in table cannot pass as wrapped.
+  const [wrapped] = extractPolicies("create policy w on t for all using (auth_section_or_default('dispatch', 'manage', auth_role() = any (array['admin'])));");
+  const [bare] = extractPolicies("create policy b on t for all using (auth_role() = any (array['admin']));");
+  if (wrapped?.wraps[0]?.section !== "dispatch" || wrapped?.wraps[0]?.level !== "manage") fails.push("extractor does not read the auth_section_or_default wrapper");
+  if (bare?.wraps[0] !== null) fails.push("extractor reads a bare literal as wrapped");
+  for (const t of CHECKED_FROM_START) if (!(t in manifest.tables)) fails.push(`CHECKED_FROM_START names ${t}, which is not a live table`);
 
   // The TABLE_SECTIONS override must actually override, and must name a section the matrix knows.
   // Without this, a typo in the map would silently fall back to the module default and the gate

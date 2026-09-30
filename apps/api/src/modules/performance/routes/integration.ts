@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireSection, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireSection, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireSurface } from "../../../middleware/requireSurface.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -17,7 +17,7 @@ export function registerPerformanceIntegrationRoutes(router: Router): void {
   router.post(
     "/driver-performance/snapshot",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("performance.rewards-freeze"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

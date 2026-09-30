@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { Driver, DqRosterColumnKey } from "@silvicom/shared";
-import { driverAppAccess } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
@@ -248,7 +248,9 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
     <template #actions="{ row }">
       <KebabMenu v-if="session.can('roster')">
         <BaseButton class="kebab-item" @click="emit('edit', row)">Edit driver</BaseButton>
-        <BaseButton class="kebab-item" @click="emit('manage-access', row)">
+        <!-- A login is granted by NAME (DRIVER_IDENTITY_ROLES, SP11), narrower than roster manage:
+             a safety manager edits the row and is refused the credential, so is not offered it. -->
+        <BaseButton v-if="canManageDriverIdentity(session.role)" class="kebab-item" @click="emit('manage-access', row)">
           {{ row.user_id ? "Manage app login…" : "Create app login…" }}
         </BaseButton>
         <RouterLink v-if="opens(`/compliance/${row.id}`)" :to="`/compliance/${row.id}`" class="kebab-item"

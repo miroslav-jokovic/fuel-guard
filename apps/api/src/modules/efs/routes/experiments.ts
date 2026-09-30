@@ -17,7 +17,7 @@ import { loadCardNumber } from "../services/efsCardMirror.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
 
@@ -78,7 +78,7 @@ export function fuelCardExperimentsRouter(): Router {
   router.post(
     "/experiment",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.card-control"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);

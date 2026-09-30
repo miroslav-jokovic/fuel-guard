@@ -9,7 +9,7 @@ import { CONTAINER, NIL, documentShape, redactCardXml } from "../lib/efsCardXml.
 import { EfsSoapError, efsLogin } from "../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { resolveReadOnlyScanCredentials } from "./probeGuards.js";
 
 /**
@@ -93,7 +93,7 @@ export function fuelCardEchoScanRouter(): Router {
   router.post(
     "/echo-scan",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const admin = getSupabaseAdmin(env);

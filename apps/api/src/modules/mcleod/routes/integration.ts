@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg, requireAnySection } from "../../../middleware/auth.js";
+import { requireOrg, requireAnySection, requireAdminOnly } from "../../../middleware/auth.js";
 import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -19,7 +19,7 @@ export function registerMcleodIntegrationRoutes(router: Router): void {
   router.get(
     "/mcleod/config",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("mcleod.connection"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json(await getTmsIntegrationStatus(admin, req.auth!.orgId!, "mcleod"));
@@ -44,7 +44,7 @@ export function registerMcleodIntegrationRoutes(router: Router): void {
   router.post(
     "/mcleod/enable",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("mcleod.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -65,7 +65,7 @@ export function registerMcleodIntegrationRoutes(router: Router): void {
   router.post(
     "/mcleod/disable",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("mcleod.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

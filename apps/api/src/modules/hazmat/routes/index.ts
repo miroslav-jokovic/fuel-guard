@@ -16,7 +16,7 @@ import {
   HAZMAT_REVIEW_ROLES,
 } from "@silvicom/shared";
 import { loadDataset, loadReferenceText } from "@hazmat/data";
-import { requireSection, requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireSection, requireAuth, requireOrg, requireRole, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -259,7 +259,7 @@ export function hazmatRouter(): Router {
     res.json((await getPolicy(admin, orgOf(req))) ?? { policy: null });
   }));
 
-  router.put("/policy", requireRole("admin"), validateBody(hazmatPolicyPutRequestSchema), asyncHandler(async (req: Request, res: Response) => {
+  router.put("/policy", requireAdminOnly("hazmat.policy"), validateBody(hazmatPolicyPutRequestSchema), asyncHandler(async (req: Request, res: Response) => {
     const body = res.locals.body as HazmatPolicyPutRequest;
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const result = await putPolicy(admin, orgOf(req), userOf(req), body.policy);

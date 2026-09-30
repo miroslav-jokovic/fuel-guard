@@ -13,7 +13,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { memberLabels } from "../../../lib/memberLabels.js";
 
@@ -42,7 +42,7 @@ import { memberLabels } from "../../../lib/memberLabels.js";
  *      all of them. Scopes are per-person: the most-requested arrangement is a yard manager who can
  *      lock a stolen card at 2am but cannot grant fuel exceptions.
  *
- * Everything here is `requireRole("admin")` plus step-up re-authentication. These rows decide who may
+ * Everything here is admin-only (`requireAdminOnly("efs.card-control")`, SP11) plus step-up re-authentication. These rows decide who may
  * spend money at a pump; changing them is exactly the act that should cost a password.
  *
  * ⚠ MOUNT ORDER. This router MUST be mounted before `fuelCardsRouter()` in app.ts. That router
@@ -87,7 +87,7 @@ export function fuelCardSettingsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const adminOnly = [requireOrg, requireRole("admin")] as const;
+  const adminOnly = [requireOrg, requireAdminOnly("efs.card-control")] as const;
   const eligibleRoles = (): UserRole[] => rolesThatManage("fuel");
 
   /**

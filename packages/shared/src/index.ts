@@ -103,6 +103,7 @@ export * from "./surfaceCatalogue.js";
 export * from "./accessLayers.js";
 export * from "./accessReviewContract.js";
 export * from "./accessReview.js";
+export * from "./namedGrants.js";
 export * from "./dashboardLayoutContract.js";
 export * from "./dashboardWidgets.js";
 export * from "./featureCatalog.js";

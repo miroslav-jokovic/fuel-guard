@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
-import { APP_SECTIONS, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
+import { ADMIN_ONLY_CAPABILITIES, APP_SECTIONS, rolesThatCanView, rolesThatManage } from "@silvicom/shared";
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
 import { AUTH_ONLY_MOUNTS, OPEN_ROUTES, ROLE_LIST_WAIVERS } from "./testing/routeLedger.js";
@@ -48,14 +48,26 @@ type Layer = {
     section?: string;
     level?: string;
     specs?: unknown;
+    adminOnly?: string;
+    roles?: string[];
   };
   route?: { path?: string; stack: Layer[]; methods?: Record<string, boolean> };
   matchers?: Array<(p: string) => unknown>;
 };
 
-/** A handler that declares itself a gate — the marker `requireRole`/`requireSection`/… attach. */
-const gateLabel = (h?: Layer["handle"]): string | null =>
-  h?.gateKind ? (h.section ? `${h.gateKind}(${h.section}/${h.level})` : h.specs ? "anySection" : h.gateKind) : null;
+/**
+ * A handler that declares itself a gate — the marker `requireRole`/`requireSection`/… attach.
+ * `adminOnly(<key>)` for a named admin-only act (SP11) and `role[<roles>]` for a role list, so the
+ * SP11 checks below can tell a named grant from a bare `requireRole("admin")`.
+ */
+const gateLabel = (h?: Layer["handle"]): string | null => {
+  if (!h?.gateKind) return null;
+  if (h.section) return `${h.gateKind}(${h.section}/${h.level})`;
+  if (h.specs) return "anySection";
+  if (h.adminOnly) return `adminOnly(${h.adminOnly})`;
+  if (h.roles) return `${h.gateKind}[${[...h.roles].sort().join(",")}]`;
+  return h.gateKind;
+};
 
 /** Every route reachable under `prefix`, with the gates that stand in front of it. */
 function walkRoutes(stack: Layer[], prefix: string, inherited: string[], out: Map<string, string[]>): void {
@@ -169,6 +181,52 @@ describe("every /api ROUTE is gated, or is open with a written argument (S7, Q-S
     ]) {
       expect(routes.get(key), key).toContain("role(dispatch/view)");
     }
+  });
+});
+
+// ── ADMIN ONLY, BY NAME (SP11, Q-SET11) ─────────────────────────────────────────────────────────
+
+describe("the admin-only acts are one named list, and the API gates exactly that list (SP11, Q-SET11)", () => {
+  /**
+   * `ADMIN_ONLY_CAPABILITIES` is what the Permissions page shows as "Admin only"; `requireAdminOnly`
+   * is what refuses everybody else. Held together in BOTH directions, because either drift is a lie
+   * told by the page: a key no route uses is an act listed as protected that nothing protects, and a
+   * route naming a key the list lacks is a protection the page never mentions.
+   */
+  it("every capability guards at least one route, and every guarded route names a listed capability", () => {
+    const used = new Set<string>();
+    for (const gates of everyRoute().values())
+      for (const g of gates) {
+        const m = /^adminOnly\((.+)\)$/.exec(g);
+        if (m) used.add(m[1]!);
+      }
+    const listed = ADMIN_ONLY_CAPABILITIES.map((c) => c.key);
+    expect([...used].filter((k) => !listed.includes(k as never)), "a route names a capability the list does not hold").toEqual([]);
+    expect(listed.filter((k) => !used.has(k)), "a listed capability guards no route").toEqual([]);
+  });
+
+  /**
+   * A bare `requireRole("admin")` is enforced and invisible — the state SP11 ended for the integration
+   * acts. What may still carry one is closed and named here: the Users and Permissions screens'
+   * own endpoints (Q-SET1; the page lists them through `ADMIN_ONLY_SURFACES`), and two destructive
+   * record acts whose reasons live beside their gates. A new admin-only route anywhere else has to
+   * choose a capability key — and so appear on the Permissions page — or be argued into this list.
+   */
+  it("a bare admin-role gate appears only on Users/Permissions endpoints and two named record acts", () => {
+    // `/api/access-review` is the Permissions page's "Who has access" tab and its CSV (SP10).
+    const USERS_AND_PERMISSIONS = ["/api/invites", "/api/members", "/api/section-access", "/api/surface-access", "/api/access-review"];
+    const NAMED = new Map<string, string>([
+      ["POST /api/maintenance/:id/delete-record", "destroys an inspection record; a technician certifies inspections and does not erase them (maintenance/routes/inspections.ts)"],
+      ["POST /api/recruitment/applicants/:driverId/purge", "`canPurgeApplicant` — the audited service-role purge of an applicant's file, with a fresh sign-in (recruiting/routes/purge.ts)"],
+    ]);
+    const stray = [...everyRoute()]
+      .filter(([, gates]) => gates.includes("role[admin]"))
+      .map(([key]) => key)
+      .filter((key) => {
+        const path = key.slice(key.indexOf(" ") + 1);
+        return !USERS_AND_PERMISSIONS.some((m) => path === m || path.startsWith(`${m}/`)) && !NAMED.has(key);
+      });
+    expect(stray.sort(), "bare requireRole(\"admin\") outside Users/Permissions — use requireAdminOnly(<key>)").toEqual([]);
   });
 });
 

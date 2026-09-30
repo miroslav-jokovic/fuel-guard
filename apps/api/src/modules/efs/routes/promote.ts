@@ -5,7 +5,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { decidePromotion, isDeploymentOwner, type OrgObservation, type ProofEvidence } from "../harness/promote.js";
 import { judgeField, observeField } from "../harness/configScan.js";
@@ -98,7 +98,7 @@ export function fuelCardPromoteRouter(): Router {
   router.post(
     "/promote/:capability",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.card-control"),
     // Both directions: enabling hands a capability production fuel cards, and suspending takes them
     // away mid-incident. Neither should be reachable with a stale session.
     requireFreshAuth(),

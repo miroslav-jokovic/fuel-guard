@@ -372,6 +372,47 @@ Q-SET11 (a), Q-SET12 (a).
   - *Recommendation: **(a)**.* Leave, investigation and seasonal staff are ordinary. Re-inviting loses
     every per-person override, and those overrides are the control.
 
+### Questions found building SP11 (2026-09-30) — Q-SET13/14 RULED (c)/(b), built; Q-SET15 OPEN
+
+Q-SET11 (a) says the rest "read their section". For two of them no section's derived set equals the
+list, so reading a section would change who has access. SP11 left both as they are and asks.
+- **Q-SET13 · Who reads the message-report queue?** `reports_admin_read` lets `[admin, safety_manager]`
+  read every report in the org (and a reporter their own). That is no section's set: safety `manage`
+  adds `fleet_manager`, safety `view` adds `fleet_manager` and `auditor`. Nothing reads the queue.
+  No client selects `message_reports`, and the API only inserts (`messaging/routes/messages.ts`). The
+  review queue 0096's comment describes was never built.
+  - *(a)* Wrap it at safety `view`: the fleet manager and the auditor gain a read that no screen uses.
+  - *(b)* A named list in `namedGrants.ts` (`MESSAGE_MODERATION_ROLES`), waived by name like D-PERM10.
+  - *(c)* Drop the role half and keep `reported_by = auth_user_id()`. When the queue is built, it
+    reads through the API behind a section gate, the SP4 pattern.
+  - *Recommendation: **(c)**.* It is a client read that no product surface uses, the same argument
+    that closed `audit_select` (0391). Choosing the queue's section waits until the queue exists.
+- **Q-SET14 · Which section does Ask AI read?** `POST /api/ai/ask` hand-lists
+  `[admin, fleet_manager, auditor, dispatcher, safety_manager]`. That equals `rolesThatCanView("hazmat")`
+  **by coincidence** (Q-SURF7), and SP11 did not take it: an org granting a recruiter HazmatGuard would
+  then have given them Ask AI. `askData` reads `fuel_transactions`, fuel anomalies, declines and fuel
+  events for almost every answer, plus `driver_scores` and `idle_events`.
+  - *(a)* Keep the named list, moved to `namedGrants.ts` beside its reason (Q-SURF7 (a)).
+  - *(b)* `requireSection("fuel", "view")`. That is the list plus the `accountant`, who already reads
+    fuel spend. **It adds one role.**
+  - *(c)* `hazmat: view`. Equal today, but only by coincidence. Rejected.
+  - *Recommendation: **(b)**.* The assistant's answers are fuel data. An org narrowing Fuel then
+    narrows Ask AI with it, and the one role it adds already reads the same rows on its own pages.
+- **Q-SET15 · Should the Ask AI screen ask the question its endpoint asks?** The catalogue entry is
+  `gate: STAFF` (`surfaceCatalogue.ts`, Q-SURF3), so every office role sees Ask AI in the sidebar,
+  while `POST /api/ai/ask` now asks `fuel: view`. A recruiter or technician opens a page whose only
+  action answers 403. That gap predates SP11: the hand list refused them, and the accountant too.
+  Q-SET14 (b) narrowed the gap by one role. Closing it moves a surface Q-SURF3 ruled on, so SP11 did
+  not.
+  - *(a)* `gate: { kind: "section", section: "fuel", level: "view" }`. The link, the guard
+    (`routeOpens`) and the endpoint then ask one question, which is SP5's rule. The surface becomes
+    editable by derivation and an org's Fuel answer moves it. Cost: the catalogue line, the
+    `navEquivalence` snapshots, one guard test.
+  - *(b)* Keep `staff`, and have the page say "Ask AI answers from fuel data, which your role does
+    not read" on a 403. That is a second copy of the endpoint's answer.
+  - *Recommendation: **(a)**.* Deriving beats restating, and the page has nothing to offer a caller
+    its endpoint refuses.
+
 ---
 
 ## 6. Progress log
@@ -486,3 +527,46 @@ Append a dated line per step. Never edit §3.
   refusal test (403 `step_up_required`, no rpc, no write, no audit). Web: one `StepUpPrompt` per page
   (Permissions, Users) through `useStepUpRetry`; the rename drawer moved into `MemberRenameDrawer.vue`
   and owns its prompt like `MemberPasswordResetDrawer`. A retry does not re-ask `confirm()`.
+- **2026-09-30** — SP11 built (Q-SET11 (a)), migration 0396. **Admin only:** Samsara, McLeod, EFS
+  (connection and card control), fuel-card odometer correction, price-network feeds, the rewards
+  freeze and the hazmat policy moved from `requireRole("admin")` to `requireAdminOnly(<key>)`. The keys
+  are in `ADMIN_ONLY_CAPABILITIES` (`packages/shared/src/namedGrants.ts`). The Permissions page lists
+  them under "Admin only", beside `ADMIN_ONLY_SURFACES`. `routeGateLedger.test.ts` fails if a key
+  guards no route, if a route names an unlisted key, or if a bare admin gate appears outside Users,
+  Permissions and two named record acts. **Named grant:** driver credentials, reconcile and merge read
+  `DRIVER_IDENTITY_ROLES`. The web's App-login item and Reconcile button now ask the same list, so a
+  safety manager is no longer offered buttons that 403. **Section reads (API):** the §391.23 inquiry
+  routes are `requireSection("recruitment")` plus the reader test, as PSP is. The driver create/edit
+  gate is `requireAnySection(roster, recruitment)`, and its lifecycle check reads the org's roster
+  answer. **RLS (0396):** production was re-read first. It holds three policies no migration created
+  (`duty_sessions_write`, `duty_segments_write`, `load_events_insert`), each a duplicate of a migrated
+  twin, and 0396 drops them. The duty sessions/segments writes and `load_external_payloads_select`
+  are wrapped at dispatch. `hos_duty_segments_write` is wrapped at settings: its list equals fuel,
+  equipment and settings manage, and D-PERM11 picks Data & sync, the page whose sync writes it. The
+  hazmat policy write stays admin-only with a named waiver. `lint:section-policies` checks these six
+  tables from 0001 (`CHECKED_FROM_START`) and requires each list to be wrapped in its section.
+  **Not done, and asked:** Ask AI and `reports_admin_read` equal no section's set honestly
+  (Q-SET13, Q-SET14). ⚠ Re-read production `pg_policies` on the seven tables before merging.
+- **2026-09-30** — Owner ruled SP11's three open questions "as recommended": **Q-SET13 (c)** — the
+  message-report queue loses its role half and keeps only "a reporter reads their own" (`reports_own`
+  insert and the `reported_by` read); **Q-SET14 (b)** — `POST /api/ai/ask` becomes
+  `requireSection("fuel","view")` (adds the accountant); **the HOS table** stays wrapped at
+  `settings: manage` as built. Not yet applied to the SP11 branch — the next session builds them into
+  0396 before it is pushed.
+- **2026-09-30** — **SP11's two rulings built into 0396 and the API** (branch
+  `claude/settings-sp11-role-literals`, rebased onto `f490b75`, i.e. after SP9). **Q-SET13 (c):**
+  `reports_admin_read` is dropped and re-created as `reports_own_read`, which reads `reported_by =
+  auth_user_id()` only. Production was re-read first: it held `reports_admin_read` (0096's predicate)
+  and `reports_own` (insert), nothing else. `message_reports` joined `CHECKED_FROM_START`, and
+  `lint:section-policies` now reads `drop policy` in file order (`extractDrops`, `foldPolicies`, with
+  self-tests). Before this, the gate only followed a policy re-created under the same name, and
+  0096's list would have kept failing after the rename. The matrix pins that no role and no grant
+  reads another person's report, that the reporter (as three roles) reads their own, and that an
+  `INSERT … RETURNING` gets its row back. **Q-SET14 (b):** `POST /api/ai/ask` is
+  `requireSection("fuel", "view")`. Its `ROLE_LIST_WAIVERS` entry is gone, and `namedGrantGates.test.ts`
+  pins the shipped set plus the accountant, a Fuel grant and revoke, and that a HazmatGuard grant does
+  NOT reach it. That block starts its own app: `/api/ai` shares `strictLimiter`'s 30-request store
+  with `/api/integrations`, and the earlier block had spent 24 of them, so refusals read as 429.
+  `routeGateLedger` now lists SP10's `/api/access-review` with the Users/Permissions endpoints. Nine
+  mutants were run and all nine killed. **Found, not built:** the Ask AI screen is still `staff`-gated
+  while its endpoint asks Fuel (Q-SET15).

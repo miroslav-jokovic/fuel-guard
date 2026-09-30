@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { AppTabs, type TabItem } from "@silvicom/ui";
+import { ADMIN_ONLY_CAPABILITIES, ADMIN_ONLY_SURFACES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import RolesTab from "@/features/permissions/RolesTab.vue";
 import PeopleTab from "@/features/permissions/PeopleTab.vue";
@@ -43,7 +44,15 @@ import { useStepUpRetry } from "@/composables/useStepUpRetry";
  * the argument for why it is open — and two fitness functions fail the build if a new one appears
  * unexamined. What remains outside this page is therefore a short, named list rather than an unknown,
  * and the disclosure below says it in the reader's words.
+ *
+ * ── "ADMIN ONLY", LISTED RATHER THAN IMPLIED (SP11, Q-SET11) ────────────────────────────────────
+ * The screens Q-SET1 keeps with the admin (`ADMIN_ONLY_SURFACES`, derived from the catalogue's gate)
+ * and the integration acts Q-SET11 put beside them (`ADMIN_ONLY_CAPABILITIES`, the list the API's
+ * `requireAdminOnly` reads). Both are READ here, never restated: `routeGateLedger.test.ts` fails if a
+ * capability guards no route or a route names one the list does not hold, so what this page says is
+ * the admin's alone is what the API enforces as the admin's alone.
  */
+const adminOnly = [...ADMIN_ONLY_SURFACES.map((s) => s.label), ...ADMIN_ONLY_CAPABILITIES.map((c) => c.label)];
 const tabs: TabItem[] = [
   { value: "roles", label: "Roles" },
   { value: "people", label: "People" },
@@ -94,6 +103,13 @@ const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
         belong to an organisation. Each one is recorded with its reason; nothing else in the product
         decides access anywhere but here.
       </p>
+      <h3 class="mt-4 text-sm font-medium text-ink">Admin only</h3>
+      <p class="mt-1 max-w-prose text-sm text-ink-muted">
+        These stay with the Admin role and cannot be given to another role or person.
+      </p>
+      <ul class="mt-2 list-disc space-y-0.5 pl-5 text-sm text-ink-muted" aria-label="Admin only">
+        <li v-for="label in adminOnly" :key="label">{{ label }}</li>
+      </ul>
     </details>
   </div>
 </template>

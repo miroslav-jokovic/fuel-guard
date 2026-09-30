@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -23,7 +23,7 @@ import { NOT_EFS_ENDPOINT_MESSAGE, isEfsEndpointHost } from "../services/efsSoap
  *  client-cert lifecycle lives in integrationSoapCerts.ts (500-line budget). Docs:
  *  docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §6.6. */
 export function registerEfsSoapIntegrationRoutes(router: Router): void {
-  const efsAdminFresh = [requireOrg, requireRole("admin"), requireFreshAuth()] as const;
+  const efsAdminFresh = [requireOrg, requireAdminOnly("efs.connection"), requireFreshAuth()] as const;
   // ── EFS SOAP integration config (admin) ────────────────────────────────────────────────────────
   // Docs: docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §6.6.
   //
@@ -40,7 +40,7 @@ export function registerEfsSoapIntegrationRoutes(router: Router): void {
   router.get(
     "/efs-soap/config",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -150,7 +150,7 @@ export function registerEfsSoapIntegrationRoutes(router: Router): void {
   router.post(
     "/efs-soap/test-connection",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -207,7 +207,7 @@ export function registerEfsSoapIntegrationRoutes(router: Router): void {
   router.post(
     "/efs-soap/sync-now/:feed",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

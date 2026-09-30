@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -11,10 +11,17 @@ export function aiRouter(): Router {
   router.use(requireAuth);
 
   // Natural-language question over the org's data (safe tool-calling; never raw SQL).
+  //
+  // Fuel `view`, by the owner's ruling Q-SET14 (b), 2026-09-30 (SETTINGS-PERMISSIONS-PLAN.md §5). The
+  // hand-written list this replaced equalled hazmat/view by coincidence (Q-SURF7), so an org granting a
+  // recruiter HazmatGuard would have handed them the assistant too. What the assistant answers with is
+  // fuel data — `askData` reads fuel transactions, anomalies, declines and fuel events for almost every
+  // answer — so an org that narrows Fuel narrows Ask AI with it. The one role this adds is the
+  // accountant, who already reads the same rows on the fuel-spend pages.
   router.post(
     "/ask",
     requireOrg,
-    requireRole("admin", "fleet_manager", "auditor", "dispatcher", "safety_manager"),
+    requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       if (!env.ANTHROPIC_API_KEY) {

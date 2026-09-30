@@ -3,6 +3,8 @@ import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
 import {
+  ADMIN_ONLY_CAPABILITIES,
+  ADMIN_ONLY_SURFACES,
   APP_SECTIONS,
   EDITABLE_ROLES,
   EDITABLE_SECTIONS,
@@ -562,6 +564,24 @@ describe("the page itself", () => {
     expect(w.find("details").exists()).toBe(true);
     expect(w.text()).toContain("granted by name rather than by section");
     expect(w.text()).toContain("Each one is recorded with its reason");
+  });
+
+  it("lists every admin-only screen and act, read from the two shared lists (SP11, Q-SET11)", async () => {
+    const w = mountPage();
+    await flushPromises();
+    /**
+     * The list is the page's copy of what the API enforces as the admin's alone, so it is asserted
+     * against the SAME two lists the gates read — `ADMIN_ONLY_SURFACES` (the catalogue's `ADMIN`
+     * gate) and `ADMIN_ONLY_CAPABILITIES` (`requireAdminOnly`) — rather than against a fixture that
+     * could agree with a stale page. Exact, in order, so a dropped or duplicated row fails.
+     */
+    const items = w.find('ul[aria-label="Admin only"]').findAll("li").map((li) => li.text());
+    expect(items).toEqual([
+      ...ADMIN_ONLY_SURFACES.map((s) => s.label),
+      ...ADMIN_ONLY_CAPABILITIES.map((c) => c.label),
+    ]);
+    expect(items).toContain("Samsara connection and fleet sync");
+    expect(items).toContain("Users");
   });
 
   it("states each staleness contract beside the rows it governs, and does not conflate them", async () => {

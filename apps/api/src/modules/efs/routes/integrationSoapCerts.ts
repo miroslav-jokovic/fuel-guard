@@ -1,5 +1,5 @@
 import type { Router } from "express";
-import { requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -68,7 +68,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.get(
     "/efs-soap/client-cert",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -84,7 +84,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.post(
     "/efs-soap/client-cert",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
@@ -161,7 +161,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.post(
     "/efs-soap/client-cert/test",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -236,7 +236,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.post(
     "/efs-soap/client-cert/activate",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
@@ -272,7 +272,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.post(
     "/efs-soap/client-cert/rollback",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
@@ -306,7 +306,7 @@ export function registerEfsSoapCertRoutes(router: Router): void {
   router.delete(
     "/efs-soap/client-cert",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     requireFreshAuth(),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
