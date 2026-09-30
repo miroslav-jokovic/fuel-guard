@@ -3,6 +3,7 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { askData } from "../askData.js";
 
@@ -18,10 +19,15 @@ export function aiRouter(): Router {
   // fuel data — `askData` reads fuel transactions, anomalies, declines and fuel events for almost every
   // answer — so an org that narrows Fuel narrows Ask AI with it. The one role this adds is the
   // accountant, who already reads the same rows on the fuel-spend pages.
+  //
+  // And the screen's own answer (Q-SET15, owner 2026-09-30): Ask AI starts OFF for every role but the
+  // admin until the page is rebuilt per role, and an admin turns it on per role or per person. The
+  // link hides by the same answer; without this gate a hidden page's endpoint would still answer.
   router.post(
     "/ask",
     requireOrg,
     requireSection("fuel", "view"),
+    requireSurface("ask-ai"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       if (!env.ANTHROPIC_API_KEY) {

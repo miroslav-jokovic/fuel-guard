@@ -372,7 +372,7 @@ Q-SET11 (a), Q-SET12 (a).
   - *Recommendation: **(a)**.* Leave, investigation and seasonal staff are ordinary. Re-inviting loses
     every per-person override, and those overrides are the control.
 
-### Questions found building SP11 (2026-09-30) — Q-SET13/14 RULED (c)/(b), built; Q-SET15 OPEN
+### Questions found building SP11 (2026-09-30) — RULED: Q-SET13 (c), Q-SET14 (b), Q-SET15 (a) + admin-only default; all built
 
 Q-SET11 (a) says the rest "read their section". For two of them no section's derived set equals the
 list, so reading a section would change who has access. SP11 left both as they are and asks.
@@ -412,6 +412,9 @@ list, so reading a section would change who has access. SP11 left both as they a
     not read" on a 403. That is a second copy of the endpoint's answer.
   - *Recommendation: **(a)**.* Deriving beats restating, and the page has nothing to offer a caller
     its endpoint refuses.
+  - **Ruled 2026-09-30, (a) and more:** *"we will update this page completely, and it will be optimized
+    for each role, but for now, just hide it for all roles except admin by default"*. Built as
+    `gate: section("fuel"), startsOnFor: []`, and the endpoint also asks `requireSurface("ask-ai")`.
 
 ---
 
@@ -570,3 +573,13 @@ Append a dated line per step. Never edit §3.
   `routeGateLedger` now lists SP10's `/api/access-review` with the Users/Permissions endpoints. Nine
   mutants were run and all nine killed. **Found, not built:** the Ask AI screen is still `staff`-gated
   while its endpoint asks Fuel (Q-SET15).
+- **2026-09-30** — **Q-SET15 built** (branch `claude/ask-ai-admin-default`). Owner: hide Ask AI for every
+  role but the admin by default, until the page is rebuilt per role. The catalogue entry moved from
+  `STAFF` to `section("fuel")` with `startsOnFor: []`, which makes Ask AI a cell on the Permissions page
+  (under "General") that starts off for every editable role, like the Settings screens (Q-SET2).
+  `POST /api/ai/ask` asks `requireSurface("ask-ai")` after `requireSection("fuel", "view")`, so a role
+  or person grant opens both the link and the endpoint, and the section still bounds it (D-SURF2).
+  `namedGrantGates.test.ts` pins that with nothing stored only the admin gets through, that a role
+  grant and a personal grant each admit, that a grant cannot reach past a revoked Fuel, and the
+  HazmatGuard case. 25 `navEquivalence` snapshots lost "Ask AI" for non-admins and nothing else. No
+  migration: a screen that starts off needs no stored row.

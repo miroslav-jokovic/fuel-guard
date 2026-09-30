@@ -534,7 +534,8 @@ describe("the People tab", () => {
     // controls above do nothing.
     const alwaysOn = w.findAll("p").find((el) => el.text().includes("Always available"))!;
     expect(alwaysOn.text()).toContain("Dashboard");
-    expect(alwaysOn.text()).toContain("Ask AI");
+    // Nor Ask AI since Q-SET15 (owner 2026-09-30): admin-only by default, and the admin's to grant.
+    expect(alwaysOn.text()).not.toContain("Ask AI");
     expect(alwaysOn.text()).not.toContain("Inspectors");
     // Nor Settings: it follows the screens behind it (2026-09-30), which are the admin's to answer.
     expect(alwaysOn.text()).not.toContain("Settings");
