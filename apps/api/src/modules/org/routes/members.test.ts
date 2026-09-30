@@ -222,3 +222,59 @@ describe("PATCH /api/members/:id — the name half", () => {
     expect(actions).toEqual(["member.role_changed", "member.renamed"]);
   });
 });
+
+/**
+ * SP6 (migration 0392): the database refuses, at commit, any write that leaves the org with no admin
+ * (SQLSTATE AM010). The handler's count words the ordinary case; these pin the case it cannot see —
+ * two admins acting at once, each counting two — so the refusal reads as `last_admin`, not a 500.
+ */
+describe("the database's last-admin refusal (AM010) reaches the admin as last_admin", () => {
+  const refusing = (role: string) =>
+    createSupabaseRecorder({
+      rpc: { org_member_directory: directory },
+      tables: {
+        memberships: (q) => {
+          if (q.write) return { data: null, error: { code: "AM010", message: "organization would be left with no admin" } };
+          // The count the handler asks before demoting sees TWO admins — the race it cannot see past.
+          if (q.ops.some((o) => o.method === "select" && (o.args[1] as { head?: boolean } | undefined)?.head)) return { data: [], count: 2, error: null };
+          return { data: [{ role }], error: null };
+        },
+        drivers: { data: [], error: null },
+      },
+    });
+
+  it("PATCH demoting an admin the database refuses answers 409 last_admin, with no audit row", async () => {
+    rec = refusing("admin");
+    const { status, json } = await call("PATCH", `/${MEMBER}`, { role: "dispatcher" });
+    expect(status).toBe(409);
+    expect(json?.error?.code).toBe("last_admin");
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("DELETE the database refuses answers 409 last_admin, with no audit row", async () => {
+    rec = refusing("admin");
+    const { status, json } = await call("DELETE", `/${MEMBER}`);
+    expect(status).toBe(409);
+    expect(json?.error?.code).toBe("last_admin");
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("revoke the database refuses answers 409 last_admin", async () => {
+    rec = refusing("admin");
+    const { status, json } = await call("POST", `/${MEMBER}/revoke`);
+    expect(status).toBe(409);
+    expect(json?.error?.code).toBe("last_admin");
+  });
+
+  it("any other write failure is still a 500 db_error, not a last_admin", async () => {
+    rec = createSupabaseRecorder({
+      rpc: { org_member_directory: directory },
+      tables: {
+        memberships: (q) => (q.write ? { data: null, error: { code: "57014", message: "timeout" } } : { data: [{ role: "technician" }], error: null }),
+      },
+    });
+    const { status, json } = await call("DELETE", `/${MEMBER}`);
+    expect(status).toBe(500);
+    expect(json?.error?.code).toBe("db_error");
+  });
+});
