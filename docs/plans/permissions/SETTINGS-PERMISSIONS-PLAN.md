@@ -533,3 +533,9 @@ Append a dated line per step. Never edit §3.
   tables from 0001 (`CHECKED_FROM_START`) and requires each list to be wrapped in its section.
   **Not done, and asked:** Ask AI and `reports_admin_read` equal no section's set honestly
   (Q-SET13, Q-SET14). ⚠ Re-read production `pg_policies` on the seven tables before merging.
+- **2026-09-30** — Owner ruled SP11's three open questions "as recommended": **Q-SET13 (c)** — the
+  message-report queue loses its role half and keeps only "a reporter reads their own" (`reports_own`
+  insert and the `reported_by` read); **Q-SET14 (b)** — `POST /api/ai/ask` becomes
+  `requireSection("fuel","view")` (adds the accountant); **the HOS table** stays wrapped at
+  `settings: manage` as built. Not yet applied to the SP11 branch — the next session builds them into
+  0396 before it is pushed.
