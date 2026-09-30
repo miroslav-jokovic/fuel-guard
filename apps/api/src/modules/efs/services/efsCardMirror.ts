@@ -281,7 +281,7 @@ export async function syncEfsCards(
 }
 
 /** The roster pass: everything getCardSummaries knows, with no per-card round trip. */
-async function upsertFromSummary(
+export async function upsertFromSummary(
   admin: SupabaseClient,
   env: Env,
   orgId: string,

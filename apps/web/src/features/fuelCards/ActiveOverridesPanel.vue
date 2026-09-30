@@ -48,7 +48,12 @@ const identity = cardIdentityLabel;
 const query = useEfsCards({ search: ref(""), status: ref("") });
 
 const rows = computed(() =>
-  activeOverrides(query.data.value?.cards ?? [], new Date(), query.data.value?.staleAfterMinutes),
+  // The detail clock, not the roster one: override SCOPE is read only by the daily detail pass.
+  activeOverrides(
+    query.data.value?.cards ?? [],
+    new Date(),
+    query.data.value?.detailStaleAfterMinutes ?? query.data.value?.staleAfterMinutes,
+  ),
 );
 
 const refresh = useRefreshCard();

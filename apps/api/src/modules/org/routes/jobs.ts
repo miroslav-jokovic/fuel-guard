@@ -25,6 +25,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "efs_ingest",
   "efs_process_import",
   "efs_card_sync",
+  "efs_card_status",
 ]);
 
 export function jobsRouter(): Router {

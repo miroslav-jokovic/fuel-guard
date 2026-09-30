@@ -35,6 +35,7 @@ export type JobKind =
   | "efs_window_refetch" // targeted historical re-fetch of windows the backfill dropped (recon F11); payload.windows = [{start,end}]
   | "efs_process_import" // durable post-acquisition scoring + alert emission
   | "efs_card_sync" // refresh the EFS card mirror (docs/plans/EFS-CARD-CONTROL-PLAN.md, Phase A)
+  | "efs_card_status" // the few-minute status poll: one roster call, a detail read only where status moved
   | "sync_driver_scores"
   | "snapshot_driver_week"
   | "hazmat_extract"

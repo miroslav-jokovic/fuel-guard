@@ -17,6 +17,12 @@ describe("notificationRoute", () => {
     expect(notificationRoute("load_changed", "load", "L1")).toBe("/dispatch/loads/L1");
   });
 
+  it("a card status change opens the card, and only when it names one", () => {
+    expect(notificationRoute("card_status_changed", "efs_card", "c1")).toBe("/fuel-cards/c1");
+    expect(notificationRoute("card_status_changed", "efs_card", null)).toBeNull();
+    expect(notificationRoute("card_status_changed", "driver", "c1")).toBeNull();
+  });
+
   it("messages go to the messages page", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });

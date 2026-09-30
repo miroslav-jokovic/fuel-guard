@@ -58,7 +58,12 @@ const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null, new
  * overrideFreshness for why this one field, and not `status`, is worth that.
  */
 const override = computed(() =>
-  overrideFreshness(card.value ?? {}, new Date(), query.data.value?.staleAfterMinutes),
+  // The detail clock: `detailSyncedAt` is daily even now that status is polled every few minutes.
+  overrideFreshness(
+    card.value ?? {},
+    new Date(),
+    query.data.value?.detailStaleAfterMinutes ?? query.data.value?.staleAfterMinutes,
+  ),
 );
 
 /**

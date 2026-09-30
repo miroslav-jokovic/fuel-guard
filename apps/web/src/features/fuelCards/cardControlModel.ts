@@ -53,8 +53,9 @@ export interface Freshness {
 /**
  * When the mirror stops being "recently checked".
  *
- * A DEFAULT, not the rule. The server knows the sweep cadence (`EFS_CARD_SYNC_HOURS`, 24 by design)
- * and sends it as `staleAfterMinutes`; this is only what to assume before that arrives.
+ * A DEFAULT, not the rule. The server knows both cadences and sends them — `staleAfterMinutes` for the
+ * roster clock (the few-minute status poll) and `detailStaleAfterMinutes` for the daily detail sweep;
+ * this is only what to assume before they arrive.
  */
 const DEFAULT_STALE_AFTER_MINUTES = 26 * 60;
 
