@@ -387,3 +387,13 @@ All questions are answered; nothing in the queue is blocked on the owner.
     re-fetch follows the device (0357/0358 territory; larger). **Recommendation: (a)** — it is the
     732 precedent plus one sync rule, and it also covers the next gateway swap whose old record
     keeps the VIN.
+- **2026-10-01** — Owner approved 0399 and chose **Q-FL6 (a)**. **FL1a DONE**: #1187 merged (4d671dd),
+  0399 applied 20:00:07 UTC; production reads exactly the dry run — Freightliner Cascadia 129 (116 live),
+  International LT625 136 (79 live), 7 empty retired Samsara rows; 787 Cascadia, 814 International
+  LT625, reported spellings kept; one `roster.vehicle_make_model_derived` audit row (265). The McLeod
+  sweep at 20:02:48 left every make derived.
+  **FL1b part 1 (code, no migration):** `samsaraVehicleSync` — a VIN or name fallback match never
+  re-links a row that already carries a different device Samsara still lists; it is reported in the new
+  `heldByOtherDevice` and logged, never re-linked and never inserted. A row whose device Samsara no
+  longer lists is still re-linked by VIN (that is the swap the fallback follows). Must be DEPLOYED
+  before the 568 merge migration (FL1b part 2) is merged.

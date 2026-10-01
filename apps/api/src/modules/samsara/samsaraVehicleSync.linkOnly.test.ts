@@ -106,3 +106,42 @@ describe("samsara vehicle sync under TMS roster mastery", () => {
     expectOrgScoped(rec, ORG);
   });
 });
+
+describe("a VIN or name match never takes a row from another device Samsara still lists (FL1b, Q-FL6)", () => {
+  // Unit 568, 2026-10-01: Samsara keeps two records for one truck, both carrying VIN …9642.
+  const VIN = "3AKJHHDR5MSMS9642";
+  const twoRecords = [
+    { id: "SV-NEW", name: "568 - SOLD", vin: VIN, make: "FREIGHTLINER", model: "CASCADIA" },
+    { id: "SV-OLD", name: "568 - OLD", vin: VIN, make: "FREIGHTLINER", model: "CASCADIA" },
+  ];
+  const truck568 = { ...mcleodTruck, id: "v-568", unit_number: "568", vin: VIN, samsara_vehicle_id: "SV-NEW" };
+  const runWith = (rec: ReturnType<typeof seed>, list: Record<string, unknown>[]) =>
+    syncVehiclesFromSamsara(rec.client, env, ORG, async () => list, async () => ({ data: [] }), async () => ({ data: [] }));
+
+  for (const master of [true, false]) {
+    it(`holds the second record instead of re-linking the row (${master ? "link-only" : "full"} mode)`, async () => {
+      const rec = seed([truck568], master);
+      const r = await runWith(rec, twoRecords);
+      expect(r.heldByOtherDevice).toEqual(["568 - OLD"]);
+      expect(r.created).toBe(0);
+      const links = rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id);
+      expect(links).not.toContain("SV-OLD");
+      expect(links).toContain("SV-NEW");
+      expect(rec.writes().filter((w) => w.write?.method === "insert")).toEqual([]);
+    });
+  }
+
+  it("holds a NAME match on a row another listed device holds, too", async () => {
+    const rec = seed([{ ...truck568, vin: null }], true);
+    const r = await runWith(rec, [twoRecords[0]!, { id: "SV-OTHER", name: "568", vin: null }]);
+    expect(r.heldByOtherDevice).toEqual(["568"]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).not.toContain("SV-OTHER");
+  });
+
+  it("still follows a gateway swap: a row whose device Samsara no longer lists is re-linked by VIN", async () => {
+    const rec = seed([{ ...truck568, samsara_vehicle_id: "SV-GONE" }], true);
+    const r = await runWith(rec, [twoRecords[1]!]);
+    expect(r.heldByOtherDevice).toEqual([]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).toContain("SV-OLD");
+  });
+});
