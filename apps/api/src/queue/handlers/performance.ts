@@ -1,5 +1,5 @@
 import { syncRecentDriverScoreWeeks, snapshotSettledWeeks } from "../../modules/performance/index.js";
-import { syncIdleFoundation } from "../../modules/idle/index.js";
+import { syncIdleFoundation, repairIdleEventTwins } from "../../modules/idle/index.js";
 import { NoSamsaraTokenError } from "../../modules/samsara/index.js";
 import { writeAudit } from "../../lib/audit.js";
 import type { JobHandler } from "../types.js";
@@ -72,4 +72,17 @@ export const snapshotDriverWeekHandler: JobHandler = async (ctx, job) => {
     });
   }
   return { weeksFrozen: result.weeksFrozen.length, rowsWritten: result.rowsWritten };
+};
+
+/**
+ * The idle_events twin clean-up (kind `idle_event_twins`, plan I0). It lives with the performance handlers
+ * because what it owes downstream is a re-freeze of driver weeks scored from doubled idle; the clean-up
+ * itself writes its own audit row, so a scheduler run with no actor is still attributed. DB-only.
+ */
+export const idleEventTwinsHandler: JobHandler = async (ctx, job) => {
+  const { admin, env } = ctx;
+  const r = await repairIdleEventTwins(admin, job.org_id, {
+    refreeze: async (refreeze) => (await snapshotSettledWeeks(admin, env, job.org_id, { refreeze })).weeksFrozen,
+  });
+  return { ...r };
 };

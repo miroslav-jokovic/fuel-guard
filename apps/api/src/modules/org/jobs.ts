@@ -23,6 +23,12 @@ export type JobKind =
   | "sync_vehicles"
   | "sync_trailers"
   | "sync_idle"
+  /**
+   * The idle_events twin clean-up (FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md I0): key every row written before
+   * migration 0398, delete the second spelling of each event, then rebuild what was computed from the
+   * doubled rows. Runs ahead of `sync_idle` every driver-score tier cycle; a no-op once nothing is unkeyed.
+   */
+  | "idle_event_twins"
   | "sync_ifta" // Samsara IFTA jurisdiction miles, monthly grain (0255, SAMSARA-IFTA-MILEAGE-PLAN S1)
   | "sync_odometer" // Samsara cumulative odometer readings, one per truck per day per counter (0311, W3b)
   | "sync_hos"

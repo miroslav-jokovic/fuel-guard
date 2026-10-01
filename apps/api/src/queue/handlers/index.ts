@@ -26,7 +26,11 @@ import {
   syncTrailersHandler,
   syncVehiclesHandler,
 } from "./samsara.js";
-import { snapshotDriverWeekHandler, syncDriverScoresHandler } from "./performance.js";
+import {
+  idleEventTwinsHandler,
+  snapshotDriverWeekHandler,
+  syncDriverScoresHandler,
+} from "./performance.js";
 import { nightlyReconcileHandler } from "./nightlyReconcile.js";
 import { financialProjectionHandler } from "./financial.js";
 
@@ -59,6 +63,7 @@ export function registerAllHandlers(): void {
   registerHandler("sync_stats", syncStatsHandler);
   registerHandler("sync_trailers", syncTrailersHandler);
   registerHandler("sync_idle", syncIdleHandler);
+  registerHandler("idle_event_twins", idleEventTwinsHandler);
   registerHandler("sync_ifta", syncIftaHandler);
   registerHandler("sync_odometer", syncOdometerHandler);
   registerHandler("sync_hos", syncHosHandler);
