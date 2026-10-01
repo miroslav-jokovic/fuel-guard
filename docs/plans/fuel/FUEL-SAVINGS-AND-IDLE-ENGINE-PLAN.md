@@ -357,3 +357,33 @@ All questions are answered; nothing in the queue is blocked on the owner.
   - **Q-FL5 — 568 survivor status and device.** Recommendation: merge as 0359 did (history row `568`
     survives, takes McLeod link + VIN + McLeod's status), but the retired row KEEPS the dead record's
     Samsara id so the VIN match cannot reach the survivor. Alternative: retire both if 568 is sold.
+- **2026-10-01** — Owner answered Q-FL4 and Q-FL5. **Q-FL4: leave them as McLeod has them** — when a
+  truck is removed or deactivated in McLeod, the sweep removes it here (D-FC0 unchanged; FL2 lists the
+  Samsara-`SOLD` / McLeod-active units as a known state, like 632–635). **Q-FL5: proceed as recommended.**
+- **2026-10-01** — FL1 split in two, because the 568 half met a fact the recommendation did not have.
+  **FL1a = migration 0399** (flagged before merge): `vehicle_make_model_catalog` (D-FL1's one table —
+  VIN body code, VIN manufacturer code, reported spelling) and a BEFORE trigger on `vehicles` that
+  derives `make`/`model` on every write, keeping what the writer sent in `make_reported` /
+  `model_reported`. No TypeScript reads the new columns, so it is one merge. It fires after
+  `trg_claim_vehicle_identity`, so office edits claim exactly as before. Dry run on production: 265 rows
+  derive to two pairs (Freightliner Cascadia 129, International LT625 136), including 784–788 (Cascadia,
+  787's `LT625` corrected) and the 51 ordered units 814–864 (International LT625, from the VIN alone).
+  Matrix `vehicle-make-model-derived.test.mjs`, 27 checks; eight mutants of 0399, all killed after two
+  survivors (trigger order, punctuation stripping) got their own test rows.
+  **FL1b (568 merge) — Q-FL5's recommendation does not hold; re-asked as Q-FL6.** The daily IFTA tier
+  re-fetches the last THREE months (`monthsToSync`, back = 3) and maps device → vehicle through
+  `vehicles.samsara_vehicle_id`, keyed `(org, vehicle_id, device, year, month, jurisdiction)`. If the
+  retired row keeps device 281474977689800 (`568 - OLD`), the next IFTA run writes that device's
+  July/August miles onto the retired row again, beside the copies the merge moved to the survivor.
+  This is already happening: production holds that device's June (17) and July (5) rows on BOTH 568
+  rows today, identical values, re-fetched 09/30 onto the row that took the device over.
+  - **Q-FL6 — how the merged row lets go of its device.** (a) As 0359 did: the retired row gives up
+    its device id, and the Samsara vehicle sync gets one rule first, in its own merge before the
+    migration: a VIN match never re-links a row that already holds a different device Samsara still
+    lists. Without that rule both 568 records (same VIN) would re-link the survivor in turn every
+    identity cycle. The dead device is then reported as unlinked and its existing IFTA rows stay on the
+    survivor. (b) Keep Q-FL5 as ruled and leave ALL of that device's IFTA rows on the retired row; the
+    truck's IFTA view then misses them. (c) Key IFTA rows by device rather than by vehicle so a
+    re-fetch follows the device (0357/0358 territory; larger). **Recommendation: (a)** — it is the
+    732 precedent plus one sync rule, and it also covers the next gateway swap whose old record
+    keeps the VIN.
