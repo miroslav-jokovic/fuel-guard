@@ -408,3 +408,15 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `merge-unit-568.test.mjs` 30 checks; seven mutants all killed (one after the renamed-row guard got
   its own case). After apply: check the audit row, zero references to 990128aa, and that the next
   vehicle sync reports `568 - OLD` under `heldByOtherDevice` rather than re-linking 568.
+- **2026-10-01** — **FL1 DONE** apart from one rebuild. Migration 0400 merged (#1190, a9877b2) and
+  applied by `migrate.yml` at 23:02 UTC; the api serves a9877b2 with schema `0400` current. Checked
+  read-only on production: one `roster.vehicle_merged` audit row (migration 0400) — moved 378 idle
+  events, 286 odometer readings, 135 park sessions, 46 IFTA rows, 29 idle-rollup days and 12 engine
+  days; summed 1 idle-rollup day; dropped 9 spend-days and the 22 duplicated IFTA rows; released device
+  …689800. `759ef27a` is `568`, active, `mcleod`, tractor 568, VIN …9642, device 281475006145500, and
+  a sync wrote it again at 23:14 without changing any of that. `990128aa` is `568-merged-990128aa`,
+  retired, with no link, VIN or device. Device …689800 has 0 duplicate (year, month, jurisdiction)
+  rows and 0 IFTA rows are left on the retired row. **Still owed:** `POST /api/fuel/spend-rollup`
+  `{from: 2026-08-02, to: 2026-10-01}`, so 568's spend-days pick up the moved telemetry (the nightly
+  rollup only reaches back 14 days). Auto mode refused to run it from a script, so it needs a
+  signed-in run.
