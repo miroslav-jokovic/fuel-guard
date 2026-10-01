@@ -397,3 +397,14 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `heldByOtherDevice` and logged, never re-linked and never inserted. A row whose device Samsara no
   longer lists is still re-linked by VIN (that is the swap the fallback follows). Must be DEPLOYED
   before the 568 merge migration (FL1b part 2) is merged.
+- **2026-10-01** — FL1b part 1 merged (#1189, 417e74e). **FL1b part 2 = migration 0400** (flagged before
+  merge; merge only once 417e74e is deployed on the api service): the 0359 pattern for unit 568. The
+  history row `568` (759ef27a — fills, financial entries, anomalies, fuel card, tank 240, idle learning
+  19 sessions) survives and takes McLeod's link, VIN, plate, inspection and status (active, Q-FL4); it
+  keeps its own device …145500 (data to 09/05). `568 - OLD` (990128aa) is retired as
+  `568-merged-990128aa` with no link, device or VIN (Q-FL6 (a)). Collisions measured 2026-10-01: 7
+  spend-days dropped (rebuild with `POST /api/fuel/spend-rollup` from 2026-08-02), 1 rollup day summed,
+  22 duplicated IFTA rows of device …689800 kept once (the later fetch). Matrix
+  `merge-unit-568.test.mjs` 30 checks; seven mutants all killed (one after the renamed-row guard got
+  its own case). After apply: check the audit row, zero references to 990128aa, and that the next
+  vehicle sync reports `568 - OLD` under `heldByOtherDevice` rather than re-linking 568.
