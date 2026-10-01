@@ -294,3 +294,12 @@ All questions are answered; nothing in the queue is blocked on the owner.
   answers: 784–788's models came from Samsara's vehicle record, not from us; and the 568 pair is
   backwards (the `- OLD` row holds the identity). Battery-APU allowance is a 50% share of the park,
   not a minute cap.
+- **2026-10-01** — I0 started. Measured before building: the hex spelling is NOT the whole UUID, it is
+  the hex of the uppercase ASCII of the UUID's first SIXTEEN hex digits, so it cannot be turned back
+  into the real id. Both spellings share that prefix, and grouping all 258,824 rows by it gives
+  142,538 singles and **58,143 pairs, never a triple** (= exactly the 58,143 hex-spelled rows), with
+  twins back to events of 08/15. The plan's key (vehicle, started_at, duration) misses 5 pairs from
+  08/24 whose hex twin has a NULL vehicle — **owner ruled the 16-digit prefix is the key**. Owner also
+  ruled that the driver-performance weeks frozen from twinned data (08/17–09/14, frozen 10/01 15:39)
+  are re-frozen after the clean-up. Migration **0398** (column `event_key`, unique index, clean-up
+  RPC `resolve_idle_event_twins`) ships alone; its writer and the audited clean-up job follow.
