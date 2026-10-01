@@ -209,4 +209,16 @@ export {
   Moon02Icon                  as SchemeDarkIcon,
   ComputerIcon                as SchemeSystemIcon,
 
+  // The applicant page's live licence scanner (2026-09-30). The flashlight pair is the toggle's two
+  // states, so the button shows what it is now and not a colour change alone. `GlareIcon` is a different
+  // sun from `SchemeLightIcon` on purpose: one is a setting, the other is "a lamp is shining on the card".
+  FlashlightIcon              as FlashlightIcon,
+  FlashlightOffIcon           as FlashlightOffIcon,
+  CameraOff01Icon             as CameraOffIcon,
+  CenterFocusIcon             as FrameCornersIcon,
+  // A card with a photo on it: the CDL itself. `LicenseIcon` is a document, which is what the §391.51
+  // file holds, not the plastic a driver is holding up to a camera.
+  IdentityCardIcon            as IdCardIcon,
+  Sun01Icon                   as GlareIcon,
+
 } from "@hugeicons/core-free-icons";

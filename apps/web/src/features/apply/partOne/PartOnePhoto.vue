@@ -6,6 +6,7 @@ import { useApplicationCaptures } from "@/features/apply/capture/useApplicationC
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
 import LiveLicenceScanner from "./LiveLicenceScanner.vue";
 import PartOneHandoff from "./PartOneHandoff.vue";
+import { markScannerTipsSeen, scannerTipsSeen } from "./scannerTips";
 import type { PartOneAnswers, PhotoScreen, ScreenErrors } from "./partOneScreens";
 import type { BarcodeState } from "./usePartOne";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -211,7 +212,9 @@ const barcodeNote = computed(() => {
       :photo="liveSlot"
       @captured="finishScan"
       @cancel="finishScan(null)"
+      :tips="!scannerTipsSeen"
       @unavailable="liveOff = true"
+      @tips-seen="markScannerTipsSeen"
     />
   </div>
 </template>

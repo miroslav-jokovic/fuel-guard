@@ -106,8 +106,12 @@ function sweep(page: Page, stub: Stub, misses: Misses = {}) {
     async check(screen: string): Promise<void> {
       // Nothing the page asked for went unanswered: a walk must never pass on a 501 from the fake.
       expect(stub.state.unstubbed, `unstubbed request before "${screen}"`).toEqual([]);
-      // A drawer sliding in is measured where it lands, not where it was when the click returned.
-      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
+      // A drawer sliding in is measured where it lands, not where it was when the click returned. An
+      // animation that never ends — the live scanner's sweep across the back, 2026-09-30 — has nowhere to
+      // land and moves no control, so it is not waited for: waiting on it would never return.
+      await page.waitForFunction(() =>
+        document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getTiming().iterations === Infinity),
+      );
       const found = await measure(page);
       if (found.length) misses[screen] = found;
     },
@@ -156,7 +160,11 @@ for (const width of [390, 320]) {
       await step(page, 1);
       await s.check("part1.cdl_front");
       // The CDL's two sides go through the live scanner (2026-09-30), measured while it is open.
-      await shootWithScanner(page, () => s.check("part1.cdl_front, live scanner"));
+      await shootWithScanner(
+        page,
+        () => s.check("part1.cdl_front, live scanner"),
+        () => s.check("part1.cdl_front, scanner tips"),
+      );
       await s.check("part1.cdl_front, photo to review");
       await press(page, "Use this photo");
       await expect(page.getByText("Received.")).toBeVisible();

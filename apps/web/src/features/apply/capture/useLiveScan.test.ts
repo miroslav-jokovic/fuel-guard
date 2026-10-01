@@ -16,7 +16,7 @@ const VIEW = { width: 390, height: 844 };
 const OUTLINE = { x: 20, y: 300, width: 350, height: 220 };
 const LICENCE = { documentNumber: "D1234567" } as unknown as AamvaLicence;
 
-function fakeCamera(size = { width: 2160, height: 3840 }) {
+function fakeCamera(size = { width: 2160, height: 3840 }, torch: LiveCamera["torch"] = null) {
   const ended: Array<() => void> = [];
   const snaps: Snapshot[] = [];
   const camera: LiveCamera & { stopped: boolean; snaps: Snapshot[]; end: () => void } = {
@@ -35,6 +35,7 @@ function fakeCamera(size = { width: 2160, height: 3840 }) {
       return snap;
     },
     onEnded: (l) => ended.push(l),
+    torch,
     stop() {
       this.stopped = true;
     },
@@ -214,5 +215,45 @@ describe("nothing outlives the session", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     await Promise.resolve();
     expect(open).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("the flashlight", () => {
+  it("is offered only when the camera has one", async () => {
+    const without = harness();
+    await without.scan.start();
+    expect(without.scan.torchAvailable.value).toBe(false);
+
+    const withLight = harness({ camera: fakeCamera(undefined, async () => true) });
+    await withLight.scan.start();
+    expect(withLight.scan.torchAvailable.value).toBe(true);
+  });
+
+  it("says it is on only when the camera took the change, and turns it back off", async () => {
+    const asked: boolean[] = [];
+    const h = harness({ camera: fakeCamera(undefined, async (on) => (asked.push(on), true)) });
+    await h.scan.start();
+    await h.scan.toggleTorch();
+    expect(h.scan.torchOn.value).toBe(true);
+    await h.scan.toggleTorch();
+    expect(h.scan.torchOn.value).toBe(false);
+    expect(asked).toEqual([true, false]);
+  });
+
+  it("stays off when the camera refuses the light", async () => {
+    const h = harness({ camera: fakeCamera(undefined, async () => false) });
+    await h.scan.start();
+    await h.scan.toggleTorch();
+    expect(h.scan.torchOn.value).toBe(false);
+  });
+
+  // Stopping the track turns the light off on the phone, so a closed scanner must not reopen saying "on".
+  it("is off again once the camera is let go", async () => {
+    const h = harness({ camera: fakeCamera(undefined, async () => true) });
+    await h.scan.start();
+    await h.scan.toggleTorch();
+    h.scan.stop();
+    expect(h.scan.torchOn.value).toBe(false);
+    expect(h.scan.torchAvailable.value).toBe(false);
   });
 });

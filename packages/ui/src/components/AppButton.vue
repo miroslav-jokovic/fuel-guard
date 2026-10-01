@@ -6,8 +6,8 @@ import { useTouchTargets } from "../touchTargets";
 /** Shared button for both applications. Gold is identity; graphite is action. */
 const props = withDefaults(
   defineProps<{
-    variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "link";
-    size?: "sm" | "md" | "icon" | "row" | "touch";
+    variant?: "primary" | "secondary" | "danger" | "soft" | "ghost" | "inverse" | "link";
+    size?: "sm" | "md" | "icon" | "row" | "touch" | "shutter";
     type?: "button" | "submit" | "reset";
     block?: boolean;
     disabled?: boolean;
@@ -30,6 +30,16 @@ const VARIANTS: Record<NonNullable<typeof props.variant>, string> = {
   danger: "bg-danger-solid text-danger-solid-foreground hover:bg-danger-600",
   soft: "bg-surface-muted text-ink-secondary hover:bg-selected-surface",
   ghost: "text-ink-secondary hover:bg-surface-muted hover:text-ink",
+  /**
+   * `ghost` on a DARK surface — a camera view, a scrim — where `ghost`'s grey is unreadable.
+   *
+   * Added 2026-09-30 for the applicant page's live licence scanner, which had shipped writing
+   * `variant="ghost" class="text-ink-inverse"`: the class lost to `ghost`'s own `text-ink-secondary`, so the
+   * close button and "Use the camera app instead" rendered #5C5C66 on the scrim — about 2.6:1, under WCAG's
+   * 4.5:1 for text — and nothing failed, because the override looked like it worked in the source. Measured
+   * in the built page, not inferred. Same lesson as `link`, `icon` and `row`: the variant was missing.
+   */
+  inverse: "text-ink-inverse hover:bg-ink-inverse/10",
   /**
    * An action that reads as part of a sentence — "…works out to 3,600 lb — use it." — rather than a
    * control beside one.
@@ -82,6 +92,15 @@ const SIZES: Record<NonNullable<typeof props.size>, string> = {
    * site would otherwise have written `!h-11`, and a missing size is the honest reading of that.
    */
   touch: "h-11 gap-x-2 px-4 text-base",
+  /**
+   * A camera's shutter: a 68 CSS px disc, pressed by a thumb with the phone held in the other hand.
+   *
+   * Added 2026-09-30 for the applicant page's live licence scanner, for the fourth time this file's lesson
+   * has applied — the call site would otherwise have written `!size-17 !rounded-full !p-0`. Round is the
+   * shape every phone camera has taught a driver to press, which is the whole reason to use it. Like `icon`
+   * it holds no label, so the caller owns the `aria-label`.
+   */
+  shutter: "size-17 p-0",
 };
 
 /** The link variant sits in running text, so it takes the surrounding size and no box at all. */
@@ -114,11 +133,12 @@ const sizeClass = computed(() =>
 const SHAPE = {
   control: "justify-center whitespace-nowrap rounded-control font-semibold",
   row: "justify-start whitespace-normal text-left font-normal",
+  round: "justify-center rounded-full",
 } as const;
 
 const cls = computed(() => [
   "inline-flex items-center transition-colors",
-  props.size === "row" ? SHAPE.row : SHAPE.control,
+  props.size === "row" ? SHAPE.row : props.size === "shutter" ? SHAPE.round : SHAPE.control,
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
   "disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60",
   VARIANTS[props.variant],

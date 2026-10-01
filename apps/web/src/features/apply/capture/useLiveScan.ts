@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, shallowRef, type Ref } from "vue";
+import { computed, onScopeDispose, ref, shallowRef, type Ref } from "vue";
 import { BUNDLED_DEFAULT_CONFIG, computeMetrics } from "@silvicom/capture-engine";
 import type { AamvaLicence } from "@silvicom/shared";
 import { openLiveCamera, type LiveCamera, type OpenResult, type Snapshot } from "./liveCamera";
@@ -79,6 +79,9 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
   const state = ref<LiveScanState>("starting");
   const refusal = ref<LiveRefusal | null>(null);
   const camera = shallowRef<LiveCamera | null>(null);
+  /** Whether the flashlight is on — only ever set from what the camera accepted (`LiveCamera.torch`). */
+  const torchOn = ref(false);
+  const torchAvailable = computed(() => camera.value?.torch != null);
   const open = options.open ?? openLiveCamera;
   const read = options.read ?? ((pixels: ImageData) => readLicenceBarcode(pixels));
   const score = options.score ?? sharpness;
@@ -105,6 +108,8 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
     session += 1;
     camera.value?.stop();
     camera.value = null;
+    // A stopped track takes its light with it, so the button must not go on saying it is on.
+    torchOn.value = false;
     reading = false;
     pressedAt = null;
     history.length = 0;
@@ -196,6 +201,15 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
     state.value = "settling";
   }
 
+  /** The flashlight button. A light the camera refused, or one for a camera already let go, changes nothing. */
+  async function toggleTorch(): Promise<void> {
+    const cam = camera.value;
+    if (!cam?.torch) return;
+    const want = !torchOn.value;
+    const took = await cam.torch(want);
+    if (took && camera.value === cam) torchOn.value = want;
+  }
+
   // A locked phone or a switched app stops the camera under us (iOS always does); coming back starts it again.
   const onVisibility = (): void => {
     if (document.visibilityState === "hidden" && camera.value) release();
@@ -207,7 +221,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
   }
   onScopeDispose(release);
 
-  return { state, refusal, start, shutter, stop: release };
+  return { state, refusal, start, shutter, stop: release, torchOn, torchAvailable, toggleTorch };
 }
 
 /**

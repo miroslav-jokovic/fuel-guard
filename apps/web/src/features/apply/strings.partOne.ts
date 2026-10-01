@@ -179,8 +179,13 @@ export const APPLY_PART_ONE_COPY = {
       live: {
         starting: "Opening the camera…",
         aim: {
-          cdl_front: "Fit the front of your CDL inside the frame, then press the button.",
-          cdl_back: "Fit the back of your CDL inside the frame. The photo takes itself once the barcode is clear.",
+          cdl_front: "Fit the card inside the corners, then press the button.",
+          cdl_back: "Fit the card inside the corners. It takes the photo by itself once the barcode is clear.",
+        },
+        /** Which side goes up, said once above the frame, because the wrong side is the commonest bad photo. */
+        side: {
+          cdl_front: "Front — the side with your photo",
+          cdl_back: "Back — the side with the barcode",
         },
         settling: "Hold still…",
         taking: "Got it.",
@@ -188,6 +193,22 @@ export const APPLY_PART_ONE_COPY = {
         close: "Close the camera",
         cameraApp: "Use the camera app instead",
         upload: "Upload a photo instead",
+        /** The same two ways out, shorter, under the live view, where they sit side by side. */
+        cameraAppShort: "Camera app",
+        uploadShort: "Upload a photo",
+        torchOn: "Turn the flashlight off",
+        torchOff: "Turn the flashlight on",
+        /**
+         * Shown once, before the camera first opens on this visit: the three things that spoil a licence photo
+         * — glare, a busy background, a card too small in the picture — said before they happen.
+         */
+        tips: {
+          heading: "Photograph your CDL",
+          flat: "Lay the card flat on a dark surface, like a seat or the dashboard.",
+          glare: "Turn it away from lamps and windows so nothing shines on it.",
+          fill: "Fill the frame with the card, all four corners showing.",
+          open: "Open the camera",
+        },
         tryAgain: "Try again",
         videoLabel: "Camera view",
         refused: {
