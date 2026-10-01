@@ -34,6 +34,11 @@ export interface VehicleSyncResult {
    * vehicle reporting telematics that the carrier's own fleet list does not contain.
    */
   unlinked?: string[];
+  /**
+   * Samsara vehicles whose VIN or name matched a row that already carries a DIFFERENT device Samsara
+   * still lists — reported, never re-linked (FL1b, Q-FL6). Unit or Samsara name, one per vehicle.
+   */
+  heldByOtherDevice: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -136,7 +141,8 @@ async function upsertSamsaraVehicle(
   fuelByVehicle: Map<string, VehicleFuelLevel>,
   maps: ReturnType<typeof buildVehicleMaps>,
   linkOnly: boolean,
-): Promise<{ kind: "created" | "updated" | "unlinked"; unit?: string }> {
+  liveIds: Set<string>,
+): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string }> {
   const identity = {
     make: sv.make,
     model: sv.model,
@@ -160,6 +166,24 @@ async function upsertSamsaraVehicle(
     maps.bySamsara.get(sv.samsaraId) ??
     (sv.vin ? maps.byVin.get(sv.vin.toUpperCase()) : undefined) ??
     maps.byUnit.get(sv.name);
+  // ── A VIN OR NAME MATCH NEVER TAKES A ROW FROM ANOTHER DEVICE SAMSARA STILL LISTS (FL1b, Q-FL6) ──
+  //
+  // When a gateway is swapped, Samsara keeps the retired gateway's vehicle record (`568 - OLD`) and
+  // the record can keep the truck's VIN. Measured 2026-10-01: both of unit 568's records carry VIN
+  // `…9642`. Matching the second record by VIN onto the row the first record is linked to would move
+  // `samsara_vehicle_id` to it, and the first record would move it back by id on the same pass —
+  // every identity cycle, forever — while every telemetry reader keyed on the id followed it. A row
+  // that already carries a device Samsara still reports belongs to that device; the fallback match
+  // is reported instead. A row whose device Samsara no longer lists is fair game: that IS the swap
+  // this fallback exists to follow.
+  // (An id match always carries its own id, so only the two fallbacks can reach this.)
+  if (
+    match?.samsara_vehicle_id != null &&
+    match.samsara_vehicle_id !== sv.samsaraId &&
+    liveIds.has(match.samsara_vehicle_id)
+  ) {
+    return { kind: "held", unit: sv.name };
+  }
   if (match) {
     // ── LINK-ONLY: the link and the MEASUREMENTS, never the identity (D-MR5) ─────────────────────
     //
@@ -317,6 +341,7 @@ export async function syncVehiclesFromSamsara(
   // For every identity column on this table McLeod is an equal or better source, so link-only mode
   // writes NO identity at all rather than carving out an exception nothing in the data supports.
   const linkOnly = await isTmsRosterMaster(admin, orgId);
+  const liveIds = new Set(vehicles.map((sv) => sv.samsaraId));
 
   const result: VehicleSyncResult = {
     total: vehicles.length,
@@ -328,18 +353,16 @@ export async function syncVehiclesFromSamsara(
     // unit — it never changes `status`, so it takes no capability away and is not the deactivation
     // pass D-MR5 switches off. Under TMS mastery it is worth MORE, not less: it is the only signal
     // that a truck McLeod says is in service has stopped reporting telematics.
-    samsaraMissing: await applyReplacementLifecycle(
-      admin,
-      orgId,
-      existing,
-      new Set(vehicles.map((sv) => sv.samsaraId)),
-    ),
+    samsaraMissing: await applyReplacementLifecycle(admin, orgId, existing, liveIds),
     unlinked: linkOnly ? [] : undefined,
+    heldByOtherDevice: [],
   };
 
   for (const sv of vehicles) {
-    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps, linkOnly);
-    if (synced.kind === "created") {
+    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps, linkOnly, liveIds);
+    if (synced.kind === "held") {
+      result.heldByOtherDevice.push(synced.unit!);
+    } else if (synced.kind === "created") {
       result.created++;
       result.needsCompletion.push(synced.unit!);
     } else if (synced.kind === "unlinked") {
@@ -355,6 +378,9 @@ export async function syncVehiclesFromSamsara(
   // sync's bad-fetch guard and the trailer sync's pairing pass report from.
   if (result.unlinked?.length) {
     console.warn(`[vehicle-sync] ${result.unlinked.length} Samsara vehicle(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
+  }
+  if (result.heldByOtherDevice.length) {
+    console.warn(`[vehicle-sync] ${result.heldByOtherDevice.length} Samsara vehicle(s) match a truck another listed device holds: ${result.heldByOtherDevice.join(", ")}`);
   }
 
   // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
