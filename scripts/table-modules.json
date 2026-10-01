@@ -1971,6 +1971,17 @@
         "why": "evidence, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
+    "vehicle_make_model_catalog": {
+      "module": "roster",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "static",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "reference data (D-FL1, 0399): one row per catalogued VIN code or spelling; grows by one INSERT per new purchase batch."
+      }
+    },
     "vehicle_positions": {
       "module": "samsara",
       "layer": "raw",
