@@ -3,12 +3,16 @@ import { BUNDLED_DEFAULT_CONFIG, computeMetrics } from "@silvicom/capture-engine
 import type { AamvaLicence } from "@silvicom/shared";
 import { openLiveCamera, type LiveCamera, type OpenResult, type Snapshot } from "./liveCamera";
 import {
+  LIVE_SLOTS,
   meetsResolutionFloor,
+  mirrored,
   settled,
   trimHistory,
   viewRectToVideo,
   withMargin,
+  type LiveFacing,
   type LiveRefusal,
+  type LiveSlot,
   type Rect,
   type ScoredFrame,
   type Size,
@@ -16,15 +20,18 @@ import {
 import { readLicenceBarcode } from "./readLicenceBarcode";
 
 /**
- * One session of the live licence scanner (2026-09-30): the camera open in the page, a card outline over it,
- * and the moment a photograph is taken.
+ * One session of the live scanner (2026-09-30): the camera open in the page, an outline over it, and the
+ * moment a photograph is taken. Which camera, which outline and whether frames are read all come from the
+ * slot (`liveFrame.LIVE_SLOTS`).
  *
- * ── HOW EACH SIDE IS TAKEN ─────────────────────────────────────────────────────────────────────
- * **The back takes itself.** Its PDF417 is read from the live frames, and the frame whose barcode READ is
+ * ── HOW EACH PHOTOGRAPH IS TAKEN ──────────────────────────────────────────────────────────────
+ * **The CDL's back takes itself.** Its PDF417 is read from the live frames, and the frame whose barcode READ is
  * the one kept — the most objective "this photograph is sharp enough" there is, and it needs no threshold.
  * The licence it read comes along, so the page can say so at once.
  *
- * **The front waits for the shutter** — there is nothing on it to read. The shutter does not take the frame
+ * **The CDL's front, the medical card and the selfie wait for the shutter** — there is nothing on them to
+ * read. (The medical card is not looked for either: finding a page's edges and squaring it up is Q-AW53's
+ * option (a), a multi-MB OpenCV download, so its outline is an aiming guide and the cut is the outline's.) The shutter does not take the frame
  * under the finger (pressing shakes the phone); it takes the first one after the press that is as sharp as
  * the driver's own aim just before it (`liveFrame.settled`). Auto-capturing the front would need a fixed
  * sharpness floor, which D-SCAN10 forbids until Q-AW32's samples exist — so it is not built.
@@ -36,21 +43,20 @@ import { readLicenceBarcode } from "./readLicenceBarcode";
  * seconds, and never with a floor. Do not start comparing them with one.
  */
 
-export type LiveSide = "front" | "back";
 export type LiveScanState = "starting" | "aiming" | "settling" | "taking" | "refused";
 
 export interface LiveCapture {
   file: File;
-  /** The back's barcode, read from the very frame kept; null for the front. */
+  /** The CDL back's barcode, read from the very frame kept; null for every other photograph. */
   licence: AamvaLicence | null;
 }
 
 export interface LiveScanOptions {
-  side: LiveSide;
+  slot: LiveSlot;
   onCapture: (capture: LiveCapture) => void;
   /** The outline on screen and the box the video is drawn in, both in CSS pixels; null until laid out. */
   outline: () => { rect: Rect; view: Size } | null;
-  open?: (video: HTMLVideoElement) => Promise<OpenResult>;
+  open?: (video: HTMLVideoElement, facing: LiveFacing) => Promise<OpenResult>;
   read?: (pixels: ImageData) => Promise<AamvaLicence | null>;
   score?: (pixels: ImageData) => number;
   now?: () => number;
@@ -88,6 +94,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
   const now = options.now ?? (() => performance.now());
   const floor = BUNDLED_DEFAULT_CONFIG.gates.resolutionMinLongEdgePx;
   const nextFrame = options.nextFrame ?? onNextVideoFrame;
+  const kind = LIVE_SLOTS[options.slot];
 
   const history: ScoredFrame[] = [];
   let pressedAt: number | null = null;
@@ -101,7 +108,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
     const o = options.outline();
     if (!o) return null;
     const size = cam.size();
-    return withMargin(viewRectToVideo(o.rect, o.view, size), CROP_MARGIN, size);
+    return withMargin(viewRectToVideo(o.rect, o.view, size, mirrored(options.slot)), CROP_MARGIN, size);
   };
 
   const release = (): void => {
@@ -147,7 +154,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
           return;
         }
       }
-      if (options.side === "back" && pressedAt === null && !reading && t - lastRead >= READ_EVERY_MS) {
+      if (kind.reads && pressedAt === null && !reading && t - lastRead >= READ_EVERY_MS) {
         lastRead = t;
         reading = true;
         const snap = cam.snapshot(c);
@@ -178,7 +185,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
     const mine = session;
     refusal.value = null;
     state.value = "starting";
-    const opened = await open(el);
+    const opened = await open(el, kind.facing);
     if (mine !== session) {
       if (opened.ok) opened.camera.stop();
       return;
@@ -194,7 +201,7 @@ export function useLiveScan(video: Ref<HTMLVideoElement | null>, options: LiveSc
     schedule(mine);
   }
 
-  /** The shutter. On the back it is the way past a barcode too worn to read. */
+  /** The shutter. On the CDL's back it is the way past a barcode too worn to read. */
   function shutter(): void {
     if (state.value !== "aiming") return;
     pressedAt = now();

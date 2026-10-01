@@ -135,7 +135,7 @@ export function useApplicationCaptures(
    * the downscale and the EXIF strip after it are one pipeline, and two providers would be two of them.
    */
   let source: CaptureSource = "camera";
-  /** The slot the next `scan()` is for — the live scanner frames the CDL's two sides differently. */
+  /** The slot the next `scan()` is for — the live scanner frames each photograph its own way. */
   let target: ApplicationCaptureSlot | null = null;
   /** Which camera the next `scan()` opens: the front one for the selfie (AW6), the rear for a document. */
   let facing: "environment" | "user" = "environment";

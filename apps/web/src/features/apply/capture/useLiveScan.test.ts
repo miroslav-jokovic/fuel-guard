@@ -6,7 +6,7 @@ import { SHUTTER_DEADLINE_MS } from "./liveFrame";
 import { useLiveScan, type LiveCapture, type LiveScanOptions } from "./useLiveScan";
 
 /**
- * One session of the live licence scanner (2026-09-30), with the camera, the barcode reader, the clock and
+ * One session of the live scanner (2026-09-30), with the camera, the barcode reader, the clock and
  * the frames all in the test's hands: what is refused before the driver aims, what the back takes by itself,
  * what the shutter waits for, and that nothing outlives the session.
  */
@@ -52,7 +52,7 @@ function harness(over: Partial<LiveScanOptions> & { camera?: ReturnType<typeof f
   const scope = effectScope();
   const scan = scope.run(() =>
     useLiveScan(ref(document.createElement("video")), {
-      side: "front",
+      slot: "cdl_front",
       onCapture: (c) => captures.push(c),
       outline: () => ({ rect: OUTLINE, view: VIEW }),
       open: async () => over.opened ?? { ok: true, camera },
@@ -104,7 +104,7 @@ describe("before the driver aims", () => {
 describe("the back takes itself", () => {
   it("keeps the frame whose barcode read, with the licence it read, and stops the camera", async () => {
     let reads = 0;
-    const h = harness({ side: "back", read: async () => (++reads === 2 ? LICENCE : null) });
+    const h = harness({ slot: "cdl_back", read: async () => (++reads === 2 ? LICENCE : null) });
     await h.scan.start();
     await h.frame(300); // read 1: nothing
     await h.frame(300); // read 2: the licence
@@ -118,7 +118,7 @@ describe("the back takes itself", () => {
 
   it("never has two reads in flight, however slow a read is", async () => {
     const read = vi.fn(() => new Promise<AamvaLicence | null>(() => {}));
-    const h = harness({ side: "back", read });
+    const h = harness({ slot: "cdl_back", read });
     await h.scan.start();
     await h.frame(300);
     await h.frame(300);
@@ -128,7 +128,7 @@ describe("the back takes itself", () => {
 
   it("the front never reads at all", async () => {
     const read = vi.fn(async () => LICENCE);
-    const h = harness({ side: "front", read });
+    const h = harness({ slot: "cdl_front", read });
     await h.scan.start();
     await h.frame(300);
     await h.frame(300);
@@ -186,7 +186,7 @@ describe("nothing outlives the session", () => {
 
   it("a read that finishes after the scanner was closed takes nothing", async () => {
     let finish: (l: AamvaLicence | null) => void = () => {};
-    const h = harness({ side: "back", read: () => new Promise((r) => (finish = r)) });
+    const h = harness({ slot: "cdl_back", read: () => new Promise((r) => (finish = r)) });
     await h.scan.start();
     await h.frame(300);
     h.scan.stop();
@@ -255,5 +255,59 @@ describe("the flashlight", () => {
     h.scan.stop();
     expect(h.scan.torchOn.value).toBe(false);
     expect(h.scan.torchAvailable.value).toBe(false);
+  });
+});
+
+/** The medical card and the selfie (owner, 2026-09-30, Q-AW53): the same loop, told apart by the slot alone. */
+describe("each slot's camera and rule", () => {
+  it("asks for the front camera for the selfie and the rear one for every document", async () => {
+    const asked: Record<string, string> = {};
+    for (const slot of ["cdl_front", "cdl_back", "medical_card", "selfie"] as const) {
+      const h = harness({ slot, open: async (_v, facing) => ((asked[slot] = facing), { ok: true, camera: fakeCamera() }) });
+      await h.scan.start();
+    }
+    expect(asked).toEqual({ cdl_front: "environment", cdl_back: "environment", medical_card: "environment", selfie: "user" });
+  });
+
+  it("the medical card never reads, and waits for the shutter to settle as the CDL's front does", async () => {
+    const read = vi.fn(async () => LICENCE);
+    const scores = [500, 500, 100, 480];
+    const h = harness({ slot: "medical_card", read, score: () => scores.shift() ?? 0 });
+    await h.scan.start();
+    await h.frame(300);
+    await h.frame(300);
+    expect(h.captures).toHaveLength(0);
+    h.scan.shutter();
+    await h.frame(); // 100 — shaken
+    expect(h.captures).toHaveLength(0);
+    await h.frame(); // 480 ≥ 0.9 × 500
+    await Promise.resolve();
+    expect(h.captures).toHaveLength(1);
+    expect(h.captures[0]!.licence).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("cuts the selfie from the side of the video its MIRRORED preview shows there, and a document from where it is", async () => {
+    // An outline off centre — on the screen's left — so a rectangle and its reflection differ.
+    const left = { rect: { x: 10, y: 200, width: 250, height: 380 }, view: VIEW };
+    const crops: Record<string, { x: number; width: number }> = {};
+    for (const slot of ["selfie", "cdl_front"] as const) {
+      const camera = fakeCamera();
+      const seen: { x: number; width: number }[] = [];
+      const snapshot = camera.snapshot;
+      camera.snapshot = (c) => (seen.push(c), snapshot(c));
+      const h = harness({ slot, camera, outline: () => left });
+      await h.scan.start();
+      h.scan.shutter();
+      await h.frame();
+      await Promise.resolve();
+      crops[slot] = seen[0]!;
+    }
+    // 2160-wide video under a 390-wide view: the document's cut is on the video's left, the selfie's on its right,
+    // each the other's reflection — the face the driver framed on screen is the face in the photograph.
+    expect(crops.cdl_front!.x).toBeLessThan(1080);
+    expect(crops.selfie!.x + crops.selfie!.width).toBeGreaterThan(1080);
+    // Within a pixel: each edge is rounded to whole pixels on its own.
+    expect(Math.abs(crops.selfie!.x - (2160 - crops.cdl_front!.x - crops.cdl_front!.width))).toBeLessThanOrEqual(1);
   });
 });

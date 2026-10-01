@@ -5,24 +5,48 @@ import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import {
   CameraOffIcon,
   CheckIcon,
+  DevicePhoneMobileIcon,
+  FaceIcon,
   FlashlightIcon,
   FlashlightOffIcon,
   FrameCornersIcon,
   GlareIcon,
+  HatGlassesIcon,
   IdCardIcon,
+  LightIcon,
+  MedicalCardIcon,
   ScanIcon,
   XMarkIcon,
 } from "@silvicom/ui/icons";
 import { useLiveScan, type LiveCapture } from "@/features/apply/capture/useLiveScan";
-import { SHUTTER_DEADLINE_MS, TAKEN_HOLD_MS, type LiveRefusal } from "@/features/apply/capture/liveFrame";
+import {
+  LIVE_SLOTS,
+  mirrored,
+  SHUTTER_DEADLINE_MS,
+  TAKEN_HOLD_MS,
+  tipsKind,
+  type LiveRefusal,
+  type LiveSlot,
+} from "@/features/apply/capture/liveFrame";
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
 import { pickImageFile, pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
- * The live licence scanner (2026-09-30): the rear camera inside the page, a card outline over it, and the
- * photograph taken for the driver — the back by its own barcode, the front by the button once the phone has
- * settled (`useLiveScan` says how, and why the front does not take itself).
+ * The live scanner (2026-09-30): the camera inside the page, an outline of the document over it, and the
+ * photograph taken for the driver — the CDL's back by its own barcode, everything else by the button once
+ * the phone has settled (`useLiveScan` says how, and why only the back takes itself).
+ *
+ * ── ONE SCANNER FOR ALL FOUR (owner, 2026-09-30, Q-AW53) ──────────────────────────────────────
+ * It began as the CDL's; the owner ruled the same day that the four Part 1 photo screens look and behave
+ * the same, so the medical card and the selfie open it too. What differs is read from `liveFrame.LIVE_SLOTS`,
+ * never decided here: the CDL's ID-1 card outline, the medical card's letter-size page, the selfie's oval on
+ * the FRONT camera with its preview mirrored (`liveFrame.mirrored` — the preview only, never the photograph).
+ * The flashlight is offered on the rear camera only; a front camera has no torch to light the driver with.
+ *
+ * ⚠ The medical card's page is an AIMING GUIDE, nothing more. Nothing finds the page's edges or squares
+ * it up — that is Q-AW53's option (a), a multi-MB OpenCV download, not chosen. The photograph is cut to the
+ * outline with a margin, like the card, and "Use this photo / Retake" is where a crooked page is caught.
  *
  * It is a PICKER: it resolves with one photograph, which then goes through the very pipeline a camera-app
  * photo does — the gate, the downscale, EXIF stripped, "Use this photo / Retake" (`useApplicationCaptures`).
@@ -51,8 +75,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * (`PartOneHandoff`), met again.
  */
 const props = defineProps<{
-  photo: "cdl_front" | "cdl_back";
-  /** Show the tips before the camera opens — the page's first scanner of this visit (`scannerTips.ts`). */
+  photo: LiveSlot;
+  /** Show the tips before the camera opens — the first scanner of this kind this visit (`scannerTips.ts`). */
   tips?: boolean;
 }>();
 const emit = defineEmits<{
@@ -69,6 +93,9 @@ const TAKEN_BUZZ_MS = 40;
 
 const copy = APPLY_COPY.partOne.photo;
 const live = copy.live;
+const kind = LIVE_SLOTS[props.photo];
+const mirror = mirrored(props.photo);
+const face = kind.outline === "face";
 const video = ref<HTMLVideoElement | null>(null);
 const frame = ref<HTMLElement | null>(null);
 const shutterButton = ref<{ $el: HTMLElement } | null>(null);
@@ -81,7 +108,7 @@ const taken = ref<{ file: File; preview: string } | null>(null);
 let hold: ReturnType<typeof setTimeout> | undefined;
 
 const scan = useLiveScan(video, {
-  side: props.photo === "cdl_back" ? "back" : "front",
+  slot: props.photo,
   outline: () => {
     const v = video.value;
     const f = frame.value;
@@ -123,11 +150,34 @@ const CORNERS = [
   "-bottom-1 -left-1 border-b-4 border-l-4 rounded-bl-surface",
   "-bottom-1 -right-1 border-b-4 border-r-4 rounded-br-surface",
 ] as const;
-const TIPS = [
-  { icon: IdCardIcon, text: live.tips.flat },
-  { icon: GlareIcon, text: live.tips.glare },
-  { icon: FrameCornersIcon, text: live.tips.fill },
-] as const;
+const TIPS = {
+  document: [
+    { icon: IdCardIcon, text: live.tips.flat },
+    { icon: GlareIcon, text: live.tips.glare },
+    { icon: FrameCornersIcon, text: live.tips.fill },
+  ],
+  face: [
+    { icon: DevicePhoneMobileIcon, text: live.tips.arm },
+    { icon: HatGlassesIcon, text: live.tips.uncovered },
+    { icon: LightIcon, text: live.tips.light },
+  ],
+}[tipsKind(props.photo)];
+/** What the tips and the chip above the frame show: the thing being photographed. */
+const SUBJECT_ICON = { cdl_front: IdCardIcon, cdl_back: ScanIcon, medical_card: MedicalCardIcon, selfie: FaceIcon }[props.photo];
+/**
+ * The outline, the document's own shape. The page and the oval are sized against BOTH sides of the view
+ * (container units on the view, `cqw`/`cqh`), because a tall shape fitted to the width alone runs off the
+ * bottom of a short phone — measured in the built app, 375 × 667 leaves a view 391 px tall, and an 8.5 × 11
+ * page 88% wide would be 427 (it is 242 × 313 there instead).
+ * The card is wide enough that the width always binds, so it keeps the size the owner approved.
+ */
+const OUTLINE_SHAPE = {
+  card: "aspect-[85.6/54] w-[88%] rounded-surface",
+  page: "aspect-[8.5/11] w-[min(88cqw,calc(80cqh*8.5/11))] rounded-surface",
+  face: "aspect-[3/4] w-[min(80cqw,calc(84cqh*3/4))] rounded-full",
+}[kind.outline];
+/** The rear camera only: the light is beside the rear lens, so it lights a document and never the driver. */
+const torchOffered = computed(() => kind.facing === "environment" && scan.torchAvailable.value);
 
 async function begin(): Promise<void> {
   await nextTick();
@@ -150,7 +200,7 @@ function pastTips(): void {
 /** The camera app or a picked photo, from the driver's press — the live camera is let go first. */
 async function fallBack(to: "camera" | "file"): Promise<void> {
   scan.stop();
-  const file = to === "camera" ? await pickPhotoFromCamera() : await pickImageFile("image/*");
+  const file = to === "camera" ? await pickPhotoFromCamera(kind.facing) : await pickImageFile("image/*");
   if (file) emit("captured", { file, captureMode: "web_file_input" });
   else if (!refused.value && !tipsOpen.value) void scan.start();
 }
@@ -176,10 +226,10 @@ onBeforeUnmount(() => {
   >
     <DialogPanel class="scheme-light fixed inset-0 flex flex-col bg-scrim text-ink-inverse" data-live-scanner>
       <div class="flex items-center justify-between gap-3 px-4 pt-4">
-        <DialogTitle class="text-base font-semibold">{{ tipsOpen ? live.tips.heading : copy[photo].heading }}</DialogTitle>
+        <DialogTitle class="text-base font-semibold">{{ tipsOpen ? live.tips.heading[photo] : copy[photo].heading }}</DialogTitle>
         <div class="flex items-center gap-2">
           <BaseButton
-            v-if="scan.torchAvailable.value && !taken"
+            v-if="torchOffered && !taken"
             variant="inverse"
             size="touch"
             :aria-label="scan.torchOn.value ? live.torchOn : live.torchOff"
@@ -197,9 +247,9 @@ onBeforeUnmount(() => {
 
       <!-- The tips, once a visit, before the camera is asked for. -->
       <template v-if="tipsOpen">
-        <div class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-5 py-4" data-live-tips>
+        <div class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-5 py-4" :data-live-tips="tipsKind(photo)">
           <div class="mx-auto grid size-24 place-items-center rounded-surface bg-scrim/60 ring-1 ring-ink-inverse/40">
-            <AppIcon :icon="IdCardIcon" class="size-12" aria-hidden="true" />
+            <AppIcon :icon="SUBJECT_ICON" class="size-12" aria-hidden="true" />
           </div>
           <ul class="mt-6 space-y-4">
             <li v-for="tip in TIPS" :key="tip.text" class="flex items-center gap-3 text-sm">
@@ -220,43 +270,66 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <div class="relative min-h-0 flex-1 overflow-hidden">
+        <!-- `container-type: size` so the outline can be sized against the view's height as well (`OUTLINE_SHAPE`). -->
+        <div class="relative min-h-0 flex-1 overflow-hidden [container-type:size]">
+          <!-- Mirrored for the selfie by CSS alone: the pixels the photograph is cut from are never flipped. -->
           <video
             ref="video"
             class="absolute inset-0 h-full w-full object-cover"
+            :class="{ '-scale-x-100': mirror }"
+            :data-live-mirrored="mirror || undefined"
             autoplay
             muted
             playsinline
             :aria-label="live.videoLabel"
           />
           <template v-if="!refused">
-            <!-- The outline: an ID-1 card (85.60 × 53.98 mm), the rest of the view dimmed around it. -->
+            <!-- The outline (`OUTLINE_SHAPE`), the rest of the view dimmed around it. Centred, which is what lets
+                 the selfie's mirrored preview and its unmirrored crop agree (`liveFrame.viewRectToVideo`). -->
             <div
               ref="frame"
-              class="absolute left-1/2 top-1/2 aspect-[85.6/54] w-[88%] -translate-x-1/2 -translate-y-1/2 rounded-surface outline-[100vmax] outline-solid outline-scrim/55"
-              data-live-outline
+              class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 outline-[100vmax] outline-solid outline-scrim/55"
+              :class="OUTLINE_SHAPE"
+              :data-live-outline="kind.outline"
             >
+              <!-- The frame kept, shown as the preview showed it — mirrored for the selfie, so the moment it is
+                   taken does not flip; "Use this photo / Retake" then shows the photograph as it was saved. -->
               <img
                 v-if="taken"
                 :src="taken.preview"
                 alt=""
-                class="absolute inset-0 h-full w-full rounded-surface object-cover"
+                class="absolute inset-0 h-full w-full object-cover"
+                :class="[face ? 'rounded-full' : 'rounded-surface', { '-scale-x-100': mirror }]"
               />
+              <!-- A face's outline is the oval itself, carrying the same state colours as a document's corners. -->
               <span
-                v-for="corner in CORNERS"
-                :key="corner"
-                class="absolute aspect-square w-1/5 transition-colors"
-                :class="[corner, bracketTone]"
+                v-if="face"
+                class="absolute -inset-1 rounded-full border-4 transition-colors"
+                :class="bracketTone"
                 aria-hidden="true"
+                data-live-oval
               />
+              <template v-else>
+                <span
+                  v-for="corner in CORNERS"
+                  :key="corner"
+                  class="absolute aspect-square w-1/5 transition-colors"
+                  :class="[corner, bracketTone]"
+                  aria-hidden="true"
+                />
+              </template>
               <!-- The back is read live: a soft line sweeps the card so a driver can see it is working. -->
               <span
-                v-if="photo === 'cdl_back' && scan.state.value === 'aiming'"
+                v-if="kind.reads && scan.state.value === 'aiming'"
                 class="scan-sweep absolute inset-x-3 h-0.5 rounded-full bg-brand-400"
                 aria-hidden="true"
               />
               <template v-if="taken">
-                <span class="taken-flash pointer-events-none absolute inset-0 rounded-surface bg-ink-inverse" aria-hidden="true" />
+                <span
+                  class="taken-flash pointer-events-none absolute inset-0 bg-ink-inverse"
+                  :class="face ? 'rounded-full' : 'rounded-surface'"
+                  aria-hidden="true"
+                />
                 <span
                   class="absolute left-1/2 top-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-success-500"
                   data-live-taken
@@ -278,7 +351,7 @@ onBeforeUnmount(() => {
               class="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-scrim/80 py-1.5 pl-2.5 pr-3 text-xs font-semibold"
               data-live-side
             >
-              <AppIcon :icon="photo === 'cdl_back' ? ScanIcon : IdCardIcon" class="size-5" aria-hidden="true" />
+              <AppIcon :icon="SUBJECT_ICON" class="size-5" aria-hidden="true" />
               {{ live.side[photo] }}
             </p>
           </template>

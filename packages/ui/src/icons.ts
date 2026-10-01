@@ -220,5 +220,13 @@ export {
   // file holds, not the plastic a driver is holding up to a camera.
   IdentityCardIcon            as IdCardIcon,
   Sun01Icon                   as GlareIcon,
+  // The same scanner for the medical card and the selfie (owner, 2026-09-30). The medical examiner's
+  // certificate is a page, so it wears a page, not `IdCardIcon`. `FaceIcon` is a face inside scanner
+  // corners — the selfie's oval, as the chip and the tips name it. `HatGlassesIcon` is the tip's own
+  // two things to take off; `LightIcon` is a lamp to FACE, the opposite advice to `GlareIcon`'s.
+  MedicalFileIcon             as MedicalCardIcon,
+  FaceIdIcon                  as FaceIcon,
+  HatGlassesIcon              as HatGlassesIcon,
+  BulbIcon                    as LightIcon,
 
 } from "@hugeicons/core-free-icons";
