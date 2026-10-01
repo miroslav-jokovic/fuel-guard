@@ -40,7 +40,7 @@ D-MPG1..6 (`FLEET-MPG-CONSOLIDATION-PLAN.md`), D-FC0 (`roster/FLEET-CENSUS-AND-I
 | W5 | Reconcile results live in a component `ref` and vanish on close; `useReconRunsQuery()` has no caller. | 3 runs ever (last 2026-09-14), **0 statements ever saved**. |
 | W6 | Avoidability is granted only by admin equipment flags that were never filled in. | `has_apu` null on most of the fleet → 30–35 trucks scored of ~187. |
 | W7 | Two idle mechanisms never produced an answer. | learned envelope: **0 evidenced**; optimized envelope: **0 evidenced**; `optimized_cycling`: **0 sessions**. |
-| W8 | Truck list: our `active`+`maintenance` = 195 vs McLeod census (P4) 190. | `568 - OLD` is active and linked to McLeod 568 while McLeod's real 568 is retired here; 632–635 retired here but active in McLeod; 51 `ordered` rows 804–864 not yet in the frozen sandbox; make/model spelled 6 ways (`FRHT`/`FREIGHTLINER`, `LT625`/`LT 625`/`lt625`/`LT-625`); 784–788 have NO model in McLeod (we invented `CASCADIA`/`LT625` — 787's VIN is a Freightliner). |
+| W8 | Truck list: our `active`+`maintenance` = 195 vs McLeod census (P4) 190. | `568 - OLD` is active and linked to McLeod 568 while McLeod's real 568 is retired here; 632–635 retired here but active in McLeod; 51 `ordered` rows 804–864 not yet in the frozen sandbox; make/model spelled 6 ways (`FRHT`/`FREIGHTLINER`, `LT625`/`LT 625`/`lt625`/`LT-625`); 784–788 have NO model in McLeod; ours came from Samsara's vehicle record (`samsaraVehicleSync.ts:142`) — `CASCADIA` ×4 and `LT625` for 787, whose VIN `3AKJHHDR…` is a Freightliner with the same body code as every Cascadia here. |
 
 ### 1.3 Where the money is (September)
 
@@ -172,9 +172,8 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   1. `brief_stop`, PTO active, or ambient outside the comfort band (§1.5, Q-IE2) → **not avoidable**.
   2. **On duty (HOS on-duty-not-driving) and running > 60 min** → everything past the first 60 min is
      **avoidable** (R10), any equipment.
-  3. **Battery APU / Optimized Idle truck**, off duty or sleeper: a running stretch up to the
-     **recharge allowance** (Q-IE3, default 45 min) is not avoidable; every running second past it,
-     per continuous run, is **avoidable**.
+  3. **Battery APU truck**, off duty or sleeper: running up to **50% of the park's duration** is not
+     avoidable (Q-IE3, owner: 45–55%); every running second above that share is **avoidable**.
   4. **No APU, no OI**, off duty or sleeper → **not driver-avoidable**; booked as
      **`equipment_opportunity`** (what an APU would save on this truck), reported separately.
   5. Any other stopped-running ≥ 5 min outside a rest → **avoidable**.
@@ -217,30 +216,35 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 
 ---
 
-## 4. Open questions
+## 4. Questions — ANSWERED by the owner 2026-10-01
 
-- **Q-FL1 — Units 632–635.** McLeod says active (`service_status A`); we retired them; no long parks in
-  45 days. Recommendation: they are sold/parked and McLeod is stale → owner confirms, McLeod gets
-  updated, we leave them retired. (D-FC0 forbids us retiring what McLeod carries, so McLeod must move.)
-- **Q-FL2 — `568 - OLD`** (active, VIN `…9642`, linked to McLeod 568) vs `568` (retired, no VIN).
-  Recommendation: `568 - OLD` IS truck 568 → rename to 568, retire the stub. Confirm.
-- **Q-FL3 — 784–788 model.** McLeod has none. VIN says Freightliner for all five, including 787 which
-  we label LT625. Recommendation: fill from the VIN decode (NHTSA vPIC) and ask whoever owns McLeod data
-  to fill `model` there.
-- **Q-IE1 — Equipment for the "ask" batches in §1.6** — 637–711 (Cascadia 2023–2025), 718, 719–722,
-  723–726, 728–753, 769–783. Recommendation from behaviour: 723–726 and 728–753 battery APU;
-  637–711, 718, 769–783 no APU; 719–722 per-unit. Which also have Optimized Idle? (Freightliner's is
-  Detroit "Optimized Idle", International's is "Engine Off/Idle Management".) Owner answers from the
-  purchase orders.
-- **Q-IE2 — Comfort band.** Samsara's dashboard rule is not readable over the API (§1.5). What does it
-  say? Recommendation: use those values in `idle_settings` (today 20–85 °F; suggested 30–70).
-- **Q-IE3 — Recharge allowance** for battery-APU trucks: how long may one engine restart run before it
-  is avoidable? Recommendation 45 min (battery top-up runs are typically 20–40 min); the engine will
-  measure the real distribution on 764–768 and 784–803 and we revise.
-- **Q-IE4 — Unit 727** sits in the 2020-12-24 Cascadia batch but outside "500–635". Same ruling as
-  its batch (no APU)? Recommendation: yes.
-
----
+- **Q-FL1 — Units 632–635: LEAVE AS THEY ARE.** Active in McLeod and parked = meant to be sold,
+  waiting. No change in McLeod and none here; FL2's parity check must list them as a KNOWN state
+  ("for sale, parked"), not as a disagreement to alarm on every sweep.
+- **Q-FL2 — Samsara name suffixes.** `- OLD` = the truck's gateway was REPLACED (the record belongs to
+  the retired gateway, same truck — see `samsara-old-suffix-is-a-device-swap`); `- SOLD` = the truck
+  was sold. So for 568 the rows are BACKWARDS today: `568 - OLD` (active, VIN `…9642`, McLeod link
+  568) carries the identity, and `568` (retired, no VIN, `identity_source samsara`) is the new
+  gateway's record. FL1 merges them through the existing audited vehicle-merge path (the
+  `732-merged-…` precedent): one truck `568`, active, McLeod-linked, current gateway. Every other
+  `- OLD` / `- SOLD` row is checked against the same rule.
+- **Q-FL3 — 784–788: fill model from the VIN.** Body code `JHHDR` (VIN positions 4–8) is identical to
+  every McLeod `CA` truck here, so all five are Cascadias; 787's `LT625` is a Samsara typo. ⚠ The
+  roster sync skips empty McLeod fields (`rosterFields.ts` `vehiclePatch`) so a VIN fill is not
+  blanked by the next sweep — but Samsara's vehicle sync WOULD re-write 787 back to `LT625`. FL1
+  therefore makes the normalised make/model DERIVED (D-FL1) rather than a hand edit, and the McLeod
+  record should still get its `model` filled by whoever maintains McLeod.
+- **Q-IE1 — Equipment: as recommended.** Battery APU: 723–726, 728–753, all MY 2027 (764–768,
+  784–803, 810, and 804+ on order). No APU / no OI: 500–635, 637–711, 718, 727, 769–783. 719–722:
+  per unit from behaviour, flagged for review. Optimized Idle stays only where already entered
+  `true` on a battery-APU truck; elsewhere `false`.
+- **Q-IE2 — Comfort band: keep 20–85 °F** (`idle_settings`, confirmed correct).
+- **Q-IE3 — Battery-APU allowance: the engine may run 45–55% of the PARKED time** (owner's
+  experience). D-IE4 rule 3 becomes a SHARE, not a per-run minute cap: on a battery-APU truck, a
+  park's running seconds up to **50%** of its duration are not avoidable; everything above is.
+  The engine measures the real distribution on the battery-APU cohort and the owner revisits 50%
+  with it.
+- **Q-IE4 — 727: no APU** (same as its batch).
 
 ## 5. Words (D-FSV7)
 
@@ -263,9 +267,9 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 | Step | What | Depends | Migration |
 |---|---|---|---|
 | **I0** | Stop the double count: canonical event key = (vehicle, started_at, duration); delete the twin of each pair through an audited job, not raw SQL; unique index after. Every `idle_events` reader re-checked. | — | yes (index, after the job) |
-| **FL1** | Fleet cleanup: normalise make/model (D-FL1), fix 784–788 (Q-FL3), merge 568 (Q-FL2), resolve 632–635 (Q-FL1). | answers | maybe |
+| **FL1** | Fleet cleanup: derived make/model (D-FL1), 784–788 from VIN (Q-FL3), merge `568 - OLD` into 568 and audit every `- OLD`/`- SOLD` row (Q-FL2); 632–635 untouched (Q-FL1). | — | maybe |
 | **FL2** | Fleet-parity check after each roster sweep (D-FL2). | FL1 | no |
-| **IE1** | Equipment by purchase batch: batch key from McLeod purchase date + model; write R7 rulings and Q-IE1 answers as declared equipment with source; "behaves like" flag (D-IE7). | FL1, Q-IE1 | yes (batch + source columns) |
+| **IE1** | Equipment by purchase batch: batch key from McLeod purchase date + model; write R7 + Q-IE1 rulings as declared equipment with source; "behaves like" flag (D-IE7). | FL1 | yes (batch + source columns) |
 | **IE2a** | Spike: which engine fuel / engine-hour counters our token returns (D-IE6). No PR if negative; written into §7. | — | no |
 | **IE2** | Idle engine v2, collector + pure classifier + hour/stop tables, running in PARALLEL (D-IE1..3, D-IE8). | I0, IE2a | yes (new tables, partitioned) |
 | **IE3** | Avoidable rules + equipment opportunity (D-IE4); HOS overlap from `hos_duty_segments`. | IE1, IE2 | no |
@@ -276,7 +280,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 | **FS3** | Pilot invoices page (D-FSV8); first real statement through it (`db139445F.pdf`). | — | no |
 | **IE6** | Retire Samsara idling-events ingestion + dead envelope machinery (D-IE10). | IE5 | yes (drops) |
 
-I0, FS1 and IE2a do not depend on any answer and can start immediately.
+All questions are answered; nothing in the queue is blocked on the owner.
 
 ---
 
@@ -286,3 +290,7 @@ I0, FS1 and IE2a do not depend on any answer and can start immediately.
   (read-only) and the McLeod sandbox `lme_analytics` (restore dated 2026-09-10; live `lme` reads were
   refused by the session's permission classifier, so units bought after 09-10 — 804+ — are not in the
   batch table). Owner rulings R1–R12 recorded; Q-FL1–3 and Q-IE1–4 open.
+- **2026-10-01** — Owner answered Q-FL1–3 and Q-IE1–4 (§4). Two corrections from checking the
+  answers: 784–788's models came from Samsara's vehicle record, not from us; and the 568 pair is
+  backwards (the `- OLD` row holds the identity). Battery-APU allowance is a 50% share of the park,
+  not a minute cap.
