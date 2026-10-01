@@ -319,3 +319,21 @@ All questions are answered; nothing in the queue is blocked on the owner.
   not retry them: the job's failure in the ledger is the signal, and the fix is a manual re-run.
   Production verification (twin count 0, September idle hours ≈ engine-state 25,850 h) follows the
   deploy.
+- **2026-10-01** — **I0 DONE.** #1185 merged (8901bc0) and served by both Railway services at 18:54 UTC;
+  the first driver-score tier cycle on the new code ran `idle_event_twins` 18:56:03 → 19:05:08 UTC,
+  status `done`. Measured in production, read-only, org `86d6b3ea`:
+  - audit row `idle.event_twins_removed` at 18:58:38: 259,155 unkeyed at the start, **58,143 deleted** —
+    exactly the measured pair count — 201,012 keyed; twins span events 08/15 → 10/01 01:42, first twin
+    written 09/14 14:13.
+  - `idle_events`: 0 unkeyed rows, 0 `event_key` groups of more than one, and 0 duplicate
+    (vehicle, started_at, duration) groups — the old key finds nothing either.
+  - September 1–28: **26,140 h over 35,122 events** (was 52,281 h over 70,244); `vehicle_engine_days`
+    idle for the same days is 25,694 h today (25,850 h when measured this morning — the engine days
+    have been re-written since), so Samsara-native idle now reads +1.7% over engine state instead of 2×.
+    35,122 is exactly the pair-group count measured before the build.
+  - `idle_rollup_days` rebuilt over 49 days (`rollupDays`); rows from 08/12 to 10/01 re-written.
+  - `driver_performance_weeks`: 08/17, 08/24, 08/31, 09/07, 09/14 re-frozen (`settled_at` 19:02:16,
+    ~150 drivers each); 08/03 (frozen 08/14) and 08/10 (frozen 08/21) untouched — as ruled.
+  - The `sync_idle` run started 18:35 by the PREVIOUS deployment was cut off by the deploy and closed
+    `failed` when its lease was reclaimed at 19:05; the next `sync_idle` started 19:05:08 on the new code.
+    That is the deploy, not I0. The no-retry gap above did not arise: rollup and re-freeze both ran.
