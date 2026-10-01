@@ -37,8 +37,11 @@ const OWN_ORIGIN_WASM: ZXingModuleOverrides = {
 
 let prepared = false;
 
-/** Every valid PDF417 text in a photograph. `overrides` is for a test, which loads the binary from disk. */
-export async function readPdf417Texts(photo: Blob, overrides: ZXingModuleOverrides = OWN_ORIGIN_WASM): Promise<string[]> {
+/**
+ * Every valid PDF417 text in a photograph, or in a frame of the live scanner (`ImageData`, read as it is —
+ * no encode to a file and back, five times a second). `overrides` is for a test, which loads the binary from disk.
+ */
+export async function readPdf417Texts(photo: Blob | ImageData, overrides: ZXingModuleOverrides = OWN_ORIGIN_WASM): Promise<string[]> {
   if (!prepared) {
     prepareZXingModule({ overrides, fireImmediately: false });
     prepared = true;

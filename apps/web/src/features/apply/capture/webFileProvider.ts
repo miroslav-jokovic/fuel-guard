@@ -2,6 +2,7 @@ import {
   evaluateGate,
   unavailableOcr,
   type CaptureConfig,
+  type CaptureMode,
   type CaptureProvider,
   type CapturedPage,
   type ImageMetrics,
@@ -38,9 +39,18 @@ import { browserImageIo, pickPhotoFromCamera, type WebImageIo } from "./webImage
  * unmeasured check is `na` and never a silent pass.
  */
 
+/**
+ * A photograph and how it was made. A picker that returns a bare `File` made it through a file input
+ * (`web_file_input`); the live scanner says `web_live_camera`, so a page never claims the wrong provenance.
+ */
+export interface PickedPhoto {
+  file: File;
+  captureMode: CaptureMode;
+}
+
 export interface WebCaptureOptions {
   io?: WebImageIo;
-  pick?: () => Promise<File | null>;
+  pick?: () => Promise<File | PickedPhoto | null>;
 }
 
 export const WEB_PROVIDER_ID = "capture.web.file_input";
@@ -79,6 +89,7 @@ export async function processPhoto(
   file: File,
   config: CaptureConfig,
   io: WebImageIo,
+  captureMode: CaptureMode = "web_file_input",
 ): Promise<ProcessedPhoto> {
   const decoded = await io.decode(file);
   try {
@@ -119,8 +130,8 @@ export async function processPhoto(
         device: "web",
       },
       integrityHash,
-      // The phone's camera app or a picked file, through a file input — never Expo (§6.6.7).
-      provenance: { captureMode: "web_file_input", osEnhanced: false },
+      // A file input (the camera app, a picked file) or the live scanner — never Expo (§6.6.7).
+      provenance: { captureMode, osEnhanced: false },
     };
     return { page, bytes: encoded.blob };
   } finally {
@@ -149,18 +160,19 @@ export function createWebFileProvider(
     },
 
     async scan(): Promise<ScanResult> {
-      let file: File | null;
+      let picked: File | PickedPhoto | null;
       try {
-        file = await pick();
+        picked = await pick();
       } catch (e) {
         return { ok: false, reason: "PROVIDER_ERROR", message: e instanceof Error ? e.message : String(e) };
       }
-      if (!file) return { ok: false, reason: "CAPTURE_CANCELLED" };
+      if (!picked) return { ok: false, reason: "CAPTURE_CANCELLED" };
+      const { file, captureMode } = picked instanceof File ? { file: picked, captureMode: "web_file_input" as const } : picked;
 
       let page: CapturedPage;
       let bytes: Blob;
       try {
-        ({ page, bytes } = await processPhoto(file, config, io));
+        ({ page, bytes } = await processPhoto(file, config, io, captureMode));
       } catch (e) {
         return { ok: false, reason: "PROVIDER_ERROR", message: e instanceof Error ? e.message : String(e) };
       }

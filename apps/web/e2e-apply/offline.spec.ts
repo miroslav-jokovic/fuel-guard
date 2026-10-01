@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PART_ONE_SCREENS } from "@silvicom/shared";
+import { shootWithScanner } from "./liveScanner";
 import { partOneLink, partTwoLink, STORAGE_UPLOAD, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
@@ -112,35 +113,12 @@ test("Part 2: an answer typed while saves fail is put back and saved on the next
   expect(replay.body).toMatchObject({ revision: 3 });
 });
 
-/** A photograph of a card: textured enough to pass the browser's gate, drawn by Chromium itself. */
-async function cardPhoto(page: Page): Promise<Buffer> {
-  const b64 = await page.evaluate(() => {
-    const c = document.createElement("canvas");
-    c.width = 1600;
-    c.height = 1000;
-    const g = c.getContext("2d")!;
-    for (let y = 0; y < 1000; y += 20) {
-      for (let x = 0; x < 1600; x += 20) {
-        g.fillStyle = `rgb(${(x * 7) % 255},${(y * 3) % 255},${(x + y) % 255})`;
-        g.fillRect(x, y, 20, 20);
-      }
-    }
-    g.fillStyle = "#000";
-    g.font = "80px sans-serif";
-    g.fillText("ILLINOIS CDL", 200, 300);
-    return c.toDataURL("image/jpeg", 0.9).split(",")[1]!;
-  });
-  return Buffer.from(b64, "base64");
-}
-
 /** Photograph the CDL's front, press "Use this photo", and return the stub. */
 async function takeFront(page: Page): Promise<Stub> {
   const stub = await stubApi(page, partOneLink({ captures: [] }));
   await page.goto(url);
-  const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Take photo" }).click();
-  await (await chooser).setFiles({ name: "cdl.jpg", mimeType: "image/jpeg", buffer: await cardPhoto(page) });
-  await expect(page.getByRole("button", { name: "Use this photo" })).toBeVisible();
+  // Through the live scanner and the fake camera's card (`cameraFeed.ts`), as a phone photographs it now.
+  await shootWithScanner(page);
   return stub;
 }
 

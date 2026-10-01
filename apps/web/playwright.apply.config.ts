@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { BARCODE_CARD, fakeCamera, PLAIN_CARD } from "./e2e-apply/cameraFeed";
 import { APPLY_E2E_PORT, ORIGIN } from "./e2e-apply/stubApi";
 
 /**
@@ -31,6 +32,8 @@ import { APPLY_E2E_PORT, ORIGIN } from "./e2e-apply/stubApi";
  */
 export default defineConfig({
   testDir: "./e2e-apply",
+  // Draws the fake camera's two licences before any browser launches (`cameraFeed.ts`).
+  globalSetup: "./e2e-apply/cameraFeed.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
@@ -46,7 +49,11 @@ export default defineConfig({
     serviceWorkers: "block",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium" }],
+  // One fake camera per browser, fixed at launch — so one project per card (`cameraFeed.ts` says which is which).
+  projects: [
+    { name: "chromium", testIgnore: /scanner\.spec\.ts$/, use: { launchOptions: { args: fakeCamera(PLAIN_CARD) } } },
+    { name: "scanner", testMatch: /scanner\.spec\.ts$/, use: { launchOptions: { args: fakeCamera(BARCODE_CARD) } } },
+  ],
   webServer: {
     command: `pnpm --filter @silvicom/api serve:web-dist`,
     url: `${ORIGIN}/`,
