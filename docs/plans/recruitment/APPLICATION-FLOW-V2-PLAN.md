@@ -2118,3 +2118,33 @@ Append dated lines at the END.
   · **Not proven from here — owed on real phones before this is called done (§9):** an iPhone (Safari) and an
     Android (Chrome), each: the camera opens inline (not full-screen), the granted size clears 1200 px under the
     outline, the back of a real CDL takes itself, the front's shutter gives a legible photo, a locked phone resumes.
+- **2026-09-30** — **The live scanner now looks and behaves like an ID scanner; the owner approved a seven-screen mock
+  the same day ("I love it, let's build it").** Researched against BlinkID, Scandit, Scanbot, Onfido, Persona and
+  Veriff first; the common parts were kept and the ones that need a quality floor were not.
+  · **What a driver sees:** a tips screen before the FIRST scanner of a visit (a dark flat surface, no lamp or window
+    on the card, all four corners) — then corner brackets instead of an outline, a chip naming the side ("Front — the
+    side with your photo" / "Back — the side with the barcode"), a round shutter, and the camera app and upload as two
+    links under it. The brackets carry the state: white aiming, the brand colour pulsing with a bar that fills over
+    `SHUTTER_DEADLINE_MS` while the phone settles, green with a check and the kept frame shown inside them once taken
+    (`TAKEN_HOLD_MS`, 650 ms), plus a 40 ms buzz where `navigator.vibrate` exists (Android; not iOS Safari). A
+    refusal moves into the camera's place with an icon, and the camera app becomes the main button. The back's live
+    read gets a sweep line so a driver can see it is working.
+  · **Flashlight:** shown only where the camera reports `torch` in `getCapabilities()` (Chrome on Android), and it
+    says "on" only when `applyConstraints` took it — an iPhone shows no button rather than one that does nothing.
+  · **Tips are per visit, not stored on the phone** (`scannerTips.ts`): the mock's "Don't show this again" box was
+    dropped, since a driver applies once and a reload costs one tap.
+  · **Not built, on purpose:** "move closer", "too dark", "glare" about the live picture. Each needs a fixed floor,
+    which D-SCAN10 and Q-AW32 hold until recorded samples exist; the tips say it before the camera opens instead.
+  · **Found while building, and fixed in the same change:** the scanner shipped in the morning's change with its
+    close button and both ways out in `ghost`'s grey (#5C5C66 on the scrim, about 2.6:1, under WCAG's 4.5:1), because
+    `class="text-ink-inverse"` lost to the variant's own colour. Measured from the BUILT page's computed style, not
+    read off the source. `AppButton` gains `variant="inverse"` for a control on a dark surface, and a browser spec now
+    measures what was painted. `AppButton` also gains `size="shutter"` (68 px round); both added in the primitive, as
+    `icon`, `row` and `touch` were, rather than as `!important` at the call site.
+  · **Checks:** 11 component tests and 4 new loop tests; the browser suite (20 specs) adds the flashlight both ways,
+    no flashlight on a camera without one, tips once a visit, and the painted-colour check, and the 44 px sweep now
+    measures the tips screen at 390 and 320 px. The sweep no longer waits on an animation that never ends (the
+    sweep line), which would otherwise hang it. Mutation: 8 unit mutants and 3 browser mutants (each rebuilt before
+    it ran) all killed, against a passing control.
+  · **Still owed on real phones (§9), unchanged:** the five checks in the entry above, plus that the flashlight button
+    appears on an Android phone with a light and the buzz is felt.

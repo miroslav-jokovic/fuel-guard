@@ -158,6 +158,13 @@ export function settled(history: readonly ScoredFrame[], pressedAt: number, fram
   return frame.sharpness >= bar * SETTLE_SHARE;
 }
 
+/**
+ * How long the scanner shows the frame it kept — green corners and a check — before the review screen
+ * (`LiveLicenceScanner`). Long enough to register as "that worked", short enough not to read as a wait; a
+ * photo that vanishes the instant it is taken reads as a glitch. Timing, not quality, like the two above.
+ */
+export const TAKEN_HOLD_MS = 650;
+
 /** Keep only what `settled` can still look at, so a scanner left open for minutes holds a few dozen numbers. */
 export function trimHistory(history: ScoredFrame[], now: number): void {
   const oldest = now - SHUTTER_LOOKBACK_MS - SHUTTER_DEADLINE_MS;

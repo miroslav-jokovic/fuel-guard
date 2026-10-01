@@ -28,6 +28,11 @@ export interface LiveCamera {
   snapshot(crop: Rect): Snapshot;
   /** Called once if the camera stops on its own (another app took it; the phone locked). */
   onEnded(listener: () => void): void;
+  /**
+   * The phone's flashlight, or null where the page cannot reach it. Resolves with whether the camera took
+   * the change — a constraint the camera refuses rejects, and the button must not then claim the light is on.
+   */
+  torch: ((on: boolean) => Promise<boolean>) | null;
   stop(): void;
 }
 
@@ -116,6 +121,7 @@ function browserCamera(video: HTMLVideoElement, stream: MediaStream): LiveCamera
           ),
       };
     },
+    torch: torchControl(stream.getVideoTracks()[0]),
     onEnded(listener) {
       for (const t of stream.getVideoTracks()) t.addEventListener("ended", () => !stopped && listener(), { once: true });
     },
@@ -124,6 +130,25 @@ function browserCamera(video: HTMLVideoElement, stream: MediaStream): LiveCamera
       for (const t of stream.getTracks()) t.stop();
       video.srcObject = null;
     },
+  };
+}
+
+/**
+ * The flashlight, where the camera says it has one. `torch` is in the Image Capture spec's constraint
+ * extensions, not in TypeScript's DOM types, hence the widening. Measured, never assumed: Chrome on Android
+ * reports it for a rear camera with a light; iOS Safari has not reported it, so an iPhone shows no button
+ * rather than one that does nothing. Stopping the track (`stop`) turns the light off with it.
+ */
+function torchControl(track: MediaStreamTrack | undefined): LiveCamera["torch"] {
+  const capabilities = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+  if (!track || capabilities?.torch !== true) return null;
+  return async (on) => {
+    try {
+      await track.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] });
+      return true;
+    } catch {
+      return false;
+    }
   };
 }
 
