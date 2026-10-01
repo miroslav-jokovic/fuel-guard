@@ -24,6 +24,16 @@ const TOKEN = "token-1";
 const SPEC = { key: "k".repeat(64), linkExpiresAt: "2099-01-01T00:00:00Z" };
 const HASH = "a1".repeat(32);
 const BYTES = "the encoded licence";
+/**
+ * When the "next visit" tests kept their photograph: a minute ago, measured from the moment the file loads.
+ *
+ * It was the fixed instant 2026-09-28T10:00Z, while `readKeptPhoto` judges expiry against the REAL clock —
+ * so the copy expired 72 h later (`PHOTO_COPY_TTL_MS`), at 10:00 UTC on 2026-10-01, and from then on two
+ * of these tests failed on every branch and a third ("does not send it over a newer photograph") kept
+ * passing for the wrong reason: an expired copy is never sent either. A kept time inside the TTL is the
+ * precondition all three are about, so it must move with the clock.
+ */
+const KEPT_AT = new Date(Date.now() - 60_000);
 
 const page = (): CapturedPage =>
   ({ originalOfRecord: { uri: "blob:taken", width: 1568, height: 990, bytes: 19, mediaType: "image/webp" }, integrityHash: HASH }) as unknown as CapturedPage;
@@ -176,13 +186,13 @@ describe("the next visit", () => {
   });
 
   it("keeps it held, with Use this working, when the resend fails too — and does not re-keep it", async () => {
-    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, new Date("2026-09-28T10:00:00Z"));
+    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, KEPT_AT);
     const c = mountCaptures(io({ upload: offline }).io);
     await c.replayed;
     expect(c.state()).toBe("failed");
     expect(c.slots.value[0]!.pending).toBe(true);
     // The same copy, not a new one: each failed visit must not push its keptAt, and its expiry, forward.
-    expect((await readKeptPhoto(SPEC, "cdl_front"))?.keptAt).toBe("2026-09-28T10:00:00.000Z");
+    expect((await readKeptPhoto(SPEC, "cdl_front"))?.keptAt).toBe(KEPT_AT.toISOString());
     c.stop();
   });
 
@@ -198,9 +208,9 @@ describe("the next visit", () => {
   });
 
   it("does not send it over a newer photograph on the server, and lets it go", async () => {
-    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, new Date("2026-09-28T10:00:00Z"));
+    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, KEPT_AT);
     const { io: x, sent } = io();
-    const c = mountCaptures(x, [{ slot: "cdl_front", capturedAt: "2026-09-28T10:00:05Z" } as ApplicationCaptureView]);
+    const c = mountCaptures(x, [{ slot: "cdl_front", capturedAt: new Date(KEPT_AT.getTime() + 5_000).toISOString() } as ApplicationCaptureView]);
     await c.replayed;
     expect(sent).toEqual([]);
     expect(c.state()).toBe("done");
@@ -209,9 +219,9 @@ describe("the next visit", () => {
   });
 
   it("sends it over an OLDER photograph on the server — a retake that never arrived", async () => {
-    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, new Date("2026-09-28T10:00:00Z"));
+    await keepPhoto(SPEC, "cdl_front", new Blob([BYTES]), "image/webp", HASH, KEPT_AT);
     const { io: x, sent } = io();
-    const c = mountCaptures(x, [{ slot: "cdl_front", capturedAt: "2026-09-20T09:00:00Z" } as ApplicationCaptureView]);
+    const c = mountCaptures(x, [{ slot: "cdl_front", capturedAt: new Date(KEPT_AT.getTime() - 8 * 86_400_000).toISOString() } as ApplicationCaptureView]);
     await c.replayed;
     expect(sent).toHaveLength(1);
     c.stop();
