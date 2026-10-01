@@ -420,3 +420,16 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `{from: 2026-08-02, to: 2026-10-01}`, so 568's spend-days pick up the moved telemetry (the nightly
   rollup only reaches back 14 days). Auto mode refused to run it from a script, so it needs a
   signed-in run.
+- **2026-10-01** — **FL1 DONE**, both follow-ups closed. (1) Spend rebuild 2026-08-02 → 2026-10-01 run at
+  23:30 UTC by a one-off script calling `buildFuelSpendRollup` with the service key (owner-approved; the
+  0359 precedent): one `fuel.spend_rollup_rebuilt` audit row, actor null, reason migration 0400 — 8,589
+  written, 1,554 stale rows swept, 56 rejected intervals, 0 unattributed fills. September tractor spend
+  still reads **$1,312,207**, to the dollar, so the sweep took no spend with it. `568` (759ef27a) now has
+  27 spend-days in the window (19 fills, $10,658.33, 15,609 mi); `990128aa` has none. (2) The sync holds
+  `568 - OLD`: the first identity sync after 0400 (23:06–23:10 UTC) updated 205 of 208 records against 206
+  in each run since #1189, and 759ef27a still holds device …145500 — a VIN re-link would have given it
+  …689800. The `[vehicle-sync]` log line itself could not be found: Railway returns no lines at all for
+  23:10:30–23:11:30, a minute in which `efs-soap` logs every 60 s, so the log's silence proves nothing either
+  way and the database is the evidence. Seen in the api log alongside, outside this plan: `sync_ifta`
+  fails with "Samsara IFTA API 400 for September 2026", and `data_retention` with "scoring_attempts
+  delete: Bad Request". Next: FL2.
