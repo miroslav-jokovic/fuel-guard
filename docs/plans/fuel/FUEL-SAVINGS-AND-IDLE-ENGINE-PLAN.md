@@ -319,3 +319,41 @@ All questions are answered; nothing in the queue is blocked on the owner.
   not retry them: the job's failure in the ledger is the signal, and the fix is a manual re-run.
   Production verification (twin count 0, September idle hours ≈ engine-state 25,850 h) follows the
   deploy.
+- **2026-10-01** — **I0 DONE.** #1185 merged (8901bc0) and served by both Railway services at 18:54 UTC;
+  the first driver-score tier cycle on the new code ran `idle_event_twins` 18:56:03 → 19:05:08 UTC,
+  status `done`. Measured in production, read-only, org `86d6b3ea`:
+  - audit row `idle.event_twins_removed` at 18:58:38: 259,155 unkeyed at the start, **58,143 deleted** —
+    exactly the measured pair count — 201,012 keyed; twins span events 08/15 → 10/01 01:42, first twin
+    written 09/14 14:13.
+  - `idle_events`: 0 unkeyed rows, 0 `event_key` groups of more than one, and 0 duplicate
+    (vehicle, started_at, duration) groups — the old key finds nothing either.
+  - September 1–28: **26,140 h over 35,122 events** (was 52,281 h over 70,244); `vehicle_engine_days`
+    idle for the same days is 25,694 h today (25,850 h when measured this morning — the engine days
+    have been re-written since), so Samsara-native idle now reads +1.7% over engine state instead of 2×.
+    35,122 is exactly the pair-group count measured before the build.
+  - `idle_rollup_days` rebuilt over 49 days (`rollupDays`); rows from 08/12 to 10/01 re-written.
+  - `driver_performance_weeks`: 08/17, 08/24, 08/31, 09/07, 09/14 re-frozen (`settled_at` 19:02:16,
+    ~150 drivers each); 08/03 (frozen 08/14) and 08/10 (frozen 08/21) untouched — as ruled.
+  - The `sync_idle` run started 18:35 by the PREVIOUS deployment was cut off by the deploy and closed
+    `failed` when its lease was reclaimed at 19:05; the next `sync_idle` started 19:05:08 on the new code.
+    That is the deploy, not I0. The no-retry gap above did not arise: rollup and re-freeze both ran.
+- **2026-10-01** — FL1 stopped before building: Samsara contradicts Q-FL2's premise. Read-only
+  `GET /fleet/vehicles` (208 records) today: the record linked to our `568` row (281475006145500) is now
+  named **`568 - SOLD`**, and BOTH 568 records have no gateway (`serial ""`, `model none`). Neither of
+  our rows has engine data after 09/05 (`568`) / 08/30 (`568 - OLD`). So there is no "current gateway"
+  to merge onto. The merge itself still holds — `568` (retired, 759ef27a) carries the evidence: 97
+  fills, 327 financial entries, 91 anomalies, the fuel card, a trailer; `568 - OLD` (active, 990128aa)
+  carries the McLeod link, VIN `…9642` and 08/02–08/31 telemetry — and is the 0359 shape. Samsara also
+  names **22 trucks `- SOLD`**; nine of them are ACTIVE and McLeod-linked here, with the roster sweep
+  live (last 10/01 19:08): **506, 550, 557, 563, 568, 572, 592, 594, 607** (last engine day 09/05–09/21).
+  632–635 (Q-FL1, "for sale, parked") are now `- SOLD` in Samsara too. Samsara's `563 - SOLD` carries
+  804's VIN (`…844651`) while our 563 holds `…MS9649` — a Samsara-side record mix-up. And a VIN trap for
+  the merge: both 568 Samsara records carry VIN `…9642`, so after a merge that frees the dead record's
+  id (as 0359 did) the vehicle sync would match it by VIN onto the survivor and the two records would
+  take turns owning it. Questions to the owner:
+  - **Q-FL4 — Are the nine sold?** D-FC0 says McLeod decides membership, so as built they stay active
+    until McLeod retires them, and FL2 reports the disagreement. Recommendation: the owner (or whoever
+    maintains McLeod) confirms and retires them in McLeod; the sweep follows. Nothing here edits status.
+  - **Q-FL5 — 568 survivor status and device.** Recommendation: merge as 0359 did (history row `568`
+    survives, takes McLeod link + VIN + McLeod's status), but the retired row KEEPS the dead record's
+    Samsara id so the VIN match cannot reach the survivor. Alternative: retire both if 568 is sold.
