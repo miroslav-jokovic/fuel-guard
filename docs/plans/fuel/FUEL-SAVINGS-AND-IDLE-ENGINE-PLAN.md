@@ -408,3 +408,28 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `merge-unit-568.test.mjs` 30 checks; seven mutants all killed (one after the renamed-row guard got
   its own case). After apply: check the audit row, zero references to 990128aa, and that the next
   vehicle sync reports `568 - OLD` under `heldByOtherDevice` rather than re-linking 568.
+- **2026-10-01** — **FL1 DONE** apart from one rebuild. Migration 0400 merged (#1190, a9877b2) and
+  applied by `migrate.yml` at 23:02 UTC; the api serves a9877b2 with schema `0400` current. Checked
+  read-only on production: one `roster.vehicle_merged` audit row (migration 0400) — moved 378 idle
+  events, 286 odometer readings, 135 park sessions, 46 IFTA rows, 29 idle-rollup days and 12 engine
+  days; summed 1 idle-rollup day; dropped 9 spend-days and the 22 duplicated IFTA rows; released device
+  …689800. `759ef27a` is `568`, active, `mcleod`, tractor 568, VIN …9642, device 281475006145500, and
+  a sync wrote it again at 23:14 without changing any of that. `990128aa` is `568-merged-990128aa`,
+  retired, with no link, VIN or device. Device …689800 has 0 duplicate (year, month, jurisdiction)
+  rows and 0 IFTA rows are left on the retired row. **Still owed:** `POST /api/fuel/spend-rollup`
+  `{from: 2026-08-02, to: 2026-10-01}`, so 568's spend-days pick up the moved telemetry (the nightly
+  rollup only reaches back 14 days). Auto mode refused to run it from a script, so it needs a
+  signed-in run.
+- **2026-10-01** — **FL1 DONE**, both follow-ups closed. (1) Spend rebuild 2026-08-02 → 2026-10-01 run at
+  23:30 UTC by a one-off script calling `buildFuelSpendRollup` with the service key (owner-approved; the
+  0359 precedent): one `fuel.spend_rollup_rebuilt` audit row, actor null, reason migration 0400 — 8,589
+  written, 1,554 stale rows swept, 56 rejected intervals, 0 unattributed fills. September tractor spend
+  still reads **$1,312,207**, to the dollar, so the sweep took no spend with it. `568` (759ef27a) now has
+  27 spend-days in the window (19 fills, $10,658.33, 15,609 mi); `990128aa` has none. (2) The sync holds
+  `568 - OLD`: the first identity sync after 0400 (23:06–23:10 UTC) updated 205 of 208 records against 206
+  in each run since #1189, and 759ef27a still holds device …145500 — a VIN re-link would have given it
+  …689800. The `[vehicle-sync]` log line itself could not be found: Railway returns no lines at all for
+  23:10:30–23:11:30, a minute in which `efs-soap` logs every 60 s, so the log's silence proves nothing either
+  way and the database is the evidence. Seen in the api log alongside, outside this plan: `sync_ifta`
+  fails with "Samsara IFTA API 400 for September 2026", and `data_retention` with "scoring_attempts
+  delete: Bad Request". Next: FL2.
