@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PART_ONE_SCREENS } from "@silvicom/shared";
-import { cardPhoto, shootWithScanner } from "./liveScanner";
+import { shootWithScanner } from "./liveScanner";
 import { openHandbook, packetStops, partOneLink, partTwoV2Link, stubApi, TOKEN, type Stub } from "./stubApi";
 
 /**
@@ -131,13 +131,6 @@ async function chooseState(page: Page, id: string, check?: () => Promise<void>):
   await page.getByRole("option", { name: /Illinois/ }).first().click();
 }
 
-async function photograph(page: Page): Promise<void> {
-  const chooser = page.waitForEvent("filechooser");
-  await press(page, "Take photo");
-  await (await chooser).setFiles({ name: "card.jpg", mimeType: "image/jpeg", buffer: await cardPhoto(page) });
-  await expect(page.getByRole("button", { name: "Use this photo" })).toBeVisible();
-}
-
 const step = (page: Page, n: number) => expect(page.getByText(`Step ${n} of ${PART_ONE_SCREENS.length}`)).toBeVisible();
 
 for (const width of [390, 320]) {
@@ -218,9 +211,16 @@ for (const width of [390, 320]) {
       for (let i = 0; i < 2; i += 1) await noes.nth(i).check();
       await press(page, "Continue");
 
+      // The medical card and the selfie through the scanner too (owner, 2026-09-30, Q-AW53). The medical
+      // card's page shares the CDL's tips, already seen; the selfie opens on its own.
       await step(page, 8);
       await s.check("part1.medical_card");
       await page.getByLabel(/medical card yet/).check();
+      await s.check("part1.medical_card, no card yet");
+      await page.getByLabel(/medical card yet/).uncheck();
+      await shootWithScanner(page, () => s.check("part1.medical_card, live scanner"));
+      await press(page, "Use this photo");
+      await expect(page.getByText("Received.")).toBeVisible();
       await press(page, "Continue");
 
       // AW6: the selfie — its oval, its notice, "I can't take one" ticked, then a photo taken and sent.
@@ -230,7 +230,11 @@ for (const width of [390, 320]) {
       await cannot.check();
       await s.check("part1.selfie, cannot take one");
       await cannot.uncheck();
-      await photograph(page);
+      await shootWithScanner(
+        page,
+        () => s.check("part1.selfie, live scanner"),
+        () => s.check("part1.selfie, scanner tips"),
+      );
       await s.check("part1.selfie, photo to review");
       await press(page, "Use this photo");
       await expect(page.getByText("Received.")).toBeVisible();

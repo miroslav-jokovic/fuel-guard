@@ -792,7 +792,7 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW50** (2026-09-29, S2's open note) | Should switching driver reminders OFF also silence the office's alert? S2 built it ON (`applicationNudgeSweep.ts` alerts before it checks `reminders_enabled`). Two defects found at the call sites: the form HID the delay while reminders were off, though the delay still times the office's alert; and the contract only held the delay before the link's expiry while reminders were on, so off + a delay past the link's life was an alert that never came (the sweep skips expired invitations). | (a) keep the alert on; always show the delay; the delay must come before expiry in both states; name the carrier's notification switch as the way to stop office alerts; (b) reminders off silences the office too (one line in the sweep) | **RULED (a) by the owner 2026-09-29; BUILT as C-AL1.** The switch is about the driver; with reminders off the office's alert is the only signal left. ⚠ **Consequence the ruling did not name:** the shortest delay is 24 h (0379), so a **1-day link can no longer be saved** in either state — before, it could with reminders off. 0379's CHECK stays looser; the contract is the stricter of the two. |
 | **Q-AW51** (2026-09-29, found building C-AL1) | The invite drawer's per-invite override (`expires_in_days`, 1–60) is not checked against the carrier's delay. A link sent for fewer hours than the delay expires before its driver can count as stopped, so the office is never alerted about that applicant — Q-AW50's defect, on one invitation instead of the carrier's default. | (a) the api refuses an override of `days × 24 ≤ reminder_after_hours` with the same sentence, and the drawer's hint names the carrier's delay; (b) accept it: a short link is a deliberate choice; (c) the sweep alerts on a link that died unfinished | **(a)** — it is the same rule as Q-AW50, and the api already reads the carrier's settings to fill a missing override. No migration. Not built: the ruling was about the settings. **RULED (a) by the owner 2026-09-29.** Not built yet. |
 | **Q-AW52** (2026-09-29, found building C-AL1) | The carrier's master notification switch (`organizations.notifications_enabled`) gates the stalled-application alert, the digest, DQ alerts, fuel and feed alarms — but its only screen, Settings → Notifications (admin only), labels it "Email recipients when high/critical anomalies are detected". C-AL1's copy points office users at it, truthfully ("which stops its other alerts too"), but the checkbox they find there says something narrower. | (a) relabel that checkbox and its section to say it is the carrier's notifications, listing what it stops; (b) split it into per-kind switches (a migration); (c) leave it | **(a)**, a copy change on one admin page, its own small PR. (b) only if the owner wants anomaly emails off with everything else on. **RULED (a) by the owner 2026-09-29.** Not built yet. |
-| **Q-AW53** (2026-09-30, live scanner) | The medical card is a letter-size page, not an ID-1 card, so the live scanner's fixed card outline does not fit it, and it still opens the camera app. An in-page page scanner needs edge detection and perspective correction. | (a) jscanify (MIT) over OpenCV.js, loaded only on that screen — several MB on a driver's data plan; (b) keep the camera app for it; (c) a paid SDK (Scanbot covers both documents and IDs) | **(b) until the CDL scanner is measured on real phones** — Q-AW54 is how. If drivers re-shoot the CDL less through the scanner, (a) is worth its download for the medical card; if not, nothing is lost. |
+| **Q-AW53** (2026-09-30, live scanner) | The medical card is a letter-size page, not an ID-1 card, so the live scanner's fixed card outline does not fit it, and it still opens the camera app. An in-page page scanner needs edge detection and perspective correction. | (a) jscanify (MIT) over OpenCV.js, loaded only on that screen — several MB on a driver's data plan; (b) keep the camera app for it; (c) a paid SDK (Scanbot covers both documents and IDs) | (b) until the CDL scanner is measured on real phones — Q-AW54 is how. **RULED by the owner 2026-09-30, against the recommendation: the in-page scanner for the medical card AND the selfie, so all four Part 1 photo screens look and behave the same — but without (a)'s edge detection.** The medical card gets a letter-size page outline as an aiming guide only, shutter-taken like the CDL's front; the selfie gets the front camera, an oval and a mirrored preview. Whether (a) is worth its download for the page is still Q-AW54's evidence to answer. **BUILT 2026-09-30** (progress log). |
 | **Q-AW54** (2026-09-30, live scanner) | The server cannot tell a scanner photograph from a camera-app one. `CapturedPage.provenance.captureMode` says `web_live_camera` or `web_file_input` in the browser, but `stageCapture` sends only slot, type and hash, so "does the scanner reduce re-shoots and rejected documents?" — the reason it was built — cannot be answered from data. | (a) a nullable `application_captures.capture_mode` column (migration), then the confirm body carries it in a LATER merge (`lint:migration-ordering`); (b) log it only (`[capture-verify]` line); (c) nothing | **(a)**: one column, then one field. Needed before Q-AW53 or Q-AW32 can be decided on evidence. |
 
 ---
@@ -2148,3 +2148,45 @@ Append dated lines at the END.
     it ran) all killed, against a passing control.
   · **Still owed on real phones (§9), unchanged:** the five checks in the entry above, plus that the flashlight button
     appears on an Android phone with a light and the buzz is felt.
+- **2026-09-30** — **The medical card and the selfie now use the live scanner, so all four Part 1 photo screens
+  look and behave the same (owner ruling, Q-AW53, against its recommendation (b)).** `LiveLicenceScanner` is now
+  `LiveScanner`, and what differs between the four slots is defined once in `liveFrame.LIVE_SLOTS`: which camera,
+  which outline, and whether frames are read. The hook, the screen, the tips and the crop all read it from there.
+  · **Medical card:** the rear camera, a portrait letter-size page (8.5 × 11) inside the same corner brackets, and
+    the shutter with the CDL front's settle rule. There is no barcode, so it never takes itself. The flashlight is
+    offered where the camera has one. **Nothing finds the page's edges or squares it up**: that is Q-AW53's option
+    (a), a multi-MB OpenCV download, and it was not chosen. The outline is only an aiming guide, and "Use this
+    photo / Retake" is where a crooked page gets caught.
+  · **Selfie:** the front camera (`facingMode: { ideal: "user" }`; the rear request is unchanged), an oval in place
+    of the brackets, the preview mirrored in CSS (`-scale-x-100`, which in Tailwind 4 is the `scale` property, not
+    `transform`), and the photograph NOT mirrored, because it is cut from the video's own pixels.
+    `viewRectToVideo` now maps a rectangle under a mirrored view to its reflection. The oval is centred, so today
+    the reflection is the same rectangle. The mapping is pinned for the day the oval moves off centre. There is no
+    flashlight, even where a camera reports one. "I can't take one" and the privacy note stay on the page,
+    unchanged. The camera app inside the scanner opens the front camera too.
+  · **Tips are per kind, once a visit each** (`scannerTips.ts`): a document's three (the medical card shares the
+    CDL's, under its own heading) and a face's three (arm's length, sunglasses and hat off, face the light). A driver
+    who pressed past the licence's tips still sees the selfie's.
+  · **The outline fits short phones:** the page and the oval are sized against the view's height as well as its
+    width (container units). Measured in the built app: a 375 × 667 phone leaves a view only 391 px tall, so the
+    page is 242 × 313 there, where 88% of the width would have made it 330 × 427 and run it off the bottom.
+  · **The resolution floor, measured with a portrait 2160 × 3840 camera:** in Chromium, at 390 × 844, 320 × 844
+    and 375 × 667, both the page and the face clear 1200 px. At 1080p the page and the face clear it on a tall phone
+    but the page is refused on a 375 × 667 one, where its height binds. That phone goes to its camera app before the
+    driver aims, which is the refusal doing its job. (For comparison, the CDL's card at 1080p on a 390 px phone is
+    ~1,064 px and is refused there too.) These numbers are pinned in `liveFrame.test.ts`.
+  · **Checks:** the browser suite gains `liveSlots.spec.ts`: the medical card by its shutter, with the
+    rear camera asked for and a page-shaped outline; the selfie with the front camera asked for, the preview
+    painted mirrored, no flashlight, and the uploaded photo read for which side the card's writing is on (it is on
+    the left, so the photo was saved unmirrored); the tips once a visit for each kind; and the painted-colour check
+    for both new scanners. The 44 px walk now photographs the medical card and the selfie through the scanner and
+    measures each one open, plus the selfie's tips, at 390 and 320 px. (`offline.spec.ts` photographs only the CDL
+    front, so it needed no change.) Mutation: 13 mutants, including front camera not requested, preview not
+    mirrored, photo mirrored, crop ignoring the mirror, wrong outline shape and one tips flag for both kinds. All
+    were killed, with `dist` rebuilt before every browser mutant and two mutants that failed to compile rewritten
+    so that they did compile.
+  · **Still owed on real phones (§9), now for all four:** on an iPhone (Safari) and an Android (Chrome), check that
+    the camera opens inline, the picture clears 1200 px, the CDL back takes itself, the CDL front and the medical
+    card give legible photos, the selfie preview is mirrored and the saved photo is not, lock and unlock resumes
+    the camera, and the flashlight and buzz work on Android. Then `select count(*) from application_captures`
+    (0 on 2026-09-30), which also proves the upload fix.

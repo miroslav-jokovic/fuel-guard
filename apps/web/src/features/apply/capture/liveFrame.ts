@@ -1,5 +1,5 @@
 /**
- * The in-page licence scanner's decisions, with no camera in them (2026-09-30).
+ * The in-page scanner's decisions, with no camera in them (2026-09-30).
  *
  * Everything here is arithmetic over numbers the camera reported — where the outline falls in the video's
  * own pixels, whether that is enough pixels, when a shaken phone has settled, what a refusal means — so it
@@ -13,6 +13,50 @@
  * question, which needs no floor — and the only absolute threshold, the resolution floor, is read from the
  * gate's own config rather than restated (`meetsResolutionFloor`).
  */
+import type { ApplicationCaptureSlot } from "@silvicom/shared";
+
+/**
+ * The four photographs the scanner takes. Until 2026-09-30 it took the CDL's two sides only; the owner then
+ * ruled that all four Part 1 photo screens look and behave the same (Q-AW53, against its recommendation (b)),
+ * so the medical card and the selfie are taken in the page too. A slot the server renames breaks this type.
+ */
+export type LiveSlot = Extract<ApplicationCaptureSlot, "cdl_front" | "cdl_back" | "medical_card" | "selfie">;
+export type LiveFacing = "environment" | "user";
+
+export interface LiveSlotKind {
+  /** The camera asked for: the rear for a document, the front for the selfie (AW6, §6.7). */
+  facing: LiveFacing;
+  /**
+   * The outline's shape, which is the document's: an ID-1 card (85.60 × 53.98 mm), a letter-size page
+   * (8.5 × 11 in) for the medical examiner's certificate, an upright oval for a face.
+   */
+  outline: "card" | "page" | "face";
+  /** Whether frames are read for a barcode, so the photograph takes itself — the CDL's back only. */
+  reads: boolean;
+}
+
+/** What differs between the four, said once: the hook, the screen and the tips all read it from here. */
+export const LIVE_SLOTS: Record<LiveSlot, LiveSlotKind> = {
+  cdl_front: { facing: "environment", outline: "card", reads: false },
+  cdl_back: { facing: "environment", outline: "card", reads: true },
+  medical_card: { facing: "environment", outline: "page", reads: false },
+  selfie: { facing: "user", outline: "face", reads: false },
+};
+
+/**
+ * Whether the preview is shown mirrored. A front camera's picture, shown as it is, moves the wrong way when the
+ * driver moves — everyone's phone mirrors it, so this one does. Only the PREVIEW: the photograph is the video's
+ * own pixels, unflipped, so writing on a shirt reads the right way round to the office. One definition, read by
+ * the screen's CSS and by the crop (`viewRectToVideo`), so the two cannot disagree about which side is which.
+ */
+export const mirrored = (slot: LiveSlot): boolean => LIVE_SLOTS[slot].facing === "user";
+
+/**
+ * Which set of tips a slot opens on: a document's (glare, background, fill the frame) or a face's. Each is
+ * shown once a visit (`scannerTips.ts`), so a driver who has read the licence's tips still meets the selfie's.
+ */
+export type TipsKind = "document" | "face";
+export const tipsKind = (slot: LiveSlot): TipsKind => (LIVE_SLOTS[slot].outline === "face" ? "face" : "document");
 
 export interface Size {
   width: number;
@@ -33,14 +77,20 @@ export interface Rect {
  * ⚠ The camera's resolution is whatever it granted, not what was asked for: Chromium answered a 3840×2160
  * request from a portrait source with 2160×2160 ("crop-and-scale"), measured 2026-09-30. So both sizes are
  * inputs, read at the moment of use, never assumed.
+ *
+ * `isMirrored`: the preview is drawn flipped left-to-right (`mirrored`, the selfie), so what is under a
+ * rectangle on screen is the video's pixels at its REFLECTION across the view's centre line. The selfie's oval
+ * is centred, where a rectangle and its reflection are the same — so a wrong answer here would not show today,
+ * and would cut the wrong side of the face the day the outline moves off centre. Pinned for that day.
  */
-export function viewRectToVideo(rect: Rect, view: Size, video: Size): Rect {
+export function viewRectToVideo(rect: Rect, view: Size, video: Size, isMirrored = false): Rect {
   const scale = Math.max(view.width / video.width, view.height / video.height);
   const offsetX = (view.width - video.width * scale) / 2;
   const offsetY = (view.height - video.height * scale) / 2;
+  const x = isMirrored ? view.width - rect.x - rect.width : rect.x;
   return clampRect(
     {
-      x: (rect.x - offsetX) / scale,
+      x: (x - offsetX) / scale,
       y: (rect.y - offsetY) / scale,
       width: rect.width / scale,
       height: rect.height / scale,
@@ -160,7 +210,7 @@ export function settled(history: readonly ScoredFrame[], pressedAt: number, fram
 
 /**
  * How long the scanner shows the frame it kept — green corners and a check — before the review screen
- * (`LiveLicenceScanner`). Long enough to register as "that worked", short enough not to read as a wait; a
+ * (`LiveScanner`). Long enough to register as "that worked", short enough not to read as a wait; a
  * photo that vanishes the instant it is taken reads as a glitch. Timing, not quality, like the two above.
  */
 export const TAKEN_HOLD_MS = 650;

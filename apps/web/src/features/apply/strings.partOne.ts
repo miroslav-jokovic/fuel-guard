@@ -172,20 +172,24 @@ export const APPLY_PART_ONE_COPY = {
       notIntact: "That photo did not arrive intact. Take it again.",
       required: "Take the photo to continue.",
       /**
-       * The live scanner (2026-09-30): the camera inside the page, for the CDL's two sides. The back takes
-       * itself once its barcode reads; the front waits for the button. Every refusal names the way on — the
-       * camera app is one press away in all of them.
+       * The live scanner (2026-09-30): the camera inside the page, for all four photographs since the owner's
+       * ruling the same day (Q-AW53). The CDL's back takes itself once its barcode reads; the other three wait
+       * for the button. Every refusal names the way on — the camera app is one press away in all of them.
        */
       live: {
         starting: "Opening the camera…",
         aim: {
           cdl_front: "Fit the card inside the corners, then press the button.",
           cdl_back: "Fit the card inside the corners. It takes the photo by itself once the barcode is clear.",
+          medical_card: "Fit the page inside the corners, then press the button.",
+          selfie: "Fit your face in the oval, then press the button.",
         },
         /** Which side goes up, said once above the frame, because the wrong side is the commonest bad photo. */
         side: {
           cdl_front: "Front — the side with your photo",
           cdl_back: "Back — the side with the barcode",
+          medical_card: "Your DOT medical examiner's certificate",
+          selfie: "Your face",
         },
         settling: "Hold still…",
         taking: "Got it.",
@@ -199,14 +203,23 @@ export const APPLY_PART_ONE_COPY = {
         torchOn: "Turn the flashlight off",
         torchOff: "Turn the flashlight on",
         /**
-         * Shown once, before the camera first opens on this visit: the three things that spoil a licence photo
-         * — glare, a busy background, a card too small in the picture — said before they happen.
+         * Shown once a visit for each kind, before the camera first opens for it (`scannerTips.ts`). A document's
+         * three are what spoil a licence photo — glare, a busy background, a card too small in the picture — and
+         * fit the medical card as written. A face's three are what spoil a selfie: too close, hidden, backlit.
          */
         tips: {
-          heading: "Photograph your CDL",
+          heading: {
+            cdl_front: "Photograph your CDL",
+            cdl_back: "Photograph your CDL",
+            medical_card: "Photograph your medical card",
+            selfie: "Take a photo of yourself",
+          },
           flat: "Lay the card flat on a dark surface, like a seat or the dashboard.",
           glare: "Turn it away from lamps and windows so nothing shines on it.",
           fill: "Fill the frame with the card, all four corners showing.",
+          arm: "Hold your phone at arm's length, level with your face.",
+          uncovered: "Take off sunglasses and a hat.",
+          light: "Face a window or a light, not away from it.",
           open: "Open the camera",
         },
         tryAgain: "Try again",

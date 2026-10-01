@@ -4,7 +4,8 @@ import { AppButton as BaseButton, AppCheckbox } from "@silvicom/ui";
 import { APPLICATION_CAPTURE_KEEP_DAYS, type ApplicationCaptureSlot, type ApplicationCaptureView } from "@silvicom/shared";
 import { useApplicationCaptures } from "@/features/apply/capture/useApplicationCaptures";
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
-import LiveLicenceScanner from "./LiveLicenceScanner.vue";
+import { tipsKind } from "@/features/apply/capture/liveFrame";
+import LiveScanner from "./LiveScanner.vue";
 import PartOneHandoff from "./PartOneHandoff.vue";
 import { markScannerTipsSeen, scannerTipsSeen } from "./scannerTips";
 import type { PartOneAnswers, PhotoScreen, ScreenErrors } from "./partOneScreens";
@@ -17,8 +18,9 @@ import { APPLY_COPY } from "@/features/apply/strings";
  *
  * ── THE SCANNER SCREEN (§6.6.1, §6.6.6, AW4, C3b2b) ───────────────────────────────────────────
  * An outline of what goes in the picture, two lines of how, one full-width "Take photo" that opens the
- * phone's own camera app (the `capture` input — full resolution and autofocus, D-APP11), then the picture
- * large with **Use this photo / Retake**. Nothing is sent before "Use this photo" (`take` holds, `use`
+ * live scanner on a phone (2026-09-30, `LiveScanner`; the phone's own camera app — the `capture` input,
+ * D-APP11 — is one press away inside it, and is what "Take photo" opens once the scanner cannot run), then
+ * the picture large with **Use this photo / Retake**. Nothing is sent before "Use this photo" (`take` holds, `use`
  * sends — `useApplicationCaptures`), so a thumb over the licence number is seen and retaken for nothing.
  * "Upload a photo instead" is on the same screen for a browser refused the camera; it runs the same gate.
  *
@@ -33,7 +35,8 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * for a driver whose photo is already on this computer. The flow polls for the phone's photo.
  *
  * Screen 11, the selfie (AW6, §6.7), is the same screen with three differences: the front camera
- * (`useApplicationCaptures` picks it by slot), an oval where the card's outline is, and — before the
+ * (`liveFrame.LIVE_SLOTS` for the scanner, `useApplicationCaptures` for the camera app), an oval where the
+ * card's outline is, and — before the
  * button — why the photo is taken and how long it is kept, since a face is the one thing here that is
  * not a document. Its "I can't take one" tick-box is the medical card's "I don't have one yet" pattern.
  *
@@ -66,15 +69,14 @@ const onStaged = (slot: ApplicationCaptureSlot, original: Blob): void => {
   if (props.readsBarcode && slot === props.photo) emit("staged", original);
 };
 /**
- * The live scanner (2026-09-30) — for the CDL's two sides, on a phone, in a browser that has a camera API.
- * The medical card is a letter-size page and the selfie is the front camera; both keep the camera app. A
- * computer keeps the QR handoff first. Once the scanner has said it cannot run here (`unavailable`), the
- * page stops offering it and "Take photo" goes straight to the camera app.
+ * The live scanner (2026-09-30) — for all four photographs since the owner's ruling the same day (Q-AW53),
+ * on a phone, in a browser that has a camera API; `LiveScanner` frames each one its own way. A computer
+ * keeps the QR handoff first. Once the scanner has said it cannot run here (`unavailable`), the page stops
+ * offering it and "Take photo" goes straight to the camera app.
  */
 const liveOff = ref(false);
-const liveSlot = computed<"cdl_front" | "cdl_back" | null>(() =>
-  (props.photo === "cdl_front" || props.photo === "cdl_back") && !props.desktop ? props.photo : null,
-);
+const liveSlot = computed<PhotoScreen | null>(() => (props.desktop ? null : props.photo));
+const tips = computed(() => tipsKind(props.photo));
 const liveOffered = computed(
   () => liveSlot.value !== null && !liveOff.value && typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia),
 );
@@ -207,14 +209,14 @@ const barcodeNote = computed(() => {
     </div>
     <p v-if="errors.photo" class="text-sm text-danger-700" role="alert">{{ errors.photo }}</p>
 
-    <LiveLicenceScanner
+    <LiveScanner
       v-if="scanning && liveSlot"
       :photo="liveSlot"
+      :tips="!scannerTipsSeen[tips]"
       @captured="finishScan"
       @cancel="finishScan(null)"
-      :tips="!scannerTipsSeen"
       @unavailable="liveOff = true"
-      @tips-seen="markScannerTipsSeen"
+      @tips-seen="markScannerTipsSeen(tips)"
     />
   </div>
 </template>

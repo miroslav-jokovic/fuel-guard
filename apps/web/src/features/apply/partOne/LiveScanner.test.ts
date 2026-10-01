@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 import type { LiveCapture, LiveScanState } from "@/features/apply/capture/useLiveScan";
-import { TAKEN_HOLD_MS, type LiveRefusal } from "@/features/apply/capture/liveFrame";
+import { TAKEN_HOLD_MS, type LiveRefusal, type LiveSlot } from "@/features/apply/capture/liveFrame";
+import { pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
 
 /**
  * The live scanner's SCREEN (2026-09-30, the owner-approved mock): what each state shows and what each press
@@ -20,11 +21,13 @@ const fake = {
   stop: vi.fn(),
   toggleTorch: vi.fn(async () => {}),
   onCapture: null as ((c: LiveCapture) => void) | null,
+  slot: null as LiveSlot | null,
 };
 
 vi.mock("@/features/apply/capture/useLiveScan", () => ({
-  useLiveScan: (_video: unknown, options: { onCapture: (c: LiveCapture) => void }) => {
+  useLiveScan: (_video: unknown, options: { onCapture: (c: LiveCapture) => void; slot: LiveSlot }) => {
     fake.onCapture = options.onCapture;
+    fake.slot = options.slot;
     return fake;
   },
 }));
@@ -34,7 +37,7 @@ vi.mock("@/features/apply/capture/webImageIo", () => ({
   pickImageFile: vi.fn(async () => picked.file),
 }));
 
-const { default: LiveLicenceScanner } = await import("./LiveLicenceScanner.vue");
+const { default: LiveScanner } = await import("./LiveScanner.vue");
 
 let wrapper: VueWrapper | null = null;
 const body = () => document.body;
@@ -42,8 +45,8 @@ const q = (sel: string) => body().querySelector(sel);
 const button = (name: string): HTMLButtonElement | undefined =>
   [...body().querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === name);
 
-async function open(props: { photo?: "cdl_front" | "cdl_back"; tips?: boolean } = {}) {
-  wrapper = mount(LiveLicenceScanner, { props: { photo: "cdl_front", ...props }, attachTo: document.body });
+async function open(props: { photo?: LiveSlot; tips?: boolean } = {}) {
+  wrapper = mount(LiveScanner, { props: { photo: "cdl_front", ...props }, attachTo: document.body });
   await flushPromises();
   return wrapper;
 }
@@ -207,5 +210,96 @@ describe("a refusal", () => {
     const w = await open();
     expect(button("Try again")).toBeDefined();
     expect(w.emitted("unavailable")).toBeUndefined();
+  });
+});
+
+/**
+ * The medical card and the selfie (owner, 2026-09-30, Q-AW53): the same scanner, each framed as itself. What
+ * differs is `liveFrame.LIVE_SLOTS`'s; these pin that the screen reads it, slot by slot.
+ */
+describe("the medical card", () => {
+  it("is framed as a letter-size page with the four corners, named as the certificate, and taken by the shutter", async () => {
+    await open({ photo: "medical_card" });
+    expect(fake.slot).toBe("medical_card");
+    const outline = q("[data-live-outline]")!;
+    expect(outline.getAttribute("data-live-outline")).toBe("page");
+    expect(outline.className).toContain("aspect-[8.5/11]");
+    expect(outline.querySelectorAll("span.aspect-square")).toHaveLength(4);
+    expect(q("[data-live-oval]")).toBeNull();
+    expect(q("[data-live-side]")?.textContent).toContain("Your DOT medical examiner's certificate");
+    expect(body().textContent).toContain("Fit the page inside the corners, then press the button.");
+    expect(q("video")?.className).not.toContain("-scale-x-100");
+    // No barcode, so no sweep: nothing on this page is being read.
+    expect(q(".scan-sweep")).toBeNull();
+  });
+
+  it("opens on the document's tips under its own heading", async () => {
+    await open({ photo: "medical_card", tips: true });
+    expect(q("[data-live-tips]")?.getAttribute("data-live-tips")).toBe("document");
+    expect(body().textContent).toContain("Photograph your medical card");
+    expect(body().textContent).toContain("Turn it away from lamps and windows");
+  });
+
+  it("offers the flashlight, being the rear camera", async () => {
+    await open({ photo: "medical_card" });
+    fake.torchAvailable.value = true;
+    await flushPromises();
+    expect(q("[data-live-torch]")).not.toBeNull();
+  });
+});
+
+describe("the selfie", () => {
+  it("is framed by an oval, not card corners, and its preview is mirrored", async () => {
+    await open({ photo: "selfie" });
+    expect(fake.slot).toBe("selfie");
+    const outline = q("[data-live-outline]")!;
+    expect(outline.getAttribute("data-live-outline")).toBe("face");
+    expect(outline.className).toContain("rounded-full");
+    expect(q("[data-live-oval]")).not.toBeNull();
+    expect(outline.querySelectorAll("span.aspect-square")).toHaveLength(0);
+    expect(q("video")?.className).toContain("-scale-x-100");
+    expect(q("[data-live-side]")?.textContent).toContain("Your face");
+    expect(body().textContent).toContain("Fit your face in the oval, then press the button.");
+  });
+
+  it("opens on a face's tips, not a document's", async () => {
+    await open({ photo: "selfie", tips: true });
+    expect(q("[data-live-tips]")?.getAttribute("data-live-tips")).toBe("face");
+    expect(body().textContent).toContain("Take a photo of yourself");
+    expect(body().textContent).toContain("Take off sunglasses and a hat.");
+    expect(body().textContent).toContain("Face a window or a light, not away from it.");
+    expect(body().textContent).not.toContain("Lay the card flat");
+  });
+
+  it("never offers the flashlight, even where a camera says it has one", async () => {
+    await open({ photo: "selfie" });
+    fake.torchAvailable.value = true;
+    await flushPromises();
+    expect(q("[data-live-torch]")).toBeNull();
+  });
+
+  it("holds the frame it took as the preview showed it, mirrored, inside the oval", async () => {
+    vi.useFakeTimers();
+    await open({ photo: "selfie" });
+    fake.onCapture!({ file: new File(["f"], "me.jpg"), licence: null });
+    await flushPromises();
+    const held = q("[data-live-outline] img")!;
+    expect(held.className).toContain("-scale-x-100");
+    expect(held.className).toContain("rounded-full");
+    expect(q("[data-live-oval]")!.className).toContain("border-success-400");
+  });
+
+  it("sends the camera app to the FRONT camera, as the scanner was", async () => {
+    await open({ photo: "selfie" });
+    button("Camera app")!.click();
+    await flushPromises();
+    expect(pickPhotoFromCamera).toHaveBeenCalledWith("user");
+  });
+
+  it("while a document's camera app is the rear one", async () => {
+    await open({ photo: "medical_card" });
+    button("Camera app")!.click();
+    await flushPromises();
+    expect(pickPhotoFromCamera).toHaveBeenCalledWith("environment");
   });
 });

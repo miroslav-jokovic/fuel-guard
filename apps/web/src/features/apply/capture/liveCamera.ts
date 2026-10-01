@@ -1,7 +1,7 @@
-import { classifyCameraError, type LiveRefusal, type Rect, type Size } from "./liveFrame";
+import { classifyCameraError, type LiveFacing, type LiveRefusal, type Rect, type Size } from "./liveFrame";
 
 /**
- * The phone's camera inside the page — the browser half of the live licence scanner (2026-09-30).
+ * The phone's camera inside the page — the browser half of the live scanner (2026-09-30).
  *
  * Behind an interface for the reason `webImageIo` is: what the scanner DECIDES (`liveFrame.ts`,
  * `useLiveScan.ts`) must be testable without a camera, so a test hands in its own `LiveCamera`. This file is
@@ -47,19 +47,22 @@ export interface Snapshot {
 export type OpenResult = { ok: true; camera: LiveCamera } | { ok: false; refusal: LiveRefusal };
 
 /**
- * The rear camera at the most pixels it will give. `ideal`, never `exact`: an unmet `exact` rejects the whole
- * request, and a camera at 1920×1080 is still a camera — whether it is enough is `meetsResolutionFloor`'s call,
- * made on what came back.
+ * A camera at the most pixels it will give — the rear one for a document, the front one for the selfie
+ * (`liveFrame.LIVE_SLOTS`). `ideal`, never `exact`: an unmet `exact` rejects the whole request, and a camera at
+ * 1920×1080 is still a camera — whether it is enough is `meetsResolutionFloor`'s call, made on what came back.
+ * The same holds for the facing: a phone or a laptop with one camera answers `user` with the one it has.
  *
  * ⚠ **The SAME ideal on both sides — no aspect ratio.** A phone held upright is a portrait camera, and a
  * landscape-shaped request is honoured by CROPPING: measured 2026-09-30 in Chromium against a 2160×3840 source,
  * `3840 × 2160` came back 2160×2160 (44% of the pixels thrown away), while `4096 × 4096`, `width` alone and no
  * size at all all came back at the full 2160×3840. `4096 × 4096` keeps asking for the most without choosing a shape.
  */
-export const LIVE_CONSTRAINTS: MediaStreamConstraints = {
+export const liveConstraints = (facing: LiveFacing): MediaStreamConstraints => ({
   audio: false,
-  video: { facingMode: { ideal: "environment" }, width: { ideal: 4096 }, height: { ideal: 4096 } },
-};
+  video: { facingMode: { ideal: facing }, width: { ideal: 4096 }, height: { ideal: 4096 } },
+});
+/** The documents' request, unchanged since the CDL scanner shipped. */
+export const LIVE_CONSTRAINTS: MediaStreamConstraints = liveConstraints("environment");
 
 /**
  * The photograph's JPEG quality. It is re-encoded once more by the capture pipeline (WebP at the model-facing
@@ -67,13 +70,13 @@ export const LIVE_CONSTRAINTS: MediaStreamConstraints = {
  */
 const SNAPSHOT_JPEG_QUALITY = 0.95;
 
-export async function openLiveCamera(video: HTMLVideoElement): Promise<OpenResult> {
+export async function openLiveCamera(video: HTMLVideoElement, facing: LiveFacing = "environment"): Promise<OpenResult> {
   if (typeof window === "undefined" || !window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     return { ok: false, refusal: "unsupported" };
   }
   let stream: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia(LIVE_CONSTRAINTS);
+    stream = await navigator.mediaDevices.getUserMedia(liveConstraints(facing));
   } catch (e) {
     return { ok: false, refusal: classifyCameraError(e) };
   }
