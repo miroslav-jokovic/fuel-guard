@@ -337,3 +337,23 @@ All questions are answered; nothing in the queue is blocked on the owner.
   - The `sync_idle` run started 18:35 by the PREVIOUS deployment was cut off by the deploy and closed
     `failed` when its lease was reclaimed at 19:05; the next `sync_idle` started 19:05:08 on the new code.
     That is the deploy, not I0. The no-retry gap above did not arise: rollup and re-freeze both ran.
+- **2026-10-01** — FL1 stopped before building: Samsara contradicts Q-FL2's premise. Read-only
+  `GET /fleet/vehicles` (208 records) today: the record linked to our `568` row (281475006145500) is now
+  named **`568 - SOLD`**, and BOTH 568 records have no gateway (`serial ""`, `model none`). Neither of
+  our rows has engine data after 09/05 (`568`) / 08/30 (`568 - OLD`). So there is no "current gateway"
+  to merge onto. The merge itself still holds — `568` (retired, 759ef27a) carries the evidence: 97
+  fills, 327 financial entries, 91 anomalies, the fuel card, a trailer; `568 - OLD` (active, 990128aa)
+  carries the McLeod link, VIN `…9642` and 08/02–08/31 telemetry — and is the 0359 shape. Samsara also
+  names **22 trucks `- SOLD`**; nine of them are ACTIVE and McLeod-linked here, with the roster sweep
+  live (last 10/01 19:08): **506, 550, 557, 563, 568, 572, 592, 594, 607** (last engine day 09/05–09/21).
+  632–635 (Q-FL1, "for sale, parked") are now `- SOLD` in Samsara too. Samsara's `563 - SOLD` carries
+  804's VIN (`…844651`) while our 563 holds `…MS9649` — a Samsara-side record mix-up. And a VIN trap for
+  the merge: both 568 Samsara records carry VIN `…9642`, so after a merge that frees the dead record's
+  id (as 0359 did) the vehicle sync would match it by VIN onto the survivor and the two records would
+  take turns owning it. Questions to the owner:
+  - **Q-FL4 — Are the nine sold?** D-FC0 says McLeod decides membership, so as built they stay active
+    until McLeod retires them, and FL2 reports the disagreement. Recommendation: the owner (or whoever
+    maintains McLeod) confirms and retires them in McLeod; the sweep follows. Nothing here edits status.
+  - **Q-FL5 — 568 survivor status and device.** Recommendation: merge as 0359 did (history row `568`
+    survives, takes McLeod link + VIN + McLeod's status), but the retired row KEEPS the dead record's
+    Samsara id so the VIN match cannot reach the survivor. Alternative: retire both if 568 is sold.
