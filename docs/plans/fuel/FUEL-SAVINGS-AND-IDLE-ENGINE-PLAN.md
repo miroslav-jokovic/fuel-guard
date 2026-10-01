@@ -303,3 +303,19 @@ All questions are answered; nothing in the queue is blocked on the owner.
   ruled that the driver-performance weeks frozen from twinned data (08/17–09/14, frozen 10/01 15:39)
   are re-frozen after the clean-up. Migration **0398** (column `event_key`, unique index, clean-up
   RPC `resolve_idle_event_twins`) ships alone; its writer and the audited clean-up job follow.
+- **2026-10-01** — I0 built (code half, after 0398). `idleEventKey` (packages/shared) is the one
+  definition of an event's identity. `syncIdleEvents` de-duplicates each fetch by it (real-UUID spelling
+  kept) and, once nothing stored is unkeyed, writes `event_key` and points an incoming spelling at the
+  stored row, so Samsara sending only the other spelling updates rather than inserts. New job kind
+  **`idle_event_twins`** runs ahead of `sync_idle` every driver-score tier cycle: keys rows written before
+  0398, deletes the second spelling of each event through `resolve_idle_event_twins` (a pair is never
+  split across calls), writes one `idle.event_twins_removed` audit row, rebuilds `idle_rollup_days` back
+  to the earliest twinned day, and re-freezes only the driver weeks frozen AFTER the first twin was
+  written whose window reaches a twinned event (so 08/10, frozen 08/21, is untouched). Once nothing is
+  unkeyed it is one indexed read. Readers re-checked — `useIdleScores`, `useLongIdles`,
+  `useIdleConfidence`, `useDriverPerformance`, `driverPerformanceSnapshot`, `askData`,
+  `idleRollupInputs` all read rows, so they are correct once the twins are gone; none needed a change.
+  ⚠ If the rollup or re-freeze throws AFTER the deletion, the next pass finds nothing unkeyed and does
+  not retry them: the job's failure in the ledger is the signal, and the fix is a manual re-run.
+  Production verification (twin count 0, September idle hours ≈ engine-state 25,850 h) follows the
+  deploy.

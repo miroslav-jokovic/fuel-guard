@@ -7,7 +7,7 @@ import { syncRecentDriverScoreWeeks } from "../performance/index.js";
 import { snapshotSettledWeeks } from "../performance/index.js";
 import { syncIdleFoundation } from "../idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
-import { syncIdleRollup } from "../idle/index.js";
+import { syncIdleRollup, repairIdleEventTwins } from "../idle/index.js";
 import { syncIdleDutyEvidence } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 // The machinery every tier shares — which orgs, which slot, which loop. Moved out when LM4's tier
@@ -182,6 +182,13 @@ function startPerformanceTier(env: Env): void {
       await runOrgTier(admin, env, orgId, "sync_driver_scores", async () => {
         const r = await syncRecentDriverScoreWeeks(admin, env, orgId);
         return { weeks: r.weeks, upserted: r.totalUpserted };
+      });
+      // Before sync_idle: the sync keys what it writes only once nothing stored is unkeyed (plan I0).
+      await runOrgTier(admin, env, orgId, "idle_event_twins", async () => {
+        const r = await repairIdleEventTwins(admin, orgId, {
+          refreeze: async (refreeze) => (await snapshotSettledWeeks(admin, env, orgId, { refreeze })).weeksFrozen,
+        });
+        return { ...r };
       });
       await runOrgTier(admin, env, orgId, "sync_idle", async () => {
         const r = await syncIdleFoundation(admin, env, orgId);

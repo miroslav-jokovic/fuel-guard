@@ -121,12 +121,22 @@ export interface SnapshotResult {
  * settled once `now ≥ weekEnd + settle_hours` (clears Samsara's 72h efficiency lag). Each frozen week is
  * ranked on the trailing `trailing_weeks` window and the top `reward_top_n` eligible drivers are flagged
  * winners. Idempotent: existing frozen weeks are skipped; upsert on (org_id, week_start, driver_id).
+ *
+ * `refreeze` is the one exception to "frozen stays frozen": a week frozen at or after `settledSinceIso` whose
+ * window ends after `windowFromIso` is frozen AGAIN. It exists for the idle_events twin clean-up (plan I0):
+ * weeks frozen while Samsara's twinned idle events were stored scored every driver's idle at double, and
+ * the owner ruled (2026-10-01) those rows are recomputed rather than left wrong. A re-frozen week keeps its
+ * notification dedupe key, so no driver is told twice.
  */
 export async function snapshotSettledWeeks(
   admin: SupabaseClient,
   _env: Env,
   orgId: string,
-  opts: { nowMs?: number; maxWeeks?: number } = {},
+  opts: {
+    nowMs?: number;
+    maxWeeks?: number;
+    refreeze?: { windowFromIso: string; settledSinceIso: string };
+  } = {},
 ): Promise<SnapshotResult> {
   const now = opts.nowMs ?? Date.now();
   const [{ data: settingsRow }, { data: orgRow }] = await Promise.all([
@@ -144,10 +154,19 @@ export async function snapshotSettledWeeks(
 
   const { data: frozenRows } = await admin
     .from("driver_performance_weeks")
-    .select("week_start")
+    .select("week_start, settled_at")
     .eq("org_id", orgId);
-  const frozen = new Set(((frozenRows ?? []) as { week_start: string }[]).map((r) => r.week_start));
-  const candidates = settledEligible.filter((w) => !frozen.has(w.weekStart));
+  const frozenAt = new Map<string, string>();
+  for (const r of (frozenRows ?? []) as { week_start: string; settled_at: string | null }[]) {
+    const held = frozenAt.get(r.week_start);
+    if (held === undefined || (r.settled_at ?? "") > held) frozenAt.set(r.week_start, r.settled_at ?? "");
+  }
+  const rf = opts.refreeze;
+  const owesRefreeze = (w: WeekWindow) =>
+    rf != null &&
+    Date.parse(w.windowEndIso) > Date.parse(rf.windowFromIso) &&
+    Date.parse(frozenAt.get(w.weekStart) ?? "") >= Date.parse(rf.settledSinceIso);
+  const candidates = settledEligible.filter((w) => !frozenAt.has(w.weekStart) || owesRefreeze(w));
 
   const lbCache = new Map<string, { lb: WeekLeaderboard; scoreRows: Map<string, ScoreRow> }>();
   const getLb = async (w: WeekWindow) => {
