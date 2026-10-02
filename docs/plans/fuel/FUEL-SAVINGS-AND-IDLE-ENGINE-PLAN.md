@@ -626,3 +626,20 @@ All questions are answered; nothing in the queue is blocked on the owner.
   run with nothing stored yet. Later runs carry those rows forward. Still to check on 10/03: the first
   `mode: nightly` row (local 02–05). The 14-day parallel run for D-IE9 (IE5) starts here, so it can be judged from
   ~10/16 on final days. Next in the queue: FS1.
+- **2026-10-02** — **FS1, first of two merges: migration 0405** (function first, then its reader, per
+  sql-returns-measurement). Order changed from §6 with a reason: FS1 → FS3 → FS2 go first while IE2 collects
+  data for IE3/IE5. The 10/03 nightly `idle_engine` check is still first on 10/03; it can't be run before the
+  02–05 local window. `fuel_report_days(p_from, p_to, p_in_network_brands, p_vehicles, p_states, p_sites,
+  p_network, p_org)` sums per day × network (`in` / `out` / `unknown` station) × tank: fills, gallons, spend, and
+  the same three restricted to fills with a posted price (+ retail) and with a Pilot quote (+ contract). Built
+  on `fuel_spend_lines` instead of a copy of its business date, quote join and org scope.
+  `fuel_spend_lines` gains `station_id` as its LAST column (dropped and recreated in one transaction). D-FSV2's
+  brand list is a REQUIRED argument with no default: the API passes the carrier's
+  `route_fuel_settings.preferred_brands` (`{pilot, flying_j}` on production), the list the planner already uses.
+  Decided here: a third copy of R11 in SQL or in a constant would drift the day that setting changes. `fuel_report_sites`
+  gives the state/location menus, distinct in SQL (1,000-row cap). Unresolved fills come back as one row per
+  state. Shared spec `fuelSpend/reportDays.ts` (`fuelNetworkOf`, `filterFuelReportLines`,
+  `foldFuelReportDays`). Matrix `fuel-report-days.test.mjs` (49) checks SQL against it over ten filter shapes.
+  Mutation: 14 SQL + 4 spec mutants, all killed. Measured, production, read-only: September tractor
+  in 1,853 fills $1,285,793.43 · out 29 $12,675.92 · unknown 20 $13,737.52 = $1,312,206.87 (`fuel_spend_days`:
+  $1,312,207); `fuel_spend_lines` 07/04–10/01 grouped per day takes 838 ms (5,816 fills).
