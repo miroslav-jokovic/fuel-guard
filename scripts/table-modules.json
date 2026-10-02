@@ -1025,6 +1025,39 @@
         "why": "idling events; idle_rollup_days carries history beyond the window. Measured 2,482/day. L5 proposes 400d\u2192180d."
       }
     },
+    "idle_engine_days": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 250,
+        "why": "IE2 (0404): one row per truck per local day, derived in SQL from idle_engine_hours by idle_engine_write. Kept: the long-horizon store the 60-day hours roll into, and D-IE9's gate reads it."
+      }
+    },
+    "idle_engine_hours": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "IE2 (0404): one row per active truck per UTC hour, the five D-IE2 buckets and the counter deltas; ~185 x 24 = 4,440/day. D-IE8 keeps 60 days; the timeSlice rule lands WITH its writer (the collector merge), so until then no rule is in force and this says null. A plain table, not pg_partman: Q-IE8 in FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md (it would be the first partitioned table, which D-LIFE10 and Q9 gate)."
+      }
+    },
+    "idle_engine_stops": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "IE2 (0404): one row per park of at least min_idle_minutes (D-IE3). Kept (D-IE8): it is the only grain that sees a continuous run, and IE3's avoidable verdict is per stop. The budget is an estimate (~8 parks per truck per day) until measured; idle_park_sessions (parks of 30 min and more) measured 491/day."
+      }
+    },
     "idle_park_sessions": {
       "module": "idle",
       "layer": "derived",
