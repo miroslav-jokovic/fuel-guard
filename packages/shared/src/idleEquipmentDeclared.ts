@@ -126,6 +126,14 @@ export const BEHAVES_LIKE_LABELS: Record<BehavesLike, string> = {
   not_enough_parks: "Not enough long parks",
 };
 
+/** A declaration in plain words — the burn-rate table's cohort names (IE4). */
+export const DECLARED_EQUIPMENT_LABELS: Record<DeclaredEquipment, string> = {
+  battery_apu: "Battery APU",
+  no_apu: "No APU",
+  other: "Other equipment",
+  not_entered: "Not entered yet",
+};
+
 export const EQUIPMENT_SOURCE_LABELS: Record<(typeof EQUIPMENT_SOURCES)[number], string> = {
   "owner_ruling_2026-10-01": "Owner's ruling, 10/01/2026",
   manual: "Entered by the office",
