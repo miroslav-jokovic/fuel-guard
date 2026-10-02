@@ -81,7 +81,7 @@ import FuelExceptionsPage from "./FuelExceptionsPage.vue";
 const row = (o: Record<string, unknown> = {}) => ({
   id: "e1", source: "exception", kind: "recon_missing_in_system", section: "fuel",
   queueState: "open", occurredOn: "2026-08-17", unitNumber: "701",
-  summary: "Billed, never recorded", amountUsd: 242.11, assignedTo: null,
+  summary: "On Pilot's bill, not in our records", amountUsd: 242.11, assignedTo: null,
   openedAt: "2026-08-25T00:00:00Z", close: null, ...o,
 });
 
@@ -154,7 +154,7 @@ describe("the Findings inbox", () => {
 
   it("renders a finding in words, never as its token", async () => {
     const t = (await mountPage()).w.text();
-    expect(t).toContain("Billed, never recorded");
+    expect(t).toContain("On Pilot's bill, not in our records");
     expect(t).toContain("Open");
     expect(t).not.toContain("recon_missing_in_system");
     expect(t).not.toContain("amount_kind");
@@ -274,7 +274,7 @@ describe("the Findings inbox", () => {
     listed.value = [row(), theftRow()];
     listed.total = 2;
     const t = (await mountPage()).w.text();
-    expect(t).toContain("Billed, never recorded");
+    expect(t).toContain("On Pilot's bill, not in our records");
     expect(t).toContain("Possible theft");
     expect(t).toContain("Billed 179 gal into a 140 gal space");
     expect(t).not.toContain("theft_case");

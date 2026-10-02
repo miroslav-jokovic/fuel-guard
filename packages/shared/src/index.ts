@@ -82,7 +82,6 @@ export * from "./idleConfidence.js";
 export * from "./weather.js";
 export * from "./smartFueling/index.js";
 export * from "./idleBurn.js";
-export * from "./idleEquipment.js";
 export * from "./hos.js";
 export * from "./hosVehicleTimeline.js";
 export * from "./driverPerformance/index.js";

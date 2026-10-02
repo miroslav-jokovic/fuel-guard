@@ -108,4 +108,13 @@ describe("VehicleForm", () => {
     const w = mount(VehicleForm, { props: { drivers, vehicle: vehicle({ mcleod_tractor_id: null, identity_source: "samsara" }) } });
     expect(statusSelect(w).attributes("disabled")).toBeUndefined();
   });
+
+  it("offers no Optimized idle for a Cascadia — the owner's ruling says most have none (R7)", () => {
+    // A one-click "Suggested: Optimized idle" chip offered it to every Cascadia from 2017, against R7 /
+    // Q-IE1 (units 500–635 have no Optimized Idle). Removed 2026-10-02; this keeps it from coming back.
+    const w = mount(VehicleForm, {
+      props: { drivers, vehicle: vehicle({ make: "Freightliner", model: "Cascadia", year: 2021, has_optimized_idle: null }) },
+    });
+    expect(w.text()).not.toMatch(/Suggested:/);
+  });
 });

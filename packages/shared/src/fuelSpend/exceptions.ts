@@ -29,7 +29,7 @@
  * worth more during a dispute than one that saves forty bytes.
  */
 import type { ContractCapture } from "./contractCapture.js";
-import type { ReconResult, ReconRow } from "../reconcile/fuelMatch.js";
+import { RECON_STATUS_LABELS, type ReconResult, type ReconRow } from "../reconcile/fuelMatch.js";
 
 // ── the vocabulary ───────────────────────────────────────────────────────────────────────────────
 
@@ -52,14 +52,26 @@ export const FUEL_EXCEPTION_KINDS = [
 ] as const;
 export type FuelExceptionKind = (typeof FUEL_EXCEPTION_KINDS)[number];
 
-/** The machine token and the words a reader sees ship as a pair. No `.vue` file carries a literal. */
+/**
+ * The machine token and the words a reader sees ship as a pair. No `.vue` file carries a literal.
+ *
+ * ── THE RECONCILIATION FOUR ARE THE INVOICE CHECK'S OWN WORDS, READ RATHER THAN RESTATED ─────────
+ * A finding filed by a reconciliation is a line of a Pilot invoice check, and Pilot invoices (FS3)
+ * names those lines from `RECON_STATUS_LABELS`. These used to be a second vocabulary for the same four
+ * facts ("Billed, never recorded" beside "On Pilot's bill, not in our records"), so §5's rewording
+ * (D-FSV7) reached one surface and not the other. Nothing about a finding stores its headline:
+ * `findingFromException` renders it from `kind` on every read, so a wording change reaches every
+ * existing row at once (Q-FSV13, 2026-10-02).
+ */
 export const FUEL_EXCEPTION_KIND_LABELS: Record<FuelExceptionKind, string> = {
-  recon_missing_in_system: "Billed, never recorded",
-  recon_missing_on_report: "Recorded, never billed",
-  recon_amount: "Billed a different amount",
-  recon_gallons: "Billed different gallons",
-  contract_variance: "Billed above contract",
-  off_network_premium: "Off the preferred network",
+  recon_missing_in_system: RECON_STATUS_LABELS.missing_in_system,
+  recon_missing_on_report: RECON_STATUS_LABELS.missing_on_report,
+  recon_amount: RECON_STATUS_LABELS.amount_mismatch,
+  recon_gallons: RECON_STATUS_LABELS.gallon_mismatch,
+  // §5: "Billed against contract" → "Paid vs Pilot quote"; a finding is only ever the over side.
+  contract_variance: "Paid above Pilot's quote",
+  // §5: "Off-network" → "Out of network" (R11: anything not Pilot / Flying J).
+  off_network_premium: "Out of network",
   avoided_state_premium: "Fuelled in an avoided state",
   avoided_brand_premium: "Fuelled at an avoided brand",
 };
