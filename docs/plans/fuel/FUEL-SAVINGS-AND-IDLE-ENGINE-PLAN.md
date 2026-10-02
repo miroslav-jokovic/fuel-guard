@@ -522,3 +522,28 @@ All questions are answered; nothing in the queue is blocked on the owner.
   (D-IE7's per-batch form) is not built; per-unit edits go through the Vehicles form and are stamped
   `manual`. Mutation testing: 16/17 killed. The survivor was a redundant web clause, now deleted, because
   the server already reviews a definite behaviour on an undeclared truck. Next: IE2a.
+- **2026-10-02** — **IE2a spike: POSITIVE (D-IE6).** Read-only `GET /fleet/vehicles/stats` and `/stats/history`
+  on the production token. Of 185 active Samsara vehicles (not `- OLD`/`- SOLD`):
+  - **`fuelConsumedMilliliters`** — the engine's total-fuel-used counter (J1939). All **185** report it, 155
+    within 48 h. Steps are 500 mL (0.13 gal), sampled every ~6–12 min. Over four 2–2.6 h Samsara idle events
+    (763, 661, 650, 691 on 10/01–10/02), the counter's delta was **2.510 / 1.585 / 1.849 gal, equal to the
+    event's `fuel_gal` to the millilitre**, and 2.113 vs 2.078 (1.7%) on the fourth. So Samsara's per-event
+    idle fuel is this counter, and our engine can read it directly for ANY window, not only Samsara's events.
+  - **`obdEngineSeconds`** — ECU engine hours. All **185** report it, sampled every ~3 min; values step in
+    0.05 h (180 s), so a park's running time is good to ±3 min, and D-IE9's ±3% engine-hours gate is
+    measurable on any park ≥ 100 min.
+  - **No idle-fuel counter** (J1939 total idle fuel) on this token: `engineIdleFuelConsumedMilliliters`,
+    `idleFuelConsumedMilliliters`, `engineTotalIdleFuelMilliliters`, `obdFuelConsumedMilliliters` and
+    `engineTotalFuelUsedMilliliters` are all "Invalid stat type". `engineTotalIdleTimeMinutes` and
+    `syntheticEngineSeconds` are accepted but EMPTY for every vehicle. So idle fuel = the total-fuel delta
+    across a park where the truck is stopped with the engine on (D-IE1). That is the same thing, because a
+    stopped truck burns fuel only by idling (PTO excepted, D-IE4 rule 1).
+  - `ambientAirTemperatureMilliC`: 183 of 185 (154 fresh), the engine's own sensor, usable for D-IE4 rule 1
+    and D-IE5's temperature bands without the weather cache.
+  - **D-FSV5 can have true daily MPG.** One calendar day (10/01 CDT) on six trucks, counter gallons vs
+    `obdOdometerMeters` miles: 669 6.87, 665 7.61, 650 6.12, 763 7.45, 661 6.94, 691 7.24 mpg.
+  **Consequences for IE2/IE4:** IE2's hourly collector fetches `engineStates` + GPS + `fuelConsumedMilliliters` +
+  `obdEngineSeconds` (+ ambient). Each stop row carries counter idle gallons, and each hour row carries gallons.
+  IE4's learner reads gallons per running hour per cohort × band from those rows, which needs no Samsara idling
+  events at all. That also brings IE6 (retire `/idling/events`, 131 MB) within reach once D-IE9 passes.
+  Probe scripts were scratch only; nothing is written. Next: IE2.
