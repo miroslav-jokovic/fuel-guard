@@ -46,6 +46,9 @@
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
     "apps/api/src/modules/fuel/declineDriverResolution.ts"
   ],
+  "declined_txn_scores": [
+    "apps/api/src/modules/anomalies/declinedScoring.ts"
+  ],
   "device_push_tokens": [
     "apps/api/src/modules/messaging/notify.ts",
     "apps/api/src/modules/messaging/routes/notifications.ts"

@@ -10,6 +10,7 @@ import {
   isNoonSentinelIso,
   CARD_MISMATCH_UNVERIFIED_WEIGHT,
   type DeclineSignal,
+  type TruckPosition,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { reconcileWithSamsara } from "../samsara/index.js";
@@ -54,10 +55,10 @@ async function vehicleAtDeclineLocation(
   orgId: string,
   vehicleId: string,
   d: DeclineRow,
-): Promise<{ matched: boolean | null; confidence: string | null; stationLat: number | null; stationLng: number | null }> {
-  const { data: veh } = await admin.from("vehicles").select("samsara_vehicle_id").eq("id", vehicleId).maybeSingle();
+): Promise<{ matched: boolean | null; confidence: string | null; stationLat: number | null; stationLng: number | null; position: TruckPosition | null }> {
+  const { data: veh } = await admin.from("vehicles").select("samsara_vehicle_id").eq("org_id", orgId).eq("id", vehicleId).maybeSingle();
   const samsaraVehicleId = veh?.samsara_vehicle_id ?? null;
-  if (!samsaraVehicleId) return { matched: null, confidence: null, stationLat: null, stationLng: null };
+  if (!samsaraVehicleId) return { matched: null, confidence: null, stationLat: null, stationLng: null, position: null };
   const recon = await reconcileWithSamsara(admin, env, orgId, {
     vehicleId,
     samsaraVehicleId,
@@ -73,8 +74,14 @@ async function vehicleAtDeclineLocation(
     // resolves it from the vehicle rather than accepting a number (audit 2026-08-09, finding A).
     vehicle: null,
   }).catch(() => null);
-  if (!recon) return { matched: null, confidence: null, stationLat: null, stationLng: null };
-  return { matched: recon.locationMatched, confidence: recon.locationConfidence, stationLat: recon.stationLat, stationLng: recon.stationLng };
+  if (!recon) return { matched: null, confidence: null, stationLat: null, stationLng: null, position: null };
+  return {
+    matched: recon.locationMatched,
+    confidence: recon.locationConfidence,
+    stationLat: recon.stationLat,
+    stationLng: recon.stationLng,
+    position: recon.truckAtReportedTime,
+  };
 }
 
 /** Resolve the decline's stable EFS driver identity when the row has no internal driver id. */
@@ -120,6 +127,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   let samsaraLocationConfidence: string | null = null;
   let stationLat: number | null = null;
   let stationLng: number | null = null;
+  let truckPosition: TruckPosition | null = null;
   let locationMismatched = false;
 
   // 0) The card's ASSIGNED vehicle (fuel_cards — learned from fill history / set manually). The standard
@@ -134,6 +142,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
     samsaraLocationConfidence = loc.confidence;
     stationLat = loc.stationLat;
     stationLng = loc.stationLng;
+    truckPosition = loc.position;
     if (loc.matched === false) locationMismatched = true;
   }
 
@@ -332,7 +341,37 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
       station_lng: stationLng,
       scored_at: new Date().toISOString(),
     })
-    .eq("id", declineId);
+    .eq("id", declineId)
+    .eq("org_id", orgId);
+  await writeTruckPosition(admin, orgId, declineId, truckPosition);
+}
+
+/**
+ * Where the pump-unit truck was at the attempt (CF1, migration 0408) — written straight to the
+ * satellite, which owns scoring outputs (0263, D-SEP3); the legacy update above has just created that
+ * row through 0263's mirror trigger, so this is an UPDATE and never an upsert (lint:upserts).
+ *
+ * Every column is written on every score, nulls included: a re-score that can no longer measure the
+ * truck must clear an old position rather than leave it standing beside the new verdict.
+ *
+ * A failed write is logged and swallowed. The verdict above is what alerts and it has already been
+ * stored; losing the position costs an alert its sentence, and failing the score would cost the alert.
+ */
+async function writeTruckPosition(admin: SupabaseClient, orgId: string, declineId: string, p: TruckPosition | null): Promise<void> {
+  const { error } = await admin
+    .from("declined_txn_scores")
+    .update({
+      truck_position_at: p?.at ?? null,
+      truck_lat: p?.lat ?? null,
+      truck_lng: p?.lng ?? null,
+      truck_city: p?.city ?? null,
+      truck_state: p?.state ?? null,
+      truck_address: p?.address ?? null,
+      truck_station_miles: p?.milesToStation ?? null,
+    })
+    .eq("declined_id", declineId)
+    .eq("org_id", orgId);
+  if (error) console.warn(`[declinedScoring] truck position not stored for ${declineId}: ${error.message}`);
 }
 
 /** Unit numbers for a set of vehicle ids (for human-readable signal details). */
