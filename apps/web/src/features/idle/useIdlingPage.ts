@@ -9,7 +9,15 @@ import { useIdleConfidence } from "./useIdleConfidence";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
-import { APU_TYPE_LABELS, formatDisplayDate, formatDisplayDayShort, type ApuType } from "@silvicom/shared";
+import {
+  APU_TYPE_LABELS,
+  BEHAVES_LIKE_LABELS,
+  EQUIPMENT_SOURCE_LABELS,
+  formatDisplayDate,
+  formatDisplayDayShort,
+  type ApuType,
+  type BehavesLike,
+} from "@silvicom/shared";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /** All state + logic for IdlingPage.vue: fleet KPIs, tabs, and the three tab tables. */
@@ -96,6 +104,16 @@ const CAP: Record<string, { label: string; cls: string }> = {
   unknown: { label: "Unknown", cls: toneClass("neutral") },
 };
 const capBadge = (c: string) => CAP[c] ?? CAP.unknown!;
+// Long-park behaviour (IE1, D-IE7) — evidence, shown beside the declaration and never in its place.
+const BEHAVES_TONE: Record<BehavesLike, string> = {
+  battery_apu: "success",
+  no_apu: "warning",
+  mixed: "neutral",
+  not_enough_parks: "neutral",
+};
+const behavesBadge = (b: BehavesLike) => ({ label: BEHAVES_LIKE_LABELS[b], cls: toneClass(BEHAVES_TONE[b]) });
+const sourceLabel = (s: string | null) =>
+  s ? (EQUIPMENT_SOURCE_LABELS as Record<string, string>)[s] ?? s : "Not entered";
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
 type TabKey = "trucks" | "drivers" | "capability";
@@ -189,9 +207,9 @@ const recordedLabel = (t: { has_apu: boolean | null; apu_type: string | null }) 
 const recordedCls = (t: { has_apu: boolean | null }) =>
   t.has_apu === true ? toneClass("success") : t.has_apu === false ? toneClass("neutral") : toneClass("warning");
 const XCHECK: Record<string, { label: string; cls: string; title: string }> = {
-  agree: { label: "Matches", cls: "text-success-600", title: "The data matches the recorded equipment" },
-  disagree: { label: "Doesn't match", cls: "text-danger-600", title: "The data disagrees with the recorded equipment — worth a look" },
-  na: { label: "–", cls: "text-ink-tertiary", title: "Not enough data to compare" },
+  agree: { label: "Matches", cls: "text-success-600", title: "The long parks match the recorded equipment" },
+  disagree: { label: "Check this truck", cls: "text-danger-600", title: "The long parks say the opposite of the recorded equipment, or the truck has none recorded — check it and correct the Vehicles page if needed" },
+  na: { label: "–", cls: "text-ink-tertiary", title: "Mixed or too few long parks to compare" },
 };
 const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 
@@ -231,17 +249,17 @@ const capFilter = ref<string>("");
 const capSort = ref<SortState>({ key: null, dir: "asc" });
 const capPage = ref(1);
 const capOptions = [
-  { value: "", label: "All capabilities" },
-  { value: "apu", label: "Engine-off rest" },
-  { value: "ecu_optimized", label: "Optimized idle" },
-  { value: "continuous_only", label: "Continuous idle only" },
-  { value: "unknown", label: "Unknown" },
+  { value: "", label: "All trucks" },
+  { value: "review", label: "Check this truck" },
+  ...(Object.keys(BEHAVES_LIKE_LABELS) as BehavesLike[]).map((b) => ({ value: b, label: BEHAVES_LIKE_LABELS[b] })),
 ];
 const capFilterCount = computed(() => (capSearch.value.trim() ? 1 : 0) + (capFilter.value ? 1 : 0));
 const capFiltered = computed(() => {
   const q = capSearch.value.trim().toLowerCase();
   return (caps.value ?? []).filter(
-    (t) => (!capFilter.value || t.idle_capability === capFilter.value) && (!q || t.unit_number.toLowerCase().includes(q)),
+    (t) =>
+      (!capFilter.value || (capFilter.value === "review" ? t.cross_check === "disagree" : t.behaves_like === capFilter.value)) &&
+      (!q || t.unit_number.toLowerCase().includes(q) || (t.batch ?? "").toLowerCase().includes(q)),
   );
 });
 const capSorted = computed(() => (capSort.value.key ? sortRows(capFiltered.value, capSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : capFiltered.value));
@@ -251,9 +269,11 @@ watch(capFiltered, () => (capPage.value = 1));
 
 const capColumns: DataTableColumn[] = [
   { key: "unit_number", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "batch", label: "Bought as", sortable: true, cellClass: "text-ink-secondary" },
   { key: "recorded", label: "Recorded equipment" },
-  { key: "idle_capability", label: "What the data shows" },
-  { key: "idle_optimized_pct", label: "Engine off / optimized %", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "behaves_like", label: "Long parks, last 45 days" },
+  { key: "idling_pct", label: "Parks mostly running", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "off_pct", label: "Parks mostly off", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "cross_check", label: "Cross-check" },
 ];
   return {
@@ -265,7 +285,7 @@ const capColumns: DataTableColumn[] = [
     settings, confidence, adoptBand, onAdoptBand,
     tabs, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-    capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
+    capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     priceSource, fuelPricePerGal, priceNote,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
