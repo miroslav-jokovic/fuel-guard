@@ -10,6 +10,8 @@ import {
   resolveOdometer,
   resolveLocation,
   resolveCapacity,
+  truckPositionAt,
+  type TruckPosition,
   type VehicleView,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
@@ -139,6 +141,14 @@ export interface ReconResult {
    *  date_only       – EFS had no time and no rise → the noon sentinel
    */
   fuelingTimeBasis: "tank_confirmed" | "stop_estimated" | "reported" | "date_only";
+  /**
+   * Where the truck was AT THE REPORTED INSTANT — the GPS sample nearest it within 30 minutes, with the
+   * sample's own time and the miles to the station (CF1, CARD-FRAUD-ALERTS-PLAN.md). Not the same thing
+   * as `observed*`, which is where the truck was at the matched FILL; a decline has no fill, and an
+   * attempt made with a stolen card is made where the truck is not. null on a date-only row (the
+   * reported instant is a noon sentinel) and when no sample is close enough — "not measured".
+   */
+  truckAtReportedTime: TruckPosition | null;
 }
 
 /**
@@ -290,6 +300,9 @@ export async function reconcileWithSamsara(
     observedLat: loc.observedLat,
     observedLng: loc.observedLng,
     fuelingTimeBasis: basisFor(at != null),
+    truckAtReportedTime: input.preciseTime
+      ? truckPositionAt(samples, input.fueledAt, stationLat != null && stationLng != null ? { lat: stationLat, lng: stationLng } : null)
+      : null,
   };
 }
 
