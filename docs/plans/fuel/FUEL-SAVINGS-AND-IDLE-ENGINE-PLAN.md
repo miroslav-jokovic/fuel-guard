@@ -245,6 +245,18 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   The engine measures the real distribution on the battery-APU cohort and the owner revisits 50%
   with it.
 - **Q-IE4 — 727: no APU** (same as its batch).
+- **Q-IE5..7 — decided in IE1, owner delegated ("analyze and provide best solution", 2026-10-02):**
+  - **Q-IE5 — 719–722 are not declared from behaviour.** D-IE7 forbids behaviour setting `has_apu`, and
+    two of the four cannot be judged: long parks since 08/15 — 719 84 parks, 7% idling / 69% off (behaves
+    like battery APU); 722 53 parks, 55% / 40% (like no APU); 720 and 721 one park each. They keep what
+    is entered; the "behaves like…" check raises the review Q-IE1 asked for, for as long as the two disagree.
+  - **Q-IE6 — 814–864 (on order, no model year) stay undeclared.** R7 is "MY 2027" and a reservation's
+    unit number is not a model year. 804–813 have MY 2027 and are declared. The rest are declared when
+    McLeod records the year (FL2 reports it; one batch edit).
+  - **Q-IE7 — a purchase batch = make + model + model year + purchase MONTH, derived, never stored.** Our
+    rows carry McLeod's purchase DAY (39 groups in service), and one order arrives over days (2020-12-10 →
+    12-24 is one run of 27 Cascadias). No ruling splits a month. A stored key would go stale on the next
+    McLeod date correction, so `packages/shared` derives it from the row.
 
 ## 5. Words (D-FSV7)
 
@@ -478,3 +490,14 @@ All questions are answered; nothing in the queue is blocked on the owner.
   whose roles are identical today, so it behaves the same. Still owed: the first LIVE parity run. It
   needs the laptop McLeod agent on the office network, running from an updated main checkout, and its
   findings go to the owner before anything is read as noise.
+- **2026-10-02** — FL2 is fully merged (#1194, 23804d1). The main checkout is updated and the McLeod
+  agent restarted on the new code; it still cannot reach 10.0.1.171 off the office network, so the first
+  live parity run is owed. **IE1, first of two merges: migration 0403**, owner pre-approved ("migrate
+  when CI is green"). It adds `vehicles.equipment_source`, where a trigger stamps any equipment edit that
+  names no source as `manual`. It writes R7 + Q-IE1 once as `owner_ruling_2026-10-01`. Dry run on
+  production: battery APU 65 trucks (54 change), no APU 132 (101 change), 11 entered values kept as
+  `manual`, 64 untouched. It adds `vehicle_long_park_behaviour` (a measurement; service role only).
+  Q-IE5..7 are decided in §4. The matrix found that `audit_vehicles` records only the NAMES of changed
+  columns, never their old values, so the summary audit row now carries every replaced value per unit.
+  Matrix `vehicle-equipment-declared.test.mjs` (27); 13/13 mutants killed. Next merge: the shared batch
+  key, the "behaves like…" verdict, and their place on the Vehicles page.
