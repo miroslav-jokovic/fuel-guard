@@ -433,3 +433,22 @@ All questions are answered; nothing in the queue is blocked on the owner.
   way and the database is the evidence. Seen in the api log alongside, outside this plan: `sync_ifta`
   fails with "Samsara IFTA API 400 for September 2026", and `data_retention` with "scoring_attempts
   delete: Bad Request". Next: FL2.
+- **2026-10-01** — FL2 met two gaps before building, both put to the owner and **ruled as recommended**
+  the same evening:
+  - **Q-FL7 — the API never sees McLeod's full list.** The agent reads every active tractor and trailer
+    each sweep but POSTs only rows that changed since its last run (`diffAgainstState`), and the
+    checkpoint carries three counts. So "missing on either side" and "our row drifted after a merge or
+    an office edit" cannot be seen here. **Ruled:** the checkpoint also carries the full key list per
+    tractor and trailer (id, unit, VIN, make, model, year, purchase date, status) — fields the agent
+    already reads, so Alex's reviewed SQL file does not change. The API compares after each checkpoint
+    (make/model on both sides through 0399's catalogue) and notifies fleet managers through
+    `usersWhoManage` → `notify`, one dedupe key per disagreement. An older agent that sends counts only
+    gets no check, and the API says so.
+  - **Q-FL8 — nothing stored says "sold, awaiting pickup".** The only signal is Samsara's `- SOLD` name,
+    which the vehicle sync reads every identity cycle and discards; a unit list in code would be a copy
+    of it. **Ruled (a):** store Samsara's vehicle name. Migration **0401** adds `vehicles.samsara_name`
+    (reported label, not identity: not in 0241's claim list, audited on rename); the sync writes it in
+    the next merge, and FL2 derives the known state from it.
+  Also seen: the laptop roster sweep (launchd, `identity`) has failed every cycle tonight with
+  "Failed to connect to 10.0.1.171:1433" — off the office network — and it runs from the shared main
+  checkout, so an agent change reaches it only when that checkout is updated.
