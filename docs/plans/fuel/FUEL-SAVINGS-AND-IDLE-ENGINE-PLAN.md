@@ -810,3 +810,17 @@ All questions are answered; nothing in the queue is blocked on the owner.
   (+3), `idleEngineAvoidable.test.ts` (4), `routes/idle.test.ts` (+6). Mutation: 23 mutants, all killed after one
   survivor (the comfort band's edge: integer milli-°C never lands on 20 or 85 °F exactly, so the edge test
   now uses a band edged at 59 °F = 15 °C).
+- **2026-10-02** — **IE4 merge 1 of 2 = migration 0409** (owner pre-approved, "migrate when CI is green").
+  `idle_engine_burn_inputs(org, from, to, band_edges)`: per truck and ambient band, parks, running seconds and
+  engine-counter millilitres over the parks that have both (IE2a: the counter IS idle fuel on a parked truck). Band
+  edges are a parameter with no default; the bands (§1.4's: <32 · 32–50 · 50–75 · 75–90 · ≥90 °F), the cohort (the
+  DECLARED equipment, IE1) and the 50-hour bar live in shared `idleEngine/burnRate.ts` (`learnIdleBurnRates`,
+  `idleBurnRateFor`, prior 0.72), which ships in this merge with no caller. Learner window 60 days. Measured first
+  (production, SELECT, 447 ie2-v1 parks): battery APU 0.767–0.830 gal/h, no APU 0.746–0.796 across 50–90 °F+;
+  no APU 50–75 °F (56.9 h) and 75–90 °F (81.9 h) already pass 50 h; configured `idle_gal_per_hour` is 0.80.
+  Matrix `idle-engine-burn-inputs` (21; bands asserted against the IMPORTED `idleBurnBand` on and ±1 of every
+  edge); `burnRate.test.ts` (11). Mutation: SQL 10/10 killed; TS 15 + 3, two killed after a fix (the prior is now
+  checked against §1.4's measured 0.705–0.743, not against itself), two equivalent and removed (an unlearned
+  cell's rate already IS the prior, so `idleBurnRateFor`'s learned/unbanded guards could not change an output).
+  Next: merge 2 — the reader, `GET /api/idle/engine/burn-rates`, learned money beside configured money on
+  `/engine/avoidable`, and the Idling page's side-by-side.
