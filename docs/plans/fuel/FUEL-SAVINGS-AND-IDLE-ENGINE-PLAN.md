@@ -617,3 +617,12 @@ All questions are answered; nothing in the queue is blocked on the owner.
   silence because measured parked gateways sleep:** of 91 trucks off at 08:00Z, 44 had sent no GPS in over
   2 h and 25 in over 3 days. Collector tests `idleEngineSync.test.ts` (10). Mutation: 14 of 14 killed. Next:
   14 days of parallel running, then IE3's avoidable rules on these stops, and D-IE9 (IE5).
+- **2026-10-02** — **IE2 DONE, verified live.** #1200 merged (817aaf3); Railway served it from 14:52:29Z. The first
+  `idle_engine` job ran at 15:07:32Z, `done` in 39 s: `mode: hourly`, window 12:00–15:00Z, 190 in-service trucks
+  in 10 batches, 67 Samsara pages, **0 incomplete batches**. It wrote 570 hour rows, 250 stops and 190 day rows.
+  Stored totals: 167.8 h driving, 92.4 h stopped-running, 2.1 h brief, 292.7 h off, 15.0 h no data (5 trucks
+  with no engine state at all, the silent gateways seen in the probe). 510 of 570 hours have a fuel delta and
+  531 an engine-seconds delta. 124 stops are open. 46 are `start_observed = false`, as Q-IE10 expects on a first
+  run with nothing stored yet. Later runs carry those rows forward. Still to check on 10/03: the first
+  `mode: nightly` row (local 02–05). The 14-day parallel run for D-IE9 (IE5) starts here, so it can be judged from
+  ~10/16 on final days. Next in the queue: FS1.
