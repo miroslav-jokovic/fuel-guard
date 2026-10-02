@@ -452,3 +452,14 @@ All questions are answered; nothing in the queue is blocked on the owner.
   Also seen: the laptop roster sweep (launchd, `identity`) has failed every cycle tonight with
   "Failed to connect to 10.0.1.171:1433" — off the office network — and it runs from the shared main
   checkout, so an agent change reaches it only when that checkout is updated.
+- **2026-10-02** — FL2, second of three merges. **0401** merged (#1192, bd0fa65). This merge is the
+  first writer of `vehicles.samsara_name` and **migration 0402**. (1) `samsaraVehicleSync` writes the
+  Samsara record's name in both modes, link-only and full; null when Samsara gave no name, and nothing
+  at all for a held record (`568 - OLD` keeps its hold). (2) **0402** moves 0399's make/model rule,
+  unchanged, into `vehicle_make_model_for(vin, make, model)` plus a batch form
+  `vehicle_make_model_derive(jsonb)`, both service role only, so the parity check compares McLeod's
+  `FRHT`/`CA` with our `Freightliner`/`Cascadia` through the catalogue rather than a TypeScript copy of
+  it; the trigger now calls the function and is `security definer`. That also FIXES a 0399 defect: the
+  trigger ran as `authenticated`, the catalogue is deny-all under RLS, so a browser edit was never
+  derived. Production has 0 `manual` vehicles, so nothing was mis-derived. Matrix
+  `vehicle-make-model-for.test.mjs` (10); 0399's matrix runs unedited and green. Next: the parity check.

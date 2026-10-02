@@ -145,3 +145,36 @@ describe("a VIN or name match never takes a row from another device Samsara stil
     expect(rec.writtenRows("vehicles").map((w) => w.samsara_vehicle_id)).toContain("SV-OLD");
   });
 });
+
+describe("the Samsara record's name is kept on the truck (FL2, Q-FL8, migration 0401)", () => {
+  const runWith = (rec: ReturnType<typeof seed>, list: Record<string, unknown>[]) =>
+    syncVehiclesFromSamsara(rec.client, env, ORG, async () => list, async () => ({ data: [] }), async () => ({ data: [] }));
+
+  for (const master of [true, false]) {
+    it(`writes the name exactly as Samsara holds it (${master ? "link-only" : "full"} mode)`, async () => {
+      const rec = seed([{ ...mcleodTruck, samsara_vehicle_id: "SV1" }], master);
+      await runWith(rec, [{ ...SAMSARA[0]!, name: "104 - SOLD" }]);
+      expect(rec.writtenRows("vehicles").map((w) => w.samsara_name)).toEqual(["104 - SOLD"]);
+    });
+  }
+
+  it("writes it on a truck it creates, too", async () => {
+    const rec = seed([], false);
+    await runWith(rec, SAMSARA);
+    expect(rec.writtenRows("vehicles")[0]).toMatchObject({ unit_number: "104", samsara_name: "104" });
+  });
+
+  it("stores null, not the id, for a record Samsara gave no name", async () => {
+    const rec = seed([{ ...mcleodTruck, samsara_vehicle_id: "SV1" }], true);
+    await runWith(rec, [{ ...SAMSARA[0]!, name: "" }]);
+    const w = rec.writtenRows("vehicles")[0]!;
+    expect(w).toHaveProperty("samsara_name");
+    expect(w.samsara_name).toBeNull();
+  });
+
+  it("never writes a held record's name onto the row another device holds", async () => {
+    const rec = seed([{ ...mcleodTruck, samsara_vehicle_id: "SV1" }], true);
+    await runWith(rec, [SAMSARA[0]!, { id: "SV-OLD", name: "104 - OLD", vin: mcleodTruck.vin }]);
+    expect(rec.writtenRows("vehicles").map((w) => w.samsara_name)).toEqual(["104"]);
+  });
+});
