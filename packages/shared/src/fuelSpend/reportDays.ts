@@ -12,6 +12,7 @@
  *      compute. `supabase/tests/fuel-report-days.test.mjs` imports these from `dist` and asserts the
  *      function against them row for row, so SQL and spec cannot drift apart silently.
  */
+import { addDays, windowDays } from "./spendWindow.js";
 
 /** `in` = a brand on the carrier's network; `out` = a known station that isn't; `unknown` = no station. */
 export type FuelNetwork = "in" | "out" | "unknown";
@@ -137,4 +138,92 @@ export function foldFuelReportDays(lines: readonly FuelReportLine[], inNetworkBr
   }
   const order = (d: FuelReportDay) => `${d.day}|${FUEL_NETWORKS.indexOf(d.network)}|${d.tank}`;
   return [...out.values()].sort((a, b) => (order(a) < order(b) ? -1 : order(a) > order(b) ? 1 : 0));
+}
+
+// ── the verdicts over those sums ─────────────────────────────────────────────────────────────────
+
+/**
+ * What one slice of the report says, derived from the sums alone. Every ratio is null rather than 0
+ * when its denominator is empty: "no quote reached these fills" must never read as "billed at quote".
+ */
+export interface FuelReportSummary {
+  fills: number;
+  gallons: number;
+  spend: number;
+  /** spend ÷ gallons — "Avg price / gal" (§5). */
+  pricePerGal: number | null;
+  /**
+   * Posted price − paid, over the fills that HAD a posted price. Null when none did, which is every
+   * fill off the network (Pilot's report prices only its own sites).
+   */
+  discount: number | null;
+  discountPerGal: number | null;
+  /** Share of gallons the discount figures cover. */
+  discountCoverage: number | null;
+  /**
+   * Paid − Pilot's "Your Price", over the quoted fills — "Paid vs Pilot quote" (§5). Positive is money
+   * billed above the contract. A NET figure: one overbilled fill and one underbilled fill cancel here,
+   * so the per-fill list a claim is made from stays `analyzeContractCapture`'s.
+   */
+  paidVsQuote: number | null;
+  paidVsQuotePerGal: number | null;
+  quoteCoverage: number | null;
+}
+
+export interface FuelReportTotals {
+  /** Tractor fuel: what cost-per-mile and MPG are about (D-FSV4). */
+  tractor: FuelReportSummary;
+  /** Reefer fuel, reported beside the tractor figures and never inside them. */
+  reefer: FuelReportSummary;
+  /** Tractor fuel by network side, `in` / `out` / `unknown` station. */
+  byNetwork: Record<FuelNetwork, FuelReportSummary>;
+}
+
+function summarise(days: readonly FuelReportDay[]): FuelReportSummary {
+  let fills = 0, gallons = 0, spend = 0;
+  let retailGallons = 0, retailSpend = 0, retail = 0, retailFills = 0;
+  let contractGallons = 0, contractSpend = 0, contract = 0, contractFills = 0;
+  for (const d of days) {
+    fills += d.fills; gallons += d.gallons; spend += d.spend;
+    retailFills += d.retailFills; retailGallons += d.retailGallons; retailSpend += d.retailSpend; retail += d.retail;
+    contractFills += d.contractFills; contractGallons += d.contractGallons; contractSpend += d.contractSpend; contract += d.contract;
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const r4 = (n: number) => Math.round(n * 10_000) / 10_000;
+  const discount = retailFills > 0 ? retail - retailSpend : null;
+  const overQuote = contractFills > 0 ? contractSpend - contract : null;
+  return {
+    fills,
+    gallons: Math.round(gallons * 1000) / 1000,
+    spend: r2(spend),
+    pricePerGal: gallons > 0 ? r4(spend / gallons) : null,
+    discount: discount == null ? null : r2(discount),
+    discountPerGal: discount != null && retailGallons > 0 ? r4(discount / retailGallons) : null,
+    discountCoverage: gallons > 0 ? r4(retailGallons / gallons) : null,
+    paidVsQuote: overQuote == null ? null : r2(overQuote),
+    paidVsQuotePerGal: overQuote != null && contractGallons > 0 ? r4(overQuote / contractGallons) : null,
+    quoteCoverage: gallons > 0 ? r4(contractGallons / gallons) : null,
+  };
+}
+
+export function fuelReportTotals(days: readonly FuelReportDay[]): FuelReportTotals {
+  const tractor = days.filter((d) => d.tank === "tractor");
+  return {
+    tractor: summarise(tractor),
+    reefer: summarise(days.filter((d) => d.tank === "reefer")),
+    byNetwork: {
+      in: summarise(tractor.filter((d) => d.network === "in")),
+      out: summarise(tractor.filter((d) => d.network === "out")),
+      unknown: summarise(tractor.filter((d) => d.network === "unknown")),
+    },
+  };
+}
+
+/**
+ * The range a trend card compares against (D-FSV3): the same number of days, ending the day before
+ * the picked range starts. 09/01–09/30 (30 days) → 08/02–08/31; never "the previous calendar month",
+ * which is 31 days here and would tilt every comparison by a day's fuel.
+ */
+export function previousFuelReportRange(from: string, to: string): { from: string; to: string } {
+  return { from: addDays(from, -windowDays(from, to)), to: addDays(from, -1) };
 }

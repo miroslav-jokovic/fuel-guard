@@ -4,7 +4,7 @@ import { registerPlanRoutes, registerMapRoutes, registerStationRoutes, registerF
 import { registerNetworkRoutes } from "../modules/posted-prices/index.js";
 import { registerStatementRoutes } from "../modules/fuel-spend/index.js";
 import { registerDiscountRuleRoutes, registerFuelExportRoutes } from "../modules/fuel/index.js";
-import { registerSpendRoutes } from "../modules/fuel-spend/index.js";
+import { registerSpendRoutes, registerReportRoutes } from "../modules/fuel-spend/index.js";
 import { registerExceptionRoutes } from "../modules/fuel-spend/index.js";
 import { registerFeedFreshnessRoutes, registerEfsExportRoutes } from "../modules/efs/index.js";
 
@@ -16,6 +16,7 @@ import { registerFeedFreshnessRoutes, registerEfsExportRoutes } from "../modules
  *  - fuel-spend statements — statement/recon routes (moved to their owner at P1.6)
  *  - `fueling/stations`  — the Truck Stops listing with each station's effective planning price
  *  - `fueling/spend`     — rebuild of the daily fuel-spend rollup (reads go direct to PostgREST)
+ *  - `fueling/report`    — the Fuel Costs report's days, by network, for a range and the one before it
  *  - `fueling/exports`   — a scoped CSV per fuel list, from the module that owns each table (P2)
  *  - `fueling/settings`  — Settings → Planned fueling's save (SP2, SETTINGS-PERMISSIONS-PLAN.md)
  * All share ONE router + the `requireAuth` gate, so mounting (`/api/fueling`) and behavior are unchanged.
@@ -31,6 +32,8 @@ export function fuelingRouter(): Router {
   registerFuelSettingsRoutes(router);
   registerStationRoutes(router);
   registerSpendRoutes(router);
+  // FS1 — the Fuel Costs report: one range and the previous one, summed per day by network (0405).
+  registerReportRoutes(router);
   registerExceptionRoutes(router);
   // A7 / FUEL-T5 — when each EFS feed last delivered. Mounted here rather than on the admin-only
   // integration router because its readers are the ones looking at Transactions and Rejections.
