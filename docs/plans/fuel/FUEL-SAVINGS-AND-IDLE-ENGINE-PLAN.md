@@ -257,6 +257,23 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     rows carry McLeod's purchase DAY (39 groups in service), and one order arrives over days (2020-12-10 →
     12-24 is one run of 27 Cascadias). No ruling splits a month. A stored key would go stale on the next
     McLeod date correction, so `packages/shared` derives it from the row.
+- **Q-IE8..10 — decided in IE2 (migration 0404), same delegation:**
+  - **Q-IE8 — the hour rows are a PLAIN table with a 60-day retention delete, not pg_partman.** Measured
+    2026-10-02: 0360's job is healthy (`lifecycle_maintenance_health()` = ok) but `partman.part_config` is
+    empty and `pg_inherits` holds only Supabase's `realtime` partitions, so this would be the FIRST
+    partitioned table. DATA-LIFECYCLE-PLAN D-LIFE10 requires the premake alarm to ship with that table, and
+    the alarm needs a platform alert channel that does not exist (its Q9, the stated blocker of L7). PGlite
+    has no pg_partman either, so the matrices would test a different table from production's. At ~4,440
+    rows a day (≈ 270k over 60 days) a daily delete is inside `dataRetention.ts`'s bounded slices. If L7
+    ever lands, converting this table is the D-LIFE3 two-merge dance on a small table.
+  - **Q-IE9 — `brief_stop` is decided per STOP, not per engine run.** A park shorter than
+    `min_idle_minutes` is brief, and all its running time is `brief_stop`. Read per run instead, a
+    battery-APU truck cycling on for three minutes at a time through a ten-hour rest would book every cycle
+    as traffic, which is exactly the running time D-IE4 rule 3 measures.
+  - **Q-IE10 — a stop already in progress when our data begins** (the first run, or after an outage longer
+    than the window) is stored from the first instant seen, with `start_observed = false`, so its duration
+    reads as a lower bound. A stop in progress that IS stored is continued from its row: the collector
+    re-fetches the engine and counter history from its `started_at`, both sparse while parked.
 
 ## 5. Words (D-FSV7)
 
@@ -547,3 +564,17 @@ All questions are answered; nothing in the queue is blocked on the owner.
   IE4's learner reads gallons per running hour per cohort × band from those rows, which needs no Samsara idling
   events at all. That also brings IE6 (retire `/idling/events`, 131 MB) within reach once D-IE9 passes.
   Probe scripts were scratch only; nothing is written. Next: IE2.
+- **2026-10-02** — **IE2, first of three merges: migration 0404**, owner pre-approved ("migrate when CI is
+  green"). It adds `idle_engine_hours` (per truck per UTC hour: the five D-IE2 buckets, which a CHECK holds to
+  3,600 s, plus the fuel-counter and engine-seconds deltas, engine starts and ambient), `idle_engine_stops`
+  (one per park of at least `min_idle_minutes`: running, off and no-data seconds, starts, longest run, fuel,
+  place, state, ambient, `start_observed`) and `idle_engine_days` (derived in SQL from the hours on the org's
+  local day). One writer, `idle_engine_write`, replaces a window: the hours in it and every stop overlapping
+  it become the payload, then the touched days are re-derived, so the hourly and nightly runs are the same
+  operation. It refuses rows outside its window or trucks and other organisations' trucks. Q-IE8..10 are decided
+  in §4 (plain table, not pg_partman; brief per stop; unobserved stop starts). Measured before writing it:
+  Samsara's `stats/history` does NOT return the state holding at a window's start (662's 18:00Z window opens
+  on a flip at 18:51), so the collector needs a lookback. That costs 18 pages / 15 s for 75 h of fleet
+  `engineStates`, and an hour of fleet GPS is 40k points / 7 pages / 20 s. Matrix `idle-engine-tables.test.mjs`
+  (26); 10/10 mutants killed. The 60-day retention rule lands with the collector; until then the lifecycle
+  block says `null`, which is true. Next: the shared classifier, then the collector and its two jobs.

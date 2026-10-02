@@ -2299,6 +2299,20 @@ async function main() {
         `values ('${org}', 'TMS', 'rls-mv') returning org_id, company_id, movement_id) ` +
         `insert into mcleod_dispatch_stops (org_id, company_id, stop_id, movement_id) ` +
         `select org_id, company_id, 'rls-st', movement_id from m`,
+      // 0404: an hour row's buckets must add up to the whole hour and its start must sit ON the hour,
+      // and a stop's parts must add up to its duration — CHECKs a classifier bug should trip, which a
+      // placeholder timestamp and placeholder integers cannot satisfy. A real (all engine-off) hour
+      // and a real ten-minute stop instead of loosening them.
+      idle_engine_hours: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ieh', 150) returning id) ` +
+        `insert into idle_engine_hours (org_id, vehicle_id, hour_start, driving_sec, stopped_running_sec, brief_stop_sec, ` +
+        `engine_off_sec, no_data_sec, engine_starts, classifier_version) ` +
+        `select '${org}', id, '2026-10-02T04:00:00Z', 0, 0, 0, 3600, 0, 0, 'rls' from v`,
+      idle_engine_stops: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ies', 150) returning id) ` +
+        `insert into idle_engine_stops (org_id, vehicle_id, started_at, start_observed, duration_sec, running_sec, off_sec, ` +
+        `no_data_sec, engine_starts, longest_run_sec, classifier_version) ` +
+        `select '${org}', id, '2026-10-02T04:10:00Z', true, 600, 600, 0, 0, 0, 600, 'rls' from v`,
       // 0370: a dispatch's outcome is constrained across columns — an SMS may read `sent` only with a
       // recipient and the provider's receipt, anything else only with a reason — and its guard insists
       // the load and the driver are the row's own org. The synthesiser fills every column and invents
