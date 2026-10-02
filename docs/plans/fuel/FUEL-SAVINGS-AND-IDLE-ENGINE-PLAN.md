@@ -643,3 +643,22 @@ All questions are answered; nothing in the queue is blocked on the owner.
   Mutation: 14 SQL + 4 spec mutants, all killed. Measured, production, read-only: September tractor
   in 1,853 fills $1,285,793.43 · out 29 $12,675.92 · unknown 20 $13,737.52 = $1,312,206.87 (`fuel_spend_days`:
   $1,312,207); `fuel_spend_lines` 07/04–10/01 grouped per day takes 838 ms (5,816 fills).
+- **2026-10-02** — **FS1 DONE (code), second of two merges: `GET /api/fueling/report`.** It sits on the
+  `/api/fueling` router with every other fuel-spend route, so the plan's "/api/fuel/report" was loose
+  wording. Query `from`, `to` (≤ 366 days), `vehicles`, `states`, `sites`, `networks`. It returns the picked range and
+  the previous range of equal length (D-FSV3, `previousFuelReportRange`: 09/01–09/30 → 08/02–08/31), each as
+  `fuel_report_days` rows plus `fuelReportTotals`: tractor, reefer beside it, and tractor by `in`/`out`/`unknown`.
+  Each has avg price/gal, discount over the posted-price fills only, paid vs Pilot quote over the quoted fills
+  only, and the coverage of each. Ratios are null, never 0, when nothing was quoted. Also returned: the
+  in-network brands it used (the carrier's `preferred_brands`) and the places fuelled. A filter value
+  that isn't recognised gets a 400 rather than an unfiltered answer. **Miles, cost per mile and MPG (D-FSV4,
+  D-FSV5) are NOT in FS1:** they're `readFleetDistance`/`getFleetMpg` reads that FS2 composes beside this
+  answer, since the handoff puts miles with FS2. Tests: `reportDays.test.ts` (10), `routes/report.test.ts`
+  (15). Mutation: 10 route/reader + 8 verdict mutants, all killed after two survivors. The test was at fault
+  both times. A lower-case state made the route answer 400, so the filter test's loop ran over zero calls.
+  The fixture had equal posted-price and contract-quoted gallons, so the two coverages couldn't be told apart.
+  **0405 verified live** (#1202 merged dac3638; `migrate.yml` applied it 15:43Z). Read-only on production,
+  September, `{pilot, flying_j}`: tractor in 1,853 fills $1,285,793.43 · out 29 $12,675.92 · unknown 20
+  $13,737.52; reefer in 53 $6,331.16. Paid vs Pilot quote, tractor: **+$2,192.47** over 1,784 quoted fills,
+  which matches §1.3's $2,192 independently. `fuel_report_sites`: 561 places, 3 unresolved-state rows, 1,955 fills
+  (= every fill above). New functions keep their SET; `fuel_business_date` still has none.
