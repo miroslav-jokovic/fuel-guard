@@ -312,6 +312,20 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     "Paid above Pilot's quote" and off_network_premium "Out of network" (§5). Every existing row, the findings
     CSV and the dispute packet change at once; no data is touched.
 
+- **Q-IE11..13 — decided in IE3, same delegation (owner, 2026-10-02: "proceed as recommended"):**
+  - **Q-IE11 — rule 1's PTO clause is not applied: nothing we collect says when a PTO was engaged.** Samsara
+    exposes PTO only through a wired auxiliary input, which this fleet's gateways are not known to carry. A
+    reefer or liftgate truck whose engine runs a PTO while parked would be judged as idling. Open: if the owner
+    names trucks that run a PTO, the cheapest honest answer is to exclude those units by declaration (IE1-style),
+    not to guess from behaviour.
+  - **Q-IE12 — the parts of rule 5 the ruling did not name.** Yard move and personal conveyance are ALLOWED (the
+    truck is in use, not parked; the old verdict layer excluded them too). Running with NO usable duty status
+    (no segment, or two drivers' logs disagreeing on the truck) is AVOIDABLE as rule 5 reads, but counted apart
+    as `avoidableNoLogSec`, so the reader sees how much of the figure rests on a missing log. A rest on a truck
+    whose equipment is undeclared or "other" is UNJUDGED, not guessed. An unknown temperature exempts nothing.
+  - **Q-IE13 — a park belongs to the local day it STARTED on, whole.** Cutting an overnight park at midnight
+    would halve its Q-IE3 allowance on each side, because the allowance is a share of the park's own duration.
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -780,3 +794,19 @@ All questions are answered; nothing in the queue is blocked on the owner.
   (`idleDutyEvidenceSync`, 2026-08-11) covers all 348 (running-weighted ≈ 99.96%), so merge 2 reuses that path.
   Matrix `idle-engine-stop-duty` (7); `idle-engine-tables` (26) unchanged and green. Mutation: 5 SQL mutants
   killed (each CHECK, the insert column list, the grant).
+
+- **2026-10-02** — **0407 MERGED + APPLIED** (#1210, 22ba94f; `migrate.yml` 19:17Z ✓; production has the four columns,
+  the three CHECKs, and `idle_engine_write` reading the split, still closed to `authenticated`). **IE3 merge 2 of 2
+  (the code).** (a) The duty logs are read in one place: `vehicleDutyTimelines.ts`, moved out of
+  `idleDutyEvidenceSync.ts` (logbook + driver↔vehicle assignment attribution), which both collectors now use.
+  (b) `classifyIdleEngine` takes the truck's duty timeline and splits each park's RUNNING time into rest / on duty
+  (on duty, or driving logged while stopped) / excluded / unknown (conflicting logs → unknown);
+  `IDLE_ENGINE_VERSION` = `ie3-v1`. (c) The collector reads the timelines once per run from the earliest truck's
+  reach and writes the split. (d) `idleStopVerdict` + `idleAvoidableTotals` (shared, pure) apply D-IE4 on read,
+  with Q-IE11..13 (§4). Every park's parts add up to its running time. (e) `GET /api/idle/engine/avoidable?from&to`
+  (safety: view) returns totals, money on the Idling page's own cost basis, and per-truck rows; nothing is shown
+  in the UI until IE5 (D-IE9). Parks written before this deploy stay unmeasured until the nightly re-write
+  reaches them (2 days back). Tests: `avoidable.test.ts` (10), `classify.test.ts` (+4), `idleEngineSync.test.ts`
+  (+3), `idleEngineAvoidable.test.ts` (4), `routes/idle.test.ts` (+6). Mutation: 23 mutants, all killed after one
+  survivor (the comfort band's edge: integer milli-°C never lands on 20 or 85 °F exactly, so the edge test
+  now uses a band edged at 59 °F = 15 °C).

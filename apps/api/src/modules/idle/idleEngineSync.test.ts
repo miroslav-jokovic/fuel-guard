@@ -40,9 +40,11 @@ function samsara(series: Record<string, Record<string, { time: string; [k: strin
   return { calls, history };
 }
 
-function recorder(o: { jobs?: unknown[]; stops?: unknown[]; minIdle?: number } = {}) {
+function recorder(o: { jobs?: unknown[]; stops?: unknown[]; minIdle?: number; hos?: unknown[]; assignments?: unknown[] } = {}) {
   return createSupabaseRecorder({
     tables: {
+      hos_duty_segments: o.hos ?? [],
+      driver_vehicle_assignments: o.assignments ?? [],
       organizations: [{ operating_hours: { tz: "America/Chicago" } }],
       idle_settings: [{ min_idle_minutes: o.minIdle ?? 5 }],
       vehicles: [V1, V2],
@@ -173,5 +175,52 @@ describe("syncIdleEngine — what it refuses, and whose rows it reads", () => {
     expectOrgScoped(rec, ORG);
     const orgs = rec.forTable("organizations")[0] as RecordedQuery;
     expect(orgs.filters()).toContainEqual({ col: "id", val: ORG });
+  });
+});
+
+/**
+ * IE3 (0407): every park carries its running time split by duty, through the SAME attribution the
+ * duty-evidence sync uses — here the off-duty segment names no truck and reaches 650 only through the
+ * driver↔vehicle assignment, which is the case that covers ~63% of production's park running time.
+ */
+describe("syncIdleEngine — the duty split (IE3)", () => {
+  const parkedAllWindow = {
+    s650: {
+      engineStates: [{ time: "2026-10-01T12:00:00Z", value: "On" }],
+      // Moving until 11:30Z, then stopped (a fix a minute) until the run at 14:20Z.
+      gps: Array.from({ length: 215 }, (_, i) => ({
+        time: iso(Date.parse("2026-10-02T10:45:00Z") + i * 60_000),
+        speedMilesPerHour: i < 45 ? 55 : 0, latitude: 41.5, longitude: -88.1,
+      })),
+    },
+  };
+
+  it("writes each park's running time split by the duty the assigned driver logged", async () => {
+    const rec = recorder({
+      assignments: [{ vehicle_samsara_id: "s650", driver_samsara_id: "sd1", start_at: "2026-10-01T00:00:00Z", end_at: null }],
+      hos: [{ driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "off_duty", started_at: "2026-10-01T00:00:00Z", ended_at: null }],
+    });
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const stops = writes(rec).flatMap((w) => w.p_stops as Record<string, number>[]);
+    const park = stops.find((x) => (x as unknown as { vehicle_id: string }).vehicle_id === "v650")!;
+    expect(park.running_sec).toBeGreaterThan(0);
+    expect(park).toMatchObject({ running_rest_sec: park.running_sec, running_on_duty_sec: 0, running_excluded_sec: 0, running_unknown_sec: 0 });
+  });
+
+  it("a truck with no duty at all has its running time unknown — measured, never null", async () => {
+    const rec = recorder();
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const park = writes(rec).flatMap((w) => w.p_stops as Record<string, unknown>[]).find((x) => x.vehicle_id === "v650")!;
+    expect(park).toMatchObject({ running_unknown_sec: park.running_sec, running_rest_sec: 0 });
+  });
+
+  it("reads the duty logs once per run, the org's, padded back from the earliest truck's reach", async () => {
+    const rec = recorder();
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara({}).history, snapshotFetcher: noSnapshot });
+    const hos = rec.forTable("hos_duty_segments");
+    expect(hos).toHaveLength(1);
+    // reach = window start − the 24 h engine lookback (11:00Z on 10/01); the 72 h pad goes back from there.
+    expect(hos[0]!.ops.find((o) => o.method === "gte")?.args).toEqual(["started_at", "2026-09-28T11:00:00.000Z"]);
+    expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
   });
 });

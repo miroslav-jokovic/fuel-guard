@@ -12,6 +12,7 @@ import {
   type IdleEngineInput,
   type MotionFix,
 } from "./index.js";
+import { buildHosVehicleTimeline } from "../hosVehicleTimeline.js";
 
 const T0 = Date.parse("2026-10-02T00:00:00Z");
 const MIN = 60_000;
@@ -290,7 +291,7 @@ describe("helpers", () => {
     expect(stateOfPlace(null)).toBeNull();
   });
   it("the version is stamped for the rows", () => {
-    expect(IDLE_ENGINE_VERSION).toMatch(/^ie2-/);
+    expect(IDLE_ENGINE_VERSION).toBe("ie3-v1"); // 0407: parks carry the duty split from this version on
   });
 });
 
@@ -324,5 +325,44 @@ describe("parse — Samsara stats/history pages", () => {
   });
   it("a counter reading with no parseable time is dropped", () => {
     expect(parseCounter(page, "fuelConsumedMilliliters").get("281474")).toEqual([{ t: Date.parse("2026-10-02T01:00:00Z"), value: 563016787 }]);
+  });
+});
+
+/**
+ * IE3 (0407): a park's running time split by the duty status in force. The park below runs 20–30 and
+ * 35–50 (off 30–35), 1,500 s; the driver's log says rest 10–30, on duty 30–40, yard move 40–42, and
+ * nothing after. Each window boundary is a different minute, so a split that read the PARK's span
+ * instead of its RUNNING time, or the wrong status, lands on a different number.
+ */
+describe("classifyIdleEngine — the duty split (IE3)", () => {
+  const gps = [...fixes(-15, 20, 60), ...fixes(20, 50, 0), ...fixes(50, 70, 55)];
+  const engine = [{ t: at(30), on: false }, { t: at(35), on: true }];
+  const seg = (status: string, from: number, to: number, driverId = "d1") =>
+    ({ driverId, vehicleId: "v1", status: status as never, startMs: at(from), endMs: at(to) });
+  const timeline = (segs: ReturnType<typeof seg>[]) => buildHosVehicleTimeline("v1", segs, at(-60), at(70));
+
+  it("splits the running seconds by the status in force, and they add up to the running time", () => {
+    const duty = timeline([seg("off_duty", 10, 30), seg("on_duty", 30, 40), seg("yard_move", 40, 42)]);
+    const [s] = run({ gps, engine, duty }).stops;
+    expect(s).toMatchObject({ runningSec: 1500, runningRestSec: 600, runningOnDutySec: 300, runningExcludedSec: 120, runningUnknownSec: 480 });
+  });
+
+  it("counts driving logged while the truck stood as on duty, and sleeper as rest", () => {
+    const duty = timeline([seg("sleeper", 10, 30), seg("driving", 35, 50)]);
+    const [s] = run({ gps, engine, duty }).stops;
+    expect(s).toMatchObject({ runningRestSec: 600, runningOnDutySec: 900, runningExcludedSec: 0, runningUnknownSec: 0 });
+  });
+
+  it("puts two drivers' conflicting logs on the truck in unknown, never in either", () => {
+    const duty = timeline([seg("off_duty", 10, 50, "d1"), seg("on_duty", 35, 50, "d2")]);
+    const [s] = run({ gps, engine, duty }).stops;
+    expect(s).toMatchObject({ runningRestSec: 600, runningOnDutySec: 0, runningUnknownSec: 900 });
+  });
+
+  it("a truck with no duty timeline has all its running unknown; an absent one is not measured", () => {
+    expect(run({ gps, engine, duty: null }).stops[0]).toMatchObject({ runningUnknownSec: 1500, runningRestSec: 0 });
+    expect(run({ gps, engine }).stops[0]).toMatchObject({
+      runningRestSec: null, runningOnDutySec: null, runningExcludedSec: null, runningUnknownSec: null,
+    });
   });
 });

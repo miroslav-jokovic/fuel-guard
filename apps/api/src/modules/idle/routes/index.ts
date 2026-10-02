@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
-import { asyncHandler } from "../../../lib/http.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
+import { parseYmd, windowDays } from "@silvicom/shared";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { resolveIdleCostBasis } from "../idleCostBasis.js";
 import { readIdleEquipment } from "../idleEquipment.js";
+import { readIdleEngineAvoidable } from "../idleEngineAvoidable.js";
+
+/** A year, like the fuel report: each park row is small, but the bound keeps a URL from asking for all time. */
+const MAX_AVOIDABLE_DAYS = 366;
 
 /**
  * The Idling surface's server-side reads (Q9, `docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md`
@@ -51,6 +56,27 @@ export function idleRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ ok: true, data: await readIdleEquipment(admin, req.auth!.orgId!) });
+    }),
+  );
+
+  // IE3, D-IE4: the idle engine's avoidable idling over a range of local days — runs IN PARALLEL with
+  // today's idle figures until IE5's 14-day gate switches the page over (D-IE9). Same door as above.
+  router.get(
+    "/engine/avoidable",
+    requireSection("safety", "view"),
+    asyncHandler(async (req, res) => {
+      const from = parseYmd(req.query.from);
+      const to = parseYmd(req.query.to);
+      if (from == null || to == null || to < from) {
+        res.status(400).json(apiError("bad_request", "Expected from and to as YYYY-MM-DD dates, earliest first."));
+        return;
+      }
+      if (windowDays(from, to) > MAX_AVOIDABLE_DAYS) {
+        res.status(400).json(apiError("bad_request", `Pick a range of at most ${MAX_AVOIDABLE_DAYS} days.`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await readIdleEngineAvoidable(admin, req.auth!.orgId!, from, to) });
     }),
   );
 

@@ -3,3 +3,4 @@ export * from "./timeline.js";
 export * from "./counters.js";
 export * from "./classify.js";
 export * from "./parse.js";
+export * from "./avoidable.js";

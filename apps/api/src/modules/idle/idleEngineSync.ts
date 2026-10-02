@@ -28,6 +28,10 @@
  *            flip from `/fleet/vehicles/stats`, if that flip is older than the fetch — a truck shut
  *            down for a week is off, not unknown. Otherwise unknown, and `no_data` is never off.
  *
+ * DUTY (IE3, 0407): each park's running time is split by the driver's duty status, from ONE read of the
+ * duty timelines over the run's whole reach (`readVehicleDutyTimelines` — the logbook plus the
+ * driver↔vehicle assignment link, the same attribution the duty-evidence sync uses).
+ *
  * Trucks long parked fetch alone (their window reaches back days); the rest in batches of 20.
  * Only in-service trucks (`IN_SERVICE_VEHICLE_STATUSES`): not one on order, not one gone. A batch whose fetch stopped at the page cap is NOT written: a replace
  * of a window it did not fully read would delete good rows, so it is counted and left for the next
@@ -56,6 +60,7 @@ import {
   type StatsSnapshotFetcher,
 } from "../samsara/lib/samsaraStatsHistory.js";
 import { NoSamsaraTokenError } from "../samsara/index.js";
+import { readVehicleDutyTimelines } from "./vehicleDutyTimelines.js";
 
 const HOUR = 3_600_000;
 const BATCH = 20;
@@ -192,6 +197,9 @@ export async function syncIdleEngine(
   const spanStartOf = (v: VehicleRow) => Math.min(fromMs - ENGINE_LOOKBACK_MS, parked.get(v.id)?.sinceMs ?? Infinity);
   const longParked = vehicles.filter((v) => spanStartOf(v) < fromMs - LONG_PARK_MS);
   const rest = vehicles.filter((v) => !longParked.includes(v));
+  const reachMs = Math.min(...vehicles.map(spanStartOf));
+  const duty = await readVehicleDutyTimelines(admin, orgId, new Date(reachMs).toISOString(), new Date(nowMs).toISOString());
+
   const groups: VehicleRow[][] = [...longParked.map((v) => [v])];
   for (let i = 0; i < rest.length; i += BATCH) groups.push(rest.slice(i, i + BATCH));
 
@@ -234,6 +242,7 @@ export async function syncIdleEngine(
         engineSec: engineSec.get(sid) ?? [],
         ambientMilliC: amb.get(sid) ?? [],
         minIdleSec,
+        duty: duty.timelines.get(v.id) ?? null,
       });
       if (out.hours.every((h) => h.noDataSec === 3600)) result.vehiclesNoEngine += 1;
       hours.push(...out.hours.map((h) => ({ ...h, vehicleId: v.id })));
@@ -294,5 +303,9 @@ function stopRow(s: IdleEngineStop & { vehicleId: string }) {
     state: s.state,
     ambient_milli_c: s.ambientMilliC,
     classifier_version: IDLE_ENGINE_VERSION,
+    running_rest_sec: s.runningRestSec,
+    running_on_duty_sec: s.runningOnDutySec,
+    running_excluded_sec: s.runningExcludedSec,
+    running_unknown_sec: s.runningUnknownSec,
   };
 }

@@ -26,6 +26,7 @@
  */
 
 import { counterDelta, meanIn, type CounterReading } from "./counters.js";
+import { hosVehicleTimelineOverlapSeconds, type HosVehicleTimeline } from "../hosVehicleTimeline.js";
 import {
   debouncedMotion,
   engineSegments,
@@ -41,7 +42,7 @@ import {
 } from "./timeline.js";
 
 /** Stored on every row; bump it when a rule here changes what a row would say. */
-export const IDLE_ENGINE_VERSION = "ie2-v1";
+export const IDLE_ENGINE_VERSION = "ie3-v1";
 
 const HOUR = 3_600_000;
 
@@ -64,6 +65,12 @@ export interface IdleEngineInput {
   ambientMilliC: CounterReading[];
   /** `idle_settings.min_idle_minutes` × 60. */
   minIdleSec: number;
+  /**
+   * The truck's duty timeline (IE3, 0407), from `readVehicleDutyTimelines`. `null` = the collector looked
+   * and the truck has none, so every running second is `unknown`. Absent = not looked at: the four
+   * split fields are null, "not measured" — what every ie2-v1 park holds.
+   */
+  duty?: HosVehicleTimeline | null;
   motion?: Partial<typeof IDLE_ENGINE_MOTION>;
 }
 
@@ -96,6 +103,15 @@ export interface IdleEngineStop {
   place: string | null;
   state: string | null;
   ambientMilliC: number | null;
+  /**
+   * `runningSec` split by the duty status in force (IE3, D-IE4): rest = off duty or sleeper; onDuty = on
+   * duty, or driving logged while the truck stood; excluded = yard move or personal conveyance; unknown
+   * = no segment, or conflicting logs. They add up to `runningSec`. Null together when `duty` was absent.
+   */
+  runningRestSec: number | null;
+  runningOnDutySec: number | null;
+  runningExcludedSec: number | null;
+  runningUnknownSec: number | null;
 }
 
 type Bucket = "driving" | "stopped_running" | "brief_stop" | "engine_off" | "no_data";
@@ -240,6 +256,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
     let off = 0;
     let longest = 0;
     let streak = 0;
+    const dutyMs = { rest: 0, onDuty: 0, excluded: 0 };
     for (const p of pieces(engine, motion)) {
       const a = Math.max(p.s, sp.s);
       const b = Math.min(p.e, e);
@@ -248,6 +265,12 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
         run += b - a;
         streak += b - a;
         longest = Math.max(longest, streak);
+        if (input.duty) {
+          const o = hosVehicleTimelineOverlapSeconds(input.duty, a, b);
+          dutyMs.rest += o.restSec * 1000;
+          dutyMs.onDuty += (o.workSec + o.drivingSec) * 1000;
+          dutyMs.excluded += o.excludedSec * 1000;
+        }
       } else {
         streak = 0;
         if (p.a === false) off += b - a;
@@ -255,6 +278,11 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
     }
     const durationSec = Math.round((e - sp.s) / 1000);
     const [runningSec, offSec, noDataSec] = roundParts([run, off, e - sp.s - run - off], durationSec);
+    // Unknown is the remainder, so the four parts are the running time exactly before rounding, and
+    // round to exactly `runningSec` after it (the 0407 CHECK).
+    const split = input.duty === undefined
+      ? null
+      : roundParts([dutyMs.rest, dutyMs.onDuty, dutyMs.excluded, Math.max(0, run - dutyMs.rest - dutyMs.onDuty - dutyMs.excluded)], runningSec!);
     const fix = gps.find((g) => g.t >= sp.s && g.t < e && g.lat != null && g.lng != null) ?? null;
     // A stop still open has no reading after its end yet: read the fuel up to the last one inside it.
     const lastFuel = input.fuelMl.filter((r) => r.t >= sp.s && r.t <= e).reduce((m, r) => Math.max(m, r.t), -Infinity);
@@ -274,6 +302,10 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
       place: fix?.place ?? null,
       state: stateOfPlace(fix?.place),
       ambientMilliC: meanIn(input.ambientMilliC, sp.s, e),
+      runningRestSec: split ? split[0]! : null,
+      runningOnDutySec: split ? split[1]! : null,
+      runningExcludedSec: split ? split[2]! : null,
+      runningUnknownSec: split ? split[3]! : null,
     });
   }
   return { hours, stops };
