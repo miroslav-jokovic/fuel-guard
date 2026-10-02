@@ -178,12 +178,3 @@ export function idleBurnRateFor(
   // the cell answers whenever there is one.
   return rates.cells.find((c) => c.equipment === equipment && c.band === band)?.galPerHour ?? rates.priorGalPerHour;
 }
-
-/** `GET /api/idle/engine/burn-rates`: the learned table beside the rate every idle dollar uses today. */
-export interface IdleBurnRatesView extends IdleBurnRates {
-  /** The learner's window, ISO instants, `IDLE_BURN_LEARN_DAYS` back from the request. */
-  from: string;
-  to: string;
-  /** `idle_settings.idle_gal_per_hour` through the cost basis — what idle hours are priced at today. */
-  configuredGalPerHour: number;
-}

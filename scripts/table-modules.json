@@ -145,6 +145,28 @@
         "why": "one row per card per day; a counter bounded by the card fleet."
       }
     },
+    "card_fraud_incident_attempts": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "one per qualifying attempt; 13 in 30 days measured from production declines 2026-10-02 (CARD-FRAUD-ALERTS-PLAN.md §1). Cascades with its incident."
+      }
+    },
+    "card_fraud_incidents": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "one per card per episode of use away from its truck; 7 in 30 days measured from production declines 2026-10-02 (CARD-FRAUD-ALERTS-PLAN.md §5). Fraud history a person closed with an outcome; retention unruled."
+      }
+    },
     "case_pattern_reports": {
       "module": "anomalies",
       "layer": "derived",

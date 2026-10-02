@@ -113,7 +113,7 @@ Harness modules read core through owners' interfaces, own their feature-specific
 
 | Module | Owns | Client feature(s) |
 |---|---|---|
-| `anomalies` (carved 2026-08-27, `apps/api/src/modules/anomalies/`) | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests` | anomalies, dashboard |
+| `anomalies` (carved 2026-08-27, `apps/api/src/modules/anomalies/`) | `anomalies`, `anomaly_transitions`, `anomaly_thresholds`, `scoring_attempts`, `case_pattern_reports`, `pattern_sweep_requests`, `card_fraud_incidents`, `card_fraud_incident_attempts` | anomalies, dashboard |
 | `fuel-spend` (carved 2026-08-26, `apps/api/src/modules/fuel-spend/`) | `fuel_statements`, `fuel_statement_lines`, `fuel_spend_days`, `fuel_recon_runs`, `fuel_exceptions`, `fuel_exception_events` | reconcile, reports, fuel |
 | `ifta` | `apps/api/src/modules/ifta/` (built 2026-08-27, program step P1.10) — serves the 0256/0258 period reads via `/api/ifta/period`; the browser→staging path is closed. The RPCs' own samsara-staging reads remain the tolerated read, grandfathered at the SQL boundary. | ifta |
 | `idle` (carved 2026-08-26, `apps/api/src/modules/idle/`) | `idle_events`, `idle_park_sessions`, `idle_rollup_days`, `idle_settings`, `idle_telemetry_windows`, `vehicle_engine_days`, `weather_cache` — sync and rollup deliberately together; the collector/harness seam inside idle runs through shared windows and evidence versions | fleet, dashboard |
