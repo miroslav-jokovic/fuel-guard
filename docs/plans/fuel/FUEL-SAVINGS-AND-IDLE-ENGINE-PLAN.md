@@ -771,3 +771,12 @@ All questions are answered; nothing in the queue is blocked on the owner.
   "Suggested: Optimized idle" for every Cascadia from 2017 contradicted R7/Q-IE1 and is gone with its shared
   function, which had no other rule or caller; a truck's equipment comes from the IE1 declaration. Tests:
   `exceptions.test.ts` (+2), `VehicleForm.test.ts` (+1, fails on the old form). Mutation: 4 label mutants killed.
+- **2026-10-02** — **Q-FSV13 + Optimized Idle merged** (#1209, ca564c5). **IE3 merge 1 of 2 = migration 0407.**
+  `idle_engine_stops` gains `running_rest_sec`, `running_on_duty_sec`, `running_excluded_sec`, `running_unknown_sec`:
+  a park's running seconds split by the driver's duty status, measured by the collector (merge 2), summing to
+  `running_sec` (CHECK), all-or-none, null = not measured (every ie2-v1 park). Verdicts stay out of SQL: D-IE4 is
+  evaluated on read so the Q-IE3 50% can move. Measured first (production, SELECT): 348 running parks in the last
+  30 h, 747,917 running seconds; duty segments naming the truck cover ~37%, the driver↔vehicle assignment path
+  (`idleDutyEvidenceSync`, 2026-08-11) covers all 348 (running-weighted ≈ 99.96%), so merge 2 reuses that path.
+  Matrix `idle-engine-stop-duty` (7); `idle-engine-tables` (26) unchanged and green. Mutation: 5 SQL mutants
+  killed (each CHECK, the insert column list, the grant).
