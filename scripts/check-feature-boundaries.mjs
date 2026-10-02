@@ -268,6 +268,12 @@ const API_ALLOW = new Set([
   // 2026-09 with `console.error` as its only reader, and fleet MPG read 8.61 against a true 6.91
   // until somebody noticed by eye.
   "fuel-spend -> messaging",
+  // The fleet-parity check (FUEL-SAVINGS FL2, D-FL2): after every roster read, a truck or trailer
+  // list that disagrees with McLeod's is a finding the equipment managers see — "a disagreement is a
+  // notification", in the plan's words. notify() through messaging's index, and the recipients from
+  // org's `usersWhoManage("equipment")` (the edge below), exactly the fuel-spend shape above.
+  "mcleod -> messaging",
+  "mcleod -> org",
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",

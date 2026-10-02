@@ -463,3 +463,18 @@ All questions are answered; nothing in the queue is blocked on the owner.
   trigger ran as `authenticated`, the catalogue is deny-all under RLS, so a browser edit was never
   derived. Production has 0 `manual` vehicles, so nothing was mis-derived. Matrix
   `vehicle-make-model-for.test.mjs` (10); 0399's matrix runs unedited and green. Next: the parity check.
+- **2026-10-02** — **FL2 DONE** (code), the third of three merges. #1193 (4fa1c69) is in main, and
+  0402 is checked on production: `vehicle_make_model_for` and `vehicle_make_model_derive` exist,
+  executable by the service role only, and the trigger is `security definer`. This merge is the check
+  itself. Shared `fleetParity.ts` has `compareFleetParity`, `isSoldAwaitingPickup`, the keys and the
+  plain-word lines. The roster checkpoint schema gains optional `tractors`/`trailers` (Q-FL7), and the
+  agent's `sendRosterCheckpoint` sends them. `runFleetParity` runs on POST /api/tms/roster/checkpoint
+  and never fails the checkpoint; its summary goes to `org_integrations.config.parity` through
+  `stampRosterRead`. One notification goes out per CHANGE of the finding set (sha256 dedupe) to
+  `usersWhoManage("equipment")`. Not findings: `ordered` units, and retired rows absent from McLeod's
+  list (P4 excludes reserved units). A `- SOLD` truck that McLeod still lists counts as `known` and is
+  never alarmed. The boundaries allow-list gains mcleod→messaging and mcleod→org. Mutation testing:
+  fleetParity 7/7 killed; the notifier 4/5, where the survivor swaps the fuel section for equipment,
+  whose roles are identical today, so it behaves the same. Still owed: the first LIVE parity run. It
+  needs the laptop McLeod agent on the office network, running from an updated main checkout, and its
+  findings go to the owner before anything is read as noise.

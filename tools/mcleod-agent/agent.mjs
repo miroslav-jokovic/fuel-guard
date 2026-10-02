@@ -523,7 +523,7 @@ async function runRoster() {
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   persistRosterState(CFG.rosterStatePath, nextState, { dryRun: CFG.dryRun });
-  if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster.counts);
+  if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster);
 }
 
 /**
@@ -536,13 +536,18 @@ async function runRoster() {
  * Deliberately NOT `postToFuelGuard`: that exits the process on any 4xx, which is right for a payload
  * FuelGuard refuses and wrong here — an agent upgraded before the API that serves this route would
  * otherwise die on its first 404 and stop sweeping the roster it had just swept correctly.
+ *
+ * It carries the FULL tractor and trailer lists this read saw, not only the counts (FL2, Q-FL7): the
+ * sweep above sends only changed rows, so this is the one moment FuelGuard sees McLeod's whole fleet
+ * and can check its own list against it. Nothing new is read from McLeod for it — these are the rows
+ * the reviewed queries already returned. Drivers are not sent: the parity check is about equipment.
  */
-async function sendRosterCheckpoint(counts) {
+async function sendRosterCheckpoint(roster) {
   try {
     const res = await fetch(`${CFG.ingestUrl}/api/tms/roster/checkpoint`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${CFG.ingestToken}` },
-      body: JSON.stringify({ counts }),
+      body: JSON.stringify({ counts: roster.counts, tractors: roster.vehicles, trailers: roster.trailers }),
     });
     if (!res.ok) log(`roster: checkpoint not recorded (HTTP ${res.status}) — the sweep itself succeeded`);
   } catch (e) {
