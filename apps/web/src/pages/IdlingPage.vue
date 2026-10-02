@@ -22,7 +22,7 @@ const {
   tabs, activeTab, showInfo, showConfidence,
   dateFrom, dateTo, rangeLabel, priceNote,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-  capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
+  capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
 } = useIdlingPage();
@@ -253,12 +253,12 @@ const {
     <template v-else>
       <FilterBar
         v-model:search="capSearch"
-        search-placeholder="Search truck…"
+        search-placeholder="Search truck or batch…"
         :count="capFiltered.length"
         count-label="trucks"
       >
         <template #filters>
-          <FilterSelect v-model="capFilter" label="Capability" :options="capOptions" />
+          <FilterSelect v-model="capFilter" label="Long parks" :options="capOptions" />
         </template>
         <template #actions>
           <BaseButton v-if="capFilterCount" variant="ghost" size="sm" @click="clearCap">Clear filters</BaseButton>
@@ -269,18 +269,20 @@ const {
         :rows="capPaged"
         row-key="unit_number"
         :sort="capSort"
-        empty-text="No trucks match. Set each truck's idle-reduction equipment on the Vehicles page; the data column fills in after a Samsara sync."
+        empty-text="No trucks match. Recorded equipment is set on the Vehicles page; the long-park columns fill in as trucks park for four hours or more."
         :row-class="(t) => (t.cross_check === 'disagree' ? 'bg-danger-50/40' : '')"
         @sort="capSort = toggleSort(capSort, $event)"
       >
         <template #cell-recorded="{ row }">
-          <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', recordedCls(row)]" title="What you recorded on the Vehicles page">{{ recordedLabel(row) }}</span>
+          <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', recordedCls(row)]" :title="`Recorded: ${sourceLabel(row.equipment_source)}`">{{ recordedLabel(row) }}</span>
           <span v-if="row.has_optimized_idle === true" :class="['ml-1 inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', toneClass('success')]" title="OEM optimized idle recorded">Optimized idle</span>
         </template>
-        <template #cell-idle_capability="{ value }">
-          <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>
+        <template #cell-batch="{ value }">{{ value ?? "–" }}</template>
+        <template #cell-behaves_like="{ row }">
+          <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', behavesBadge(row.behaves_like).cls]" :title="`${row.parks} parks of 4 hours or more`">{{ behavesBadge(row.behaves_like).label }}</span>
         </template>
-        <template #cell-idle_optimized_pct="{ value }">{{ value }}%</template>
+        <template #cell-idling_pct="{ value }">{{ value == null ? "–" : `${value}%` }}</template>
+        <template #cell-off_pct="{ value }">{{ value == null ? "–" : `${value}%` }}</template>
         <template #cell-cross_check="{ value }">
           <span class="font-semibold" :class="xcheck(value).cls" :title="xcheck(value).title">{{ xcheck(value).label }}</span>
         </template>

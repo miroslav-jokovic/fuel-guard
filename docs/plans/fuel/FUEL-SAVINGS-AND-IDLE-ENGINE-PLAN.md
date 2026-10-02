@@ -501,3 +501,24 @@ All questions are answered; nothing in the queue is blocked on the owner.
   columns, never their old values, so the summary audit row now carries every replaced value per unit.
   Matrix `vehicle-equipment-declared.test.mjs` (27); 13/13 mutants killed. Next merge: the shared batch
   key, the "behaves like…" verdict, and their place on the Vehicles page.
+- **2026-10-02** — **0403 verified on production** (#1195, 1ed3981): its summary audit row says battery
+  APU 65, no APU 132, kept as `manual` 11, with 155 replaced values recorded, the dry run to the unit.
+  **IE1, second merge (no migration): the "behaves like…" check.** Shared `idleEquipmentDeclared.ts` has
+  `LONG_PARK`, `behavesLike`, `declaredEquipment`, `needsEquipmentReview`, `purchaseBatchKey`/`Label`
+  (Q-IE7) and the row contract. The api `GET /api/idle/equipment` (`safety: view`) reads 0403's
+  function. The Idling page's "Truck capability" tab now reads it instead of comparing the 0043 learned
+  capability in the browser, and adds columns for the batch ("Bought as") and for long parks mostly
+  running / mostly off, a "Check this truck" filter, and the declared source in the hover.
+  **Thresholds calibrated on production** against the just-declared trucks (45 days, parks ≥ 4 h):
+  battery APU idling p50 0% / p90 23%, off p50 90%; no APU idling p50 48%, off p50 35%. "Behaves like
+  battery APU" is ≤ 10% idling and ≥ 60% off; "like no APU" is ≥ 30% idling; between them is `mixed`,
+  never a review. **The review list this gives: 17 trucks.** Declared battery but idling like no APU:
+  728, 729, 730, 731, 754, 807. Declared no APU but shutting down like a battery APU: 568, 576, 644, 680,
+  690, 698, 700, 719, 727, 779. Plus 722, with nothing declared. Several engine-off ones are likely
+  parked rather than equipped (568 is `- SOLD`), which is why the check only raises a review.
+  **Found, not changed:** `suggestIdleEquipment` (shared `idleEquipment.ts`, used by the Vehicles form)
+  still offers "Optimized idle" as a one-click hint for every modern Cascadia, against R7/Q-IE1 (every
+  ruled Cascadia is no APU, no Optimized Idle). It was put to the owner. Batch entry of equipment
+  (D-IE7's per-batch form) is not built; per-unit edits go through the Vehicles form and are stamped
+  `manual`. Mutation testing: 16/17 killed. The survivor was a redundant web clause, now deleted, because
+  the server already reviews a definite behaviour on an undeclared truck. Next: IE2a.
