@@ -72,13 +72,17 @@ export function counterAt(
 }
 
 /** The counter's increase over [a, b), rounded; null when either edge is unknown or it went backwards
- *  (a reset or a swapped gateway is not negative fuel). */
+ *  (a reset or a swapped gateway is not negative fuel). A span the engine was known OFF throughout is
+ *  0 with or without readings: measured 2026-10-02, a truck shut down at 01:46 whose last reading was
+ *  36 s before it left every later hour of the night null, because no reading brackets them until it
+ *  restarts — but a counter cannot move with the engine off. */
 export function counterDelta(
   readings: CounterReading[],
   engine: Seg<boolean | null>[],
   a: number,
   b: number,
 ): number | null {
+  if (knownOff(engine, a, b)) return 0;
   const x = counterAt(readings, engine, a);
   const y = counterAt(readings, engine, b);
   if (x == null || y == null || y < x) return null;

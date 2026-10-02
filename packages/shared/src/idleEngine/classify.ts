@@ -235,6 +235,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
     const e = open ? dataEnd : sp.e;
     if (e - sp.s < input.minIdleSec * 1000) continue; // brief: hour rows only (Q-IE9)
     if (!open && e <= input.fromMs) continue; // closed before the window: not this run's to write
+    if (sp.s >= input.toMs) continue; // begins after it: the next run's (0404 refuses it here)
     let run = 0;
     let off = 0;
     let longest = 0;

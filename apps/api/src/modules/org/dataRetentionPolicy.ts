@@ -110,6 +110,21 @@ export const RETENTION_RULES: RetentionRule[] = [
     why: "per-day engine totals; mirrored in idle_rollup_days",
   },
   {
+    /**
+     * IE2 (0404, D-IE8): the idle engine's hour rows are kept 60 days. They are rebuildable from
+     * Samsara for any window, and what outlives them is `idle_engine_days` (derived from these
+     * hours by the writer) and `idle_engine_stops` — both kept. A plain table with this delete
+     * instead of pg_partman partitions: Q-IE8 in FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md. Composite
+     * primary key, so oldest-first time slices; ~4,400 rows a day leave per run.
+     */
+    table: "idle_engine_hours",
+    timeColumn: "hour_start",
+    keepDays: 60,
+    strategy: "timeSlice",
+    orgScoped: true,
+    why: "derived hourly buckets, rebuildable from Samsara; day totals and stops outlive them in idle_engine_days / idle_engine_stops (IE2, D-IE8)",
+  },
+  {
     table: "driver_vehicle_assignments",
     timeColumn: "end_at",
     keepDays: 400,
