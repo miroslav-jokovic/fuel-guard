@@ -13,6 +13,7 @@
  *      function against them row for row, so SQL and spec cannot drift apart silently.
  */
 import { addDays, windowDays } from "./spendWindow.js";
+import type { FleetMpgPeriod } from "./fleetEfficiency.js";
 
 /** `in` = a brand on the carrier's network; `out` = a known station that isn't; `unknown` = no station. */
 export type FuelNetwork = "in" | "out" | "unknown";
@@ -227,3 +228,71 @@ export function fuelReportTotals(days: readonly FuelReportDay[]): FuelReportTota
 export function previousFuelReportRange(from: string, to: string): { from: string; to: string } {
   return { from: addDays(from, -windowDays(from, to)), to: addDays(from, -1) };
 }
+
+// ── the wire shape of `GET /api/fueling/report` ────────────────────────────────────────────────
+// Here rather than in the API service for the reason `FleetMpgPeriod` is: the page reads it, and a
+// contract the API writes and the web reads has one home (CLAUDE.md, `lint:shared-contracts`).
+
+export interface FuelReportSite {
+  stationId: string | null;
+  brand: string | null;
+  site: string | null;
+  city: string | null;
+  state: string | null;
+  fills: number;
+  gallons: number;
+}
+
+/**
+ * Miles, MPG and cost per mile for one range (FS2, D-FSV4). `mpg` is the whole `getFleetMpg` answer,
+ * refusal and coverage included, so the page can say why a figure is missing rather than print a dash.
+ */
+export interface FuelReportEfficiency {
+  mpg: FleetMpgPeriod;
+  /** `fuelCostPerMile(tractor price/gal, mpg)`; null whenever `mpg.mpg` is. */
+  costPerMile: number | null;
+}
+
+export interface FuelReportWindow {
+  from: string;
+  to: string;
+  days: FuelReportDay[];
+  totals: FuelReportTotals;
+  /** Null under a state, location or network filter — see `FUEL_REPORT_TRUCK_FIGURES_NOTE`. */
+  efficiency: FuelReportEfficiency | null;
+}
+
+/**
+ * One day's trailing-7-day MPG (D-FSV5): the fleet MPG over that day and the six before it. D-MPG6
+ * stands — one day's purchases do not measure one day's burn — so a day row never carries its own MPG.
+ */
+export interface FuelReportTrailingMpg {
+  day: string;
+  /** Null with `reason` when withheld, including a week the fuel roll-up hasn't reached the end of. */
+  mpg: number | null;
+  measuredShare: number | null;
+  reason: string | null;
+}
+
+export interface FuelReport {
+  current: FuelReportWindow;
+  previous: FuelReportWindow;
+  /** One row per day of the CURRENT range, oldest first; null whenever `current.efficiency` is. */
+  trailingMpg: FuelReportTrailingMpg[] | null;
+  /** The brands counted as in network, so the page can name them rather than say "the network". */
+  inNetworkBrands: string[];
+  /** Places fuelled in the CURRENT range, busiest first. A null station is unresolved fills in that state. */
+  sites: FuelReportSite[];
+}
+
+/** How many days a trailing MPG reaches back, the day itself included (D-FSV5). */
+export const TRAILING_MPG_DAYS = 7;
+
+/**
+ * What the report says instead of miles, MPG and cost per mile under a state, location or network
+ * filter (D-FSV5, widened in FS2 to the two figures built on MPG). Those filters select FILLS, and a
+ * truck's odometer distance has no honest share at one station: the truck drove the miles whichever
+ * pump it stopped at.
+ */
+export const FUEL_REPORT_TRUCK_FIGURES_NOTE =
+  "Miles, MPG and cost per mile are truck figures, so they don't apply to a state, location or network filter.";

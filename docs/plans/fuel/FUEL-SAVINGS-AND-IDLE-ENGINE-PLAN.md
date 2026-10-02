@@ -708,3 +708,19 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `FuelInvoicesPage` (6), `FuelInvoiceCheckPage` (4), `FuelReconciliationPage` (rewritten 2). Mutation: 28 web
   mutants killed after three survivors, each a test that could not tell the difference (money card read from
   the whole page, drawer never opened before checking it closed, every URL the same id).
+- **2026-10-02** — **FS2 merge 1 of 2 (the API composition).** `GET /api/fueling/report` now carries, per range,
+  `efficiency = { mpg, costPerMile }` (`mpg` is the whole `getFleetMpg` answer, refusal and coverage included) and
+  `trailingMpg`: one trailing-7-day MPG per day of the range (D-FSV5). One new reader, `getFleetMpgPeriods`
+  (`fleetMpg.ts`): any list of periods, overlapping allowed, the odometer staging and the gallons each read ONCE;
+  `getFleetMpg` is now that function with one period. Cost per mile = `fuelCostPerMile(price/gal, MPG)` in
+  `fleetEfficiency.ts`, NOT `spend ÷ miles`: the miles are the measured trucks', the spend is every tractor fill,
+  so the literal D-FSV4 division reads dear by the unmeasured share; price ÷ MPG is `spend ÷ (gallons × MPG)`,
+  the old trend's figure minus reefer and DEF. A day whose trailing week the roll-up hasn't reached the end of is
+  withheld with a sentence (a clamped week would print an earlier week against that day). Decided: under a
+  state, location or network filter, MILES and COST PER MILE go with MPG (D-FSV5 named only MPG; both are built
+  on it) — `efficiency` and `trailingMpg` are null and the page shows `FUEL_REPORT_TRUCK_FIGURES_NOTE`; no
+  odometer is read. The wire types moved to `@silvicom/shared` (`reportDays.ts`) for the page. Measured, in
+  memory, 200 trucks: a full year (368 periods, 160k readings, 80k truck-days) 1.08 s, 90 days 0.29 s. Tests:
+  `fleetMpg.test.ts` (+6), `routes/report.test.ts` (+7), `fleetEfficiency.test.ts` (+2). Mutation: 14 mutants,
+  all killed after three fixture fixes (both ranges priced alike, every period starting on the earliest day,
+  no fuel on the day a trailing eight would wrongly include).

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  fuelCostPerMile,
   MIN_MEASURED_SHARE,
   MPG_PLAUSIBLE_MAX,
   PLAUSIBLE_FLEET_MPG,
@@ -280,5 +281,20 @@ describe("reportableMpg", () => {
     // The division is still there for explaining; it is not an answer.
     expect(reportableMpg({ mpg: 85.7, mpgUsable: false })).toBeNull();
     expect(reportableMpg({ mpg: null, mpgUsable: false })).toBeNull();
+  });
+});
+
+describe("fuelCostPerMile", () => {
+  it("prices the measured gallons at what the range paid: price per gallon ÷ MPG", () => {
+    // $3.90/gal at 6.50 MPG → $0.60 a mile. Spend ÷ miles over the measured trucks would say the
+    // same only if every truck had been measured, which is the case it must not depend on.
+    expect(fuelCostPerMile(3.9, { mpg: 6.5 })).toBe(0.6);
+    expect(fuelCostPerMile(3.8765, { mpg: 6.91 })).toBe(0.561);
+  });
+
+  it("has no figure whenever the MPG was withheld or there was no price", () => {
+    expect(fuelCostPerMile(3.9, { mpg: null })).toBeNull();
+    expect(fuelCostPerMile(null, { mpg: 6.5 })).toBeNull();
+    expect(fuelCostPerMile(3.9, { mpg: 0 })).toBeNull();
   });
 });

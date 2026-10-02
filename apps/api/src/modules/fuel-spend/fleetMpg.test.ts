@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { getFleetMpg, getFleetMpgSeries } from "./fleetMpg.js";
+import { getFleetMpg, getFleetMpgPeriods, getFleetMpgSeries } from "./fleetMpg.js";
 
 /**
  * The pairing between measured miles and the fuel that moved them (M3).
@@ -346,6 +346,62 @@ describe("getFleetMpgSeries", () => {
   it("scopes every tenant query to one organization", async () => {
     const rec = seed(WEEK_READINGS, WEEK_DAYS);
     await getFleetMpgSeries(rec.client, ORG, "2026-08-31", "2026-09-13", "week");
+    expectOrgScoped(rec, ORG, { exempt: ORG_LOOKUP });
+  });
+});
+
+/**
+ * FS2's batched reader. The Fuel Costs report asks for overlapping periods — the range, the previous
+ * range, a trailing week ending on every day — so the claims are: each answer is what `getFleetMpg`
+ * gives for that period alone, overlaps don't leak into each other, and the sources are read once.
+ */
+describe("getFleetMpgPeriods", () => {
+  // Neither the first period's start is the earliest nor, reversed, its end the latest — so a read
+  // bounded on the first period alone would show in one order or the other.
+  const PERIODS = [
+    { from: "2026-09-07", to: "2026-09-13" },
+    { from: "2026-08-31", to: "2026-09-13" },
+    { from: "2026-08-31", to: "2026-09-06" },
+  ];
+
+  it("answers each period exactly as getFleetMpg does alone, overlapping or not", async () => {
+    const batch = await getFleetMpgPeriods(seed(WEEK_READINGS, WEEK_DAYS).client, ORG, PERIODS);
+    expect(batch.map((p) => p.mpg)).toEqual([9.94, 6.63, 4.97]);
+    for (const [i, p] of PERIODS.entries()) {
+      const alone = await getFleetMpg(seed(WEEK_READINGS, WEEK_DAYS).client, ORG, p.from, p.to);
+      expect(batch[i]).toEqual(alone);
+    }
+  });
+
+  it.each([["as given", PERIODS], ["reversed", [...PERIODS].reverse()]])(
+    "reads the odometer staging and the gallons once, over the span of every period (%s)",
+    async (_, periods) => {
+      const rec = seed(WEEK_READINGS, WEEK_DAYS);
+      await getFleetMpgPeriods(rec.client, ORG, periods);
+      expect(rec.forTable("samsara_odometer_readings").length).toBe(1);
+      const reads = gallonReads(rec);
+      expect(reads.length).toBe(1);
+      const bound = (m: string) => reads[0]!.ops.find((o) => o.method === m && o.args[0] === "day")?.args[1];
+      expect([bound("gte"), bound("lte")]).toEqual(["2026-08-31", "2026-09-13"]);
+    },
+  );
+
+  it("passes the truck scope to the gallons read", async () => {
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    const [r] = await getFleetMpgPeriods(rec.client, ORG, PERIODS.slice(0, 1), ["v2"]);
+    expect(r!.gallons).toBe(0);
+    expect(gallonReads(rec)[0]!.ops.find((o) => o.method === "in")?.args).toEqual(["vehicle_id", ["v2"]]);
+  });
+
+  it("reads nothing when asked for no period", async () => {
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    expect(await getFleetMpgPeriods(rec.client, ORG, [])).toEqual([]);
+    expect(rec.forTable("samsara_odometer_readings").length + rec.forTable("fuel_spend_days").length).toBe(0);
+  });
+
+  it("scopes every tenant query to one organization", async () => {
+    const rec = seed(WEEK_READINGS, WEEK_DAYS);
+    await getFleetMpgPeriods(rec.client, ORG, PERIODS);
     expectOrgScoped(rec, ORG, { exempt: ORG_LOOKUP });
   });
 });

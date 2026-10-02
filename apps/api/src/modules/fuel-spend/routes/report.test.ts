@@ -15,7 +15,9 @@ import { closeTestServer } from "../../../testing/httpServer.js";
  *   • the previous range is the same length, ending the day before (D-FSV3);
  *   • every filter value is validated before a service-role query sees it, and a value that isn't
  *     recognised is refused rather than dropped into an unfiltered answer;
- *   • every read names the org (D-FC1).
+ *   • every read names the org (D-FC1);
+ *   • miles, MPG and cost per mile are composed beside the sums (FS2, D-FSV4/5) for a truck question
+ *     and refused for a station question — the MPG arithmetic itself is `fleetMpg.test.ts`'s.
  */
 
 const holder = vi.hoisted(() => ({ rec: null as SupabaseRecorder | null }));
@@ -24,6 +26,7 @@ vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => holder
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const V1 = "11111111-2222-4333-8444-555555555555";
 const S1 = "21111111-2222-4333-8444-555555555555";
+const V2 = "31111111-2222-4333-8444-555555555555";
 
 const env = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as NodeJS.ProcessEnv);
 const ADMIN: AuthContext = { userId: "u-admin", email: "a@x.test", orgId: ORG, role: "admin" };
@@ -31,19 +34,55 @@ const ADMIN: AuthContext = { userId: "u-admin", email: "a@x.test", orgId: ORG, r
 let server: Server;
 let baseUrl = "";
 
-const dayRow = (day: string, network: string, spend: number, tank = "tractor") => ({
-  day, network, tank, fills: "1", gallons: String(spend / 5), spend: String(spend),
+const dayRow = (day: string, network: string, spend: number, tank = "tractor", price = 5) => ({
+  day, network, tank, fills: "1", gallons: String(spend / price), spend: String(spend),
   retail_fills: "0", retail_gallons: "0", retail_spend: "0", retail: "0",
   contract_fills: "0", contract_gallons: "0", contract_spend: "0", contract: "0",
 });
 
+/** 800,000 m ≈ 497.1 miles a week for v1 — the week fixtures `fleetMpg.test.ts` proves its figures on. */
+const READINGS = [
+  { vehicle_id: V1, reading_at: "2026-08-30T23:50:00Z", meters: 663_000_000, source: "obd" },
+  { vehicle_id: V1, reading_at: "2026-09-06T23:50:00Z", meters: 663_800_000, source: "obd" },
+  // Inside the last week, so a week clamped to end 09/12 still has a closing reading to measure to.
+  { vehicle_id: V1, reading_at: "2026-09-12T23:50:00Z", meters: 664_500_000, source: "obd" },
+  { vehicle_id: V1, reading_at: "2026-09-13T23:50:00Z", meters: 664_600_000, source: "obd" },
+];
+/**
+ * 100 gal in 08/31–09/06 → 4.97 MPG; 50 gal in 09/07–09/13 → 9.94 MPG. V2's 10 gal on 09/06 has no
+ * odometer, so it only moves a measured share — and only of a period that reaches back to 09/06,
+ * which is what tells a trailing WEEK from a trailing eight days.
+ */
+const SPEND_DAYS = [
+  { day: "2026-09-02", vehicle_id: V1, gallons_tractor: 100 },
+  { day: "2026-09-06", vehicle_id: V2, gallons_tractor: 10 },
+  { day: "2026-09-09", vehicle_id: V1, gallons_tractor: 50 },
+];
+const bound = (q: { ops: { method: string; args: unknown[] }[] }, m: string, col: string) =>
+  q.ops.find((o) => o.method === m && o.args[0] === col)?.args[1] as string | undefined;
+
 // The CURRENT and PREVIOUS calls are told apart by their window, so a swap of the two would show.
-const seed = (brands: string[] | null = ["pilot", "flying_j", "one9"]) =>
+// The odometer and roll-up tables are FUNCTION fixtures: the recorder records filters and applies none.
+const seed = (brands: string[] | null = ["pilot", "flying_j", "one9"], fuelThrough: string | null = "2099-12-31") =>
   createSupabaseRecorder({
-    tables: { route_fuel_settings: brands == null ? [] : [{ org_id: ORG, preferred_brands: brands }] },
+    tables: {
+      route_fuel_settings: brands == null ? [] : [{ org_id: ORG, preferred_brands: brands }],
+      organizations: [{ id: ORG, operating_hours: { tz: "America/Chicago" } }],
+      samsara_odometer_readings: (q) =>
+        READINGS.filter((r) => r.reading_at >= (bound(q, "gte", "reading_at") ?? "") && r.reading_at <= (bound(q, "lte", "reading_at") ?? "~")),
+      fuel_spend_days: (q) => {
+        const lo = bound(q, "gte", "day");
+        const hi = bound(q, "lte", "day");
+        if (lo === undefined && hi === undefined) return fuelThrough == null ? [] : [{ day: fuelThrough }];
+        const scope = q.ops.find((o) => o.method === "in" && o.args[0] === "vehicle_id")?.args[1] as string[] | undefined;
+        return SPEND_DAYS.filter((d) => d.day >= lo! && d.day <= hi! && (scope === undefined || scope.includes(d.vehicle_id)));
+      },
+    },
     rpc: (fn, args) => {
       const a = args as { p_from: string };
       if (fn === "fuel_report_days") {
+        if (a.p_from === "2026-09-07") return [dayRow("2026-09-09", "in", 250)];
+        if (a.p_from === "2026-08-31") return [dayRow("2026-09-02", "in", 500, "tractor", 4)];
         return a.p_from === "2026-09-01"
           ? [dayRow("2026-09-01", "in", 500), dayRow("2026-09-02", "unknown", 200), dayRow("2026-09-02", "in", 50, "reefer")]
           : [dayRow("2026-08-10", "out", 300)];
@@ -140,7 +179,8 @@ describe("GET /api/fueling/report", () => {
   it("names the org on every read — RPC arguments and table filters alike", async () => {
     await get("/api/fueling/report?from=2026-09-01&to=2026-09-30");
     for (const c of holder.rec!.rpcs()) expect((c.args as { p_org: string }).p_org).toBe(ORG);
-    expectOrgScoped(holder.rec!, ORG);
+    // `organizations` is read by its primary key for the fleet's clock — there is no org_id to scope by.
+    expectOrgScoped(holder.rec!, ORG, { exempt: ["organizations"] });
   });
 
   it.each([
@@ -161,4 +201,60 @@ describe("GET /api/fueling/report", () => {
   it("accepts a full leap year", async () => {
     expect((await get("/api/fueling/report?from=2024-01-01&to=2024-12-31")).status).toBe(200);
   });
+
+  // ── FS2: the truck figures ─────────────────────────────────────────────────────────────────────
+  type Eff = { mpg: { mpg: number | null; from: string; to: string; partial: boolean }; costPerMile: number | null } | null;
+  type Trail = { day: string; mpg: number | null; measuredShare: number | null; reason: string | null }[] | null;
+  const week = async (extra = "") =>
+    (await (await get(`/api/fueling/report?from=2026-09-07&to=2026-09-13${extra}`)).json()) as {
+      current: { efficiency: Eff }; previous: { efficiency: Eff }; trailingMpg: Trail;
+    };
+
+  it("gives each range its measured MPG and cost per mile — the range's price per gallon over it", async () => {
+    const body = await week();
+    expect(body.current.efficiency!.mpg).toMatchObject({ from: "2026-09-07", to: "2026-09-13", mpg: 9.94 });
+    expect(body.previous.efficiency!.mpg).toMatchObject({ from: "2026-08-31", to: "2026-09-06", mpg: 4.97 });
+    // Each range at its OWN price: $5.00 a gallon now, $4.00 before, so a mile costs price ÷ MPG.
+    expect(body.current.efficiency!.costPerMile).toBe(0.503);
+    expect(body.previous.efficiency!.costPerMile).toBe(0.8048);
+  });
+
+  it("gives every day of the range its trailing week, and reads the odometer once for all of them", async () => {
+    const body = await week();
+    expect(body.trailingMpg!.map((t) => t.day)).toEqual(
+      ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13"],
+    );
+    // 09/13's week IS the range, so the two measurements must agree.
+    expect(body.trailingMpg!.at(-1)).toMatchObject({ mpg: 9.94, measuredShare: 1, reason: null });
+    expect(holder.rec!.forTable("samsara_odometer_readings")).toHaveLength(1);
+    const gallonReads = holder.rec!.forTable("fuel_spend_days").filter((q) => bound(q, "gte", "day") !== undefined);
+    expect(gallonReads.map((q) => [bound(q, "gte", "day"), bound(q, "lte", "day")])).toEqual([["2026-08-31", "2026-09-13"]]);
+  });
+
+  it("withholds a day whose week the fuel roll-up hasn't reached the end of, and says so", async () => {
+    holder.rec = seed(undefined, "2026-09-12");
+    const body = await week();
+    // The RANGE is answered, clamped and labelled partial (that is `getFleetMpg`'s rule); only the day
+    // row is withheld, because it would print an earlier week against 09/13.
+    expect(body.current.efficiency!.mpg).toMatchObject({ to: "2026-09-12", partial: true });
+    expect(body.current.efficiency!.mpg.mpg).not.toBeNull();
+    const last = body.trailingMpg!.at(-1)!;
+    expect(last.mpg).toBeNull();
+    expect(last.reason).toMatch(/roll-up reaches 2026-09-12/);
+  });
+
+  it("measures only the named trucks under a truck filter", async () => {
+    await week(`&vehicles=${V1}`);
+    const scoped = holder.rec!.forTable("fuel_spend_days").filter((q) => bound(q, "gte", "day") !== undefined);
+    expect(scoped[0]!.ops.find((o) => o.method === "in")?.args).toEqual(["vehicle_id", [V1]]);
+  });
+
+  it.each([["a state", "&states=TX"], ["a location", `&sites=${S1}`], ["a network", "&networks=out"]])(
+    "has no truck figures under %s filter, and reads no odometer for them",
+    async (_, q) => {
+      const body = await week(q);
+      expect([body.current.efficiency, body.previous.efficiency, body.trailingMpg]).toEqual([null, null, null]);
+      expect(holder.rec!.forTable("samsara_odometer_readings")).toHaveLength(0);
+    },
+  );
 });
