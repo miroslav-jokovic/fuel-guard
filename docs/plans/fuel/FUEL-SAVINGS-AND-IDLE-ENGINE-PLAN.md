@@ -761,3 +761,7 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `FuelCostDaysTable.test.ts` (3), `FuelBuyDisciplinePage.test.ts` (3, the old tab's assertions moved). Mutation:
   23 web mutants, all killed after adding three tests (Clear filters under a station filter alone, a selected
   state/location kept in its menu, paging reset).
+- **2026-10-02** — **FS2 DONE in code and served.** #1207 merged (271e46d); Railway serves 271e46d since 18:30Z,
+  schema 0406, `verify:live` ✓; `/fuel-buy-discipline` answers 200. Not yet looked at signed in on production
+  (the browser check used real September sums through a stub). Still owed before FS3 closes: the owner opens
+  `/fuel-invoices`, and the first real upload of db139445F.pdf (needs the owner's OK). Q-FSV13 awaits the owner.
