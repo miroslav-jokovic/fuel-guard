@@ -2299,6 +2299,13 @@ async function main() {
         `values ('${org}', 'TMS', 'rls-mv') returning org_id, company_id, movement_id) ` +
         `insert into mcleod_dispatch_stops (org_id, company_id, stop_id, movement_id) ` +
         `select org_id, company_id, 'rls-st', movement_id from m`,
+      // 0406: a run's lines must point at a run of the SAME org — a composite foreign key a
+      // placeholder uuid cannot satisfy — so the seed records a real run first.
+      fuel_recon_run_rows: (org) =>
+        `with r as (insert into fuel_recon_runs (org_id, source_kind, period_start, period_end, tol_gallons, ` +
+        `tol_amount_abs, tol_amount_pct, max_day_drift, matcher_version, summary) ` +
+        `values ('${org}', 'weekly_statement', '2026-08-17', '2026-08-23', 1, 1, 0.01, 1, 'rls', '{}'::jsonb) returning id, org_id) ` +
+        `insert into fuel_recon_run_rows (run_id, org_id, rows) select id, org_id, '[]'::jsonb from r`,
       // 0404: an hour row's buckets must add up to the whole hour and its start must sit ON the hour,
       // and a stop's parts must add up to its duration — CHECKs a classifier bug should trip, which a
       // placeholder timestamp and placeholder integers cannot satisfy. A real (all engine-off) hour

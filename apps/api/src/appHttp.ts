@@ -107,6 +107,11 @@ export function mountBodyParsers(app: Express): void {
   // A weekly Pilot statement is ~30k positioned words plus the source PDF (~370 KB → ~500 KB base64),
   // which the 1 MB default below rejects. Same exception, same reason, as the import report above.
   app.use("/api/fueling/statements", express.json({ limit: "25mb" }));
+  // The reconciliation of the SAME statement posts the same words, and was left on the 1 MB default:
+  // the seven real statements of 2026-07..09 decode to 0.92–1.01 MB of words, so the largest week sat
+  // 4% under the cap and a busier one would have been a bare 413. A monthly export's grid is larger
+  // still. Measured 2026-10-02 (FS3).
+  app.use("/api/fueling/recon-runs", express.json({ limit: "25mb" }));
   // The adopted signature and initials (D-AW15, C3s1) carry their PNG in the body, and an uploaded mark
   // can be several hundred KB before base64 — `SIGNATURE_ADOPTION_MAX_BYTES` is the ceiling the route
   // validates, so this parser only has to let a body of that size reach it.

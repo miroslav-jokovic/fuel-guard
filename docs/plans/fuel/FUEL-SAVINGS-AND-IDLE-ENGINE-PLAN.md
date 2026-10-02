@@ -274,6 +274,22 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     than the window) is stored from the first instant seen, with `start_observed = false`, so its duration
     reads as a lower bound. A stop in progress that IS stored is continued from its row: the collector
     re-fetches the engine and counter history from its `started_at`, both sparse while parked.
+- **Q-FSV9..11 — decided in FS3 (migration 0406), same delegation:**
+  - **Q-FSV9 — a saved check keeps its LINES in a new evidence table, `fuel_recon_run_rows`.** Measured
+    2026-10-02: `fuel_recon_runs` stores `summary` only; the 3 production runs (08/24, 08/31, 09/07 weeks)
+    have no line anywhere. Rejected: reading `fuel_exceptions` (mutable working state, no clean rows, and
+    its `run_id` is re-pointed by the latest run over the same weeks, 0253/0320); re-running the matcher
+    on open (our fills move after a run, so it would be a new finding wearing the old date). One jsonb row
+    per run: 611 bytes per row, ~0.28 MB per statement, measured on the seven real PDFs. Append-only,
+    undeletable, `RETENTION_FORBIDDEN`, composite FK so lines and run share one org. The 3 old runs open
+    with their totals and "lines weren't kept for this check".
+  - **Q-FSV10 — a re-check of the same invoice REPLACES the earlier one in the list.** Nothing ever set
+    `superseded_by` although the list hid superseded runs, so a re-upload listed one bill twice. Weekly:
+    same invoice number. Export: only the same bytes (sha), since two exports over overlapping months are
+    different evidence.
+  - **Q-FSV11 — `/api/fueling/recon-runs` gets the 25 MB body parser `/statements` already had.** The seven
+    statements decode to 0.92–1.01 MB of words; the general cap is 1 MB, so the largest week was 4% under
+    a bare 413, and any monthly export over it.
 
 ## 5. Words (D-FSV7)
 
@@ -662,3 +678,16 @@ All questions are answered; nothing in the queue is blocked on the owner.
   $13,737.52; reefer in 53 $6,331.16. Paid vs Pilot quote, tractor: **+$2,192.47** over 1,784 quoted fills,
   which matches §1.3's $2,192 independently. `fuel_report_sites`: 561 places, 3 unresolved-state rows, 1,955 fills
   (= every fill above). New functions keep their SET; `fuel_business_date` still has none.
+- **2026-10-02** — FS1 served live: Railway 9ded697, schema 0405, `/api/fueling/report` 401 unauthenticated.
+  IE2's first NIGHTLY `idle_engine` check is due after 10/03 05:00 local and is not yet run; it goes in the
+  next FS3 commit.
+- **2026-10-02** — **FS3 merge 1 of 2 (migration 0406 + API).** `fuel_recon_run_rows` (Q-FSV9) written by
+  `runFuelReconciliation` beside each run, card numbers cut to six digits on both sides before writing;
+  a re-check supersedes the earlier run (Q-FSV10); `GET /api/fueling/recon-runs` paged (`limit` ≤ 100,
+  default 25) with `total`, newest period first; `GET /api/fueling/recon-runs/:id` reads one check back as
+  written, superseded or not (`lines: null` = not kept, never `[]`); recon-runs body cap 25 MB (Q-FSV11).
+  Tests: `fuel-recon-run-rows.test.mjs` (17), `fuelReconRun.test.ts` (+6), `routes/reconRuns.test.ts` (7).
+  Mutation: 8 SQL + 21 API mutants, all killed after one survivor (an already-superseded run was never
+  in the fixture). Real-PDF probe, local and read-only: all seven statements tie out; today's ingest
+  writes db139445F.pdf (invoice 800157197) whole into PGlite, so production's 0 saved statements were
+  not the parser or the schema; the first real upload (merge 2) is the measurement.

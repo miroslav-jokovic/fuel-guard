@@ -197,6 +197,9 @@
     "apps/api/src/modules/posted-prices/postedPriceIngest.ts",
     "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
   ],
+  "fuel_recon_run_rows": [
+    "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
+  ],
   "fuel_recon_runs": [
     "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
   ],
