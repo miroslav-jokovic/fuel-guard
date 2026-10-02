@@ -578,3 +578,16 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `engineStates`, and an hour of fleet GPS is 40k points / 7 pages / 20 s. Matrix `idle-engine-tables.test.mjs`
   (26); 10/10 mutants killed. The 60-day retention rule lands with the collector; until then the lifecycle
   block says `null`, which is true. Next: the shared classifier, then the collector and its two jobs.
+- **2026-10-02** — 0404 merged (#1198, 49fcf16). **IE2, second merge (no migration): the pure classifier**,
+  `packages/shared/src/idleEngine/`. One truck's engine flips, GPS fixes and counters go in; hour rows and stop
+  rows in 0404's shape come out. Engine running means `On` or `Idle` (Samsara's split between them is its own
+  motion call, which R3 retires). Motion is ours (D-IE1): at or above 3 mph is moving, and a change counts only
+  after 60 s, dated from where it began. A fix describes the truck for at most 10 minutes. An engine that is OFF
+  means a stopped truck even when the gateway goes quiet, so a quiet park is not a gap. Two stopped stretches
+  on either side of a GPS gap are one park when the truck is within 400 m of where it was. Counters are
+  interpolated along RUNNING time, not the clock, so a night with the engine off books its burn to the minutes
+  it ran, and an engine off since the last reading reads 0, not null. A counter that goes backwards is null.
+  Buckets are rounded by largest remainder to 3,600 exactly. Tests: `classify.test.ts` (33). Mutation: 19 of 20
+  killed. The 20th was a GPS filter that the motion rebuild already did, so it is deleted. Two fixtures were
+  added after mutation showed gaps: an unknown→running flip is not a start, and four half-second bucket edges
+  must still round to 3,600. Next: the collector and its hourly and nightly jobs, with the 60-day retention rule.
