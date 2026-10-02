@@ -97,8 +97,10 @@ export const RECON_STATUS_LABELS: Record<ReconStatus, string> = {
   amount_unknown: "Amount not recorded",
   date_drift: "Matched, dated a day apart",
   card_drift: "Matched, different card",
-  missing_in_system: "Billed, never recorded",
-  missing_on_report: "Recorded, never billed",
+  // D-FSV7 (FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN §5): the reader is told whose paper the line is on, in
+  // plain words, rather than handed two passive participles to tell apart.
+  missing_in_system: "On Pilot's bill, not in our records",
+  missing_on_report: "In our records, not on Pilot's bill",
   other: "Needs a look",
 };
 

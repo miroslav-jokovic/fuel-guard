@@ -106,6 +106,8 @@ const EXPECTED: Record<string, string> = {
   applicants: "applicant",
   cards: "card",
   changes: "change",
+  // FS3: Pilot invoices — one recorded invoice check per row.
+  checks: "check",
   contractors: "contractor",
   declines: "decline",
   dispatchers: "dispatcher",
@@ -123,6 +125,8 @@ const EXPECTED: Record<string, string> = {
   // I10's label screen counts what the RUN will produce, not what is ticked: "selected" is an
   // adjective and has no singular a person would say, which is the smell this table exists to catch.
   labels: "label",
+  // FS3: a saved check's bill lines, on the invoice check page.
+  lines: "line",
   loads: "load",
   parts: "part",
   plans: "plan",
@@ -130,7 +134,6 @@ const EXPECTED: Record<string, string> = {
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.
   results: "result",
-  rows: "row",
   "segments loaded": "segment loaded",
   shelves: "shelf",
   statements: "statement",

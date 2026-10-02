@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, AppIcon, type TabItem } from "@silvicom/ui";
-import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
+import { computed } from "vue";
+import { RouterLink } from "vue-router";
+import { AppTabs, AppCard as BaseCard, AppButton as BaseButton, type TabItem } from "@silvicom/ui";
 import { type SpendLine } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import ReconcileDrawer from "@/features/reconcile/ReconcileDrawer.vue";
 import StatementsCard from "@/features/reconcile/StatementsCard.vue";
 import DiscountCaptureCard from "@/features/reconcile/DiscountCaptureCard.vue";
 import SpendOverviewTab from "@/features/reconcile/SpendOverviewTab.vue";
@@ -22,6 +21,7 @@ import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useFuelPolicy } from "@/composables/useRouteFuelSettings";
 import { usd, pct1 } from "@/features/reconcile/format";
+import { useOpens } from "@/composables/useOpens";
 
 /**
  * Fuel spend — what the fuel bill is, why it moved, and where the policy is not being followed.
@@ -32,9 +32,9 @@ import { usd, pct1 } from "@/features/reconcile/format";
  * · **Reconcile a file** is an upload, and every other upload in this plan is a drawer (D-FUI3). It
  *   is also the tab that had to be excepted from the rest of the page three separate times — the
  *   filter bar, the freshness line and the coverage line were all suppressed on it, because a period
- *   control means nothing while you are reading a file. Three special cases for one tab is the page
- *   saying it is not a view of the same data. It opens from Statements now, next to the empty state
- *   that asks for it.
+ *   control means nothing while you are reading a file. ⚠ Since FS3 (D-FSV8) it has left this page
+ *   entirely: it is "Check an invoice" on Pilot invoices (`/fuel-invoices`), where each check is kept
+ *   and reopened. The Statements empty state links there.
  * · **Discount capture** folds into Spend & trend as a KPI that discloses the fills behind it. "Were
  *   we billed what Pilot quoted" is a question about the fuel bill, and it belongs beside the bill
  *   rather than behind a tab somebody has to know to visit.
@@ -68,6 +68,8 @@ import { usd, pct1 } from "@/features/reconcile/format";
  */
 
 const f = useSpendFilters();
+// The Statements empty state links to Pilot invoices only when the guard would open it (SP5).
+const opens = useOpens();
 /**
  * Falls back to the trend for anything this page cannot show — and after C5 that includes the FIVE
  * retired `?tab=` values. A link to `?tab=discount` or `?tab=avoid_brand` sent last week lands on
@@ -125,7 +127,7 @@ const buyFills = computed(() => buyFillData.value ?? []);
 // was never rendered — pinned to "all" forever, with two unreachable branches behind it — so the
 // statement tab showed every week ever kept while the filter bar above it advertised a date range.
 // One period control, and it is the one in the URL. See `useStatementsQuery`.
-const { data: statements, isLoading: stmtLoading, isError: stmtError, refetch } = useStatementsQuery(f.range);
+const { data: statements, isLoading: stmtLoading, isError: stmtError } = useStatementsQuery(f.range);
 const scopedStatements = computed(() => statements.value ?? []);
 const { data: stmtLineData, isLoading: stmtLinesLoading } = useStatementLinesQuery(
   computed(() => scopedStatements.value.map((s) => s.id)),
@@ -148,9 +150,6 @@ const tabs = computed<TabItem[]>(() => [
 
 // A link to a tab this page no longer has must not land on a blank page — see `tab` above.
 const visibleTabs = computed(() => new Set(tabs.value.map((t) => t.value)));
-
-/** The reconcile drawer, opened from Statements. */
-const reconcileOpen = ref(false);
 
 /**
  * X8 — the count is the count of what THIS tab is showing.
@@ -306,16 +305,11 @@ const coverageLine = computed(() => {
 
     <!-- ── statement-fed views ──────────────────────────────────────────────────────────────── -->
     <template v-else>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <p class="text-sm text-ink-muted">
-          {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }} on file
-          <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
-          <template v-if="stmtLinesLoading"> · loading…</template>
-        </p>
-        <BaseButton variant="secondary" @click="reconcileOpen = true">
-          <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Reconcile a file
-        </BaseButton>
-      </div>
+      <p class="text-sm text-ink-muted">
+        {{ scopedStatements.length }} statement{{ scopedStatements.length === 1 ? "" : "s" }} on file
+        <template v-if="statementLines.length">· {{ statementLines.length.toLocaleString() }} lines</template>
+        <template v-if="stmtLinesLoading"> · loading…</template>
+      </p>
 
       <p v-if="stmtError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         Couldn't load your statements.
@@ -325,8 +319,11 @@ const coverageLine = computed(() => {
         <h3 class="text-sm font-semibold text-ink">No statements for {{ f.from.value }} → {{ f.to.value }}</h3>
         <p class="mt-1 text-sm text-ink-muted">
           This view needs the vendor's weekly statement, because it is the only source that prints the POSTED price
-          beside what we paid — the EFS feed records what we paid and never what was on the sign. Use
-          <strong>Reconcile a file</strong> above and it stays here. Every other view reads the feed and works without it.
+          beside what we paid — the EFS feed records what we paid and never what was on the sign. A weekly invoice
+          checked on
+          <RouterLink v-if="opens('/fuel-invoices')" to="/fuel-invoices" class="text-link hover:text-link-hover">Pilot invoices</RouterLink>
+          <template v-else>Pilot invoices</template>
+          is kept and shows here. Every other view reads the feed and works without it.
         </p>
       </BaseCard>
 
@@ -341,7 +338,5 @@ const coverageLine = computed(() => {
         />
       </template>
     </template>
-
-    <ReconcileDrawer :open="reconcileOpen" @close="reconcileOpen = false" @saved="refetch()" />
   </div>
 </template>

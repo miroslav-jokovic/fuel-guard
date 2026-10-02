@@ -268,6 +268,18 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/ifta",
   },
   {
+    "name": "fuel-invoices",
+    "params": {},
+    "url": "/fuel-invoices",
+  },
+  {
+    "name": "fuel-invoice-check",
+    "params": {
+      "id": "run_1",
+    },
+    "url": "/fuel-invoices/run_1",
+  },
+  {
     "name": "fleet-report",
     "params": {},
     "url": "/fleet-report",
@@ -777,6 +789,25 @@ exports[`the route table survives being split by area > route table 1`] = `
     "name": "",
     "path": "/fuel-exceptions",
     "redirect": "/fuel-spend/exceptions",
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Pilot invoices",
+    },
+    "name": "fuel-invoices",
+    "path": "/fuel-invoices",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/fuel-invoices",
+      "requiresAuth": true,
+      "title": "Invoice check",
+    },
+    "name": "fuel-invoice-check",
+    "path": "/fuel-invoices/:id",
+    "redirect": null,
   },
   {
     "meta": {

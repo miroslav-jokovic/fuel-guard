@@ -36,6 +36,27 @@ export const fuelRoutes: RouteRecordRaw[] = [
   },
   {
     /**
+     * Pilot invoices (FS3, D-FSV8). Checking a vendor bill was a drawer on Fuel Spend's Statements tab,
+     * and what it found lived in that drawer until it closed. It is its own page now: the checks the
+     * server recorded, newest week first, each one opening on what was found.
+     *
+     * A read surface under `section("fuel")` in the catalogue, like Findings and IFTA; the upload button
+     * carries `manage`, as the API's POST routes do. `/fuel-reconciliation` keeps redirecting to
+     * `/fuel-spend`: links to it carry the spend page's `?tab=&from=&to=` and were never links to a check.
+     */
+    path: "/fuel-invoices",
+    name: "fuel-invoices",
+    component: () => import("@/pages/FuelInvoicesPage.vue"),
+    meta: { requiresAuth: true, title: "Pilot invoices" },
+  },
+  {
+    path: "/fuel-invoices/:id",
+    name: "fuel-invoice-check",
+    component: () => import("@/pages/FuelInvoiceCheckPage.vue"),
+    meta: { requiresAuth: true, title: "Invoice check", parent: "/fuel-invoices" },
+  },
+  {
+    /**
      * The Findings inbox (C7b). Was `/fuel-spend/exceptions`, which is now a redirect below.
      *
      * It moved out from under `/fuel-spend` because it stopped being a spend surface: since C7b it

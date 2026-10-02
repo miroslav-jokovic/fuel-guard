@@ -691,3 +691,20 @@ All questions are answered; nothing in the queue is blocked on the owner.
   in the fixture). Real-PDF probe, local and read-only: all seven statements tie out; today's ingest
   writes db139445F.pdf (invoice 800157197) whole into PGlite, so production's 0 saved statements were
   not the parser or the schema; the first real upload (merge 2) is the measurement.
+- **2026-10-02** — **FS3 merge 2 of 2 (the page).** "Pilot invoices" at `/fuel-invoices` (catalogue `fuel.invoices`,
+  `section("fuel")` like Findings and IFTA, so a controller reads it; "Check an invoice" needs `manage`, as the
+  POST routes do), and one saved check at `/fuel-invoices/:id` (`fuel.invoices.detail`). Decided from call sites:
+  a NEW route rather than reusing `/fuel-reconciliation`, which keeps redirecting to `/fuel-spend` because its
+  links carry the spend page's `?tab=`. The list is the server's pages (25, `total`); a row opens the check read
+  back from the API; an upload lands on the check it recorded, and the upload drawer renders no result of its
+  own (W5). Reconcile left `/fuel-spend`; its Statements empty state links here (through `useOpens`).
+  `RECON_STATUS_LABELS` carry §5's words, so every surface reading them changed at once; the Findings inbox's
+  stored summaries ("Billed, never recorded") are row text written by `reconFindings` and still say the old words.
+  Looked at in a browser (build + preview, stubbed API with a statement parsed from db139445F.pdf): the
+  bucket tiles were AppButtons that the button's pill shape squeezed into one overlapping row — inherited from
+  the drawer and invisible to every test — now `StatCard` toggles; the list and line table were wider than a
+  1440-px screen until the invoice number moved under its week, the bill's line count into "Matched lines", the
+  card under the unit, and Detail alone wraps. Tests: `InvoiceUpload` (6), `ReconResultView` (7),
+  `FuelInvoicesPage` (6), `FuelInvoiceCheckPage` (4), `FuelReconciliationPage` (rewritten 2). Mutation: 28 web
+  mutants killed after three survivors, each a test that could not tell the difference (money card read from
+  the whole page, drawer never opened before checking it closed, every URL the same id).

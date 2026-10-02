@@ -136,9 +136,6 @@ vi.mock("@/features/reconcile/useSpendFreshness", () => ({
 vi.mock("@/features/reconcile/SpendTrendTab.vue", () => ({
   default: { name: "SpendTrendTab", template: "<div>SPEND TREND TAB</div>" },
 }));
-vi.mock("@/features/reconcile/ReconcileTab.vue", () => ({
-  default: { name: "ReconcileTab", template: "<div>RECONCILE TAB</div>" },
-}));
 
 // ⚠ `analyzePolicyExceptions` used to be spied here, because the page called it for its three policy
 // tabs. FUEL-C5 removed those tabs and moved the call — with the titles, the blurbs and the
@@ -164,6 +161,12 @@ beforeEach(() => {
     }),
   });
 });
+
+/** What the route guard answers for `/fuel-invoices`; the page asks it before linking there (SP5). */
+const opensInvoices = vi.hoisted(() => ({ value: true }));
+vi.mock("@/composables/useOpens", () => ({
+  useOpens: () => (path: string) => (path === "/fuel-invoices" ? opensInvoices.value : true),
+}));
 
 async function mountPage(query = "") {
   const router: Router = createRouter({
@@ -298,33 +301,34 @@ describe("FuelReconciliationPage", () => {
  * FUEL-C5 — the two capabilities that stopped being tabs without stopping being capabilities.
  */
 describe("FuelReconciliationPage — reconcile is a drawer, discount is a KPI", () => {
-  it("offers the file reader from Statements, where its absence is felt", async () => {
-    const { w } = await mountPage("?tab=statements");
-    const open = w.findAll("button").find((b) => b.text().trim() === "Reconcile a file");
-    expect(open, "no Reconcile action on the Statements tab").toBeTruthy();
-
-    // The empty state above it points at the button by name, so the one sentence that says this view
-    // needs a statement also says how to supply one.
-    expect(w.text()).toContain("Use Reconcile a file above");
-
-    // ⚠ Asserted on the drawer COMPONENT rather than on `w.text()`: Headless UI's `Dialog` teleports
-    // its panel to `document.body`, so the open drawer's markup is outside the wrapper's subtree
-    // entirely and a text assertion would report "closed" for a drawer that is plainly open.
-    const drawer = w.findComponent({ name: "ReconcileDrawer" });
-    expect(drawer.exists()).toBe(true);
-    expect(drawer.props("open")).toBe(false);
-    await open!.trigger("click");
-    await flushPromises();
-    expect(w.findComponent({ name: "ReconcileDrawer" }).props("open")).toBe(true);
-    // …and it holds the reader itself, not an empty panel.
-    expect(document.body.textContent).toContain("RECONCILE TAB");
+  /**
+   * FS3 (D-FSV8): checking an invoice LEFT this page for Pilot invoices, where each check is kept and
+   * reopened. Nothing here may still offer it — two doors to one upload is how one of them ends up
+   * keeping its result in a ref again — and the Statements empty state, which is where its absence is
+   * felt, sends the reader to the page that has it.
+   */
+  it("no longer checks an invoice here, on any tab", async () => {
+    for (const tab of TABS) {
+      const { w } = await mountPage(`?tab=${tab}`);
+      expect(w.findAll("button").find((b) => /reconcile|check an invoice/i.test(b.text())), tab).toBeFalsy();
+      expect(w.findComponent({ name: "CheckInvoiceDrawer" }).exists(), tab).toBe(false);
+    }
   });
 
-  it("does not offer it from the other two tabs — it belongs to the statement, not to the page", async () => {
-    for (const tab of ["spend", "buy_discipline"]) {
-      const { w } = await mountPage(`?tab=${tab}`);
-      expect(w.findAll("button").find((b) => b.text().trim() === "Reconcile a file"), tab).toBeFalsy();
-    }
+  it("points the Statements empty state at Pilot invoices — a link only where the guard would open it", async () => {
+    opensInvoices.value = true;
+    const { w } = await mountPage("?tab=statements");
+    expect(w.text()).toContain("Pilot invoices");
+    expect(w.text()).not.toContain("Reconcile a file");
+    const linkTo = (x: typeof w) => x.findAllComponents({ name: "RouterLink" }).find((l) => l.props("to") === "/fuel-invoices");
+    expect(linkTo(w), "no link to Pilot invoices").toBeTruthy();
+
+    // A caller whose sidebar lacks the page is told its name, not handed a link that bounces home.
+    opensInvoices.value = false;
+    const denied = (await mountPage("?tab=statements")).w;
+    expect(denied.text()).toContain("Pilot invoices");
+    expect(linkTo(denied)).toBeFalsy();
+    opensInvoices.value = true;
   });
 
   /**

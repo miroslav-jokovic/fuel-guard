@@ -104,6 +104,10 @@ export const SURFACES: readonly Surface[] = [
   // this entry used to carry at the route. Rows written against the retired key are inert (0296).
   // D-FX8: five of its seven tabs are spend analytics; reconciliation is one of them.
   { key: "fuel.spend", label: "Fuel Spend", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
+  // FS3, D-FSV8: the saved invoice checks, out of the spend page. A READ surface, like Findings and
+  // IFTA — a controller confirming last month's bill was checked needs no permission to upload one; the
+  // "Check an invoice" button carries the `manage` check, as the API's POST routes do.
+  { key: "fuel.invoices", label: "Pilot invoices", path: "/fuel-invoices", group: "fuel", gate: section("fuel") },
   // The ledger is a READ surface for anyone who can see fuel — a controller checking what was
   // recovered does not need the permission to upload a statement. Moving a finding is gated at the
   // route, not here.
@@ -252,6 +256,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "safety.driver-qualification.detail", label: "Driver Qualification", path: "/compliance/:id", group: "safety", gate: section("roster"), parent: "safety.driver-qualification" },
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
+  { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   /**
    * The board's two other tabs (D-HUI8, B4). Non-nav, parented on the board, keys unchanged.
