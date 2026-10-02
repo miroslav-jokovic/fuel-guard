@@ -7,7 +7,6 @@ import {
   APU_TYPES,
   APU_TYPE_LABELS,
   deriveHasApu,
-  suggestIdleEquipment,
   isStatusFromTms,
   type Vehicle,
   type VehicleInput,
@@ -63,20 +62,10 @@ const statusFromTms = computed(() =>
     : false,
 );
 
-// In-form idle-equipment suggestion from make/model/year (admin confirms with one click; never auto-applied).
-const idleSuggestion = computed(() =>
-  suggestIdleEquipment({
-    make: form.make || null,
-    model: form.model || null,
-    year: form.year ? Number(form.year) : null,
-  }),
-);
-const showOptimizedSuggestion = computed(
-  () => idleSuggestion.value?.hasOptimizedIdle === true && form.has_optimized_idle !== "true",
-);
-function applyOptimizedSuggestion() {
-  form.has_optimized_idle = "true";
-}
+// There was an in-form "Suggested: Optimized idle" chip for every Cascadia from 2017 (`suggestIdleEquipment`).
+// It contradicted the owner's ruling R7 / Q-IE1 (2026-10-01: units 500–635 have no Optimized Idle, and it stays
+// only where already entered on a battery-APU truck), so it offered most of the fleet the wrong answer in one
+// click. Removed 2026-10-02 at the owner's word; a truck's equipment comes from the declaration (IE1, 0403).
 
 function onSubmit() {
   // has_apu (engine-off capable) is DERIVED from the equipment type so a truck can't be "has APU" with no
@@ -203,15 +192,6 @@ function onSubmit() {
             ]"
           />
         </FormField>
-        <BaseButton
-          v-if="showOptimizedSuggestion"
-          type="button"
-          class="mt-1 rounded-control bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 hover:bg-brand-100"
-          :title="idleSuggestion?.reason"
-          @click="applyOptimizedSuggestion"
-        >
-          Suggested: {{ idleSuggestion?.label }} — apply
-        </BaseButton>
       </div>
     </div>
 

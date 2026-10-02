@@ -304,12 +304,13 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     `SpendTrendTab`, `OperatingBridgeCard`, `SpendBridgeCard`, `IdleCostCard` (IE3's savings strip replaces it),
     `SpendOverviewTab`, `AncillaryCard`, `StatementsCard`, `useStatements`, `useSpendPeriods`. Production has
     never held a saved statement, so the Statements tab had never shown a row. The PDF export stays.
-  - **Q-FSV13 — PROPOSED, not done: the Findings inbox's stored summaries keep the pre-§5 words** ("Billed, never
-    recorded"). They are row text written by `reconFindings` into `fuel_exceptions`. Two ways out: (a) rewrite the
-    stored rows (a data migration over working state, and every future wording change repeats it); (b) render
-    the headline from `kind` + the stored figures at read time and keep the stored text as written.
-    Recommendation (b): §5 is a display rule, and display belongs to the reader. Waiting on the owner because it
-    changes what an existing row says.
+  - **Q-FSV13 — DECIDED (owner, 2026-10-02: "proceed as recommended") and corrected on reading the code.** The
+    Findings inbox stores NO headline: `findingFromException` renders it from `kind` through
+    `FUEL_EXCEPTION_KIND_LABELS` on every read, so option (b) was already the architecture and FS3's note
+    ("stored summaries") was wrong. The fix is the label map: the four reconciliation kinds now READ
+    `RECON_STATUS_LABELS` (the invoice check's own words) rather than restating them, contract_variance is
+    "Paid above Pilot's quote" and off_network_premium "Out of network" (§5). Every existing row, the findings
+    CSV and the dispute packet change at once; no data is touched.
 
 ## 5. Words (D-FSV7)
 
@@ -765,3 +766,8 @@ All questions are answered; nothing in the queue is blocked on the owner.
   schema 0406, `verify:live` ✓; `/fuel-buy-discipline` answers 200. Not yet looked at signed in on production
   (the browser check used real September sums through a stub). Still owed before FS3 closes: the owner opens
   `/fuel-invoices`, and the first real upload of db139445F.pdf (needs the owner's OK). Q-FSV13 awaits the owner.
+- **2026-10-02** — **Q-FSV13 done + `suggestIdleEquipment` removed** (owner: "proceed as recommended"). Finding headlines
+  take §5's words from `RECON_STATUS_LABELS` (§4 Q-FSV13; nothing stored changes). The Vehicle form's one-click
+  "Suggested: Optimized idle" for every Cascadia from 2017 contradicted R7/Q-IE1 and is gone with its shared
+  function, which had no other rule or caller; a truck's equipment comes from the IE1 declaration. Tests:
+  `exceptions.test.ts` (+2), `VehicleForm.test.ts` (+1, fails on the old form). Mutation: 4 label mutants killed.

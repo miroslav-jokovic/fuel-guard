@@ -66,7 +66,7 @@ describe("a ledger exception read as a finding", () => {
   });
 
   it("labels itself from the kind vocabulary rather than printing the token", () => {
-    expect(exception({ kind: "recon_missing_in_system" }).summary).toBe("Billed, never recorded");
+    expect(exception({ kind: "recon_missing_in_system" }).summary).toBe("On Pilot's bill, not in our records");
   });
 });
 
