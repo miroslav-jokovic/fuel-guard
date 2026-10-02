@@ -8,7 +8,7 @@ import { snapshotSettledWeeks } from "../performance/index.js";
 import { syncIdleFoundation } from "../idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup, repairIdleEventTwins } from "../idle/index.js";
-import { syncIdleDutyEvidence } from "../idle/index.js";
+import { syncIdleDutyEvidence, syncIdleEngine } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 // The machinery every tier shares — which orgs, which slot, which loop. Moved out when LM4's tier
 // pushed this file past the 500-line budget; see `lib/tierRunner.ts` for why it is a split and not a
@@ -342,6 +342,20 @@ function startOdometerTier(env: Env): void {
 }
 
 /**
+ * Tier 3d — THE IDLE ENGINE (IE2, D-IE8). Its own tier and kind: the grain is an hour, and the run
+ * picks its own window (trailing three hours, or the nightly two-day recompute when due), so one
+ * (org, kind) slot keeps the two windows from ever being written at once. The first tick waits out
+ * the deploy window for the reason tier 3c gives.
+ */
+function startIdleEngineTier(env: Env): void {
+  startTier(env, "idle-engine", 900_000, env.IDLE_ENGINE_SYNC_MINUTES * 60_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "idle_engine", async () => ({ ...(await syncIdleEngine(admin, env, orgId)) }));
+    }
+  });
+}
+
+/**
  * Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
  * (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
  * the run + its per-table delete counts are visible on Data & Sync.
@@ -434,6 +448,7 @@ export function startSamsaraScheduler(env: Env): void {
   startPerformanceTier(env);
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
   if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
+  if (env.IDLE_ENGINE_SYNC_MINUTES > 0) startIdleEngineTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   if (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0) startPositionsTier(env);
   startRetentionTier(env);

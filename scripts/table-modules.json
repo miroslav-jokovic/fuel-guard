@@ -1041,10 +1041,10 @@
       "layer": "derived",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 60,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "IE2 (0404): one row per active truck per UTC hour, the five D-IE2 buckets and the counter deltas; ~185 x 24 = 4,440/day. D-IE8 keeps 60 days; the timeSlice rule lands WITH its writer (the collector merge), so until then no rule is in force and this says null. A plain table, not pg_partman: Q-IE8 in FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md (it would be the first partitioned table, which D-LIFE10 and Q9 gate)."
+        "why": "IE2 (0404): one row per active truck per UTC hour, the five D-IE2 buckets and the counter deltas; ~185 x 24 = 4,440/day. D-IE8 keeps 60 days: the timeSlice rule in RETENTION_RULES landed with the collector (idleEngineSync.ts). A plain table, not pg_partman: Q-IE8 in FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md (it would be the first partitioned table, which D-LIFE10 and Q9 gate)."
       }
     },
     "idle_engine_stops": {

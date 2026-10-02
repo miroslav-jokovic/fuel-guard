@@ -115,6 +115,11 @@ const EnvSchema = z.object({
   // (ODOMETER_SOURCE_WINDOW_DAYS), so a skipped tick is repaired by the next one rather than leaving
   // a hole a fleet denominator would silently absorb. 0 disables the tier outright.
   SAMSARA_ODOMETER_SYNC_HOURS: z.coerce.number().min(0).default(24),
+  // The idle engine's collector (IE2, kind `idle_engine`): the trailing three hours every hour, and
+  // the previous two days once a night from inside the same run. 0 disables it outright — it runs in
+  // PARALLEL with today's idle numbers and nothing reads it yet, so turning it off loses nothing a
+  // later nightly run cannot rebuild for the last two days.
+  IDLE_ENGINE_SYNC_MINUTES: z.coerce.number().min(0).default(60),
   // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
   // Set to "false" to disable.
   NIGHTLY_RECONCILE_ENABLED: z

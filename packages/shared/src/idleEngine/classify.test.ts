@@ -209,6 +209,11 @@ describe("classifyIdleEngine — parks across gaps and windows (Q-IE10)", () => 
     expect(stops.map((s) => [s.startedAtMs, s.endedAtMs])).toEqual([[at(-5), at(10)]]);
   });
 
+  it("a park that begins after the window's end is left to the next run", () => {
+    const { stops } = run({ dataEndMs: at(90), gps: [...fixes(-15, 62, 60), ...fixes(62, 90, 0)] });
+    expect(stops).toEqual([]);
+  });
+
   it("a park still parked at the data's end is open", () => {
     const { stops } = run({ gps: [...fixes(-15, 20, 60), ...fixes(20, 70, 0)] });
     expect(stops[0]).toMatchObject({ startedAtMs: at(20), endedAtMs: null, durationSec: 50 * 60 });
@@ -245,6 +250,14 @@ describe("counters (IE2a) — interpolated along running time", () => {
     const { hours, stops } = run({ engineSeed: false, gps: fixes(-15, 70, 0), fuelMl: [{ t: at(-30), value: 5_000 }] });
     expect(hours[0]!.fuelMl).toBe(0);
     expect(stops[0]!.fuelMl).toBe(0);
+  });
+
+  it("an hour the engine was off throughout costs 0 even with no reading anywhere; an unknown engine's is null", () => {
+    expect(run({ engineSeed: false, gps: fixes(-15, 70, 0) }).hours[0]!.fuelMl).toBe(0);
+    expect(run({ engineSeed: null, gps: fixes(-15, 70, 0) }).hours[0]!.fuelMl).toBeNull();
+    // shut down mid-hour, last reading before the shutdown, none after: that hour is unknowable
+    const shut = run({ engine: [{ t: at(30), on: false }], gps: fixes(-15, 70, 0), fuelMl: [{ t: at(29), value: 7_000 }] });
+    expect(shut.hours[0]!.fuelMl).toBeNull();
   });
 
   it("a counter that goes backwards (a swapped gateway) is null, not negative fuel", () => {

@@ -24,6 +24,7 @@ export { syncIdleFoundation } from "./idleFoundationSync.js";
 export { syncIdleRollup } from "./idleRollup.js";
 export { repairIdleEventTwins } from "./idleEventTwins.js";
 export { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
+export { syncIdleEngine } from "./idleEngineSync.js";
 /**
  * `idleCalendarStartIso` joined the public surface on 2026-09-22 (DATA-LIFECYCLE-PLAN L4) because the
  * HOS feed has to start its window on the same calendar boundary the idle feeds reading that table

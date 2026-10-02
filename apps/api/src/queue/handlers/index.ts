@@ -2,6 +2,7 @@ import { registerHandler } from "../registry.js";
 import { fleetpalSyncHandler } from "./fleetpal.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
+import { idleEngineHandler } from "./idleEngine.js";
 import { dqBinderHandler } from "./dqBinder.js";
 import { documentDeriveHandler } from "./documentDerive.js";
 import { efsCardStatusHandler, efsCardSyncHandler } from "./efsCardSync.js";
@@ -72,6 +73,7 @@ export function registerAllHandlers(): void {
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
   registerHandler("data_retention", dataRetentionHandler);
+  registerHandler("idle_engine", idleEngineHandler);
   registerHandler("financial_projection", financialProjectionHandler);
   registerHandler("dq_binder", dqBinderHandler);
   registerHandler("document_derive", documentDeriveHandler);

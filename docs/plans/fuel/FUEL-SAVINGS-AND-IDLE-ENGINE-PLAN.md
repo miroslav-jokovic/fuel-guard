@@ -591,3 +591,29 @@ All questions are answered; nothing in the queue is blocked on the owner.
   killed. The 20th was a GPS filter that the motion rebuild already did, so it is deleted. Two fixtures were
   added after mutation showed gaps: an unknown→running flip is not a start, and four half-second bucket edges
   must still round to 3,600. Next: the collector and its hourly and nightly jobs, with the 60-day retention rule.
+- **2026-10-02** — 0404 verified on production: the three tables, `idle_engine_write`, highest migration 0404.
+  The classifier merged (#1199, f798286). **IE2, third merge (no migration): the collector.**
+  `modules/idle/idleEngineSync.ts`, kind `idle_engine`, is its own Samsara tier (`IDLE_ENGINE_SYNC_MINUTES`,
+  default 60; first tick after the deploy window). Each run replaces the trailing three hours. When the org's
+  local hour is 02–05 and no nightly run has finished in 20 h, the same run recomputes the previous two days
+  instead. Choosing it inside one kind means a deploy cannot keep resetting a 24-hour timer, and one (org, kind)
+  slot keeps the two windows from racing on the same keys. Engine and counters are fetched from 24 h before the
+  window, or from the start of a stored park in progress (that truck then fetches alone). GPS is fetched from
+  15 minutes before. A truck with no flip in its fetch is seeded from Samsara's latest flip when that is older.
+  A batch cut off by the page cap is not written. Only in-service trucks are read (`IN_SERVICE_VEHICLE_STATUSES`; `lint:vehicle-status` refused the first draft's `!= retired`, which would have admitted trucks on order). The 60-day `timeSlice` retention
+  rule on `idle_engine_hours` lands here, and its lifecycle block now says 60. A generic
+  `samsaraStatsHistory.ts` fetcher takes the stat types as an argument, instead of a fifth copy of the paging
+  loop. Classifier change found by the live probe: **a span with the engine known off throughout is a counter
+  delta of 0, with or without readings.** A truck shut down at 01:46, 36 s after its last reading, had left
+  every later hour of the night null.
+  **Live probe, read-only, 10/01 CDT, all 185 trucks, nothing written (D-IE9 preview):** running time against
+  the ECU `obdEngineSeconds` delta on the 72 truck-days with at least 1 h of running and a delta in all 24 hours:
+  **72 of 72 within ±3%, median 0.007%, worst 1.4%** (777, −1.4%). 105 trucks had a counter delta for every
+  hour. Every running truck that did not was missing the hour of its last shutdown: no reading brackets it until
+  the truck restarts, and the nightly recompute fills it, so D-IE9 should be judged on final days. Buckets
+  fleet-wide that day: 1,037 h driving, 858 h stopped-running, 12 h brief, 2,359 h off, 175 h no data. 804 stops.
+  Four trucks were entirely `no_data`. 664 (last state `On` 09/30 19:09) and 663/769 (`Idle`) have gateways
+  silent for 1.8–9.8 days, so their state is stale and no_data is right. **Engine-off holds through GPS
+  silence because measured parked gateways sleep:** of 91 trucks off at 08:00Z, 44 had sent no GPS in over
+  2 h and 25 in over 3 days. Collector tests `idleEngineSync.test.ts` (10). Mutation: 14 of 14 killed. Next:
+  14 days of parallel running, then IE3's avoidable rules on these stops, and D-IE9 (IE5).
