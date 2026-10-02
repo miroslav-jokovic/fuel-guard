@@ -152,12 +152,21 @@ async function upsertSamsaraVehicle(
   };
   const odo = odometerMiles.get(sv.samsaraId);
   const fuel = fuelByVehicle.get(sv.samsaraId);
+  // ── THE RECORD'S NAME TRAVELS WITH THE STATS, IN BOTH MODES (FL2, Q-FL8, migration 0401) ─────────
+  //
+  // The carrier renames a Samsara record to say what happened to the truck — `NNN - SOLD` once it is
+  // sold and awaiting pickup, while McLeod still lists it Active — and FL2's parity check reads that
+  // as a known state rather than a disagreement. Like the odometer it is what Samsara REPORTS, not
+  // identity McLeod owns, so link-only mode writes it too. `parseSamsaraVehicles` falls back to the
+  // id when a record has no name; that fallback is ours, not Samsara's, so it is stored as null.
+  const samsaraName = sv.name === sv.samsaraId ? null : sv.name;
   const withStats = <T extends object>(o: T) => {
     let out: T & {
+      samsara_name: string | null;
       current_odometer?: number;
       samsara_fuel_percent?: number;
       samsara_fuel_at?: string | null;
-    } = { ...o };
+    } = { ...o, samsara_name: samsaraName };
     if (odo != null) out = { ...out, current_odometer: odo };
     if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
     return out;
