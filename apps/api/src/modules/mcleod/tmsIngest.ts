@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsRosterCheckpoint } from "@silvicom/shared";
+import type { ParitySummary } from "./fleetParity.js";
 import {
   unitResolver,
   driverResolver,
@@ -147,7 +148,9 @@ export async function touchLastSynced(admin: SupabaseClient, orgId: string, prov
  * So the roster gets the row the financial sweep got for the same reason (D-FIN3,
  * `stampFinancialSynced`): provider `mcleod_roster`, no token, stamped by the agent's checkpoint
  * after every read. Created by a FULL insert on first stamp (never a partial upsert — `lint:upserts`),
- * updated after. `config.counts` is what that read saw.
+ * updated after. `config.counts` is what that read saw; `config.parity` is what the fleet-parity check
+ * made of it (FL2, `fleetParity.ts`) — stored here because this file is the module's one writer of
+ * `org_integrations`.
  */
 export const ROSTER_PROVIDER = "mcleod_roster";
 
@@ -155,11 +158,13 @@ export async function stampRosterRead(
   admin: SupabaseClient,
   orgId: string,
   counts: TmsRosterCheckpoint["counts"],
+  parity?: ParitySummary,
 ): Promise<void> {
   const at = new Date().toISOString();
+  const config = parity === undefined ? { counts } : { counts, parity };
   const { data, error } = await admin
     .from("org_integrations")
-    .update({ last_synced_at: at, config: { counts } })
+    .update({ last_synced_at: at, config })
     .eq("org_id", orgId)
     .eq("provider", ROSTER_PROVIDER)
     .select("org_id");
@@ -169,7 +174,7 @@ export async function stampRosterRead(
   // other one carries the same minute.
   const { error: insErr } = await admin
     .from("org_integrations")
-    .insert({ org_id: orgId, provider: ROSTER_PROVIDER, enabled: true, config: { counts }, last_synced_at: at });
+    .insert({ org_id: orgId, provider: ROSTER_PROVIDER, enabled: true, config, last_synced_at: at });
   if (insErr && insErr.code !== "23505") throw new Error(`Could not stamp the roster read: ${insErr.message}`);
 }
 

@@ -22,6 +22,7 @@ import { ingestDispatchMovements } from "../dispatchMovementIngest.js";
 import { projectDispatchMovements } from "../dispatchProjection.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
+import { runFleetParity, type ParitySummary } from "../fleetParity.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
 import { stampRosterRead } from "../tmsIngest.js";
 import type { RosterMode } from "../rosterIngest.js";
@@ -191,8 +192,19 @@ export function tmsIngestRouter(): Router {
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      await stampRosterRead(admin, req.tms!.orgId, parsed.data.counts);
-      res.json({ ok: true });
+      const orgId = req.tms!.orgId;
+      // The fleet-parity check (FL2, D-FL2) rides on the read it audits. It never fails the
+      // checkpoint: the stamp says McLeod was read, and a parity error must not make a healthy sweep
+      // look stopped — it is stored as the reason the check did not run.
+      let parity: ParitySummary;
+      try {
+        parity = await runFleetParity(admin, orgId, parsed.data);
+      } catch (e) {
+        console.error(`[fleet-parity] org ${orgId}: ${(e as Error).message}`);
+        parity = { checked: false, reason: (e as Error).message };
+      }
+      await stampRosterRead(admin, orgId, parsed.data.counts, parity);
+      res.json({ ok: true, parity: parity.checked ? { findings: parity.findings.length, known: parity.known.length } : parity });
     }),
   );
 

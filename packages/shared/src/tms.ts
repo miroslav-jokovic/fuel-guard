@@ -443,6 +443,12 @@ export const tmsRosterCheckpointSchema = z.object({
     vehicles: z.number().int().min(0),
     trailers: z.number().int().min(0),
   }),
+  /** McLeod's FULL active tractor and trailer lists, as read this sweep (FL2, Q-FL7). The sweep
+   *  routes POST only rows that changed, so without these the API could never see a unit missing on
+   *  one side or a row that drifted. Optional: an agent from before FL2 sends counts only, and the
+   *  parity check says it was not run rather than reading absence as an empty fleet. */
+  tractors: z.array(tmsVehicleInputSchema).max(1000).optional(),
+  trailers: z.array(tmsTrailerInputSchema).max(1000).optional(),
 });
 export type TmsRosterCheckpoint = z.infer<typeof tmsRosterCheckpointSchema>;
 
