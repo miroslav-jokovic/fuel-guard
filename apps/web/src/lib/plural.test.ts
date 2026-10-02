@@ -32,10 +32,7 @@ const WEB_SRC = path.join(process.cwd(), "src");
  * detector that quietly skips what it cannot parse is worse than no detector (`check-surfaces.mjs`
  * records the same reasoning about its own parser).
  */
-const FROM_SCRIPT: Record<string, string[]> = {
-  // `barCount` switches on the open tab — three labels, one per tab.
-  "pages/FuelReconciliationPage.vue": ["fills", "fills in sequence", "statements"],
-};
+const FROM_SCRIPT: Record<string, string[]> = {};
 
 interface Scan {
   labels: Set<string>;
@@ -109,13 +106,14 @@ const EXPECTED: Record<string, string> = {
   // FS3: Pilot invoices — one recorded invoice check per row.
   checks: "check",
   contractors: "contractor",
+  // FS2: Fuel Costs — one row per day of the range.
+  days: "day",
   declines: "decline",
   dispatchers: "dispatcher",
   drivers: "driver",
   entries: "entry",
   files: "file",
   "fill-ups": "fill-up",
-  fills: "fill",
   "fills in sequence": "fill in sequence",
   findings: "finding",
   inspections: "inspection",
@@ -136,7 +134,6 @@ const EXPECTED: Record<string, string> = {
   results: "result",
   "segments loaded": "segment loaded",
   shelves: "shelf",
-  statements: "statement",
   trailers: "trailer",
   transactions: "transaction",
   "truck stops": "truck stop",

@@ -61,7 +61,7 @@ const PROBES = [
   // for the same reason /cpm's predecessors are below: a link somebody sent last week must still open.
   "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta",
   // FS3 (D-FSV8): Pilot invoices and one saved check, the check probed with a placeholder id.
-  "/fuel-invoices", "/fuel-invoices/run_1",
+  "/fuel-invoices", "/fuel-invoices/run_1", "/fuel-buy-discipline",
   // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
   // stays as a redirect, so it is probed here too.
   "/fleet-report", "/cpm", "/billing", "/shop",

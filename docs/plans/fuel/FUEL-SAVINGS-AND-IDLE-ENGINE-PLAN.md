@@ -291,6 +291,26 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     statements decode to 0.92–1.01 MB of words; the general cap is 1 MB, so the largest week was 4% under
     a bare 413, and any monthly export over it.
 
+- **Q-FSV12..13 — decided in FS2, same delegation:**
+  - **Q-FSV12 — Buy discipline becomes its own page, `/fuel-buy-discipline`, opened from Fuel Costs (not in the
+    sidebar; surface `fuel.spend.buy-discipline`, parent `fuel.spend`, the same `manage("fuel")`).** Read from
+    the call sites: the tab reads a different source (`fuel_buy_fills`, the fill sequence with a 14-day lookback),
+    grades a policy rather than reporting a cost, and renders two tables, so folding it into the report would
+    break R1's one page and the one-table rule. Moved whole, its tests with it. The old Spend tab's
+    "Billed against contract" drill-down (the per-fill list a claim is made from, `DiscountCaptureTab`) moved
+    there too, renamed "Paid vs Pilot quote" (§5): the report keeps the net figure as a card. Its right home is
+    the Findings inbox as `contract_variance` findings — `contractFindings` exists in `exceptions.ts` and has
+    never been wired — which is a separate step, not done here. Deleted with the tabs (no other reader):
+    `SpendTrendTab`, `OperatingBridgeCard`, `SpendBridgeCard`, `IdleCostCard` (IE3's savings strip replaces it),
+    `SpendOverviewTab`, `AncillaryCard`, `StatementsCard`, `useStatements`, `useSpendPeriods`. Production has
+    never held a saved statement, so the Statements tab had never shown a row. The PDF export stays.
+  - **Q-FSV13 — PROPOSED, not done: the Findings inbox's stored summaries keep the pre-§5 words** ("Billed, never
+    recorded"). They are row text written by `reconFindings` into `fuel_exceptions`. Two ways out: (a) rewrite the
+    stored rows (a data migration over working state, and every future wording change repeats it); (b) render
+    the headline from `kind` + the stored figures at read time and keep the stored text as written.
+    Recommendation (b): §5 is a display rule, and display belongs to the reader. Waiting on the owner because it
+    changes what an existing row says.
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -724,3 +744,20 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `fleetMpg.test.ts` (+6), `routes/report.test.ts` (+7), `fleetEfficiency.test.ts` (+2). Mutation: 14 mutants,
   all killed after three fixture fixes (both ranges priced alike, every period starting on the earliest day,
   no fuel on the day a trailing eight would wrongly include).
+- **2026-10-02** — **FS2 merge 1 MERGED** (#1206, 49eb47b). **FS2 merge 2 of 2 (the page).** `/fuel-spend` is "Fuel
+  Costs" (§5), one report with no tabs (R1, D-FSV1): filters date range (`DateRangeFilter`), trucks, state,
+  location and network (all multi; state and location menus come from `fuel_report_sites`, so a choice always
+  selects something, and a selected value the range no longer holds stays in its menu); eight trend cards, each
+  naming the previous range ("+14.1% vs 08/02–08/31", D-FSV3), tractor fuel only with reefer on its own line
+  (D-FSV4); the network split as one sentence; ONE table, every day of the range newest first with its
+  trailing-7-day MPG (D-FSV5), paged at 20, CSV. Under a state, location or network filter, miles, MPG and cost
+  per mile leave and the API's sentence takes their place. Every figure is the API's, so the page does no fuel
+  arithmetic. Buy discipline and the paid-vs-quote fills moved to `/fuel-buy-discipline` (Q-FSV12). Old
+  `?tab=`/`?grain=` links still open the page. Looked at in a browser (build + preview, the API stubbed with
+  September's REAL `fuel_report_days`/`fuel_report_sites` sums read from production, SELECT only; tractor spend
+  $1,312,206.87 = FS1's figure). Two defects found by looking: a day's paid-vs-quote netting to −$0.30 printed
+  "-$0" (fixed: `wholeUsd`, on the card too), and the PDF export's scope line printed raw ISO dates (fixed:
+  MM/DD/YYYY). Tests: `fuelCostView.test.ts` (15), `FuelCostsPage.test.ts` (13, rewritten),
+  `FuelCostDaysTable.test.ts` (3), `FuelBuyDisciplinePage.test.ts` (3, the old tab's assertions moved). Mutation:
+  23 web mutants, all killed after adding three tests (Clear filters under a station filter alone, a selected
+  state/location kept in its menu, paging reset).

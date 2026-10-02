@@ -21,18 +21,22 @@ export const fuelRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Fuel Log" },
   },
   /**
-   * D-FX8 — the page is Fuel Spend, and reconciliation is one tab of it.
-   *
-   * It was called Reconciliation because that is what it used to be. Five of its seven tabs are spend
-   * analytics and its own source comments call it "fuel spend" throughout, so a fleet manager asking
-   * "why is fuel up" had no reason to click a nav item called Reconciliation, and a controller wanting
-   * to audit an invoice arrived at a trend chart.
+   * Fuel Costs (FS2, D-FSV1/D-FSV7) — one report, no tabs. It was Reconciliation, then Fuel Spend
+   * (D-FX8) with three tabs; the path stays `/fuel-spend` so every link sent to it still opens it,
+   * `?tab=` and `?grain=` included (both are now ignored).
    */
   {
     path: "/fuel-spend",
     name: "fuel-spend",
-    component: () => import("@/pages/FuelReconciliationPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Spend" },
+    component: () => import("@/pages/FuelCostsPage.vue"),
+    meta: { requiresAuth: true, title: "Fuel Costs" },
+  },
+  {
+    // Fuel Spend's Buy discipline tab, its own screen since the report lost its tabs (Q-FSV12).
+    path: "/fuel-buy-discipline",
+    name: "fuel-buy-discipline",
+    component: () => import("@/pages/FuelBuyDisciplinePage.vue"),
+    meta: { requiresAuth: true, title: "Buy discipline", parent: "/fuel-spend" },
   },
   {
     /**

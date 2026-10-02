@@ -102,8 +102,9 @@ export const SURFACES: readonly Surface[] = [
   // now — the EFS backfill on Fuel Log, prices and locations on Truck Stops, Repair on Settings →
   // Data & sync — so there is no screen left to grant, and each drawer carries the `manage` check
   // this entry used to carry at the route. Rows written against the retired key are inert (0296).
-  // D-FX8: five of its seven tabs are spend analytics; reconciliation is one of them.
-  { key: "fuel.spend", label: "Fuel Spend", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
+  // D-FX8 named it Fuel Spend; FS2 (§5, D-FSV7) renamed it Fuel Costs, one report with no tabs. The key
+  // and the path stay, so every grant and every link written against them still resolves.
+  { key: "fuel.spend", label: "Fuel Costs", path: "/fuel-spend", group: "fuel", gate: manage("fuel") },
   // FS3, D-FSV8: the saved invoice checks, out of the spend page. A READ surface, like Findings and
   // IFTA — a controller confirming last month's bill was checked needs no permission to upload one; the
   // "Check an invoice" button carries the `manage` check, as the API's POST routes do.
@@ -257,6 +258,9 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
+  // FS2, Q-FSV12: the spend page's Buy discipline tab, its own screen now that the report has no tabs.
+  // Reached from Fuel Costs and sharing its grant, so it asks the same `manage` the tab sat behind.
+  { key: "fuel.spend.buy-discipline", label: "Buy discipline", path: "/fuel-buy-discipline", group: "fuel", gate: manage("fuel"), parent: "fuel.spend" },
   { key: "recruitment.applicants.detail", label: "Applicant", path: "/recruitment/:id", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   /**
    * The board's two other tabs (D-HUI8, B4). Non-nav, parented on the board, keys unchanged.
