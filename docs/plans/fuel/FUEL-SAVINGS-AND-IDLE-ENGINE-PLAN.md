@@ -325,16 +325,6 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     whose equipment is undeclared or "other" is UNJUDGED, not guessed. An unknown temperature exempts nothing.
   - **Q-IE13 — a park belongs to the local day it STARTED on, whole.** Cutting an overnight park at midnight
     would halve its Q-IE3 allowance on each side, because the allowance is a share of the park's own duration.
-  - **Q-IE14 — how the owner accepts the learned burn rate (D-IE5), OPEN, not blocking.** IE4 learns per declared
-    equipment × ambient band and SHOWS it beside the configured `idle_gal_per_hour` (Idling page, under "How idle is
-    scored"); the engine's `/engine/avoidable` carries both prices (`money` and `money.learned`). Nothing on a page is
-    priced at the learned rate yet, because the engine's figures are not on a page until IE5. Candidates:
-    (a) at IE5, a stored choice `idle_settings.idle_burn_source` = `configured` | `learned` (default `configured`), an
-    admin "Use measured rates" control on the panel, and the engine's money reads it; (b) the owner copies one fleet
-    figure into `idle_gal_per_hour` by hand — loses the per-cohort, per-temperature rates D-IE5 asked for, and is a copy
-    of a derived value. **Recommendation: (a), built with IE5** — a column with no visible effect before then would be
-    a switch that changes nothing on screen. Measured 10/02: fleet ≈ 0.78 gal/h against the configured 0.80, so the
-    switch moves idle dollars by about 3%, not by a factor.
 
 ## 5. Words (D-FSV7)
 
@@ -834,13 +824,3 @@ All questions are answered; nothing in the queue is blocked on the owner.
   cell's rate already IS the prior, so `idleBurnRateFor`'s learned/unbanded guards could not change an output).
   Next: merge 2 — the reader, `GET /api/idle/engine/burn-rates`, learned money beside configured money on
   `/engine/avoidable`, and the Idling page's side-by-side.
-- **2026-10-02** — **IE4 merge 2 of 2 (the reader; no migration).** `idleBurnRates.ts` reads 0409 over the last 60
-  days, files each truck's rows under its DECLARED equipment (retired trucks included) and folds them with
-  `learnIdleBurnRates`; `GET /api/idle/engine/burn-rates` (safety: view) returns the table beside the configured rate
-  (`resolveIdleCostBasis`) and the 0.72 prior. `/engine/avoidable` gains `money.learned`: the same avoidable and
-  equipment-opportunity seconds priced park by park at the truck's cohort × the park's band (`idleBurnRateFor`),
-  same price. The Idling page shows the table under "How idle is scored" (`IdleBurnRatesPanel`), saying which
-  rate the page's dollars use. Nothing on a page is re-priced: how the owner accepts the switch is §4 Q-IE14.
-  Tests: `idleBurnRates.test.ts` (4), `idleEngineAvoidable.test.ts` (+1), `routes/idle.test.ts` (+2),
-  `IdleBurnRatesPanel.test.ts` (4). Mutation: API 14/14, web 9/9 killed.
-

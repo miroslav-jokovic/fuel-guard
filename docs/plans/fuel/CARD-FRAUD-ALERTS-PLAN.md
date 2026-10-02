@@ -233,7 +233,31 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
   the list sits on that screen and derives its gate from it.
 - **The alternative:** a separate grant, if the owner wants fewer people able to add phone numbers.
 
+**Q-CF5 — does "Send the carrier's alerts" silence fraud alerts?** (blocks CF4; raised 2026-10-02 while
+building CF3)
+- **The problem:** Settings → Notifications has ONE switch, `organizations.notifications_enabled`,
+  which every carrier alert obeys (Q-AW52; the page lists every reader). The fraud-alert list is a
+  second, per-person choice: each recipient turns email and SMS on for themselves.
+- **(a) Recommended: fraud alerts obey only the list.** Turning the carrier's alerts off to stop the
+  noise is exactly what someone would do today, and it must not silently stop the one alert that
+  matters. There is precedent: an expired EFS certificate is emailed even when the switch is off,
+  because EFS stops working with it. The page's copy then names fraud alerts as the exception, in
+  the same paragraph.
+- **(b) They obey the switch too.** One switch means one switch. But someone who switches off the
+  noise also loses the stolen-card text.
+
 ## 7. Progress log
 
 - 2026-10-02 — Plan written from production measurements in §1. Nothing built.
 - 2026-10-02 — Owner ruled Q-CF1 (a) retire, Q-CF2 flat 100 mi, Q-CF3 owner asks Telnyx, Q-CF4 `manage("settings")`.
+- 2026-10-02 — CF1a merged (#1213); 0408 applied on production ~7 min after merge. CF1b open (#1214).
+- 2026-10-02 — CF2 built. Pure reducer `applyFraudAttempt`/`foldFraudAttempts` in
+  `packages/shared/src/cardFraud.ts`. Over the 13 production attempts it gives **7 incidents on 5
+  cards**. …27564 gives two: 09-22/23, opened on a failed odometer prompt, and 09-27, 4.5 days later.
+  …07967 gives two: 09-11 with a return 11 h later, and 10-01. Join window 72 h, return gap 6 h,
+  at most one step per attempt.
+  - **Storage:** migration 0410, `card_fraud_incidents` + `card_fraud_incident_attempts`.
+  - **Writes:** `card_fraud_record` writes at the version read, and refuses a closed incident or a
+    recorded attempt.
+  - **`anomalies` rejected as the home:** it is keyed per fuel transaction.
+

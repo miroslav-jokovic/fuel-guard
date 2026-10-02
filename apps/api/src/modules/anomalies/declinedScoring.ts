@@ -9,6 +9,7 @@ import {
   attributeDeclinedRow,
   isNoonSentinelIso,
   CARD_MISMATCH_UNVERIFIED_WEIGHT,
+  type DeclineReasonCategory,
   type DeclineSignal,
   type TruckPosition,
 } from "@silvicom/shared";
@@ -16,6 +17,7 @@ import type { Env } from "../../env.js";
 import { reconcileWithSamsara } from "../samsara/index.js";
 import { syncCardAssignments, lookupCardAssignment } from "../fuel/index.js";
 import { resolveDeclineDrivers } from "../fuel/index.js";
+import { recordDeclineFraudAttempt } from "./cardFraudIncidents.js";
 
 const WINDOW_H = 3; // hours around a decline for repeat / approval-elsewhere checks
 
@@ -32,10 +34,11 @@ interface DeclineRow {
   location_text: string | null;
   error_code: string | null;
   error_description: string | null;
+  unit: string | null;
 }
 
 const DECLINE_COLS =
-  "id, org_id, vehicle_id, driver_id, driver_ext_id, declined_at, card_ref, city, state, location_text, error_code, error_description";
+  "id, org_id, vehicle_id, driver_id, driver_ext_id, declined_at, card_ref, city, state, location_text, error_code, error_description, unit";
 
 /** A successful fill considered as the "corrective" purchase right after a decline (wrong-unit recovery). */
 interface CorrectiveFill {
@@ -308,25 +311,8 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   // alert-grade on its own — this is the change that flips the 0851226257 class from Clear to Alert.
   // Unknown phrasings score nothing but are STORED (reason_category) so they can't hide.
   const reason = classifyDeclineReason(d.error_code, d.error_description);
-  if (reason.category === "proximity_failure") {
-    reasons.push({
-      key: "proximity_failure",
-      weight: declineSignalWeight("proximity_failure"),
-      detail: `EFS's telematics geofence declined this purchase (${d.error_description ?? d.error_code}) — the merchant was too far from the card's truck at authorization. EFS already verified the card was not with its truck.`,
-    });
-  } else if (reason.category === "site_restriction" || reason.category === "limit") {
-    reasons.push({
-      key: "restricted_reason",
-      weight: declineSignalWeight("restricted_reason"),
-      detail: `Decline reason indicates a restriction: ${d.error_description ?? d.error_code}.`,
-    });
-  } else if (reason.category === "card_not_active") {
-    reasons.push({
-      key: "card_not_active",
-      weight: declineSignalWeight("card_not_active"),
-      detail: `Card was not active: ${d.error_description ?? d.error_code}.`,
-    });
-  }
+  const reasonSignal = signalForReason(reason.category, d);
+  if (reasonSignal) reasons.push(reasonSignal);
 
   const assessment = assessDecline(reasons);
   await admin
@@ -344,6 +330,30 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
     .eq("id", declineId)
     .eq("org_id", orgId);
   await writeTruckPosition(admin, orgId, declineId, truckPosition);
+
+  await recordDeclineFraudAttempt(admin, orgId, d, assessment.reasons, reason.category, truckPosition);
+}
+
+/** The one signal an EFS decline reason carries on its own, or null for a reason that scores nothing. */
+function signalForReason(category: DeclineReasonCategory, d: DeclineRow): DeclineSignal | null {
+  if (category === "proximity_failure") {
+    return {
+      key: "proximity_failure",
+      weight: declineSignalWeight("proximity_failure"),
+      detail: `EFS's telematics geofence declined this purchase (${d.error_description ?? d.error_code}) — the merchant was too far from the card's truck at authorization. EFS already verified the card was not with its truck.`,
+    };
+  }
+  if (category === "site_restriction" || category === "limit") {
+    return {
+      key: "restricted_reason",
+      weight: declineSignalWeight("restricted_reason"),
+      detail: `Decline reason indicates a restriction: ${d.error_description ?? d.error_code}.`,
+    };
+  }
+  if (category === "card_not_active") {
+    return { key: "card_not_active", weight: declineSignalWeight("card_not_active"), detail: `Card was not active: ${d.error_description ?? d.error_code}.` };
+  }
+  return null;
 }
 
 /**

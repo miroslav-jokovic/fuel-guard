@@ -111,7 +111,6 @@ describe("GET /api/idle/engine/avoidable (IE3)", () => {
         idle_settings: [{ comfort_low_f: "20", comfort_high_f: "85", idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000" }],
         fuel_prices: [], idle_engine_stops: [], vehicles: [],
       },
-      rpc: { idle_engine_burn_inputs: [] },
     });
     holder.client = rec.client;
     return fetch(`${baseUrl}/api/idle/engine/avoidable?${q}`, { headers: { Authorization: `Bearer ${role}` } });
@@ -136,28 +135,5 @@ describe("GET /api/idle/engine/avoidable (IE3)", () => {
 
   it("is the Idling surface's door: a role without safety is refused", async () => {
     expect((await get("recruiter", "from=2026-09-01&to=2026-09-30")).status).toBe(403);
-  });
-});
-
-describe("GET /api/idle/engine/burn-rates (IE4)", () => {
-  const get = (role: string) => {
-    rec = createSupabaseRecorder({
-      tables: { idle_settings: [{ idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000" }], fuel_prices: [], vehicles: [] },
-      rpc: { idle_engine_burn_inputs: [] },
-    });
-    holder.client = rec.client;
-    return fetch(`${baseUrl}/api/idle/engine/burn-rates`, { headers: { Authorization: `Bearer ${role}` } });
-  };
-
-  it("answers the learned table beside the configured rate", async () => {
-    const res = await get("safety_manager");
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { cells: unknown[]; configuredGalPerHour: number; priorGalPerHour: number } };
-    expect(body.data).toMatchObject({ cells: [], configuredGalPerHour: 0.8, priorGalPerHour: 0.72 });
-  });
-
-  it("is the Idling surface's door: a role without safety is refused, and nothing is read", async () => {
-    expect((await get("recruiter")).status).toBe(403);
-    expect(rec.rpcs()).toHaveLength(0);
   });
 });

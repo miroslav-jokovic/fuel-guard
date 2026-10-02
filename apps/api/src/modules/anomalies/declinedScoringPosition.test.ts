@@ -33,6 +33,7 @@ const declineRow = {
   location_text: "PILOT SOUTH BEND",
   error_code: "3",
   error_description: "INACTIVE CARD IN0851565240|Non-Active Card|",
+  unit: "729",
 };
 const MEMPHIS = { at: "2026-09-23T00:10:00Z", lat: 35.1495, lng: -90.049, city: "Memphis", state: "TN", address: "Memphis, TN, 38103", milesToStation: 495.5 };
 const reconWith = (truckAtReportedTime: unknown) => ({
@@ -43,8 +44,9 @@ const reconWith = (truckAtReportedTime: unknown) => ({
   truckAtReportedTime,
 });
 
-const recorder = (opts: { scoresWriteError?: unknown } = {}) =>
+const recorder = (opts: { scoresWriteError?: unknown; fraudRpc?: unknown } = {}) =>
   createSupabaseRecorder({
+    rpc: (fn: string) => (fn === "card_fraud_record" ? (opts.fraudRpc ?? [{ incident_id: "inc-1", version: 1 }]) : null),
     tables: {
       // Function fixtures: a read answers only when the filters it applied name this decline and org
       // (`supabase-recorder-does-not-filter`).
@@ -105,3 +107,40 @@ describe("scoreDeclinedAttempt — stores where the truck was (CF1, migration 04
     warn.mockRestore();
   });
 });
+
+describe("scoreDeclinedAttempt — a card used where its truck isn't joins the card's incident (CF2)", () => {
+  beforeEach(() => recon.mockReset());
+  const fraudCalls = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+    rec.rpcs().filter((r) => r.fn === "card_fraud_record").map((r) => r.args as Record<string, unknown>);
+
+  it("a decline that keeps location_mismatch is recorded as an attempt, with the truck's position and the card's unit", async () => {
+    recon.mockResolvedValue(reconWith(MEMPHIS));
+    const rec = recorder();
+    await scoreDeclinedAttempt(rec.client as SupabaseClient, env, ORG, DECLINE);
+    const [call] = fraudCalls(rec);
+    expect(call).toMatchObject({ p_org: ORG, p_attempt_source: "decline", p_attempt_id: DECLINE, p_card_ref: declineRow.card_ref, p_step: "opened" });
+    const state = call!.p_state as { unit: string; lastTruck: { city: string }; sawInactiveCard: boolean };
+    expect(state.unit).toBe("729");
+    expect(state.lastTruck.city).toBe("Memphis");
+    expect(state.sawInactiveCard).toBe(true);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("a decline Samsara puts at the station is not an attempt", async () => {
+    recon.mockResolvedValue({ ...reconWith(MEMPHIS), locationMatched: true, locationConfidence: "in_state" });
+    const rec = recorder();
+    await scoreDeclinedAttempt(rec.client as SupabaseClient, env, ORG, DECLINE);
+    expect(fraudCalls(rec)).toHaveLength(0);
+  });
+
+  it("an attempt that cannot be recorded does not fail the score — the verdict is still stored", async () => {
+    recon.mockResolvedValue(reconWith(MEMPHIS));
+    const rec = recorder({ fraudRpc: { error: { message: "card_fraud_record does not exist" } } });
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await expect(scoreDeclinedAttempt(rec.client as SupabaseClient, env, ORG, DECLINE)).resolves.toBeUndefined();
+    expect(rec.writtenRows("declined_transactions")[0]!.suspicion_level).toBe("alert");
+    expect(err).toHaveBeenCalledWith(expect.stringContaining("fraud attempt not recorded"));
+    err.mockRestore();
+  });
+});
+
