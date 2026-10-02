@@ -15,6 +15,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -102,6 +103,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -140,6 +142,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -178,6 +181,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -218,6 +222,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -301,6 +306,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -381,6 +387,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -457,6 +464,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -530,6 +538,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -600,6 +609,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -670,6 +680,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -751,6 +762,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -798,6 +810,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -842,6 +855,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -918,6 +932,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -986,6 +1001,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1051,6 +1067,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1200,6 +1217,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1246,6 +1264,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1290,6 +1309,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1453,6 +1473,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
       "Fuel Spend → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
     ],
@@ -1520,6 +1541,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Fuel Log → /fuel-log",
         "Cards → /fuel-cards",
+        "Pilot invoices → /fuel-invoices",
         "Findings → /findings",
         "IFTA → /ifta",
       ],

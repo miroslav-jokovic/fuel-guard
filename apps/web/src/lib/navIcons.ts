@@ -11,6 +11,7 @@ import {
   CubeIcon,
   ExceptionLedgerIcon,
   IftaLedgerIcon,
+  InvoiceIcon,
   ExclamationTriangleIcon,
   HomeIcon,
   LoadsIcon,
@@ -61,6 +62,7 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "fuel.log": PetrolPumpIcon,
   "fuel.cards": FuelCardIcon,
   "fuel.spend": ReconciliationIcon,
+  "fuel.invoices": InvoiceIcon,
   "fuel.exceptions": ExceptionLedgerIcon,
   "fuel.ifta": IftaLedgerIcon,
 

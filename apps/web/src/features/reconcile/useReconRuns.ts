@@ -15,8 +15,9 @@
  * A rejection here is therefore not a transport failure. It means the file did not add up, and its
  * reasons are surfaced verbatim rather than flattened into "could not reconcile".
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { ReconResult, ReconSummary, StatementWord } from "@silvicom/shared";
+import { computed, type Ref } from "vue";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import type { PilotReportFill, ReconResult, ReconRow, ReconSummary, StatementWord } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface ReconRunSummaryRow {
@@ -32,6 +33,8 @@ export interface ReconRunSummaryRow {
   summary: ReconSummary;
   unmatchable_lines: number;
   created_at: string;
+  superseded_by: string | null;
+  superseded_at: string | null;
 }
 
 export interface ReconRunResponse {
@@ -42,7 +45,10 @@ export interface ReconRunResponse {
   invoiceNo?: string | null;
   tieOutGated?: boolean;
   tieOutNotes?: string[];
-  /** The whole result, so the tab renders what was just recorded without a second round trip. */
+  /** The earlier check of the same invoice this one replaced in the list. */
+  supersededRunId?: string;
+  /** Set when the run was recorded but its lines were not; the saved check then shows totals only. */
+  linesError?: string | null;
   result?: ReconResult;
 }
 
@@ -78,15 +84,48 @@ export function useRunReconciliation() {
   });
 }
 
-/** The runs we hold. Superseded ones are history, not a finding to act on, and the API omits them. */
-export function useReconRunsQuery() {
+export interface ReconRunPage {
+  runs: ReconRunSummaryRow[];
+  /** Every live check the org holds, so the list can page past what one answer carries. */
+  total: number;
+}
+
+/**
+ * The saved checks, one page at a time, newest week first. Superseded ones are history and the API
+ * omits them; they stay reachable by id from the check that replaced them.
+ */
+export function useReconRunsQuery(page: Ref<number>, pageSize: number) {
   return useQuery({
-    queryKey: ["fuel_recon_runs"],
+    queryKey: ["fuel_recon_runs", "page", page, pageSize],
     staleTime: 30_000,
-    queryFn: async (): Promise<ReconRunSummaryRow[]> => {
-      const res = await apiFetch<{ ok: boolean; runs: ReconRunSummaryRow[] }>("/api/fueling/recon-runs");
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load your reconciliations");
-      return res.data.runs ?? [];
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<ReconRunPage> => {
+      const offset = (page.value - 1) * pageSize;
+      const res = await apiFetch<{ ok: boolean } & ReconRunPage>(`/api/fueling/recon-runs?limit=${pageSize}&offset=${offset}`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load your invoice checks");
+      return { runs: res.data.runs ?? [], total: res.data.total ?? 0 };
+    },
+  });
+}
+
+export interface ReconRunDetail {
+  run: ReconRunSummaryRow;
+  /** As the run recorded them. `null` = this check's lines were not kept (before 0406), never "none found". */
+  lines: ReconRow[] | null;
+  unmatchable: PilotReportFill[] | null;
+}
+
+/** One saved check, read back from the server as it was written — never rebuilt in the browser. */
+export function useReconRunQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: ["fuel_recon_runs", "one", id],
+    enabled: computed(() => id.value !== ""),
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<ReconRunDetail | null> => {
+      const res = await apiFetch<{ ok: boolean } & ReconRunDetail>(`/api/fueling/recon-runs/${encodeURIComponent(id.value)}`);
+      if (res.status === 404) return null;
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load that invoice check");
+      return { run: res.data.run, lines: res.data.lines, unmatchable: res.data.unmatchable };
     },
   });
 }
