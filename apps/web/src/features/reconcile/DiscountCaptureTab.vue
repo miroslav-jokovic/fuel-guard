@@ -118,7 +118,7 @@ function exportLines() {
       <BaseCard>
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-ink">Billed against contract</h3>
+            <h3 class="text-sm font-semibold text-ink" title="Billed against contract">Paid vs Pilot quote</h3>
             <p class="mt-1 max-w-2xl text-sm text-ink-muted">
               Every fill scored against <span class="font-medium text-ink-secondary">"Your Price"</span> — the net
               per-gallon Pilot quoted for that station on that day, contract discount already applied. Not a median

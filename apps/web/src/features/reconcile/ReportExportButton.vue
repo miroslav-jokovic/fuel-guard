@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { formatDisplayDate } from "@silvicom/shared";
 import ExportButton from "@/components/ExportButton.vue";
 
 /**
@@ -31,7 +32,7 @@ const days = computed(() =>
   Math.round((Date.parse(`${props.to}T00:00:00Z`) - Date.parse(`${props.from}T00:00:00Z`)) / 86_400_000) + 1,
 );
 const scope = computed(
-  () => `${props.from} → ${props.to} · ${days.value} days · ${props.truckCount === 0 ? "all trucks" : `${props.truckCount} truck${props.truckCount === 1 ? "" : "s"}`}`,
+  () => `${formatDisplayDate(props.from)} → ${formatDisplayDate(props.to)} · ${days.value} days · ${props.truckCount === 0 ? "all trucks" : `${props.truckCount} truck${props.truckCount === 1 ? "" : "s"}`}`,
 );
 </script>
 

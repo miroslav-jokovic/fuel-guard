@@ -73,7 +73,8 @@ const subTone = computed(() =>
   <div class="space-y-4">
     <div class="grid grid-cols-1 gap-3 sm:max-w-sm">
       <StatCard
-        label="Billed against contract"
+        label="Paid vs Pilot quote"
+        title="Billed against contract"
         :value="measurable ? value : '—'"
         :sub="measurable ? sub : 'no fill in this window matched a quote'"
         :sub-tone="subTone"

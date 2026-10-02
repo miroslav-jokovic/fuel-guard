@@ -280,6 +280,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-invoices/run_1",
   },
   {
+    "name": "fuel-buy-discipline",
+    "params": {},
+    "url": "/fuel-buy-discipline",
+  },
+  {
     "name": "fleet-report",
     "params": {},
     "url": "/fleet-report",
@@ -761,6 +766,16 @@ exports[`the route table survives being split by area > route table 1`] = `
   },
   {
     "meta": {
+      "parent": "/fuel-spend",
+      "requiresAuth": true,
+      "title": "Buy discipline",
+    },
+    "name": "fuel-buy-discipline",
+    "path": "/fuel-buy-discipline",
+    "redirect": null,
+  },
+  {
+    "meta": {
       "requiresAuth": true,
       "title": "Fuel Cards",
     },
@@ -836,7 +851,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Spend",
+      "title": "Fuel Costs",
     },
     "name": "fuel-spend",
     "path": "/fuel-spend",
