@@ -1,7 +1,7 @@
 # Card fraud alerts — replacing the fill-anomaly queue with "a card used where its truck isn't"
 
-Status: **PROPOSED 2026-10-02** — the owner ruled the direction ("solve this as suggested", 2026-10-02);
-four questions in §6 are open and each one blocks only the phase that names it.
+Status: **APPROVED 2026-10-02** — the owner ruled the direction ("solve this as suggested") and then
+every §6 recommendation ("proceed as suggested", 2026-10-02). Building from CF1.
 
 Decision prefix `D-CF`, question prefix `Q-CF`, phases `CF0`–`CF8`.
 
@@ -191,9 +191,9 @@ From the §1 counts: the Alerts page goes from ~80 open items to about **6 incid
 13 not-there declines on 5 cards over 30 days, grouped), plus `tank_fill_short` reviews (10 in 60 days).
 Every incident reaches the chosen people by email and, once Q-CF3 clears, by SMS.
 
-## 6. Open questions
+## 6. Questions — all ruled 2026-10-02 ("proceed as suggested")
 
-**Q-CF1 — clean up by deleting history or by retiring it?** (blocks CF0)
+**Q-CF1 — clean up by deleting history or by retiring it?** **RULED (a) retire.**
 - **(a) Retire (recommended).** Close every open case with a new disposition `retired_reset_2026_10`
   (the 0034 CHECK is extended in a migration) and set the epoch, so nothing before it is shown.
   The pages read clean from that day, exactly as asked. The 2,030 reviewer verdicts stay in the database as the "before"
@@ -204,7 +204,7 @@ Every incident reaches the chosen people by email and, once Q-CF3 clears, by SMS
   destroys the only measurement of how wrong the old engine was.
 - Either way, nothing before the epoch shows on any page.
 
-**Q-CF2 — the odometer threshold.** (blocks CF5's odometer rule) The ">50 mi AND >1%" proposed
+**Q-CF2 — the odometer threshold.** **RULED: flat 100 mi.** The ">50 mi AND >1%" proposed
 on 2026-10-02 turns out to be biased. 1% of a 550,000-mi truck is 5,500 mi, so old trucks would
 almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 
@@ -220,7 +220,7 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 - **The current rule** fires at > 10 mi with weight 45 (`odometer_tolerance_miles`), which is the
   515 appearances in §1.
 
-**Q-CF3 — may the toll-free number carry staff fraud alerts?** (blocks CF4's SMS, not its email)
+**Q-CF3 — may the toll-free number carry staff fraud alerts?** **RULED: the owner asks Telnyx; SMS stays off until Telnyx answers yes. Still blocks CF4's SMS, not its email.**
 - **The problem:** +1 833 352 1766 was verified with Telnyx for the use case "HR / Staffing", which
   covers texting applicants. Internal security alerts are a different use, and toll-free
   verification is reviewed per use case. Whether this needs an amendment, a second verification, or
@@ -228,7 +228,7 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 - **Recommendation:** the owner asks Telnyx support before CF4 ships. Email and bell go live
   regardless, so the stolen-card alert is not waiting on this.
 
-**Q-CF4 — who may edit the fraud-alert list?** (blocks CF3)
+**Q-CF4 — who may edit the fraud-alert list?** **RULED: `manage("settings")`, the existing Notifications gate.**
 - **Recommended:** whoever may save Settings → Notifications today, i.e. `manage("settings")`, since
   the list sits on that screen and derives its gate from it.
 - **The alternative:** a separate grant, if the owner wants fewer people able to add phone numbers.
@@ -236,3 +236,4 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 ## 7. Progress log
 
 - 2026-10-02 — Plan written from production measurements in §1. Nothing built.
+- 2026-10-02 — Owner ruled Q-CF1 (a) retire, Q-CF2 flat 100 mi, Q-CF3 owner asks Telnyx, Q-CF4 `manage("settings")`.
