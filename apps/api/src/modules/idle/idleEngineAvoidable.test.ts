@@ -43,6 +43,14 @@ function seed(o: { comfortLowF?: string } = {}) {
         return PARKS.filter((p) => Date.parse(p.started_at) >= Date.parse(lo) && Date.parse(p.started_at) < Date.parse(hi));
       },
     },
+    rpc: {
+      // The learned table (IE4): battery APU 50–75 °F learned at 1.20 gal/h; no APU 50–75 °F has 10 h,
+      // so it reads the prior. Every fixture park is 59 °F, band 2.
+      idle_engine_burn_inputs: [
+        { vehicle_id: "vB", band: 2, parks: 30, running_sec: 60 * 3600, fuel_ml: 60 * 1.2 * 3785.411784 },
+        { vehicle_id: "vN", band: 2, parks: 5, running_sec: 10 * 3600, fuel_ml: 10 * 2 * 3785.411784 },
+      ],
+    },
   });
 }
 
@@ -66,6 +74,13 @@ describe("readIdleEngineAvoidable", () => {
     const r = await readIdleEngineAvoidable(seed().client, ORG, "2026-09-01", "2026-09-01");
     // 4,200 s = 1.1667 h × 0.80 gal/h = 0.93 gal × $4.000
     expect(r.money).toMatchObject({ galPerHour: 0.8, pricePerGal: 4, avoidableGallons: 0.93, avoidableUsd: 3.72, equipmentOpportunityGallons: 1.56, equipmentOpportunityUsd: 6.24 });
+  });
+
+  it("prices the same seconds at the learned rate, each park by its truck's cohort and band", async () => {
+    const r = await readIdleEngineAvoidable(seed().client, ORG, "2026-09-01", "2026-09-01");
+    // battery 2,100 s × 1.20 = 0.70 gal; no APU 2,100 s × 0.72 (prior) = 0.42 → 1.12 gal × $4 = $4.48.
+    // No APU's 7,000 s equipment opportunity × 0.72 = 1.40 gal → $5.60.
+    expect(r.money.learned).toEqual({ avoidableGallons: 1.12, avoidableUsd: 4.48, equipmentOpportunityGallons: 1.4, equipmentOpportunityUsd: 5.6 });
   });
 
   it("reads the org's comfort band, not the default", async () => {
