@@ -849,6 +849,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "fuel_recon_run_rows": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "FS3 (0406): one row per reconciliation run, holding its lines as jsonb. A run is a hand upload of a weekly statement or monthly export: 3 runs ever by 2026-10-01, at most ~5/month. Evidence, RETENTION_FORBIDDEN; ~0.3 MB per weekly statement, TOASTed."
+      }
+    },
     "fuel_spend_days": {
       "module": "fuel-spend",
       "layer": "derived",

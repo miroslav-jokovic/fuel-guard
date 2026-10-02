@@ -354,6 +354,11 @@ export const RETENTION_FORBIDDEN = [
    * 12-month prune in six months and erasing the record that a finding was ever made.
    */
   "fuel_recon_runs",
+  /**
+   * The lines behind each run (0406, FS3). The run says "1 on Pilot's bill, not in our records,
+   * $242.11"; this is which line that was. Undeletable by trigger already, pinned for the same reason.
+   */
+  "fuel_recon_run_rows",
   "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",

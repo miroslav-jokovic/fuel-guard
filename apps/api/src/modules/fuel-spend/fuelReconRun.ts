@@ -35,6 +35,7 @@ import {
   stateTimeZone,
   type PilotReportFill,
   type ReconResult,
+  type ReconRow,
   type StatementWord,
   type SystemFill,
 } from "@silvicom/shared";
@@ -74,6 +75,10 @@ export interface ReconRunResult {
   invoiceNo?: string | null;
   tieOutGated?: boolean;
   tieOutNotes?: string[];
+  /** The earlier run of the same invoice (or the same export file) this one replaced, if any. */
+  supersededRunId?: string;
+  /** Set when the run was recorded but its lines were not — the saved check then shows totals only. */
+  linesError?: string | null;
   /** How many findings were filed to the ledger. Zero when the sync failed — see `exceptionError`. */
   filedExceptions?: number;
   exceptionError?: string | null;
@@ -208,6 +213,59 @@ async function readSystemFills(
   return out;
 }
 
+const last6 = (card: string | null | undefined): string | null =>
+  card == null ? null : String(card).replace(/\D/g, "").slice(-6) || null;
+
+/**
+ * Cut both sides' card numbers to the last six digits before a row is kept. Our side carries
+ * `fuel_transactions.card_ref`, the full card number; the statement prints six, `fuel_statement_lines`
+ * and `fuel_exceptions` keep six, and nothing reading a saved check needs more.
+ */
+function cutCards(row: ReconRow): ReconRow {
+  return {
+    ...row,
+    report: row.report ? { ...row.report, cardRef: last6(row.report.cardRef) } : null,
+    system: row.system ? { ...row.system, cardRef: last6(row.system.cardRef) } : null,
+  };
+}
+
+/**
+ * A re-check of the same invoice REPLACES the earlier one in the list (FS3). Before this nothing ever
+ * set `superseded_by`, though the list has always hidden superseded runs — so uploading one statement
+ * twice listed it twice, two checks of one bill disagreeing about nothing. The earlier run stays, as
+ * history; 0249's trigger allows exactly this change and nothing else.
+ *
+ * A weekly statement is recognised by its invoice number, which Pilot prints. An export has none, so it
+ * is recognised only as the same bytes: two exports over overlapping months are different evidence.
+ */
+async function supersedeEarlierRun(
+  admin: SupabaseClient,
+  orgId: string,
+  runId: string,
+  kind: ParsedReport["kind"],
+  invoiceNo: string | null,
+  sha: string,
+): Promise<string | undefined> {
+  let q = admin
+    .from("fuel_recon_runs")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("source_kind", kind)
+    .is("superseded_by", null)
+    .neq("id", runId);
+  if (kind === "weekly_statement" && invoiceNo) q = q.eq("invoice_no", invoiceNo);
+  else q = q.eq("source_sha256", sha);
+  const { data } = await q;
+  const prior = ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+  if (prior.length === 0) return undefined;
+  await admin
+    .from("fuel_recon_runs")
+    .update({ superseded_by: runId, superseded_at: new Date().toISOString() })
+    .eq("org_id", orgId)
+    .in("id", prior);
+  return prior[0];
+}
+
 export async function runFuelReconciliation(
   admin: SupabaseClient,
   orgId: string,
@@ -262,6 +320,17 @@ export async function runFuelReconciliation(
 
   const runId = String((data as { id: string }).id);
 
+  // The lines, kept beside the run (0406) so a saved check opens on what was found, not only how many.
+  // Not fatal, like the findings below: the run is recorded and the reader is looking at it; a failure
+  // here costs the saved check its line list, and the page says so rather than showing none.
+  const { error: linesErr } = await admin.from("fuel_recon_run_rows").insert({
+    run_id: runId,
+    org_id: orgId,
+    rows: result.rows.map(cutCards),
+    unmatchable: result.unmatchable.map((l) => ({ ...l, cardRef: last6(l.cardRef) })),
+  });
+  const supersededRunId = await supersedeEarlierRun(admin, orgId, runId, parsed.kind, parsed.invoiceNo, sha);
+
   /*
    * File the findings (F6a). Set-based, through `sync_fuel_exceptions`, which refreshes evidence and
    * NEVER touches `status`, `assigned_to` or `resolution_note` — re-reconciling a period must not
@@ -290,6 +359,8 @@ export async function runFuelReconciliation(
   return {
     ok: true,
     runId,
+    supersededRunId,
+    linesError: linesErr?.message ?? null,
     filedExceptions: syncErr ? 0 : findings.length,
     exceptionError: syncErr?.message ?? null,
     periodStart: parsed.startDate,
