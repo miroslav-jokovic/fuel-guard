@@ -103,7 +103,7 @@ async function main() {
     );
     create table storage.objects (
       id uuid primary key default gen_random_uuid(),
-      bucket_id text, name text, owner uuid, created_at timestamptz default now()
+      bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now()
     );
     alter table storage.objects enable row level security;
     -- Supabase ships storage.foldername(); our storage policies path-scope on it
