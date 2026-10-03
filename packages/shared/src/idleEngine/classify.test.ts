@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyIdleEngine,
   counterAt,
+  ENGINE_SECONDS_RATE,
   engineSegments,
   IDLE_ENGINE_VERSION,
   parseCounter,
@@ -261,6 +262,42 @@ describe("counters (IE2a) — interpolated along running time", () => {
     expect(shut.hours[0]!.fuelMl).toBeNull();
   });
 
+  it("engine seconds rising faster than the engine ran are unknown, not squeezed into its running minutes (774, 10/02)", () => {
+    // Production, 774: 6,031,440 at 00:15:34, engine off 00:17:04 → 10:28:43, 6,065,820 at 10:30:52.
+    // 34,380 s of counter across 219 s of running; fuel moved one 500 mL step.
+    const d = Date.parse("2026-10-02T00:00:00Z");
+    const s = (h: number, m: number, sec: number) => d + ((h * 60 + m) * 60 + sec) * 1000;
+    const engine = engineSegments([{ t: s(0, 17, 4), on: false }, { t: s(10, 28, 43), on: true }], true, d - 3_600_000, s(11, 0, 0));
+    const r = [{ t: s(0, 15, 34), value: 6_031_440 }, { t: s(10, 30, 52), value: 6_065_820 }];
+    expect(counterAt(r, engine, s(1, 0, 0), ENGINE_SECONDS_RATE)).toBeNull();
+    // Without the bound (fuel's reading) the same pair puts 90/219 of it before 00:17:04.
+    expect(counterAt(r, engine, s(1, 0, 0))).toBeCloseTo(6_031_440 + 34_380 * (90 / 219), 0);
+  });
+
+  it("the bound allows two counter steps of lag: running + 360 s reads, running + 361 s is unknown", () => {
+    const engine = engineSegments([], true, at(-60), at(120));
+    const ok = [{ t: at(0), value: 10_000 }, { t: at(10), value: 10_000 + 600 + 360 }];
+    expect(counterAt(ok, engine, at(5), ENGINE_SECONDS_RATE)).toBeCloseTo(10_000 + 480, 6);
+    const over = [{ t: at(0), value: 10_000 }, { t: at(10), value: 10_000 + 600 + 361 }];
+    expect(counterAt(over, engine, at(5), ENGINE_SECONDS_RATE)).toBeNull();
+  });
+
+  it("an hour touched by an impossible engine-seconds rise has no ECU figure; its fuel still reads", () => {
+    // Running all hour; one engine-seconds pair rises 2 h across the hour's last 10 minutes.
+    const gps = fixes(-15, 70, 60);
+    const engineSec = [{ t: at(-5), value: 0 }, { t: at(50), value: 3_300 }, { t: at(65), value: 3_300 + 7_200 }];
+    const fuelMl = [{ t: at(-5), value: 100_000 }, { t: at(65), value: 140_000 }];
+    const h = run({ gps, engineSec, fuelMl }).hours[0]!;
+    expect(h.engineSec).toBeNull();
+    // …and from the hour's other edge: the pair spans its START (as 774's restart hour, 10/02 10:00Z).
+    const early = [{ t: at(-5), value: 0 }, { t: at(10), value: 7_200 }, { t: at(65), value: 7_200 + 3_300 }];
+    expect(run({ gps, engineSec: early }).hours[0]!.engineSec).toBeNull();
+    expect(h.fuelMl).toBe(Math.round(140_000 - 5 * (40_000 / 70) - (100_000 + 5 * (40_000 / 70))));
+    // The same hour with a possible rise reads.
+    const fine = run({ gps, engineSec: [{ t: at(-5), value: 0 }, { t: at(65), value: 4_200 }] }).hours[0]!;
+    expect(fine.engineSec).toBe(3_600);
+  });
+
   it("a counter that goes backwards (a swapped gateway) is null, not negative fuel", () => {
     const { hours } = run({ gps: fixes(-15, 70, 60), fuelMl: [{ t: at(-5), value: 9_000 }, { t: at(65), value: 1_000 }] });
     expect(hours[0]!.fuelMl).toBeNull();
@@ -291,7 +328,7 @@ describe("helpers", () => {
     expect(stateOfPlace(null)).toBeNull();
   });
   it("the version is stamped for the rows", () => {
-    expect(IDLE_ENGINE_VERSION).toBe("ie3-v2"); // running past the duty logs' horizon is not measured
+    expect(IDLE_ENGINE_VERSION).toBe("ie3-v3"); // engine seconds rising faster than the engine ran are unknown
   });
 });
 
