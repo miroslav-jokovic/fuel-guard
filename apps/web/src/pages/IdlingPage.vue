@@ -4,7 +4,8 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
@@ -18,7 +19,7 @@ const {
   isLoading, isError, error, isFetching, refetch,
   fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
   trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
-  trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
+  trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
@@ -185,20 +186,31 @@ const {
         :error="trkIsError ? (trkError instanceof Error ? trkError.message : 'Failed to load') : null"
         :retrying="trkFetching"
         :sort="trkSort"
+        :expanded="trkExpanded"
         empty-text="No engine-state data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(t) => (t.confident ? '' : 'opacity-60')"
         @sort="trkSort = toggleSort(trkSort, $event)"
         @retry="trkRefetch"
+        @row-click="toggleTrk"
       >
+        <template #cell-unit="{ row }">
+          <span class="flex items-center gap-2">
+            <BaseButton
+              variant="ghost"
+              size="sm"
+              :aria-expanded="trkExpanded.has(row.vehicleId)"
+              :aria-label="`${trkExpanded.has(row.vehicleId) ? 'Hide' : 'Show'} where truck ${row.unit}'s running time went`"
+              @click.stop="toggleTrk(row)"
+            >
+              <AppIcon :icon="trkExpanded.has(row.vehicleId) ? ChevronDownIcon : ChevronRightIcon" class="size-4" aria-hidden="true" />
+            </BaseButton>
+            {{ row.unit }}
+          </span>
+        </template>
         <template #cell-idlePct="{ value }">{{ value }}%</template>
-        <template #cell-restIdleH="{ row }">{{ row.restIdleH == null ? "—" : row.restIdleH }}</template>
-        <template #cell-workIdleH="{ row }">{{ row.workIdleH == null ? "—" : row.workIdleH }}</template>
         <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
         <template #cell-reducibleH="{ row }">{{ row.reducibleH == null ? "—" : row.reducibleH }}</template>
         <template #cell-reducibleUsd="{ row }">{{ row.reducibleUsd == null ? "—" : usd2(row.reducibleUsd) }}</template>
-        <template #cell-capability="{ value }">
-          <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>
-        </template>
         <template #cell-coveragePct="{ row }">
           <span
             :class="row.confident ? 'text-ink-secondary' : 'text-warning-600'"
@@ -206,6 +218,21 @@ const {
           >
             {{ row.coveragePct }}%<span v-if="!row.confident" class="ml-1 text-xs font-medium">· low</span>
           </span>
+        </template>
+        <!-- Where the truck's running time went: the split behind its costs, one click away (design verdict, E3). -->
+        <template #expanded="{ row }">
+          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6" data-testid="truck-detail">
+            <div v-for="d in trkDetail(row)" :key="d.label">
+              <dt class="text-xs text-ink-muted">{{ d.label }}</dt>
+              <dd class="tabular-nums text-ink">{{ d.value }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-ink-muted">Idle capability</dt>
+              <dd>
+                <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(row.capability).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(row.capability).label }}</span>
+              </dd>
+            </div>
+          </dl>
         </template>
         <template #footer>
           <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />
