@@ -356,6 +356,21 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     the Idling page and driver scores read the engine, plus Q-IE14's burn-rate choice), built once IE5a says `pass`.
     With the 10/03 nightly rewriting 10/01 and 10/02 whole, 14 final days are 10/01–10/14, final after the 10/16
     nightly: IE5b is ~10/16 at the earliest.
+  - **Q-IE17 — the stopped-running check fails by direction, not by noise (OPEN, owner, 2026-10-03).** First final
+    day (10/01, §7): running vs the ECU passed 121 of 125 judged truck-days; stopped running vs Samsara's
+    `idle_sec` passed 25 of 128, and on 127 of the 128 ours is the HIGHER figure (median +20%, quartiles +6% /
+    +58%; fleet 846 h vs 761 h, +11%). Both sides see the same engine: Samsara drive + idle = 1,908 h, ours
+    driving + stopped = 1,883 h, ECU 1,885 h. Samsara books ~110 h of it as driving that our motion call (D-IE1,
+    3 mph, 60 s debounce) books as stopped. The excess is only weakly tied to the number of stops (r = 0.28,
+    ~8 min per stop on average), so it is not simply an onset delay on Samsara's side; its cause is not yet
+    measured. As ruled, the gate cannot pass (it needs 95%); a 14-day wait will not change a one-way gap.
+    Candidates: (a) **keep ±5% per truck-day** and find out which side is right first — sample a few of the worst
+    trucks' parks hour by hour against the gateway's speed, then either fix our motion call or rule; (b) **judge
+    only running vs the ECU** (the one check with ground truth) and show the stopped gap as information, since
+    D-IE1 already chose our motion call over Samsara's; (c) widen or re-shape the stopped check (truck's 14-day
+    total, or a bound on the fleet bias). Recommendation: **(a) then (b)** — the gap is money (+11% avoidable
+    idle against today's figures, and in driver scores at IE5b), so name the side that is wrong before the gate
+    stops looking at it. Nothing is built on this until the owner rules; IE5b waits on it as well as on 14 days.
 
 ## 5. Words (D-FSV7)
 
@@ -391,7 +406,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 | **FS3** | Pilot invoices page (D-FSV8); first real statement through it (`db139445F.pdf`). | — | no |
 | **IE6** | Retire Samsara idling-events ingestion + dead envelope machinery (D-IE10). | IE5 | yes (drops) |
 
-All questions are answered; nothing in the queue is blocked on the owner.
+IE5b is blocked on the owner: §4 Q-IE17 (the stopped-running check) and Q-IE14 (the burn rate).
 
 ---
 
@@ -888,4 +903,17 @@ All questions are answered; nothing in the queue is blocked on the owner.
   `IdleEngineParityPanel.test.ts` (7). Mutation: gate 20/20, reader 9/10 (the survivor drops `Number()` on a
   bigint that JavaScript arithmetic coerces anyway — no output can change), panel 7/7; three killed only after a
   fixture was added (the ECU-side hour, an org east of UTC, a share of 94.97%).
+- **2026-10-03** — **Nightly check, the engine's first (production, SELECT, read ~13:00Z).** (a) IE2: the nightly
+  ran 07:05Z, `done`, `from` 2026-10-01T05:00Z, 0 incomplete batches; every hourly since 10/02 12:00Z `done` (the
+  one `failed` row, 10/02 19:19Z, is a lease reclaimed across the IE3 deploy); no truck has two open parks.
+  (b) IE3: all 1,501 parks are `ie3-v2`; 1,380 measured, unknown 84.8 h of 1,476.1 h measured running = **5.7%**.
+  The 121 parks with a null split (515.3 h running) all ran past the 02:07Z `sync_hos` and were measured before
+  the next one at 08:34Z (earliest ended 02:11Z) — exactly the Q-IE15 rule; tonight's nightly measures them.
+  (c) IE5a: final through **10/01** (the nightly's `from` day; 10/02 becomes final with the 10/04 nightly — the
+  handoff's "10/01 and 10/02 final" was wrong, the rule was right). 10/01 and 10/02 both hold all 24 hour rows
+  for 192 trucks (the nightly rewrote them whole); 10/03 has 7. Gate: 1 day of 14, **134 truck-days judged, 31
+  pass (23%)**, not `pass`. Running vs ECU **121 / 125**; the four misses are all ours LOW (808 −17%, 774 −19%,
+  786 −5.3%, 805 −3.5%). Stopped running vs Samsara **25 / 128** (43 within 10%, 62 within 20%), ours higher on
+  127 — the gate cannot pass as ruled; the evidence and the choice are §4 **Q-IE17**, open for the owner.
+  Worst stopped misses: 767 +1160%, 680 +173%, 701 +93%, 748 +86%, 736 +62%.
 
