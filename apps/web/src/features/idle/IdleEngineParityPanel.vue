@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { IDLE_PARITY, formatDisplayDate } from "@silvicom/shared";
+import { IDLE_PARITY, formatDisplayDate, idleParityStage } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useIdleEngineParity } from "./useIdleEngineParity";
@@ -18,9 +18,11 @@ const rows = computed(() => (data.value?.disagreements ?? []).map((d) => ({ ...d
 const status = computed(() => {
   const d = data.value;
   if (!d) return null;
-  if (d.pass) return { label: "Ready to switch", tone: "success" };
-  if (d.daysNeeded > 0) return { label: "Still checking", tone: "neutral" };
-  return { label: "Not agreeing yet", tone: "warning" };
+  return {
+    pass: { label: "Ready to switch", tone: "success" },
+    checking: { label: "Still checking", tone: "neutral" },
+    disagreeing: { label: "Not agreeing yet", tone: "warning" },
+  }[idleParityStage(d)];
 });
 
 const columns: DataTableColumn[] = [

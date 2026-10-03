@@ -1120,3 +1120,9 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   pass: 14/15 killed; the survivor (dropping the reader's `day ≤ finalThrough` bound) is a no-op, since
   `judgeIdleParityDay` already refuses non-final days. Next: the console page under the customer detail, then step
   (2), the owner comparing it with the office panel on the same night.
+- **2026-10-03** IE-ADMIN step (1), the console page: Customers → a customer → "Idle engine checks" → `/customers/:id/idle-engine`
+  (apps/admin) lays out the gate (stage badge, finished days of 14, final-through, agreeing share floored like the office
+  panel, idling vs Samsara shown not judged, the org's timezone), the trucks that did not match, and the learned burn
+  rates beside the configured rate. The stage word is now `idleParityStage` in shared, read by this page and the office
+  panel alike. Seen rendered (preview build, stubbed API, fake aal2 session). Step (1) is complete with this; step (2) is
+  the owner opening both on the same night — the 10/04 nightly is the first one where both show 2 final days.
