@@ -27,6 +27,16 @@
  *   seed     when a truck has no flip in its fetch, the engine state holding all along is its LATEST
  *            flip from `/fleet/vehicles/stats`, if that flip is older than the fetch — a truck shut
  *            down for a week is off, not unknown. Otherwise unknown, and `no_data` is never off.
+ *   carry-in when a truck's fetch HAS flips but none at or before its start, what held before the first
+ *            one is read from its own engine history, up to `CARRY_IN_LOOKBACK_MS` back, once per batch
+ *            for the trucks that need it. Measured 2026-10-03: 649 idled from before 09/30 05:00Z until
+ *            10/02 13:36Z (Samsara: 24.0 h idle on 10/01, 13.6 h on 10/02). Its one flip inside the fetch
+ *            was the 13:36 Off, so the snapshot seed (newer than the fetch) did not apply and 37.9 h were
+ *            stored `no_data` — the longest idle in the fleet, invisible, and invisible to the D-IE9 gate
+ *            too, since an hour with no engine state has no engine-seconds delta either. The same rule
+ *            turns trucks parked for days before an in-window start (789, 692, 735, 750 on 10/01) from
+ *            unknown into off. Nothing is inferred from the first flip's value: an incomplete read or no
+ *            flip within the lookback stays unknown.
  *
  * DUTY (IE3, 0407): each park's running time is split by the driver's duty status, from ONE read of the
  * duty timelines over the run's whole reach (`readVehicleDutyTimelines` — the logbook plus the
@@ -70,6 +80,8 @@ const ENGINE_LOOKBACK_MS = 24 * HOUR;
 const GPS_LOOKBACK_MS = 15 * 60_000;
 /** A park reaching further back than the engine lookback makes its truck fetch alone. */
 const LONG_PARK_MS = ENGINE_LOOKBACK_MS;
+/** How far back a truck's own engine history is read for its state at the fetch's start (see carry-in). */
+const CARRY_IN_LOOKBACK_MS = 30 * 24 * HOUR;
 const NIGHTLY_LOCAL_HOURS = [2, 3, 4, 5];
 const NIGHTLY_EVERY_MS = 20 * HOUR;
 const DEFAULT_MIN_IDLE_MINUTES = 5;
@@ -88,6 +100,9 @@ export interface IdleEngineSyncResult {
   days: number;
   /** Trucks whose whole window was `no_data` — no engine state at all. */
   vehiclesNoEngine: number;
+  /** Trucks whose state at the fetch's start came from the carry-in read, and those it could not find. */
+  carriedIn: number;
+  carryInMissing: number;
   pages: number;
 }
 
@@ -121,6 +136,33 @@ async function nightlyDue(admin: SupabaseClient, orgId: string, nowMs: number, t
     .limit(1);
   if (error) throw new Error(`idle engine: nightly check: ${error.message}`);
   return (data ?? []).length === 0;
+}
+
+/**
+ * The engine state each truck was in at `atMs`, from its own `engineStates` history over the
+ * `CARRY_IN_LOOKBACK_MS` before it: the last flip at or before `atMs`. A truck with no flip in that span
+ * is left out, and so is every truck when the read is incomplete — a partial history could miss the
+ * flip that mattered, and a wrong carry-in is worse than an honest `no_data`.
+ */
+async function carryInEngineState(
+  history: StatsHistoryFetcher,
+  samsaraIds: string[],
+  atMs: number,
+): Promise<{ state: Map<string, boolean>; pages: number }> {
+  const state = new Map<string, boolean>();
+  if (samsaraIds.length === 0) return { state, pages: 0 };
+  const read = await history(
+    samsaraIds,
+    ["engineStates"],
+    new Date(atMs - CARRY_IN_LOOKBACK_MS).toISOString(),
+    new Date(atMs).toISOString(),
+  );
+  if (!read.complete) return { state, pages: read.pages };
+  for (const [sid, flips] of parseEngineFlips(read.data)) {
+    const last = flips.filter((f) => f.t <= atMs).reduce<{ t: number; on: boolean } | null>((a, f) => (a == null || f.t >= a.t ? f : a), null);
+    if (last) state.set(sid, last.on);
+  }
+  return { state, pages: read.pages };
 }
 
 export async function syncIdleEngine(
@@ -160,6 +202,8 @@ export async function syncIdleEngine(
     stops: 0,
     days: 0,
     vehiclesNoEngine: 0,
+    carriedIn: 0,
+    carryInMissing: 0,
     pages: 0,
   };
 
@@ -218,6 +262,22 @@ export async function syncIdleEngine(
       continue;
     }
     const flips = parseEngineFlips(engineAndFuel.data);
+    const snapshotSeed = (sid: string, engine: readonly { t: number }[]) => {
+      const seed = seeds.get(sid);
+      return engine.length === 0 && seed && seed.t <= spanStartMs ? seed.on : null;
+    };
+    // The first instant whose state is written: the window's start, or the stored park's when earlier.
+    const neededFrom = (v: VehicleRow) => Math.min(fromMs, parked.get(v.id)?.sinceMs ?? fromMs);
+    const unseeded = group
+      .filter((v) => {
+        const engine = flips.get(v.samsara_vehicle_id) ?? [];
+        return !engine.some((f) => f.t <= neededFrom(v)) && snapshotSeed(v.samsara_vehicle_id, engine) == null;
+      })
+      .map((v) => v.samsara_vehicle_id);
+    const carried = await carryInEngineState(history, unseeded, spanStartMs);
+    result.carriedIn += carried.state.size;
+    result.carryInMissing += unseeded.length - carried.state.size;
+    result.pages += carried.pages;
     const fuel = parseCounter(engineAndFuel.data, "fuelConsumedMilliliters");
     const engineSec = parseCounter(engineAndFuel.data, "obdEngineSeconds");
     const amb = parseCounter(ambient.data, "ambientAirTemperatureMilliC");
@@ -228,14 +288,13 @@ export async function syncIdleEngine(
     for (const v of group) {
       const sid = v.samsara_vehicle_id;
       const engine = flips.get(sid) ?? [];
-      const seed = seeds.get(sid);
       const out = classifyIdleEngine({
         fromMs,
         toMs,
         dataEndMs: nowMs,
         spanStartMs,
         engine,
-        engineSeed: engine.length === 0 && seed && seed.t <= spanStartMs ? seed.on : null,
+        engineSeed: snapshotSeed(sid, engine) ?? carried.state.get(sid) ?? null,
         gps: fixes.get(sid) ?? [],
         parked: parked.get(v.id) ?? null,
         fuelMl: fuel.get(sid) ?? [],
