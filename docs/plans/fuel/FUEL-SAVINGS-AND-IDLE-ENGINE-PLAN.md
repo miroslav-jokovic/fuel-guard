@@ -1186,6 +1186,13 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   the explicit no-row throw, since `row.measured_lines` on `undefined` throws anyway) and its real counterpart — defaulting a
   missing row to zeros — fails the test. **Q-FSV18 closed**; §4's Q-FSV16/Q-FSV18 are both done once this merges.
 
+- **2026-10-03** Contract findings only against a same-day quote (research pass on Q-FSV15 ruling 4's assumptions).
+  `quote_stale_days` (0405: `bday − obs`) is 1 when a fill's day had no Pilot report and yesterday's was used. Over 90
+  days: same-day quote, 3,109 fills, ≥5¢/gal over 29 vs under 11, interquartile within $0.0005/gal (real, lopsided);
+  day-old quote, 790 fills, 89 over vs 84 under, p5/p95 −$0.20/+$0.22 per gal (symmetric: the overnight move). Of the
+  $2,424 the $5 floor would file, $1,940 (80%) was on day-old quotes. `contractFindings` now files only `staleDays === 0`;
+  the $5 floor stays. Expected queue: ~30 fills / 90 days (≈0.3 a day) instead of 122. Shipped before the scan's first
+  run (10/04 ~08:05Z), so the inbox never holds the noise.
 - **2026-10-03** Collector carry-in (research pass on "a day is final" and the D-IE9 gate's coverage). On 10/01, 17 truck-days
   had over an hour of `no_data`; for 11 Samsara's `vehicle_engine_days` covered the gap. 649 idled from before 09/30
   05:00Z to 10/02 13:36Z (Samsara 24.0 h idle on 10/01, 13.6 h on 10/02) and was stored as 37.9 h `no_data`, 0 h running:

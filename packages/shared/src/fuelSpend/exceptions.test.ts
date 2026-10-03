@@ -186,6 +186,16 @@ describe("contractFindings", () => {
     expect(contractFindings(capture)).toHaveLength(3);
   });
 
+  it("files only against the fill's own day's quote — a day-old price list is the overnight move, not a charge", () => {
+    const capture = analyzeContractCapture([
+      line({ unit: "701", netAmount: 520, quoteStaleDays: 0 }), // $20 over today's quote: filed
+      line({ unit: "702", netAmount: 520, quoteStaleDays: 1 }), // $20 over yesterday's: not measurable
+      line({ unit: "703", netAmount: 520, quoteStaleDays: 3 }),
+    ]);
+    expect(contractFindings(capture, MIN_CONTRACT_OVERBILL_USD).map((f) => f.unit)).toEqual(["701"]);
+    expect(contractFindings(capture).map((f) => f.unit)).toEqual(["701"]);
+  });
+
   it("owns a close scope of its own that no sibling producer shares", () => {
     expect(CONTRACT_EXCEPTION_KINDS).toEqual(["contract_variance"]);
     for (const k of RECON_EXCEPTION_KINDS) expect(CONTRACT_EXCEPTION_KINDS).not.toContain(k);
