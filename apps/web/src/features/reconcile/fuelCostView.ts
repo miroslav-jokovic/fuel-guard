@@ -82,7 +82,10 @@ export function costCards(report: FuelReport): CostCard[] {
   const t = c.totals.tractor;
   const pt = p.totals.tractor;
   const cards = [
-    card("spend", "Fuel spend", t.spend, pt.spend, usd, "lower", prevRange),
+    // Dollars move with how much the fleet drove, so a fall is not news and a rise is not bad news on its own
+    // (Q-FSV15 ruling 2): a quieter month would paint green. Price and the quote gap are per gallon, and
+    // MPG and cost per mile are per mile, so those keep a direction.
+    card("spend", "Fuel spend", t.spend, pt.spend, usd, null, prevRange),
     card("gallons", "Gallons", t.gallons, pt.gallons, gal, null, prevRange),
     card("price", "Avg price / gal", t.pricePerGal, pt.pricePerGal, usd3, "lower", prevRange),
   ];
@@ -107,7 +110,7 @@ export function costCards(report: FuelReport): CostCard[] {
       term: "Billed against contract: what we paid minus Pilot's quoted price, on the fills Pilot quoted",
       missing: "no fill in this range had a Pilot quote",
     }),
-    card("out", "Out of network", c.totals.byNetwork.out.spend, p.totals.byNetwork.out.spend, usd, "lower", prevRange, {
+    card("out", "Out of network", c.totals.byNetwork.out.spend, p.totals.byNetwork.out.spend, usd, null, prevRange, {
       term: `Tractor fuel bought anywhere but ${brandList(report.inNetworkBrands)}`,
     }),
   );

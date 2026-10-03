@@ -65,10 +65,19 @@ describe("costCards", () => {
 
   it("calls a rise bad where less is better, and a fall bad where more is better", () => {
     const c = byKey(report());
-    expect(c.spend!.tone).toBe("bad");
+    expect(c.price!.tone).not.toBeNull(); // a price per gallon has a direction
     expect(c.mpg!.tone).toBe("bad"); // 6.8 → 6.2
     expect(c.cpm!.tone).toBe("bad");
     expect(c.gallons!.tone).toBeNull(); // neither direction is good news on its own
+  });
+
+  it("gives dollars no direction, because they move with how much the fleet drove (Q-FSV15)", () => {
+    // Spend and out-of-network spend both change between the fixture's two ranges; a quieter month
+    // must not be painted green.
+    const c = byKey(report());
+    expect(c.spend!.sub).toMatch(/vs /);
+    expect(c.spend!.tone).toBeNull();
+    expect(c.out!.tone).toBeNull();
   });
 
   it("drops miles, MPG and cost per mile under a station filter rather than dashing them", () => {
