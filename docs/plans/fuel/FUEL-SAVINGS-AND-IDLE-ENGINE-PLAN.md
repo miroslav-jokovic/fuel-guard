@@ -1108,3 +1108,15 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   above), the ordinary-user task test (`UX-TASK-TEST-PROTOCOL.md`, needs people), idle and equipment rows in the savings
   strip (wait for IE5b, which waits on Q-IE17/Q-IE14). Nothing here is on a critical path of the others except the merge
   order of the stack.
+- **2026-10-03** IE-ADMIN step (1) of Q-FSV17, the console's read: `GET /admin/orgs/:id/idle-engine` (apps/admin-api)
+  serves the parity gate and the learned burn rates for one customer, behind the full platform chain (any platform
+  role, read-only included), audited as `idle_engine.view`; 404 for an unknown org audits nothing. Decided under the
+  working rule (owner's go was still open; this step is additive, reads only, and removes nothing): the two open
+  sub-questions only bear on step (3) and stay open. No copy of the gate: the columns, the row-to-day pairing with
+  Samsara's whole-day rule (`idleParityDays`), the view shape (`IdleEngineParityView`, previously declared twice, in
+  apps/api and apps/web), 0409's call window (`idleBurnInputsArgs`) and the paging helpers moved into
+  `@silvicom/shared`; the office reader calls the same functions, so the two views agree by construction. The
+  configured rate is `pickIdleCostBasis` over settings alone (the truck-stop median moves only the price). Mutation
+  pass: 14/15 killed; the survivor (dropping the reader's `day ≤ finalThrough` bound) is a no-op, since
+  `judgeIdleParityDay` already refuses non-final days. Next: the console page under the customer detail, then step
+  (2), the owner comparing it with the office panel on the same night.

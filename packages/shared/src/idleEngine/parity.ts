@@ -163,3 +163,81 @@ export function idleParityFinalThrough(nightlyFromIso: string | null, timeZone: 
     Date.parse(nightlyFromIso),
   );
 }
+
+// ── THE TWO TABLES AS STORED, AND THE VIEW BOTH READERS SERVE (IE-ADMIN, §4 Q-FSV17) ───────────────
+// Two services read the gate: the office API (`/api/idle/engine/parity`) and the platform console
+// (`/admin/orgs/:id/idle-engine`). Each runs its own queries — the console may not import `apps/api`
+// (`lint:boundaries`) — so everything decided about the rows lives here, once: which columns, how a
+// stored row becomes a truck-day, and when Samsara's day counts as whole.
+
+/** `idle_engine_days` (0404): the columns the gate reads. */
+export const IDLE_ENGINE_DAY_COLUMNS =
+  "vehicle_id, day, hours, driving_sec, stopped_running_sec, brief_stop_sec, engine_sec, engine_sec_hours";
+
+export interface IdleEngineDayRow {
+  vehicle_id: string;
+  day: string;
+  hours: number;
+  driving_sec: number;
+  stopped_running_sec: number;
+  brief_stop_sec: number;
+  // bigint: PostgREST may send it as a string.
+  engine_sec: number | string;
+  engine_sec_hours: number;
+}
+
+/** `vehicle_engine_days`: Samsara's idle for the same truck and local day, and how much of it the sync saw. */
+export const SAMSARA_ENGINE_DAY_COLUMNS = "vehicle_id, day, idle_sec, coverage_sec";
+
+export interface SamsaraEngineDayRow {
+  vehicle_id: string;
+  day: string;
+  idle_sec: number | string | null;
+  coverage_sec: number | null;
+}
+
+/**
+ * Pair each of our stored days with Samsara's for the same truck and local day. Samsara's idle counts
+ * only when its coverage spans the whole local day: `aggregateEngineDays` counts a state until the NEXT
+ * sample, so a truck still idling when the sync last ran has that open stretch missing (775 on 10/01:
+ * 15.4 h covered, 1.2 h idle stored, 9.8 h idle by Samsara's own states). Our `hours` is the local
+ * day's length (a DST day is 23 or 25), so the bar moves with it.
+ */
+export function idleParityDays(
+  ours: readonly IdleEngineDayRow[],
+  theirs: readonly SamsaraEngineDayRow[],
+): IdleParityDay[] {
+  const samsara = new Map(theirs.map((r) => [`${r.vehicle_id}|${r.day}`, r]));
+  return ours.map((r) => {
+    const t = samsara.get(`${r.vehicle_id}|${r.day}`);
+    const s = t != null && t.coverage_sec != null && t.coverage_sec >= r.hours * 3600 ? t.idle_sec : null;
+    return {
+      vehicleId: r.vehicle_id,
+      day: r.day,
+      hours: r.hours,
+      runningSec: r.driving_sec + r.stopped_running_sec + r.brief_stop_sec,
+      stoppedSec: r.stopped_running_sec + r.brief_stop_sec,
+      ecuSec: Number(r.engine_sec),
+      ecuHours: r.engine_sec_hours,
+      samsaraIdleSec: s == null ? null : Number(s),
+    };
+  });
+}
+
+/** The gate as both services serve it: the report, the org's timezone, and units on the disagreements. */
+export interface IdleEngineParityView extends Omit<IdleParityReport, "disagreements"> {
+  timezone: string;
+  disagreements: (IdleParityTruck & { unit: string })[];
+}
+
+export function idleEngineParityView(
+  report: IdleParityReport,
+  timezone: string,
+  unitById: ReadonlyMap<string, string>,
+): IdleEngineParityView {
+  return {
+    ...report,
+    timezone,
+    disagreements: report.disagreements.map((d) => ({ ...d, unit: unitById.get(d.vehicleId) ?? "—" })),
+  };
+}

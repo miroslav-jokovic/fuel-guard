@@ -13,6 +13,7 @@ import { apiError } from "../lib/http.js";
 import { listOrgs, getOrgDetail, setOrgEntitlement } from "../lib/orgs.js";
 import { listOrgMembers, setOrgModuleEnabled } from "../lib/members.js";
 import { startGrant, getActiveGrant, viewOrgAnomalies, writeTenantAudit } from "../lib/impersonation.js";
+import { readOrgIdleEngine } from "../lib/idleEngine.js";
 
 /** /admin/orgs — read-only customer oversight (Phase 1). All routes behind the full platform gate. */
 export function orgsRouter(): Router {
@@ -70,6 +71,36 @@ export function orgsRouter(): Router {
       res.json({ members });
     } catch {
       res.status(500).json(apiError("internal_error", "Could not load members"));
+    }
+  });
+
+  // The idle engine's rollout checks for one customer (IE-ADMIN, FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md
+  // §4 Q-FSV17): the parity gate and the learned burn rates. Read-only, but a cross-tenant read of
+  // the customer's fleet data, so it is audited like the detail view — any platform role may look.
+  r.get("/:id/idle-engine", async (req: Request, res: Response) => {
+    const id = req.params.id;
+    if (typeof id !== "string") {
+      res.status(400).json(apiError("invalid_request", "Invalid organization id"));
+      return;
+    }
+    try {
+      const admin = adminClient(req);
+      const engine = await readOrgIdleEngine(admin, id);
+      if (!engine) {
+        res.status(404).json(apiError("not_found", "Organization not found"));
+        return;
+      }
+      const ua = req.headers["user-agent"];
+      await writePlatformAudit(admin, req.platform!, {
+        action: "idle_engine.view",
+        targetOrgId: id,
+        targetEntity: "idle_engine_days",
+        ip: req.ip ?? null,
+        userAgent: typeof ua === "string" ? ua : null,
+      });
+      res.json({ idleEngine: engine });
+    } catch {
+      res.status(500).json(apiError("internal_error", "Could not load the idle engine checks"));
     }
   });
 

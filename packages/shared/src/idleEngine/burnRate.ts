@@ -72,6 +72,39 @@ export interface IdleBurnInputRow {
   fuelMl: number;
 }
 
+/**
+ * 0409's `idle_engine_burn_inputs` as PostgREST sends it, and the arguments that ask it for the learner's
+ * window. Shared because two services call it — the office API and the platform console (IE-ADMIN) —
+ * and the window, the band edges and the bigint handling must be the same in both.
+ */
+export interface IdleBurnInputRpcRow {
+  vehicle_id: string;
+  band: number | null;
+  parks: number;
+  // bigint: PostgREST may send it as a string.
+  running_sec: number | string;
+  fuel_ml: number | string;
+}
+
+export function idleBurnInputsArgs(
+  orgId: string,
+  now: Date,
+): { from: string; to: string; args: { p_org: string; p_from: string; p_to: string; p_band_edges_milli_c: number[] } } {
+  const to = now.toISOString();
+  const from = new Date(now.getTime() - IDLE_BURN_LEARN_DAYS * 86_400_000).toISOString();
+  return { from, to, args: { p_org: orgId, p_from: from, p_to: to, p_band_edges_milli_c: [...IDLE_BURN_BAND_EDGES_MILLI_C] } };
+}
+
+export function idleBurnInputRows(rows: readonly IdleBurnInputRpcRow[]): IdleBurnInputRow[] {
+  return rows.map((r) => ({
+    vehicleId: r.vehicle_id,
+    band: r.band,
+    parks: r.parks,
+    runningSec: Number(r.running_sec),
+    fuelMl: Number(r.fuel_ml),
+  }));
+}
+
 export interface IdleBurnMeasure {
   parks: number;
   runningHours: number;

@@ -1,12 +1,6 @@
 import { useQuery } from "@tanstack/vue-query";
-import type { IdleParityReport, IdleParityTruck } from "@silvicom/shared";
+import type { IdleEngineParityView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
-
-/** `GET /api/idle/engine/parity` (IE5, D-IE9): the server's report, units attached. */
-export interface IdleEngineParityView extends Omit<IdleParityReport, "disagreements"> {
-  timezone: string;
-  disagreements: (IdleParityTruck & { unit: string })[];
-}
 
 /**
  * Has the new idle engine agreed with the trucks' own computers on enough days to be switched on? The

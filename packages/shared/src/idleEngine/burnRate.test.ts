@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { DeclaredEquipment } from "../idleEquipmentDeclared.js";
 import {
   IDLE_BURN_BAND_EDGES_MILLI_C,
+  IDLE_BURN_LEARN_DAYS,
   IDLE_BURN_PRIOR_GAL_PER_HOUR,
   idleBurnBand,
   idleBurnBandLabel,
+  idleBurnInputRows,
+  idleBurnInputsArgs,
   idleBurnRateFor,
   learnIdleBurnRates,
   type IdleBurnInputRow,
@@ -115,5 +118,21 @@ describe("idleBurnRateFor", () => {
     expect(idleBurnRateFor(rates, "no_apu", 25_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
     expect(idleBurnRateFor(rates, "battery_apu", 25_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
     expect(idleBurnRateFor(rates, "battery_apu", null)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
+  });
+});
+
+describe("idleBurnInputsArgs / idleBurnInputRows (0409's call, shared by the office API and the console)", () => {
+  it("asks for the last IDLE_BURN_LEARN_DAYS before now, the org's rows only, on the shared band edges", () => {
+    const now = new Date("2026-10-03T12:00:00.000Z");
+    const { from, to, args } = idleBurnInputsArgs("org-1", now);
+    expect(to).toBe("2026-10-03T12:00:00.000Z");
+    expect(from).toBe(new Date(now.getTime() - IDLE_BURN_LEARN_DAYS * 86_400_000).toISOString());
+    expect(args).toEqual({ p_org: "org-1", p_from: from, p_to: to, p_band_edges_milli_c: [...IDLE_BURN_BAND_EDGES_MILLI_C] });
+  });
+
+  it("reads PostgREST's bigint strings as numbers", () => {
+    expect(idleBurnInputRows([{ vehicle_id: "v1", band: 2, parks: 3, running_sec: "7200", fuel_ml: "5450" }])).toEqual([
+      { vehicleId: "v1", band: 2, parks: 3, runningSec: 7200, fuelMl: 5450 },
+    ]);
   });
 });
