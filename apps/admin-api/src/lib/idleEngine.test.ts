@@ -123,8 +123,8 @@ function seed(o: { tz?: string; nightlyFrom?: string; idleGalPerHour?: string | 
       ],
     },
     [
-      { org: ORG, vehicle_id: "v1", band: 2, parks: 4, running_sec: String(60 * H), fuel_ml: String(Math.round(60 * 0.8 * 3785.411784)) },
-      { org: OTHER, vehicle_id: "x1", band: 2, parks: 9, running_sec: String(500 * H), fuel_ml: "1" },
+      { org: ORG, vehicle_id: "v1", band: 2, hours: 60, fuel_ml: String(Math.round(60 * 0.8 * 3785.411784)) },
+      { org: OTHER, vehicle_id: "x1", band: 2, hours: 500, fuel_ml: "1" },
     ],
   );
 }
@@ -152,8 +152,11 @@ describe("readOrgIdleEngine", () => {
     const f = seed();
     const r = (await readOrgIdleEngine(f.client, ORG, NOW))!;
     expect(f.rpcArgs).toEqual([expect.objectContaining({ p_org: ORG, p_to: NOW.toISOString() })]);
-    expect(r.burnRates.fleet).toMatchObject({ parks: 4, runningHours: 60 });
-    expect(r.burnRates.cells).toEqual([expect.objectContaining({ equipment: "no_apu", band: 2, learned: true, galPerHour: 0.8 })]);
+    // One truck: measured, not yet believed (five trucks are the bar), so it reads the prior.
+    expect(r.burnRates.fleet).toMatchObject({ trucks: 1, runningHours: 60, measuredGalPerHour: 0.8 });
+    expect(r.burnRates.cells).toEqual([
+      expect.objectContaining({ equipment: "no_apu", band: 2, measuredGalPerHour: 0.8, learned: false, source: "prior", galPerHour: IDLE_BURN_PRIOR_GAL_PER_HOUR }),
+    ]);
     expect(r.burnRates.priorGalPerHour).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
     expect(r.burnRates.configuredGalPerHour).toBe(0.9);
     expect(r.burnRates.to).toBe(NOW.toISOString());

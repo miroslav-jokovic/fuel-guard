@@ -1221,3 +1221,10 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   engine-seconds delta either. On production: 10/01 (final) has 9 such days (579, 642, 649, 692, 707, 727, 735, 750, 789),
   so it reads 118 of 127 (92.9%) instead of 118 of 118; 10/02 (provisional) has 5, most of them the engine-off trucks the
   collector carry-in (#1248) turns from unknown into off. Both panels gain a "Days with data missing" column.
+- **2026-10-03** Q-IE14 step 2 (the reader of 0419): the learner reads interior hours; a level is believed at ≥ 5 trucks and
+  a 95% interval within ±10%, clustered by truck; an unlearned cell reads its cohort, else the fleet, else the prior,
+  and says which (`source`, worded once in `IDLE_BURN_SOURCE_LABELS` for both panels). The real learner run locally on
+  production's exported 0419 rows: no APU 50–75 °F 0.665 ±8.0% (47 trucks), 75–90 °F 0.662 ±7.4% (53) — learned; no-APU
+  cohort 0.658 ±6.9%; fleet 0.653 ±6.8% (81 trucks, 1,018 h); battery-APU cells (10 trucks, ±23%) read the fleet's
+  0.653. The configured `idle_gal_per_hour` (0.80) is unchanged; whether money moves to the learned table is Q-IE14's
+  setting, the next step.

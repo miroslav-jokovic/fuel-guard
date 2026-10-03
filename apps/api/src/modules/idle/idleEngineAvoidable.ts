@@ -16,7 +16,8 @@
  * Hours become gallons and dollars on `resolveIdleCostBasis` — the Idling page's own burn rate and
  * price, so the two never price an idle hour differently. `money.learned` prices the same seconds at
  * the burn rate the fleet's engines measured (IE4, D-IE5): each park at its truck's cohort and its own
- * ambient band (`idleBurnRateFor`), the prior where a cell has under 50 hours, at the same price. Both
+ * ambient band (`idleBurnRateFor`) — or, where that cell has not passed the bar, its cohort's, the
+ * fleet's or the prior, whichever is nearest and has — at the same price. Both
  * are carried until the owner accepts the switch (§4 Q-IE14); the learned table is today's, applied to
  * the range, as the verdict is today's settings applied to it.
  *

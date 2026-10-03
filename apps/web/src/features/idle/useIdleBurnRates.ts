@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import { DECLARED_EQUIPMENT_LABELS, type IdleBurnRatesView } from "@silvicom/shared";
+import { DECLARED_EQUIPMENT_LABELS, IDLE_BURN_SOURCE_LABELS, type IdleBurnRatesView } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -11,10 +11,14 @@ export interface BurnRateRow {
   key: string;
   equipment: string;
   temperature: string;
+  trucks: number;
   runningHours: number;
   measured: number | null;
   learned: boolean;
+  /** The plain-word answer to "is this the rate used?" — measured, or which stand-in. */
+  status: string;
 }
+
 
 /** One row per measured group, in the server's order (equipment, then temperature). */
 export function burnRateRows(v: IdleBurnRatesView): BurnRateRow[] {
@@ -22,9 +26,11 @@ export function burnRateRows(v: IdleBurnRatesView): BurnRateRow[] {
     key: `${c.equipment}|${c.band ?? ""}`,
     equipment: DECLARED_EQUIPMENT_LABELS[c.equipment],
     temperature: c.label,
+    trucks: c.trucks,
     runningHours: c.runningHours,
     measured: c.measuredGalPerHour,
     learned: c.learned,
+    status: IDLE_BURN_SOURCE_LABELS[c.source],
   }));
 }
 
