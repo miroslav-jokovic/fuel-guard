@@ -80,7 +80,9 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
           Passes when engine hours agree with each truck's own computer within
           {{ IDLE_PARITY.runningTolerance * 100 }}% on {{ IDLE_PARITY.passShare * 100 }}% of truck-days over
           {{ IDLE_PARITY.minDays }} finished days. Idling against Samsara's is shown, not judged: Samsara starts
-          counting a stop as idling only after 2–3 minutes, so ours reads higher by design.
+          counting a stop as idling only after 2–3 minutes, so ours reads higher by design. A day where ours
+          is missing {{ IDLE_PARITY.maxNoDataSec / 3600 }} hour or more that Samsara recorded whole fails, however
+          the engine hours compare.
         </p>
         <dl class="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
@@ -116,6 +118,7 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
               <th class="px-5 py-2">Truck</th>
               <th class="px-5 py-2 text-right">Days checked</th>
               <th class="px-5 py-2 text-right">Days that did not match</th>
+              <th class="px-5 py-2 text-right">Days with data missing</th>
               <th class="px-5 py-2 text-right">Worst engine-hours miss</th>
               <th class="px-5 py-2 text-right">Idling vs Samsara</th>
             </tr>
@@ -125,11 +128,12 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
               <td class="px-5 py-2 text-ink">{{ d.unit }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ d.judgedDays }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ d.failedDays }}</td>
+              <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ d.gapDays }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ pct(d.worstRunningDiff) }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ pct(d.worstStoppedDiff) }}</td>
             </tr>
             <tr v-if="parity.disagreements.length === 0">
-              <td colspan="5" class="px-5 py-6 text-center text-ink-muted">
+              <td colspan="6" class="px-5 py-6 text-center text-ink-muted">
                 {{ parity.truckDays.judged === 0 ? "No finished day checked yet." : "Every checked truck-day matched." }}
               </td>
             </tr>

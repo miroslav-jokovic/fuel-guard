@@ -22,7 +22,8 @@ import IdleEngineParityPanel from "./IdleEngineParityPanel.vue";
 const H = 3600;
 const day = (vehicleId: string, d: number, o: Partial<IdleParityDay> = {}): IdleParityDay => ({
   vehicleId, day: `2026-10-${String(d).padStart(2, "0")}`, hours: 24,
-  runningSec: 10 * H, stoppedSec: 4 * H, ecuSec: 10 * H, ecuHours: 24, samsaraIdleSec: 4 * H, ...o,
+  runningSec: 10 * H, stoppedSec: 4 * H, ecuSec: 10 * H, ecuHours: 24, samsaraIdleSec: 4 * H,
+  noDataSec: 0, samsaraWholeDay: true, ...o,
 });
 const view = (rows: IdleParityDay[], finalThrough: string | null) => {
   const r = idleParityReport(rows, finalThrough);
