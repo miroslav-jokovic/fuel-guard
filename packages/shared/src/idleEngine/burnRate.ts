@@ -254,6 +254,23 @@ export function idleBurnRateFor(
   return cell ? cell.galPerHour : fallbackRate(rates.cohorts, rates.fleet)(equipment).galPerHour;
 }
 
+/**
+ * `idle_settings.idle_burn_source` (0420, §4 Q-IE14): which rate prices the idle engine's hours.
+ * `configured` — every hour at `idle_gal_per_hour`; `learned` — each park at `idleBurnRateFor` (its cell,
+ * else the nearest believed level, else the prior). The carrier chooses; the default is `configured`.
+ */
+export const IDLE_BURN_PRICINGS = ["configured", "learned"] as const;
+export type IdleBurnPricing = (typeof IDLE_BURN_PRICINGS)[number];
+
+/**
+ * The stored value as the money reads it. Anything but `learned` is `configured`: no row (an org whose
+ * settings were never written) prices as the column's default does, and an unknown word never moves
+ * money onto the learned table, which is the one choice that changes a carrier's figures.
+ */
+export function idleBurnPricing(raw: unknown): IdleBurnPricing {
+  return raw === "learned" ? "learned" : "configured";
+}
+
 /** `GET /api/idle/engine/burn-rates`: the learned table beside the rate every idle dollar uses today. */
 export interface IdleBurnRatesView extends IdleBurnRates {
   /** The learner's window, ISO instants, `IDLE_BURN_LEARN_DAYS` back from the request. */
@@ -261,4 +278,6 @@ export interface IdleBurnRatesView extends IdleBurnRates {
   to: string;
   /** `idle_settings.idle_gal_per_hour` through the cost basis — what idle hours are priced at today. */
   configuredGalPerHour: number;
+  /** The carrier's choice between the two (`idleBurnPricing` over `idle_settings.idle_burn_source`). */
+  pricing: IdleBurnPricing;
 }

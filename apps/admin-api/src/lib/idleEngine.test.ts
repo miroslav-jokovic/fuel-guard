@@ -88,7 +88,7 @@ const stored = (org: string, vehicle_id: string, day: string, o: Row = {}): Row 
   ...o,
 });
 
-function seed(o: { tz?: string; nightlyFrom?: string; idleGalPerHour?: string | null } = {}) {
+function seed(o: { tz?: string; nightlyFrom?: string; idleGalPerHour?: string | null; burnSource?: string } = {}) {
   return fakeClient(
     {
       organizations: [
@@ -118,8 +118,8 @@ function seed(o: { tz?: string; nightlyFrom?: string; idleGalPerHour?: string | 
         { org_id: OTHER, id: "x1", unit_number: "999", has_apu: false, apu_type: null },
       ],
       idle_settings: [
-        ...(o.idleGalPerHour === null ? [] : [{ org_id: ORG, idle_gal_per_hour: o.idleGalPerHour ?? "0.9" }]),
-        { org_id: OTHER, idle_gal_per_hour: "2.5" },
+        ...(o.idleGalPerHour === null ? [] : [{ org_id: ORG, idle_gal_per_hour: o.idleGalPerHour ?? "0.9", idle_burn_source: o.burnSource ?? "configured" }]),
+        { org_id: OTHER, idle_gal_per_hour: "2.5", idle_burn_source: "learned" },
       ],
     },
     [
@@ -162,9 +162,15 @@ describe("readOrgIdleEngine", () => {
     expect(r.burnRates.to).toBe(NOW.toISOString());
   });
 
-  it("an org with no idle settings is priced at the cost basis default, never another org's rate", async () => {
+  it("an org with no idle settings is priced at the cost basis default, never another org's rate or choice", async () => {
     const r = (await readOrgIdleEngine(seed({ idleGalPerHour: null }).client, ORG, NOW))!;
     expect(r.burnRates.configuredGalPerHour).toBe(IDLE_COST_BASIS_DEFAULTS.idleGalPerHour);
+    expect(r.burnRates.pricing).toBe("configured");
+  });
+
+  it("shows the carrier's own choice of rate", async () => {
+    expect((await readOrgIdleEngine(seed().client, ORG, NOW))!.burnRates.pricing).toBe("configured");
+    expect((await readOrgIdleEngine(seed({ burnSource: "learned" }).client, ORG, NOW))!.burnRates.pricing).toBe("learned");
   });
 
   it("every table read is filtered to the org in the URL", async () => {

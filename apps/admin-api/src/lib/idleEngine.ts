@@ -7,6 +7,7 @@ import {
   fetchAllPaged,
   idleBurnInputRows,
   idleBurnInputsArgs,
+  idleBurnPricing,
   idleEngineParityView,
   idleParityDays,
   idleParityFinalThrough,
@@ -15,6 +16,7 @@ import {
   organizationTimezone,
   pickIdleCostBasis,
   type IdleBurnInputRpcRow,
+  type IdleBurnPricing,
   type IdleBurnRatesView,
   type IdleEngineDayRow,
   type IdleEngineParityView,
@@ -103,16 +105,26 @@ async function readParity(
   return idleEngineParityView(idleParityReport(idleParityDays(ours, theirs), finalThrough), timezone, unitById);
 }
 
-async function readConfiguredGalPerHour(admin: SupabaseClient, orgId: string): Promise<number> {
-  const { data, error } = await admin.from("idle_settings").select("idle_gal_per_hour").eq("org_id", orgId).maybeSingle();
+/** The configured rate and the carrier's choice between it and the learned table (0420, §4 Q-IE14). */
+async function readBurnSettings(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<{ configuredGalPerHour: number; pricing: IdleBurnPricing }> {
+  const { data, error } = await admin
+    .from("idle_settings")
+    .select("idle_gal_per_hour, idle_burn_source")
+    .eq("org_id", orgId)
+    .maybeSingle();
   if (error) throw new Error(`idle engine: settings read: ${error.message}`);
-  const raw = (data as { idle_gal_per_hour?: number | string | null } | null)?.idle_gal_per_hour;
+  const row = data as { idle_gal_per_hour?: number | string | null; idle_burn_source?: unknown } | null;
+  const raw = row?.idle_gal_per_hour;
   // Numerics arrive from PostgREST as strings; `pickIdleCostBasis` owns what a non-positive one means.
-  return pickIdleCostBasis({
+  const configuredGalPerHour = pickIdleCostBasis({
     settingsGalPerHour: raw == null ? null : Number(raw),
     settingsPricePerGal: null,
     truckStopMedian: null,
   }).idleGalPerHour;
+  return { configuredGalPerHour, pricing: idleBurnPricing(row?.idle_burn_source) };
 }
 
 /** Null when the org does not exist (the route answers 404, and audits nothing it did not read). */
@@ -134,15 +146,15 @@ export async function readOrgIdleEngine(
   const equipmentById = new Map(vehicles.map((v) => [v.id, declaredEquipment({ hasApu: v.has_apu, apuType: v.apu_type })]));
 
   const { from, to, args } = idleBurnInputsArgs(orgId, now);
-  const [parity, burnRows, configuredGalPerHour] = await Promise.all([
+  const [parity, burnRows, burnSettings] = await Promise.all([
     readParity(admin, orgId, timezone, unitById),
     fetchAllPaged<IdleBurnInputRpcRow>((a, b) => admin.rpc(IDLE_BURN_RPC, args).range(a, b)),
-    readConfiguredGalPerHour(admin, orgId),
+    readBurnSettings(admin, orgId),
   ]);
   const rates = learnIdleBurnRates(
     idleBurnInputRows(burnRows),
     // A truck the vehicle read did not return is undeclared, not dropped: its hours still count.
     (id) => equipmentById.get(id) ?? "not_entered",
   );
-  return { parity, burnRates: { ...rates, from, to, configuredGalPerHour } };
+  return { parity, burnRates: { ...rates, from, to, ...burnSettings } };
 }

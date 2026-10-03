@@ -1252,3 +1252,11 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   write; so Q-FSV17 step 3 removes the parity GATE from the office page, while the burn-rate table stays there as the
   carrier's evidence for the switch beside it. The reader (engine money + the control) follows once information_schema
   on production shows the column.
+- **2026-10-03** 0420 and 0421 applied (`migrate.yml` on 2f9b0a7 success; production information_schema shows
+  `idle_settings.idle_burn_source`, pg_proc no longer holds `idle_engine_burn_inputs`). Q-IE14 step 4, the reader: the
+  engine's `/engine/avoidable` money carries `pricing` and `applied` (the chosen side; both sides stay in the answer),
+  `/engine/burn-rates` and the console's view report the choice, and the Idling page's burn-rate panel offers "Rate for
+  the new idle measurement" to roles that manage safety (`session.can("safety")`, the matrix 0300's write policy reads)
+  and states it to everyone else, saying it changes no figure on the page until IE5b. `idleBurnPricing` reads anything
+  but `learned` as `configured`; a failed read of the choice is an error, never a silent `configured`. Production stays
+  `configured`; the dollar effect of `learned` is the −17.6% / −17.8% above, for the owner to weigh.

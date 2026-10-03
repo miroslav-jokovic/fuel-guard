@@ -8,16 +8,20 @@ import { readIdleBurnRates } from "./idleBurnRates.js";
  * The burn-rate reader (IE4). The fold is `burnRate.test.ts`'s; what is only testable here is the
  * reading: what 0419 is asked for, that each truck's rows are filed under ITS declaration (retired
  * trucks included), that PostgREST's string bigints are numbers by the time they are summed, and that
- * the configured rate comes from the org's settings.
+ * the configured rate and the carrier's choice between the two come from the org's settings.
  */
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-10-02T20:00:00Z");
 const GAL = 3785.411784;
 
-function seed() {
+function seed(o: { burnSource?: string; failPricingRead?: boolean } = {}) {
   return createSupabaseRecorder({
     tables: {
-      idle_settings: [{ idle_gal_per_hour: "0.85", fuel_price_per_gal: "4.000" }],
+      // A FUNCTION fixture, so the choice's read can fail while the cost basis's read of the same row does not.
+      idle_settings: (q) =>
+        o.failPricingRead && String(q.ops.find((x) => x.method === "select")?.args[0]).includes("idle_burn_source")
+          ? { error: { message: "column idle_settings.idle_burn_source does not exist" } }
+          : [{ idle_gal_per_hour: "0.85", fuel_price_per_gal: "4.000", idle_burn_source: o.burnSource ?? "configured" }],
       fuel_prices: [],
       vehicles: [
         ...["vB1", "vB2", "vB3", "vB4"].map((id) => ({ id, has_apu: true, apu_type: "battery_hvac" })),
@@ -63,6 +67,15 @@ describe("readIdleBurnRates", () => {
   it("reports the configured rate every idle dollar uses today, beside the prior", async () => {
     const r = await readIdleBurnRates(seed().client, ORG, NOW);
     expect(r).toMatchObject({ configuredGalPerHour: 0.85, priorGalPerHour: 0.72, minTrucks: 5, maxCi95: 0.1 });
+  });
+
+  it("reports the carrier's choice of rate as stored", async () => {
+    expect((await readIdleBurnRates(seed().client, ORG, NOW)).pricing).toBe("configured");
+    expect((await readIdleBurnRates(seed({ burnSource: "learned" }).client, ORG, NOW)).pricing).toBe("learned");
+  });
+
+  it("fails rather than reporting the configured rate when the choice cannot be read", async () => {
+    await expect(readIdleBurnRates(seed({ burnSource: "learned", failPricingRead: true }).client, ORG, NOW)).rejects.toThrow(/idle_burn_source/);
   });
 
   it("scopes every tenant read to the org", async () => {

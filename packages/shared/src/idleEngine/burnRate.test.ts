@@ -10,6 +10,7 @@ import {
   idleBurnBandLabel,
   idleBurnInputRows,
   idleBurnInputsArgs,
+  idleBurnPricing,
   idleBurnRateFor,
   learnIdleBurnRates,
   type IdleBurnInputRow,
@@ -154,5 +155,16 @@ describe("idleBurnInputsArgs / idleBurnInputRows (0419's call, shared by the off
     expect(idleBurnInputRows([{ vehicle_id: "v1", band: 2, hours: 3, fuel_ml: "5450" }])).toEqual([
       { vehicleId: "v1", band: 2, hours: 3, fuelMl: 5450 },
     ]);
+  });
+});
+
+describe("idleBurnPricing (0420's idle_burn_source as the money reads it)", () => {
+  it("reads 'learned' as learned and 'configured' as configured", () => {
+    expect(idleBurnPricing("learned")).toBe("learned");
+    expect(idleBurnPricing("configured")).toBe("configured");
+  });
+
+  it.each([null, undefined, "", "Learned", "measured", true])("never reads %p as learned", (raw) => {
+    expect(idleBurnPricing(raw)).toBe("configured");
   });
 });
