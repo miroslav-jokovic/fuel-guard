@@ -372,7 +372,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     idle against today's figures, and in driver scores at IE5b), so name the side that is wrong before the gate
     stops looking at it. Nothing is built on this until the owner rules; IE5b waits on it as well as on 14 days.
 
-  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (DECIDED (a), owner, 2026-10-03: "proceed as suggested"; NOT BUILT — step FS-PDF).**
+  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (DECIDED (a), owner, 2026-10-03: "proceed as suggested"; BUILT 2026-10-03 — step FS-PDF).**
     Found by the 2026-10-03 design audit (`DESIGN-IS-2026-10-03/`, E6) and confirmed at the call site: the
     button asks `GET /api/fueling/spend-report.pdf` for `from`, `to`, `grain=week` and `vehicles` only
     (`FuelCostsPage.vue`, `routes/spend.ts`). State, location and network never reach it, and it renders the
@@ -1001,3 +1001,18 @@ IE5b is blocked on the owner: §4 Q-IE17 (the stopped-running check) and Q-IE14 
   fuel section, copying `/findings/summary`; `routeGateLedger.test.ts` refused the open route, and the exact fix was
   to gate the route by the fuel section (the Costs page already is) and delete the unreachable branch. Not built:
   idle and equipment rows (IE5b), IE-ADMIN, FS-PDF.
+- **2026-10-03** — **FS-PDF built** (branch `claude/fuel-ux-pdf`, stacked on FS-STRIP). `GET /api/fueling/report.pdf`
+  renders the Fuel Costs screen as a document: the screen's query string, validated by the screen's own parser
+  (`parseReportQuery`, extracted from `/report`), the same `readFuelReport`, and the screen's strings (`costCards`,
+  `costDayCells`, `comparingLine`, `mpgCoverageLine`, `networkLine`, `reeferLine`, moved from `apps/web` into
+  `@silvicom/shared` so there is one copy). State, location and network are on the letterhead and in the export
+  button's scope line; under a station filter the document drops miles/MPG/cost-per-mile and prints the same
+  sentence the screen does. Audited as `export.generated`. Tests: the PDF's text equals the screen's strings for
+  the same recorder seed (`routes/report.test.ts`, real renderer), each filter reaches the renderer, a bad value is
+  refused as the screen's report refuses it, widths pinned; rasterised and read at 90 days (4 pages) and under a
+  station filter. Looking caught three things no assertion did: labels truncated to `09/30/20...` and `OUT OF
+  NETW...` (so the table gained an opt-in `wrapHeader`), `GALLONS` breaking mid-word, and a header drawn 8pt off
+  its values in every non-first left-aligned column (fixed for all tables; the older document had it too).
+  The older `GET /api/fueling/spend-report.pdf` is unchanged and no longer used by this page; it still has its
+  other callers (`fuelSectionRoles.test.ts`, `fuel/routes/exports.ts`). Not done: running it against production
+  data. The first real export should be opened and read against the screen before the button is announced.

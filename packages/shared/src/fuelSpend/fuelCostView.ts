@@ -184,13 +184,37 @@ export function costDayRows(report: FuelReport): CostDayRow[] {
   return rows;
 }
 
+/** The day table's column labels, in order — the screen, the CSV and the PDF all read this one list. */
+export function costDayHeaders(withMpg: boolean): string[] {
+  const h = ["Day", "Fills", "Gallons", "Fuel spend", "Avg price / gal", "Out of network", "Paid vs Pilot quote", "Reefer"];
+  if (withMpg) h.push("MPG — previous 7 days");
+  return h;
+}
+
+/**
+ * One day row as the strings every surface prints. A zero out-of-network or reefer figure is blank, not "$0":
+ * a day with none of it is the common case and a column of zeros reads as data.
+ */
+export function costDayCells(r: CostDayRow): string[] {
+  return [
+    formatDisplayDate(r.day),
+    r.fills.toLocaleString("en-US"),
+    gal(r.gallons),
+    usd(r.spend),
+    usd3(r.pricePerGal),
+    r.outOfNetwork > 0 ? usd(r.outOfNetwork) : "",
+    r.paidVsQuote == null ? "" : wholeUsd(r.paidVsQuote),
+    r.reefer > 0 ? usd(r.reefer) : "",
+    r.mpg == null ? "" : r.mpg.toFixed(2),
+  ];
+}
+
 /** The day table as a spreadsheet: same rows, same words, raw numbers. */
 export function costDaysCsv(
   rows: readonly CostDayRow[],
   withMpg: boolean,
 ): { headers: string[]; rows: (string | number | null)[][] } {
-  const headers = ["Day", "Fills", "Gallons", "Fuel spend", "Avg price / gal", "Out of network", "Paid vs Pilot quote", "Reefer"];
-  if (withMpg) headers.push("MPG — previous 7 days");
+  const headers = costDayHeaders(withMpg);
   return {
     headers,
     rows: rows.map((r) => {
@@ -201,4 +225,19 @@ export function costDaysCsv(
       return line;
     }),
   };
+}
+
+/**
+ * How much of the fuel the MPG speaks for — the coverage D-MPG4 makes part of the answer. Null when there is
+ * no measured MPG to qualify. Here, not in the page, so the PDF prints the sentence the screen prints.
+ */
+export function mpgCoverageLine(report: FuelReport): string | null {
+  const m = report.current.efficiency?.mpg;
+  if (!m || m.measuredShare == null) return null;
+  return `MPG and miles cover the ${m.trucksMeasured} trucks with a measured distance — ${Math.round(m.measuredShare * 100)}% of this range's tractor fuel.`;
+}
+
+/** `09/01–09/30 compared with 08/01–08/31, the same number of days just before` — the sentence under the cards. */
+export function comparingLine(report: FuelReport): string {
+  return `${rangeLabel(report.current)} compared with ${rangeLabel(report.previous)}, the same number of days just before`;
 }

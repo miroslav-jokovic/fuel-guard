@@ -13,10 +13,10 @@ import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import FuelCostDaysTable from "@/features/reconcile/FuelCostDaysTable.vue";
 import FuelOpportunitiesStrip from "@/features/reconcile/FuelOpportunitiesStrip.vue";
 import { useFuelOpportunitiesQuery } from "@/features/reconcile/useFuelOpportunities";
-import { useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
+import { fuelReportQuery, useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
-  brandList, costCards, costDayRows, networkLine, rangeLabel, reeferLine,
+  brandList, comparingLine, costCards, costDayRows, mpgCoverageLine, networkLine, reeferLine,
 } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useOpens } from "@/composables/useOpens";
@@ -87,20 +87,11 @@ const rows = computed(() => (report.value ? costDayRows(report.value) : []));
 const network = computed(() => (report.value ? networkLine(report.value) : null));
 const reefer = computed(() => (report.value ? reeferLine(report.value.current) : null));
 const truckFigures = computed(() => report.value?.current.efficiency != null);
-const comparing = computed(() =>
-  report.value ? `${rangeLabel(report.value.current)} compared with ${rangeLabel(report.value.previous)}, the same number of days just before` : "",
-);
-/** How much of the fuel the MPG speaks for — the coverage D-MPG4 makes part of the answer. */
-const mpgCoverage = computed(() => {
-  const m = report.value?.current.efficiency?.mpg;
-  if (!m || m.measuredShare == null) return null;
-  return `MPG and miles cover the ${m.trucksMeasured} trucks with a measured distance — ${Math.round(m.measuredShare * 100)}% of this range's tractor fuel.`;
-});
-const exportQuery = computed(() => {
-  const q = new URLSearchParams({ from: f.from.value, to: f.to.value, grain: "week" });
-  if (f.vehicleIds.value.length) q.set("vehicles", f.vehicleIds.value.join(","));
-  return q.toString();
-});
+const comparing = computed(() => (report.value ? comparingLine(report.value) : ""));
+/** How much of the fuel the MPG speaks for (D-MPG4) — the sentence the PDF prints too. */
+const mpgCoverage = computed(() => (report.value ? mpgCoverageLine(report.value) : null));
+// The screen's own query string: the document is asked for with every filter the report was (Q-FSV14).
+const exportQuery = computed(() => fuelReportQuery(f.params.value));
 /**
  * Buy discipline opens on the days and trucks being read here — its header promises that shared context.
  * State, location and network are not parameters of its fill sequence, so they cannot travel; the link
@@ -149,8 +140,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
           :query="exportQuery"
           :from="f.from.value"
           :to="f.to.value"
-          grain="week"
           :truck-count="f.vehicleIds.value.length"
+          :station-filtered="f.stationFiltered.value"
         />
       </template>
     </FilterBar>

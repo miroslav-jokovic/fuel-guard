@@ -241,6 +241,18 @@ describe("FuelCostsPage — where the rest went", () => {
     expect(to).toEqual({ path: "/findings", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
   });
 
+  it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1&states=TX&sites=s-1&networks=out");
+    const props = w.findAllComponents({ name: "ExportButton" }).map((c) => c.props() as { href: string; scope: string });
+    const pdf = props.find((p) => p.href.includes("/api/fueling/report.pdf"));
+    expect(pdf, "no export points at the Fuel Costs document").toBeTruthy();
+    const q = new URLSearchParams(pdf!.href.split("?")[1]);
+    expect(Object.fromEntries(q)).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicles: "v1", states: "TX", sites: "s-1", networks: "out" });
+    expect(pdf!.scope).toContain("filtered stations");
+    // And not the older weekly document, which ignored three of those five filters.
+    expect(props.some((p) => p.href.includes("spend-report.pdf"))).toBe(false);
+  });
+
   it("keeps the freshness line and the PDF export", async () => {
     const t = (await mountPage()).w.text();
     expect(t).toContain("Figures rebuilt 1 day ago.");

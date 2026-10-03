@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
-import { formatDisplayDate } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
-import { costDaysCsv, type CostDayRow } from "@silvicom/shared";
-import { gal, usd, usd3, wholeUsd } from "./format";
+import { costDayCells, costDayHeaders, costDaysCsv, type CostDayRow } from "@silvicom/shared";
 
 /**
  * The report's one table (R1): every day of the range, newest first, with that day's trailing-7-day
@@ -25,32 +23,27 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 watch(() => props.rows, () => { page.value = 1; });
 
-const columns = computed<DataTableColumn[]>(() => [
-  { key: "day", label: "Day", width: "sm", cellClass: "text-ink-secondary" },
-  { key: "fills", label: "Fills", numeric: true, width: "xs" },
-  { key: "gallons", label: "Gallons", numeric: true, width: "sm" },
-  { key: "spend", label: "Fuel spend", numeric: true, width: "sm" },
-  { key: "price", label: "Avg price / gal", numeric: true, width: "sm" },
-  { key: "out", label: "Out of network", numeric: true, width: "sm" },
-  { key: "quote", label: "Paid vs Pilot quote", numeric: true, width: "sm" },
-  { key: "reefer", label: "Reefer", numeric: true, width: "sm", cellClass: "text-ink-tertiary" },
-  ...(props.withMpg ? [{ key: "mpg", label: "MPG — previous 7 days", numeric: true, width: "sm" } as DataTableColumn] : []),
-]);
+// Labels and cell strings come from shared, the same functions the PDF export reads (Q-FSV14).
+const KEYS = ["day", "fills", "gallons", "spend", "price", "out", "quote", "reefer", "mpg"] as const;
+const columns = computed<DataTableColumn[]>(() =>
+  costDayHeaders(props.withMpg).map((label, i) => ({
+    key: KEYS[i]!,
+    label,
+    ...(i === 0 ? { cellClass: "text-ink-secondary" } : { numeric: true }),
+    width: i === 1 ? "xs" : "sm",
+    ...(KEYS[i] === "reefer" ? { cellClass: "text-ink-tertiary" } : {}),
+  })) as DataTableColumn[],
+);
 
 const shown = computed(() =>
-  props.rows.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE).map((r) => ({
-    id: r.id,
-    day: formatDisplayDate(r.day),
-    fills: r.fills.toLocaleString("en-US"),
-    gallons: gal(r.gallons),
-    spend: usd(r.spend),
-    price: usd3(r.pricePerGal),
-    out: r.outOfNetwork > 0 ? usd(r.outOfNetwork) : "",
-    quote: r.paidVsQuote == null ? "" : wholeUsd(r.paidVsQuote),
-    reefer: r.reefer > 0 ? usd(r.reefer) : "",
-    mpg: r.mpg == null ? "" : r.mpg.toFixed(2),
-    mpgReason: r.mpgReason,
-  })),
+  props.rows.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE).map((r) => {
+    const c = costDayCells(r);
+    return {
+      id: r.id,
+      day: c[0]!, fills: c[1]!, gallons: c[2]!, spend: c[3]!, price: c[4]!, out: c[5]!, quote: c[6]!, reefer: c[7]!, mpg: c[8]!,
+      mpgReason: r.mpgReason,
+    };
+  }),
 );
 
 function exportCsv(): void {
