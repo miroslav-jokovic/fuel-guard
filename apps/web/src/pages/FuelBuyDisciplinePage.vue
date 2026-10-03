@@ -11,7 +11,7 @@ import { useBuyFillsQuery } from "@/features/reconcile/useBuyFills";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useFuelPolicy } from "@/composables/useRouteFuelSettings";
+import { useFuelPolicy, useRouteFuelSettings } from "@/composables/useRouteFuelSettings";
 
 /**
  * Buy discipline — fuel bought in a dearer state and hauled into a cheaper one, and the fuel targets
@@ -35,11 +35,26 @@ const truckOptions = computed(() => (vehicles.value ?? []).map((v) => ({ value: 
 
 const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value }));
 const { data: buyFillData, isLoading, isError } = useBuyFillsQuery(f.range);
-const buyFills = computed(() => buyFillData.value ?? []);
+// `fuel_buy_fills` takes no truck parameter, but a leg is a pair of fills on ONE vehicle, so dropping
+// other trucks' rows after the fetch is exact (it cannot orphan a pair, lookback rows included). Without
+// this the Trucks filter above applied to the brand cards and silently not to the fills (verdict 03,
+// principle #6).
+const buyFills = computed(() => {
+  const all = buyFillData.value ?? [];
+  const picked = f.vehicleIds.value;
+  return picked.length ? all.filter((x) => picked.includes(x.vehicleId)) : all;
+});
 // The on-network share is a question about brands, which the fill sequence carries none of.
-const { data: feedData } = useSpendLinesQuery(queryFilters);
+const { data: feedData, isLoading: feedLoading, isError: feedError } = useSpendLinesQuery(queryFilters);
 const lines = computed(() => feedData.value ?? []);
 const policy = useFuelPolicy();
+// `useFuelPolicy` answers with defaults while the settings are pending or failed, which reads as "no
+// target set"; the same query (one key, no extra request) says which of those it is.
+const { isLoading: settingsLoading, isError: settingsError } = useRouteFuelSettings();
+/** Whether what the targets and the quote card are read from actually arrived. */
+const inputs = computed<"ready" | "loading" | "error">(() =>
+  feedError.value || settingsError.value ? "error" : feedLoading.value || settingsLoading.value ? "loading" : "ready",
+);
 const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).length);
 </script>
 
@@ -74,8 +89,15 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
       :fleet-wide="f.vehicleIds.value.length === 0"
       :policy="policy"
       :loading="isLoading"
+      :inputs="inputs"
     />
 
-    <DiscountCaptureCard :lines="lines" :from="f.from.value" :to="f.to.value" @narrow="(a, b) => f.setWindow(a, b)" />
+    <!-- The quote comparison reads the feed alone. Pending or failed, its empty default would say "no fill
+         matched a quote", which is a finding about the fills and not about the request. -->
+    <p v-if="feedError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+      Couldn't load the purchases to compare with Pilot's quote. Reload to try again.
+    </p>
+    <p v-else-if="feedLoading" class="text-sm text-ink-muted">Loading the purchases to compare with Pilot's quote…</p>
+    <DiscountCaptureCard v-else :lines="lines" :from="f.from.value" :to="f.to.value" @narrow="(a, b) => f.setWindow(a, b)" />
   </div>
 </template>

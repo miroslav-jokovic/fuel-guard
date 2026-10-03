@@ -243,9 +243,22 @@ describe("BuyDisciplineTab", () => {
       expect(t).not.toContain("50 over");
     });
 
-    it("says the discount-capture target cannot be measured rather than inventing a figure", () => {
+    it("says the discount-capture target is not graded here rather than inventing a figure, and does not claim a statement is missing", () => {
       const t = render(legs(), targets({ discountCapturePct: 80 }), { lines: FEED });
-      expect(t).toContain("Discount capture is targeted at least 80% and cannot be measured yet");
+      expect(t).toContain("Discount capture is targeted at least 80%. This page does not grade it");
+      // The old sentence asserted that no vendor statement was on file without looking; posted and
+      // contract prices have come from the kept daily Pilot reports since 0245 (`useSpendLines`).
+      expect(t).not.toContain("only arrives on the vendor's statement");
+    });
+
+    it("grades nothing, and says why, while its inputs are pending or failed", () => {
+      const base = targets({ onNetworkPct: 95, avoidedStateGal: 250 });
+      for (const inputs of ["loading", "error"] as const) {
+        const t = mount(BuyDisciplineTab, { props: { fills: legs(), policy: base, lines: [], window: WINDOW, inputs } }).text();
+        expect(t, inputs).toContain(inputs === "error" ? "nothing is graded here" : "Loading the purchases and settings");
+        expect(t, inputs).not.toContain("no tractor fuel in this window");
+        expect(t, inputs).not.toContain("Gallons in avoided states");
+      }
     });
 
     it("has no ceiling to hold a month to when the policy avoids no state", () => {
@@ -271,5 +284,23 @@ describe("BuyDisciplineTab", () => {
     const t = render(canadian);
     expect(t).not.toContain("NaN");
     expect(t).toContain("No fuel was carried out of a dearer state in this window.");
+  });
+});
+
+describe("BuyDisciplineTab — the findings table's page", () => {
+  const manyTrucks = (n: number) =>
+    Array.from({ length: n }, (_, i) => [
+      fill({ vehicleId: `m${i}`, unit: `9${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "CA", gallons: 150, netAmount: 150 * 6.6 }),
+      fill({ vehicleId: `m${i}`, unit: `9${i}`, fueledAt: "2026-08-11T12:00:00Z", state: "AZ", gallons: 100, netAmount: 100 * 5.2, milesSinceLast: 350, levelBeforePct: 50 }),
+    ]).flat();
+
+  it("returns to page 1 when a narrower pick leaves fewer rows than the page the reader was on", async () => {
+    const w = mountTab(manyTrucks(30));
+    const next = w.findAll("button").find((b) => b.text() === "Next");
+    expect(next, "30 findings should paginate at 25").toBeTruthy();
+    await next!.trigger("click");
+    await w.setProps({ fills: manyTrucks(2) });
+    expect(w.text()).not.toContain("No fuel was carried out of a dearer state in this window.");
+    expect(w.text()).toContain("CA → AZ");
   });
 });

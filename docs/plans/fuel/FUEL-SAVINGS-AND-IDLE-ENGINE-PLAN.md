@@ -372,6 +372,31 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     idle against today's figures, and in driver scores at IE5b), so name the side that is wrong before the gate
     stops looking at it. Nothing is built on this until the owner rules; IE5b waits on it as well as on 14 days.
 
+  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (OPEN, owner, 2026-10-03).**
+    Found by the 2026-10-03 design audit (`DESIGN-IS-2026-10-03/`, E6) and confirmed at the call site: the
+    button asks `GET /api/fueling/spend-report.pdf` for `from`, `to`, `grain=week` and `vehicles` only
+    (`FuelCostsPage.vue`, `routes/spend.ts`). State, location and network never reach it, and it renders the
+    legacy `fuel_spend_days` weekly report, comparing the last two complete buckets, while the screen compares
+    the whole selected window with the equal-length window before it. A filtered view therefore exports a wider
+    report under the same button. Not a one-line fix: the rollup carries no station dimension, so the honest
+    repair is a renderer over the SAME `fuelReport` the screen reads. Candidates: (a) **render the PDF from
+    `fuelReport.ts`** with every filter and the screen's comparison (new document layout; the legacy report is
+    retired or kept for the weekly email); (b) **disable the button while a state, location or network filter is
+    active** and say why — cheap, but it removes the export exactly when it is wanted; (c) leave it and label it
+    "weekly report, ignores filters". Recommendation: **(a)** — (b) and (c) ship a known mismatch and are
+    workarounds in the CLAUDE.md sense. Nothing is built on this until the owner rules.
+  - **Q-FSV15 — four decisions the 2026-10-03 verdict needs before the UX track can finish (OPEN, owner).**
+    (1) **Who owns the savings strip** that §3 promises for FS2 and `FuelCostsPage.vue` still does not render,
+    and what it may sum: the verdict says buying difference, quote variance, coaching and equipment
+    opportunity must stay separate and unsummed. (2) **Lower spend is painted green** (`fuelCostView.ts`),
+    including when the fleet simply drove less; candidates are neutral for spend, or green only beside flat
+    gallons. (3) **Where the idle-engine rollout checks live** — `IdleEngineParityPanel` shows 14-day
+    thresholds to office staff who can act on none of them; candidates are an administrator-only view, or
+    hidden until IE5b. (4) **What "review" means for a finding** — the verdict wants each opportunity to
+    continue into an existing workflow (`contract_variance` findings are still unwired, handoff 62); the
+    owner, status and evidence model has to be chosen first. Also owed: five ordinary-user task sessions
+    (verdict §"Release acceptance"), with pass criteria set after the first round.
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -916,4 +941,14 @@ IE5b is blocked on the owner: §4 Q-IE17 (the stopped-running check) and Q-IE14 
   786 −5.3%, 805 −3.5%). Stopped running vs Samsara **25 / 128** (43 within 10%, 62 within 20%), ours higher on
   127 — the gate cannot pass as ruled; the evidence and the choice are §4 **Q-IE17**, open for the owner.
   Worst stopped misses: 767 +1160%, 680 +173%, 701 +93%, 748 +86%, 736 +62%.
-
+- **2026-10-03** — **Design-audit fixes, part 1 (branch `claude/fuel-ux-honest-scope`, not yet merged).** From
+  `DESIGN-IS-2026-10-03/03-verdict.md`, each confirmed at the call site before it was changed and each pinned by
+  a test that fails when the fix is removed: Buy discipline's Trucks filter now reaches the fill sequence (it
+  reached only the brand cards); Fuel Costs opens Buy discipline on the same days and trucks, and says when a
+  state, location or network filter cannot travel; the findings table returns to page 1 when its rows shrink;
+  Buy discipline says "couldn't load / loading" instead of "no tractor fuel", "no target set" and "no fill
+  matched a quote" while the feed or the settings are pending or failed; the "none is on file" statement about
+  vendor statements is gone (quotes have come from the kept daily Pilot reports since 0245); the Last 7/30/90
+  presets are 7/30/90 dates, matching `windowDays`. Still open: the live "867 fills beside no tractor fuel"
+  contradiction (cause unestablished — the new states will name it on the next signed-in view); the PDF
+  (Q-FSV14); the word changes; and Q-FSV15.

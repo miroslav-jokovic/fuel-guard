@@ -201,12 +201,23 @@ describe("FuelCostsPage — every filter reaches the query", () => {
 describe("FuelCostsPage — where the rest went", () => {
   it("links Buy discipline and Pilot invoices where the guard opens them, and names them where it doesn't", async () => {
     const links = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
-      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to"));
+      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).map((to: string | { path: string }) => (typeof to === "string" ? to : to.path));
     expect(links((await mountPage()).w)).toEqual(expect.arrayContaining(["/fuel-buy-discipline", "/fuel-invoices"]));
     opensAll.value = false;
     const denied = (await mountPage()).w;
     expect(links(denied)).not.toContain("/fuel-buy-discipline");
     expect(denied.text()).toContain("Buy discipline");
+  });
+
+  it("opens Buy discipline on the days and trucks being read, and says what it cannot carry", async () => {
+    const buyTo = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((to) => typeof to !== "string" && to.path === "/fuel-buy-discipline");
+    const scoped = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1,v2");
+    expect(buyTo(scoped.w)).toEqual({ path: "/fuel-buy-discipline", query: { from: "2026-09-01", to: "2026-09-30", trucks: "v1,v2" } });
+    expect(scoped.w.text()).not.toContain("it opens on every station");
+    const stationed = await mountPage("?from=2026-09-01&to=2026-09-30&states=TX");
+    expect(buyTo(stationed.w)).toEqual({ path: "/fuel-buy-discipline", query: { from: "2026-09-01", to: "2026-09-30" } });
+    expect(stationed.w.text()).toContain("it opens on every station");
   });
 
   it("keeps the freshness line and the PDF export", async () => {
