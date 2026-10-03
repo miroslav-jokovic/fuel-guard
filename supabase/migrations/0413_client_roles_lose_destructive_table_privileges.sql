@@ -1,0 +1,73 @@
+-- 0413 — `anon` and `authenticated` lose TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on every public
+-- table, now and for every table created from here on (database audit 2026-10-03, finding C).
+--
+-- ── THE GAP ─────────────────────────────────────────────────────────────────────────────────────
+-- Supabase's default privileges hand every new table to `anon`, `authenticated` and `service_role` with
+-- ALL privileges (`pg_default_acl` for postgres in public: `arwdDxtm`). Measured on production
+-- 2026-10-03: all 198 public relations (197 tables and the one view) carry all eight for all three roles.
+-- Four of the eight are not governed by row-level security at all:
+--   · TRUNCATE   — PostgreSQL does not apply RLS to it. One statement empties a table whatever the
+--     policies say. The 2026-10-03 audit truncated `integration_credentials` as `anon` on a disposable
+--     replay; `supabase/tests/client-table-privileges.test.mjs` reproduces it before this migration.
+--   · REFERENCES — lets the role create a foreign key INTO a table, which makes every later delete of a
+--     referenced row fail.
+--   · TRIGGER    — lets the role create a trigger on a table.
+--   · MAINTAIN   — PostgreSQL 17's VACUUM, ANALYZE, CLUSTER, REINDEX and REFRESH MATERIALIZED VIEW on a
+--     table the role does not own.
+-- SELECT, INSERT, UPDATE and DELETE are RLS-governed, which is the wall the repository relies on.
+--
+-- ── WHY THIS IS CONDITIONAL, NOT AN ACTIVE LEAK ─────────────────────────────────────────────────
+-- PostgREST has no TRUNCATE endpoint and offers no way to run these statements, and no direct SQL
+-- credentials for `anon` or `authenticated` were found (audit, 2026-10-03). Nobody has been shown to
+-- reach them. They are removed because a privilege nothing needs is a standing exposure the day a direct
+-- connection, a misconfigured pooler or a new SQL-running feature appears. Two tables are already
+-- guarded by a no-truncate trigger (`platform_audit_log`, 0071; `audit_logs`, 0395); the other 195 have
+-- nothing between a client role and TRUNCATE but the grant removed here.
+--
+-- ── WHAT USES THEM: NOTHING ─────────────────────────────────────────────────────────────────────
+-- No application, script or test issues TRUNCATE (every match in the repository is CSS, a comment or an
+-- unrelated word). The browser's supabase-js client has no truncate call; the API's service role keeps
+-- every privilege. Creating a foreign key or a trigger needs the table owner (`postgres`, which owns all
+-- 197 tables and the view), not these roles.
+--
+-- ── WHY THIS SHAPE ──────────────────────────────────────────────────────────────────────────────
+-- Two halves, because each alone fails the way 0411 and 0412 did:
+--   1. `revoke … on all tables in schema public` — the 198 relations that exist.
+--   2. `alter default privileges … revoke …` — the tables created next. Without it the first new table
+--      is born with all eight and the cleanup silently rots. The matrix creates one afterwards and reads
+--      the catalog.
+-- `service_role` is NOT touched: the service-role key already bypasses RLS, and the API relies on it.
+-- `postgres` owns every table, so these revokes act on its grants; the platform's `supabase_admin`
+-- default entries are out of reach (postgres is not a member) and own no public table.
+--
+-- ── WHAT THIS DOES NOT CLOSE: LOCK TABLE ────────────────────────────────────────────────────────
+-- `LOCK TABLE … ACCESS EXCLUSIVE` needs UPDATE, DELETE, TRUNCATE or MAINTAIN. Removing MAINTAIN and
+-- TRUNCATE leaves it reachable through the UPDATE and DELETE grants below, so a client role with a
+-- direct SQL connection could still stall a table. That is the same conditional exposure as the rest —
+-- PostgREST cannot issue it — and closing it means removing DML, which is the review named next.
+--
+-- ── WHAT IS DELIBERATELY LEFT ───────────────────────────────────────────────────────────────────
+-- `anon` still has SELECT/INSERT/UPDATE/DELETE on all 198. RLS denies it everywhere in the fixture
+-- suite, but whether `anon` needs any table access at all is a separate review (the unauthenticated
+-- applicant pages go through the API), and revoking a role's DML turns an empty RLS result into a
+-- `permission denied` error. Recorded as the next step, not guessed at here.
+--
+-- ── DEPLOY WINDOW (docs/MIGRATION-DISCIPLINE.md §the-deploy-window) ─────────────────────────────
+-- Order-independent: touches no column, table or function body, and nothing in served code uses the
+-- removed privileges, so code ahead of or behind this migration behaves identically.
+--
+-- ── ROLLBACK ────────────────────────────────────────────────────────────────────────────────────
+-- `grant truncate, references, trigger, maintain on all tables in schema public to anon, authenticated;`
+-- and the matching `alter default privileges … grant`. Nothing should ask for it.
+--
+-- ── VERIFY AFTER IT APPLIES ─────────────────────────────────────────────────────────────────────
+--   select pg_get_userbyid(a.grantee) role, a.privilege_type, count(*)
+--     from pg_class c join pg_namespace n on n.oid = c.relnamespace, aclexplode(c.relacl) a
+--    where n.nspname = 'public' and c.relkind in ('r','p','v')
+--      and a.grantee in ('anon'::regrole, 'authenticated'::regrole) group by 1, 2 order by 1, 2;
+--   -- expect DELETE, INSERT, SELECT, UPDATE x198 for each role, and no other privilege type.
+
+revoke truncate, references, trigger, maintain on all tables in schema public from anon, authenticated;
+
+alter default privileges for role postgres in schema public
+  revoke truncate, references, trigger, maintain on tables from anon, authenticated;
