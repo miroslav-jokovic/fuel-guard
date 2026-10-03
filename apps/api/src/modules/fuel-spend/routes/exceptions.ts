@@ -41,7 +41,7 @@ const closedSet = <T extends string>(raw: unknown, allowed: readonly T[]): T[] |
   const kept = parts.filter((p): p is T => (allowed as readonly string[]).includes(p));
   return kept.length ? kept : null;
 };
-const ymd = (raw: unknown): string | null => (typeof raw === "string" && YMD.test(raw) ? raw : null);
+export const ymd = (raw: unknown): string | null => (typeof raw === "string" && YMD.test(raw) ? raw : null);
 
 /**
  * The trucks a ledger request names, resolved from vehicle ids to the UNIT NUMBERS the findings carry
@@ -63,7 +63,7 @@ const ymd = (raw: unknown): string | null => (typeof raw === "string" && YMD.tes
  * lifted out because the findings route needs the IDS themselves rather than the unit numbers: it
  * serves two tables that name a truck two different ways, and resolves both in one roster read.
  */
-const idsFrom = (raw: unknown): string[] | null => {
+export const idsFrom = (raw: unknown): string[] | null => {
   const ids = (typeof raw === "string" ? raw.split(",") : [])
     .map((s) => s.trim())
     .filter((s) => UUID.test(s))

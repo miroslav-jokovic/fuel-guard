@@ -26,3 +26,4 @@ export * from "./spendPeriods.js";
 export * from "./spendWindow.js";
 export * from "./stationMatch.js";
 export * from "./reportDays.js";
+export * from "./opportunities.js";

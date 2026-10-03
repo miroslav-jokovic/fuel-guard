@@ -16,6 +16,7 @@
 export { registerSpendRoutes } from "./routes/spend.js";
 export { registerReportRoutes } from "./routes/report.js";
 export { registerExceptionRoutes } from "./routes/exceptions.js";
+export { registerOpportunityRoutes } from "./routes/opportunities.js";
 export { registerStatementRoutes } from "./routes/statements.js";
 export { startFuelSpendRollupScheduler } from "./fuelSpendRollupScheduler.js";
 export { runFuelReconciliation } from "./fuelReconRun.js";

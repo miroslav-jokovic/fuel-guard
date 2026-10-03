@@ -69,6 +69,14 @@ vi.mock("@/features/reconcile/useSpendFreshness", () => ({
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: computed(() => [{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]) }),
 }));
+/** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
+const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
+  useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
+    strip.params = params;
+    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(false) };
+  },
+}));
 const opensAll = vi.hoisted(() => ({ value: true }));
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => opensAll.value }));
 
@@ -77,6 +85,7 @@ import FuelCostsPage from "./FuelCostsPage.vue";
 beforeEach(() => {
   seen.params = null;
   opensAll.value = true;
+  strip.rows = [];
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -218,6 +227,18 @@ describe("FuelCostsPage — where the rest went", () => {
     const stationed = await mountPage("?from=2026-09-01&to=2026-09-30&states=TX");
     expect(buyTo(stationed.w)).toEqual({ path: "/fuel-buy-discipline", query: { from: "2026-09-01", to: "2026-09-30" } });
     expect(stationed.w.text()).toContain("it opens on every station");
+  });
+
+  it("shows the open findings under the cards for the days and trucks being read", async () => {
+    strip.rows = [{ kind: "contract_variance", label: "Paid above Pilot's quote", count: 3, amount: 61.5, withAmount: 3, oldest: "2026-09-02" }];
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1");
+    expect(strip.params && (strip.params as Ref<unknown>).value).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicleIds: ["v1"] });
+    expect(w.text()).toContain("Open fuel findings");
+    expect(w.text()).toContain("Paid above Pilot's quote");
+    expect(w.text()).toContain("$62");
+    // And the row opens the inbox on those same days and trucks, not on its own defaults.
+    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/findings");
+    expect(to).toEqual({ path: "/findings", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
   });
 
   it("keeps the freshness line and the PDF export", async () => {

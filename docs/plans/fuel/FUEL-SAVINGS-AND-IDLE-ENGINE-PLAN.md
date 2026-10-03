@@ -420,7 +420,10 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     (overlap: the same fill can be an off-network premium and a quote gap). Idle and equipment rows join only at
     IE5b, because today's Idling dollars still price with the configured rate. It needs a per-kind aggregate the
     findings summary does not have (it returns an open count and the quarter's recovered dollars only), so it is
-    its own step, **FS-STRIP**, after the contract producer below has run for a few nights. NOT BUILT.
+    its own step, **FS-STRIP**. BUILT 2026-10-03: `GET /api/fueling/findings/opportunities` (fuel-section gated, paged past
+    PostgREST's 1,000 cap, the inbox's own open states, dates and trucks), `summariseOpportunities` in shared, and
+    `FuelOpportunitiesStrip` under the cards. It shows whatever the ledger holds today, so it is useful before the
+    contract producer's first night, and gains `contract_variance` rows once that has run.
     (2) **Dollars carry no direction. DONE.** Fuel spend and Out of network spend are neutral (`fuelCostView.ts`);
     price per gallon, the quote gap, MPG and cost per mile keep theirs, being per unit of work.
     (3) **The rollout checks leave the office view for the platform console** (`apps/admin`), as step **IE-ADMIN**.
@@ -1035,3 +1038,9 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   90 days at $5). Not built: FS-STRIP (needs a per-kind findings aggregate), IE-ADMIN (platform-console view of the
   parity and burn-rate checks), FS-PDF (Q-FSV14). Before merging this: the first sweep after deploy files the
   trailing fortnight's overbilled fills (about 20) into the fuel inbox that people read.
+- **2026-10-03** — **FS-STRIP built** (branch `claude/fuel-ux-strip`, stacked on the contract producer). Fuel Costs now
+  lists the open fuel findings one row per kind with count, dollars, oldest date and a link into the inbox on the same
+  dates and trucks; no total, with the reason printed under it. A first draft answered `null` to a caller without the
+  fuel section, copying `/findings/summary`; `routeGateLedger.test.ts` refused the open route, and the exact fix was
+  to gate the route by the fuel section (the Costs page already is) and delete the unreachable branch. Not built:
+  idle and equipment rows (IE5b), IE-ADMIN, FS-PDF.

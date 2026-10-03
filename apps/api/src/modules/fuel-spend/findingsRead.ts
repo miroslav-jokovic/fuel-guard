@@ -131,7 +131,7 @@ export async function readFindings(
  * Resolved against the caller's OWN roster, so a hand-edited id cannot name another org's vehicle —
  * the same rule `unitsForVehicles` follows for the ledger's own route.
  */
-async function fleetScope(
+export async function fleetScope(
   admin: SupabaseClient,
   orgId: string,
   vehicleIds: string[],
