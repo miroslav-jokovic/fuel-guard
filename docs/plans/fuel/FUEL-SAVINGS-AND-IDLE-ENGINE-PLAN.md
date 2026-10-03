@@ -1126,3 +1126,13 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   rates beside the configured rate. The stage word is now `idleParityStage` in shared, read by this page and the office
   panel alike. Seen rendered (preview build, stubbed API, fake aal2 session). Step (1) is complete with this; step (2) is
   the owner opening both on the same night — the 10/04 nightly is the first one where both show 2 final days.
+- **2026-10-03** — **Q-FSV16, step 1 of 2 (the function; migration 0416, no reader yet).** `fuel_policy_gallons(p_from,
+  p_to, p_vehicles, p_org)` returns tractor gallons by month, brand and state, read through `fuel_spend_lines` so the
+  org scope, the station-local business date and the one-quote-per-fill rule are inherited and not restated. It carries
+  no policy: `gradePolicyTargets` still decides which brand is on-network and which state is avoided. An unresolved
+  station arrives as its own null-brand row, because TS counts it off-network and reports `unresolvedPct` from it.
+  Matrix `fuel-policy-gallons.test.mjs` (23), ruler = the raw `fuel_spend_lines` rows summed in JS. Mutation: 8/8
+  killed (tractor filter, gallons > 0, net amount, brand folded away, null brand dropped, org not passed through,
+  month shifted, anon grant). **Step 2, a separate later merge** (`lint:migration-ordering`): `useBuyFillsQuery`'s
+  sibling reads this once, feeds `gradePolicyTargets` one synthetic line per cell (`tranDate` = the month's first day),
+  and `useSpendLinesQuery` moves behind the quote card's toggle. Not started; it waits for 0416 to be applied.
