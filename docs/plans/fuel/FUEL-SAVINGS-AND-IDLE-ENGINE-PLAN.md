@@ -375,6 +375,19 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     stops looking at it. **Owner, 2026-10-03: "proceed as proposed."** (a) answered by the gateway's GPS: ours is
     right (§7); (b) built: D-IE9's gate is running vs the ECU, ±3%, 95%, 14 days; stopped running vs Samsara is
     computed and shown, never judged, and only against a Samsara day that covers the whole local day.
+  - **Q-IE18 — the ECU's engine-seconds counter also runs with the engine off (decided 2026-10-03).** The four
+    running misses on 10/01 (774, 808, 786, 805, all ours LOW) are the reference, not us: on each, `obdEngineSeconds`
+    rose across a long span the engine states call OFF while the fuel counter stood still (774: +34,380 s over
+    10 h 11 min with 219 s of running and one 500 mL step). The classifier spread that rise along the few running
+    minutes at either end — 15,062 engine seconds in 774's 00:00Z hour. Decided: an engine-seconds counter cannot
+    count more than the engine ran, so a pair of readings rising past running + 360 s (two 180 s steps of lag) makes
+    every instant inside it unknown; an hour touching it has no ECU figure (`ENGINE_SECONDS_RATE`, classifier
+    `ie3-v3`) and its day is not judged on running, as Q-IE16(c) already rules for an hour without a delta. Fuel
+    is untouched. Not chosen: capping the hour at our running time (makes the reference agree with us by
+    construction) or arbitrating by fuel (500 mL steps are too coarse to tell 3 minutes from 10). Cost, replayed
+    on 10/01: 7 of 125 running-judged truck-days become unjudged, all in units 774–808 — one purchase batch, so
+    likely their ECU counts key-on time; the rest 118 / 118 agree. 10/01 is already final and keeps its ie3-v2 rows
+    (121 / 125); 10/02 onward is rewritten by the nightly.
 
 ## 5. Words (D-FSV7)
 
@@ -938,3 +951,11 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   hour count for that local day. On 10/01 that is **121 of 125** truck-days agreeing (96.8%); the four misses are
   ours low (808 −17%, 774 −19%, 786 −5.3%, 805 −3.5%) — the next look, before IE5b. Tests: `parity.test.ts` (14),
   `idleEngineParity.test.ts` (+1), `IdleEngineParityPanel.test.ts` (7, two rewritten). Mutation: 6/6 killed.
+- **2026-10-03** — **Q-IE18: the four running misses are the ECU counter running with the engine off.** Raw
+  Samsara `stats/history` (GET) for 10/01: the stored 15,062 s in 774's 00:00Z hour is 1,080 s by the counter's
+  own readings; replaying the nightly for 774 alone reproduced 15,062 (so not the batch fetch). Counter rises past
+  the running time between two readings, fuel in brackets: 774 +34,380 s / 219 s (+500 mL), 808 +4,500 s / 147 s
+  (0), 805 +2,880 s / 14 s (0), 786 three spans +2,160 s / 395 s (0–500 mL). Fix per §4 Q-IE18 (`ie3-v3`).
+  Replayed over all 125 running-judged trucks for 10/01 with the fix: 118 judged, **118 pass**, 0 fail, 7 unjudged
+  (785, 802, 808, 774, 786, 777, 805). Tests: `classify.test.ts` (+3, version bumped). Mutation: 8/8 killed, one
+  after a fixture whose bad pair spans the hour's START.
