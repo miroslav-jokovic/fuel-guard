@@ -111,7 +111,7 @@ describe("GET /api/idle/engine/avoidable (IE3)", () => {
         idle_settings: [{ comfort_low_f: "20", comfort_high_f: "85", idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000" }],
         fuel_prices: [], idle_engine_stops: [], vehicles: [],
       },
-      rpc: { idle_engine_burn_inputs: [] },
+      rpc: { idle_engine_burn_hours: [] },
     });
     holder.client = rec.client;
     return fetch(`${baseUrl}/api/idle/engine/avoidable?${q}`, { headers: { Authorization: `Bearer ${role}` } });
@@ -143,7 +143,7 @@ describe("GET /api/idle/engine/burn-rates (IE4)", () => {
   const get = (role: string) => {
     rec = createSupabaseRecorder({
       tables: { idle_settings: [{ idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000" }], fuel_prices: [], vehicles: [] },
-      rpc: { idle_engine_burn_inputs: [] },
+      rpc: { idle_engine_burn_hours: [] },
     });
     holder.client = rec.client;
     return fetch(`${baseUrl}/api/idle/engine/burn-rates`, { headers: { Authorization: `Bearer ${role}` } });
