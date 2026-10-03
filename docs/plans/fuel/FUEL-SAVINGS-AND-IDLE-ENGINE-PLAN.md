@@ -335,6 +335,15 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     of a derived value. **Recommendation: (a), built with IE5** — a column with no visible effect before then would be
     a switch that changes nothing on screen. Measured 10/02: fleet ≈ 0.78 gal/h against the configured 0.80, so the
     switch moves idle dollars by about 3%, not by a factor.
+  - **Q-IE15 — running past the duty logs' horizon is NOT MEASURED, not "unknown" (decided 2026-10-02, evidence in
+    §7).** The logbook sync (`sync_hos`, driver-score tier) runs every `SAMSARA_DRIVER_SCORE_SYNC_HOURS` = 6 h from
+    the process's boot; the idle engine runs hourly. So the newest hours of every park had no log yet, were stored
+    as `unknown`, and D-IE4 rule 5 booked them avoidable ("no log"). Now a park with running time past the latest
+    stored log (the sync closes in-progress segments at its own instant, so that IS the last sync) is written with
+    the split null — the reader counts it as unmeasured — and the nightly re-write measures it once the logs are in
+    (`IDLE_ENGINE_VERSION` `ie3-v2`). A day is fully measured by its second nightly, as D-IE8 already said ("final
+    at 72 h"). Not chosen: running `sync_hos` hourly (six times the HOS fetches, for figures nobody reads before the
+    nightly) or measuring the split only in the nightly (an open park would have none all day).
 
 ## 5. Words (D-FSV7)
 
@@ -843,4 +852,18 @@ All questions are answered; nothing in the queue is blocked on the owner.
   rate the page's dollars use. Nothing on a page is re-priced: how the owner accepts the switch is §4 Q-IE14.
   Tests: `idleBurnRates.test.ts` (4), `idleEngineAvoidable.test.ts` (+1), `routes/idle.test.ts` (+2),
   `IdleBurnRatesPanel.test.ts` (4). Mutation: API 14/14, web 9/9 killed.
+- **2026-10-02** — **IE4 DONE and served.** #1217 merged (850f426); Railway serves it from 20:17:20Z with schema
+  0409 current (`verify:live` ✓); `/api/idle/engine/burn-rates` answers 401 unauthenticated (mounted).
+- **2026-10-02** — **The IE3 "unknown" share is the logbook sync's lag, not the attribution (Q-IE15).** Measured at
+  00:27Z 10/03 (production, SELECT): 399 `ie3-v1` parks, 291.6 running hours, **138.4 h (47%) unknown**. By
+  measure time: parks whose logs were complete when the collector measured them (ended before the last `sync_hos`
+  at 20:50:54Z, measured after it) — 129 parks, 75.2 h, **6% unknown**; measured before that sync — 5%; parks
+  running past it — 229 parks, 195.0 h, **68% unknown**. 0 of 5,046 recent `hos_duty_segments` rows are open; the
+  latest end is the last sync to the second. The driver-score tier last ran 20:19–20:56Z: its 6-hour timer
+  restarted with the 20:17Z deploy, so nothing had stalled. Q-IE3's battery-APU distribution therefore waits for
+  the nightlies: only 3 long battery-APU parks had complete logs tonight. Fix: `ie3-v2` (Q-IE15). Tests:
+  `classify.test.ts` (+4), `idleEngineSync.test.ts` (+2). Mutation: 7/7 killed, one after a second fixture
+  segment (the horizon is the LATEST log, not the earliest). **For the 10/03 nightly check:** expect
+  `ie3-v2` rows; a null split is now right for a park still running past the last log sync, and "unknown" should
+  be a small share (≈ 5–6%) of the measured parks' running time.
 

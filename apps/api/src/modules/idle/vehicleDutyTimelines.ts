@@ -213,6 +213,14 @@ export interface VehicleDutyTimelines {
   segmentsByDriver: Map<string, HosSegment[]>;
   /** Built over `[fromMs, endMs)`; a truck absent from the map has no duty evidence at all. */
   timelines: Map<string, HosVehicleTimeline>;
+  /**
+   * The latest instant any segment read reaches — how far the logbook sync has brought the logs. The
+   * sync closes a segment still in progress at the instant it ran (production 2026-10-02: 0 of 5,046
+   * rows open, the latest end = the last sync to the second), so the latest end IS the last sync; an
+   * open row, which the timeline runs to the window's end, reaches that end. Null when nothing was read. The idle engine treats running past
+   * it as not yet measured (`dutyKnownUntilMs`).
+   */
+  knownUntilMs: number | null;
 }
 
 /**
@@ -239,9 +247,15 @@ export async function readVehicleDutyTimelines(
     for (const segment of segments) list.push(segment);
     segmentsByVehicle.set(vehicleId, list);
   }
+  let knownUntilMs: number | null = null;
+  for (const r of hosRows) {
+    const t = r.ended_at == null ? endMs : Date.parse(r.ended_at);
+    if (Number.isFinite(t) && (knownUntilMs == null || t > knownUntilMs)) knownUntilMs = t;
+  }
   return {
     segmentsByVehicle,
     segmentsByDriver,
+    knownUntilMs,
     timelines: buildHosVehicleTimelines(segmentsByVehicle, Date.parse(fromIso), endMs),
   };
 }

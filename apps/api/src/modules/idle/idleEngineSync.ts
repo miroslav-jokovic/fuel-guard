@@ -243,6 +243,7 @@ export async function syncIdleEngine(
         ambientMilliC: amb.get(sid) ?? [],
         minIdleSec,
         duty: duty.timelines.get(v.id) ?? null,
+        dutyKnownUntilMs: duty.knownUntilMs,
       });
       if (out.hours.every((h) => h.noDataSec === 3600)) result.vehiclesNoEngine += 1;
       hours.push(...out.hours.map((h) => ({ ...h, vehicleId: v.id })));

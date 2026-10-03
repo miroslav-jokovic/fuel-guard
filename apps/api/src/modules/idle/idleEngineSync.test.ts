@@ -207,6 +207,32 @@ describe("syncIdleEngine — the duty split (IE3)", () => {
     expect(park).toMatchObject({ running_rest_sec: park.running_sec, running_on_duty_sec: 0, running_excluded_sec: 0, running_unknown_sec: 0 });
   });
 
+  it("a park running past the last logbook sync is written NOT measured, not unknown", async () => {
+    // The logs end at 13:00Z (the sync closed the segment there); the park runs on until the 14:20Z run.
+    const rec = recorder({
+      assignments: [{ vehicle_samsara_id: "s650", driver_samsara_id: "sd1", start_at: "2026-10-01T00:00:00Z", end_at: null }],
+      hos: [{ driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "off_duty", started_at: "2026-10-01T00:00:00Z", ended_at: "2026-10-02T13:00:00Z" }],
+    });
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const park = writes(rec).flatMap((w) => w.p_stops as Record<string, unknown>[]).find((x) => x.vehicle_id === "v650")!;
+    expect(park.running_sec).toBeGreaterThan(0);
+    expect(park).toMatchObject({ running_rest_sec: null, running_on_duty_sec: null, running_excluded_sec: null, running_unknown_sec: null });
+  });
+
+  it("the horizon is the LATEST log, not the earliest: logs closed at the run's own instant measure the park", async () => {
+    // Off duty until 11:00Z, then sleeper until the sync closed it at 14:20Z — the run's instant.
+    const rec = recorder({
+      assignments: [{ vehicle_samsara_id: "s650", driver_samsara_id: "sd1", start_at: "2026-10-01T00:00:00Z", end_at: null }],
+      hos: [
+        { driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "off_duty", started_at: "2026-10-01T00:00:00Z", ended_at: "2026-10-02T11:00:00Z" },
+        { driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "sleeper", started_at: "2026-10-02T11:00:00Z", ended_at: "2026-10-02T14:20:00Z" },
+      ],
+    });
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const park = writes(rec).flatMap((w) => w.p_stops as Record<string, unknown>[]).find((x) => x.vehicle_id === "v650")!;
+    expect(park).toMatchObject({ running_rest_sec: park.running_sec, running_unknown_sec: 0 });
+  });
+
   it("a truck with no duty at all has its running time unknown — measured, never null", async () => {
     const rec = recorder();
     await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });

@@ -42,7 +42,8 @@ import {
 } from "./timeline.js";
 
 /** Stored on every row; bump it when a rule here changes what a row would say. */
-export const IDLE_ENGINE_VERSION = "ie3-v1";
+// ie3-v2 (2026-10-02): a park running past the duty logs' horizon is "not measured", not "unknown".
+export const IDLE_ENGINE_VERSION = "ie3-v2";
 
 const HOUR = 3_600_000;
 
@@ -71,6 +72,15 @@ export interface IdleEngineInput {
    * split fields are null, "not measured" — what every ie2-v1 park holds.
    */
   duty?: HosVehicleTimeline | null;
+  /**
+   * How far the stored duty logs reach, fleet-wide (`readVehicleDutyTimelines`' `knownUntilMs`): the
+   * logbook sync runs every six hours and this collector every hour, so the newest hours of a park have
+   * no log YET. A park with running time past this instant is NOT measured (split null) rather than
+   * "unknown": measured 2026-10-02, parks whose logs were complete when measured were 5–6% unknown,
+   * parks running past the last sync 68% — the lag, not the drivers. The nightly re-write measures
+   * them once the logs arrive. Null/absent = no horizon to apply (an org with no logs at all).
+   */
+  dutyKnownUntilMs?: number | null;
   motion?: Partial<typeof IDLE_ENGINE_MOTION>;
 }
 
@@ -106,7 +116,8 @@ export interface IdleEngineStop {
   /**
    * `runningSec` split by the duty status in force (IE3, D-IE4): rest = off duty or sleeper; onDuty = on
    * duty, or driving logged while the truck stood; excluded = yard move or personal conveyance; unknown
-   * = no segment, or conflicting logs. They add up to `runningSec`. Null together when `duty` was absent.
+   * = no segment, or conflicting logs. They add up to `runningSec`. Null together when `duty` was absent,
+   * or when the park ran past `dutyKnownUntilMs` (its logs have not arrived yet).
    */
   runningRestSec: number | null;
   runningOnDutySec: number | null;
@@ -257,6 +268,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
     let longest = 0;
     let streak = 0;
     const dutyMs = { rest: 0, onDuty: 0, excluded: 0 };
+    let runsPastLogs = false;
     for (const p of pieces(engine, motion)) {
       const a = Math.max(p.s, sp.s);
       const b = Math.min(p.e, e);
@@ -265,6 +277,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
         run += b - a;
         streak += b - a;
         longest = Math.max(longest, streak);
+        if (input.dutyKnownUntilMs != null && b > input.dutyKnownUntilMs) runsPastLogs = true;
         if (input.duty) {
           const o = hosVehicleTimelineOverlapSeconds(input.duty, a, b);
           dutyMs.rest += o.restSec * 1000;
@@ -280,7 +293,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
     const [runningSec, offSec, noDataSec] = roundParts([run, off, e - sp.s - run - off], durationSec);
     // Unknown is the remainder, so the four parts are the running time exactly before rounding, and
     // round to exactly `runningSec` after it (the 0407 CHECK).
-    const split = input.duty === undefined
+    const split = input.duty === undefined || runsPastLogs
       ? null
       : roundParts([dutyMs.rest, dutyMs.onDuty, dutyMs.excluded, Math.max(0, run - dutyMs.rest - dutyMs.onDuty - dutyMs.excluded)], runningSec!);
     const fix = gps.find((g) => g.t >= sp.s && g.t < e && g.lat != null && g.lng != null) ?? null;
