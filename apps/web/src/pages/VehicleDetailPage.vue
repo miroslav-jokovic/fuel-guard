@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
 import { formatRuleId, type FuelTransaction, type Vehicle, type Anomaly } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
+import { useSessionStore } from "@/stores/session";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -17,6 +18,14 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
+const session = useSessionStore();
+// The truck's file belongs to the equipment section and its fuel history to the fuel section, and a
+// technician holds the first without the second. Until the database refuses that read (migration 0416,
+// database audit 2026-10-03 finding 1) this page was the only thing between a `fuel: none` user and the
+// fills, and it did not stand there: it queried them for every role. The query is switched off, not just
+// the panels hidden, so no role without the section sends the request, and the panels go with it
+// because a chart and a table of blanks would say "this truck has never been fuelled".
+const canSeeFuel = computed(() => session.canView("fuel"));
 
 const { data: vehicle } = useQuery({
   queryKey: ["vehicle", id],
@@ -28,6 +37,7 @@ const { data: vehicle } = useQuery({
 
 const { data: txns } = useQuery({
   queryKey: ["vehicle_txns", id],
+  enabled: canSeeFuel,
   queryFn: async (): Promise<FuelTransaction[]> => {
     const { data } = await supabase
       .from("fuel_transactions")
@@ -125,14 +135,14 @@ const fillColumns: DataTableColumn[] = [
          different and alarming claim. -->
     <UnitKitCard v-if="id" kind="tractor" :unit-id="id" />
 
-    <BaseCard>
+    <BaseCard v-if="canSeeFuel">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
       <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
       <p v-else class="text-sm text-ink-muted">Not enough data to chart MPG yet.</p>
     </BaseCard>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="space-y-3">
+      <div v-if="canSeeFuel" class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
         <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
           <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
