@@ -7,7 +7,10 @@
  *              engine-seconds delta and how many hours had one.
  *  - Samsara   `vehicle_engine_days`: its idle seconds for the same truck and the same local day —
  *              both tables are bucketed on the org's operating timezone (`fuelPriceDaySync.ts`), so a
- *              row pairs with a row.
+ *              row pairs with a row. Shown for information only (Q-IE17), and only when its coverage
+ *              spans the whole day: `aggregateEngineDays` counts a state until the NEXT sample, so a
+ *              truck still idling when the sync last ran has that open stretch missing (775 on 10/01:
+ *              15.4 h covered, 1.2 h idle stored, 9.8 h idle by Samsara's own states).
  *  - final     the latest FINISHED nightly run's window start (`jobs.stats.from`): the first day of that
  *              window has had its last write, and every day before it too.
  *
@@ -43,6 +46,7 @@ interface SamsaraDayRow {
   vehicle_id: string;
   day: string;
   idle_sec: number | null;
+  coverage_sec: number | null;
 }
 
 export interface IdleEngineParity extends Omit<IdleParityReport, "disagreements"> {
@@ -92,7 +96,7 @@ export async function readIdleEngineParity(admin: SupabaseClient, orgId: string)
     fetchAllPaged<SamsaraDayRow>((a, b) =>
       admin
         .from("vehicle_engine_days")
-        .select("vehicle_id, day, idle_sec")
+        .select("vehicle_id, day, idle_sec, coverage_sec")
         .eq("org_id", orgId)
         .gte("day", firstDay)
         .lte("day", finalThrough)
@@ -104,9 +108,11 @@ export async function readIdleEngineParity(admin: SupabaseClient, orgId: string)
       admin.from("vehicles").select("id, unit_number").eq("org_id", orgId).order("id").range(a, b),
     ),
   ]);
-  const samsaraIdle = new Map(theirs.map((r) => [`${r.vehicle_id}|${r.day}`, r.idle_sec]));
+  const samsara = new Map(theirs.map((r) => [`${r.vehicle_id}|${r.day}`, r]));
   const rows: IdleParityDay[] = ours.map((r) => {
-    const s = samsaraIdle.get(`${r.vehicle_id}|${r.day}`);
+    const t = samsara.get(`${r.vehicle_id}|${r.day}`);
+    // Our `hours` is the local day's length (a DST day is 23 or 25), so the bar moves with it.
+    const s = t != null && t.coverage_sec != null && t.coverage_sec >= r.hours * 3600 ? t.idle_sec : null;
     return {
       vehicleId: r.vehicle_id,
       day: r.day,

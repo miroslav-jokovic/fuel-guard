@@ -27,9 +27,9 @@ function seed(o: { nightlyFrom?: string | null; tz?: string; days?: Record<strin
         return days.filter((d) => (d.day as string) <= hi);
       },
       vehicle_engine_days: o.samsara ?? [
-        { vehicle_id: "v1", day: "2026-10-01", idle_sec: 4 * H + 360 },
+        { vehicle_id: "v1", day: "2026-10-01", idle_sec: 4 * H + 360, coverage_sec: 24 * H },
         // v2's Samsara row is for ANOTHER day: it must not pair with v2's 10/01.
-        { vehicle_id: "v2", day: "2026-09-30", idle_sec: 4 * H },
+        { vehicle_id: "v2", day: "2026-09-30", idle_sec: 4 * H, coverage_sec: 24 * H },
       ],
       vehicles: [{ id: "v1", unit_number: "650" }, { id: "v2", unit_number: "661" }],
     },
@@ -49,6 +49,16 @@ describe("readIdleEngineParity", () => {
     // 10/01 00:00 in Tokyo is 09/30 15:00Z; in UTC that instant is still 09/30.
     const r = await readIdleEngineParity(seed({ tz: "Asia/Tokyo", nightlyFrom: "2026-09-30T15:00:00.000Z" }).client, ORG);
     expect(r.finalThrough).toBe("2026-10-01");
+  });
+
+  it("a Samsara day that does not cover the whole local day is not compared", async () => {
+    // 775 on 10/01: its last state ran on past the sync, so 15.4 h were covered and the idle was short.
+    const samsara = (coverage_sec: number) => [{ vehicle_id: "v1", day: "2026-10-01", idle_sec: H, coverage_sec }];
+    const days = [ours("v1", "2026-10-01")];
+    const partial = await readIdleEngineParity(seed({ days, samsara: samsara(24 * H - 1) }).client, ORG);
+    expect(partial.truckDays).toMatchObject({ judged: 1, stoppedJudged: 0 });
+    const whole = await readIdleEngineParity(seed({ days, samsara: samsara(24 * H) }).client, ORG);
+    expect(whole.truckDays).toMatchObject({ judged: 1, stoppedJudged: 1, stoppedPassed: 0 });
   });
 
   it("running is all three moving-or-not buckets; stopped running is stopped plus brief", async () => {

@@ -25,7 +25,7 @@
  * — the two CHECKs in 0404 — by the largest-remainder method, never by nudging the biggest bucket.
  */
 
-import { counterDelta, meanIn, type CounterReading } from "./counters.js";
+import { counterDelta, ENGINE_SECONDS_RATE, meanIn, type CounterReading } from "./counters.js";
 import { hosVehicleTimelineOverlapSeconds, type HosVehicleTimeline } from "../hosVehicleTimeline.js";
 import {
   debouncedMotion,
@@ -43,7 +43,8 @@ import {
 
 /** Stored on every row; bump it when a rule here changes what a row would say. */
 // ie3-v2 (2026-10-02): a park running past the duty logs' horizon is "not measured", not "unknown".
-export const IDLE_ENGINE_VERSION = "ie3-v2";
+// ie3-v3 (2026-10-03): an hour whose engine-seconds readings rise faster than the engine ran is null.
+export const IDLE_ENGINE_VERSION = "ie3-v3";
 
 const HOUR = 3_600_000;
 
@@ -250,7 +251,7 @@ export function classifyIdleEngine(input: IdleEngineInput): { hours: IdleEngineH
       engineOffSec: off!,
       noDataSec: noData!,
       fuelMl: counterDelta(input.fuelMl, engine, h, h + HOUR),
-      engineSec: counterDelta(input.engineSec, engine, h, h + HOUR),
+      engineSec: counterDelta(input.engineSec, engine, h, h + HOUR, ENGINE_SECONDS_RATE),
       engineStarts: startsIn(h, h + HOUR),
       ambientMilliC: meanIn(input.ambientMilliC, h, h + HOUR),
     });
