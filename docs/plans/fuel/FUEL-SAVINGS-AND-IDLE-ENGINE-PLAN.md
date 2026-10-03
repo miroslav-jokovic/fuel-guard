@@ -1281,3 +1281,10 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   shown to a carrier manager; the nightly check reads the database through the shared functions, not either endpoint;
   step (2) waits on the owner's console sign-in. Q-IE14: production stays `configured` — none of the proposals was to
   flip it, and the switch moves no figure on any page until IE5b, so it is asked as its own explicit question before IE5b.
+- **2026-10-03** Design verdict move 2, the Fuel Costs layout: the page leads with spend and one sentence splitting its
+  change into gallons and average price (`spendChangeLine`, shared; spend = gallons × price, so the split is arithmetic,
+  not a causal claim, and names no reason for the price), beside the open findings ranked by dollars; the other seven
+  cards follow under "The figures behind it", every figure and comparison kept. The PDF's spend band prints the same
+  sentence. No migration, no API change. Tests: shared +4, page +1, PDF +1 assertion; mutation 11/11 killed. Seen
+  rendered at 1440 and 390 px (preview build, stubbed report) and the PDF rasterised. Still open under move 2: idle and
+  equipment rows in the findings list (wait for IE5b).

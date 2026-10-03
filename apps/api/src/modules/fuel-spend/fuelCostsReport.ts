@@ -8,7 +8,7 @@
  * too. Both sat behind a button called "Export report", so a filtered screen exported a wider, differently
  * compared document (design verdict 2026-10-03, E6). This one is rendered from the SAME `readFuelReport`
  * the screen reads and prints the strings the screen prints: the cards (`costCards`), the day rows
- * (`costDayCells`), and the sentences (`comparingLine`, `mpgCoverageLine`, `networkLine`, `reeferLine`),
+ * (`costDayCells`), and the sentences (`spendChangeLine`, `comparingLine`, `mpgCoverageLine`, `networkLine`, `reeferLine`),
  * all from `@silvicom/shared`. It has no arithmetic of its own, so it cannot disagree with the page.
  *
  * ── WHAT IT SAYS ABOUT ITS SCOPE ─────────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ import {
   mpgCoverageLine,
   networkLine,
   reeferLine,
+  spendChangeLine,
   type FuelNetwork,
   type FuelReport,
 } from "@silvicom/shared";
@@ -87,7 +88,8 @@ export function composeCostsReport(
     { label: "Period", value: `${formatDisplayDate(report.current.from)} to ${formatDisplayDate(report.current.to)}` },
     ...scopeFields(o.filters),
   ]);
-  if (spend) verdictBand(doc, `Fuel spend ${spend.value}`, spend.sub);
+  // The band leads the way the screen does: spend, then how much of its change was gallons and how much price.
+  if (spend) verdictBand(doc, `Fuel spend ${spend.value}`, spendChangeLine(report));
 
   sectionHead(doc, 1, "The figures", "Tractor fuel, this range against the same number of days just before.");
   const cardRows: Row[] = cards.map((c) => ({ cells: [{ text: c.label, bold: true }, { text: c.value, bold: true }, { text: c.sub }, { text: c.previous }] }));

@@ -16,7 +16,7 @@ import { useFuelOpportunitiesQuery } from "@/features/reconcile/useFuelOpportuni
 import { fuelReportQuery, useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
-  brandList, comparingLine, costCards, costDayRows, mpgCoverageLine, networkLine, reeferLine,
+  brandList, comparingLine, costCards, costDayRows, mpgCoverageLine, networkLine, reeferLine, spendChangeLine,
 } from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useOpens } from "@/composables/useOpens";
@@ -35,6 +35,13 @@ import { useOpens } from "@/composables/useOpens";
  * · **Buy discipline** is its own page, `/fuel-buy-discipline`, opened from here (Q-FSV12): its fill
  *   sequence, its graded targets and its two tables are a policy check, not a cost report, and the
  *   report keeps one table (finance-reader rule).
+ *
+ * ── WHAT IT LEADS WITH ───────────────────────────────────────────────────────────────────────────
+ * Spend and the sentence splitting its change into gallons and price (`spendChangeLine`), beside the open
+ * findings ranked by dollars; the other figures follow as detail. The 2026-10-03 design verdict (move 2)
+ * found eight cards of equal weight with no next action: a reader had to work out which figure mattered
+ * and where to go from it. The cards keep every figure and comparison they had (D-FSV3) — they are
+ * demoted, not removed — and the PDF's spend band prints the same sentence.
  *
  * ── THE URL IS THE STATE ─────────────────────────────────────────────────────────────────────────
  * Every filter is a query parameter, so a link opens on what its sender was looking at. Old links
@@ -83,6 +90,9 @@ const networkModel = computed<string[]>({
 
 // ── what the report says ────────────────────────────────────────────────────────────────────────
 const cards = computed(() => (report.value ? costCards(report.value) : []));
+const spendCard = computed(() => cards.value.find((c) => c.key === "spend") ?? null);
+const figureCards = computed(() => cards.value.filter((c) => c.key !== "spend"));
+const change = computed(() => (report.value ? spendChangeLine(report.value) : ""));
 const rows = computed(() => (report.value ? costDayRows(report.value) : []));
 const network = computed(() => (report.value ? networkLine(report.value) : null));
 const reefer = computed(() => (report.value ? reeferLine(report.value.current) : null));
@@ -152,11 +162,42 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
     </p>
 
     <template v-else-if="report">
-      <section class="space-y-3">
+      <!-- Spend and what to review, side by side so both are on the first screen (design verdict, move 2). -->
+      <div class="grid gap-4 lg:grid-cols-5">
+        <StatCard
+          v-if="spendCard"
+          class="lg:col-span-2 lg:self-start"
+          size="hero"
+          :label="spendCard.label"
+          :value="spendCard.value"
+          :value-title="spendCard.previous"
+          :title="spendCard.term"
+        >
+          <template #sub>
+            <span>
+              <span class="block text-ink" data-testid="spend-change">{{ change }}</span>
+              <span v-if="network" class="mt-1 block text-ink-tertiary">{{ network }}</span>
+            </span>
+          </template>
+        </StatCard>
+        <FuelOpportunitiesStrip
+          class="lg:col-span-3"
+          :rows="opportunities.data.value"
+          :loading="opportunities.isLoading.value"
+          :error="opportunities.isError.value"
+          :from="f.from.value"
+          :to="f.to.value"
+          :vehicle-ids="f.vehicleIds.value"
+          :can-open-inbox="opens('/findings')"
+        />
+      </div>
+
+      <section class="space-y-3" aria-labelledby="fuel-costs-figures-heading">
+        <h3 id="fuel-costs-figures-heading" class="text-sm font-semibold text-ink">The figures behind it</h3>
         <p class="text-xs text-ink-tertiary">{{ comparing }}. Tractor fuel only.</p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <StatCard
-            v-for="c in cards"
+            v-for="c in figureCards"
             :key="c.key"
             :label="c.label"
             :value="c.value"
@@ -168,19 +209,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         </div>
         <p v-if="!truckFigures" class="text-xs text-ink-tertiary">{{ FUEL_REPORT_TRUCK_FIGURES_NOTE }}</p>
         <p v-else-if="mpgCoverage" class="text-xs text-ink-tertiary">{{ mpgCoverage }}</p>
-        <p v-if="network" class="text-sm text-ink-secondary">{{ network }}</p>
         <p v-if="reefer" class="text-xs text-ink-tertiary">{{ reefer }}</p>
       </section>
-
-      <FuelOpportunitiesStrip
-        :rows="opportunities.data.value"
-        :loading="opportunities.isLoading.value"
-        :error="opportunities.isError.value"
-        :from="f.from.value"
-        :to="f.to.value"
-        :vehicle-ids="f.vehicleIds.value"
-        :can-open-inbox="opens('/findings')"
-      />
 
       <FuelCostDaysTable
         :rows="rows"

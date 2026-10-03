@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import { fuelReportTotals, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
+import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
 /**
@@ -136,6 +136,22 @@ describe("FuelCostsPage — one report", () => {
     expect(t).toContain("6.51");
     expect(t).not.toContain(FUEL_REPORT_TRUCK_FIGURES_NOTE);
     expect(t).not.toContain("-$0");
+  });
+
+  it("leads with spend and why it changed, then what to review, then the other figures (design verdict, move 2)", async () => {
+    strip.rows = [{ kind: "contract_variance", label: "Paid above Pilot's quote", count: 3, amount: 61.5, withAmount: 3, oldest: "2026-09-02" }];
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30");
+    const tiles = w.findAllComponents({ name: "StatCard" });
+    expect(tiles[0]!.props()).toMatchObject({ label: "Fuel spend", size: "hero" });
+    expect(tiles.slice(1).every((t) => t.props("size") === "kpi")).toBe(true);
+    // The sentence is the shared one, worked from the same report the cards read.
+    const said = w.get('[data-testid="spend-change"]').text();
+    expect(said).toBe(spendChangeLine(fixture({ from: "2026-09-01", to: "2026-09-30", vehicleIds: [], states: [], siteIds: [], networks: [] })));
+    expect(said).toMatch(/^Fuel spend (rose|fell) .* gallons, at /);
+    const t = w.text();
+    expect(t.indexOf(said)).toBeLessThan(t.indexOf("Open fuel findings"));
+    expect(t.indexOf("Open fuel findings")).toBeLessThan(t.indexOf("The figures behind it"));
+    expect(t.indexOf("The figures behind it")).toBeLessThan(t.indexOf("Avg price / gal"));
   });
 
   it("swaps the truck figures for the sentence under a station-side filter", async () => {
