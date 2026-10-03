@@ -10,12 +10,12 @@
  * today's declarations over the stored hours, so a corrected declaration re-files a truck's history
  * the same day.
  *
- * ── LEARNED IS SHOWN, NOT YET USED ────────────────────────────────────────────────────────────────
- * D-IE5: prior and learned side by side until the owner accepts the switch. So every idle dollar on
- * the Idling page, the Dashboard and the fuel report is still priced at `idle_settings.idle_gal_per_hour`
- * (`resolveIdleCostBasis`), and this reader reports that rate beside the learned table. The engine's
- * own avoidable figure (`/engine/avoidable`) carries both prices; which one it shows is decided when
- * IE5 puts it on a page (§4 Q-IE14).
+ * ── THE CARRIER'S SWITCH (0420, §4 Q-IE14) ────────────────────────────────────────────────────────
+ * D-IE5: prior and learned side by side until the carrier accepts the switch. `idle_settings.
+ * idle_burn_source` stores that choice and this reader reports it beside both rates; the engine's
+ * avoidable figure (`/engine/avoidable`) prices its headline by it. Every idle dollar on the Idling page,
+ * the Dashboard and the fuel report comes from the older event model and stays at `idle_gal_per_hour`
+ * (`resolveIdleCostBasis`) until IE5b moves those pages onto the engine.
  *
  * ORG-FILTERED explicitly: the service role bypasses RLS, so the `p_org` argument and every
  * `.eq("org_id")` here IS the tenant boundary.
@@ -26,8 +26,10 @@ import {
   IDLE_BURN_RPC,
   idleBurnInputRows,
   idleBurnInputsArgs,
+  idleBurnPricing,
   learnIdleBurnRates,
   type DeclaredEquipment,
+  type IdleBurnPricing,
   type IdleBurnInputRpcRow,
   type IdleBurnRates,
   type IdleBurnRatesView,
@@ -69,15 +71,26 @@ export async function learnOrgIdleBurnRates(
   return { ...rates, from, to };
 }
 
+/**
+ * The carrier's choice of rate (0420, §4 Q-IE14). A failed read throws rather than falling back: a
+ * silent `configured` would show a carrier who chose `learned` the other figure with no sign of it.
+ */
+export async function readIdleBurnPricing(admin: SupabaseClient, orgId: string): Promise<IdleBurnPricing> {
+  const { data, error } = await admin.from("idle_settings").select("idle_burn_source").eq("org_id", orgId).maybeSingle();
+  if (error) throw new Error(`idle burn pricing: settings read: ${error.message}`);
+  return idleBurnPricing((data as { idle_burn_source?: unknown } | null)?.idle_burn_source);
+}
+
 export async function readIdleBurnRates(
   admin: SupabaseClient,
   orgId: string,
   now: Date = new Date(),
 ): Promise<IdleBurnRatesView> {
-  const [equipmentById, basis] = await Promise.all([
+  const [equipmentById, basis, pricing] = await Promise.all([
     readDeclaredEquipmentById(admin, orgId),
     resolveIdleCostBasis(admin, orgId),
+    readIdleBurnPricing(admin, orgId),
   ]);
   const rates = await learnOrgIdleBurnRates(admin, orgId, equipmentById, now);
-  return { ...rates, configuredGalPerHour: basis.idleGalPerHour };
+  return { ...rates, configuredGalPerHour: basis.idleGalPerHour, pricing };
 }

@@ -25,11 +25,14 @@ const PARKS = [
   park("vN", "2026-09-02T05:00:00Z"), // 09/02 local — outside
 ];
 
-function seed(o: { comfortLowF?: string } = {}) {
+function seed(o: { comfortLowF?: string; burnSource?: string | null } = {}) {
   return createSupabaseRecorder({
     tables: {
       organizations: [{ id: ORG, operating_hours: { tz: "America/Chicago" } }],
-      idle_settings: [{ comfort_low_f: o.comfortLowF ?? "20", comfort_high_f: "85", idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000" }],
+      idle_settings: [{
+        comfort_low_f: o.comfortLowF ?? "20", comfort_high_f: "85", idle_gal_per_hour: "0.80", fuel_price_per_gal: "4.000",
+        idle_burn_source: o.burnSource === undefined ? "configured" : o.burnSource,
+      }],
       fuel_prices: [],
       vehicles: [
         { id: "vB", unit_number: "740", has_apu: true, apu_type: "battery_hvac" },
@@ -83,6 +86,28 @@ describe("readIdleEngineAvoidable", () => {
     // battery 2,100 s × 1.20 = 0.70 gal; no APU 2,100 s × 0.72 (prior) = 0.42 → 1.12 gal × $4 = $4.48.
     // No APU's 7,000 s equipment opportunity × 0.72 = 1.40 gal → $5.60.
     expect(r.money.learned).toEqual({ avoidableGallons: 1.12, avoidableUsd: 4.48, equipmentOpportunityGallons: 1.4, equipmentOpportunityUsd: 5.6 });
+  });
+
+  it("applies the configured side when the carrier has chosen it", async () => {
+    const r = await readIdleEngineAvoidable(seed().client, ORG, "2026-09-01", "2026-09-01");
+    expect(r.money.pricing).toBe("configured");
+    expect(r.money.applied).toEqual({ avoidableGallons: 0.93, avoidableUsd: 3.72, equipmentOpportunityGallons: 1.56, equipmentOpportunityUsd: 6.24 });
+  });
+
+  it("applies the learned side when the carrier has chosen it, and still carries the configured one", async () => {
+    const r = await readIdleEngineAvoidable(seed({ burnSource: "learned" }).client, ORG, "2026-09-01", "2026-09-01");
+    expect(r.money.pricing).toBe("learned");
+    expect(r.money.applied).toEqual({ avoidableGallons: 1.12, avoidableUsd: 4.48, equipmentOpportunityGallons: 1.4, equipmentOpportunityUsd: 5.6 });
+    expect(r.money).toMatchObject({ avoidableGallons: 0.93, avoidableUsd: 3.72 });
+  });
+
+  it.each([
+    ["no stored value", null],
+    ["an unknown word", "measured"],
+  ])("prices %s at the configured rate, never the learned one", async (_, burnSource) => {
+    const r = await readIdleEngineAvoidable(seed({ burnSource }).client, ORG, "2026-09-01", "2026-09-01");
+    expect(r.money.pricing).toBe("configured");
+    expect(r.money.applied.avoidableGallons).toBe(0.93);
   });
 
   it("reads the org's comfort band, not the default", async () => {

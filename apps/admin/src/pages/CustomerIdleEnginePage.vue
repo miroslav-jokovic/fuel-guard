@@ -147,7 +147,9 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
           <h2 class="text-sm font-semibold text-ink-secondary">Fuel burned while idling</h2>
           <p class="mt-1 text-sm text-ink-muted">
             Idle dollars use <strong class="text-ink">{{ gph(burn.configuredGalPerHour) }} gallons per hour</strong>, from
-            the customer's idle settings. Below is what the trucks' own fuel counters measured while parked with
+            the customer's idle settings. For the new idle measurement the customer has chosen
+            <strong class="text-ink">{{ burn.pricing === "learned" ? "the rates measured by their trucks" : "that configured rate" }}</strong>
+            (their Idling page; it reaches their figures when the new measurement replaces the old). Below is what the trucks' own fuel counters measured while parked with
             the engine on, over the last {{ IDLE_BURN_LEARN_DAYS }} days.
             Only whole hours parked with no driving either side count. A group's measurement is trusted once
             it comes from at least {{ burn.minTrucks }} trucks and is accurate to within
