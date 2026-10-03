@@ -441,6 +441,15 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     Still open under Q-FSV15: the five ordinary-user task sessions. They need people, not code; the verdict
     asks for the pass criteria to be set with the owner after the first round.
 
+  - **Q-FSV16 — Buy discipline's two sums should not cost nine seconds (OPEN, owner/engineering, 2026-10-03).** The
+    on-network share and the avoided-state gallons are sums over `fuel_spend_lines`, but the page downloads all 5,866
+    rows in six sequential pages (1.5 s each under RLS) to add them up in the browser. Candidates: (a) **a SQL
+    aggregate** returning those figures (brand totals and gallons by state and month) in one call — the page keeps the
+    row-level `fuel_spend_lines` read only for the quote card's drill-down, behind its toggle; (b) cache the feed
+    longer (it is 5 min now) — hides the cost, keeps it; (c) leave it. Recommendation **(a)**, following
+    "SQL returns a measurement, TS owns the verdict": SQL sums, `gradePolicyTargets` still compares. A new function, so
+    its reader ships in a separate merge from it (`lint:migration-ordering`). Not started.
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -1059,3 +1068,23 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   The older `GET /api/fueling/spend-report.pdf` is unchanged and no longer used by this page; it still has its
   other callers (`fuelSectionRoles.test.ts`, `fuel/routes/exports.ts`). Not done: running it against production
   data. The first real export should be opened and read against the screen before the button is announced.
+- **2026-10-03** — **The "867 fills beside no tractor fuel" contradiction is explained, and it was two defects.**
+  Measured on production, read-only, as a signed-in admin (role `authenticated`, the real `org_id` and `user_role`
+  claims, RLS on, 8 s `statement_timeout` as the browser has): `fuel_buy_fills` returns **6,484 rows** for the 90-day
+  window and `fuel_spend_lines` 5,866. (1) **`useBuyFillsQuery` made one unpaged call**, and PostgREST caps a response at
+  1,000, so Buy discipline analysed the first 1,000 rows of a function ordered `vehicle_id, fueled_at`: every fill of
+  roughly the first sixth of the fleet and none of the rest. "867 fills" and "$4,462" were the in-window part of that
+  slice; the real floor is not known and will be several times larger. Fixed: `readAllBuyFillRows` pages by `range`, throws
+  on a failed page. (2) **"No tractor fuel in this window"** came from the spend-lines feed still loading: six sequential
+  pages, each re-running a function that takes 1.5 s under RLS (0.25 s as the service role, which is what made it look
+  fast), so ~9 s in which `lines` was `[]` and read as an answer. Already fixed by the `inputs` state in part 1; not a
+  timeout (each request is well inside 8 s). Not fixed, and worth a decision: the 9 s itself. Paging cannot be made
+  parallel without a stable cursor, so the durable answer is a server-side aggregate for the two cards that need only
+  sums (on-network share, avoided-state gallons) — Q-FSV16 below. The other web RPC reads were counted and fit one page
+  today: price coverage 368 (a year), miles inputs 204, EFS facets 520, decline facets 487 (EFS facets is the nearest to
+  the cap).
+  A trap in the method, kept so it is not repeated: a first probe with only an `org_id` claim returned 0 rows
+  for both functions and for `vehicles`, which looked like a damning result and was an artefact — the restrictive
+  `vehicles_driver_scope` policy reads `auth_role()` from the `user_role` claim, and `NULL <> 'driver'` is NULL, which
+  denies. A faithful RLS probe needs `user_role` as well as `org_id`.
+
