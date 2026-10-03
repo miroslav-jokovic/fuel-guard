@@ -123,7 +123,7 @@ describe("FuelCostsPage — one report", () => {
     expect(t).toContain("vs 08/01–08/31");
     expect(t).toContain("Cost per mile");
     expect(t).toContain("92% of this range's tractor fuel");
-    expect(t).toContain("MPG (7 days)");
+    expect(t).toContain("MPG — previous 7 days");
     expect(t).toContain("6.51");
     expect(t).not.toContain(FUEL_REPORT_TRUCK_FIGURES_NOTE);
     expect(t).not.toContain("-$0");
@@ -136,7 +136,7 @@ describe("FuelCostsPage — one report", () => {
       // The card labels, not the page text: the method panel names cost per mile whatever the filter.
       const cards = w.findAllComponents({ name: "StatCard" }).map((c) => c.props("label"));
       expect(cards, q).toEqual(["Fuel spend", "Gallons", "Avg price / gal", "Paid vs Pilot quote", "Out of network"]);
-      expect(w.text(), q).not.toContain("MPG (7 days)");
+      expect(w.text(), q).not.toContain("MPG — previous 7 days");
     }
   });
 });

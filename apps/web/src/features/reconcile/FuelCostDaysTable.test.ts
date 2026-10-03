@@ -39,8 +39,8 @@ describe("FuelCostDaysTable", () => {
   });
 
   it("has the MPG column only for a truck question", () => {
-    expect(mountTable(days(2)).text()).toContain("MPG (7 days)");
-    expect(mountTable(days(2), false).text()).not.toContain("MPG (7 days)");
+    expect(mountTable(days(2)).text()).toContain("MPG — previous 7 days");
+    expect(mountTable(days(2), false).text()).not.toContain("MPG — previous 7 days");
   });
 
   it("explains a withheld MPG on hover rather than leaving a bare dash", () => {

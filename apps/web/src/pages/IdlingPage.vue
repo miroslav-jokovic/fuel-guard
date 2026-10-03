@@ -64,7 +64,7 @@ const {
         <dd class="mt-0.5 text-xs text-ink-tertiary" title="Fuel price the idle cost is figured at">{{ priceNote }}</dd>
       </BaseCard>
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Reducible with equipment</dt>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
         <dd class="mt-1 text-2xl font-bold text-warning-600">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry, across {{ fleet.reducibleTrucks }}/{{ fleet.totalTrucks }} trucks</dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">includes trucks with no idle-reduction equipment — this is the case for fitting it, not waste to coach</dd>
@@ -86,7 +86,7 @@ const {
       </div>
       <div class="flex items-center gap-4">
         <BaseButton variant="ghost" size="sm" @click="showConfidence = !showConfidence">
-          Data confidence
+          Data completeness
           <span v-if="confidence && confidence.overall != null" class="font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</span>
         </BaseButton>
         <BaseButton variant="ghost" size="sm" @click="showInfo = !showInfo">
@@ -104,7 +104,7 @@ const {
         extreme weather. Only avoidable idle affects a driver's score and the wasted-money total.
       </p>
       <p class="text-ink-secondary">
-        <strong>Reducible with equipment</strong> answers a different question: how much rest idle an APU or
+        <strong>Needs an APU</strong> answers a different question: how much rest idle an APU or
         optimized idle <em>would</em> have carried — shown for every truck, including those with no idle-reduction
         equipment. On those trucks the driver wasted nothing, so avoidable is correctly zero; reducible is what
         fitting equipment would be worth. A truck with no equipment recorded yet shows reducible hours and is
@@ -138,10 +138,10 @@ const {
     <!-- IE5: how far the new idle engine is from replacing the figures above (D-IE9) -->
     <IdleEngineParityPanel v-if="showInfo" />
 
-    <!-- Data confidence: how complete the inputs behind these numbers are -->
+    <!-- Data completeness: how complete the inputs behind these numbers are -->
     <BaseCard v-if="showConfidence && confidence" padding="sm" class="space-y-3 text-sm">
       <div class="flex items-center justify-between">
-        <p class="font-medium text-ink">Data confidence</p>
+        <p class="font-medium text-ink">Data completeness</p>
         <p v-if="confidence.overall != null" class="text-lg font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</p>
       </div>
       <p class="text-xs text-ink-muted">How complete the inputs behind these numbers are. Raise the low bars to raise your confidence — each note says how.</p>

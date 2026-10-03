@@ -172,16 +172,16 @@ const trkColumns: DataTableColumn[] = [
   { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "restIdleH", label: "Rest idle (SB/OFF)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "restIdleH", label: "Idling while off duty or sleeping", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   // Reported for EVERY truck, including the ones with no equipment (where avoidable is a correct zero).
   // This is the column that stops the page reading as empty for most of the fleet.
-  { key: "reducibleH", label: "Reducible with equipment (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reducibleH", label: "Needs an APU (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "reducibleUsd", label: "Reducible cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "capability", label: "Idle capability" },
-  { key: "coveragePct", label: "Data confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "coveragePct", label: "Data completeness", sortable: true, numeric: true, cellClass: "text-ink-muted" },
 ];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
@@ -240,7 +240,7 @@ const drvColumns: DataTableColumn[] = [
   { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableUsd", label: "Estimated avoidable fuel cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
 // ── tab: truck idle capability ───────────────────────────────────────────────

@@ -389,7 +389,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     likely their ECU counts key-on time; the rest 118 / 118 agree. 10/01 is already final and keeps its ie3-v2 rows
     (121 / 125); 10/02 onward is rewritten by the nightly.
 
-  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (OPEN, owner, 2026-10-03).**
+  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (DECIDED (a), owner, 2026-10-03: "proceed as suggested"; NOT BUILT — step FS-PDF).**
     Found by the 2026-10-03 design audit (`DESIGN-IS-2026-10-03/`, E6) and confirmed at the call site: the
     button asks `GET /api/fueling/spend-report.pdf` for `from`, `to`, `grain=week` and `vehicles` only
     (`FuelCostsPage.vue`, `routes/spend.ts`). State, location and network never reach it, and it renders the
@@ -995,3 +995,12 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   Replayed over all 125 running-judged trucks for 10/01 with the fix: 118 judged, **118 pass**, 0 fail, 7 unjudged
   (785, 802, 808, 774, 786, 777, 805). Tests: `classify.test.ts` (+3, version bumped). Mutation: 8/8 killed, one
   after a fixture whose bad pair spans the hour's START.
+- **2026-10-03** — **Q-FSV14 decided (a); FS-PDF is its own step, not started.** The owner took the recommendation:
+  the PDF is rendered from `fuelReport.ts` with every screen filter and the screen's whole-window comparison.
+  Sized from the code: the current document is `fuelSpendReport*.ts` (about seven files — charts, table, policy,
+  sections, flow, theme, draw) built on the legacy weekly `SpendPeriod` model, so this is a new layout over the
+  report's cards, daily table, reefer line and coverage notes, not a parameter added to the endpoint. Acceptance
+  when it is built: the PDF's figures equal the screen's for the same filters (a test that renders both from one
+  fixture), state/location/network appear in its scope line, and it is rasterised and LOOKED at with a long
+  fixture before merge (a text collision is invisible to a unit test). Until then the button exports the legacy
+  report and Q-FSV14 stays a known mismatch. Word changes shipped in the part-2 PR (plain words).
