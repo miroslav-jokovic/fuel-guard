@@ -192,8 +192,19 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.vehicles", label: "Vehicles", path: "/vehicles", group: "fleet", gate: section("equipment") },
   { key: "fleet.trailers", label: "Trailers", path: "/trailers", group: "fleet", gate: section("equipment") },
   { key: "fleet.drivers", label: "Drivers", path: "/drivers", group: "fleet", gate: section("roster") },
-  // A reading taken off a truck, corrected against a truck's history — equipment, not roster.
-  { key: "fleet.odometer", label: "Odometer", path: "/odometer", group: "fleet", gate: section("equipment") },
+  // A reading taken off a truck, corrected against a truck's history — equipment, not roster. THAT was
+  // the question this item asked until 2026-10-03, and it was the wrong one to GATE on: the page does not
+  // read the truck, it reads the FUEL LEDGER — every fill whose driver-entered odometer disagrees with
+  // Samsara, with the driver's name beside it (`useOdometerMismatches` pages `fuel_transactions`). The
+  // gate answered "may you see trucks" for a screen whose rows are fuel fills, so a technician (equipment
+  // view, fuel none) could open a fuel-fraud audit of drivers. It asks the fuel section now, the one the
+  // rows belong to. Database audit 2026-10-03 finding 1; owner's ruling the same day, taken because the
+  // database now refuses fuel rows to a role without the section (0416) and this page would otherwise
+  // have turned from "readable by the wrong role" into "empty, which reads as no mismatches".
+  // The group stays `fleet`: where an item SITS is a navigation question, where it is GATED is a
+  // permission one, and only the second moved. Stored answers are untouched — production holds two
+  // `false` ones (an org's dispatcher, one person) and a `false` narrows under any gate.
+  { key: "fleet.odometer", label: "Odometer", path: "/odometer", group: "fleet", gate: section("fuel") },
 
   // ── finance ───────────────────────────────────────────────────────────────────────────────────
   // The money sections (P5, D-SEP7): visible only to the roles the matrix names — the accountant,
