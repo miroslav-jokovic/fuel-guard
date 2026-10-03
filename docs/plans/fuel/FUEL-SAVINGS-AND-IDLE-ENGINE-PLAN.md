@@ -466,6 +466,20 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     (the session's scheduled read) keeps using the office endpoint or moves to the console's; and whether any carrier
     manager should ever see the gate (recommendation: no, it is a release control). Not started; ~1 PR for (1), ~1 for (3).
 
+  - **Q-FSV18 — the quote card's tile is also a sum over every spend line (OPEN, owner/engineering, 2026-10-03).** Found
+    while building Q-FSV16's reader: Q-FSV16 said the row-level `fuel_spend_lines` read could move "behind the quote
+    card's toggle", but `DiscountCaptureCard` computes its HEADLINE (net over/under contract, and the share of fuel
+    priced) from `analyzeContractCapture(lines)` outside the toggle, so moving the read behind it would blank the tile
+    until someone clicked it — hiding the cost, not removing it. What shipped instead: the grades read
+    `fuel_policy_gallons` and no longer wait for the rows; the card keeps its own read and its own "Loading the
+    purchases…" line, so it still takes the old ~9 s, but the page no longer shows empty grades for them. Candidates:
+    (a) **a second SQL aggregate** for the tile — contract and net totals over lines that have a quote, plus the priced
+    share of fuel — with `analyzeContractCapture`'s rules (null is not zero, a line with no quote is unmeasured) kept in
+    TS beside it; the row read stays behind the toggle for the fills list. A new migration, reader in a later merge.
+    (b) leave the card as it is: its 9 s is on a card below the fold, labelled while loading. (c) page the rows in
+    parallel instead of in sequence — hides the cost, keeps it. Recommendation **(a)**, but it is the owner's to call
+    because the tile's figure is the one the carrier reads as "billed against contract". Not started.
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -1136,3 +1150,14 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   month shifted, anon grant). **Step 2, a separate later merge** (`lint:migration-ordering`): `useBuyFillsQuery`'s
   sibling reads this once, feeds `gradePolicyTargets` one synthetic line per cell (`tranDate` = the month's first day),
   and `useSpendLinesQuery` moves behind the quote card's toggle. Not started; it waits for 0416 to be applied.
+- **2026-10-03** — **Q-FSV16, step 2 of 2 (the reader; migration 0416 applied, verified in `pg_proc`).** Production check
+  first, read-only as a signed-in admin (rolled back), 90 days to 2026-10-03: `fuel_policy_gallons` returned **393
+  cells**, the raw `fuel_spend_lines` rows grouped separately gave 393, **0 cells differ**, 679,255.580 gallons on both
+  sides, 5,654 fills counted of 5,852 rows (the rest are reefer, zero-gallon or no-cost, which `isTractorFuel` drops).
+  Timing: the aggregate took **1.5 s**, one raw run 1.8 s — not the 0.25 s service-role figure; the saving is that the
+  browser ran `fuel_spend_lines` six times (once per page) and now runs it once. `gradePolicyTargets` became
+  `gradePolicyCells(policyGallonCells(lines))`, so the arithmetic is one copy and its existing 11 tests pass unchanged;
+  +4 pin that grouping cannot move a grade and that a null-brand cell counts off-network. New `usePolicyGallons`
+  (pages, no `p_org`, numeric gallons) with 4 tests; the page's grades wait for it and the settings only. Mutation: 9/10
+  killed across page, hook and shared; the survivor (dropping `l.month == null ||`) is a no-op — a null month only
+  makes a Map key nothing reads. The plan's "behind the toggle" did not hold: §4 **Q-FSV18**.

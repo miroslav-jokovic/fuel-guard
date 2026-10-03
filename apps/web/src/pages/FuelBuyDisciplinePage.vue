@@ -9,6 +9,7 @@ import BuyDisciplineTab from "@/features/reconcile/BuyDisciplineTab.vue";
 import DiscountCaptureCard from "@/features/reconcile/DiscountCaptureCard.vue";
 import { useBuyFillsQuery } from "@/features/reconcile/useBuyFills";
 import { useSpendLinesQuery } from "@/features/reconcile/useSpendLines";
+import { usePolicyGallonsQuery } from "@/features/reconcile/usePolicyGallons";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useFuelPolicy, useRouteFuelSettings } from "@/composables/useRouteFuelSettings";
@@ -44,16 +45,22 @@ const buyFills = computed(() => {
   const picked = f.vehicleIds.value;
   return picked.length ? all.filter((x) => picked.includes(x.vehicleId)) : all;
 });
-// The on-network share is a question about brands, which the fill sequence carries none of.
+// The on-network share is a question about brands, which the fill sequence carries none of. The grades
+// read tractor gallons ADDED UP in the database (Q-FSV16): they used to wait for every spend line, nine
+// seconds with the sections empty, and now wait for one call.
+const { data: cellData, isLoading: cellsLoading, isError: cellsError } = usePolicyGallonsQuery(queryFilters);
+const cells = computed(() => cellData.value ?? []);
+// The quote card below reads the rows themselves (its headline is a sum over fills with a quote), so it
+// keeps its own request and its own loading line and no longer holds the grades up.
 const { data: feedData, isLoading: feedLoading, isError: feedError } = useSpendLinesQuery(queryFilters);
 const lines = computed(() => feedData.value ?? []);
 const policy = useFuelPolicy();
 // `useFuelPolicy` answers with defaults while the settings are pending or failed, which reads as "no
 // target set"; the same query (one key, no extra request) says which of those it is.
 const { isLoading: settingsLoading, isError: settingsError } = useRouteFuelSettings();
-/** Whether what the targets and the quote card are read from actually arrived. */
+/** Whether what the targets are graded from actually arrived. The quote card has its own state. */
 const inputs = computed<"ready" | "loading" | "error">(() =>
-  feedError.value || settingsError.value ? "error" : feedLoading.value || settingsLoading.value ? "loading" : "ready",
+  cellsError.value || settingsError.value ? "error" : cellsLoading.value || settingsLoading.value ? "loading" : "ready",
 );
 const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).length);
 </script>
@@ -84,7 +91,7 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
     <BuyDisciplineTab
       v-else
       :fills="buyFills"
-      :lines="lines"
+      :cells="cells"
       :window="f.range.value"
       :fleet-wide="f.vehicleIds.value.length === 0"
       :policy="policy"

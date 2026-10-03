@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type CarriedFuelFill, type FuelPolicy, type SpendLine } from "@silvicom/shared";
+import { analyzeCarriedFuel, policyGallonCells, DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type CarriedFuelFill, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 import BuyDisciplineTab from "./BuyDisciplineTab.vue";
 
 /**
@@ -62,7 +62,7 @@ const FEED: SpendLine[] = [
 const WINDOW = { from: "2026-07-01", to: "2026-08-31" };
 
 const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean } = {}) =>
-  mount(BuyDisciplineTab, { props: { fills, policy: p, lines: extra.lines ?? [], window: extra.window ?? WINDOW, fleetWide: extra.fleetWide } });
+  mount(BuyDisciplineTab, { props: { fills, policy: p, cells: policyGallonCells(extra.lines ?? []), window: extra.window ?? WINDOW, fleetWide: extra.fleetWide } });
 const render = (fills = legs(), p = policy(), extra: Parameters<typeof mountTab>[2] = {}) => mountTab(fills, p, extra).text();
 /** The on-network tile's own sub-line — the headline above it wears `text-danger-700` on its own account. */
 const onNetworkSub = (w: ReturnType<typeof mountTab>) =>
@@ -254,7 +254,7 @@ describe("BuyDisciplineTab", () => {
     it("grades nothing, and says why, while its inputs are pending or failed", () => {
       const base = targets({ onNetworkPct: 95, avoidedStateGal: 250 });
       for (const inputs of ["loading", "error"] as const) {
-        const t = mount(BuyDisciplineTab, { props: { fills: legs(), policy: base, lines: [], window: WINDOW, inputs } }).text();
+        const t = mount(BuyDisciplineTab, { props: { fills: legs(), policy: base, cells: [], window: WINDOW, inputs } }).text();
         expect(t, inputs).toContain(inputs === "error" ? "nothing is graded here" : "Loading the purchases and settings");
         expect(t, inputs).not.toContain("no tractor fuel in this window");
         expect(t, inputs).not.toContain("Gallons in avoided states");
