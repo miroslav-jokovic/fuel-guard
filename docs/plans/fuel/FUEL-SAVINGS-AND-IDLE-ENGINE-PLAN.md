@@ -1161,3 +1161,12 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   (pages, no `p_org`, numeric gallons) with 4 tests; the page's grades wait for it and the settings only. Mutation: 9/10
   killed across page, hook and shared; the survivor (dropping `l.month == null ||`) is a no-op — a null month only
   makes a Map key nothing reads. The plan's "behind the toggle" did not hold: §4 **Q-FSV18**.
+- **2026-10-03** Collector carry-in (research pass on "a day is final" and the D-IE9 gate's coverage). On 10/01, 17 truck-days
+  had over an hour of `no_data`; for 11 Samsara's `vehicle_engine_days` covered the gap. 649 idled from before 09/30
+  05:00Z to 10/02 13:36Z (Samsara 24.0 h idle on 10/01, 13.6 h on 10/02) and was stored as 37.9 h `no_data`, 0 h running:
+  its only flip inside the fetch was the 13:36 Off, and the snapshot seed only applies to a truck with no flip at all.
+  The gate could not see it — an hour with no engine state has no engine-seconds delta, so the day is unjudged, not
+  failed. Fix: when nothing in a truck's fetch fixes its state at the first instant written, its own `engineStates`
+  history is read up to 30 days back and the last flip before the fetch seeds it; an incomplete read or no flip keeps
+  `no_data`. Job stats gain `carriedIn` / `carryInMissing`. 10/01 is final and keeps its rows; 10/02 is rewritten by the
+  10/04 nightly with this live if it merges first.
