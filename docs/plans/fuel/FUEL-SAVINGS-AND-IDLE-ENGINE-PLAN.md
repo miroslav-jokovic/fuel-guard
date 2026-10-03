@@ -402,7 +402,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     active** and say why — cheap, but it removes the export exactly when it is wanted; (c) leave it and label it
     "weekly report, ignores filters". Recommendation: **(a)** — (b) and (c) ship a known mismatch and are
     workarounds in the CLAUDE.md sense. Nothing is built on this until the owner rules.
-  - **Q-FSV15 — four decisions the 2026-10-03 verdict needs before the UX track can finish (OPEN, owner).**
+  - **Q-FSV15 — four decisions the 2026-10-03 verdict needs before the UX track can finish (RULED 1–4, owner "proceed as suggested", 2026-10-03; the ordinary-user test stays open).**
     (1) **Who owns the savings strip** that §3 promises for FS2 and `FuelCostsPage.vue` still does not render,
     and what it may sum: the verdict says buying difference, quote variance, coaching and equipment
     opportunity must stay separate and unsummed. (2) **Lower spend is painted green** (`fuelCostView.ts`),
@@ -413,6 +413,30 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     continue into an existing workflow (`contract_variance` findings are still unwired, handoff 62); the
     owner, status and evidence model has to be chosen first. Also owed: five ordinary-user task sessions
     (verdict §"Release acceptance"), with pass criteria set after the first round.
+    **Rulings, with their evidence:**
+    (1) **The savings strip is built from the findings ledger, not from sums.** It lives on Fuel Costs (owner:
+    FS2's page), shows one row per KIND of open fuel finding with its count, dollars and age, and each row opens
+    the findings inbox filtered to that kind with the page's dates and trucks. Nothing is added across kinds
+    (overlap: the same fill can be an off-network premium and a quote gap). Idle and equipment rows join only at
+    IE5b, because today's Idling dollars still price with the configured rate. It needs a per-kind aggregate the
+    findings summary does not have (it returns an open count and the quarter's recovered dollars only), so it is
+    its own step, **FS-STRIP**, after the contract producer below has run for a few nights. NOT BUILT.
+    (2) **Dollars carry no direction. DONE.** Fuel spend and Out of network spend are neutral (`fuelCostView.ts`);
+    price per gallon, the quote gap, MPG and cost per mile keep theirs, being per unit of work.
+    (3) **The rollout checks leave the office view for the platform console** (`apps/admin`), as step **IE-ADMIN**.
+    Read from the code: `/api/idle/engine/parity` and `/burn-rates` are gated `safety:view`, the same as the
+    whole Idling page, so the app has no "administrators only" notion for them, and a `session.can(...)` test in
+    the page would be a stand-in for one (CLAUDE.md, "no workarounds"). Until the console view exists the panel
+    stays behind "How idle is scored", in the plain words shipped in part 2. NOT BUILT.
+    (4) **"Review" is the findings inbox, and the missing producer is now wired. DONE in code.** Assign, status,
+    evidence and credit already exist there. `contract_variance` had no producer; `fuelContractScan.ts` now files
+    it nightly on the sweep's window with its own close scope. **Floor $5 a fill**, from production over 90 days
+    to 2026-10-03: 3,899 quoted fills; 1,476 billed above quote by any amount, 205 by $1 or more, 122 by $5 or
+    more, 38 by $25 or more; net across all 3,899 is only +$588, since over- and under-billing offset. At $5 the
+    queue gains about 1.4 findings a day. The floor is `MIN_CONTRACT_OVERBILL_USD`; moving it is a one-line
+    change. The first run files the sweep's trailing fortnight only. Merging deploys it.
+    Still open under Q-FSV15: the five ordinary-user task sessions. They need people, not code; the verdict
+    asks for the pass criteria to be set with the owner after the first round.
 
 ## 5. Words (D-FSV7)
 
@@ -1004,3 +1028,10 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   fixture), state/location/network appear in its scope line, and it is rasterised and LOOKED at with a long
   fixture before merge (a text collision is invisible to a unit test). Until then the button exports the legacy
   report and Q-FSV14 stays a known mismatch. Word changes shipped in the part-2 PR (plain words).
+- **2026-10-03** — **Q-FSV15 ruled (1)–(4); two built.** Spend and Out of network cards lost their green/red (a
+  quieter month no longer reads as success). The contract-variance producer is wired: `fuelContractScan.ts`,
+  `CONTRACT_EXCEPTION_KINDS`, `MIN_CONTRACT_OVERBILL_USD = 5`, called from the rollup sweep after the policy scan;
+  a failed scan counts in the job row's `scansFailed`. Production read for the floor is in §4 Q-FSV15 (122 fills in
+  90 days at $5). Not built: FS-STRIP (needs a per-kind findings aggregate), IE-ADMIN (platform-console view of the
+  parity and burn-rate checks), FS-PDF (Q-FSV14). Before merging this: the first sweep after deploy files the
+  trailing fortnight's overbilled fills (about 20) into the fuel inbox that people read.

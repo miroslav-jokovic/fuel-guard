@@ -95,6 +95,15 @@ export const RECON_EXCEPTION_KINDS: readonly FuelExceptionKind[] = [
   "recon_gallons",
 ];
 
+/**
+ * What the contract scan closes (Q-FSV15 ruling 4). Its own constant for the reason above: never widened
+ * to cover a sibling producer's kinds, never shared with `RECON_EXCEPTION_KINDS`.
+ */
+export const CONTRACT_EXCEPTION_KINDS: readonly FuelExceptionKind[] = ["contract_variance"];
+
+/** A fill billed less than this far above Pilot's quote is not filed; see `contractFindings`. */
+export const MIN_CONTRACT_OVERBILL_USD = 5;
+
 export const FUEL_EXCEPTION_STATUSES = [
   "open",
   "investigating",
@@ -278,15 +287,19 @@ function toFinding(row: ReconRow): FuelExceptionFinding | null {
  * `SpendLine` carries no row id, so the fingerprint is built from what identifies the fill on a
  * statement: its date, site, unit and gallons.
  *
- * ⚠ NOT WIRED. Nothing in `apps/api` calls this yet, so no `contract_variance` has ever been filed —
- * the tab computes the same figures for reading and none of them acquires a lifecycle. When it is
- * wired it must declare its OWN close-scope kind set the way `RECON_EXCEPTION_KINDS` does (0253); it
- * may not reuse that one, or a reconciliation with no contract quotes in range would close every
- * contract finding in its period as though it had looked and found nothing.
+ * WIRED by the nightly contract scan (`fuelContractScan.ts`, Q-FSV15 ruling 4). It owns its close scope,
+ * `CONTRACT_EXCEPTION_KINDS`, the way `RECON_EXCEPTION_KINDS` does (0253) and never reuses another producer's:
+ * a reconciliation with no contract quotes in range would otherwise close every contract finding in the
+ * period though it looked and found nothing.
+ *
+ * `minOverbill` is the floor under which a fill is not worth a person's attention. Measured on production
+ * (90 days to 2026-10-03, 3,899 quoted fills): 1,476 were billed above their quote by any amount, but 205
+ * by $1 or more, 122 by $5 or more and 38 by $25 or more (about 1.4 a day at the $5 floor); the sub-dollar tail is cents of rounding ($53 of $2,725). The scan
+ * passes `MIN_CONTRACT_OVERBILL_USD`; the default of 0 keeps this function's own contract unchanged.
  */
-export function contractFindings(capture: ContractCapture): FuelExceptionFinding[] {
+export function contractFindings(capture: ContractCapture, minOverbill = 0): FuelExceptionFinding[] {
   return capture.exceptions
-    .filter((c) => c.variance > 0)
+    .filter((c) => c.variance > 0 && c.variance >= minOverbill)
     .map((c) => ({
       kind: "contract_variance" as const,
       fingerprint: fuelExceptionFingerprint("contract_variance", [

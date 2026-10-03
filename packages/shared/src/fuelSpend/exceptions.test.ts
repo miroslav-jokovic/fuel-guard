@@ -3,6 +3,7 @@ import {
   contractFindings, fuelExceptionFingerprint, reconFindings,
   FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_KINDS,
   FUEL_EXCEPTION_STATUS_LABELS, FUEL_EXCEPTION_STATUSES,
+  CONTRACT_EXCEPTION_KINDS, MIN_CONTRACT_OVERBILL_USD, RECON_EXCEPTION_KINDS,
 } from "./exceptions.js";
 import { reconcileFuelReport, RECON_STATUS_LABELS, type SystemFill } from "../reconcile/fuelMatch.js";
 import { analyzeContractCapture } from "./contractCapture.js";
@@ -172,6 +173,22 @@ describe("contractFindings", () => {
     // `ContractCapture` already reports the under figure beside the over one.
     const f = contractFindings(analyzeContractCapture([line({ netAmount: 480 })]));
     expect(f).toHaveLength(0);
+  });
+
+  it("leaves out a fill billed less than the floor above its quote, and keeps one at it", () => {
+    const capture = analyzeContractCapture([
+      line({ unit: "701", netAmount: 503 }), // $3 over
+      line({ unit: "702", netAmount: 505 }), // exactly $5 over: at the floor, filed
+      line({ unit: "703", netAmount: 520 }), // $20 over
+    ]);
+    expect(contractFindings(capture, MIN_CONTRACT_OVERBILL_USD).map((f) => f.unit).sort()).toEqual(["702", "703"]);
+    // The default keeps the function's own contract: every overbilled fill.
+    expect(contractFindings(capture)).toHaveLength(3);
+  });
+
+  it("owns a close scope of its own that no sibling producer shares", () => {
+    expect(CONTRACT_EXCEPTION_KINDS).toEqual(["contract_variance"]);
+    for (const k of RECON_EXCEPTION_KINDS) expect(CONTRACT_EXCEPTION_KINDS).not.toContain(k);
   });
 
   it("is stable across re-runs", () => {
