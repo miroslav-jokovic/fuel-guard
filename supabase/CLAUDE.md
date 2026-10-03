@@ -11,6 +11,14 @@
   (`check-rls.mjs`). RLS with zero policies = intentional service-role-only.
 - Migration headers carry the house comment discipline: what gap, why this shape, what was rejected
   (see `0146_compliance_documents.sql` for the register).
+- **A new function is closed to `anon` and `authenticated` by default** (0412). A function an RLS policy
+  calls, or one the browser calls through `supabase.rpc`, needs `grant execute on function … to
+  authenticated;` in the same migration — forgetting it fails loudly as `permission denied for
+  function`. A service-role-only function needs nothing (`service_role` keeps its default). Write
+  `revoke all … from public, anon, authenticated` anyway: it states the intent and survives a
+  changed default. `definer-rpc-grants.test.mjs` fails CI on a client-executable SECURITY DEFINER
+  function outside the RLS helpers. The `in schema public … from public` form in Supabase's docs
+  removes nothing — see 0412 for the measurement.
 - Evidence tables are append-only by construction (no UPDATE/DELETE policies) — don't add mutation
   policies to them.
 
