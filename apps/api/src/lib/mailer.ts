@@ -1,4 +1,5 @@
 import type { Env } from "../env.js";
+import { partitionRecipients, WITHHELD_DETAIL } from "./outboundAllowlist.js";
 
 export interface OutgoingEmail {
   to: string[];
@@ -58,7 +59,12 @@ export function parseSender(from: string): { name?: string; email: string } {
  * "clicked" is not.
  */
 /** Send one email and return the provider's outcome (status + error detail) for diagnostics. */
-export async function sendEmail(env: Env, email: OutgoingEmail): Promise<SendResult> {
+export async function sendEmail(env: Env, input: OutgoingEmail): Promise<SendResult> {
+  // Staging guard (outboundAllowlist.ts): a no-op in production, where the variable is unset.
+  const { allowed, withheld } = partitionRecipients(env, input.to);
+  if (withheld > 0) console.warn(`[mailer] ${withheld} recipient(s) withheld by OUTBOUND_ALLOWLIST`);
+  if (allowed.length === 0) return { ok: false, provider: "none", detail: WITHHELD_DETAIL };
+  const email = { ...input, to: allowed };
   try {
     if (env.MAIL_PROVIDER === "resend" && env.RESEND_API_KEY) {
       const r = await fetch("https://api.resend.com/emails", {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { efsEnvFields } from "./envEfs.js";
+import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { checkPspEnv } from "./lib/pspEnv.js";
 
 /**
@@ -11,6 +12,7 @@ const EnvSchema = z.object({
   // file-size budget without a waiver. Spread rather than parsed separately: one object, one parse,
   // one error listing everything a deployment is missing.
   ...efsEnvFields,
+  ...outboundEnvFields, // staging recipient guard (RELEASE-TRAIN-PLAN R4)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   ALLOWED_ORIGINS: z

@@ -167,3 +167,8 @@ the moment to move to `.railway/railway.ts`.
   GitHub secrets STAGING_SUPABASE_PROJECT_REF / STAGING_SUPABASE_DB_PASSWORD; `migrate.yml` gains a
   `migrate-staging` job. Q-REL6 found while comparing the two schemas. Q-REL5 is closed by this:
   uat's PSP sandbox orders now land in the staging database.
+- 2026-10-02 — R4: `OUTBOUND_ALLOWLIST` (`apps/api/src/lib/outboundAllowlist.ts`) filters every
+  recipient in `sendEmail` and `sendSms`, the only two exits for email and SMS; unset in production.
+  Push left unfiltered on purpose (a token exists only for a phone signed in to that environment).
+  Set on Railway `uat` to the two platform owners. Q-REL6's reconciling migration (0411) was written
+  but refused by the session's permission classifier as a shared-schema change — waits on the owner.
