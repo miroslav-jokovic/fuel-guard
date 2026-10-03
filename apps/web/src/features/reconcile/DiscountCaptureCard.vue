@@ -28,27 +28,36 @@
  * the audit that produced this plan found it twice already. It sits below the trend with its own
  * scope stated.
  */
-import { computed, ref } from "vue";
-import { analyzeContractCapture, type SpendLine } from "@silvicom/shared";
+import { computed } from "vue";
+import { contractHeadline, type ContractTotals, type SpendLine } from "@silvicom/shared";
 import StatCard from "@/components/ui/StatCard.vue";
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import { usd, pct1 } from "./format";
 
-const props = defineProps<{ lines: SpendLine[]; from: string; to: string }>();
+const props = defineProps<{
+  /** The tile's four sums, added up in the database (`fuel_contract_totals`, Q-FSV18). */
+  totals: ContractTotals;
+  /** The rows behind the tile. Read only once the tile is open, so empty and idle until then. */
+  lines: SpendLine[];
+  linesLoading?: boolean;
+  linesError?: boolean;
+  from: string;
+  to: string;
+}>();
+/** Whether the fills behind the tile are showing. The page owns the request that waits on it. */
+const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ narrow: [from: string, to: string] }>();
 
 /**
- * One `analyzeContractCapture` call for the tile; `DiscountCaptureTab` makes its own for the report.
- * Two renderers over one PURE function of one input is not two sources of truth — it is the same
- * answer computed twice — and the alternative was passing the analysis down, which would have made
- * the tab unmountable on its own and broken the suite that mounts it.
+ * The tile is `contractHeadline` over the database's four sums; the fills under it are
+ * `DiscountCaptureTab`, which makes its own `analyzeContractCapture` over the rows once they arrive, and
+ * `analyzeContractCapture` takes its two shared figures from the same `contractHeadline`. Two renderers
+ * over one formula is not two sources of truth.
  */
-const capture = computed(() => analyzeContractCapture(props.lines));
+const capture = computed(() => contractHeadline(props.totals));
 
 /** Nothing to disclose, and nothing to claim: the tab renders its own "cannot be priced yet" card. */
 const measurable = computed(() => capture.value.measuredLines > 0);
-
-const open = ref(false);
 
 const value = computed(() => usd(Math.abs(capture.value.netVariance)));
 const direction = computed(() => (capture.value.netVariance >= 0 ? "over contract" : "under contract"));
@@ -85,8 +94,12 @@ const subTone = computed(() =>
     </div>
 
     <!-- The fills behind it, unchanged: the same component the tab rendered, with the same props. -->
+    <p v-if="open && linesError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+      Couldn't load the fills behind this figure. Close it and open it again to retry.
+    </p>
+    <p v-else-if="open && linesLoading" class="text-sm text-ink-muted">Loading the fills behind this figure…</p>
     <DiscountCaptureTab
-      v-if="open"
+      v-else-if="open"
       :lines="lines"
       :from="from"
       :to="to"
