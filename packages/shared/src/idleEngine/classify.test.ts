@@ -291,7 +291,7 @@ describe("helpers", () => {
     expect(stateOfPlace(null)).toBeNull();
   });
   it("the version is stamped for the rows", () => {
-    expect(IDLE_ENGINE_VERSION).toBe("ie3-v1"); // 0407: parks carry the duty split from this version on
+    expect(IDLE_ENGINE_VERSION).toBe("ie3-v2"); // running past the duty logs' horizon is not measured
   });
 });
 
@@ -364,5 +364,30 @@ describe("classifyIdleEngine — the duty split (IE3)", () => {
     expect(run({ gps, engine }).stops[0]).toMatchObject({
       runningRestSec: null, runningOnDutySec: null, runningExcludedSec: null, runningUnknownSec: null,
     });
+  });
+
+  // The logbook sync runs every six hours, this collector every hour: running past the logs' horizon
+  // has no log YET, and calling it unknown would book it avoidable (D-IE4 rule 5) until the nightly.
+  const NOT_MEASURED = { runningRestSec: null, runningOnDutySec: null, runningExcludedSec: null, runningUnknownSec: null };
+  const duty = timeline([seg("off_duty", 10, 30), seg("on_duty", 30, 40), seg("yard_move", 40, 42)]);
+
+  it("a park whose running reaches past the duty logs' horizon is not measured, by a minute or by the gap", () => {
+    expect(run({ gps, engine, duty, dutyKnownUntilMs: at(49) }).stops[0]).toMatchObject({ runningSec: 1500, ...NOT_MEASURED });
+    // The horizon falls in the engine-off gap; the engine runs again at 35, past it.
+    expect(run({ gps, engine, duty, dutyKnownUntilMs: at(32) }).stops[0]).toMatchObject(NOT_MEASURED);
+  });
+
+  it("a park whose running ends at the horizon is measured as before", () => {
+    expect(run({ gps, engine, duty, dutyKnownUntilMs: at(50) }).stops[0]).toMatchObject({ runningRestSec: 600, runningUnknownSec: 480 });
+  });
+
+  it("only RUNNING past the horizon counts: a park parked with the engine off past it is measured", () => {
+    // Engine off from 40: the park runs 20–40 and stands off until 50; the logs reach 45.
+    const [s] = run({ gps, engine: [{ t: at(40), on: false }], duty, dutyKnownUntilMs: at(45) }).stops;
+    expect(s).toMatchObject({ runningSec: 1200, runningRestSec: 600, runningOnDutySec: 600, runningUnknownSec: 0 });
+  });
+
+  it("no horizon (an org with no logs at all) keeps the old reading: unknown, measured", () => {
+    expect(run({ gps, engine, duty: null, dutyKnownUntilMs: null }).stops[0]).toMatchObject({ runningUnknownSec: 1500 });
   });
 });
