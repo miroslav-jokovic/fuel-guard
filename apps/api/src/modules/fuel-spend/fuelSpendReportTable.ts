@@ -24,6 +24,16 @@ const M = GEOM.margin;
 const RIGHT = GEOM.pageWidth - GEOM.margin;
 const ROW_H = 19;
 const HEAD_H = 15;
+/** A header with a second line is one label-height taller. */
+const HEAD_H_WRAPPED = 24;
+const headH = (wrap: boolean) => (wrap ? HEAD_H_WRAPPED : HEAD_H);
+/** Split at the space nearest the middle, so neither line is much longer than the other. */
+function twoLines(text: string): [string, string] {
+  const mid = text.length / 2;
+  let best = -1;
+  for (let i = 0; i < text.length; i += 1) if (text[i] === " " && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+  return best < 0 ? [text, ""] : [text.slice(0, best), text.slice(best + 1)];
+}
 
 export interface Column {
   /**
@@ -58,6 +68,17 @@ export interface Column {
    * there the distance to zero is the finding.
    */
   barBaseline?: number;
+  /**
+   * Break this column's header over two lines at the space nearest its middle, and give the whole header row
+   * the height for it. Off by default so every existing table keeps its one-line head.
+   *
+   * ── WHY IT EXISTS ────────────────────────────────────────────────────────────────────────────
+   * The Fuel Costs day table prints the screen's nine labels ("Paid vs Pilot quote", "MPG — previous 7
+   * days"), and the values under them are short ("$850"). Truncating the labels to fit the values read
+   * "PAID VS PILOT Q..." on the first render; the labels are the shared ones and are not abbreviated for
+   * a page, so the head is what gives.
+   */
+  wrapHeader?: boolean;
 }
 
 export interface Cell {
@@ -91,15 +112,15 @@ export interface Row {
  * keep the banding regular — which is the whole point of banding.
  */
 /** A column header plus two rows — the least that is worth starting a table with. */
-export function tableHeadHeight(subLines = false): number {
-  return HEAD_H + 2 + (subLines ? ROW_H + 9 : ROW_H) * 2;
+export function tableHeadHeight(subLines = false, wrapHeader = false): number {
+  return headH(wrapHeader) + 2 + (subLines ? ROW_H + 9 : ROW_H) * 2;
 }
 
 export function figureTable(doc: PDFKit.PDFDocument, columns: readonly Column[], rows: readonly Row[]): void {
   const barMax = barScale(columns, rows);
   // A header drawn in the last inch of a page with its rows overleaf is how "Avoided brands" and its
   // SITE / FILLS header came out marooned at the foot of page 1.
-  ensure(doc, tableHeadHeight(rows.some((r) => r.cells.some((c) => c.sub))));
+  ensure(doc, tableHeadHeight(rows.some((r) => r.cells.some((c) => c.sub)), columns.some((c) => c.wrapHeader)));
   drawHeader(doc, columns);
 
   rows.forEach((row, i) => {
@@ -194,17 +215,27 @@ export function totalRow(doc: PDFKit.PDFDocument, columns: readonly Column[], ce
 
 function drawHeader(doc: PDFKit.PDFDocument, columns: readonly Column[]): void {
   const top = doc.y;
+  const wrapped = columns.some((c) => c.wrapHeader);
+  const h = headH(wrapped);
   let x = M;
   withoutAutoBreak(doc, () => { for (const col of columns) {
     // Right-aligned headers are pulled 6pt left of their column edge, the same inset the numbers under
     // them get, so a column header sits over its own digits rather than over the gap to the next one.
-    label(doc, col.header, x + (col.align === "right" ? 0 : 8), top + 4, col.width - 6, C.inkSubtle, col.align ?? "left");
+    const hx = x + (col.align === "right" ? 0 : x === M ? 8 : 0);
+    if (col.wrapHeader) {
+      // Anchored to the BOTTOM of the head, so a one-word header in a wrapped table still sits on the rule.
+      const [a, b] = twoLines(col.header);
+      label(doc, a, hx, top + 3, col.width - 6, C.inkSubtle, col.align ?? "left");
+      if (b) label(doc, b, hx, top + 12, col.width - 6, C.inkSubtle, col.align ?? "left");
+    } else {
+      label(doc, col.header, hx, top + (wrapped ? 12 : 4), col.width - 6, C.inkSubtle, col.align ?? "left");
+    }
     x += col.width;
   } });
   doc.save().lineWidth(0.8).strokeColor(C.rule)
-    .moveTo(M, top + HEAD_H).lineTo(RIGHT, top + HEAD_H).stroke().restore();
+    .moveTo(M, top + h).lineTo(RIGHT, top + h).stroke().restore();
   doc.x = M;
-  doc.y = top + HEAD_H + 2;
+  doc.y = top + h + 2;
 }
 
 /**

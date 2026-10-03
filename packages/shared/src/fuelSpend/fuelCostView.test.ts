@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fuelReportTotals, type FuelReport, type FuelReportDay, type FleetMpgPeriod } from "@silvicom/shared";
-import { brandList, costCards, costDayRows, costDaysCsv, networkLine, reeferLine, relativeChange } from "./fuelCostView";
-import { fuelReportQuery } from "./useFuelReport";
+import { fuelReportTotals, type FuelReport, type FuelReportDay } from "./reportDays.js";
+import type { FleetMpgPeriod } from "./fleetEfficiency.js";
+import { brandList, costCards, costDayRows, costDaysCsv, networkLine, reeferLine, relativeChange } from "./fuelCostView.js";
 
 /**
  * The Fuel Costs page's words and comparisons (FS2). The sums are SQL's and the ratios
@@ -162,14 +162,5 @@ describe("the lines beside the cards", () => {
   it("names the carrier's own network brands", () => {
     expect(brandList(["pilot", "flying_j"])).toBe("Pilot / Flying J");
     expect(brandList(["pilot", "flying_j", "one9"])).toBe("Pilot / Flying J / ONE9");
-  });
-});
-
-describe("fuelReportQuery", () => {
-  it("sends every filter it was given and leaves out the empty ones", () => {
-    const q = new URLSearchParams(fuelReportQuery({
-      from: "2026-09-01", to: "2026-09-30", vehicleIds: ["v1", "v2"], states: ["TX"], siteIds: [], networks: ["out", "unknown"],
-    }));
-    expect(Object.fromEntries(q)).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicles: "v1,v2", states: "TX", networks: "out,unknown" });
   });
 });

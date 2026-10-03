@@ -6,6 +6,9 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { costCards, costDayCells, costDayRows, comparingLine, type FuelReport } from "@silvicom/shared";
+import { pdfText } from "../../../testing/pdfText.js";
+import { winAnsi } from "../../../lib/winAnsi.js";
 
 /**
  * `GET /api/fueling/report` — FS1. The sums are the matrix's (`fuel-report-days.test.mjs`) and the
@@ -257,4 +260,35 @@ describe("GET /api/fueling/report", () => {
       expect(holder.rec!.forTable("samsara_odometer_readings")).toHaveLength(0);
     },
   );
+});
+
+/**
+ * The document and the screen read ONE report (FS-PDF, Q-FSV14). Same seed, same query: the JSON `/report`
+ * answers is turned into the screen's cards and day rows by the shared functions, and the real renderer's PDF
+ * (no mock — `reportPdf.test.ts` mocks it for the route's own checks) must carry every one of those strings.
+ * This is the test that would have caught the older export, which read a different table and compared
+ * different ranges under the same button.
+ */
+describe("GET /api/fueling/report.pdf — against the same seed as /report", () => {
+  const squash = (t: string) => winAnsi(t).replace(/\s+/g, "");
+
+  it("prints every card, the comparison sentence and the newest day exactly as the screen derives them", async () => {
+    const q = "from=2026-09-01&to=2026-09-13";
+    const report = ((await (await get(`/api/fueling/report?${q}`)).json()) as FuelReport);
+    const res = await get(`/api/fueling/report.pdf?${q}`);
+    expect(res.status).toBe(200);
+    const text = squash(await pdfText(Buffer.from(await res.arrayBuffer())));
+
+    for (const c of costCards(report)) {
+      expect(text, `${c.label} label`).toContain(squash(c.label));
+      expect(text, `${c.label} value`).toContain(squash(c.value));
+      expect(text, `${c.label} change`).toContain(squash(c.sub));
+    }
+    expect(text).toContain(squash(comparingLine(report)));
+    // The whole newest row, as ONE run inside the day section: cell by cell would pass on a date the letterhead
+    // also prints, and on any figure that happens to repeat elsewhere.
+    const dayTable = text.slice(text.indexOf(squash("By day")));
+    expect(dayTable).toContain(squash(costDayCells(costDayRows(report)[0]!).join("")));
+    expectOrgScoped(holder.rec!, ORG);
+  });
 });
