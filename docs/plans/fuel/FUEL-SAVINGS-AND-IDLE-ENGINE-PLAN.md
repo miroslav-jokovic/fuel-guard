@@ -1161,6 +1161,17 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   (pages, no `p_org`, numeric gallons) with 4 tests; the page's grades wait for it and the settings only. Mutation: 9/10
   killed across page, hook and shared; the survivor (dropping `l.month == null ||`) is a no-op — a null month only
   makes a Map key nothing reads. The plan's "behind the toggle" did not hold: §4 **Q-FSV18**.
+- **2026-10-03** — **Q-FSV18 ruled (a) by the owner; step 1 of 2 (the function; migration 0418, no reader yet).**
+  `fuel_contract_totals(p_from, p_to, p_vehicles, p_org)` returns the four sums the quote tile is made of — measured
+  lines, their billed and contract dollars, and the billed dollars of in-scope fills with no quote — read through
+  `fuel_spend_lines`. It decides nothing: the per-gallon tolerance, the sign and the wording stay in
+  `analyzeContractCapture`. A fill with no quote adds to `unmeasured_paid` and nothing else (null is not zero). Always
+  one row, zeros over an empty window. Matrix `fuel-contract-totals.test.mjs` (22), ruler = the raw rows summed in JS by
+  the TS rules. Mutation: 10/10 killed — one survived first (`sum` without `coalesce` on an empty window) because the
+  test read `Number(null)` as 0; the assertion now checks for null before converting. **Step 2, a separate later merge:**
+  the tile reads this once through a shared helper that also feeds `analyzeContractCapture` (one copy of the net-variance
+  and priced-share formulas), and the row read moves behind the tile's toggle, where the fills list is the only thing
+  that needs rows. Not started; it waits for 0418 to be applied.
 - **2026-10-03** Collector carry-in (research pass on "a day is final" and the D-IE9 gate's coverage). On 10/01, 17 truck-days
   had over an hour of `no_data`; for 11 Samsara's `vehicle_engine_days` covered the gap. 649 idled from before 09/30
   05:00Z to 10/02 13:36Z (Samsara 24.0 h idle on 10/01, 13.6 h on 10/02) and was stored as 37.9 h `no_data`, 0 h running:
