@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
@@ -50,7 +50,15 @@ const props = withDefaults(defineProps<{
    */
   fleetWide?: boolean;
   loading?: boolean;
-}>(), { fleetWide: true, loading: false });
+  /**
+   * Whether the two inputs the targets are graded from (the feed's `lines`, the org's policy) arrived.
+   * Both default to empty when their query is pending or failed, and empty reads as an answer: "no
+   * tractor fuel in this window", "no target set", California at zero gallons. The verdict that
+   * audited this page (2026-10-03, principle #6) saw those beside 867 fills and $4,462 of findings.
+   * Not "ready" means the section says so and grades nothing.
+   */
+  inputs?: "ready" | "loading" | "error";
+}>(), { fleetWide: true, loading: false, inputs: "ready" });
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
 
@@ -190,6 +198,9 @@ const sort = ref<SortState>({ key: "excess", dir: "desc" });
 const sortedRows = computed(() => sortRows(rows.value, sort.value, (r, k) => r.sortBy[k]));
 const page = ref(1);
 const PER_PAGE = 25;
+// A narrower window or truck pick can leave fewer rows than the page the reader was on; DataTable shows its
+// empty text before its footer, so without this the way back to page 1 vanishes with the rows.
+watch(rows, () => { page.value = 1; });
 const pageRows = computed(() => sortedRows.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 const cols: DataTableColumn[] = [
   { key: "date", label: "Bought", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
@@ -286,56 +297,63 @@ function exportRows() {
          behalf — that is 0325's ruling and the settings form says the same. -->
     <div>
       <h4 class="mb-2 text-sm font-semibold text-ink">Against your targets</h4>
-      <p v-if="!fleetWide" class="mb-2 text-xs text-caution-800">
-        Targets are set for the whole fleet. With trucks selected, the figures below are the selection's
-        own and are shown without a grade.
+      <p v-if="inputs !== 'ready'" class="mb-2 text-xs text-caution-800">
+        {{ inputs === "loading"
+          ? "Loading the purchases and settings these figures are graded from."
+          : "Couldn't load the purchases or settings these figures are graded from, so nothing is graded here. Reload to try again." }}
       </p>
-      <p v-else-if="!anyTargetSet" class="mb-2 text-xs text-ink-tertiary">
-        No target is set. Set one in Fuel Planning Settings and each figure here is graded against it;
-        until then it is reported without a standard beside it.
-      </p>
+      <template v-else>
+        <p v-if="!fleetWide" class="mb-2 text-xs text-caution-800">
+          Targets are set for the whole fleet. With trucks selected, the figures below are the selection's
+          own and are shown without a grade.
+        </p>
+        <p v-else-if="!anyTargetSet" class="mb-2 text-xs text-ink-tertiary">
+          No target is set. Set one in Fuel Planning Settings and each figure here is graded against it;
+          until then it is reported without a standard beside it.
+        </p>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <StatCard
-          label="On the preferred network"
-          :value="pct(grades.onNetwork.actualPct)"
-          :sub="onNetworkSub"
-          :sub-tone="toneOf(grades.onNetwork.variance)"
-          :muted="grades.onNetwork.actualPct == null"
-        />
-      </div>
-      <!-- The rule counts an unmatched station as off-network, so the share is a floor by that much
-           and a margin narrower than the unresolved share is inside the measurement, not outside it. -->
-      <p v-if="grades.onNetwork.unresolvedPct" class="mt-1 text-xs text-ink-tertiary">
-        {{ pct(grades.onNetwork.unresolvedPct) }} of these gallons could not be matched to a station and count
-        as off-network, so the true share is between {{ pct(grades.onNetwork.actualPct) }} and
-        {{ pct(Math.min(100, (grades.onNetwork.actualPct ?? 0) + grades.onNetwork.unresolvedPct)) }}.
-      </p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <StatCard
+            label="On the preferred network"
+            :value="pct(grades.onNetwork.actualPct)"
+            :sub="onNetworkSub"
+            :sub-tone="toneOf(grades.onNetwork.variance)"
+            :muted="grades.onNetwork.actualPct == null"
+          />
+        </div>
+        <!-- The rule counts an unmatched station as off-network, so the share is a floor by that much
+             and a margin narrower than the unresolved share is inside the measurement, not outside it. -->
+        <p v-if="grades.onNetwork.unresolvedPct" class="mt-1 text-xs text-ink-tertiary">
+          {{ pct(grades.onNetwork.unresolvedPct) }} of these gallons could not be matched to a station and count
+          as off-network, so the true share is between {{ pct(grades.onNetwork.actualPct) }} and
+          {{ pct(Math.min(100, (grades.onNetwork.actualPct ?? 0) + grades.onNetwork.unresolvedPct)) }}.
+        </p>
 
-      <template v-if="props.policy.avoidStates.length">
-        <BaseCard padding="none" class="mt-3">
-          <DataTable :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
-            <template #cell-against="{ row }">
-              <span :class="row.tone">{{ row.against }}</span>
-            </template>
-          </DataTable>
-        </BaseCard>
-        <p class="mt-1 text-xs text-ink-tertiary">
-          Gallons bought in {{ listStates(props.policy.avoidStates) }}, by the fill's business date. The ceiling
-          is stated per {{ AVOIDED_STATE_TARGET_PERIOD }}, so each month is held to it on its own; a month this
-          window only partly covers is a floor and is not called met.
+        <template v-if="props.policy.avoidStates.length">
+          <BaseCard padding="none" class="mt-3">
+            <DataTable :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
+              <template #cell-against="{ row }">
+                <span :class="row.tone">{{ row.against }}</span>
+              </template>
+            </DataTable>
+          </BaseCard>
+          <p class="mt-1 text-xs text-ink-tertiary">
+            Gallons bought in {{ listStates(props.policy.avoidStates) }}, by the fill's business date. The ceiling
+            is stated per {{ AVOIDED_STATE_TARGET_PERIOD }}, so each month is held to it on its own; a month this
+            window only partly covers is a floor and is not called met.
+          </p>
+        </template>
+        <p v-else class="mt-3 text-xs text-ink-tertiary">
+          No state is avoided in your policy, so there is no gallons ceiling to hold a month to.
+        </p>
+
+        <!-- The third target has nowhere to land, and saying so beats a made-up figure. The posted price
+             only ever arrives on the vendor's statement (Q-FUI7), and none has been uploaded. -->
+        <p v-if="grades.discountCaptureTargetPct != null" class="mt-2 text-xs text-caution-800">
+          Discount capture is targeted at least {{ grades.discountCaptureTargetPct }}%. This page does not grade
+          it; the fills billed above Pilot's quote are under "Paid vs Pilot quote" below.
         </p>
       </template>
-      <p v-else class="mt-3 text-xs text-ink-tertiary">
-        No state is avoided in your policy, so there is no gallons ceiling to hold a month to.
-      </p>
-
-      <!-- The third target has nowhere to land, and saying so beats a made-up figure. The posted price
-           only ever arrives on the vendor's statement (Q-FUI7), and none has been uploaded. -->
-      <p v-if="grades.discountCaptureTargetPct != null" class="mt-2 text-xs text-caution-800">
-        Discount capture is targeted at least {{ grades.discountCaptureTargetPct }}% and cannot be measured yet:
-        the posted price only arrives on the vendor's statement, and none is on file for this window.
-      </p>
     </div>
 
     <div v-if="stateRows.length">

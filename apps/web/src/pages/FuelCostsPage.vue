@@ -96,6 +96,15 @@ const exportQuery = computed(() => {
   if (f.vehicleIds.value.length) q.set("vehicles", f.vehicleIds.value.join(","));
   return q.toString();
 });
+/**
+ * Buy discipline opens on the days and trucks being read here — its header promises that shared context.
+ * State, location and network are not parameters of its fill sequence, so they cannot travel; the link
+ * says so when one is active instead of silently widening the view.
+ */
+const buyLink = computed(() => ({
+  path: "/fuel-buy-discipline",
+  query: { from: f.from.value, to: f.to.value, ...(f.vehicleIds.value.length ? { trucks: f.vehicleIds.value.join(",") } : {}) },
+}));
 const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-700" : t === "bad" ? "text-danger-700" : undefined);
 </script>
 
@@ -176,8 +185,9 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
 
       <p class="text-sm text-ink-muted">
         Fuel carried out of a dearer state, and the fuel targets graded:
-        <RouterLink v-if="opens('/fuel-buy-discipline')" to="/fuel-buy-discipline" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
-        <template v-else>Buy discipline</template>.
+        <RouterLink v-if="opens('/fuel-buy-discipline')" :to="buyLink" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
+        <template v-else>Buy discipline</template>
+        <template v-if="f.stationFiltered.value"> (it opens on every station: it can't narrow by state, location or network)</template>.
         A vendor bill is checked on
         <RouterLink v-if="opens('/fuel-invoices')" to="/fuel-invoices" class="text-link hover:text-link-hover">Pilot invoices</RouterLink>
         <template v-else>Pilot invoices</template>.
