@@ -205,9 +205,9 @@ const pageRows = computed(() => sortedRows.value.slice((page.value - 1) * PER_PA
 const cols: DataTableColumn[] = [
   { key: "date", label: "Bought", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
   { key: "unit", label: "Unit", width: "xs", sortable: true, cellClass: "text-ink-secondary" },
-  { key: "leg", label: "Leg", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "leg", label: "Trip between fuel stops", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
   { key: "bought", label: "Bought", numeric: true, width: "sm", sortable: true },
-  { key: "carried", label: "Still aboard", numeric: true, width: "sm", sortable: true },
+  { key: "carried", label: "Fuel left in tank (gal)", numeric: true, width: "sm", sortable: true },
   { key: "basis", label: "From", width: "sm", sortable: true, cellClass: "text-ink-tertiary" },
   { key: "fromPer", label: "Fuel / gal there", numeric: true, width: "sm", sortable: true },
   { key: "toPer", label: "…and here", numeric: true, width: "sm", sortable: true },
@@ -252,14 +252,14 @@ function exportRows() {
            the difference is a jurisdiction's tax rate, which is owed on the miles driven there whichever
            state the diesel was bought in — so it is shown as a comparison and never as the headline. -->
       <p class="mt-3 text-xs text-ink-tertiary">
-        Priced on the fuel itself, with each state's diesel tax removed. On pump price the same legs read
+        Priced on the fuel itself, with each state's diesel tax removed. On pump price the same trips read
         {{ usd(report.pumpExcess) }} — the gap is tax the carrier owes wherever it buys, so it is not a saving.
       </p>
 
       <!-- Half these legs are measured from a tank level and half bounded from miles burned. The bound
            understates roughly fivefold where both exist, so the total is a floor and must read as one. -->
       <p class="mt-2 text-xs text-ink-tertiary">
-        {{ report.byBasis.tank_level.pairs }} legs measured from a confirmed tank level
+        {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
         ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} bounded from
         miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which
         understates. The total is a floor, not an estimate.
@@ -273,9 +273,9 @@ function exportRows() {
     </BaseCard>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatCard label="Legs" :value="coverage.findings.toLocaleString()" :sub="`of ${coverage.pairs.toLocaleString()} examined`" />
+      <StatCard label="Trips between fuel stops" :value="coverage.findings.toLocaleString()" :sub="`of ${coverage.pairs.toLocaleString()} examined`" />
       <StatCard label="Gallons carried" :value="gal(report.gallons)" sub="out of the dearer state" />
-      <StatCard label="Cost of carrying it" :value="usd(report.excess)" sub="at least — see the note above" />
+      <StatCard label="Extra fuel cost — at least" :value="usd(report.excess)" sub="at least — see the note above" />
       <StatCard
         label="Could not be judged"
         :value="coverage.blind.toLocaleString()"
@@ -286,7 +286,7 @@ function exportRows() {
     <!-- Most of what produced no finding is not missing data, and saying so is the difference between a
          caveat and a panic: the truck stayed in one state, or drove the way the policy wants. -->
     <p class="text-xs text-ink-tertiary">
-      Of {{ coverage.pairs.toLocaleString() }} legs, {{ coverage.sameState.toLocaleString() }} stayed inside one
+      Of {{ coverage.pairs.toLocaleString() }} trips between fuel stops, {{ coverage.sameState.toLocaleString() }} stayed inside one
       state and {{ coverage.towardDearer.toLocaleString() }} ran from cheaper fuel toward dearer — the way round
       the policy asks for, so neither is a finding. Only {{ coverage.blind }} could not be judged at all.
     </p>
@@ -381,7 +381,7 @@ function exportRows() {
 
     <div>
       <div class="mb-2 flex items-center justify-between">
-        <h4 class="text-sm font-semibold text-ink">Every leg</h4>
+        <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
         <BaseButton v-if="report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
       </div>
       <BaseCard padding="none">

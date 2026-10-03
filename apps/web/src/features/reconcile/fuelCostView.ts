@@ -194,7 +194,7 @@ export function costDaysCsv(
   withMpg: boolean,
 ): { headers: string[]; rows: (string | number | null)[][] } {
   const headers = ["Day", "Fills", "Gallons", "Fuel spend", "Avg price / gal", "Out of network", "Paid vs Pilot quote", "Reefer"];
-  if (withMpg) headers.push("MPG (7 days)");
+  if (withMpg) headers.push("MPG — previous 7 days");
   return {
     headers,
     rows: rows.map((r) => {

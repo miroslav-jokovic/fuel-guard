@@ -129,8 +129,8 @@ describe("costDayRows", () => {
 
   it("writes the CSV with the MPG column only when there is one", () => {
     const rows = costDayRows(report());
-    expect(costDaysCsv(rows, true).headers.at(-1)).toBe("MPG (7 days)");
-    expect(costDaysCsv(rows, false).headers).not.toContain("MPG (7 days)");
+    expect(costDaysCsv(rows, true).headers.at(-1)).toBe("MPG — previous 7 days");
+    expect(costDaysCsv(rows, false).headers).not.toContain("MPG — previous 7 days");
     expect(costDaysCsv(rows, true).rows[0]![0]).toBe("09/03/2026");
   });
 });

@@ -34,7 +34,7 @@ const columns = computed<DataTableColumn[]>(() => [
   { key: "out", label: "Out of network", numeric: true, width: "sm" },
   { key: "quote", label: "Paid vs Pilot quote", numeric: true, width: "sm" },
   { key: "reefer", label: "Reefer", numeric: true, width: "sm", cellClass: "text-ink-tertiary" },
-  ...(props.withMpg ? [{ key: "mpg", label: "MPG (7 days)", numeric: true, width: "sm" } as DataTableColumn] : []),
+  ...(props.withMpg ? [{ key: "mpg", label: "MPG — previous 7 days", numeric: true, width: "sm" } as DataTableColumn] : []),
 ]);
 
 const shown = computed(() =>

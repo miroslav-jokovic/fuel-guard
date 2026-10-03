@@ -25,7 +25,7 @@ const status = computed(() => {
 const columns: DataTableColumn[] = [
   { key: "unit", label: "Truck" },
   { key: "judgedDays", label: "Days checked", numeric: true },
-  { key: "failedDays", label: "Days off", numeric: true },
+  { key: "failedDays", label: "Days that did not match", numeric: true },
   { key: "worstRunningDiff", label: "Worst engine-hours miss", numeric: true },
   { key: "worstStoppedDiff", label: "Worst idling miss", numeric: true },
 ];
@@ -34,18 +34,18 @@ const columns: DataTableColumn[] = [
 <template>
   <section class="space-y-2">
     <p class="text-sm text-ink-secondary">
-      <span class="font-semibold text-ink">New idle engine check.</span>
+      <span class="font-semibold text-ink">Measurement update status.</span>
       A new way of measuring idling runs beside the figures above. It replaces them once its engine hours agree
       with each truck's own computer within {{ IDLE_PARITY.runningTolerance * 100 }}%, and its idling with
       Samsara's within {{ IDLE_PARITY.stoppedTolerance * 100 }}%, on {{ IDLE_PARITY.passShare * 100 }}% of
-      truck-days over {{ IDLE_PARITY.minDays }} finished days.
+      days over {{ IDLE_PARITY.minDays }} finished days.
       <template v-if="data && status">
         <span :class="[BADGE_BASE, toneClass(status.tone)]" class="ml-1">{{ status.label }}</span>
         <template v-if="data.days.length === 0"> No day is finished yet; the first one is finished by the next nightly run.</template>
         <template v-else>
           {{ data.days.length }} of {{ IDLE_PARITY.minDays }} days finished, through
           {{ formatDisplayDate(data.finalThrough) }}:
-          <strong>{{ share }}%</strong> of {{ data.truckDays.judged }} truck-days agree.
+          <strong>{{ share }}%</strong> of {{ data.truckDays.judged }} days agree.
         </template>
       </template>
     </p>

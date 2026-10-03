@@ -49,7 +49,7 @@ describe("IdleEngineParityPanel", () => {
     expect(calls).toEqual(["/api/idle/engine/parity"]);
     expect(t).toContain("within 3%");
     expect(t).toContain("within 5%");
-    expect(t).toContain("95% of truck-days over 14 finished days");
+    expect(t).toContain("95% of days over 14 finished days");
   });
 
   it("before any day is finished, says so rather than showing a share", async () => {
@@ -66,7 +66,7 @@ describe("IdleEngineParityPanel", () => {
     const t = w.text();
     expect(t).toContain("Still checking");
     expect(t).toContain("2 of 14 days finished, through 10/02/2026");
-    expect(t).toContain("75% of 4 truck-days agree");
+    expect(t).toContain("75% of 4 days agree");
     expect(t).toContain("650");
     expect(t).toContain("+20.0%");
   });
@@ -88,7 +88,7 @@ describe("IdleEngineParityPanel", () => {
     ];
     fetched.value = view(rows, "2026-10-14");
     const t = (await render()).text();
-    expect(t).toContain("94.9% of 199 truck-days agree");
+    expect(t).toContain("94.9% of 199 days agree");
     expect(t).toContain("Not agreeing yet");
   });
 

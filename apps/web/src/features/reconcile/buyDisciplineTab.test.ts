@@ -101,7 +101,7 @@ describe("BuyDisciplineTab", () => {
     // state the diesel came from. Present without that sentence it reads as money left on the table.
     const report = analyzeCarriedFuel(legs());
     const t = render();
-    expect(t).toContain(`On pump price the same legs read ${usd0(report.pumpExcess)}`);
+    expect(t).toContain(`On pump price the same trips read ${usd0(report.pumpExcess)}`);
     expect(t).toContain("the gap is tax the carrier owes wherever it buys");
     expect(t).toContain("Priced on the fuel itself");
   });
@@ -117,7 +117,7 @@ describe("BuyDisciplineTab", () => {
     // are asserted against the analyzer so the sentence cannot drift into decoration.
     const report = analyzeCarriedFuel(legs());
     const t = render();
-    expect(t).toContain(`Of ${report.pairs.toLocaleString()} legs`);
+    expect(t).toContain(`Of ${report.pairs.toLocaleString()} trips between fuel stops`);
     expect(t).toContain(`${report.sameState.toLocaleString()} stayed inside one`);
     expect(t).toContain(`${report.towardDearer.toLocaleString()} ran from cheaper fuel toward dearer`);
     expect(t).toContain(`Only ${report.noBasis + report.unpriceable} could not be judged at all`);
