@@ -296,10 +296,22 @@ function toFinding(row: ReconRow): FuelExceptionFinding | null {
  * (90 days to 2026-10-03, 3,899 quoted fills): 1,476 were billed above their quote by any amount, but 205
  * by $1 or more, 122 by $5 or more and 38 by $25 or more (about 1.4 a day at the $5 floor); the sub-dollar tail is cents of rounding ($53 of $2,725). The scan
  * passes `MIN_CONTRACT_OVERBILL_USD`; the default of 0 keeps this function's own contract unchanged.
+ *
+ * ── ONLY AGAINST THE FILL'S OWN DAY'S QUOTE ─────────────────────────────────────────────────────
+ * A fill whose day has no Pilot report is measured against the last one before it (`quoteStaleDays` ≥ 1,
+ * 0405's `bday − obs`), and a day-old price list is not the price the fill was owed. Measured on
+ * production over the same 90 days: against a same-day quote, 3,109 fills, 29 at least 5¢/gal over and 11
+ * at least 5¢/gal under, the middle half within $0.0005/gal — the billing follows the quote, and what is
+ * over is lopsided, so real. Against a day-old quote, 790 fills, 89 over and 84 under by 5¢/gal or more,
+ * the 5th–95th percentiles at −$0.20 and +$0.22/gal — symmetric, the overnight price move, not a charge.
+ * Of the $2,424 the $5 floor alone would file, $1,940 sat on day-old quotes. So a stale-quote fill files
+ * nothing: it is unmeasurable, as a fill with no quote is, and the nightly scan re-reads its trailing
+ * fortnight, so a same-day quote that lands late is judged then. FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md
+ * §7, 2026-10-03.
  */
 export function contractFindings(capture: ContractCapture, minOverbill = 0): FuelExceptionFinding[] {
   return capture.exceptions
-    .filter((c) => c.variance > 0 && c.variance >= minOverbill)
+    .filter((c) => c.staleDays === 0 && c.variance > 0 && c.variance >= minOverbill)
     .map((c) => ({
       kind: "contract_variance" as const,
       fingerprint: fuelExceptionFingerprint("contract_variance", [

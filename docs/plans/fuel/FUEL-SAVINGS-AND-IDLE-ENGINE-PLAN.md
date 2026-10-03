@@ -1186,3 +1186,10 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   the explicit no-row throw, since `row.measured_lines` on `undefined` throws anyway) and its real counterpart — defaulting a
   missing row to zeros — fails the test. **Q-FSV18 closed**; §4's Q-FSV16/Q-FSV18 are both done once this merges.
 
+- **2026-10-03** Contract findings only against a same-day quote (research pass on Q-FSV15 ruling 4's assumptions).
+  `quote_stale_days` (0405: `bday − obs`) is 1 when a fill's day had no Pilot report and yesterday's was used. Over 90
+  days: same-day quote, 3,109 fills, ≥5¢/gal over 29 vs under 11, interquartile within $0.0005/gal (real, lopsided);
+  day-old quote, 790 fills, 89 over vs 84 under, p5/p95 −$0.20/+$0.22 per gal (symmetric: the overnight move). Of the
+  $2,424 the $5 floor would file, $1,940 (80%) was on day-old quotes. `contractFindings` now files only `staleDays === 0`;
+  the $5 floor stays. Expected queue: ~30 fills / 90 days (≈0.3 a day) instead of 122. Shipped before the scan's first
+  run (10/04 ~08:05Z), so the inbox never holds the noise.
