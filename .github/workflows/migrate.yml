@@ -63,3 +63,57 @@ jobs:
         run: supabase db push
       - name: Report the applied version
         run: supabase migration list --linked | tail -20
+
+  # ── Staging gets every migration too (RELEASE-TRAIN-PLAN R3, D-REL3) ─────────────────────────────
+  # Staging is a separate Supabase project (`Silvicom 360 Staging`, created 2026-10-02) that the
+  # Railway `uat` services read. It follows `main` so the day's work can be checked the same day;
+  # production keeps following the job above until R5 moves it onto the nightly release. Same CI
+  # gate and same CLI pin as production, so a migration that cannot apply fails HERE first once R5
+  # puts staging ahead of production in time.
+  #
+  # Its own secrets, asserted the same way: STAGING_SUPABASE_PROJECT_REF, STAGING_SUPABASE_DB_PASSWORD
+  # (SUPABASE_ACCESS_TOKEN is the same account token — one org owns both projects).
+  migrate-staging:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: read
+      statuses: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require CI green for this commit
+        uses: ./.github/actions/require-ci-green
+        with:
+          bypass: ${{ github.event.inputs.force || 'false' }}
+
+      - name: Assert the staging secrets exist
+        run: |
+          missing=()
+          [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && missing+=(SUPABASE_ACCESS_TOKEN)
+          [ -z "${{ secrets.STAGING_SUPABASE_PROJECT_REF }}" ] && missing+=(STAGING_SUPABASE_PROJECT_REF)
+          [ -z "${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}" ] && missing+=(STAGING_SUPABASE_DB_PASSWORD)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} — staging migrations were NOT applied."
+            exit 1
+          fi
+      # The two refs must differ. One pasted value away from this job applying to production
+      # twice while staging silently falls behind — fail it instead.
+      - name: Assert staging is not production
+        run: |
+          if [ "${{ secrets.STAGING_SUPABASE_PROJECT_REF }}" = "${{ secrets.SUPABASE_PROJECT_REF }}" ]; then
+            echo "::error::STAGING_SUPABASE_PROJECT_REF equals SUPABASE_PROJECT_REF — refusing."
+            exit 1
+          fi
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+      - name: Link staging project
+        run: supabase link --project-ref "${{ secrets.STAGING_SUPABASE_PROJECT_REF }}"
+      - name: Apply migrations (only ones not yet applied)
+        run: supabase db push
+      - name: Report the applied version
+        run: supabase migration list --linked | tail -20
