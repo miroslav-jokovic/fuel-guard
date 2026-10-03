@@ -1288,3 +1288,11 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   sentence. No migration, no API change. Tests: shared +4, page +1, PDF +1 assertion; mutation 11/11 killed. Seen
   rendered at 1440 and 390 px (preview build, stubbed report) and the PDF rasterised. Still open under move 2: idle and
   equipment rows in the findings list (wait for IE5b).
+- **2026-10-03** Design verdict E3, the Idling Trucks table: thirteen columns became seven — truck, avoidable cost and hours,
+  "Needs an APU" cost and hours (renamed from "Reducible cost" to match the card above it), idle %, data completeness — so
+  both costs are on screen at 1440 px. The time split (engine, driving, idling, off-duty and on-duty idling) and the learned
+  capability open under each truck (row click or the chevron, `aria-expanded`); nothing was removed. Rows keep
+  `computeIdleBreakdown`'s largest-avoidable-first order. First mounted test of the page (4); mutation 10/10 killed. Seen
+  rendered at 1440 and 390 px (preview build, stubbed rollup rows). Not touched: the Drivers and Truck capability tabs, and
+  the red/amber dollar tones on the Idling cards (Q-FSV15 ruling 2 made dollars neutral on Fuel Costs only; whether it
+  extends here is a V4 question).

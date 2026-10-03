@@ -166,22 +166,41 @@ function clearTrk() {
   trkConfidentOnly.value = false;
 }
 watch(trkFiltered, () => (trkPage.value = 1));
+/**
+ * The Trucks table leads with money: truck, the two costs and their hours, how much of the running was idle,
+ * and whether the data can be trusted — seven columns, so the costs are on screen at a desktop width
+ * (design verdict 2026-10-03, E3: thirteen columns put them ninth and eleventh, off the right edge). The time
+ * split behind them (engine, driving, idle, off-duty and on-duty idle) and the learned capability open under
+ * each truck (`trkExpanded`), where the reader asking "why this figure" goes, instead of competing with it.
+ * Rows arrive largest avoidable cost first (`computeIdleBreakdown`), which is the ranking this order serves.
+ */
 const trkColumns: DataTableColumn[] = [
   { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true },
-  { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "restIdleH", label: "Idling while off duty or sleeping", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   // Reported for EVERY truck, including the ones with no equipment (where avoidable is a correct zero).
-  // This is the column that stops the page reading as empty for most of the fleet.
-  { key: "reducibleH", label: "Needs an APU (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "reducibleUsd", label: "Reducible cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "capability", label: "Idle capability" },
+  // This is the pair that stops the page reading as empty for most of the fleet. Worded as the card above
+  // names it: "Reducible cost" said the same thing in a second word.
+  { key: "reducibleUsd", label: "Needs an APU, cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reducibleH", label: "Needs an APU, hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
   { key: "coveragePct", label: "Data completeness", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+];
+const trkExpanded = ref(new Set<string>());
+function toggleTrk(row: TruckBreakdown) {
+  const next = new Set(trkExpanded.value);
+  if (next.has(row.vehicleId)) next.delete(row.vehicleId);
+  else next.add(row.vehicleId);
+  trkExpanded.value = next;
+}
+/** What opens under a truck: where its running time went. `null` (no duty split) prints as a dash. */
+const hours = (h: number | null) => (h == null ? "—" : `${h.toLocaleString()} h`);
+const trkDetail = (t: TruckBreakdown) => [
+  { label: "Engine hours", value: hours(t.engineOnH) },
+  { label: "Driving", value: hours(t.driveH) },
+  { label: "Idling", value: hours(t.idleH) },
+  { label: "Idling while off duty or sleeping", value: hours(t.restIdleH) },
+  { label: "Idling on duty", value: hours(t.workIdleH) },
 ];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
@@ -280,7 +299,7 @@ const capColumns: DataTableColumn[] = [
     isLoading, isError, error, isFetching, refetch,
     breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
     trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
-    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
+    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
     tabs, activeTab, showInfo, showConfidence,
