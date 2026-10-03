@@ -5,3 +5,4 @@ export * from "./classify.js";
 export * from "./parse.js";
 export * from "./avoidable.js";
 export * from "./burnRate.js";
+export * from "./parity.js";

@@ -161,3 +161,24 @@ describe("GET /api/idle/engine/burn-rates (IE4)", () => {
     expect(rec.rpcs()).toHaveLength(0);
   });
 });
+
+describe("GET /api/idle/engine/parity (IE5)", () => {
+  const get = (role: string) => {
+    rec = createSupabaseRecorder({ tables: { organizations: [{ operating_hours: { tz: "America/Chicago" } }], jobs: [] } });
+    holder.client = rec.client;
+    return fetch(`${baseUrl}/api/idle/engine/parity`, { headers: { Authorization: `Bearer ${role}` } });
+  };
+
+  it("answers the gate, nothing final before the first nightly", async () => {
+    const res = await get("safety_manager");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { finalThrough: string | null; pass: boolean; daysNeeded: number } };
+    expect(body.data).toMatchObject({ finalThrough: null, pass: false, daysNeeded: 14 });
+  });
+
+  it("is the Idling surface's door: a role without safety is refused", async () => {
+    expect((await get("recruiter")).status).toBe(403);
+    expect(rec.forTable("jobs")).toHaveLength(0);
+  });
+});
+
