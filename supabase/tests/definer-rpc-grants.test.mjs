@@ -1,5 +1,6 @@
-// Silvicom 360 — a service-role-only SECURITY DEFINER function is service-role-only (migration 0411,
-// security audit 2026-10-02).
+// Silvicom 360 — a service-role-only SECURITY DEFINER function is service-role-only (migration 0411),
+// and a function created from now on is closed to clients by default (migration 0412). Security audit
+// 2026-10-02.
 //
 // What can be wrong is that the intent was written and never took effect:
 //
@@ -12,6 +13,14 @@
 //   · A PGlite database without those default privileges hides it. Roles there start with nothing, so
 //     "anon cannot execute" passes before the fix as well. This matrix reproduces the platform's
 //     function default ACL FIRST, then applies every migration, so the assertions can fail.
+//   · THE DOCUMENTED DEFAULT-PRIVILEGE RECIPE IS A NO-OP FOR PUBLIC. Supabase's "Securing your API" page
+//     scopes `revoke execute on functions from public` to `in schema public`; PostgreSQL's built-in
+//     function default is not stored per schema, so that statement removes nothing (tested on PGlite
+//     2026-10-02: a new function came out `acl = null` and anon could still run it). 0412 uses the
+//     GLOBAL form. The sentinel cases below CREATE a function after every migration and read the
+//     catalog, so a regression to the schema-scoped form fails here instead of passing silently.
+//   · A GLOBAL REVOKE REACHES EVERY SCHEMA. `extensions` and `partman` must keep PUBLIC execute or the
+//     next `create extension` run by postgres yields functions nobody can call.
 //   · ONE FIXED FUNCTION IS NOT A FIXED CLASS. The catalog case lists every SECURITY DEFINER,
 //     non-trigger function a client role can execute and compares it to a named allowlist: the RLS
 //     helpers, which policies call as the requesting role and which therefore MUST stay executable.
@@ -60,6 +69,7 @@ await db.exec(`
   create table supabase_migrations.schema_migrations (version text primary key, name text, statements text[]);
   create role supabase_auth_admin nologin; create role authenticated nologin;
   create role anon nologin; create role service_role nologin bypassrls;
+  create schema if not exists extensions; create schema if not exists partman;
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
   alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
@@ -140,6 +150,47 @@ ok("no SECURITY DEFINER function outside the RLS helpers is executable by anon o
 const missing = RLS_HELPERS.filter((h) => !exposed.some((r) => r.proname === h));
 ok("every allowlisted RLS helper still exists and is executable (the allowlist is not stale)",
   missing.length === 0, `gone or revoked: ${JSON.stringify(missing)}`);
+
+// ── Default-deny (0412): a function created NOW is born closed ──────────────────────────────────
+// Created as the migration role, after every migration, in the three schemas production has. The
+// platform's explicit `in schema public` grants to anon/authenticated/service_role are in place from
+// the harness setup above, exactly as on production, so only 0412 can account for the difference.
+const born = {};
+for (const sch of ["public", "extensions", "partman"]) {
+  await db.exec(`create function ${sch}.born_sentinel() returns int language sql as $$ select 1 $$`);
+  born[sch] = await one(
+    `select has_function_privilege('anon', $1::regprocedure, 'execute') anon,
+            has_function_privilege('authenticated', $1::regprocedure, 'execute') auth,
+            has_function_privilege('service_role', $1::regprocedure, 'execute') svc,
+            exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                     where p.oid = $1::regprocedure and a.grantee = 0 and a.privilege_type = 'EXECUTE') pub`,
+    [`${sch}.born_sentinel()`]);
+}
+ok("a new function in public is not executable by anon", born.public.anon === false, JSON.stringify(born.public));
+ok("a new function in public is not executable by authenticated", born.public.auth === false, JSON.stringify(born.public));
+ok("a new function in public carries no PUBLIC execute entry (the global revoke took effect)",
+  born.public.pub === false, JSON.stringify(born.public));
+ok("a new function in public is still executable by service_role (the API's role is not locked out)",
+  born.public.svc === true, JSON.stringify(born.public));
+ok("a new function in extensions keeps PUBLIC execute (create extension keeps working)",
+  born.extensions.pub === true && born.extensions.anon === true, JSON.stringify(born.extensions));
+ok("a new function in partman keeps PUBLIC execute", born.partman.pub === true, JSON.stringify(born.partman));
+
+// An explicit grant is the one way a function becomes client-callable — and it works.
+await db.exec(`grant execute on function public.born_sentinel() to authenticated`);
+const granted = await one(
+  `select has_function_privilege('authenticated', 'public.born_sentinel()', 'execute') auth,
+          has_function_privilege('anon', 'public.born_sentinel()', 'execute') anon`);
+ok("an explicit grant to authenticated opens exactly authenticated, not anon",
+  granted.auth === true && granted.anon === false, JSON.stringify(granted));
+
+// The unguarded form: migrations must still apply where the extra schemas do not exist. The other
+// ~70 matrices apply every migration without `extensions`/`partman`, so a guard that raised would fail
+// them all; this case states the property where a reader will look for it.
+const m0412 = MIGRATIONS.find((f) => f.startsWith("0412_"));
+ok("0412 guards its in-schema grants on the schema existing",
+  m0412 != null && /if exists \(select 1 from pg_namespace where nspname = s\)/.test(read(join("migrations", m0412))),
+  String(m0412));
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
