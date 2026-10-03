@@ -109,13 +109,49 @@ export function monthsInWindow(window: GradeWindow): string[] {
   return out;
 }
 
+/**
+ * What the two figures are computed FROM: tractor gallons at one brand, in one state, in one month.
+ * Nothing finer is needed — the share sums them whole, and the ceiling sums the avoided states' by month —
+ * so the database can add them up (`fuel_policy_gallons`, 0416, Q-FSV16) and the browser stops
+ * downloading every fill to do the same addition. `month` is `YYYY-MM`, null for a line with no business
+ * date, which counts toward the share and cannot be filed under a month (as it always could not).
+ */
+export interface PolicyGallonCell {
+  month: string | null;
+  brand: string | null;
+  state: string | null;
+  gallons: number;
+}
+
+/** The cells a set of lines contributes: tractor fuel only, one cell per line (grouping is the sum's business). */
+export function policyGallonCells(lines: readonly SpendLine[]): PolicyGallonCell[] {
+  return lines.filter(isTractorFuel).map((l) => ({
+    month: l.tranDate == null ? null : l.tranDate.slice(0, 7),
+    brand: l.brand,
+    state: l.state,
+    gallons: l.gallons,
+  }));
+}
+
 export function gradePolicyTargets(
   lines: readonly SpendLine[],
   policy: FuelPolicy,
   window: GradeWindow,
 ): PolicyTargetGrades {
+  return gradePolicyCells(policyGallonCells(lines), policy, window);
+}
+
+/**
+ * The grading itself, over cells — the same arithmetic whether the cells came from lines in the browser or
+ * from `fuel_policy_gallons`. The rule is still `policyPredicates`', so "an unresolved station counts as
+ * off-network" is written once and the database never learns a brand list.
+ */
+export function gradePolicyCells(
+  fuel: readonly PolicyGallonCell[],
+  policy: FuelPolicy,
+  window: GradeWindow,
+): PolicyTargetGrades {
   const { isAvoidedState, isOffNetwork } = policyPredicates(policy);
-  const fuel = lines.filter(isTractorFuel);
 
   // ── on-network: one ratio over the whole window ──────────────────────────────────────────────
   const allGallons = fuel.reduce((a, l) => a + l.gallons, 0);
@@ -133,8 +169,8 @@ export function gradePolicyTargets(
   // ── avoided-state gallons: one count per calendar month, against a per-month ceiling ─────────
   const byMonth = new Map<string, number>();
   for (const l of fuel) {
-    if (l.tranDate == null || !isAvoidedState(l)) continue;
-    const key = l.tranDate.slice(0, 7);
+    if (l.month == null || !isAvoidedState(l)) continue;
+    const key = l.month;
     byMonth.set(key, (byMonth.get(key) ?? 0) + l.gallons);
   }
   const avoidedStateByMonth: MonthGrade[] = monthsInWindow(window).map((month) => {

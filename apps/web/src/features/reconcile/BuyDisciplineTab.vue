@@ -3,8 +3,8 @@ import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
-  gradePolicyTargets, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD,
-  type CarriedFuelFill, type FuelPolicy, type SpendLine, type TargetVariance,
+  gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD,
+  type CarriedFuelFill, type FuelPolicy, type PolicyGallonCell, type TargetVariance,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -35,11 +35,12 @@ const props = withDefaults(defineProps<{
   fills: CarriedFuelFill[];
   policy: FuelPolicy;
   /**
-   * The feed's lines for the window — the SAME rows Spend & trend reads. The fill sequence above
-   * carries no brand, and the on-network share is a question about brands, so the two figures on
-   * this tab come from two sources and each names its own. See the targets section below.
+   * Tractor gallons by month, brand and state for the window, added up in the database
+   * (`fuel_policy_gallons`, Q-FSV16). The fill sequence above carries no brand, and the on-network share
+   * is a question about brands, so the two figures on this tab come from two sources and each names its
+   * own. See the targets section below.
    */
-  lines: SpendLine[];
+  cells: PolicyGallonCell[];
   /** The page's window, inclusive `YYYY-MM-DD` — the months to grade are enumerated from it. */
   window: { from: string; to: string };
   /**
@@ -51,7 +52,7 @@ const props = withDefaults(defineProps<{
   fleetWide?: boolean;
   loading?: boolean;
   /**
-   * Whether the two inputs the targets are graded from (the feed's `lines`, the org's policy) arrived.
+   * Whether the two inputs the targets are graded from (the gallon `cells`, the org's policy) arrived.
    * Both default to empty when their query is pending or failed, and empty reads as an answer: "no
    * tractor fuel in this window", "no target set", California at zero gallons. The verdict that
    * audited this page (2026-10-03, principle #6) saw those beside 867 fills and $4,462 of findings.
@@ -71,14 +72,14 @@ const report = computed(() => analyzeCarriedFuel(props.fills));
  *
  * On-network is a RATIO and is graded once over the window; avoided-state gallons is a COUNT against a
  * per-`AVOIDED_STATE_TARGET_PERIOD` ceiling and is graded per calendar month, with a month the window
- * only partly covers marked as a floor. `gradePolicyTargets` owns that arithmetic and its tests.
+ * only partly covers marked as a floor. `gradePolicyCells` owns that arithmetic and its tests.
  *
  * With a truck filter on, the targets are stripped before grading rather than the section hidden: the
  * selection's own share is still a fact worth reading, it just has no fleet standard to be held to.
  */
 const grades = computed(() =>
-  gradePolicyTargets(
-    props.lines,
+  gradePolicyCells(
+    props.cells,
     props.fleetWide ? props.policy : { ...props.policy, targets: NO_FUEL_TARGETS },
     props.window,
   ),
