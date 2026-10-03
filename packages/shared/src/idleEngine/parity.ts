@@ -4,16 +4,20 @@
  * the measurements are `idle_engine_days` (ours) and `vehicle_engine_days` (Samsara's per-day split of
  * the engine's states); everything decided about them is decided here.
  *
- * ── THE TWO CHECKS, AS RULED ──────────────────────────────────────────────────────────────────────
+ * ── THE TWO CHECKS: ONE JUDGES, ONE INFORMS (Q-IE17, ruled 2026-10-03) ─────────────────────────────
  *  1. RUNNING — our running time (driving + stopped running + brief stops) within ±3% of the ECU's
  *     engine-hours delta for the day (`obdEngineSeconds`, IE2a). This is the check that can be WRONG
- *     only if we are: the ECU counts its own hours.
- *  2. STOPPED RUNNING — our stopped running (stopped running + brief stops) within ±5% of Samsara's
- *     idle seconds for the day. Looser because Samsara's idle is ITS motion call, which D-IE1 replaced
- *     with ours (3 mph, 60 s debounce) — some disagreement is the point of the engine, and the check
- *     is that the two do not disagree by much.
- *  A truck-day passes when every check it is judged on passes. The gate passes when at least
- *  `minDays` final days have been judged and at least 95% of the judged truck-days pass.
+ *     only if we are: the ECU counts its own hours. It is THE gate: a truck-day passes when it passes.
+ *  2. STOPPED RUNNING — our stopped running (stopped running + brief stops) against Samsara's idle
+ *     seconds for the day, ±5%: computed and shown, never judged. D-IE9 first judged it too; the first
+ *     final day (10/01) failed it on 103 of 128 truck-days, ours HIGHER on 127, and the gateway's own GPS
+ *     says ours is right: Samsara turns a stop into "Idle" 2–3 minutes after the truck stands still
+ *     (307 flips on 40 trucks: none under 60 s, median 166 s, a quarter 9 min or more) and books those
+ *     minutes as driving. Counting the stopped minutes Samsara calls "On" as its idle, 89 of 122 days
+ *     agree instead of 24. A check against a reference that is wrong one way can only fail, so it
+ *     informs. Evidence: FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md §7, 2026-10-03.
+ *  The gate passes when at least `minDays` final days have been judged and at least 95% of the judged
+ *  truck-days pass.
  *
  * ── WHICH TRUCK-DAYS ARE JUDGED ───────────────────────────────────────────────────────────────────
  *  - FINAL days only: a day the collector will not rewrite. The nightly run rewrites the two local
@@ -25,8 +29,9 @@
  *    of 23 hours against 24) and either side shows at least an hour: the counter steps in 180 s, so
  *    ±3% of less than an hour is inside one step. A day where one side says 0 and the other 2 h is
  *    judged, and fails.
- *  - STOPPED RUNNING is judged when Samsara has the day and either side shows at least an hour.
- *  A truck-day judged on neither check is not counted at all (a truck parked with the engine off all
+ *  - STOPPED RUNNING is computed when Samsara has the whole day and either side shows at least an
+ *    hour, on a truck-day that running is judged on.
+ *  A truck-day running is not judged on is not counted at all (a truck parked with the engine off all
  *  day agrees with everything and proves nothing).
  */
 
@@ -38,7 +43,7 @@ export const IDLE_PARITY = {
   minDays: 14,
 } as const;
 
-/** One truck-day, both sides. Seconds; `samsaraIdleSec` null when Samsara has no row for the day. */
+/** One truck-day, both sides. Seconds; `samsaraIdleSec` null when Samsara has no WHOLE row for the day. */
 export interface IdleParityDay {
   vehicleId: string;
   /** YYYY-MM-DD, the org's local day. */
@@ -62,8 +67,10 @@ export interface IdleParityCheck {
 export interface IdleParityJudged {
   vehicleId: string;
   day: string;
-  running: IdleParityCheck | null;
+  running: IdleParityCheck;
+  /** Information only (Q-IE17): never decides `pass`. */
   stopped: IdleParityCheck | null;
+  /** The running check's verdict. */
   pass: boolean;
 }
 
@@ -72,7 +79,7 @@ function check(ours: number, theirs: number, tolerance: number): IdleParityCheck
   return { ours, theirs, diff, pass: diff != null && Math.abs(diff) <= tolerance };
 }
 
-/** Judge one truck-day; null when it is not judged at all (not final, not whole, or nothing to judge). */
+/** Judge one truck-day; null when it is not judged at all (not final, not whole, or running not judgeable). */
 export function judgeIdleParityDay(d: IdleParityDay, finalThrough: string | null): IdleParityJudged | null {
   if (finalThrough == null || d.day > finalThrough || d.hours < 24) return null;
   const min = IDLE_PARITY.minJudgedSec;
@@ -80,12 +87,12 @@ export function judgeIdleParityDay(d: IdleParityDay, finalThrough: string | null
     d.ecuHours >= 24 && Math.max(d.runningSec, d.ecuSec) >= min
       ? check(d.runningSec, d.ecuSec, IDLE_PARITY.runningTolerance)
       : null;
+  if (!running) return null;
   const stopped =
     d.samsaraIdleSec != null && Math.max(d.stoppedSec, d.samsaraIdleSec) >= min
       ? check(d.stoppedSec, d.samsaraIdleSec, IDLE_PARITY.stoppedTolerance)
       : null;
-  if (!running && !stopped) return null;
-  return { vehicleId: d.vehicleId, day: d.day, running, stopped, pass: (running?.pass ?? true) && (stopped?.pass ?? true) };
+  return { vehicleId: d.vehicleId, day: d.day, running, stopped, pass: running.pass };
 }
 
 export interface IdleParityTruck {
@@ -120,12 +127,13 @@ export function idleParityReport(rows: readonly IdleParityDay[], finalThrough: s
   const byTruck = new Map<string, IdleParityTruck>();
   for (const j of judged) {
     if (j.pass) t.passed += 1;
-    if (j.running) { t.runningJudged += 1; if (j.running.pass) t.runningPassed += 1; }
+    t.runningJudged += 1;
+    if (j.running.pass) t.runningPassed += 1;
     if (j.stopped) { t.stoppedJudged += 1; if (j.stopped.pass) t.stoppedPassed += 1; }
     const k = byTruck.get(j.vehicleId) ?? { vehicleId: j.vehicleId, judgedDays: 0, failedDays: 0, worstRunningDiff: null, worstStoppedDiff: null };
     k.judgedDays += 1;
     if (!j.pass) k.failedDays += 1;
-    k.worstRunningDiff = worse(k.worstRunningDiff, j.running?.diff ?? null);
+    k.worstRunningDiff = worse(k.worstRunningDiff, j.running.diff);
     k.worstStoppedDiff = worse(k.worstStoppedDiff, j.stopped?.diff ?? null);
     byTruck.set(j.vehicleId, k);
   }

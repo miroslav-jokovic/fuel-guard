@@ -36,13 +36,16 @@ describe("judgeIdleParityDay", () => {
     expect(judgeIdleParityDay(day({ runningSec: 10_310, ecuSec: 10_000 }), FINAL)!.running!.pass).toBe(false); // +3.1%
   });
 
-  it("stopped running: ±5% of Samsara's idle, not ±3%", () => {
+  it("stopped running is measured against ±5% of Samsara's idle, not ±3%", () => {
     expect(judgeIdleParityDay(day({ stoppedSec: 10_450, samsaraIdleSec: 10_000 }), FINAL)!.stopped!.pass).toBe(true); // +4.5%
     expect(judgeIdleParityDay(day({ stoppedSec: 10_510, samsaraIdleSec: 10_000 }), FINAL)!.stopped!.pass).toBe(false); // +5.1%
   });
 
-  it("one failed check fails the day", () => {
-    expect(judgeIdleParityDay(day({ stoppedSec: 6 * H }), FINAL)!.pass).toBe(false);
+  it("a running miss fails the day; a stopped-running miss does not (Q-IE17)", () => {
+    expect(judgeIdleParityDay(day({ runningSec: 11 * H }), FINAL)!.pass).toBe(false);
+    const j = judgeIdleParityDay(day({ stoppedSec: 6 * H }), FINAL)!;
+    expect(j.stopped!.pass).toBe(false);
+    expect(j.pass).toBe(true);
   });
 
   it("is not judged before it is final, or when our hours are not whole", () => {
@@ -51,17 +54,16 @@ describe("judgeIdleParityDay", () => {
     expect(judgeIdleParityDay(day({ hours: 23 }), FINAL)).toBeNull();
   });
 
-  it("running is not judged when the ECU missed an hour; the day is still judged on stopped running", () => {
-    const j = judgeIdleParityDay(day({ ecuHours: 23, ecuSec: 1 }), FINAL)!;
-    expect(j.running).toBeNull();
-    expect(j.stopped!.pass).toBe(true);
-    expect(j.pass).toBe(true);
+  it("a day the ECU missed an hour of is not judged at all, whatever Samsara says", () => {
+    expect(judgeIdleParityDay(day({ ecuHours: 23, ecuSec: 1 }), FINAL)).toBeNull();
+    expect(judgeIdleParityDay(day({ ecuHours: 23, ecuSec: 1, stoppedSec: 0 }), FINAL)).toBeNull();
   });
 
   it("under an hour on BOTH sides is not judged; an hour on EITHER side is, and a zero on the other fails", () => {
     expect(judgeIdleParityDay(day({ runningSec: 3599, ecuSec: 3500, stoppedSec: 0, samsaraIdleSec: 3599 }), FINAL)).toBeNull();
     const j = judgeIdleParityDay(day({ stoppedSec: H, samsaraIdleSec: 0 }), FINAL)!;
     expect(j.stopped).toMatchObject({ diff: null, pass: false });
+    expect(j.pass).toBe(true);
     expect(judgeIdleParityDay(day({ samsaraIdleSec: null }), FINAL)!.stopped).toBeNull();
     // The ECU says 2 h, we say 17 minutes: judged on the ECU's hour, and failed.
     const r = judgeIdleParityDay(day({ runningSec: 1000, ecuSec: 2 * H, stoppedSec: 0, samsaraIdleSec: 0 }), FINAL)!;
@@ -76,10 +78,10 @@ describe("idleParityReport", () => {
 
   it("passes at 14 judged days with 95% of truck-days agreeing", () => {
     // 19 trucks agree on every day; one fails exactly one day → 279 / 280 = 99.6%.
-    const rows = [...Array.from({ length: 19 }, (_, i) => days(14, `v${i}`)).flat(), ...days(13, "vx"), day({ vehicleId: "vx", day: "2026-10-14", stoppedSec: 0 })];
+    const rows = [...Array.from({ length: 19 }, (_, i) => days(14, `v${i}`)).flat(), ...days(13, "vx"), day({ vehicleId: "vx", day: "2026-10-14", runningSec: 0, stoppedSec: 0 })];
     const r = idleParityReport(rows, FINAL_14);
     expect(r).toMatchObject({ daysNeeded: 0, pass: true, truckDays: { judged: 280, passed: 279 } });
-    expect(r.disagreements).toEqual([{ vehicleId: "vx", judgedDays: 14, failedDays: 1, worstRunningDiff: expect.closeTo(-0.0099, 4), worstStoppedDiff: -1 }]);
+    expect(r.disagreements).toEqual([{ vehicleId: "vx", judgedDays: 14, failedDays: 1, worstRunningDiff: -1, worstStoppedDiff: -1 }]);
   });
 
   it("does not pass at 13 days however well they agree, and says how many are still needed", () => {
@@ -94,10 +96,18 @@ describe("idleParityReport", () => {
     expect(r.pass).toBe(false);
   });
 
-  it("counts each check apart, and a day after the final one is in no count", () => {
-    const r = idleParityReport([...days(2), day({ day: "2026-10-15" }), day({ day: "2026-10-01", vehicleId: "v2", ecuHours: 10 })], FINAL_14);
-    expect(r.days).toEqual(["2026-10-01", "2026-10-02"]);
-    expect(r.truckDays).toEqual({ judged: 3, passed: 3, runningJudged: 2, runningPassed: 2, stoppedJudged: 3, stoppedPassed: 3 });
+  it("counts each check apart, and a day after the final one or without a whole ECU day is in no count", () => {
+    const rows = [
+      ...days(2),
+      day({ day: "2026-10-03", vehicleId: "v3", stoppedSec: 6 * H }),
+      day({ day: "2026-10-03", vehicleId: "v4", samsaraIdleSec: null }),
+      day({ day: "2026-10-15" }),
+      day({ day: "2026-10-01", vehicleId: "v2", ecuHours: 10 }),
+    ];
+    const r = idleParityReport(rows, FINAL_14);
+    expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+    expect(r.truckDays).toEqual({ judged: 4, passed: 4, runningJudged: 4, runningPassed: 4, stoppedJudged: 3, stoppedPassed: 2 });
+    expect(r.disagreements).toEqual([]);
   });
 
   it("orders disagreements by failed days and keeps the worst miss signed", () => {

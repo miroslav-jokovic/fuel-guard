@@ -47,9 +47,10 @@ describe("IdleEngineParityPanel", () => {
   it("reads its own route, and states the gate in the ruling's numbers", async () => {
     const t = (await render()).text();
     expect(calls).toEqual(["/api/idle/engine/parity"]);
-    expect(t).toContain("within 3%");
-    expect(t).toContain("within 5%");
-    expect(t).toContain("95% of truck-days over 14 finished days");
+    expect(t).toContain("within 3% on 95% of truck-days over 14 finished days");
+    // Q-IE17: idling against Samsara is information, and the page says why it reads higher.
+    expect(t).not.toContain("within 5%");
+    expect(t).toContain("shown, not judged");
   });
 
   it("before any day is finished, says so rather than showing a share", async () => {
@@ -60,8 +61,8 @@ describe("IdleEngineParityPanel", () => {
   });
 
   it("while days are being counted: how many, through when, and the share — and lists the truck that disagreed", async () => {
-    // Two days; 650 idled 20% over Samsara on 10/02. 3 of 4 truck-days agree.
-    fetched.value = view([day("v1", 1), day("v1", 2), day("v9", 1), day("v9", 2, { stoppedSec: 4.8 * H })], "2026-10-02");
+    // Two days; 650 ran 20% over its ECU on 10/02. 3 of 4 truck-days agree.
+    fetched.value = view([day("v1", 1), day("v1", 2), day("v9", 1), day("v9", 2, { runningSec: 12 * H })], "2026-10-02");
     const w = await render();
     const t = w.text();
     expect(t).toContain("Still checking");
