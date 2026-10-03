@@ -3,6 +3,7 @@ import {
   IDLE_ENGINE_DAY_COLUMNS,
   SAMSARA_ENGINE_DAY_COLUMNS,
   declaredEquipment,
+  IDLE_BURN_RPC,
   fetchAllPaged,
   idleBurnInputRows,
   idleBurnInputsArgs,
@@ -135,7 +136,7 @@ export async function readOrgIdleEngine(
   const { from, to, args } = idleBurnInputsArgs(orgId, now);
   const [parity, burnRows, configuredGalPerHour] = await Promise.all([
     readParity(admin, orgId, timezone, unitById),
-    fetchAllPaged<IdleBurnInputRpcRow>((a, b) => admin.rpc("idle_engine_burn_inputs", args).range(a, b)),
+    fetchAllPaged<IdleBurnInputRpcRow>((a, b) => admin.rpc(IDLE_BURN_RPC, args).range(a, b)),
     readConfiguredGalPerHour(admin, orgId),
   ]);
   const rates = learnIdleBurnRates(

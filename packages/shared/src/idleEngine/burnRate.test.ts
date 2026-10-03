@@ -3,6 +3,8 @@ import type { DeclaredEquipment } from "../idleEquipmentDeclared.js";
 import {
   IDLE_BURN_BAND_EDGES_MILLI_C,
   IDLE_BURN_LEARN_DAYS,
+  IDLE_BURN_MAX_CI95,
+  IDLE_BURN_MIN_TRUCKS,
   IDLE_BURN_PRIOR_GAL_PER_HOUR,
   idleBurnBand,
   idleBurnBandLabel,
@@ -14,22 +16,24 @@ import {
 } from "./burnRate.js";
 
 /**
- * D-IE5's learner (IE4). Every fixture cell burns a DIFFERENT rate, and the two trucks of one cohort
- * burn different rates too, so a fold that averages per truck instead of summing, reads the wrong
- * cohort, or files a band one off lands on a different number.
+ * D-IE5's learner (IE4), on 0419's interior hours with the trucks-and-interval bar (Q-IE14 research,
+ * 2026-10-03). Every expected interval below is worked by hand in its comment, so the formula is checked
+ * against arithmetic, not against itself.
  */
 const GAL = 3785.411784;
-const H = 3600;
-const row = (vehicleId: string, band: number | null, hours: number, galPerHour: number, parks = 10): IdleBurnInputRow => ({
-  vehicleId, band, parks, runningSec: hours * H, fuelMl: hours * galPerHour * GAL,
+const row = (vehicleId: string, band: number | null, hours: number, galPerHour: number): IdleBurnInputRow => ({
+  vehicleId, band, hours, fuelMl: hours * galPerHour * GAL,
 });
-const EQ: Record<string, DeclaredEquipment> = { b1: "battery_apu", b2: "battery_apu", n1: "no_apu", u1: "not_entered" };
-const equipmentOf = (id: string): DeclaredEquipment => EQ[id]!;
+/** `n` trucks `${p}1..n`, ten hours each, at the given rates. */
+const fleetOf = (p: string, band: number | null, rates: number[]) => rates.map((r, i) => row(`${p}${i + 1}`, band, 10, r));
+const equipmentOf = (id: string): DeclaredEquipment =>
+  id.startsWith("b") ? "battery_apu" : id.startsWith("n") ? "no_apu" : id.startsWith("o") ? "other" : "not_entered";
 
-describe("the prior", () => {
-  it("lies inside §1.4's measured September burn across the comfortable bands (0.705–0.743 gal/h)", () => {
+describe("the prior and the bar", () => {
+  it("the prior lies inside §1.4's measured September burn (0.705–0.743 gal/h); the bar is five trucks and ±10%", () => {
     expect(IDLE_BURN_PRIOR_GAL_PER_HOUR).toBeGreaterThanOrEqual(0.705);
     expect(IDLE_BURN_PRIOR_GAL_PER_HOUR).toBeLessThanOrEqual(0.743);
+    expect([IDLE_BURN_MIN_TRUCKS, IDLE_BURN_MAX_CI95]).toEqual([5, 0.1]);
   });
 });
 
@@ -55,73 +59,89 @@ describe("idleBurnBand", () => {
 });
 
 describe("learnIdleBurnRates", () => {
-  // battery APU, 50–75 °F: b1 30 h at 0.70 + b2 20 h at 0.90 = 50 h, 39 gal → 0.78 (a per-truck mean says 0.80).
-  // no APU, 50–75 °F: 49.99 h at 0.85 — one short of learned.
-  // no APU, 75–90 °F: 80 h at 0.75. no APU, no temperature: 5 h at 1.10. not entered, 50–75: 60 h at 0.66.
-  const rows = [
-    row("b1", 2, 30, 0.7),
-    row("b2", 2, 20, 0.9),
-    row("n1", 2, 49.99, 0.85),
-    row("n1", 3, 80, 0.75),
-    row("n1", null, 5, 1.1),
-    row("u1", 2, 60, 0.66),
-  ];
-  const rates = learnIdleBurnRates(rows, equipmentOf);
-  const cell = (eq: DeclaredEquipment, band: number | null) => rates.cells.find((c) => c.equipment === eq && c.band === band)!;
+  // no APU, 50–75 °F: five trucks × 10 h at 0.60/0.62/0.64/0.66/0.68 → r = 0.64. Residuals g − r·h are
+  // −0.4, −0.2, 0, 0.2, 0.4 gal; Σ² = 0.4; × 5/4 = 0.5; √ = 0.70711; ÷ 50 h = 0.014142; ÷ 0.64 = 0.022097;
+  // × 1.96 = 0.0433 → ±4.3%, learned.
+  const tight = fleetOf("n", 2, [0.6, 0.62, 0.64, 0.66, 0.68]);
+  // battery APU, 50–75 °F: five trucks at 0.40/0.50/0.64/0.80/0.86 → r = 0.64; residuals −2.4, −1.4, 0, 1.6,
+  // 2.2; Σ² = 15.12; × 5/4 = 18.9; √ = 4.3474; ÷ 50 = 0.086948; ÷ 0.64 = 0.13586; × 1.96 = 0.2663 → not learned.
+  const wide = fleetOf("b", 2, [0.4, 0.5, 0.64, 0.8, 0.86]);
 
-  it("a cell's rate is its gallons over its hours, summed across trucks — not a mean of truck rates", () => {
-    expect(cell("battery_apu", 2).measuredGalPerHour).toBe(0.78);
-    expect(cell("battery_apu", 2)).toMatchObject({ parks: 20, runningHours: 50, gallons: 39 });
+  it("a rate is gallons over hours summed across trucks — not a mean of truck rates", () => {
+    const r = learnIdleBurnRates([row("n1", 2, 30, 0.7), row("n2", 2, 20, 0.9)], equipmentOf);
+    expect(r.cells[0]).toMatchObject({ measuredGalPerHour: 0.78, runningHours: 50, gallons: 39, trucks: 2 }); // a mean says 0.80
   });
 
-  it("a cell is learned at 50 running hours exactly, and reads the prior one second short of it", () => {
-    expect(cell("battery_apu", 2)).toMatchObject({ learned: true, galPerHour: 0.78 });
-    expect(cell("no_apu", 2)).toMatchObject({ learned: false, galPerHour: IDLE_BURN_PRIOR_GAL_PER_HOUR, measuredGalPerHour: 0.85 });
-    expect(cell("no_apu", 3)).toMatchObject({ learned: true, galPerHour: 0.75 });
+  it("the 95% interval is clustered by truck: tight trucks are learned, scattered ones are not, at equal hours", () => {
+    const r = learnIdleBurnRates([...tight, ...wide], equipmentOf);
+    const at = (eq: DeclaredEquipment) => r.cells.find((c) => c.equipment === eq && c.band === 2)!;
+    expect(at("no_apu")).toMatchObject({ measuredGalPerHour: 0.64, ci95: 0.043, learned: true, galPerHour: 0.64, source: "cell" });
+    expect(at("battery_apu")).toMatchObject({ measuredGalPerHour: 0.64, ci95: 0.266, learned: false });
   });
 
-  it("parks with no temperature are a cell of their own that is never learned, but count in the cohort", () => {
-    const unbanded = learnIdleBurnRates([row("n1", null, 500, 1.1)], equipmentOf);
-    expect(unbanded.cells[0]).toMatchObject({ band: null, label: "No temperature", learned: false, galPerHour: IDLE_BURN_PRIOR_GAL_PER_HOUR });
-    // no APU across bands: 49.99·0.85 + 80·0.75 + 5·1.1 = 107.99 gal over 134.99 h.
-    expect(rates.cohorts.find((c) => c.equipment === "no_apu")).toMatchObject({ runningHours: 135, measuredGalPerHour: 0.8 });
+  it("four trucks are not enough, however tight", () => {
+    const r = learnIdleBurnRates(tight.slice(0, 4), equipmentOf);
+    expect(r.cells[0]).toMatchObject({ trucks: 4, learned: false });
+    expect(r.cells[0]!.ci95!).toBeLessThan(IDLE_BURN_MAX_CI95);
   });
 
-  it("cohorts come from the declaration the caller passes, and every truck is in the fleet total", () => {
-    expect(cell("not_entered", 2)).toMatchObject({ learned: true, galPerHour: 0.66 });
-    expect(rates.fleet.parks).toBe(60);
-    expect(rates.fleet.runningHours).toBe(245);
+  it("an unlearned cell reads its cohort when the cohort passes, else the fleet, else the prior — and says which", () => {
+    // no APU 75–90 °F: two trucks only; the no-APU cohort (tight 50–75 + these) passes the bar.
+    const hot = [row("n1", 3, 10, 0.7), row("n2", 3, 10, 0.72)];
+    const r = learnIdleBurnRates([...tight, ...hot, ...wide], equipmentOf);
+    const cohort = r.cohorts.find((c) => c.equipment === "no_apu")!;
+    expect(cohort.learned).toBe(true);
+    expect(r.cells.find((c) => c.equipment === "no_apu" && c.band === 3)).toMatchObject({ learned: false, source: "cohort", galPerHour: cohort.measuredGalPerHour });
+    // battery APU's cohort is the wide five and fails; so does the fleet, which holds them: the prior.
+    expect(r.cohorts.find((c) => c.equipment === "battery_apu")!.learned).toBe(false);
+    expect(r.fleet.learned).toBe(false);
+    expect(r.cells.find((c) => c.equipment === "battery_apu")).toMatchObject({ source: "prior", galPerHour: IDLE_BURN_PRIOR_GAL_PER_HOUR });
+    // Two battery-APU trucks in line with the tight five: their cohort fails on trucks, the fleet of seven passes.
+    const near = learnIdleBurnRates([...tight, row("b1", 3, 10, 0.62), row("b2", 3, 10, 0.66)], equipmentOf);
+    expect(near.fleet).toMatchObject({ trucks: 7, learned: true });
+    expect(near.cells.find((c) => c.equipment === "battery_apu")).toMatchObject({ source: "fleet", galPerHour: near.fleet.measuredGalPerHour });
+  });
+
+  it("hours with no temperature are a cell that is never learned on its own, but count in the cohort", () => {
+    const r = learnIdleBurnRates(fleetOf("n", null, [0.6, 0.62, 0.64, 0.66, 0.68]), equipmentOf);
+    expect(r.cells[0]).toMatchObject({ band: null, label: "No temperature", learned: false, source: "cohort", galPerHour: 0.64 });
+    expect(r.cohorts[0]).toMatchObject({ equipment: "no_apu", learned: true, runningHours: 50 });
   });
 
   it("orders cells by equipment, then band, with no temperature last", () => {
-    expect(rates.cells.map((c) => `${c.equipment}:${c.band}`)).toEqual([
-      "battery_apu:2", "no_apu:2", "no_apu:3", "no_apu:null", "not_entered:2",
-    ]);
+    const r = learnIdleBurnRates([row("u1", 2, 1, 0.6), row("n1", null, 1, 0.6), row("n1", 3, 1, 0.6), row("n1", 2, 1, 0.6), row("b1", 2, 1, 0.6)], equipmentOf);
+    expect(r.cells.map((c) => `${c.equipment}:${c.band}`)).toEqual(["battery_apu:2", "no_apu:2", "no_apu:3", "no_apu:null", "not_entered:2"]);
   });
 
   it("no rows: no cells, and a fleet measure with no rate rather than zero", () => {
     const none = learnIdleBurnRates([], equipmentOf);
     expect(none.cells).toEqual([]);
-    expect(none.fleet).toEqual({ parks: 0, runningHours: 0, gallons: 0, measuredGalPerHour: null });
+    expect(none.fleet).toEqual({ trucks: 0, runningHours: 0, gallons: 0, measuredGalPerHour: null, ci95: null, learned: false });
   });
 });
 
 describe("idleBurnRateFor", () => {
-  const rates = learnIdleBurnRates([row("b1", 2, 60, 0.81), row("n1", 3, 10, 0.95)], equipmentOf);
+  // Seven trucks in line: the no-APU cohort and the fleet pass; battery APU (two trucks) does not.
+  const rates = learnIdleBurnRates(
+    [...fleetOf("n", 2, [0.6, 0.62, 0.64, 0.66, 0.68]), row("b1", 3, 10, 0.62), row("b2", 3, 10, 0.66)],
+    equipmentOf,
+  );
 
-  it("prices an hour at its learned cell's rate, found by the reading's band and the truck's equipment", () => {
-    expect(idleBurnRateFor(rates, "battery_apu", 15_000)).toBe(0.81);
+  it("prices an hour at its cell's resolved rate, found by the reading's band and the truck's equipment", () => {
+    expect(idleBurnRateFor(rates, "no_apu", 15_000)).toBe(0.64);
+    // battery APU 75–90 °F has two trucks: its cell resolves to the fleet, which passes.
+    expect(idleBurnRateFor(rates, "battery_apu", 25_000)).toBe(rates.fleet.measuredGalPerHour);
   });
 
-  it("falls back to the prior: another cohort's band, an unlearned cell, no reading", () => {
-    expect(idleBurnRateFor(rates, "no_apu", 15_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
-    expect(idleBurnRateFor(rates, "no_apu", 25_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
-    expect(idleBurnRateFor(rates, "battery_apu", 25_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
-    expect(idleBurnRateFor(rates, "battery_apu", null)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
+  it("an hour with no cell at all takes the same fall-back chain, not the prior outright", () => {
+    expect(idleBurnRateFor(rates, "no_apu", 25_000)).toBe(0.64); // no cell; the no-APU cohort passes
+    expect(idleBurnRateFor(rates, "other", null)).toBe(rates.fleet.measuredGalPerHour);
+    const empty = learnIdleBurnRates([], equipmentOf);
+    expect(idleBurnRateFor(empty, "no_apu", 15_000)).toBe(IDLE_BURN_PRIOR_GAL_PER_HOUR);
   });
 });
 
-describe("idleBurnInputsArgs / idleBurnInputRows (0409's call, shared by the office API and the console)", () => {
+describe("idleBurnInputsArgs / idleBurnInputRows (0419's call, shared by the office API and the console)", () => {
   it("asks for the last IDLE_BURN_LEARN_DAYS before now, the org's rows only, on the shared band edges", () => {
     const now = new Date("2026-10-03T12:00:00.000Z");
     const { from, to, args } = idleBurnInputsArgs("org-1", now);
@@ -131,8 +151,8 @@ describe("idleBurnInputsArgs / idleBurnInputRows (0409's call, shared by the off
   });
 
   it("reads PostgREST's bigint strings as numbers", () => {
-    expect(idleBurnInputRows([{ vehicle_id: "v1", band: 2, parks: 3, running_sec: "7200", fuel_ml: "5450" }])).toEqual([
-      { vehicleId: "v1", band: 2, parks: 3, runningSec: 7200, fuelMl: 5450 },
+    expect(idleBurnInputRows([{ vehicle_id: "v1", band: 2, hours: 3, fuel_ml: "5450" }])).toEqual([
+      { vehicleId: "v1", band: 2, hours: 3, fuelMl: 5450 },
     ]);
   });
 });

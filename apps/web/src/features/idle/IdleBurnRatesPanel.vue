@@ -15,9 +15,10 @@ const gph = (n: number) => n.toFixed(2);
 const columns: DataTableColumn[] = [
   { key: "equipment", label: "Equipment" },
   { key: "temperature", label: "Outside temperature" },
+  { key: "trucks", label: "Trucks", numeric: true },
   { key: "runningHours", label: "Hours parked, engine on", numeric: true },
   { key: "measured", label: "Gallons per hour, measured", numeric: true },
-  { key: "learned", label: "Enough hours?" },
+  { key: "learned", label: "Rate used" },
 ];
 </script>
 
@@ -28,8 +29,11 @@ const columns: DataTableColumn[] = [
       <template v-if="data">
         Idle dollars on this page use <strong>{{ gph(data.configuredGalPerHour) }} gallons per hour</strong>, from
         idle settings. Below is what the trucks' own fuel counters measured while parked with the engine on, over
-        the last 60 days. A measurement is trusted once its group has {{ data.minHours }} hours; before that, the
-        starting estimate of {{ gph(data.priorGalPerHour) }} gallons per hour stands in for it.
+        the last 60 days, counting only whole hours parked with no driving either side. A group's measurement is
+        trusted once it comes from at least {{ data.minTrucks }} trucks and is accurate to within
+        {{ Math.round(data.maxCi95 * 100) }}%; until then the nearest trusted figure stands in — the same equipment
+        at any temperature, else the whole fleet, else the starting estimate of {{ gph(data.priorGalPerHour) }}
+        gallons per hour.
         <template v-if="data.fleet.measuredGalPerHour != null">
           Whole fleet: <strong>{{ gph(data.fleet.measuredGalPerHour) }}</strong> over {{ data.fleet.runningHours }} hours.
         </template>
@@ -49,7 +53,7 @@ const columns: DataTableColumn[] = [
       <template #cell-measured="{ row }">{{ row.measured == null ? "—" : gph(row.measured) }}</template>
       <template #cell-learned="{ row }">
         <span :class="[BADGE_BASE, toneClass(row.learned ? 'success' : 'neutral')]">
-          {{ row.learned ? "Yes — measured rate" : "Not yet — estimate" }}
+          {{ row.status }}
         </span>
       </template>
     </DataTable>

@@ -33,6 +33,7 @@ function seed(o: { comfortLowF?: string } = {}) {
       fuel_prices: [],
       vehicles: [
         { id: "vB", unit_number: "740", has_apu: true, apu_type: "battery_hvac" },
+        ...["vB2", "vB3", "vB4", "vB5"].map((id, i) => ({ id, unit_number: `74${i + 1}`, has_apu: true, apu_type: "battery_hvac" })),
         { id: "vN", unit_number: "612", has_apu: false, apu_type: "none" },
       ],
       // A FUNCTION fixture: the recorder records filters and applies none, and which parks a range
@@ -44,11 +45,12 @@ function seed(o: { comfortLowF?: string } = {}) {
       },
     },
     rpc: {
-      // The learned table (IE4): battery APU 50–75 °F learned at 1.20 gal/h; no APU 50–75 °F has 10 h,
-      // so it reads the prior. Every fixture park is 59 °F, band 2.
-      idle_engine_burn_inputs: [
-        { vehicle_id: "vB", band: 2, parks: 30, running_sec: 60 * 3600, fuel_ml: 60 * 1.2 * 3785.411784 },
-        { vehicle_id: "vN", band: 2, parks: 5, running_sec: 10 * 3600, fuel_ml: 10 * 2 * 3785.411784 },
+      // The learned table (IE4, 0419): five battery-APU trucks × 12 h at 1.20 gal/h → learned at 1.20; no
+      // APU 50–75 °F is one truck, 10 h at 2.00, and the fleet (92 gal / 70 h) is ±18% — so it reads the
+      // prior. Every fixture park is 59 °F, band 2.
+      idle_engine_burn_hours: [
+        ...["vB", "vB2", "vB3", "vB4", "vB5"].map((vehicle_id) => ({ vehicle_id, band: 2, hours: 12, fuel_ml: 12 * 1.2 * 3785.411784 })),
+        { vehicle_id: "vN", band: 2, hours: 10, fuel_ml: 10 * 2 * 3785.411784 },
       ],
     },
   });

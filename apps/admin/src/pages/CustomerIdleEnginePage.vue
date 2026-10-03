@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import {
   DECLARED_EQUIPMENT_LABELS,
   IDLE_BURN_LEARN_DAYS,
+  IDLE_BURN_SOURCE_LABELS,
   IDLE_PARITY,
   formatDisplayDate,
   idleParityStage,
@@ -148,8 +149,11 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
             Idle dollars use <strong class="text-ink">{{ gph(burn.configuredGalPerHour) }} gallons per hour</strong>, from
             the customer's idle settings. Below is what the trucks' own fuel counters measured while parked with
             the engine on, over the last {{ IDLE_BURN_LEARN_DAYS }} days.
-            A group's measurement is trusted once it has {{ burn.minHours }} hours; before that the starting
-            estimate, {{ gph(burn.priorGalPerHour) }} gallons per hour, stands in.
+            Only whole hours parked with no driving either side count. A group's measurement is trusted once
+            it comes from at least {{ burn.minTrucks }} trucks and is accurate to within
+            {{ Math.round(burn.maxCi95 * 100) }}% (95% confidence); until then the nearest trusted figure stands
+            in — the same equipment at any temperature, else the whole fleet, else the starting estimate of
+            {{ gph(burn.priorGalPerHour) }} gallons per hour.
             <template v-if="burn.fleet.measuredGalPerHour != null">
               Whole fleet: <strong class="text-ink">{{ gph(burn.fleet.measuredGalPerHour) }}</strong> over
               {{ burn.fleet.runningHours }} hours.
@@ -161,23 +165,27 @@ const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
             <tr>
               <th class="px-5 py-2">Equipment</th>
               <th class="px-5 py-2">Outside temperature</th>
+              <th class="px-5 py-2 text-right">Trucks</th>
               <th class="px-5 py-2 text-right">Hours parked, engine on</th>
               <th class="px-5 py-2 text-right">Gallons per hour, measured</th>
-              <th class="px-5 py-2">Enough hours?</th>
+              <th class="px-5 py-2 text-right">Accuracy (95%)</th>
+              <th class="px-5 py-2">Rate used</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="c in burn.cells" :key="`${c.equipment}|${c.band ?? ''}`" class="border-t border-edge-subtle">
               <td class="px-5 py-2 text-ink">{{ DECLARED_EQUIPMENT_LABELS[c.equipment] }}</td>
               <td class="px-5 py-2 text-ink-secondary">{{ c.label }}</td>
+              <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ c.trucks }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ c.runningHours }}</td>
               <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ gph(c.measuredGalPerHour) }}</td>
+              <td class="px-5 py-2 text-right tabular-nums text-ink-secondary">{{ c.ci95 == null ? "—" : `±${(c.ci95 * 100).toFixed(1)}%` }}</td>
               <td class="px-5 py-2">
-                <AppBadge :tone="c.learned ? 'success' : 'neutral'">{{ c.learned ? "Yes — measured rate" : "Not yet — estimate" }}</AppBadge>
+                <AppBadge :tone="c.learned ? 'success' : 'neutral'">{{ IDLE_BURN_SOURCE_LABELS[c.source] }}</AppBadge>
               </td>
             </tr>
             <tr v-if="burn.cells.length === 0">
-              <td colspan="5" class="px-5 py-6 text-center text-ink-muted">No parked hours with a fuel reading in the last {{ IDLE_BURN_LEARN_DAYS }} days yet.</td>
+              <td colspan="7" class="px-5 py-6 text-center text-ink-muted">No parked hours with a fuel reading in the last {{ IDLE_BURN_LEARN_DAYS }} days yet.</td>
             </tr>
           </tbody>
         </AppTable>
