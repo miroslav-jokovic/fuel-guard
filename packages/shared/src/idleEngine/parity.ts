@@ -241,3 +241,14 @@ export function idleEngineParityView(
     disagreements: report.disagreements.map((d) => ({ ...d, unit: unitById.get(d.vehicleId) ?? "—" })),
   };
 }
+
+/**
+ * Where the rollout stands, as one word both views badge: `pass` once the gate passes, `checking` while
+ * fewer than `minDays` final days are in, `disagreeing` with the days in and the share short of the bar.
+ */
+export type IdleParityStage = "pass" | "checking" | "disagreeing";
+
+export function idleParityStage(report: Pick<IdleParityReport, "pass" | "daysNeeded">): IdleParityStage {
+  if (report.pass) return "pass";
+  return report.daysNeeded > 0 ? "checking" : "disagreeing";
+}

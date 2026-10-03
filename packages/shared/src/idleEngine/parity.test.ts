@@ -4,6 +4,7 @@ import {
   idleEngineParityView,
   idleParityDays,
   idleParityFinalThrough,
+  idleParityStage,
   idleParityReport,
   judgeIdleParityDay,
   type IdleParityDay,
@@ -181,5 +182,13 @@ describe("idleEngineParityView", () => {
     const view = idleEngineParityView(report, "America/Chicago", new Map([["v1", "650"]]));
     expect(view.timezone).toBe("America/Chicago");
     expect(view.disagreements.map((d) => [d.vehicleId, d.unit])).toEqual([["v1", "650"], ["v2", "—"]]);
+  });
+});
+
+describe("idleParityStage", () => {
+  it("checking until the days are in, then pass or disagreeing on the share", () => {
+    expect(idleParityStage({ pass: false, daysNeeded: 1 })).toBe("checking");
+    expect(idleParityStage({ pass: false, daysNeeded: 0 })).toBe("disagreeing");
+    expect(idleParityStage({ pass: true, daysNeeded: 0 })).toBe("pass");
   });
 });
