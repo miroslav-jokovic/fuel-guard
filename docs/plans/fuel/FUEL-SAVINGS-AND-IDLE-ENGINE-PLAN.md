@@ -1161,6 +1161,31 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   (pages, no `p_org`, numeric gallons) with 4 tests; the page's grades wait for it and the settings only. Mutation: 9/10
   killed across page, hook and shared; the survivor (dropping `l.month == null ||`) is a no-op — a null month only
   makes a Map key nothing reads. The plan's "behind the toggle" did not hold: §4 **Q-FSV18**.
+- **2026-10-03** — **Q-FSV18 ruled (a) by the owner; step 1 of 2 (the function; migration 0418, no reader yet).**
+  `fuel_contract_totals(p_from, p_to, p_vehicles, p_org)` returns the four sums the quote tile is made of — measured
+  lines, their billed and contract dollars, and the billed dollars of in-scope fills with no quote — read through
+  `fuel_spend_lines`. It decides nothing: the per-gallon tolerance, the sign and the wording stay in
+  `analyzeContractCapture`. A fill with no quote adds to `unmeasured_paid` and nothing else (null is not zero). Always
+  one row, zeros over an empty window. Matrix `fuel-contract-totals.test.mjs` (22), ruler = the raw rows summed in JS by
+  the TS rules. Mutation: 10/10 killed — one survived first (`sum` without `coalesce` on an empty window) because the
+  test read `Number(null)` as 0; the assertion now checks for null before converting. **Step 2, a separate later merge:**
+  the tile reads this once through a shared helper that also feeds `analyzeContractCapture` (one copy of the net-variance
+  and priced-share formulas), and the row read moves behind the tile's toggle, where the fills list is the only thing
+  that needs rows. Not started; it waits for 0418 to be applied.
+- **2026-10-03** — **Q-FSV18, step 2 of 2 (the reader; migration 0418 applied, verified in `pg_proc`).** Production
+  check first, read-only as a signed-in admin (rolled back), 90 days to 2026-10-03: `fuel_contract_totals` returned one
+  row that equals the raw `fuel_spend_lines` rows summed separately on every figure — **3,754 measured fills, $2,442,173.23
+  billed against $2,441,594.70 expected (net +$578.53), 1,902 unmeasured fills, $1,077,332.78 unmeasured, 69.39% of billed
+  dollars priced.** Timing: the aggregate took **1.7 s**, one raw run 2.3 s; the saving is one run of `fuel_spend_lines`
+  instead of six. `contractHeadline(totals)` in `@silvicom/shared` is now the ONE formula for the tile's net variance and
+  priced share, and `analyzeContractCapture` calls it, so the existing 17 tests pass unchanged and +4 pin that the two routes
+  print the same tile. The tile reads `useContractTotals`; `useSpendLinesQuery` takes an `enabled` switch and the page passes the
+  tile's open state, so **the rows download only when the fills are opened** — the plan's original "behind the toggle", now
+  true. A slow or failed row feed no longer touches the tile or the grades; inside the opened fills it says so. Tests: page
+  (+4), `useContractTotals` (5), `useSpendLinesEnabled` (2). Mutation: 15/15 killed, one first survivor was a no-op (dropping
+  the explicit no-row throw, since `row.measured_lines` on `undefined` throws anyway) and its real counterpart — defaulting a
+  missing row to zeros — fails the test. **Q-FSV18 closed**; §4's Q-FSV16/Q-FSV18 are both done once this merges.
+
 - **2026-10-03** Contract findings only against a same-day quote (research pass on Q-FSV15 ruling 4's assumptions).
   `quote_stale_days` (0405: `bday − obs`) is 1 when a fill's day had no Pilot report and yesterday's was used. Over 90
   days: same-day quote, 3,109 fills, ≥5¢/gal over 29 vs under 11, interquartile within $0.0005/gal (real, lopsided);
