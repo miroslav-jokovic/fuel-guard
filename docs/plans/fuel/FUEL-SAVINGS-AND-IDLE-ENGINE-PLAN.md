@@ -450,6 +450,22 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     "SQL returns a measurement, TS owns the verdict": SQL sums, `gradePolicyTargets` still compares. A new function, so
     its reader ships in a separate merge from it (`lint:migration-ordering`). Not started.
 
+  - **Q-FSV17 — IE-ADMIN, designed (OPEN for the owner's go; 2026-10-03).** Refines Q-FSV15 ruling 3 with what reading the
+    platform console's code and plan (`docs/plans/ADMIN-DASHBOARD.md` §7.6, §10, §15) showed. The console is per-customer
+    with its own staff identity (`platform_admins`), MFA (`requireAAL2`), an audited cross-tenant DAL and a route-auth
+    fitness test; it has Phases 0–1 (customers, orgs, impersonation) and **no ops module** — §7.6 "Errors & repairs: job
+    health" is Phase 3 and unbuilt. So the engine-rollout view is the first resident of that module, not a page bolted on.
+    **Scope:** a read-only `GET /admin/orgs/:id/idle-engine` (parity gate + learned burn rates) behind the full platform
+    chain, written to `platform_audit_log` as a cross-tenant read; a page under the customer detail. `idleParityReport` and
+    `IDLE_PARITY` already live in `@silvicom/shared`, so the verdict is not duplicated; the admin service needs its own
+    DB reader (it cannot import `apps/api`, `lint:boundaries`), about one file of reads plus tests.
+    **Order, because the owner reads the office panel today to watch the IE5b gate:** (1) build the console view and the
+    route-auth coverage; (2) the owner confirms it shows the same gate as the office panel for the same org and night;
+    (3) only then remove `IdleBurnRatesPanel`/`IdleEngineParityPanel` from `IdlingPage` and gate `/api/idle/engine/parity`
+    to a platform-only caller or retire it — never both views absent. **Open for the owner:** whether the nightly IE check
+    (the session's scheduled read) keeps using the office endpoint or moves to the console's; and whether any carrier
+    manager should ever see the gate (recommendation: no, it is a release control). Not started; ~1 PR for (1), ~1 for (3).
+
 ## 5. Words (D-FSV7)
 
 | Now | On screen |
@@ -1087,4 +1103,8 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   for both functions and for `vehicles`, which looked like a damning result and was an artefact — the restrictive
   `vehicles_driver_scope` policy reads `auth_role()` from the `user_role` claim, and `NULL <> 'driver'` is NULL, which
   denies. A faithful RLS probe needs `user_role` as well as `org_id`.
-
+- **2026-10-03** — **Close-out of the design-audit programme.** Built and in review: PRs #1228, #1229, #1232, #1233, #1236, #1237
+  (see each description). Open and owned: Q-FSV16 (the 9 s Buy discipline load, SQL aggregate), Q-FSV17 (IE-ADMIN, designed
+  above), the ordinary-user task test (`UX-TASK-TEST-PROTOCOL.md`, needs people), idle and equipment rows in the savings
+  strip (wait for IE5b, which waits on Q-IE17/Q-IE14). Nothing here is on a critical path of the others except the merge
+  order of the stack.
