@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   IDLE_PARITY,
+  idleEngineParityView,
+  idleParityDays,
   idleParityFinalThrough,
   idleParityReport,
   judgeIdleParityDay,
@@ -132,5 +134,52 @@ describe("idleParityFinalThrough", () => {
     expect(idleParityFinalThrough("2026-10-01T05:00:00.000Z", "America/Chicago")).toBe("2026-10-01");
     expect(idleParityFinalThrough("2026-10-01T04:59:59.000Z", "America/Chicago")).toBe("2026-09-30");
     expect(idleParityFinalThrough(null, "America/Chicago")).toBeNull();
+  });
+});
+
+describe("idleParityDays (the stored rows → truck-days, read by the office API and the console alike)", () => {
+  const stored = (o: Record<string, unknown> = {}) => ({
+    vehicle_id: "v1",
+    day: "2026-10-01",
+    hours: 24,
+    driving_sec: 6 * H,
+    stopped_running_sec: 3 * H,
+    brief_stop_sec: H,
+    engine_sec: String(10 * H + 360),
+    engine_sec_hours: 24,
+    ...o,
+  });
+  const samsara = (o: Record<string, unknown> = {}) => ({ vehicle_id: "v1", day: "2026-10-01", idle_sec: "14760", coverage_sec: 24 * H, ...o });
+
+  it("running is all three buckets, stopped is stopped running plus brief stops, bigints read as numbers", () => {
+    const [d] = idleParityDays([stored()], [samsara()]);
+    expect(d).toEqual({
+      vehicleId: "v1", day: "2026-10-01", hours: 24,
+      runningSec: 10 * H, stoppedSec: 4 * H, ecuSec: 10 * H + 360, ecuHours: 24, samsaraIdleSec: 14760,
+    });
+  });
+
+  it("Samsara's idle counts only when its coverage is the whole local day — a DST day's 25 hours included", () => {
+    expect(idleParityDays([stored()], [samsara({ coverage_sec: 24 * H - 1 })])[0]!.samsaraIdleSec).toBeNull();
+    expect(idleParityDays([stored({ hours: 25 })], [samsara({ coverage_sec: 24 * H })])[0]!.samsaraIdleSec).toBeNull();
+    expect(idleParityDays([stored({ hours: 25 })], [samsara({ coverage_sec: 25 * H })])[0]!.samsaraIdleSec).toBe(14760);
+    expect(idleParityDays([stored()], [samsara({ coverage_sec: null })])[0]!.samsaraIdleSec).toBeNull();
+  });
+
+  it("pairs by truck AND day: another truck's or another day's row is not this one's", () => {
+    const theirs = [samsara({ vehicle_id: "v2" }), samsara({ day: "2026-09-30" })];
+    expect(idleParityDays([stored()], theirs)[0]!.samsaraIdleSec).toBeNull();
+  });
+});
+
+describe("idleEngineParityView", () => {
+  it("attaches each disagreeing truck's unit, a dash for a truck the vehicle read did not return", () => {
+    const report = idleParityReport(
+      [day({ vehicleId: "v1", ecuSec: 20 * H }), day({ vehicleId: "v2", ecuSec: 20 * H })],
+      FINAL,
+    );
+    const view = idleEngineParityView(report, "America/Chicago", new Map([["v1", "650"]]));
+    expect(view.timezone).toBe("America/Chicago");
+    expect(view.disagreements.map((d) => [d.vehicleId, d.unit])).toEqual([["v1", "650"], ["v2", "—"]]);
   });
 });

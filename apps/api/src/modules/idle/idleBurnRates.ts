@@ -21,25 +21,17 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  IDLE_BURN_BAND_EDGES_MILLI_C,
-  IDLE_BURN_LEARN_DAYS,
   declaredEquipment,
+  idleBurnInputRows,
+  idleBurnInputsArgs,
   learnIdleBurnRates,
   type DeclaredEquipment,
+  type IdleBurnInputRpcRow,
   type IdleBurnRates,
   type IdleBurnRatesView,
 } from "@silvicom/shared";
 import { fetchAllPaged } from "../../lib/paging.js";
 import { resolveIdleCostBasis } from "./idleCostBasis.js";
-
-interface BurnInputRow {
-  vehicle_id: string;
-  band: number | null;
-  parks: number;
-  // bigint: PostgREST may send it as a string.
-  running_sec: number | string;
-  fuel_ml: number | string;
-}
 
 interface VehicleEquipmentRow {
   id: string;
@@ -65,26 +57,10 @@ export async function learnOrgIdleBurnRates(
   equipmentById: ReadonlyMap<string, DeclaredEquipment>,
   now: Date = new Date(),
 ): Promise<IdleBurnRates & { from: string; to: string }> {
-  const to = now.toISOString();
-  const from = new Date(now.getTime() - IDLE_BURN_LEARN_DAYS * 86_400_000).toISOString();
-  const rows = await fetchAllPaged<BurnInputRow>((a, b) =>
-    admin
-      .rpc("idle_engine_burn_inputs", {
-        p_org: orgId,
-        p_from: from,
-        p_to: to,
-        p_band_edges_milli_c: [...IDLE_BURN_BAND_EDGES_MILLI_C],
-      })
-      .range(a, b),
-  );
+  const { from, to, args } = idleBurnInputsArgs(orgId, now);
+  const rows = await fetchAllPaged<IdleBurnInputRpcRow>((a, b) => admin.rpc("idle_engine_burn_inputs", args).range(a, b));
   const rates = learnIdleBurnRates(
-    rows.map((r) => ({
-      vehicleId: r.vehicle_id,
-      band: r.band,
-      parks: r.parks,
-      runningSec: Number(r.running_sec),
-      fuelMl: Number(r.fuel_ml),
-    })),
+    idleBurnInputRows(rows),
     // A truck the vehicle read did not return is undeclared, not dropped: its hours still count.
     (id) => equipmentById.get(id) ?? "not_entered",
   );
