@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fuelReportTotals, type FuelReport, type FuelReportDay } from "./reportDays.js";
 import type { FleetMpgPeriod } from "./fleetEfficiency.js";
-import { brandList, costCards, costDayRows, costDaysCsv, networkLine, reeferLine, relativeChange } from "./fuelCostView.js";
+import { brandList, costCards, costDayRows, costDaysCsv, networkLine, reeferLine, relativeChange, spendChangeLine } from "./fuelCostView.js";
 
 /**
  * The Fuel Costs page's words and comparisons (FS2). The sums are SQL's and the ratios
@@ -104,6 +104,43 @@ describe("costCards", () => {
     const r = report();
     r.previous.totals = fuelReportTotals([]);
     expect(byKey(r).spend!.sub).toBe("nothing to compare in 08/29–08/31");
+  });
+});
+
+describe("spendChangeLine", () => {
+  /** One tractor fill each side, so spend, gallons and price are exactly what the case says. */
+  const pair = (cur: { spend: number; gallons: number }, prev: { spend: number; gallons: number }): FuelReport => {
+    const r = report();
+    const c = [day("2026-09-01", cur)];
+    const p = [day("2026-08-29", prev)];
+    return { ...r, current: { ...r.current, days: c, totals: fuelReportTotals(c) }, previous: { ...r.previous, days: p, totals: fuelReportTotals(p) } };
+  };
+
+  it("splits the change in spend into gallons and average price, naming the range it compares with", () => {
+    // 1000 gal at $4.00 → 997 gal at $4.576: spend +14.1%, gallons −0.3%, price +14.4% (the audit's September).
+    expect(spendChangeLine(pair({ spend: 4562.27, gallons: 997 }, { spend: 4000, gallons: 1000 }))).toBe(
+      "Fuel spend rose 14.1% against 08/29–08/31: 0.3% fewer gallons, at an average price 14.4% higher.",
+    );
+    expect(spendChangeLine(pair({ spend: 3000, gallons: 800 }, { spend: 4000, gallons: 1000 }))).toBe(
+      "Fuel spend fell 25.0% against 08/29–08/31: 20.0% fewer gallons, at an average price 6.3% lower.",
+    );
+  });
+
+  it("says 'the same' for a change that would print as 0.0%, never 'rose 0.0%'", () => {
+    expect(spendChangeLine(pair({ spend: 4000, gallons: 1000 }, { spend: 4000, gallons: 1000 }))).toBe(
+      "Fuel spend was the same as in 08/29–08/31: the same gallons, at the same average price.",
+    );
+  });
+
+  it("has nothing to split with no fuel on either side, and says which side", () => {
+    expect(spendChangeLine(pair({ spend: 0, gallons: 0 }, { spend: 4000, gallons: 1000 }))).toBe("No tractor fuel was bought in 09/01–09/03.");
+    expect(spendChangeLine(pair({ spend: 4000, gallons: 1000 }, { spend: 0, gallons: 0 }))).toBe(
+      "No tractor fuel was bought in 08/29–08/31, so there is nothing to compare with.",
+    );
+  });
+
+  it("says only how spend moved when one side has spend but no gallons to price it by", () => {
+    expect(spendChangeLine(pair({ spend: 4400, gallons: 1000 }, { spend: 4000, gallons: 0 }))).toBe("Fuel spend rose 10.0% against 08/29–08/31.");
   });
 });
 

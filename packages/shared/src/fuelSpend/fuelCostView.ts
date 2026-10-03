@@ -115,6 +115,41 @@ const BRAND_NAMES: Record<string, string> = { pilot: "Pilot", flying_j: "Flying 
 export const brandList = (brands: readonly string[]): string =>
   brands.length === 0 ? "no brand" : brands.map((b) => BRAND_NAMES[b] ?? b).join(" / ");
 
+const pct = (share: number): string => `${Math.abs(share * 100).toFixed(1)}%`;
+/** A change that prints as 0.0% is "the same" in words too, or the sentence would say "rose 0.0%". */
+const unmoved = (share: number): boolean => Math.abs(share * 100) < 0.05;
+
+/**
+ * The sentence the Fuel Costs page leads with: how spend moved, and how much of that was gallons and how
+ * much the average price (design verdict 2026-10-03, move 2: "lead with spending, the reason for its
+ * change"). Tractor fuel only, like the cards.
+ *
+ * ── WHY THIS IS NOT A CAUSAL CLAIM ───────────────────────────────────────────────────────────────
+ * Average price is spend ÷ gallons (`fuelReportTotals`), so (1 + spend change) = (1 + gallons change) ×
+ * (1 + price change) exactly: the two parts are arithmetic, not an attribution model. WHY the price moved
+ * (diesel's market, a dearer state, out-of-network fills) is not said here; the network line and the open
+ * findings under it are where the reader goes for that. Nothing in it carries a tone (Q-FSV15 ruling 2:
+ * dollars have no direction), and the PDF's spend band prints the same string.
+ */
+export function spendChangeLine(report: FuelReport): string {
+  const t = report.current.totals.tractor;
+  const pt = report.previous.totals.tractor;
+  const prevRange = rangeLabel(report.previous);
+  if (!(t.spend > 0)) return `No tractor fuel was bought in ${rangeLabel(report.current)}.`;
+  const spend = relativeChange(t.spend, pt.spend);
+  if (spend == null) return `No tractor fuel was bought in ${prevRange}, so there is nothing to compare with.`;
+  const lead = unmoved(spend)
+    ? `Fuel spend was the same as in ${prevRange}`
+    : `Fuel spend ${spend > 0 ? "rose" : "fell"} ${pct(spend)} against ${prevRange}`;
+  const gallons = relativeChange(t.gallons, pt.gallons);
+  const price = relativeChange(t.pricePerGal, pt.pricePerGal);
+  // Spend with no gallons on one side has no price to split it by; say only what moved.
+  if (gallons == null || price == null) return `${lead}.`;
+  const g = unmoved(gallons) ? "the same gallons" : `${pct(gallons)} ${gallons > 0 ? "more" : "fewer"} gallons`;
+  const p = unmoved(price) ? "the same average price" : `an average price ${pct(price)} ${price > 0 ? "higher" : "lower"}`;
+  return `${lead}: ${g}, at ${p}.`;
+}
+
 /** One sentence of where the tractor money went, by network side. Null when nothing was bought. */
 export function networkLine(report: FuelReport): string | null {
   const n = report.current.totals.byNetwork;

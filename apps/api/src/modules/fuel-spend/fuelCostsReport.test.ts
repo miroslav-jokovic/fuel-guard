@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  costCards, costDayCells, costDayRows, comparingLine, fuelReportTotals, mpgCoverageLine, networkLine, FUEL_REPORT_TRUCK_FIGURES_NOTE,
+  costCards, costDayCells, costDayRows, comparingLine, spendChangeLine, fuelReportTotals, mpgCoverageLine, networkLine, FUEL_REPORT_TRUCK_FIGURES_NOTE,
   type FuelReport, type FuelReportDay,
 } from "@silvicom/shared";
 import { pdfDrawnLines, pdfPageTexts, pdfText } from "../../testing/pdfText.js";
@@ -69,6 +69,7 @@ describe("the Fuel Costs document", () => {
       expect(text, `${c.label} change`).toContain(flat(c.sub));
     }
     expect(text).toContain(flat(comparingLine(r)));
+    expect(text).toContain(flat(spendChangeLine(r)));
     expect(text).toContain(flat(mpgCoverageLine(r)!));
     expect(text).toContain(flat(networkLine(r)!));
     // A day row: the newest day, cell by cell, from the function the table uses.
