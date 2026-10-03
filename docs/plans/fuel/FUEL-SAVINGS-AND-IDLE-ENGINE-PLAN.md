@@ -344,6 +344,18 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     (`IDLE_ENGINE_VERSION` `ie3-v2`). A day is fully measured by its second nightly, as D-IE8 already said ("final
     at 72 h"). Not chosen: running `sync_hos` hourly (six times the HOS fetches, for figures nobody reads before the
     nightly) or measuring the split only in the nightly (an open park would have none all day).
+  - **Q-IE16 — how D-IE9 is judged, and IE5 split in two (decided 2026-10-03).** D-IE9 gave the tolerances and the bar;
+    these are the parts it did not name. (a) **Final** = a day the collector will not rewrite: on or before the local
+    day the latest FINISHED nightly started on (its `stats.from`), read from the jobs ledger, not a fixed lag. (b)
+    **Whole** days only: all 24 of our hour rows. (c) **Running** (driving + stopped running + brief) is judged against
+    the ECU delta only when the counter has a delta in all 24 hours, and **stopped running** (stopped running + brief,
+    since Samsara's idle includes short stops) against `vehicle_engine_days.idle_sec` when Samsara has the day. (d)
+    Either check is judged only when EITHER side shows ≥ 1 h — the ECU counter steps in 180 s, so ±3% of less than an
+    hour is inside one step — and a zero on the reference side fails. (e) A truck-day judged on neither is not
+    counted. **IE5 is IE5a** (the gate, its route and the Idling panel; switches nothing) **and IE5b** (the switch:
+    the Idling page and driver scores read the engine, plus Q-IE14's burn-rate choice), built once IE5a says `pass`.
+    With the 10/03 nightly rewriting 10/01 and 10/02 whole, 14 final days are 10/01–10/14, final after the 10/16
+    nightly: IE5b is ~10/16 at the earliest.
 
 ## 5. Words (D-FSV7)
 
@@ -866,4 +878,14 @@ All questions are answered; nothing in the queue is blocked on the owner.
   segment (the horizon is the LATEST log, not the earliest). **For the 10/03 nightly check:** expect
   `ie3-v2` rows; a null split is now right for a park still running past the last log sync, and "unknown" should
   be a small share (≈ 5–6%) of the measured parks' running time.
+- **2026-10-03** — **IE5a: the D-IE9 gate (no migration).** Shared `idleEngine/parity.ts` (`judgeIdleParityDay`,
+  `idleParityReport`, `idleParityFinalThrough`; thresholds `IDLE_PARITY`), rules per §4 Q-IE16.
+  `idleEngineParity.ts` reads `idle_engine_days` through the final day, `vehicle_engine_days` for the same days and
+  the latest finished nightly; `GET /api/idle/engine/parity` (safety: view). The Idling page shows it under "How
+  idle is scored" (`IdleEngineParityPanel`): still checking / not agreeing yet / ready to switch, days finished,
+  the share (floored, so 94.97% never reads 95%), and every truck that disagreed with its worst signed misses.
+  Nothing switches. Tests: `parity.test.ts` (14), `idleEngineParity.test.ts` (6), `routes/idle.test.ts` (+2),
+  `IdleEngineParityPanel.test.ts` (7). Mutation: gate 20/20, reader 9/10 (the survivor drops `Number()` on a
+  bigint that JavaScript arithmetic coerces anyway — no output can change), panel 7/7; three killed only after a
+  fixture was added (the ECU-side hour, an org east of UTC, a share of 94.97%).
 
