@@ -336,6 +336,14 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     of a derived value. **Recommendation: (a), built with IE5** — a column with no visible effect before then would be
     a switch that changes nothing on screen. Measured 10/02: fleet ≈ 0.78 gal/h against the configured 0.80, so the
     switch moves idle dollars by about 3%, not by a factor.
+    **Building (a), owner 2026-10-03: "implement as recommended".** Since corrected: the learned fleet rate is 0.653, not
+    ~0.78 (the 10/03 research pass, §7), so the switch moves idle gallons and dollars by about −18%, not 3%. Column
+    `idle_burn_source` is migration 0420; its reader is the next merge. **The control lives on the Idling page**, beside
+    the learned table, writable by the same safety-manage roles that adopt the comfort band (0300): the setting decides
+    what a CARRIER's own idle is priced at, `idle_settings` is that carrier's table, and the platform console has no
+    cross-tenant write. Q-FSV17 step 3 therefore moves only the parity gate (a release control) to the console; the
+    burn-rate table stays in the office as the evidence a manager reads before flipping. The default stays
+    `configured`; changing it for any carrier is the owner's call, never a migration's.
   - **Q-IE15 — running past the duty logs' horizon is NOT MEASURED, not "unknown" (decided 2026-10-02, evidence in
     §7).** The logbook sync (`sync_hos`, driver-score tier) runs every `SAMSARA_DRIVER_SCORE_SYNC_HOURS` = 6 h from
     the process's boot; the idle engine runs hourly. So the newest hours of every park had no log yet, were stored
@@ -465,6 +473,9 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     to a platform-only caller or retire it — never both views absent. **Open for the owner:** whether the nightly IE check
     (the session's scheduled read) keeps using the office endpoint or moves to the console's; and whether any carrier
     manager should ever see the gate (recommendation: no, it is a release control). Not started; ~1 PR for (1), ~1 for (3).
+    **Narrowed 2026-10-03 by Q-IE14's control:** step (3) removes `IdleEngineParityPanel` and narrows `/engine/parity` only.
+    `IdleBurnRatesPanel` and `/engine/burn-rates` stay in the office, because the carrier's "use measured rates" switch
+    sits beside them and a manager should see the rates before choosing them (§4 Q-IE14).
 
   - **Q-FSV18 — the quote card's tile is also a sum over every spend line (OPEN, owner/engineering, 2026-10-03).** Found
     while building Q-FSV16's reader: Q-FSV16 said the row-level `fuel_spend_lines` read could move "behind the quote
@@ -1228,3 +1239,16 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   cohort 0.658 ±6.9%; fleet 0.653 ±6.8% (81 trucks, 1,018 h); battery-APU cells (10 trucks, ±23%) read the fleet's
   0.653. The configured `idle_gal_per_hour` (0.80) is unchanged; whether money moves to the learned table is Q-IE14's
   setting, the next step.
+- **2026-10-03** Q-IE14 step 3 (the switch's column) and 0409 retired. Migration **0420** adds `idle_settings.idle_burn_source`
+  (`configured` | `learned`, NOT NULL, default `configured`, so no figure moves); **0421** drops 0409's
+  `idle_engine_burn_inputs`, unread since #1252 (Railway's api, web and platform-console all served 5a08dee when it was
+  written). Production read first: one `idle_settings` row (0.80 gal/h, $4.000), columns as 0044 wrote them. What the
+  switch would move, the real `idleStopVerdict` and learner from `packages/shared/dist` run on production's exported parks
+  and 0419 rows: avoidable idle 10/01 46.8 → 38.5 gal (−17.6%), 10/02 38.4 → 31.6 gal (−17.8%); the equipment opportunity
+  10/01 337.9 → 280.1 gal, 10/02 345.8 → 286.9 gal — dollars by the same share at either price. Of the avoidable hours
+  over 09/30–10/03, 70.4 h are battery-APU trucks priced at the fleet's 0.653 (their cells are not believed), 60.3 h no-APU
+  at the learned 0.662–0.665. **Where the control lives (decided, recorded in §4 Q-IE14):** the Idling page, not the
+  console — `idle_settings` is the carrier's table under safety-manage RLS (0300) and the console has no cross-tenant
+  write; so Q-FSV17 step 3 removes the parity GATE from the office page, while the burn-rate table stays there as the
+  carrier's evidence for the switch beside it. The reader (engine money + the control) follows once information_schema
+  on production shows the column.
