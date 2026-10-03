@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gradePolicyTargets, monthsInWindow } from "./policyTargets.js";
+import { gradePolicyCells, gradePolicyTargets, monthsInWindow, policyGallonCells, type PolicyGallonCell } from "./policyTargets.js";
 import { DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type FuelPolicy } from "./policyExceptions.js";
 import type { SpendLine } from "./types.js";
 
@@ -115,5 +115,68 @@ describe("discount capture", () => {
   it("carries the target through and grades nothing, because no figure exists to grade", () => {
     expect(gradePolicyTargets(FLEET, policy({ discountCapturePct: 80 }), WINDOW).discountCaptureTargetPct).toBe(80);
     expect(gradePolicyTargets(FLEET, policy({}), WINDOW).discountCaptureTargetPct).toBeNull();
+  });
+});
+
+/**
+ * Q-FSV16: `fuel_policy_gallons` hands the page tractor gallons already grouped by month, brand and state,
+ * and `gradePolicyCells` grades them. What must hold is that adding the lines up BEFORE grading cannot move
+ * a grade — the database does the addition and the page does the verdict.
+ */
+describe("grading cells the database already added up", () => {
+  /** Sum cells sharing a month, brand and state — what the SQL's `group by` does, written independently. */
+  const grouped = (cells: PolicyGallonCell[]): PolicyGallonCell[] => {
+    const m = new Map<string, PolicyGallonCell>();
+    for (const c of cells) {
+      const k = JSON.stringify([c.month, c.brand, c.state]);
+      const hit = m.get(k);
+      if (hit) hit.gallons += c.gallons;
+      else m.set(k, { ...c });
+    }
+    return [...m.values()];
+  };
+  const AVOID_CA: FuelPolicy = {
+    ...policy({ onNetworkPct: 95, avoidedStateGal: 200 }),
+    avoidStates: ["CA"],
+    preferredBrands: ["pilot"],
+  };
+
+  it("keeps only tractor fuel, as cells, and drops reefer and DEF", () => {
+    const cells = policyGallonCells(FLEET);
+    // 500 + 300 + 100 + 100 dated, plus the 999 undated gallons, which still count toward the share.
+    expect(cells.reduce((a, c) => a + c.gallons, 0)).toBe(1000 + 999);
+    expect(cells.some((c) => c.gallons === 400 || c.gallons === 40)).toBe(false);
+  });
+
+  it("grades grouped cells exactly as it grades the lines they came from", () => {
+    const fromLines = gradePolicyTargets(FLEET, AVOID_CA, WINDOW);
+    const fromCells = gradePolicyCells(grouped(policyGallonCells(FLEET)), AVOID_CA, WINDOW);
+    expect(fromCells).toEqual(fromLines);
+  });
+
+  it("and the answer is the known one: 800 of 1,000 gallons preferred, 300 in California in August", () => {
+    const g = gradePolicyCells(
+      [
+        { month: "2026-07", brand: "pilot", state: "TX", gallons: 500 },
+        { month: "2026-08", brand: "pilot", state: "CA", gallons: 300 },
+        { month: "2026-08", brand: "loves", state: "TX", gallons: 100 },
+        { month: "2026-08", brand: null, state: "TX", gallons: 100 },
+      ],
+      AVOID_CA,
+      WINDOW,
+    );
+    expect(g.onNetwork.actualPct).toBe(80);
+    expect(g.onNetwork.unresolvedPct).toBe(10);
+    expect(g.avoidedStateByMonth.map((m) => [m.month, m.gallons])).toEqual([["2026-07", 0], ["2026-08", 300]]);
+  });
+
+  it("counts a brand-less cell as off-network, which is why SQL must send it rather than drop it", () => {
+    const withUnresolved = gradePolicyCells(
+      [{ month: "2026-08", brand: "pilot", state: "TX", gallons: 90 }, { month: "2026-08", brand: null, state: "TX", gallons: 10 }],
+      AVOID_CA, WINDOW,
+    );
+    const dropped = gradePolicyCells([{ month: "2026-08", brand: "pilot", state: "TX", gallons: 90 }], AVOID_CA, WINDOW);
+    expect(withUnresolved.onNetwork.actualPct).toBe(90);
+    expect(dropped.onNetwork.actualPct).toBe(100);
   });
 });

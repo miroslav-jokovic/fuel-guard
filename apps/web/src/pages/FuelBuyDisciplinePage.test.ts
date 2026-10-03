@@ -3,7 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import { NO_FUEL_TARGETS, type FuelPolicy, type SpendLine } from "@silvicom/shared";
+import { NO_FUEL_TARGETS, policyGallonCells, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 
 /**
  * Buy discipline, mounted — Fuel Spend's second tab, its own page since FS2 (Q-FSV12). These are the
@@ -47,7 +47,11 @@ const BUY_FILLS = [
 
 const asQuery = <T,>(data: T) => ({ data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null) });
 /** What the two inputs the targets are graded from report; flipped per test, reset in beforeEach. */
-const inputState = { feed: "ready" as "ready" | "loading" | "error", settings: "ready" as "ready" | "loading" | "error" };
+const inputState = {
+  feed: "ready" as "ready" | "loading" | "error",
+  cells: "ready" as "ready" | "loading" | "error",
+  settings: "ready" as "ready" | "loading" | "error",
+};
 const withState = <T,>(data: T, state: "ready" | "loading" | "error") => ({
   data: computed(() => (state === "ready" ? data : undefined)), isLoading: ref(state === "loading"), isError: ref(state === "error"), error: ref(null),
 });
@@ -64,6 +68,9 @@ vi.mock("@/features/reconcile/useSpendLines", () => ({
     seen.lineFilters = filters;
     return withState(FEED, inputState.feed);
   },
+}));
+vi.mock("@/features/reconcile/usePolicyGallons", () => ({
+  usePolicyGallonsQuery: () => withState(policyGallonCells(FEED), inputState.cells),
 }));
 const policy = ref<FuelPolicy>({ avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], targets: NO_FUEL_TARGETS });
 vi.mock("@/composables/useRouteFuelSettings", () => ({
@@ -85,6 +92,7 @@ beforeEach(() => {
   seen.buyWindow = null;
   seen.lineFilters = null;
   inputState.feed = "ready";
+  inputState.cells = "ready";
   inputState.settings = "ready";
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -131,17 +139,37 @@ describe("FuelBuyDisciplinePage", () => {
     expect(t).not.toContain("CA → NM");
   });
 
-  it("says the purchases are unavailable, not that there was no fuel, when the feed fails or is pending", async () => {
+  it("says the grades are unavailable, not that there was no fuel, when the gallon sums fail or are pending", async () => {
     const ok = (await mountPage()).text();
     expect(ok).toContain("On the preferred network");
-    expect(ok).toContain("Paid vs Pilot quote");
+    for (const [state, say] of [["error", "nothing is graded here"], ["loading", "Loading the purchases and settings"]] as const) {
+      inputState.cells = state;
+      const t = (await mountPage()).text();
+      expect(t, state).toContain(say);
+      expect(t, state).not.toContain("no tractor fuel in this window");
+      expect(t, state).not.toContain("Against it");
+    }
+  });
+
+  it("says the quote comparison is unavailable, not that no fill matched, when the row feed fails or is pending", async () => {
+    expect((await mountPage()).text()).toContain("Paid vs Pilot quote");
     for (const [state, say] of [["error", "Couldn't load"], ["loading", "Loading the purchases"]] as const) {
       inputState.feed = state;
       const t = (await mountPage()).text();
       expect(t, state).toContain(say);
-      expect(t, state).not.toContain("no tractor fuel in this window");
       expect(t, state).not.toContain("no fill in this window matched a quote");
-      expect(t, state).not.toContain("Against it");
+    }
+  });
+
+  it("does not hold the grades up for the row feed: a slow or failed feed leaves them on screen (Q-FSV16)", async () => {
+    for (const state of ["loading", "error"] as const) {
+      inputState.feed = state;
+      const t = (await mountPage()).text();
+      expect(t, state).toContain("On the preferred network");
+      expect(t, state).not.toContain("nothing is graded here");
+      expect(t, state).not.toContain("no tractor fuel in this window");
+      // 120 + 90 gallons, 120 of them at a preferred brand (pilot) and 90 at one9: 57.1%.
+      expect(t, state).toContain("57.1%");
     }
   });
 
