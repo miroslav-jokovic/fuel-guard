@@ -109,6 +109,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     ],
   },
   {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
+    ],
+  },
+  {
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
@@ -148,6 +154,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     ],
   },
   {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
+    ],
+  },
+  {
     "group": "Finance",
     "items": [
       "Fleet report → /fleet-report",
@@ -184,6 +196,12 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
       "Pilot invoices → /fuel-invoices",
       "Findings → /findings",
       "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
     ],
   },
   {
@@ -1354,7 +1372,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1384,7 +1401,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1414,7 +1430,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1444,7 +1459,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1589,7 +1603,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
         "Vehicles → /vehicles",
         "Trailers → /trailers",
         "Drivers → /drivers",
-        "Odometer → /odometer",
       ],
     },
   ],

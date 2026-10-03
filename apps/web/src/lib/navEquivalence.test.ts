@@ -45,6 +45,21 @@ import { buildNavGroups } from "./nav";
  * Q-SET2 as revised). Seven snapshots moved — fleet_manager and auditor in each module set, and the
  * fleet manager of the screen-answer case — and in each the whole change is one group removed:
  * `Admin → [Settings → /settings]`, which was the only entry either role had in it. Nothing else.
+
+ *
+ * ── AND A THIRD TIME, ON 2026-10-03: ONE SCREEN CHANGED GATE, NOT POSITION ───────────────────────
+ * `fleet.odometer` moved from `section("equipment")` to `section("fuel")` (database audit finding 1; the
+ * owner's ruling): its rows are fuel fills with the driver's name, and the database now refuses fuel
+ * rows to a role without the section. Eight snapshots moved, every one the Odometer line and nothing else:
+ *   - accountant (fuel view, equipment none), in all three module sets: GAINS a `Fleet` group holding
+ *     `Odometer → /odometer` alone — the group appears because it now has an item, and that one-item group
+ *     is the visible cost of changing the gate without moving the item;
+ *   - technician (equipment view, fuel none), in all three module sets: LOSES `Odometer → /odometer`;
+ *     its Fleet group keeps Vehicles and Trailers;
+ *   - technician with the org's screen answers, and a recruiter granted `equipment: manage` by the
+ *     sections claim: both LOSE it, the second because an equipment grant no longer opens a fuel screen.
+ * No other entry, group, role or module set moved, and no gate other than this one. `odometerSurface.test.ts`
+ * in packages/shared asserts the same gate for every role, so the snapshot is not the only witness.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
