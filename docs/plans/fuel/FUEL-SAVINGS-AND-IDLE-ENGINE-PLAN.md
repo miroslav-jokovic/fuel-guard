@@ -199,8 +199,9 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   partitions (installed, migration 0360) ≈ 270k rows / 40 MB. Daily totals + stops: kept (≈ 12 MB/yr
   + park-session volume). Each table declares its `lifecycle` block (`lint:table-lifecycle`).
 - **D-IE9 — Prove before switching.** Run in parallel ≥ 14 days. Gate: per truck-day, our running
-  hours within **±3%** of the ECU engine-hours delta, and stopped-running within ±5% of
-  `vehicle_engine_days.idle_sec`, on ≥ 95% of truck-days. Disagreements listed by truck.
+  hours within **±3%** of the ECU engine-hours delta, on ≥ 95% of truck-days. Disagreements listed by truck.
+  Stopped running against `vehicle_engine_days.idle_sec` (±5%) is shown beside it and does not judge (§4 Q-IE17:
+  Samsara starts its idle 2–3 minutes into a stop, so the comparison can only fail one way).
 - **D-IE10 — Retire what never answered.** Learned envelope, optimized envelope, `optimized_cycling`
   mode and — after D-IE9 passes — Samsara `/idling/events` ingestion (`idle_events`, 131 MB).
 
@@ -356,7 +357,8 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     the Idling page and driver scores read the engine, plus Q-IE14's burn-rate choice), built once IE5a says `pass`.
     With the 10/03 nightly rewriting 10/01 and 10/02 whole, 14 final days are 10/01–10/14, final after the 10/16
     nightly: IE5b is ~10/16 at the earliest.
-  - **Q-IE17 — the stopped-running check fails by direction, not by noise (OPEN, owner, 2026-10-03).** First final
+  - **Q-IE17 — the stopped-running check fails by direction, not by noise (RULED 2026-10-03: (a) then (b) —
+    measured, ours is right, the gate judges running only; evidence in §7).** First final
     day (10/01, §7): running vs the ECU passed 121 of 125 judged truck-days; stopped running vs Samsara's
     `idle_sec` passed 25 of 128, and on 127 of the 128 ours is the HIGHER figure (median +20%, quartiles +6% /
     +58%; fleet 846 h vs 761 h, +11%). Both sides see the same engine: Samsara drive + idle = 1,908 h, ours
@@ -370,7 +372,9 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     D-IE1 already chose our motion call over Samsara's; (c) widen or re-shape the stopped check (truck's 14-day
     total, or a bound on the fleet bias). Recommendation: **(a) then (b)** — the gap is money (+11% avoidable
     idle against today's figures, and in driver scores at IE5b), so name the side that is wrong before the gate
-    stops looking at it. Nothing is built on this until the owner rules; IE5b waits on it as well as on 14 days.
+    stops looking at it. **Owner, 2026-10-03: "proceed as proposed."** (a) answered by the gateway's GPS: ours is
+    right (§7); (b) built: D-IE9's gate is running vs the ECU, ±3%, 95%, 14 days; stopped running vs Samsara is
+    computed and shown, never judged, and only against a Samsara day that covers the whole local day.
 
 ## 5. Words (D-FSV7)
 
@@ -406,7 +410,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 | **FS3** | Pilot invoices page (D-FSV8); first real statement through it (`db139445F.pdf`). | — | no |
 | **IE6** | Retire Samsara idling-events ingestion + dead envelope machinery (D-IE10). | IE5 | yes (drops) |
 
-IE5b is blocked on the owner: §4 Q-IE17 (the stopped-running check) and Q-IE14 (the burn rate).
+IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 is ruled.
 
 ---
 
@@ -916,4 +920,21 @@ IE5b is blocked on the owner: §4 Q-IE17 (the stopped-running check) and Q-IE14 
   786 −5.3%, 805 −3.5%). Stopped running vs Samsara **25 / 128** (43 within 10%, 62 within 20%), ours higher on
   127 — the gate cannot pass as ruled; the evidence and the choice are §4 **Q-IE17**, open for the owner.
   Worst stopped misses: 767 +1160%, 680 +173%, 701 +93%, 748 +86%, 736 +62%.
-
+- **2026-10-03** — **Q-IE17 (a): which side is right — ours, by the gateway's GPS.** Read-only probe of Samsara's
+  `stats/history` (`engineStates`, `gps`) for 10/01 local, on a 5-second grid, against the stored rows. (1) The
+  six judged truck-days whose `vehicle_engine_days` row covers less than the local day carry 12.9 h of the
+  81.2 h excess: `aggregateEngineDays` counts a state until the NEXT sample, so a truck still idling at the last
+  sync has that stretch missing (775: 15.4 h covered, 1.2 h idle stored; Samsara's own states say 9.8 h, ours
+  10.5 h). (2) On the 122 whole days, Samsara labels the engine "On" (driving) while the GPS reads under 3 mph for
+  60 s or more for **77.3 h** — more than the 68.3 h excess; 1.1 h of it in one 67-minute park on 767 at 0 mph,
+  0 m moved, with no state change. Counting those minutes as Samsara's idle, **89 of 122** days agree within 5%
+  (24 as stored) and 106 within 10%. (3) Why: across 307 On→Idle flips on 40 trucks, Samsara turns a stop into
+  "Idle" **2–3 minutes after the last moving fix** (none under 60 s; p10 124 s, median 166 s, p75 546 s, p90
+  1,673 s). The truck is standing with the engine on through those minutes; Samsara books them as driving.
+  Never the reverse: 0.0 h of "Idle" while moving. Probe scripts in the session scratchpad, not the repo.
+- **2026-10-03** — **Q-IE17 (b) built: the gate judges running vs the ECU only.** `judgeIdleParityDay` judges a
+  truck-day only when running is judgeable, and its verdict is running's; stopped running is still computed and
+  listed per truck ("Idling vs Samsara"). The reader compares a Samsara day only when `coverage_sec` reaches our
+  hour count for that local day. On 10/01 that is **121 of 125** truck-days agreeing (96.8%); the four misses are
+  ours low (808 −17%, 774 −19%, 786 −5.3%, 805 −3.5%) — the next look, before IE5b. Tests: `parity.test.ts` (14),
+  `idleEngineParity.test.ts` (+1), `IdleEngineParityPanel.test.ts` (7, two rewritten). Mutation: 6/6 killed.
