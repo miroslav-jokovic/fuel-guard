@@ -1,6 +1,6 @@
 # Release train — merge all day, release once a night
 
-**Status:** R0 (this plan) and R2 (scheduler clocks) in review 2026-10-02. Owner approved the
+**Status:** R0 + R2 merged 2026-10-02 (#1219); R3 staging infrastructure built 2026-10-02. Owner approved the
 direction 2026-10-02 ("proceed as proposed"). Everything from R3 on is unbuilt.
 
 **Supersedes** the "merge = deploy" model from SHIP-PIPELINE-PLAN.md D0–D4 for the two Railway app
@@ -123,6 +123,32 @@ the moment to move to `.railway/railway.ts`.
 - **Q-REL3 — Release nights.** Taken as **Sun–Thu** (D-REL7).
 - **Q-REL4 — Who approves; who gets the summary, and how.** Recommend: owner approves; summary by
   email to the owner, SMS only on a failed/rolled-back release.
+- **Q-REL6 — Production does not match its own migrations.** Building staging from the 407
+  migrations (2026-10-02) and fingerprinting both databases (columns, indexes, triggers, function
+  bodies, policies, grants, RLS flags) found drift in BOTH directions, all from the 0084–0094 era
+  (early migrations edited after they were applied — `create table if not exists` then skipped the
+  edit on production):
+  - **Production has, no migration creates:** 9 policies — six RESTRICTIVE driver denials
+    (`anomalies_driver_deny`, `thresholds_driver_deny`, `memberships_driver_deny`,
+    `tms_movements_driver_deny`, `ftxn_driver_select`, `ftxn_driver_insert`) and three
+    `storage.objects` policies for `load-photos`; 5 columns (`driver_duty_sessions.start_lat/lon`,
+    `duty_equipment_segments.driver_id` NOT NULL, `load_events.actor_driver_id`,
+    `load_stop_photos.created_at`); ~20 indexes on the duty/loads tables; stale overloads of
+    `resolve_driver_type(uuid)` and the 10-argument `start_duty_session`.
+  - **Migrations create, production lacks:** `revoke_push_tokens(uuid)` and `notify_dedupe_key(...)`
+    (0089 — production's own record shows it ran them, so they were dropped out of band) and
+    `idx_hazmat_runs_org_created` (0094). `revoke_push_tokens` IS called
+    (`apps/api/src/modules/messaging/notify.ts`, sign-out/offboarding); no failure logged in 30 days
+    and only 2 push tokens exist, so no harm yet.
+  - **Why it matters beyond staging:** a database rebuilt from migrations — staging, the PGlite
+    matrices, a disaster-recovery restore — lacks the six driver denials, so a driver there could
+    read anomalies, memberships and other drivers' fills.
+  - **Recommendation:** one reconciling migration, every statement idempotent: create the nine
+    policies verbatim from production `pg_policies`; `add column if not exists` the five columns
+    after confirming each is wanted; `create index if not exists` the indexes; recreate the two 0089
+    functions and the 0094 index; leave the stale overloads for a second, separate migration after
+    checking nothing calls them. Then a CI gate that diffs a migrations-built schema against
+    production's fingerprint so drift is caught the day it happens.
 - **Q-REL5 — PSP UAT orders on the shared database.** uat has `PSP_ORDERS_ENABLED=true` against
   PSP's sandbox, but writes its order rows into the PRODUCTION database. Resolved by R3; until then,
   do not place PSP orders from uat.
@@ -130,3 +156,14 @@ the moment to move to `.railway/railway.ts`.
 ## 5. Progress log
 
 - 2026-10-02 — Measurements taken; owner approved the direction. R0 + R2 on `claude/release-train-r0`.
+- 2026-10-02 — R0 + R2 merged (#1219), served on both hosts.
+- 2026-10-02 — R3 infrastructure: Supabase project `Silvicom 360 Staging` (ref `dssmxlddtyimrwwuqwqq`,
+  us-west-2) created; all 407 migrations applied (0409); `seed.sql` loaded (Silvicom Inc. demo org,
+  6 drivers, 8 vehicles, 147 fills — Q-REL1 answered (a)); auth: `custom_access_token_hook` on,
+  site URL + redirects = uat web and console hosts, self-signup off, TOTP on; two platform owners
+  mirrored from production with logins and admin memberships in the demo org. Railway `uat`
+  (`@fleetguard/api`, `@fleetguard/web`, `platform-console`) repointed: SUPABASE_URL,
+  VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_ANON_KEY — no production reference left.
+  GitHub secrets STAGING_SUPABASE_PROJECT_REF / STAGING_SUPABASE_DB_PASSWORD; `migrate.yml` gains a
+  `migrate-staging` job. Q-REL6 found while comparing the two schemas. Q-REL5 is closed by this:
+  uat's PSP sandbox orders now land in the staging database.
