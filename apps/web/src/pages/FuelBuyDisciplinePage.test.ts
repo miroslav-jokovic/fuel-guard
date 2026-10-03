@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
-import { computed, ref, type Ref } from "vue";
-import { NO_FUEL_TARGETS, policyGallonCells, type FuelPolicy, type SpendLine } from "@silvicom/shared";
+import { computed, ref, toValue, type MaybeRefOrGetter, type Ref } from "vue";
+import { NO_FUEL_TARGETS, policyGallonCells, type ContractTotals, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 
 /**
  * Buy discipline, mounted — Fuel Spend's second tab, its own page since FS2 (Q-FSV12). These are the
@@ -50,12 +50,22 @@ const asQuery = <T,>(data: T) => ({ data: computed(() => data), isLoading: ref(f
 const inputState = {
   feed: "ready" as "ready" | "loading" | "error",
   cells: "ready" as "ready" | "loading" | "error",
+  totals: "ready" as "ready" | "loading" | "error",
   settings: "ready" as "ready" | "loading" | "error",
 };
 const withState = <T,>(data: T, state: "ready" | "loading" | "error") => ({
   data: computed(() => (state === "ready" ? data : undefined)), isLoading: ref(state === "loading"), isError: ref(state === "error"), error: ref(null),
 });
-const seen = { buyWindow: null as Ref<{ from: string; to: string }> | null, lineFilters: null as Ref<{ from: string }> | null };
+const seen = {
+  buyWindow: null as Ref<{ from: string; to: string }> | null,
+  lineFilters: null as Ref<{ from: string }> | null,
+  /** Whether the row feed was switched on, read live: it must stay off until the quote tile is opened. */
+  rowsEnabled: null as (() => boolean) | null,
+};
+/** The four sums the quote tile reads: 2 measured fills at +$14 net, $820 of $1,260 billed dollars priced. */
+const TOTALS: ContractTotals = {
+  measuredLines: 2, measuredGallons: 160, measuredPaid: 820, measuredExpected: 806, unmeasuredLines: 1, unmeasuredPaid: 440,
+};
 
 vi.mock("@/features/reconcile/useBuyFills", () => ({
   useBuyFillsQuery: (window: Ref<{ from: string; to: string }>) => {
@@ -64,10 +74,14 @@ vi.mock("@/features/reconcile/useBuyFills", () => ({
   },
 }));
 vi.mock("@/features/reconcile/useSpendLines", () => ({
-  useSpendLinesQuery: (filters: Ref<{ from: string }>) => {
+  useSpendLinesQuery: (filters: Ref<{ from: string }>, enabled: MaybeRefOrGetter<boolean> = true) => {
     seen.lineFilters = filters;
+    seen.rowsEnabled = () => toValue(enabled);
     return withState(FEED, inputState.feed);
   },
+}));
+vi.mock("@/features/reconcile/useContractTotals", () => ({
+  useContractTotalsQuery: () => withState(TOTALS, inputState.totals),
 }));
 vi.mock("@/features/reconcile/usePolicyGallons", () => ({
   usePolicyGallonsQuery: () => withState(policyGallonCells(FEED), inputState.cells),
@@ -91,8 +105,10 @@ import FuelBuyDisciplinePage from "./FuelBuyDisciplinePage.vue";
 beforeEach(() => {
   seen.buyWindow = null;
   seen.lineFilters = null;
+  seen.rowsEnabled = null;
   inputState.feed = "ready";
   inputState.cells = "ready";
+  inputState.totals = "ready";
   inputState.settings = "ready";
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -151,13 +167,46 @@ describe("FuelBuyDisciplinePage", () => {
     }
   });
 
-  it("says the quote comparison is unavailable, not that no fill matched, when the row feed fails or is pending", async () => {
+  it("says the quote comparison is unavailable, not that no fill matched, when the sums fail or are pending", async () => {
     expect((await mountPage()).text()).toContain("Paid vs Pilot quote");
     for (const [state, say] of [["error", "Couldn't load"], ["loading", "Loading the purchases"]] as const) {
-      inputState.feed = state;
+      inputState.totals = state;
       const t = (await mountPage()).text();
       expect(t, state).toContain(say);
       expect(t, state).not.toContain("no fill in this window matched a quote");
+    }
+  });
+
+  it("states the tile from the database's sums: +$14 over contract, 65.1% of the bill priced (Q-FSV18)", async () => {
+    const t = (await mountPage()).text();
+    expect(t).toMatch(/\$14(?![\d,.])/);
+    expect(t).toContain("over contract");
+    expect(t).toContain("65.1% of this window's fuel priced");
+  });
+
+  it("does not download the rows behind the tile until it is opened, and does once it is", async () => {
+    const w = await mountPage();
+    expect(seen.rowsEnabled?.()).toBe(false);
+    const tile = w.findAll("button").find((b) => b.text().includes("Paid vs Pilot quote"))!;
+    await tile.trigger("click");
+    await flushPromises();
+    expect(seen.rowsEnabled?.()).toBe(true);
+    await tile.trigger("click");
+    await flushPromises();
+    expect(seen.rowsEnabled?.()).toBe(false);
+  });
+
+  it("keeps the tile on screen when the row feed is slow or fails, and says so inside the opened fills only", async () => {
+    for (const [state, say] of [["loading", "Loading the fills behind this figure"], ["error", "Couldn't load the fills behind this figure"]] as const) {
+      inputState.feed = state;
+      const w = await mountPage();
+      expect(w.text(), state).toContain("65.1% of this window's fuel priced");
+      expect(w.text(), state).not.toContain(say);
+      await w.findAll("button").find((b) => b.text().includes("Paid vs Pilot quote"))!.trigger("click");
+      await flushPromises();
+      expect(w.text(), state).toContain(say);
+      expect(w.text(), state).toContain("65.1% of this window's fuel priced");
+      expect(w.text(), state).not.toContain("Quoted / gal");
     }
   });
 

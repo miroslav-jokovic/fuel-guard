@@ -1172,3 +1172,17 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   the tile reads this once through a shared helper that also feeds `analyzeContractCapture` (one copy of the net-variance
   and priced-share formulas), and the row read moves behind the tile's toggle, where the fills list is the only thing
   that needs rows. Not started; it waits for 0418 to be applied.
+- **2026-10-03** — **Q-FSV18, step 2 of 2 (the reader; migration 0418 applied, verified in `pg_proc`).** Production
+  check first, read-only as a signed-in admin (rolled back), 90 days to 2026-10-03: `fuel_contract_totals` returned one
+  row that equals the raw `fuel_spend_lines` rows summed separately on every figure — **3,754 measured fills, $2,442,173.23
+  billed against $2,441,594.70 expected (net +$578.53), 1,902 unmeasured fills, $1,077,332.78 unmeasured, 69.39% of billed
+  dollars priced.** Timing: the aggregate took **1.7 s**, one raw run 2.3 s; the saving is one run of `fuel_spend_lines`
+  instead of six. `contractHeadline(totals)` in `@silvicom/shared` is now the ONE formula for the tile's net variance and
+  priced share, and `analyzeContractCapture` calls it, so the existing 17 tests pass unchanged and +4 pin that the two routes
+  print the same tile. The tile reads `useContractTotals`; `useSpendLinesQuery` takes an `enabled` switch and the page passes the
+  tile's open state, so **the rows download only when the fills are opened** — the plan's original "behind the toggle", now
+  true. A slow or failed row feed no longer touches the tile or the grades; inside the opened fills it says so. Tests: page
+  (+4), `useContractTotals` (5), `useSpendLinesEnabled` (2). Mutation: 15/15 killed, one first survivor was a no-op (dropping
+  the explicit no-row throw, since `row.measured_lines` on `undefined` throws anyway) and its real counterpart — defaulting a
+  missing row to zeros — fails the test. **Q-FSV18 closed**; §4's Q-FSV16/Q-FSV18 are both done once this merges.
+
