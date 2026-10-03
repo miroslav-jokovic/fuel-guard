@@ -26,9 +26,16 @@
  *    the gateway that uploads late, which is exactly what the nightly is for.
  *  - WHOLE days: all 24 of our hours stored (the engine's first day, 10/02, began at 07:00 local).
  *  - RUNNING is judged when the ECU counter has a delta in all 24 hours (an hour without one is a sum
- *    of 23 hours against 24) and either side shows at least an hour: the counter steps in 180 s, so
- *    ±3% of less than an hour is inside one step. A day where one side says 0 and the other 2 h is
- *    judged, and fails.
+ *    of 23 hours against 24) and either side shows at least an hour. A day where one side says 0 and
+ *    the other 2 h is judged, and fails. The tolerance is ±3% or one counter step (180 s), whichever is
+ *    larger: the counter steps in 180 s, so on a day under 1.67 h ±3% is narrower than the counter can
+ *    read, and a day would fail on the counter's rounding alone (none have yet; 2026-10-03 research).
+ *  - COVERAGE is judged on every final whole day where Samsara's own record covers the whole day: if
+ *    ours has an hour or more of `no_data` there, the day is judged and FAILS, whatever running says.
+ *    Measured 2026-10-03: 649 idled 37.6 h that we stored as `no_data` (a collector carry-in defect,
+ *    since fixed), and the gate never saw it — an hour with no engine state has no engine-seconds delta
+ *    either, so the day was not judged rather than failed. Missing a day the reference measured is not
+ *    agreeing with it.
  *  - STOPPED RUNNING is computed when Samsara has the whole day and either side shows at least an
  *    hour, on a truck-day that running is judged on.
  *  A truck-day running is not judged on is not counted at all (a truck parked with the engine off all
@@ -39,6 +46,10 @@ export const IDLE_PARITY = {
   runningTolerance: 0.03,
   stoppedTolerance: 0.05,
   minJudgedSec: 3600,
+  /** One step of `obdEngineSeconds`: the narrowest disagreement the counter can show. */
+  counterStepSec: 180,
+  /** An hour of our `no_data` on a day Samsara covers whole fails the day. */
+  maxNoDataSec: 3600,
   passShare: 0.95,
   minDays: 14,
 } as const;
@@ -54,6 +65,10 @@ export interface IdleParityDay {
   ecuSec: number;
   ecuHours: number;
   samsaraIdleSec: number | null;
+  /** Our `no_data` seconds for the day. */
+  noDataSec: number;
+  /** Samsara's record covers the whole local day (`coverage_sec ≥ hours`). */
+  samsaraWholeDay: boolean;
 }
 
 export interface IdleParityCheck {
@@ -67,38 +82,46 @@ export interface IdleParityCheck {
 export interface IdleParityJudged {
   vehicleId: string;
   day: string;
-  running: IdleParityCheck;
+  /** Null on a day judged on coverage alone (the ECU had no whole day either). */
+  running: IdleParityCheck | null;
   /** Information only (Q-IE17): never decides `pass`. */
   stopped: IdleParityCheck | null;
-  /** The running check's verdict. */
+  /** An hour or more of our `no_data` on a day Samsara covers whole: fails the day. */
+  coverageGap: boolean;
+  /** Running passed and there is no coverage gap. */
   pass: boolean;
 }
 
-function check(ours: number, theirs: number, tolerance: number): IdleParityCheck {
+/** Within `tolerance` of theirs, or within `floorSec` when that is wider (a counter's one step). */
+function check(ours: number, theirs: number, tolerance: number, floorSec = 0): IdleParityCheck {
   const diff = theirs > 0 ? (ours - theirs) / theirs : null;
-  return { ours, theirs, diff, pass: diff != null && Math.abs(diff) <= tolerance };
+  const within = Math.abs(ours - theirs) <= Math.max(tolerance * theirs, floorSec);
+  return { ours, theirs, diff, pass: diff != null && within };
 }
 
-/** Judge one truck-day; null when it is not judged at all (not final, not whole, or running not judgeable). */
+/** Judge one truck-day; null when it is not judged at all (not final, not whole, nothing judgeable). */
 export function judgeIdleParityDay(d: IdleParityDay, finalThrough: string | null): IdleParityJudged | null {
   if (finalThrough == null || d.day > finalThrough || d.hours < 24) return null;
   const min = IDLE_PARITY.minJudgedSec;
   const running =
     d.ecuHours >= 24 && Math.max(d.runningSec, d.ecuSec) >= min
-      ? check(d.runningSec, d.ecuSec, IDLE_PARITY.runningTolerance)
+      ? check(d.runningSec, d.ecuSec, IDLE_PARITY.runningTolerance, IDLE_PARITY.counterStepSec)
       : null;
-  if (!running) return null;
+  const coverageGap = d.samsaraWholeDay && d.noDataSec >= IDLE_PARITY.maxNoDataSec;
+  if (!running && !coverageGap) return null;
   const stopped =
-    d.samsaraIdleSec != null && Math.max(d.stoppedSec, d.samsaraIdleSec) >= min
+    running && d.samsaraIdleSec != null && Math.max(d.stoppedSec, d.samsaraIdleSec) >= min
       ? check(d.stoppedSec, d.samsaraIdleSec, IDLE_PARITY.stoppedTolerance)
       : null;
-  return { vehicleId: d.vehicleId, day: d.day, running, stopped, pass: running.pass };
+  return { vehicleId: d.vehicleId, day: d.day, running, stopped, coverageGap, pass: !coverageGap && running != null && running.pass };
 }
 
 export interface IdleParityTruck {
   vehicleId: string;
   judgedDays: number;
   failedDays: number;
+  /** Judged days that failed on coverage: an hour or more of ours missing where Samsara saw the day. */
+  gapDays: number;
   /** The judged day each check missed by most, signed — the number a person looks at first. */
   worstRunningDiff: number | null;
   worstStoppedDiff: number | null;
@@ -108,7 +131,16 @@ export interface IdleParityReport {
   finalThrough: string | null;
   /** Distinct final days with at least one judged truck-day. */
   days: string[];
-  truckDays: { judged: number; passed: number; runningJudged: number; runningPassed: number; stoppedJudged: number; stoppedPassed: number };
+  truckDays: {
+    judged: number;
+    passed: number;
+    runningJudged: number;
+    runningPassed: number;
+    stoppedJudged: number;
+    stoppedPassed: number;
+    /** Judged days failed on coverage (`coverageGap`). */
+    coverageGaps: number;
+  };
   /** passed ÷ judged; null with nothing judged. */
   share: number | null;
   /** Days still needed before the gate can pass (0 once `minDays` are in). */
@@ -123,17 +155,18 @@ const worse = (a: number | null, b: number | null) => (a == null ? b : b == null
 export function idleParityReport(rows: readonly IdleParityDay[], finalThrough: string | null): IdleParityReport {
   const judged = rows.map((r) => judgeIdleParityDay(r, finalThrough)).filter((j): j is IdleParityJudged => j != null);
   const days = [...new Set(judged.map((j) => j.day))].sort();
-  const t = { judged: judged.length, passed: 0, runningJudged: 0, runningPassed: 0, stoppedJudged: 0, stoppedPassed: 0 };
+  const t = { judged: judged.length, passed: 0, runningJudged: 0, runningPassed: 0, stoppedJudged: 0, stoppedPassed: 0, coverageGaps: 0 };
   const byTruck = new Map<string, IdleParityTruck>();
   for (const j of judged) {
     if (j.pass) t.passed += 1;
-    t.runningJudged += 1;
-    if (j.running.pass) t.runningPassed += 1;
+    if (j.running) { t.runningJudged += 1; if (j.running.pass) t.runningPassed += 1; }
     if (j.stopped) { t.stoppedJudged += 1; if (j.stopped.pass) t.stoppedPassed += 1; }
-    const k = byTruck.get(j.vehicleId) ?? { vehicleId: j.vehicleId, judgedDays: 0, failedDays: 0, worstRunningDiff: null, worstStoppedDiff: null };
+    if (j.coverageGap) t.coverageGaps += 1;
+    const k = byTruck.get(j.vehicleId) ?? { vehicleId: j.vehicleId, judgedDays: 0, failedDays: 0, gapDays: 0, worstRunningDiff: null, worstStoppedDiff: null };
     k.judgedDays += 1;
     if (!j.pass) k.failedDays += 1;
-    k.worstRunningDiff = worse(k.worstRunningDiff, j.running.diff);
+    if (j.coverageGap) k.gapDays += 1;
+    k.worstRunningDiff = worse(k.worstRunningDiff, j.running?.diff ?? null);
     k.worstStoppedDiff = worse(k.worstStoppedDiff, j.stopped?.diff ?? null);
     byTruck.set(j.vehicleId, k);
   }
@@ -172,7 +205,7 @@ export function idleParityFinalThrough(nightlyFromIso: string | null, timeZone: 
 
 /** `idle_engine_days` (0404): the columns the gate reads. */
 export const IDLE_ENGINE_DAY_COLUMNS =
-  "vehicle_id, day, hours, driving_sec, stopped_running_sec, brief_stop_sec, engine_sec, engine_sec_hours";
+  "vehicle_id, day, hours, driving_sec, stopped_running_sec, brief_stop_sec, no_data_sec, engine_sec, engine_sec_hours";
 
 export interface IdleEngineDayRow {
   vehicle_id: string;
@@ -181,6 +214,7 @@ export interface IdleEngineDayRow {
   driving_sec: number;
   stopped_running_sec: number;
   brief_stop_sec: number;
+  no_data_sec: number;
   // bigint: PostgREST may send it as a string.
   engine_sec: number | string;
   engine_sec_hours: number;
@@ -210,7 +244,8 @@ export function idleParityDays(
   const samsara = new Map(theirs.map((r) => [`${r.vehicle_id}|${r.day}`, r]));
   return ours.map((r) => {
     const t = samsara.get(`${r.vehicle_id}|${r.day}`);
-    const s = t != null && t.coverage_sec != null && t.coverage_sec >= r.hours * 3600 ? t.idle_sec : null;
+    const whole = t != null && t.coverage_sec != null && t.coverage_sec >= r.hours * 3600;
+    const s = whole ? t.idle_sec : null;
     return {
       vehicleId: r.vehicle_id,
       day: r.day,
@@ -220,6 +255,8 @@ export function idleParityDays(
       ecuSec: Number(r.engine_sec),
       ecuHours: r.engine_sec_hours,
       samsaraIdleSec: s == null ? null : Number(s),
+      noDataSec: r.no_data_sec,
+      samsaraWholeDay: whole,
     };
   });
 }

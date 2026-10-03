@@ -29,6 +29,7 @@ const columns: DataTableColumn[] = [
   { key: "unit", label: "Truck" },
   { key: "judgedDays", label: "Days checked", numeric: true },
   { key: "failedDays", label: "Days that did not match", numeric: true },
+  { key: "gapDays", label: "Days with data missing", numeric: true },
   { key: "worstRunningDiff", label: "Worst engine-hours miss", numeric: true },
   { key: "worstStoppedDiff", label: "Idling vs Samsara", numeric: true },
 ];
@@ -42,7 +43,8 @@ const columns: DataTableColumn[] = [
       with each truck's own computer within {{ IDLE_PARITY.runningTolerance * 100 }}% on
       {{ IDLE_PARITY.passShare * 100 }}% of days over {{ IDLE_PARITY.minDays }} finished days. Its idling
       reads higher than Samsara's: Samsara starts counting a stop as idling only after 2–3 minutes. That
-      difference is shown, not judged.
+      difference is shown, not judged. A day where the new measurement is missing an hour or more that
+      Samsara recorded counts as a day that did not match.
       <template v-if="data && status">
         <span :class="[BADGE_BASE, toneClass(status.tone)]" class="ml-1">{{ status.label }}</span>
         <template v-if="data.days.length === 0"> No day is finished yet; the first one is finished by the next nightly run.</template>

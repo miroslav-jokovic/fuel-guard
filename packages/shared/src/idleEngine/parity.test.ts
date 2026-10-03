@@ -20,6 +20,7 @@ const H = 3600;
 const day = (o: Partial<IdleParityDay> = {}): IdleParityDay => ({
   vehicleId: "v1", day: "2026-10-03", hours: 24,
   runningSec: 10 * H, stoppedSec: 4 * H, ecuSec: 10 * H + 360, ecuHours: 24, samsaraIdleSec: 4 * H + 360,
+  noDataSec: 0, samsaraWholeDay: true,
   ...o,
 });
 const FINAL = "2026-10-03";
@@ -84,7 +85,7 @@ describe("idleParityReport", () => {
     const rows = [...Array.from({ length: 19 }, (_, i) => days(14, `v${i}`)).flat(), ...days(13, "vx"), day({ vehicleId: "vx", day: "2026-10-14", runningSec: 0, stoppedSec: 0 })];
     const r = idleParityReport(rows, FINAL_14);
     expect(r).toMatchObject({ daysNeeded: 0, pass: true, truckDays: { judged: 280, passed: 279 } });
-    expect(r.disagreements).toEqual([{ vehicleId: "vx", judgedDays: 14, failedDays: 1, worstRunningDiff: -1, worstStoppedDiff: -1 }]);
+    expect(r.disagreements).toEqual([{ vehicleId: "vx", judgedDays: 14, failedDays: 1, gapDays: 0, worstRunningDiff: -1, worstStoppedDiff: -1 }]);
   });
 
   it("does not pass at 13 days however well they agree, and says how many are still needed", () => {
@@ -109,7 +110,7 @@ describe("idleParityReport", () => {
     ];
     const r = idleParityReport(rows, FINAL_14);
     expect(r.days).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
-    expect(r.truckDays).toEqual({ judged: 4, passed: 4, runningJudged: 4, runningPassed: 4, stoppedJudged: 3, stoppedPassed: 2 });
+    expect(r.truckDays).toEqual({ judged: 4, passed: 4, runningJudged: 4, runningPassed: 4, stoppedJudged: 3, stoppedPassed: 2, coverageGaps: 0 });
     expect(r.disagreements).toEqual([]);
   });
 
@@ -138,6 +139,39 @@ describe("idleParityFinalThrough", () => {
   });
 });
 
+describe("the counter-step floor and the coverage rule (2026-10-03 research)", () => {
+  it("running passes within one 180 s counter step when ±3% is narrower, and fails one second past it", () => {
+    // 3,880 s on the ECU: ±3% is 116 s, narrower than the counter's 180 s step.
+    expect(judgeIdleParityDay(day({ runningSec: 3700, ecuSec: 3880 }), FINAL)!.running!.pass).toBe(true); // −180 s
+    expect(judgeIdleParityDay(day({ runningSec: 3699, ecuSec: 3880 }), FINAL)!.running!.pass).toBe(false); // −181 s
+    // On a long day ±3% is wider than the step, and still decides.
+    expect(judgeIdleParityDay(day({ runningSec: 10_000, ecuSec: 10_320 }), FINAL)!.running!.pass).toBe(false);
+  });
+
+  it("an hour of our no-data on a day Samsara covers whole fails the day, though running agrees", () => {
+    const j = judgeIdleParityDay(day({ noDataSec: IDLE_PARITY.maxNoDataSec }), FINAL)!;
+    expect(j).toMatchObject({ coverageGap: true, pass: false });
+    expect(j.running!.pass).toBe(true);
+    expect(judgeIdleParityDay(day({ noDataSec: IDLE_PARITY.maxNoDataSec - 1 }), FINAL)).toMatchObject({ coverageGap: false, pass: true });
+  });
+
+  it("a gap Samsara did not see whole either is not ours to fail", () => {
+    expect(judgeIdleParityDay(day({ noDataSec: 10 * H, samsaraWholeDay: false }), FINAL)).toMatchObject({ coverageGap: false, pass: true });
+  });
+
+  it("649's day: no ECU day and no running of ours, but Samsara saw it whole — judged, and failed", () => {
+    const j = judgeIdleParityDay(day({ runningSec: 0, stoppedSec: 0, ecuSec: 0, ecuHours: 0, noDataSec: 24 * H }), FINAL)!;
+    expect(j).toMatchObject({ running: null, stopped: null, coverageGap: true, pass: false });
+    expect(judgeIdleParityDay(day({ runningSec: 0, stoppedSec: 0, ecuSec: 0, ecuHours: 0, noDataSec: 24 * H, samsaraWholeDay: false }), FINAL)).toBeNull();
+  });
+
+  it("the report counts coverage failures per truck and in the totals", () => {
+    const r = idleParityReport([day(), day({ vehicleId: "v2", ecuHours: 0, noDataSec: 24 * H })], FINAL);
+    expect(r.truckDays).toMatchObject({ judged: 2, passed: 1, runningJudged: 1, coverageGaps: 1 });
+    expect(r.disagreements).toEqual([{ vehicleId: "v2", judgedDays: 1, failedDays: 1, gapDays: 1, worstRunningDiff: null, worstStoppedDiff: null }]);
+  });
+});
+
 describe("idleParityDays (the stored rows → truck-days, read by the office API and the console alike)", () => {
   const stored = (o: Record<string, unknown> = {}) => ({
     vehicle_id: "v1",
@@ -148,6 +182,7 @@ describe("idleParityDays (the stored rows → truck-days, read by the office API
     brief_stop_sec: H,
     engine_sec: String(10 * H + 360),
     engine_sec_hours: 24,
+    no_data_sec: 0,
     ...o,
   });
   const samsara = (o: Record<string, unknown> = {}) => ({ vehicle_id: "v1", day: "2026-10-01", idle_sec: "14760", coverage_sec: 24 * H, ...o });
@@ -157,7 +192,14 @@ describe("idleParityDays (the stored rows → truck-days, read by the office API
     expect(d).toEqual({
       vehicleId: "v1", day: "2026-10-01", hours: 24,
       runningSec: 10 * H, stoppedSec: 4 * H, ecuSec: 10 * H + 360, ecuHours: 24, samsaraIdleSec: 14760,
+      noDataSec: 0, samsaraWholeDay: true,
     });
+  });
+
+  it("carries our no-data and whether Samsara saw the whole day", () => {
+    expect(idleParityDays([stored({ no_data_sec: 4000 })], [samsara()])[0]).toMatchObject({ noDataSec: 4000, samsaraWholeDay: true });
+    expect(idleParityDays([stored()], [samsara({ coverage_sec: 24 * H - 1 })])[0]).toMatchObject({ samsaraWholeDay: false });
+    expect(idleParityDays([stored()], [])[0]).toMatchObject({ samsaraWholeDay: false });
   });
 
   it("Samsara's idle counts only when its coverage is the whole local day — a DST day's 25 hours included", () => {

@@ -1193,3 +1193,10 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   $2,424 the $5 floor would file, $1,940 (80%) was on day-old quotes. `contractFindings` now files only `staleDays === 0`;
   the $5 floor stays. Expected queue: ~30 fills / 90 days (≈0.3 a day) instead of 122. Shipped before the scan's first
   run (10/04 ~08:05Z), so the inbox never holds the noise.
+- **2026-10-03** D-IE9 gate, two corrections from the research pass. (1) The running tolerance is ±3% or one 180 s
+  counter step, whichever is wider — under 1.67 h ±3% is narrower than the counter reads (no judged day was there yet).
+  (2) COVERAGE: a final whole day where Samsara's record covers the whole day and ours has ≥ 1 h of `no_data` is judged
+  and FAILS, whatever running says — 649's 37.6 h were invisible to the gate because a day with no engine state has no
+  engine-seconds delta either. On production: 10/01 (final) has 9 such days (579, 642, 649, 692, 707, 727, 735, 750, 789),
+  so it reads 118 of 127 (92.9%) instead of 118 of 118; 10/02 (provisional) has 5, most of them the engine-off trucks the
+  collector carry-in (#1248) turns from unknown into off. Both panels gain a "Days with data missing" column.
