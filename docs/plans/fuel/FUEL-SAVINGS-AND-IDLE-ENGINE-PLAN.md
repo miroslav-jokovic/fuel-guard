@@ -1296,3 +1296,12 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   rendered at 1440 and 390 px (preview build, stubbed rollup rows). Not touched: the Drivers and Truck capability tabs, and
   the red/amber dollar tones on the Idling cards (Q-FSV15 ruling 2 made dollars neutral on Fuel Costs only; whether it
   extends here is a V4 question).
+- **2026-10-03** Design verdict E4/E10, Buy discipline results first: the tab opens on the headline with ONE sentence that
+  keeps the material qualification in view (purchases, gallons still in the tank, trips measured vs estimated from miles
+  and that the estimate undercounts, so the total is a minimum), then the purchases to review, then "How the extra cost is
+  worked out" (closed: the proof-by-next-fill sentence, pump vs fuel price, the trips that produced nothing), the targets,
+  the unlisted-dear-state sentence, and "What fuel costs, by state" (closed). The four-card row went: one card repeated the
+  headline's dollars, and its other three figures are in the headline sentence or the method panel. Purchases table: date
+  as MM/DD/YYYY (was ISO), "Gallons bought" (two columns were both "Bought"), "Measured by" with "Tank reading" / "Miles
+  driven (at least)". Nothing deleted; `<details>` keeps closed text findable by the browser's search. Tests +3, two
+  rewordings; mutation 11/11 killed. Seen rendered at 1440 px (preview build, stubbed RPCs).

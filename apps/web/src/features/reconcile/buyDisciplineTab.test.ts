@@ -93,7 +93,7 @@ describe("BuyDisciplineTab", () => {
   it("calls that headline a floor rather than a cost", () => {
     const t = render();
     expect(t).toContain("at least, over this window");
-    expect(t).toContain("The total is a floor, not an estimate.");
+    expect(t).toContain("which undercounts — so the total is a minimum.");
   });
 
   it("shows the pump-price figure as a comparison, with the reason it is not a saving", () => {
@@ -106,10 +106,55 @@ describe("BuyDisciplineTab", () => {
     expect(t).toContain("Priced on the fuel itself");
   });
 
-  it("says which legs were measured and which were bounded, apart", () => {
-    const t = render();
-    expect(t).toContain("measured from a confirmed tank level");
-    expect(t).toContain("bounded from miles driven");
+  it("says which legs were measured and which were estimated, apart, beside the headline and not behind a click", () => {
+    const report = analyzeCarriedFuel(legs());
+    const line = mountTab().get('[data-testid="carried-basis"]');
+    expect(line.element.closest("details"), "the qualification must not be folded away").toBeNull();
+    const t = line.text();
+    expect(t).toContain(`${report.byBasis.tank_level.pairs} trips measured from a confirmed tank level`);
+    expect(t).toContain(`${report.byBasis.miles_burned.pairs} estimated from`);
+    expect(t).toContain(`${report.findings.length} purchases`);
+  });
+
+  it("labels the purchases in plain words, with the date as MM/DD/YYYY and no two columns sharing a name", () => {
+    const w = mountTab();
+    const heads = w.findAll("thead th").map((h) => h.text().trim()).filter(Boolean);
+    expect(heads).toContain("Gallons bought");
+    expect(heads).toContain("Measured by");
+    expect(new Set(heads).size).toBe(heads.length);
+    const first = analyzeCarriedFuel(legs()).findings[0]!;
+    const [y, m, d] = first.from.date!.split("-");
+    const t = w.text();
+    expect(t).toContain(`${m}/${d}/${y}`);
+    expect(t).not.toContain(first.from.date!);
+    expect(t).toMatch(/Tank reading|Miles driven \(at least\)/);
+    expect(t).not.toContain("miles (floor)");
+  });
+
+  it("puts the purchases before the targets and the method, and the state table behind a click (design verdict E4/E10)", () => {
+    const many = [
+      ...legs(),
+      ...Array.from({ length: 30 }, (_, i) =>
+        fill({ vehicleId: `c${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "CA", gallons: 120, netAmount: 120 * 6.6 })),
+      ...Array.from({ length: 30 }, (_, i) =>
+        fill({ vehicleId: `t${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "TX", gallons: 120, netAmount: 120 * 4.4 })),
+    ];
+    const w = mountTab(many, policy({ avoidStates: ["CA"] }));
+    const t = w.text();
+    expect(t.indexOf("Purchases to review")).toBeLessThan(t.indexOf("How the extra cost is worked out"));
+    expect(t.indexOf("How the extra cost is worked out")).toBeLessThan(t.indexOf("Against your targets"));
+    expect(t.indexOf("Against your targets")).toBeLessThan(t.indexOf("What fuel costs, by state"));
+    // Method and the state table are disclosures, closed until asked for.
+    const details = w.findAll("details");
+    const summaries = details.map((d) => d.get("summary").text());
+    expect(summaries).toEqual(["How the extra cost is worked out", "What fuel costs, by state, with the tax taken out"]);
+    for (const d of details) expect((d.element as HTMLDetailsElement).open).toBe(false);
+    expect(details[0]!.text()).toContain("On pump price the same trips read");
+    expect(details[0]!.text()).toContain("trips between fuel stops");
+    expect(details[1]!.text()).toContain("California");
+    // The headline's dollars are printed once, not again on a card below it.
+    const report = analyzeCarriedFuel(many);
+    expect(t.split(usd0(report.excess)).length - 1).toBe(1);
   });
 
   it("accounts for every leg that produced no finding, by name and by count", () => {
