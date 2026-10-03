@@ -11,6 +11,8 @@ import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import FuelCostDaysTable from "@/features/reconcile/FuelCostDaysTable.vue";
+import FuelOpportunitiesStrip from "@/features/reconcile/FuelOpportunitiesStrip.vue";
+import { useFuelOpportunitiesQuery } from "@/features/reconcile/useFuelOpportunities";
 import { useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
@@ -44,6 +46,9 @@ const opens = useOpens();
 const { data: report, isLoading, isError, error, isFetching } = useFuelReportQuery(f.params);
 
 /** How current the daily fuel roll-up is — MPG's gallons come from it (`fleetMpg.ts`). */
+/** The open findings waiting for review in these dates and trucks — the strip under the cards (FS-STRIP). */
+const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
+
 const freshness = useSpendFreshnessQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
 
 // ── the filter menus ────────────────────────────────────────────────────────────────────────────
@@ -175,6 +180,16 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         <p v-if="network" class="text-sm text-ink-secondary">{{ network }}</p>
         <p v-if="reefer" class="text-xs text-ink-tertiary">{{ reefer }}</p>
       </section>
+
+      <FuelOpportunitiesStrip
+        :rows="opportunities.data.value"
+        :loading="opportunities.isLoading.value"
+        :error="opportunities.isError.value"
+        :from="f.from.value"
+        :to="f.to.value"
+        :vehicle-ids="f.vehicleIds.value"
+        :can-open-inbox="opens('/findings')"
+      />
 
       <FuelCostDaysTable
         :rows="rows"
