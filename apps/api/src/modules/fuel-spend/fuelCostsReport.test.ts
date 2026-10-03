@@ -3,7 +3,7 @@ import {
   costCards, costDayCells, costDayRows, comparingLine, fuelReportTotals, mpgCoverageLine, networkLine, FUEL_REPORT_TRUCK_FIGURES_NOTE,
   type FuelReport, type FuelReportDay,
 } from "@silvicom/shared";
-import { pdfPageTexts, pdfText } from "../../testing/pdfText.js";
+import { pdfDrawnLines, pdfPageTexts, pdfText } from "../../testing/pdfText.js";
 import { winAnsi } from "../../lib/winAnsi.js";
 import type { FuelReportFilterArgs } from "./fuelReport.js";
 import { CARD_COLUMNS, COSTS_REPORT_CONTENT_W, composeCostsReport, dayColumns, scopeFields } from "./fuelCostsReport.js";
@@ -85,6 +85,19 @@ describe("the Fuel Costs document", () => {
     expect(t).toContain(flat("1 location"));
     expect(t).toContain(flat("Out of network"));
     expect(flat(await pdfText((await render(report())).pdf))).toContain(flat("All stations"));
+  });
+
+  it("grows the scope strip to a long station filter, so it never runs into the spend band below", async () => {
+    // Every station filter at once wraps the Stations value to several lines (seen rasterised 2026-10-03:
+    // four lines in a one-line strip, the last on top of "Fuel spend").
+    const filters: FuelReportFilterArgs = { vehicleIds: ["a"], states: ["TX", "CA", "NM", "OK", "AZ"], siteIds: ["s1", "s2", "s3"], networks: ["in", "out", "unknown"] };
+    const lines = (await pdfDrawnLines((await render(report({ station: true }), filters)).pdf)).filter((l) => l.page === 0);
+    const band = lines.find((l) => l.text.startsWith("Fuel spend $"))!;
+    expect(band, "the spend band").toBeTruthy();
+    const scope = lines.filter((l) => l.y < band.y && /Station not identified|identified|network/.test(l.text));
+    expect(scope.length, "the wrapped Stations value").toBeGreaterThan(0);
+    // `verdictBand` draws its title 11pt below its top edge; 14 asks for 3pt of air under the last scope line.
+    for (const l of scope) expect(band.y - 14 - (l.y + l.size), l.text).toBeGreaterThan(0);
   });
 
   it("says why miles, MPG and cost per mile are absent under a station filter, as the screen does", async () => {
