@@ -15,7 +15,7 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
 | C | `TRUNCATE`, `REFERENCES`, `TRIGGER`, `MAINTAIN` granted to client roles | **Fixed** | 0413, #1227 |
 | 5 (part) | `revoke_push_tokens` missing on production; `notify_dedupe_key` unused | **Fixed** | 0414, #1231 |
 | 2 | Receipts readable and deletable by any member | **Fixed** | 0415, #1235 |
-| 1 | Denied sections still readable — `fuel_transactions` | **In review** | 0416; web halves #1239, #1240 merged |
+| 1 | Denied sections still readable — `fuel_transactions` | **In review** | 0417; web halves #1239, #1240 merged |
 | 1 | Denied sections still readable — `drivers` | Open | needs a name-only surface first (Q-DA3) |
 | 3 | Stale JWTs after suspension | Open | design needed (Q-DA4) |
 | 4 | Tenant identity across foreign keys | Open | 0 existing mismatches found in the two core tables checked |
@@ -53,7 +53,7 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
   in a small follow-up with its own snapshot update.
 - **Q-DA2 — Pages whose section need not imply fuel under an org override.** `/anomalies` and `/idling`
   (safety) and `/coverage` and `/reefer-coverage` (settings) read `fuel_transactions` directly. Under the
-  shipped matrix every role that holds those sections also holds fuel view, so 0416 changes nothing for
+  shipped matrix every role that holds those sections also holds fuel view, so 0417 changes nothing for
   them; an organisation that grants safety or settings **without** fuel would see them empty, and empty
   reads as "nothing found". Candidate answers: (a) accept it, the org chose; (b) gate those queries on fuel
   in the page, as #1239 did; (c) move the reads behind the API, which owns its own gating.

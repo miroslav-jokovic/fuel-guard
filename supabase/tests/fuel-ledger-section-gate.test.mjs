@@ -1,4 +1,4 @@
-// Silvicom 360 — the fuel ledger is read by the roles that hold the fuel section (migration 0416, database
+// Silvicom 360 — the fuel ledger is read by the roles that hold the fuel section (migration 0417, database
 // audit 2026-10-03, finding 1, `fuel_transactions`).
 //
 // What can be wrong is that "scoped" quietly means "scoped to the organisation":

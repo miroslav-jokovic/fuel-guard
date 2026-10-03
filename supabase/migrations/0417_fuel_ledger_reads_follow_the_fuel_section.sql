@@ -1,4 +1,4 @@
--- 0416 — the fuel ledger is readable by the roles that hold the fuel section, not by every member of the
+-- 0417 — the fuel ledger is readable by the roles that hold the fuel section, not by every member of the
 -- organisation (database audit 2026-10-03, finding 1, the `fuel_transactions` half).
 --
 -- ── THE GAP ─────────────────────────────────────────────────────────────────────────────────────
