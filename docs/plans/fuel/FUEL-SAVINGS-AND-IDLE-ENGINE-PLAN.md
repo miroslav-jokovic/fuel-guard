@@ -245,6 +245,16 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   park's running seconds up to **50%** of its duration are not avoidable; everything above is.
   The engine measures the real distribution on the battery-APU cohort and the owner revisits 50%
   with it.
+  **Revisited 2026-10-03 (owner: "proceed as proposed"): 50% STAYS, re-measured on a fixed trigger.** Measured over 3
+  mild days (§7): battery-APU parks ≥ 4 h at 20–85 °F run the engine p10 0.005% · p25 0.5% · p50 1.9% · p75 8.6% · p90
+  22% of the park; 10 of 123 run over half (mostly whole-night idles: 807 ×3, 765 ×2, 731 ×2). So 50% never binds for
+  the compliant majority and forgives half of an all-night idle. Not moved now, because every long battery-APU park so
+  far is 40 °F or warmer (production 2026-10-03: 142 parks at 40–85 °F, 31 above 85 °F, **0 at 20–40 °F**), and the
+  cold nights are where a battery APU runs out and the engine legitimately starts. **Re-measure when BOTH hold:** on or
+  after 2026-11-02 (30 days of data), and at least 50 battery-APU parks ≥ 4 h at 20–40 °F from at least 10 trucks
+  (precision comes from trucks, the Q-IE14 lesson). Then report the same quartiles split at 40 °F, and recommend a
+  share (or a share by temperature). The share stays a code constant (`DEFAULT_IDLE_AVOIDABLE_SETTINGS.batteryApuShare`)
+  until a ruling asks for a carrier to tune it: a column + control then, in two merges.
 - **Q-IE4 — 727: no APU** (same as its batch).
 - **Q-IE5..7 — decided in IE1, owner delegated ("analyze and provide best solution", 2026-10-02):**
   - **Q-IE5 — 719–722 are not declared from behaviour.** D-IE7 forbids behaviour setting `has_apu`, and
@@ -473,6 +483,12 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     to a platform-only caller or retire it — never both views absent. **Open for the owner:** whether the nightly IE check
     (the session's scheduled read) keeps using the office endpoint or moves to the console's; and whether any carrier
     manager should ever see the gate (recommendation: no, it is a release control). Not started; ~1 PR for (1), ~1 for (3).
+    **Ruled 2026-10-03 (owner: "proceed as proposed and suggested"):** (i) no carrier manager ever sees the gate — it is
+    a release control, so after step (3) it lives on the console only. (ii) The nightly check reads NEITHER endpoint: it
+    reads the database and runs the same shared functions (`idleParityDays` → `idleParityFinalThrough` →
+    `idleParityReport`), the recipe in §7, so it needs no browser session, no platform MFA and no service key, and it
+    cannot disagree with either page because both pages call the same functions. Step (2) still waits on the owner's
+    first console sign-in (`platform_admins.user_id` NULL, no MFA factor, `platform_audit_log` empty on 10/03).
     **Narrowed 2026-10-03 by Q-IE14's control:** step (3) removes `IdleEngineParityPanel` and narrows `/engine/parity` only.
     `IdleBurnRatesPanel` and `/engine/burn-rates` stay in the office, because the carrier's "use measured rates" switch
     sits beside them and a manager should see the rates before choosing them (§4 Q-IE14).
@@ -1260,3 +1276,8 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   and states it to everyone else, saying it changes no figure on the page until IE5b. `idleBurnPricing` reads anything
   but `learned` as `configured`; a failed read of the choice is an error, never a silent `configured`. Production stays
   `configured`; the dollar effect of `learned` is the −17.6% / −17.8% above, for the owner to weigh.
+- **2026-10-03** Owner: "proceed as proposed and suggested". Q-IE3: 50% stays; re-measure trigger written into §4
+  (on/after 11/02 AND ≥ 50 battery-APU parks ≥ 4 h at 20–40 °F from ≥ 10 trucks; today 0). Q-FSV17: the gate is never
+  shown to a carrier manager; the nightly check reads the database through the shared functions, not either endpoint;
+  step (2) waits on the owner's console sign-in. Q-IE14: production stays `configured` — none of the proposals was to
+  flip it, and the switch moves no figure on any page until IE5b, so it is asked as its own explicit question before IE5b.
