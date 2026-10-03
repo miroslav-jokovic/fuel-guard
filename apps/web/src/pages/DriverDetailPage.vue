@@ -114,6 +114,12 @@ function setSection(s: Section): void {
 
 // The export action stays on the HOST header (D1's split): it belongs to the page, not the section.
 const session = useSessionStore();
+// Fuel history belongs to the fuel section, and a recruiter holds roster `view` (so can open a driver's
+// file) without it. Until migration 0416 refused that read at the database (audit 2026-10-03 finding 1)
+// this page queried the fills for every role that could open it. The queries are switched off rather
+// than the cards merely hidden, so no role without the section sends the request, and the cards go with
+// them: a summary reading "Fills 0 · Gallons 0" would claim the driver has never fuelled.
+const canSeeFuel = computed(() => session.canView("fuel"));
 const toast = useToastStore();
 const requestBinder = useRequestBinder();
 async function exportWholeFile(): Promise<void> {
@@ -159,13 +165,13 @@ const { data: driver } = useDriverQuery(id);
 
 const { data: txns } = useQuery({
   queryKey: ["driver-fills", id],
-  enabled: computed(() => Boolean(id.value)),
+  enabled: computed(() => Boolean(id.value) && canSeeFuel.value),
   queryFn: () => fetchAllFills(id.value),
 });
 
 const { data: anomalies } = useQuery({
   queryKey: ["driver-anomalies", id],
-  enabled: computed(() => Boolean(id.value) && txns.value !== undefined),
+  enabled: computed(() => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined),
   queryFn: async (): Promise<Anomaly[]> => {
     const transactionIds = (txns.value ?? []).map((t) => t.id);
     if (transactionIds.length === 0) return [];
@@ -307,7 +313,7 @@ const fillColumns: DataTableColumn[] = [
         </div>
         <StatusBadge :status="driver.status" />
       </div>
-      <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+      <dl v-if="canSeeFuel" class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><dt class="text-ink-muted">Fills</dt><dd class="font-medium text-ink">{{ txns?.length ?? "—" }}</dd></div>
         <div><dt class="text-ink-muted">Gallons</dt><dd class="font-medium text-ink">{{ Math.round(totalGallons).toLocaleString() }}</dd></div>
         <div>
@@ -319,13 +325,13 @@ const fillColumns: DataTableColumn[] = [
       </dl>
     </BaseCard>
 
-    <BaseCard id="section-fuel" class="scroll-mt-6">
+    <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
       <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
       <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
     </BaseCard>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div v-if="canSeeFuel" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
         <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
