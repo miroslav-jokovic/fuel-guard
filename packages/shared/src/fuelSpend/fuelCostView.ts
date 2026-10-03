@@ -6,17 +6,10 @@
  * cost per mile from the API (D-MPG1), and the only sums here are the grouping of the API's day ×
  * network × tank rows into days — which `fuelReportTotals` then reads.
  */
-import {
-  addDays,
-  formatDisplayDate,
-  formatDisplayDayShort,
-  fuelReportTotals,
-  type FuelReport,
-  type FuelReportDay,
-  type FuelReportSummary,
-  type FuelReportWindow,
-} from "@silvicom/shared";
-import { gal, usd, usd3, wholeUsd } from "./format";
+import { addDays } from "./spendWindow.js";
+import { formatDisplayDate, formatDisplayDayShort } from "../displayDate.js";
+import { fuelReportTotals, type FuelReport, type FuelReportDay, type FuelReportSummary, type FuelReportWindow } from "./reportDays.js";
+import { gal, usd, usd3, wholeUsd } from "./moneyFormat.js";
 
 /** `09/01–09/30` — the shape D-FSV3 names a range in. */
 export const rangeLabel = (w: { from: string; to: string }): string =>

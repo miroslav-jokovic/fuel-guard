@@ -17,7 +17,7 @@ import { useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/use
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
   brandList, costCards, costDayRows, networkLine, rangeLabel, reeferLine,
-} from "@/features/reconcile/fuelCostView";
+} from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useOpens } from "@/composables/useOpens";
 

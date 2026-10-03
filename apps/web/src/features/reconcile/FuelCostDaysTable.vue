@@ -5,7 +5,7 @@ import { formatDisplayDate } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
-import { costDaysCsv, type CostDayRow } from "./fuelCostView";
+import { costDaysCsv, type CostDayRow } from "@silvicom/shared";
 import { gal, usd, usd3, wholeUsd } from "./format";
 
 /**
