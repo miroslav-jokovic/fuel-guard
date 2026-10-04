@@ -225,3 +225,14 @@ describe("IdlingPage — the Truck capability table never reads a pending or fai
     expect(caps.refetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("IdlingPage — the dollar totals carry no direction (Q-FSV15 ruling 2, extended to Idling 2026-10-04)", () => {
+  it("prints both money figures in the same ink as the other cards, with no danger or warning tone", async () => {
+    const w = await mountPage();
+    for (const id of ["avoidable-usd", "reducible-usd"]) {
+      const cls = w.get(`[data-testid="${id}"]`).classes();
+      expect(cls, id).toContain("text-ink");
+      expect(cls.filter((c) => /^text-(danger|warning|success)/.test(c)), id).toEqual([]);
+    }
+  });
+});

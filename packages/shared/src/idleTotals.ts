@@ -4,6 +4,7 @@
  */
 import type { AvoidableDaySeconds } from "./idleAvoidable.js";
 import type { IdleBreakdownRollupRow } from "./idleBreakdown.js";
+import { lastDaysStart, type CalendarDay } from "./calendarDay.js";
 
 /**
  * How one fleet total was priced, so the page can say it beside the dollars (design verdict 2026-10-03, move
@@ -65,4 +66,20 @@ export function idleThroughDay(rows: readonly IdleBreakdownRollupRow[], listed: 
     if (listed.has(row.vehicle_id) && row.coverage_sec > 0 && (through == null || row.day > through)) through = row.day;
   }
   return through;
+}
+
+/**
+ * The idle views' window when no dates are picked: the last 30 calendar days, today included, on the
+ * carrier's clock (the caller supplies `today`). One definition for the four readers and the page's label,
+ * which had each restated 30 and computed 31 dates (2026-10-04).
+ */
+export const IDLE_DEFAULT_WINDOW_DAYS = 30;
+
+/**
+ * The idle views' window, either end defaulted: `to` to the carrier's `today`, `from` to the start of the
+ * last `IDLE_DEFAULT_WINDOW_DAYS` ending there. The four idle readers resolve their window here.
+ */
+export function idleWindow(f: { from?: CalendarDay; to?: CalendarDay }, today: CalendarDay): { from: CalendarDay; to: CalendarDay } {
+  const to = f.to ?? today;
+  return { from: f.from ?? lastDaysStart(to, IDLE_DEFAULT_WINDOW_DAYS), to };
 }

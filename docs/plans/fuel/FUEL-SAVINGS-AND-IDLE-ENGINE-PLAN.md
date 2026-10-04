@@ -1326,3 +1326,19 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   zero trucks). Tests: web +5 mounted cases; mutation 20/20 killed. Seen rendered at 1440 and 390 px, keyboard
   included. #1259 re-checked the same morning: both `platform_admins` rows still unlinked, no MFA, empty
   `platform_audit_log` — still held.
+- **2026-10-04** — **Q-FSV15 ruling 2 extended to Idling, and the verdict's engineering checks (V5's half that needs no
+  people).** Owner: "proceed as suggested" — the Avoidable idle and Needs an APU totals lose their red/amber; a total
+  says how much, not whether it is good news. The state sweep (protocol §"Also checked", run on a dev-bypass build at
+  1366 and 390 px) found four defects, fixed here: (1) Idling's default "last 30 days" read 31 dates in all four idle
+  readers (`today - 30`, the off-by-one the picker's presets lost on 10/03); now one shared `idleWindow` /
+  `IDLE_DEFAULT_WINDOW_DAYS` and `lastDaysStart`. (2) Fuel Costs and Buy discipline took "today" from UTC, so from
+  19:00 Central the default 90 days ended on a day not yet begun and the future-date clamp let it; now the carrier's
+  clock (D-PREC6), and `useFuelReport` reads `isDefaultWindow` instead of recomputing it. (3) Both filter bars said
+  "0 days" / "0 fills in sequence" while their read was pending or failed; no count until it answers. (4) A failed
+  fill sequence hid Buy discipline's targets and showed "$0 at least" while pending; the fills' parts now say
+  loading/failed in place (with a working Retry) and the targets, which read their own sums, stay. Passed unchanged:
+  keyboard reaches and fires Export report (48 Tabs, 40 of them the sidebar — no skip link, noted); the PDF request
+  carries `states`/`networks` and the button's scope says "filtered stations"; spend is in the first 390 px screen;
+  a failed findings strip says "Couldn't load". Mutation 21/21 killed. Still owed: the five sessions, and a
+  signed-in look on production. Not changed, for the owner: Buy discipline's carried-fuel dollars stay red when
+  above zero (ruling 2 named Fuel Costs; say if it extends).

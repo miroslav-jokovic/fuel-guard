@@ -3,6 +3,8 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref } from "vue";
+// The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 
 /**
  * The Findings inbox, mounted (C7b — was the fuel exception ledger).

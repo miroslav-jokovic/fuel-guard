@@ -8,9 +8,9 @@ import {
   idleScore,
   type IdleCapability,
   todayInZone,
-  shiftDay,
   daysInRange,
   IN_SERVICE_VEHICLE_STATUSES,
+  idleWindow,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
@@ -19,7 +19,6 @@ import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 import { fetchRollupRows, fetchDayPrices } from "@/composables/useIdleBreakdown";
 import { sumRollupByVehicle } from "@silvicom/shared";
 
-const WINDOW_DAYS = 30;
 const DEFAULT_COST_BASIS: IdleCostBasis = {
   idleGalPerHour: 0.8,
   fuelPricePerGal: 4.0,
@@ -46,8 +45,7 @@ function bounds(f: IdleDateFilter, zone: string) {
    * were `new Date().toISOString().slice(0, 10)`, a UTC day, which after 19:00 Central made the
    * default window end tomorrow (D-PREC6).
    */
-  const toDate = f.to ?? todayInZone(new Date(), zone);
-  const fromDate = f.from ?? shiftDay(toDate, -WINDOW_DAYS);
+  const { from: fromDate, to: toDate } = idleWindow(f, todayInZone(new Date(), zone));
   return { fromDate, toDate, days: daysInRange(fromDate, toDate) };
 }
 
