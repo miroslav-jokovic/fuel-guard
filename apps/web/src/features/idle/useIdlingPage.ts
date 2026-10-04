@@ -81,7 +81,9 @@ const estimate = computed(() => {
 });
 // The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
 // breakdown reads — no separate raw-table scan, no silent-failure path.
-const { data: caps } = useIdleCapabilities();
+// The Truck capability tab's own read: its loading and failure belong to its table, or a pending or failed
+// read says "No trucks match" (design verdict, E8).
+const { data: caps, isLoading: capLoading, isError: capIsError, error: capError, isFetching: capFetching, refetch: capRefetch } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -121,12 +123,16 @@ const sourceLabel = (s: string | null) =>
   s ? (EQUIPMENT_SOURCE_LABELS as Record<string, string>)[s] ?? s : "Not entered";
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "trucks" | "drivers" | "capability";
-const activeTab = ref<TabKey>("trucks");
+// In `AppTabs`' shape: it owns the roles, the roving tabindex and the arrow keys the hand-rolled strip never
+// had (design verdict, E8). `AppTabs` emits a plain string, so the key is one. A count shows once its read has
+// answered: a pending or failed read is not zero trucks.
+const activeTab = ref("trucks");
+/** Which reads have answered — the result counts above each table wait on the same thing. */
+const answered = computed(() => ({ trucks: breakdown.value != null, drivers: driverRows.value != null, capability: caps.value != null }));
 const tabs = computed(() => [
-  { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
-  { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
-  { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
+  { value: "trucks", label: "Trucks", badge: breakdown.value?.trucks.length },
+  { value: "drivers", label: "Drivers", badge: driverRows.value?.length },
+  { value: "capability", label: "Truck capability", badge: caps.value?.length },
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
@@ -307,12 +313,13 @@ const capColumns: DataTableColumn[] = [
     trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
-    tabs, activeTab, showInfo, showConfidence,
+    tabs, answered, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     priceSource, fuelPricePerGal, estimate,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+    capLoading, capIsError, capError, capFetching, capRefetch,
   };
 }

@@ -1317,3 +1317,12 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   API's `readFleetIdleVerdict` returns them too and reads nothing new. Tests: shared +7, web +6; mutation 26/26 killed
   (one first survivor, a day that added nothing being counted, was a fixture with no zero-idle day; that case is now a
   test). Seen rendered at 1440 and 390 px. The red/amber dollar tones are untouched (owner's question).
+- **2026-10-04** — **Verdict E8, the Idling page's states and semantics.** The tab strip was hand-rolled buttons with
+  no tab roles; it is now `AppTabs` (labelled tablist, roving tabindex, arrow keys), and each panel is a `tabpanel`
+  named by its tab. "Data completeness" and "How idle is scored" carry `aria-expanded` and point at the region they
+  open; the second keeps its name while open (it read "Hide", which names no region). The Truck capability table now
+  shows its read's loading and failure (with Retry); before, a pending or failed read said "No trucks match", and
+  neither a tab count nor the result count above a table shows until its read has answered (a failed read is not
+  zero trucks). Tests: web +5 mounted cases; mutation 20/20 killed. Seen rendered at 1440 and 390 px, keyboard
+  included. #1259 re-checked the same morning: both `platform_admins` rows still unlinked, no MFA, empty
+  `platform_audit_log` — still held.
