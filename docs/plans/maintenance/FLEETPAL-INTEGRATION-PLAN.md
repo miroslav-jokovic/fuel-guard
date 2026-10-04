@@ -1665,3 +1665,25 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   `lint:fleetpal-contract` holds `fleetpalVmrsComponentSchema` like the other twenty.
 
   **Next: F9d**, which wants **Q10** ruled, then F10.
+
+- **2026-10-04 · The first production sweep, and the defect it found.** The owner set
+  `FLEETPAL_SYNC_ENABLED=true` and pasted the key. The first sweep started 14:23Z. Two runs were
+  released by deploys (merges restart the api) and resumed from their watermarks, as designed.
+  Staged by 15:17Z, as rows seen:
+  - vendors 764
+  - work orders 5,400
+  - jobs 13,090
+  - shops 1
+  - service history 13,047
+  - purchase orders 4,056
+
+  **Job items failed: "canceling statement due to statement timeout", 0 staged.** `runIngest`
+  sent a whole walk in ONE `stage_*` call. 13,090 jobs fit; 35,121 job items did not. Because the
+  watermark only moves after success, every hourly sweep would have repeated the same full walk and
+  the same timeout, for ever. Meters (135,631 at F4) were next in line.
+
+  Fixed: `STAGE_BATCH = 1,000` rows per call, stopping at the first refusal, with the watermark
+  moved only after every batch succeeds. A re-run rewrites the written batches identically. Pinned
+  by two tests, both caught when the loop is collapsed back to one call. The other staging calls
+  (shops 1, defects 604, expirations 0, PM schedules) are small; the PM schedule count is read from
+  this sweep's result before that claim stands.
