@@ -173,3 +173,9 @@ export function heroVars(
     "--hero-grow": "calc(var(--hero-room) * 0.035)",
   };
 }
+
+/**
+ * The id the app shell's `<main>` carries, and the target of `SkipLink`. One constant so
+ * the link and its target cannot drift apart; `skipLink.test.ts` holds the shell to it.
+ */
+export const MAIN_CONTENT_ID = "main-content";

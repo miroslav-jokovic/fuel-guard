@@ -448,7 +448,7 @@ async function signOut() {
         of every page in the product to buy 28px in the two environments a banner appears in. Named
         in DESIGN-REFRESH-2026-09.md §7 rather than traded for that.
       -->
-      <main :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'py-6'">
+      <main id="main-content" tabindex="-1" class="outline-none" :class="fullBleed ? 'h-[calc(100dvh-4rem)] overflow-hidden' : 'py-6'">
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
         <div
           class="relative"

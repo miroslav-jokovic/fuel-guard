@@ -260,7 +260,9 @@ function exportRows() {
           </p>
         </div>
         <div v-if="fillsState === 'ready'" class="text-right">
-          <p class="text-2xl font-bold" :class="report.excess > 0 ? 'text-danger-700' : 'text-ink'">
+          <!-- Plain ink at any amount (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
+               whether it is good news. The targets below keep their grade colour — that is a verdict. -->
+          <p class="text-2xl font-bold text-ink" data-testid="carried-usd">
             {{ usd(report.excess) }}
           </p>
           <p class="text-xs text-ink-muted">at least, over this window</p>
