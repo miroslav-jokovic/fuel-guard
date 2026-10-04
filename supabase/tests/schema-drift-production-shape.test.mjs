@@ -1,12 +1,14 @@
-// Silvicom 360 — 0422 applies to a database shaped like PRODUCTION, not only to one built from
-// migrations (RELEASE-TRAIN-PLAN Q-REL6).
+// Silvicom 360 — the reconciling migrations (0422, 0423) apply to a database shaped like PRODUCTION,
+// not only to one built from migrations (RELEASE-TRAIN-PLAN Q-REL6).
 //
 // Every other matrix builds its database from the migrations, so every one of them ran 0422 against
 // the shape it was written to leave alone, and all 120 passed. Production then refused it on its
 // first push (2026-10-04, 2BP01): `uq_load_stops_seq` is a UNIQUE CONSTRAINT there, and its index
 // cannot be dropped bare. A reconciling migration's whole job is the OTHER side's shape, so this
 // matrix builds that side — migrations through 0421, then production's own extra objects as its
-// catalog showed them on 2026-10-04 — and applies 0422 to it.
+// catalog showed them on 2026-10-04 — and applies 0422 and EVERY migration after it, in order, so a
+// later file that cannot apply to production's shape fails here too. 0423 added production's
+// constraint shape to the fixture, after constraints were the next blind spot.
 //
 // Run:  node supabase/tests/schema-drift-production-shape.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -97,11 +99,42 @@ await db.exec(`
   create function public.resolve_driver_type(uuid, uuid) returns text language sql as $f$ select null::text $f$;
   create function public.start_duty_session(uuid, uuid, uuid, uuid, uuid, uuid, numeric, timestamptz, text, boolean)
     returns uuid language sql as $f$ select null::uuid $f$;
+
+  -- Constraints: production lacks seven of the migrations' checks, holds six under other names, and
+  -- differs on two foreign keys, one range and one validation (0423's header has the list).
+  alter table public.device_push_tokens drop constraint device_push_tokens_platform_check;
+  alter table public.driver_duty_sessions
+    drop constraint driver_duty_sessions_start_odometer_check,
+    drop constraint driver_duty_sessions_end_odometer_check,
+    drop constraint duty_end_reason_check, drop constraint duty_sessions_end_after_start,
+    drop constraint duty_source_check, drop constraint duty_ended_needs_reason,
+    add constraint duty_ended_needs_reason check (ended_at is null or ended_reason is not null),
+    add constraint duty_sessions_end_paired_check check ((ended_at is null) = (ended_reason is null)),
+    add constraint duty_sessions_end_reason_check
+      check (ended_reason is null or ended_reason = any (array['driver', 'taken_over', 'auto_timeout', 'dispatch'])),
+    add constraint duty_sessions_source_check check (source = any (array['driver_app', 'dispatch', 'telematics'])),
+    add constraint duty_sessions_window_check check (ended_at is null or ended_at >= started_at);
+  alter table public.duty_equipment_segments
+    drop constraint duty_confirmed_by_check, drop constraint duty_equipment_segments_check,
+    drop constraint duty_seat_check, drop constraint duty_equipment_segments_trailer_id_fkey,
+    add constraint duty_equipment_segments_trailer_id_fkey foreign key (trailer_id) references public.trailers(id) on delete restrict,
+    add constraint duty_seg_confirmed_by_check check (confirmed_by = any (array['driver', 'dispatch'])),
+    add constraint duty_seg_seat_check check (seat = any (array['driver', 'co_driver'])),
+    add constraint duty_seg_window_check check (to_at is null or to_at >= from_at);
+  alter table public.invites drop constraint invites_driver_id_fkey,
+    add constraint invites_driver_id_fkey foreign key (driver_id) references public.drivers(id) on delete set null;
+  alter table public.load_stops drop constraint load_stops_check, drop constraint load_stops_lat_check,
+    drop constraint load_stops_lon_check, drop constraint load_stops_seq_check;
+  alter table public.organizations drop constraint organizations_duty_session_timeout_hours_check,
+    add constraint organizations_duty_timeout_check check (duty_session_timeout_hours >= 1 and duty_session_timeout_hours <= 168);
 `);
 
+const LATER = MIGRATIONS.filter((f) => f >= RECONCILE);
 let error = null;
-try { await db.exec(read(join("migrations", RECONCILE))); } catch (e) { error = `${e.code ?? ""} ${e.message}`; }
-ok("0422 applies to production's shape", error === null, error ?? "");
+for (const f of LATER) {
+  try { await db.exec(read(join("migrations", f))); } catch (e) { error = `${f}: ${e.code ?? ""} ${e.message}`; break; }
+}
+ok(`0422 and every migration after it (${LATER.length}) apply to production's shape`, error === null, error ?? "");
 
 const has = async (q) => (await one(q)).c > 0;
 ok("…and production's UNIQUE constraint on load_stops is gone",
@@ -111,8 +144,37 @@ ok("…while the migrations' own unique on (load_id, seq) — the upserts' arbit
 ok("…the NOT NULL driver_id that would fail the first shift is gone",
   !(await has(`select count(*)::int c from information_schema.columns
                 where table_name = 'duty_equipment_segments' and column_name = 'driver_id'`)));
-ok("…and applying it twice is a no-op, as a reconciling file must be",
-  await db.exec(read(join("migrations", RECONCILE))).then(() => true, () => false));
+
+// ── 0423: constraints ────────────────────────────────────────────────────────────────────────────
+const defs = Object.fromEntries((await db.query(
+  `select conname, pg_get_constraintdef(oid) d from pg_constraint
+    where conrelid in ('public.driver_duty_sessions'::regclass, 'public.duty_equipment_segments'::regclass,
+                       'public.invites'::regclass, 'public.organizations'::regclass, 'public.load_stops'::regclass,
+                       'public.device_push_tokens'::regclass)`)).rows.map((r) => [r.conname, r.d]));
+const PROD_NAMES = ["duty_sessions_end_reason_check", "duty_sessions_source_check", "duty_sessions_window_check",
+  "duty_seg_confirmed_by_check", "duty_seg_seat_check", "duty_seg_window_check", "organizations_duty_timeout_check"];
+ok("production's six renamed checks and its 1–168 timeout range are gone",
+  PROD_NAMES.every((n) => !(n in defs)), JSON.stringify(PROD_NAMES.filter((n) => n in defs)));
+const MIGR_NAMES = ["duty_end_reason_check", "duty_sessions_end_after_start", "duty_source_check", "duty_confirmed_by_check",
+  "duty_equipment_segments_check", "duty_seat_check", "device_push_tokens_platform_check",
+  "driver_duty_sessions_start_odometer_check", "driver_duty_sessions_end_odometer_check", "load_stops_check",
+  "load_stops_lat_check", "load_stops_lon_check", "load_stops_seq_check", "duty_sessions_end_paired_check"];
+ok("the migrations' names, the seven missing checks and the stricter pairing rule all exist",
+  MIGR_NAMES.every((n) => n in defs), JSON.stringify(MIGR_NAMES.filter((n) => !(n in defs))));
+ok("the duty timeout is 4–48 hours", />= 4\).*<= 48/.test(defs.organizations_duty_session_timeout_hours_check ?? ""),
+  defs.organizations_duty_session_timeout_hours_check);
+ok("a segment's trailer is RESTRICT, so deleting a trailer cannot erase who held it",
+  /ON DELETE RESTRICT/.test(defs.duty_equipment_segments_trailer_id_fkey ?? ""), defs.duty_equipment_segments_trailer_id_fkey);
+ok("an invite's driver is SET NULL, so merge_driver cannot delete invitations",
+  /ON DELETE SET NULL/.test(defs.invites_driver_id_fkey ?? ""), defs.invites_driver_id_fkey);
+ok("duty_ended_needs_reason is validated",
+  (await one(`select convalidated v from pg_constraint where conname = 'duty_ended_needs_reason'`)).v === true);
+
+let again = null;
+for (const f of LATER.filter((f) => f <= "0423_production_constraint_drift_reconciled.sql")) {
+  try { await db.exec(read(join("migrations", f))); } catch (e) { again = `${f}: ${e.code ?? ""} ${e.message}`; break; }
+}
+ok("…and applying 0422 and 0423 twice is a no-op, as reconciling files must be", again === null, again ?? "");
 
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
