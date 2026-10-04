@@ -192,3 +192,25 @@ export const fleetpalServiceHistorySchema = z.looseObject({
   updated: timestamp,
 });
 export type FleetpalServiceHistory = z.infer<typeof fleetpalServiceHistorySchema>;
+
+/**
+ * One node of the VMRS component tree — `GET /v1/vmrs-components/{id}/` (F9c).
+ *
+ * ⚠ **Every `component` field elsewhere in these contracts is this object's opaque `id`, not its
+ * `code`.** The spec says so on Job, JobItem, Defect, Issue and PMSchedule ("a `/v1/vmrs-components`
+ * id") and the live fixtures carry values like `hovDtcRc`. F9b's `UnitRepair.component` was
+ * documented as a CODE until 2026-10-04; it was always an id, which is why F9c resolves id → code +
+ * words rather than code → words, and why "degrade to the bare code" was never available.
+ *
+ * `description` is licensed TMC text (D-FP8): parsed to render, never written to a table.
+ */
+export const fleetpalVmrsComponentSchema = z.looseObject({
+  url: z.string(),
+  id: fleetpalId,
+  code: z.string(),
+  description: z.string(),
+  /** 0 group · 1 system · 2 assembly · 3 component. */
+  level: z.number().int(),
+  parent: z.string().nullable(),
+});
+export type FleetpalVmrsComponent = z.infer<typeof fleetpalVmrsComponentSchema>;

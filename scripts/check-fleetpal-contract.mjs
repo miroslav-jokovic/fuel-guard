@@ -55,6 +55,7 @@ const SCHEMA_OF = {
   POReceipt: "fleetpalPoReceiptSchema",
   POReceiptItem: "fleetpalPoReceiptItemSchema",
   WebhookEvent: "fleetpalWebhookEventSchema",
+  CodeKey33: "fleetpalVmrsComponentSchema",
 };
 
 /**

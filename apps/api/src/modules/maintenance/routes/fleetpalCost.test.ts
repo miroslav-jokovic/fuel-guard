@@ -207,6 +207,18 @@ describe("⚠ D-FP4: no cost figure without its coverage ratio", () => {
     expect(body.coverage).toHaveLength(1);
     expect(body.unmatchedUnits).toBe(0);
   });
+
+  it("answers with a null component label, not an error, when the org holds no FleetPal key (F9c)", async () => {
+    // The fixture's `fleetpal_credentials` is absent, so `getApiKey` finds nothing: the names cannot
+    // be resolved, and the page must still get its repairs — it prints the shop's own description.
+    rec = recorderWith();
+    const res = await withServer(async (base) =>
+      fetch(`${base}/api/maintenance/units/tractor/${VEHICLE}/maintenance?${AUG}`),
+    );
+    const body = (await res.json()) as { repairs: Array<{ component: string; componentLabel: unknown; description: string }> };
+    expect(res.status).toBe(200);
+    expect(body.repairs[0]).toMatchObject({ component: "013", componentLabel: null, description: "Alternator" });
+  });
 });
 
 describe("⚠ one vehicle can be several FleetPal units", () => {

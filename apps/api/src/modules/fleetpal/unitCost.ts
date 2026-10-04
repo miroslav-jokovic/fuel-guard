@@ -30,7 +30,11 @@ import { monthsBetween } from "./coverage.js";
 export interface UnitRepair {
   fleetpalId: string;
   workOrderReference: string | null;
-  /** VMRS component CODE. The English is licensed TMC material and is never persisted (D-FP8). */
+  /**
+   * The VMRS component's opaque `/v1/vmrs-components` ID — not its code, as this said until
+   * 2026-10-04 (the spec and the fixtures both say id). F9c resolves it to code + words at read time;
+   * those are licensed TMC material and never persisted (D-FP8).
+   */
   component: string | null;
   description: string | null;
   source: string | null;
