@@ -2,6 +2,10 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
+      "Edit(supabase/migrations/**)",
+      "Write(supabase/migrations/**)",
+      "Edit(//Users/miroslavjokovic/Projects/FuelGuard-release/supabase/migrations/**)",
+      "Write(//Users/miroslavjokovic/Projects/FuelGuard-release/supabase/migrations/**)",
       "Bash(pnpm mcleod:inspect)",
       "Bash(pnpm mcleod:report)",
       "Bash(pnpm lint:mcleod-recon)",
