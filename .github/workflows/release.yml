@@ -13,8 +13,8 @@ name: Release
 #             `hotfix/<topic>` off the current production tag, CI green on its PR), then opens the PR
 #             that merges production back into main.
 #   rollback  dispatch (D-REL9). Moves production back to `tag`. Never reverses a migration.
-#   init      dispatch, once, at cutover: creates `production` at the commit production serves now
-#             (read from /api/version, never typed in).
+#   init      dispatch: creates `production` at the commit production serves now (read from both
+#             hosts' /api/version, never typed in), or fast-forwards it there if it fell behind.
 #
 # ── DORMANT UNTIL CUTOVER ────────────────────────────────────────────────────────────────────────
 # Until the repository variable RELEASE_TRAIN is `on`, every run is a REHEARSAL: it plans, writes the
@@ -110,6 +110,7 @@ jobs:
           TRAIN: ${{ vars.RELEASE_TRAIN }}
           FREEZE: ${{ vars.RELEASE_FREEZE }}
           API_URL: ${{ vars.API_URL }}
+          WEB_URL: ${{ vars.WEB_URL }}
         run: |
           set -euo pipefail
           say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
@@ -129,12 +130,31 @@ jobs:
           if git rev-parse -q --verify origin/production >/dev/null; then before=$(git rev-parse origin/production); fi
 
           if [ "$MODE" = "init" ]; then
-            [ -z "$before" ] || stop "✓ \`production\` already exists at \`${before::7}\` — nothing to initialise."
-            sha=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.commit // empty')
-            [ -n "$sha" ] || { echo "::error::Could not read the commit production serves from ${API_URL}/api/version."; exit 1; }
+            # Both hosts must serve the same commit, read twice 60 s apart: a deploy in flight shows
+            # as disagreement. The first init (2026-10-04) read the API between a merge's build and
+            # its going live, and created production one merge behind what production then served.
+            served() {
+              a=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.commit // empty' || true)
+              w=$(curl -sS --max-time 15 "${WEB_URL%/}/api/version" | jq -r '.commit // empty' || true)
+              [ -n "$a" ] && [ "$a" = "$w" ] && echo "$a"
+            }
+            s1=$(served || true); sleep 60; s2=$(served || true)
+            if [ -z "$s1" ] || [ "$s1" != "$s2" ]; then
+              echo "::error::Production is mid-deploy or its hosts disagree (api/web: ${s1:-?} then ${s2:-?}). Re-run when both serve one commit."; exit 1
+            fi
+            sha="$s2"
             git cat-file -e "$sha^{commit}" || { echo "::error::Production serves $sha, which is not in this repository."; exit 1; }
-            say "Initialise \`production\` at \`${sha::7}\`, the commit ${API_URL} serves now."
-            out sha "$sha"; out before ""; out tag ""; out driver no; out ship true; exit 0
+            git merge-base --is-ancestor "$sha" origin/main || { echo "::error::Production serves $sha, which is not on main."; exit 1; }
+            if [ -n "$before" ]; then
+              [ "$before" != "$sha" ] || stop "✓ \`production\` is at \`${sha::7}\`, the commit production serves — in sync."
+              # Re-sync moves FORWARD only. Production serving something older than the branch means a
+              # rollback or a failed deploy, which a person must look at, not this job.
+              git merge-base --is-ancestor "$before" "$sha" || { echo "::error::Production serves ${sha::7}, which is not ahead of the production branch ${before::7}. Refusing to rewind."; exit 1; }
+              say "Re-sync \`production\` \`${before::7}\` → \`${sha::7}\`, the commit both hosts serve."
+            else
+              say "Initialise \`production\` at \`${sha::7}\`, the commit both hosts serve."
+            fi
+            out sha "$sha"; out before "$before"; out tag ""; out driver no; out ship true; exit 0
           fi
 
           if [ "$MODE" = "nightly" ]; then
