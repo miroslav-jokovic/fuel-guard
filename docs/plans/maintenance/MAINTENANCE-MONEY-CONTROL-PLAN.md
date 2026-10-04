@@ -376,3 +376,21 @@ owner, plain word first and accounting term in the hover (the office readers are
   `production` branch at `ebc8c8e`, release PR #1275 open and unapproved. 0424's tables are absent
   in production, as the release train intends. Separately, `defects` and `expirations` had never
   staged a row: FleetPal 500s on `is_resolved=false`. Fixed in #1280 and logged in FLEETPAL §8.
+
+- **2026-10-04 · C1b built (migration 0425), option (a), on the owner's word ("proceed as
+  recommended").** `fleetpal_po_invoices.amount` and `stage_fleetpal_po_invoices`' recordset are
+  now numeric(14,3), and the `purchase-order-invoices` watermark is cleared (only that resource), so
+  the next sweep re-walks all 4,095 invoices and re-stages both rounded rows from FleetPal.
+  Measured first: no view or rule depends on the column in production, the production watermark
+  was 2026-10-03 18:00:38Z, and the readers (`coverage.ts`) take `Number(amount)`.
+
+  The matrix (`fleetpal-repair-record.test.mjs`) stages `cqUW4Msw` at 108.489, rewrites a row
+  stored rounded, and re-applies 0425 over seeded positions. Four mutations were each caught:
+  column left at (14,2) (3 fail), recordset left at (14,2) (3 fail), the clear widened to every
+  resource (1 fail), the clear removed (1 fail). Bytes restored with `cp` and verified with `cmp`.
+
+  **Post-release check (the morning after 0425 reaches production):**
+  `select fleetpal_id, amount::text from fleetpal_po_invoices where fleetpal_id in ('cqUW4Msw','7uUeeoFb');`
+  must answer `108.489` and `188.774`. Read the amounts, not the watermark: a sweep running while
+  the migration applies can write its own watermark over the clear. If that happens, the remedy is
+  the same clear once more, in a new migration.
