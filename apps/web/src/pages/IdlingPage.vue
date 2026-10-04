@@ -50,7 +50,9 @@ const {
 
     <!-- Fleet engine-time summary: running = drive + idle, with BOTH idle measures — avoidable (waste on
          trucks that had an alternative) and reducible (what equipping the rest of the fleet would save).
-         Each money card carries its own coverage and pricing lines (design verdict, move 4). -->
+         Each money card carries its own coverage and pricing lines (design verdict, move 4). The dollars are
+         plain ink, as on Fuel Costs (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
+         whether it is good news — avoidable idle is a coaching queue and "Needs an APU" an investment case. -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
@@ -64,13 +66,13 @@ const {
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
-        <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
+        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="avoidable-usd">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</dd>
         <dd v-if="estimate?.avoidablePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</dd>
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
-        <dd class="mt-1 text-2xl font-bold text-warning-600">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
+        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="reducible-usd">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach</dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</dd>
         <dd v-if="estimate?.reduciblePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</dd>

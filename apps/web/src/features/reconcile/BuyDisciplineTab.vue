@@ -60,7 +60,13 @@ const props = withDefaults(defineProps<{
    * fleet ceiling would call any small enough selection compliant.
    */
   fleetWide?: boolean;
-  loading?: boolean;
+  /**
+   * Whether the fill sequence arrived. Everything but the targets is worked out from it, and an empty
+   * sequence reads as an answer ("$0 at least", "0 purchases"), so pending or failed, those parts say so
+   * in place. The targets read their own sums (`inputs`) and stay: one failed read used to take the whole
+   * page with it (verdict E8, 2026-10-04).
+   */
+  fillsState?: "ready" | "loading" | "error";
   /**
    * Whether the two inputs the targets are graded from (the gallon `cells`, the org's policy) arrived.
    * Both default to empty when their query is pending or failed, and empty reads as an answer: "no
@@ -69,7 +75,10 @@ const props = withDefaults(defineProps<{
    * Not "ready" means the section says so and grades nothing.
    */
   inputs?: "ready" | "loading" | "error";
-}>(), { fleetWide: true, loading: false, inputs: "ready" });
+}>(), { fleetWide: true, fillsState: "ready", inputs: "ready" });
+const FILLS_FAILED = "Couldn't load the fill sequence for this window.";
+/** The purchases table's Retry: the page owns the read. */
+const emit = defineEmits<{ retry: [] }>();
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
 
@@ -250,7 +259,7 @@ function exportRows() {
             Diesel bought where it costs more and still in the tank on arrival somewhere it costs less.
           </p>
         </div>
-        <div class="text-right">
+        <div v-if="fillsState === 'ready'" class="text-right">
           <p class="text-2xl font-bold" :class="report.excess > 0 ? 'text-danger-700' : 'text-ink'">
             {{ usd(report.excess) }}
           </p>
@@ -260,7 +269,9 @@ function exportRows() {
 
       <!-- The one qualification that changes how the figure is read stays beside it: half the trips are
            estimated from miles, and that estimate undercounts roughly fivefold, so the total is a minimum. -->
-      <p class="mt-3 text-xs text-ink-tertiary" data-testid="carried-basis">
+      <p v-if="fillsState === 'loading'" class="mt-3 text-sm text-ink-muted" data-testid="carried-state">Loading the fill sequence…</p>
+      <p v-else-if="fillsState === 'error'" class="mt-3 text-sm text-danger-700" data-testid="carried-state">{{ FILLS_FAILED }}</p>
+      <p v-else class="mt-3 text-xs text-ink-tertiary" data-testid="carried-basis">
         {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
         {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
         ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
@@ -278,14 +289,17 @@ function exportRows() {
     <div>
       <div class="mb-2 flex items-center justify-between">
         <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
-        <BaseButton v-if="report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
+        <BaseButton v-if="fillsState === 'ready' && report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
       </div>
       <BaseCard padding="none">
         <DataTable
           :columns="cols"
           :rows="pageRows"
           :sort="sort"
-          :empty-text="loading ? 'Loading…' : 'No fuel was carried out of a dearer state in this window.'"
+          :loading="fillsState === 'loading'"
+          :error="fillsState === 'error' ? FILLS_FAILED : null"
+          @retry="emit('retry')"
+          empty-text="No fuel was carried out of a dearer state in this window."
           @sort="sort = toggleSort(sort, $event); page = 1"
         >
           <template #footer>
@@ -295,7 +309,7 @@ function exportRows() {
       </BaseCard>
     </div>
 
-    <ExplainerPanel summary="How the extra cost is worked out">
+    <ExplainerPanel v-if="fillsState === 'ready'" summary="How the extra cost is worked out">
       <p>
         The truck's next fill is the proof it made the trip, so there is no route to argue about — only the
         gallons and the two prices.
@@ -385,7 +399,7 @@ function exportRows() {
          see (CARB, tolls, a customer who will not take the truck), so the configured list stays
          authoritative and this reports where the two disagree. The disagreement is a result and stays in
          view; the table it comes from is reference, one click away. -->
-    <p v-if="divergence.unlisted.length" class="text-sm text-ink-secondary">
+    <p v-if="fillsState === 'ready' && divergence.unlisted.length" class="text-sm text-ink-secondary">
       {{ listStates(divergence.unlisted.map((s) => s.state)) }}
       {{ divergence.unlisted.length === 1 ? "is" : "are" }} among your dearest fuel and
       {{ divergence.unlisted.length === 1 ? "is" : "are" }} in no policy list.
@@ -393,7 +407,7 @@ function exportRows() {
         You avoid {{ listStates(props.policy.avoidStates) }}.
       </template>
     </p>
-    <ExplainerPanel v-if="stateRows.length" summary="What fuel costs, by state, with the tax taken out">
+    <ExplainerPanel v-if="fillsState === 'ready' && stateRows.length" summary="What fuel costs, by state, with the tax taken out">
       <BaseCard padding="none">
         <DataTable :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
       </BaseCard>

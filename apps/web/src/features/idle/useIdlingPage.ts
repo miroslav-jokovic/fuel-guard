@@ -16,6 +16,7 @@ import {
   EQUIPMENT_SOURCE_LABELS,
   formatDisplayDate,
   formatDisplayDayShort,
+  IDLE_DEFAULT_WINDOW_DAYS,
   type ApuType,
   type BehavesLike,
 } from "@silvicom/shared";
@@ -42,7 +43,7 @@ const rangeDays = computed(() => {
     const d = (Date.parse(`${dateTo.value}T23:59:59`) - Date.parse(`${dateFrom.value}T00:00:00`)) / 86_400_000;
     return Math.max(1, Math.round(d));
   }
-  return 30;
+  return IDLE_DEFAULT_WINDOW_DAYS;
 });
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 // Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
@@ -54,7 +55,7 @@ const rangeLabel = computed(() => {
   if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;
   if (f) return `since ${fmtDay(f)}`;
   if (t) return `through ${fmtDay(t)}`;
-  return "last 30 days";
+  return `last ${IDLE_DEFAULT_WINDOW_DAYS} days`;
 });
 
 // Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.

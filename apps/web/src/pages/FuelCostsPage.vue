@@ -134,7 +134,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
       {{ freshness.data.value.lead }}
     </p>
 
-    <FilterBar :count="rows.length" count-label="days">
+    <!-- No count until the report answers: a pending or failed read is not "0 days" (verdict E8). -->
+    <FilterBar :count="report ? rows.length : null" count-label="days">
       <!-- In #filters: FilterBar has no default slot, and plain children are silently dropped. The two
            date v-models are safe because `useQueryState` coalesces their same-tick patches. -->
       <template #filters>

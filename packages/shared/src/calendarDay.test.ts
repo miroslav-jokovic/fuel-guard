@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   calendarDayOf,
   daysInRange,
+  lastDaysStart,
   dayRangeInstants,
   isCalendarDay,
   shiftDay,
@@ -138,5 +139,12 @@ describe("calendar arithmetic, which needs no zone at all", () => {
   it("shifts cleanly across a DST boundary", () => {
     expect(shiftDay("2026-03-07", 2)).toBe("2026-03-09");
     expect(daysInRange("2026-03-07", "2026-03-09")).toBe(3);
+  });
+
+  it("starts the last n days so the window holds n dates, today included", () => {
+    expect(lastDaysStart("2026-10-04", 30)).toBe("2026-09-05");
+    expect(daysInRange(lastDaysStart("2026-10-04", 30), "2026-10-04")).toBe(30);
+    expect(daysInRange(lastDaysStart("2026-10-04", 7), "2026-10-04")).toBe(7);
+    expect(lastDaysStart("2026-10-04", 1)).toBe("2026-10-04");
   });
 });

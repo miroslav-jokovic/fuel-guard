@@ -61,8 +61,8 @@ const FEED: SpendLine[] = [
 ];
 const WINDOW = { from: "2026-07-01", to: "2026-08-31" };
 
-const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean } = {}) =>
-  mount(BuyDisciplineTab, { props: { fills, policy: p, cells: policyGallonCells(extra.lines ?? []), window: extra.window ?? WINDOW, fleetWide: extra.fleetWide } });
+const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean; fillsState?: "ready" | "loading" | "error" } = {}) =>
+  mount(BuyDisciplineTab, { props: { fills, policy: p, cells: policyGallonCells(extra.lines ?? []), window: extra.window ?? WINDOW, fleetWide: extra.fleetWide, fillsState: extra.fillsState } });
 const render = (fills = legs(), p = policy(), extra: Parameters<typeof mountTab>[2] = {}) => mountTab(fills, p, extra).text();
 /** The on-network tile's own sub-line — the headline above it wears `text-danger-700` on its own account. */
 const onNetworkSub = (w: ReturnType<typeof mountTab>) =>
@@ -209,6 +209,26 @@ describe("BuyDisciplineTab", () => {
     const t = render([]);
     expect(t).toContain("No fuel was carried out of a dearer state in this window.");
     expect(t).not.toContain("NaN");
+  });
+
+  // A pending or failed sequence is not an empty one: "$0 at least" and "0 purchases" are answers. The
+  // targets read their own sums and must stay (verdict E8, 2026-10-04).
+  it("says the fill sequence is loading or failed in place of its figures, and keeps the targets", async () => {
+    for (const [fillsState, say] of [["loading", "Loading the fill sequence…"], ["error", "Couldn't load the fill sequence for this window."]] as const) {
+      const w = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState });
+      const t = w.text();
+      expect(w.get('[data-testid="carried-state"]').text(), fillsState).toBe(say);
+      expect(w.find('[data-testid="carried-basis"]').exists(), fillsState).toBe(false);
+      expect(t, fillsState).not.toContain("$0");
+      expect(t, fillsState).not.toContain("at least, over this window");
+      expect(t, fillsState).not.toContain("No fuel was carried out of a dearer state in this window.");
+      expect(t, fillsState).not.toContain("How the extra cost is worked out");
+      expect(t, fillsState).toContain("On the preferred network");
+      expect(t, fillsState).toContain("90.0%");
+    }
+    const failed = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState: "error" });
+    await failed.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(failed.emitted("retry")).toHaveLength(1);
   });
 
   // ── the targets, graded (C8) ──────────────────────────────────────────────────────────────────
