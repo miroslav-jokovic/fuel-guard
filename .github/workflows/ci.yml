@@ -286,6 +286,9 @@ jobs:
       # it was that nobody could tell.
       - name: EFS SOAP operations match the checked-in WSDL
         run: pnpm lint:wsdl
+      # Added in the same PR as the gate (RELEASE-TRAIN-PLAN R5): the rules release.yml ships by.
+      - name: Release-train rules self-test
+        run: pnpm lint:release-train
 
       # Added here in the SAME PR as the gate itself (FLEETPAL-INTEGRATION-PLAN.md F1), because root
       # CLAUDE.md's rule is that a gate in package.json and in neither CI list is not a gate — the

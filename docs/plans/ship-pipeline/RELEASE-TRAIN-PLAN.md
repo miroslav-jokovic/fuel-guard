@@ -112,6 +112,31 @@ nowhere safe to check a migration.
 Railway deprecates `railway.json` (Config as Code) on 2026-12-01; R5 touches the same settings and is
 the moment to move to `.railway/railway.ts`.
 
+### R5 cutover — the switch from "merge = deploy" to the train
+
+R5 merges DORMANT: `release.yml` and `release-candidate.yml` rehearse every night (plan, notes,
+`supabase db push --dry-run`) and push, migrate, tag and deploy nothing, and the push-triggered
+production jobs keep running, until the repository variable `RELEASE_TRAIN` is `on`. Merging R5
+changes nothing users see. The cutover is one sitting, after 19:00 CT, in this order:
+
+1. Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" (the
+   release PR must be opened by github-actions, so the owner can approve it).
+2. A fine-grained token of a repository admin, `contents: write` on this repository, saved as the
+   secret `RELEASE_TOKEN` (the ruleset below lets only admins move `production`).
+3. Repository variables `STAGING_API_URL` / `STAGING_WEB_URL` (the uat hosts), so a push to main
+   verifies staging once the train is on.
+4. Run Release with `mode=init`: creates `production` at the commit production serves, read from
+   `/api/version`.
+5. A ruleset on `production`: restrict updates, deletions and force pushes; bypass: repository admin.
+6. Railway: `@fleetguard/api`, `@fleetguard/web`, `platform-console`, `driver-dist` in the
+   production environment → source branch `production`.
+7. `RELEASE_TRAIN=on`. From this moment a merge deploys staging only.
+8. Check: merge anything small → `uat` serves it, production does not; at 18:00 the release PR
+   opens; approve it; at 01:07 it ships and `v<date>` exists.
+
+Undo, at any step: delete `RELEASE_TRAIN` and point Railway back at `main` — the push-triggered
+jobs resume exactly as before R5.
+
 ## 4. Open questions
 
 - **Q-REL1 — Staging data.** (a) empty + seeded fixtures + live read-only Samsara;
@@ -179,3 +204,14 @@ the moment to move to `.railway/railway.ts`.
   wins), and `uq_duty_seg_current` is kept and added rather than dropped. Matrix
   `schema-drift-reconciled.test.mjs`. Still owed: the nightly gate comparing staging's schema with
   production's, which can only go green after 0422 is applied to both.
+- 2026-10-04 — Q-REL6 closed in two more steps. 0422's first production push failed (2BP01:
+  `uq_load_stops_seq` is a constraint there) and rolled back; the fix (#1263) edited 0422 with the
+  owner's ruling, and production applied it. Comparing constraints then found 28 more differences;
+  0423 (#1265) settles them, stricter side winning (trailer FK RESTRICT, invite FK SET NULL, timeout
+  4–48, paired shift end). The nightly drift check (#1266, `scripts/schema-drift.mjs`) compares
+  columns, constraints, indexes, functions, policies, grants and triggers at 06:37 CT.
+- 2026-10-04 — R5 built, dormant: `release.yml` (nightly / hotfix / rollback / init),
+  `release-candidate.yml`, `scripts/release-train.mjs` + `lint:release-train`; `deploy-verify.yml`
+  and `smoke.yml` callable; `migrate.yml`'s production job and both driver lanes skip pushes once
+  `RELEASE_TRAIN=on`. Cutover checklist in §3. Q-REL4 (summary recipients) still open: until it is
+  answered, the summary is the run page, and GitHub emails the owner on a failed run.
