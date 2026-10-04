@@ -30,7 +30,9 @@ stripped before Claude reads the file. -->
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
 - `pnpm typecheck` · `pnpm lint` · `pnpm build` (mostly `tsc --noEmit`).
 - `pnpm verify:live` — answers "why don't I see my changes?": compares git HEAD + highest migration
-  against the deployed `GET /api/version`.
+  against the deployed `GET /api/version`. Since the release train, production trails main BY DESIGN
+  until the next release: check staging (`https://fleetguardapi-uat.up.railway.app`) for a merge,
+  production for a release, and `git log origin/production` for what was last released.
 - The full gate list lives in root `package.json` — every `lint:*` script is documented by its
   sibling `"//lint:*"` comment key. CI runs most of them by name in the `gates` job
   (`.github/workflows/ci.yml`); the rest are chained onto one of those. **A gate that is in
@@ -50,7 +52,10 @@ stripped before Claude reads the file. -->
   `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-ota/android/store)
   accepts it when main's merge commit has that exact tree — else it polls main's run. Rules in
   `.github/actions/require-ci-green/tested-tree.sh`. `deploy-verify` passes pushes that touch only
-  paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit.
+  paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit. A push to
+  main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
+  Every push-triggered production job (`migrate`, `driver-ota`, `driver-android`, smoke) skips while
+  the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
 - **Browser tests run in `typecheck-build`**: `pnpm --filter @silvicom/web e2e:apply` runs
   `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
   (`e2e-apply/stubApi.ts`, raw JSON). They are the ONLY Playwright specs CI runs: `apps/web/e2e/` is
@@ -60,14 +65,23 @@ stripped before Claude reads the file. -->
 ## Hard rules (each one is machine-enforced; the gate is named)
 
 - Schema changes ONLY as the next-numbered file in `supabase/migrations/` (`lint:migrations`). Never
-  edit an applied migration. `migrate.yml` auto-applies to production Supabase on merge to main,
-  gated on CI green — a merged migration IS a deployed migration.
-- ...but NOT in a fixed order with the code. Railway serves a merge in minutes, and with the
-  tested-tree shortcut `migrate.yml` may apply the schema before OR after that — so **a merge can be
-  served against the other side's schema**, for a gap too short to watch for. A column and its first
-  reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
-  the four-step dance. Measurements and the outage it cost: `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window.
+  edit an applied migration. **A merge deploys to STAGING; a release deploys to PRODUCTION** (the
+  release train, live since 2026-10-04 — `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`):
+  - On merge to main, `migrate.yml`'s `migrate-staging` job applies the migration to the staging
+    database and Railway `uat` serves the code. Production does not move.
+  - Production moves only through `release.yml`: at 01:07 CT, Sunday–Thursday nights, it ships the
+    commit the owner approved on the open `main → production` release PR — migrations FIRST, then
+    the code. A merged migration is a released migration by the next morning at the earliest, and
+    never if nobody approves. Hotfix and rollback are `release.yml` dispatch modes; never move the
+    `production` branch or Railway's production triggers by hand (a ruleset refuses even an admin).
+  - The nightly `schema-drift.yml` fails when production's schema differs from what the migrations
+    build — fix with the next migration, never by hand on either database.
+- ...and code still meets the other side's schema. On staging, Railway serves a merge in minutes
+  and `migrate-staging` may apply its schema before OR after that; in a release, new schema serves
+  OLD code for the deploy minutes. So a column and its first reader ship in two separate merges
+  (`lint:migration-ordering`), and a column is dropped only a release after its last reader is gone;
+  new tables are exempt, renames need the four-step dance. Measurements and the outage it cost:
+  `docs/MIGRATION-DISCIPLINE.md` §the-deploy-window.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict
