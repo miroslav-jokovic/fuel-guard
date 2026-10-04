@@ -13,7 +13,6 @@ import { toneClass } from "@/lib/badges";
 import { toggleSort } from "@/lib/sort";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";
 import IdleBurnRatesPanel from "@/features/idle/IdleBurnRatesPanel.vue";
-import IdleEngineParityPanel from "@/features/idle/IdleEngineParityPanel.vue";
 
 const {
   isLoading, isError, error, isFetching, refetch,
@@ -136,8 +135,6 @@ const {
     </BaseCard>
     <!-- IE4: the measured idle burn rate beside the configured one (a table carries its own card) -->
     <IdleBurnRatesPanel v-if="showInfo" />
-    <!-- IE5: how far the new idle engine is from replacing the figures above (D-IE9) -->
-    <IdleEngineParityPanel v-if="showInfo" />
 
     <!-- Data completeness: how complete the inputs behind these numbers are -->
     <BaseCard v-if="showConfidence && confidence" padding="sm" class="space-y-3 text-sm">

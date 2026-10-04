@@ -35,10 +35,10 @@ import {
  * DECIDED about the rows is `@silvicom/shared`'s and is called, never restated: the columns
  * (`IDLE_ENGINE_DAY_COLUMNS`), the row-to-day pairing and Samsara's whole-day rule (`idleParityDays`),
  * which days are final (`idleParityFinalThrough`), the verdict (`idleParityReport`), the learner's
- * window and bands (`idleBurnInputsArgs`) and its fold (`learnIdleBurnRates`). The office reader
- * (`apps/api/src/modules/idle/idleEngineParity.ts`, `idleBurnRates.ts`) calls the same functions, so
- * the two views agree by construction — Q-FSV17 step (2) is the owner seeing that they do on the same
- * night before step (3) takes the office panels away.
+ * window and bands (`idleBurnInputsArgs`) and its fold (`learnIdleBurnRates`). The office burn-rate
+ * reader (`apps/api/src/modules/idle/idleBurnRates.ts`) calls the same functions, so the two agree by
+ * construction. The office parity reader went at Q-FSV17 step (3): the gate is now read here and by the
+ * nightly check only.
  *
  * ── THE CONFIGURED RATE WITHOUT THE PRICE ────────────────────────────────────────────────────────
  * The office view prices nothing here either; it only reports `idle_gal_per_hour` through the cost

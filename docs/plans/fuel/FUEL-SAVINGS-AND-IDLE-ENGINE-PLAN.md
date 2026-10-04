@@ -1305,3 +1305,13 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   as MM/DD/YYYY (was ISO), "Gallons bought" (two columns were both "Bought"), "Measured by" with "Tank reading" / "Miles
   driven (at least)". Nothing deleted; `<details>` keeps closed text findable by the browser's search. Tests +3, two
   rewordings; mutation 11/11 killed. Seen rendered at 1440 px (preview build, stubbed RPCs).
+- **2026-10-03** Q-FSV17 step (3) BUILT, HELD: `IdleEngineParityPanel`, `useIdleEngineParity`, the office reader
+  `idleEngineParity.ts` and `GET /api/idle/engine/parity` are removed (retired rather than narrowed — after the panel goes
+  it has no caller: the console reads through `apps/admin-api`, the nightly check reads the database). `IdleBurnRatesPanel`
+  and `/engine/burn-rates` stay (Q-IE14's switch sits beside them). The shared gate code is unchanged. Tests: the route
+  answers 404 to safety_manager and admin and reads nothing; the page never prints the gate. Production read first: both
+  `platform_admins` rows have `user_id` NULL and no verified MFA factor, and `platform_audit_log` is empty, so step (2)
+  has not happened. The PR is therefore NOT merged on green, against the standing merge rule, because the owner's own
+  order is "never both views absent" — merging now would leave the gate on no screen anyone can open. It merges after
+  the owner signs in to the console (first sign-in links the row, then TOTP enrolment), opens Customers → the carrier →
+  "Idle engine checks", and says it matches the office panel on the same night (10/04 is the first with 2 final days).

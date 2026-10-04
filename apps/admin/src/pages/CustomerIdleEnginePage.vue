@@ -19,9 +19,9 @@ import { apiGet } from "@/lib/api";
  * IE-ADMIN (FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md §4 Q-FSV15 ruling 3, Q-FSV17): one customer's idle
  * engine rollout checks — D-IE9's parity gate and D-IE5's learned burn rates. They are release controls
  * nobody in a carrier's office can act on, so they live on the platform plane. The verdicts are
- * `@silvicom/shared`'s, served by `GET /admin/orgs/:id/idle-engine`, the same functions the office
- * Idling panel reads; this page only lays them out. Until Q-FSV17 step (3) the office panel shows the
- * same gate, and the two must agree on the same night before that panel goes.
+ * `@silvicom/shared`'s, served by `GET /admin/orgs/:id/idle-engine`; this page only lays them out. Since
+ * Q-FSV17 step (3) it is the only screen that shows the gate (the office Idling page keeps the burn
+ * rates, beside the carrier's "use measured rates" switch).
  */
 const route = useRoute();
 const id = route.params.id as string;
@@ -51,7 +51,7 @@ const STAGE = {
   disagreeing: { label: "Not agreeing yet", tone: "warning" },
 } as const;
 const stage = computed(() => (parity.value ? STAGE[idleParityStage(parity.value)] : null));
-// Floored, like the office panel: 94.96% must not read as the 95% bar.
+// Floored: 94.96% must not read as the 95% bar.
 const share = computed(() => (parity.value?.share == null ? null : Math.floor(parity.value.share * 1000) / 10));
 const pct = (n: number | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${(n * 100).toFixed(1)}%`);
 const gph = (n: number | null) => (n == null ? "—" : n.toFixed(2));
