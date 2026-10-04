@@ -12,6 +12,8 @@ import {
   fleetpalPartSchema,
   fleetpalPmScheduleSchema,
   fleetpalPoInvoiceSchema,
+  fleetpalPoItemSchema,
+  fleetpalPoPaymentSchema,
   fleetpalPoReceiptItemSchema,
   fleetpalPoReceiptSchema,
   fleetpalPurchaseOrderSchema,
@@ -62,6 +64,9 @@ const SCHEMAS: Record<string, z.ZodType<unknown>> = {
   shops: fleetpalShopSchema,
   "purchase-orders": fleetpalPurchaseOrderSchema,
   "purchase-order-invoices": fleetpalPoInvoiceSchema,
+  // MAINTENANCE-MONEY-CONTROL-PLAN.md C1, recorded 2026-10-04: one row per edge case M-9 measured.
+  "purchase-order-payments": fleetpalPoPaymentSchema,
+  "purchase-order-items": fleetpalPoItemSchema,
   "purchase-order-receipts": fleetpalPoReceiptSchema,
   "purchase-order-receipt-items": fleetpalPoReceiptItemSchema,
 };

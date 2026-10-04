@@ -64,6 +64,9 @@ const RESOURCES = [
   // vendor's, kept verbatim so a regeneration finds it. Field NAMES only — the descriptions it carries
   // are licensed TMC text and never reach this file or any table (D-FP8).
   "CodeKey33",
+  // MAINTENANCE-MONEY-CONTROL-PLAN.md C1: how each invoice was paid, and what each order bought.
+  "POPayment",
+  "POItem",
 ];
 
 /**
@@ -90,6 +93,7 @@ const ENUMS = [
   "IntervalTypeEnum",
   "TimeIntervalEnum",
   "UnitOfMeasureEnum",
+  "PaymentMethodEnum",
 ];
 
 function build(spec) {
