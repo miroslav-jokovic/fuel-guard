@@ -1,7 +1,8 @@
 # Release train — merge all day, release once a night
 
-**Status:** R0 + R2 merged 2026-10-02 (#1219); R3 staging infrastructure built 2026-10-02. Owner approved the
-direction 2026-10-02 ("proceed as proposed"). Everything from R3 on is unbuilt.
+**Status:** LIVE since 2026-10-04 09:59 CT. R0, R2, R3, R4, R5 (cut over) and R7 (docs) done; Q-REL6
+(production schema drift) closed by 0422/0423 with a nightly drift check. Open: R6 (CalVer in
+`/api/version`, web, driver; PR template; labels) and Q-REL4 (summary recipients).
 
 **Supersedes** the "merge = deploy" model from SHIP-PIPELINE-PLAN.md D0–D4 for the two Railway app
 services, Supabase migrations and the driver OTA lane. Store builds (`driver-store.yml`, tag-driven)
@@ -239,3 +240,9 @@ jobs resume exactly as before R5.
   8. The 18:00 job, run by hand, opened #1275 (`main → production`, by github-actions) with notes
      from `ebc8c8e`: 3 PRs, driver unchanged. The first approval-driven release is tonight, 01:07 CT.
   Rollback record of the triggers' previous state: all eight on `main`.
+- 2026-10-04 — R7: the rule "a merged migration IS a deployed migration" retired everywhere a session
+  reads it — root `CLAUDE.md` (hard rules, commands, CI), `supabase/CLAUDE.md`,
+  `docs/MIGRATION-DISCIPLINE.md` (runbook rewritten around the drift check; the deploy-window section
+  says which window applies where; its open question is answered for production) and
+  `docs/DEPLOYMENT.md` (two environments, two branches; per-environment triggers). Historical plans and
+  audits are left as written: they record what was true then.
