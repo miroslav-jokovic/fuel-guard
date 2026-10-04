@@ -64,7 +64,7 @@ const WINDOW = { from: "2026-07-01", to: "2026-08-31" };
 const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean; fillsState?: "ready" | "loading" | "error" } = {}) =>
   mount(BuyDisciplineTab, { props: { fills, policy: p, cells: policyGallonCells(extra.lines ?? []), window: extra.window ?? WINDOW, fleetWide: extra.fleetWide, fillsState: extra.fillsState } });
 const render = (fills = legs(), p = policy(), extra: Parameters<typeof mountTab>[2] = {}) => mountTab(fills, p, extra).text();
-/** The on-network tile's own sub-line — the headline above it wears `text-danger-700` on its own account. */
+/** The on-network tile's own sub-line — its grade colour is a verdict against a target, and stays. */
 const onNetworkSub = (w: ReturnType<typeof mountTab>) =>
   w.findAll("p").find((el) => /target at least|no target set|fleet target not applied|no tractor fuel/.test(el.text()));
 const usd0 = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -88,6 +88,13 @@ describe("BuyDisciplineTab", () => {
     expect(headline.exists()).toBe(true);
     expect(headline.text()).toBe(usd0(report.excess));
     expect(headline.text()).not.toBe(usd0(report.pumpExcess));
+  });
+
+  it("prints the carried-fuel total in plain ink, not as bad news (Q-FSV15 ruling 2, extended 2026-10-04)", () => {
+    expect(analyzeCarriedFuel(legs()).excess).toBeGreaterThan(0); // the case that used to turn red
+    const cls = mountTab().get('[data-testid="carried-usd"]').classes();
+    expect(cls).toContain("text-ink");
+    expect(cls.filter((c) => /^text-(danger|warning|success|caution)/.test(c))).toEqual([]);
   });
 
   it("calls that headline a floor rather than a cost", () => {

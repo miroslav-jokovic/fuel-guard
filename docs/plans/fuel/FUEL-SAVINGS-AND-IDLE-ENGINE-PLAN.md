@@ -1342,3 +1342,12 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   a failed findings strip says "Couldn't load". Mutation 21/21 killed. Still owed: the five sessions, and a
   signed-in look on production. Not changed, for the owner: Buy discipline's carried-fuel dollars stay red when
   above zero (ruling 2 named Fuel Costs; say if it extends).
+- **2026-10-04** — **The two calls left open by the state sweep, decided** (owner: "decide with best solutions").
+  (1) **Buy discipline's carried-fuel total is plain ink** — Q-FSV15 ruling 2's line is that a TOTAL carries no
+  direction and a verdict does; the targets keep their met/short colour, and the quote card keeps its caution tone,
+  which flags thin coverage and not money. (2) **A "Skip to main content" link, app-wide** (WCAG 2.4.1): first in the
+  tab order over the app shell, whose ~40-entry sidebar is the block bypassed (the public, apply, sign-in and shop
+  layouts put at most one control before their content, and the applicant page's tap-target spec rightly refused a
+  1×1 target there), above the banners, hidden until focused. It moves FOCUS to `<main id="main-content"
+  tabindex="-1">`, not only the scroll, and keeps the hash out of the URL. Fuel Costs' Export report: 48 Tabs → 10,
+  seen at 1366 and 390 px. `skipLink.test.ts` holds the shell's `<main>` to `MAIN_CONTENT_ID`. Mutation 9/9 killed.
