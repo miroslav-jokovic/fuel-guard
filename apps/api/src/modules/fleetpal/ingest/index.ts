@@ -1,7 +1,7 @@
 import { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 import { ingestPmSchedules, metersIngest } from "./equipment.js";
 import { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";
-import { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
+import { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 import { ingestShops, vendorsIngest } from "./reference.js";
 import { runIngest } from "./run.js";
 import type { IngestContext, IngestResult } from "./types.js";
@@ -36,6 +36,10 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
   // as the ordinary delta it is. 0351 has no foreign key to make that an error.
   results.push(await runIngest(ctx, purchaseOrdersIngest));
   results.push(await runIngest(ctx, poInvoicesIngest));
+  // The money control's two (MAINTENANCE-MONEY-CONTROL-PLAN.md C1): after the order and invoice
+  // they point at, for the same orphan reason. Both watermark; `updated_after` measured exclusive.
+  results.push(await runIngest(ctx, poPaymentsIngest));
+  results.push(await runIngest(ctx, poItemsIngest));
   results.push(await runIngest(ctx, metersIngest));
   results.push(await ingestPmSchedules(ctx));
   // F7's bounded-re-read tier, last: it is the only part that does not watermark, so a sweep that
@@ -47,7 +51,7 @@ export async function sweepRepairRecord(ctx: IngestContext): Promise<IngestResul
 }
 
 export { runIngest } from "./run.js";
-export { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
+export { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 export { ingestDefects, ingestExpirations, issuesIngest } from "./condition.js";
 export { ingestPmSchedules, metersIngest } from "./equipment.js";
 export { jobItemsIngest, jobsIngest, serviceHistoryIngest, workOrdersIngest } from "./repair.js";

@@ -1,0 +1,134 @@
+{
+  "count": 2840,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/dqTnnTMB",
+      "id": "dqTnnTMB",
+      "purchase_order": "fX8Jh8eW",
+      "number": "009455",
+      "date": "2026-10-01",
+      "amount": 695.65,
+      "method": "CHECK",
+      "payable_to": "KdrAqzUi",
+      "invoices": [
+        "gPbTQZLB"
+      ],
+      "notes": "",
+      "created": "2026-10-01T16:18:48.129701Z",
+      "updated": "2026-10-01T16:18:48.129727Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/qg8CMzdb",
+      "id": "qg8CMzdb",
+      "purchase_order": "HHtFP7kN",
+      "number": "1923485558",
+      "date": "2026-09-12",
+      "amount": 555.7,
+      "method": "EFS_CHECK",
+      "payable_to": "aWKo24yJ",
+      "invoices": [
+        "8rd5Bv5R"
+      ],
+      "notes": "",
+      "created": "2026-09-15T21:52:53.168046Z",
+      "updated": "2026-09-15T21:52:53.168066Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/sFpCjMoW",
+      "id": "sFpCjMoW",
+      "purchase_order": "K3LDK5BE",
+      "number": "",
+      "date": "2026-08-15",
+      "amount": 511.22,
+      "method": "NATIONAL_ACCOUNT",
+      "payable_to": "W5qQCGp2",
+      "invoices": [
+        "LChzpEfb"
+      ],
+      "notes": "",
+      "created": "2026-08-18T14:21:35.587002Z",
+      "updated": "2026-08-18T14:21:35.587028Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/MAQn6SN4",
+      "id": "MAQn6SN4",
+      "purchase_order": "xxL43Ucg",
+      "number": "",
+      "date": "2026-07-25",
+      "amount": 1129.89,
+      "method": null,
+      "payable_to": null,
+      "invoices": [
+        "APosFFca"
+      ],
+      "notes": "",
+      "created": "2026-07-25T16:29:21.697915Z",
+      "updated": "2026-07-25T16:29:21.697931Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/XzuQ7qvd",
+      "id": "XzuQ7qvd",
+      "purchase_order": "cSUHwXG4",
+      "number": "009360",
+      "date": "2026-08-11",
+      "amount": 150,
+      "method": "CHECK",
+      "payable_to": "t4WZ8FQq",
+      "invoices": [
+        "525Qyfyk",
+        "NktrkznQ"
+      ],
+      "notes": "",
+      "created": "2026-09-02T20:13:32.914804Z",
+      "updated": "2026-09-02T20:13:32.914827Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/hWGnsHNn",
+      "id": "hWGnsHNn",
+      "purchase_order": "H2VkdMVk",
+      "number": "1434296225",
+      "date": "2026-07-18",
+      "amount": 150,
+      "method": "EFS_CHECK",
+      "payable_to": "DrEpES6e",
+      "invoices": [],
+      "notes": "",
+      "created": "2026-08-21T19:42:35.894468Z",
+      "updated": "2026-08-21T19:42:35.894489Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/EK8KY7kv",
+      "id": "EK8KY7kv",
+      "purchase_order": "a8maMFsu",
+      "number": "",
+      "date": "2025-05-12",
+      "amount": 1384.322,
+      "method": "CARD",
+      "payable_to": null,
+      "invoices": [
+        "J6aF492A"
+      ],
+      "notes": "redacted note",
+      "created": "2025-05-12T15:14:49.770710Z",
+      "updated": "2025-05-12T15:14:49.770739Z"
+    },
+    {
+      "url": "https://openapi.fleetpal.io/v1/purchase-order-payments/5eZEkt7N",
+      "id": "5eZEkt7N",
+      "purchase_order": "nHWQDbic",
+      "number": "",
+      "date": "2026-07-27",
+      "amount": 9146990499,
+      "method": "ON_ACCOUNT",
+      "payable_to": "cTmntxkH",
+      "invoices": [
+        "MRcBMEpP"
+      ],
+      "notes": "",
+      "created": "2026-07-27T18:23:43.921399Z",
+      "updated": "2026-07-27T18:23:43.921422Z"
+    }
+  ]
+}

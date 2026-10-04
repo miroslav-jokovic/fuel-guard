@@ -307,3 +307,44 @@ owner, plain word first and accounting term in the hover (the office readers are
   figure ($76,176.39). FleetPal's collector flag `FLEETPAL_SYNC_ENABLED=true`
   was set on `@fleetguard/api` the same day; the first sweep waits on the owner pasting the key in
   Settings → FleetPal integration (FLEETPAL §8).
+
+- **2026-10-04 · M-9 measured; C1 built (migration 0424).** Every live payment (2,840) and order
+  line (2,106) was read and parsed with the new contracts: **0 failures**. What the spec did not say:
+  - `number` is `""` (never null) on **615** payments, so it is stored as `''`.
+  - `method` is null on **20**.
+  - `invoices` is empty on **43**, and holds **two** ids on some payments. July alone had none with
+    two, so a one-month sample would have missed it.
+  - Amounts carry up to **three** decimals: 1 payment, 64 item prices, 36 item totals. 0424's money
+    columns are `numeric(14,3)`.
+  - **`updated_after` is exclusive** on both endpoints. Asked with the newest `updated`, each answers
+    0 rows; one second earlier, 1.
+  - A **second** absurd amount exists beside July's: **$4,007,362,959, EFS_CHECK, 2025-07-24**.
+    Both look like a check number typed into the amount field. Both are staged as sent (D-MMC5).
+
+  Built:
+  - `fleetpal_po_payments` and `fleetpal_po_items`, with two set-based `stage_*` functions.
+  - Both run in the hourly sweep after the invoices they point at.
+  - The contracts plus their `POPayment`/`POItem`/`PaymentMethodEnum` manifest entries.
+  - Recorded fixtures: one live row per edge case above, free-text notes redacted.
+  - Matrix assertions in `fleetpal-repair-record.test.mjs`.
+
+  Mutation-checked:
+  - Rounding the amount to (14,2) is caught.
+  - `nullif(number,'')` is caught.
+  - Mapping `number || null` is caught.
+  - Keeping only the first invoice id is caught.
+  - Removing the function's explicit revoke changes nothing, because 0412 already closes new
+    functions to clients. That's an equivalent mutant, and 0424's comment says so.
+
+  Two findings outside C1, recorded rather than fixed here:
+  - **`check-fleetpal-contract.mjs` skipped a manifest vocabulary that had no const mapped**
+    (`continue`). Fixed in this PR: an unmapped vocabulary now fails, like an unmapped resource,
+    proved by deleting the new mapping.
+  - **0351's `fleetpal_po_invoices.amount` is numeric(14,2), and 2 of 4,095 live invoices have
+    three decimals** (`108.489`, `188.774`). Widening it (column and `stage_fleetpal_po_invoices`'
+    recordset type) is a follow-up, **C1b**. Production holds no rows yet, so it is cheap now and
+    not later.
+
+  **C1's last done-when ("a July walk stages 169 payments") waits on the first production sweep.**
+  The walk itself returns 169 with the inclusive window and every row parses; staging in production
+  needs the key pasted in Settings → FleetPal integration.

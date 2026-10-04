@@ -103,6 +103,9 @@ const STAGING = [
   // ingest, so likewise asserted here rather than in a third matrix.
   "fleetpal_purchase_orders",
   "fleetpal_po_invoices",
+  // The money control's payments and order lines (migration 0424, MAINTENANCE-MONEY-CONTROL C1).
+  "fleetpal_po_payments",
+  "fleetpal_po_items",
 ];
 
 const stage = (fn, org, rows) => db.query(`select ${fn}($1::uuid, $2::jsonb) as n`, [org, JSON.stringify(rows)]);
@@ -361,6 +364,72 @@ ok("re-staging a corrected invoice updates it in place — a re-run cannot doubl
   Number(restaged?.amount) === 1750.00 &&
   (await one(`select count(*)::int n from fleetpal_po_invoices where org_id=$1 and fleetpal_id='fVN5wBtF'`, [ORG])).n === 1);
 
+// ── 11. payments and order lines (0424, MAINTENANCE-MONEY-CONTROL-PLAN.md C1) ─────────────────────
+// Rows shaped from the fixtures recorded 2026-10-04. Each assertion names the measured edge case it
+// keeps: a check number's zeros, an empty number that is not null, a payment settling two invoices,
+// three decimals, and the $9.1bn amount the vendor really holds.
+const PAY = [
+  { fleetpal_id: "dqTnnTMB", purchase_order_fleetpal_id: "PO1", payment_number: "009455", paid_on: "2026-07-14",
+    amount: 695.65, method: "CHECK", payable_to_fleetpal_id: null, invoice_fleetpal_ids: ["INV1"], notes: "" },
+  { fleetpal_id: "sFpCjMoW", purchase_order_fleetpal_id: "PO2", payment_number: "", paid_on: "2026-07-15",
+    amount: 511.22, method: "NATIONAL_ACCOUNT", payable_to_fleetpal_id: null, invoice_fleetpal_ids: ["INV2"], notes: "" },
+  { fleetpal_id: "XzuQ7qvd", purchase_order_fleetpal_id: "PO3", payment_number: "009360", paid_on: "2026-07-16",
+    amount: 150, method: "CHECK", payable_to_fleetpal_id: null, invoice_fleetpal_ids: ["INV3", "INV4"], notes: "" },
+  { fleetpal_id: "hWGnsHNn", purchase_order_fleetpal_id: "PO4", payment_number: "1434296225", paid_on: "2026-07-17",
+    amount: 150, method: "EFS_CHECK", payable_to_fleetpal_id: null, invoice_fleetpal_ids: [], notes: "" },
+  { fleetpal_id: "EK8KY7kv", purchase_order_fleetpal_id: "PO5", payment_number: "", paid_on: "2026-07-18",
+    amount: 1384.322, method: "CARD", payable_to_fleetpal_id: null, invoice_fleetpal_ids: ["INV5"], notes: "redacted note" },
+];
+await stage("stage_fleetpal_po_payments", ORG, PAY);
+await stage("stage_fleetpal_po_payments", ORG, PAY);
+ok("re-staging the same payments writes no second copy — a re-run cannot double what the control counts",
+  (await count("fleetpal_po_payments", ORG)) === PAY.length);
+const payRow = async (id) => one(
+  `select payment_number, amount::text amount, invoice_fleetpal_ids, method from fleetpal_po_payments where org_id=$1 and fleetpal_id=$2`, [ORG, id]);
+ok("⚠ a check number keeps its leading zeros — `009455`, byte-exact (D-MMC2)",
+  (await payRow("dqTnnTMB"))?.payment_number === "009455");
+ok("⚠ an empty payment number stays '' and is not turned into null — the vendor sent the field (615 of 2,840)",
+  (await payRow("sFpCjMoW"))?.payment_number === "");
+ok("a payment settling two invoices keeps both ids",
+  JSON.stringify((await payRow("XzuQ7qvd"))?.invoice_fleetpal_ids) === JSON.stringify(["INV3", "INV4"]));
+ok("a payment settling no invoice stages with an empty list, not a failure (43 of 2,840)",
+  JSON.stringify((await payRow("hWGnsHNn"))?.invoice_fleetpal_ids) === "[]");
+ok("⚠ a three-decimal amount keeps its third decimal — numeric(14,3), because the control sums to the cent",
+  (await payRow("EK8KY7kv"))?.amount === "1384.322", JSON.stringify(await payRow("EK8KY7kv")));
+const huge = await sqlstate(`select stage_fleetpal_po_payments($1::uuid, $2::jsonb)`, [ORG, JSON.stringify([
+  { fleetpal_id: "5eZEkt7N", payment_number: "", paid_on: "2026-07-27", amount: 9146990499, method: "ON_ACCOUNT", invoice_fleetpal_ids: ["INV6"], notes: "" }])]);
+ok("⚠ the $9,146,990,499 payment the live account holds stages as sent — flagging it is the control's job (D-MMC5), not a failed sweep",
+  huge === null && (await payRow("5eZEkt7N"))?.amount === "9146990499.000", String(huge));
+ok("a null payment method stays null (20 of 2,840)",
+  (await sqlstate(`select stage_fleetpal_po_payments($1::uuid, $2::jsonb)`, [ORG, JSON.stringify([
+    { fleetpal_id: "MAQn6SN4", payment_number: "", amount: 1129.89, method: null, invoice_fleetpal_ids: ["INV7"], notes: "" }])])) === null &&
+  (await payRow("MAQn6SN4"))?.method === null);
+await stage("stage_fleetpal_po_payments", OTHER, [{ ...PAY[0] }]);
+ok("the payment's tenant is the parameter — the same vendor id under another org is another row",
+  (await count("fleetpal_po_payments", OTHER)) === 1 && (await count("fleetpal_po_payments", ORG)) === PAY.length + 2);
+
+const ITEMS = [
+  { fleetpal_id: "vMQkEkzv", purchase_order_fleetpal_id: "PO1", item_type: "PART", description: "BRAKE CHAMBER",
+    part_fleetpal_id: "P1", part_number: "3030", universal_product_code: "", manufacturer_fleetpal_id: null,
+    manufacturer_part_number: "", component_fleetpal_id: "hovDtcRc", unit_of_measure: "ea",
+    quantity: 2, price: 41.125, total: 82.25 },
+  { fleetpal_id: "vRmcxxJ9", purchase_order_fleetpal_id: "PO1", item_type: "FEE", description: "SHIPPING",
+    part_fleetpal_id: null, part_number: null, universal_product_code: null, manufacturer_fleetpal_id: null,
+    manufacturer_part_number: "", component_fleetpal_id: null, unit_of_measure: null,
+    quantity: 1, price: 12.5, total: 12.5 },
+];
+await stage("stage_fleetpal_po_items", ORG, ITEMS);
+await stage("stage_fleetpal_po_items", ORG, ITEMS);
+ok("re-staging the same order lines writes no second copy", (await count("fleetpal_po_items", ORG)) === ITEMS.length);
+const part = await one(`select price::text price, item_type, component_fleetpal_id from fleetpal_po_items where org_id=$1 and fleetpal_id='vMQkEkzv'`, [ORG]);
+ok("⚠ a three-decimal price keeps its third decimal (64 of 2,106 prices)",
+  part?.price === "41.125" && part?.item_type === "PART" && part?.component_fleetpal_id === "hovDtcRc", JSON.stringify(part));
+const fee = await one(`select part_fleetpal_id, part_number, component_fleetpal_id from fleetpal_po_items where org_id=$1 and fleetpal_id='vRmcxxJ9'`, [ORG]);
+ok("a FEE line with no part and no component stages with those columns null",
+  fee?.part_fleetpal_id === null && fee?.part_number === null && fee?.component_fleetpal_id === null);
+ok("forbid_org_change guards the payments table like every other fleetpal_* table",
+  (await sqlstate(`update fleetpal_po_payments set org_id=$1 where org_id=$2 and fleetpal_id='dqTnnTMB'`, [OTHER, ORG])) !== null);
+
 // ── 8. no client may call the ingest or read what it wrote ─────────────────────────────────────
 // ⚠ Inside a transaction, because `set local role` lasts for the transaction and PGlite runs each
 // statement in its own when there is none — which silently leaves the query running as the OWNER.
@@ -389,6 +458,7 @@ for (const role of ["anon", "authenticated"]) {
     "stage_fleetpal_meters", "stage_fleetpal_pm_schedules", "stage_fleetpal_pm_intervals",
     "stage_fleetpal_defects", "stage_fleetpal_issues", "stage_fleetpal_expirations",
     "stage_fleetpal_purchase_orders", "stage_fleetpal_po_invoices",
+    "stage_fleetpal_po_payments", "stage_fleetpal_po_items",
   ]) {
     const r = await asClient(role, `select ${fn}($1::uuid, '[]'::jsonb)`, [ORG]);
     ok(`⚠ ${role} cannot call ${fn} — EXECUTE is granted to PUBLIC by default, so the revoke is the whole defence`,

@@ -651,6 +651,28 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "fleetpal_po_items": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 80,
+        "why": "Grows with purchasing: 2,106 lines on the live account, created 2025-03-25 to 2026-10-03, mean 3.8/day, peak 77 in one day (2025-04-05), measured 2026-10-04. Budget sits just above that peak. Evidence for the money control, so no retention."
+      }
+    },
+    "fleetpal_po_payments": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 40,
+        "why": "Grows with purchasing: 2,840 payments on the live account, created 2025-03-28 to 2026-10-01, mean 5.1/day, peak 32 in one day (2026-03-18), measured 2026-10-04. Budget sits just above that peak. Evidence for the money control, so no retention."
+      }
+    },
     "fleetpal_purchase_orders": {
       "module": "fleetpal",
       "layer": "raw",

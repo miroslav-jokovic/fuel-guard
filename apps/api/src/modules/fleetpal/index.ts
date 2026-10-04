@@ -71,6 +71,8 @@ export {
   runIngest,
   purchaseOrdersIngest,
   poInvoicesIngest,
+  poPaymentsIngest,
+  poItemsIngest,
   ingestDefects,
   ingestExpirations,
   issuesIngest,

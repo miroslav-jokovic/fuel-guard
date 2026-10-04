@@ -56,6 +56,8 @@ const SCHEMA_OF = {
   POReceiptItem: "fleetpalPoReceiptItemSchema",
   WebhookEvent: "fleetpalWebhookEventSchema",
   CodeKey33: "fleetpalVmrsComponentSchema",
+  POPayment: "fleetpalPoPaymentSchema",
+  POItem: "fleetpalPoItemSchema",
 };
 
 /**
@@ -136,6 +138,7 @@ const ENUM_CONST_OF = {
   IntervalTypeEnum: "FLEETPAL_INTERVAL_TYPES",
   TimeIntervalEnum: "FLEETPAL_TIME_INTERVALS",
   UnitOfMeasureEnum: "FLEETPAL_UNITS_OF_MEASURE",
+  PaymentMethodEnum: "FLEETPAL_PAYMENT_METHODS",
 };
 
 function run(sources, manifest) {
@@ -169,7 +172,12 @@ function run(sources, manifest) {
   const consts = enumConsts(all);
   for (const [enumName, members] of Object.entries(manifest.enums)) {
     const constName = ENUM_CONST_OF[enumName];
-    if (!constName) continue;
+    // A vocabulary the manifest lists with no const mapped is a failure, as an unmapped resource is.
+    // Until 2026-10-04 this was `continue`, so a new enum in the manifest was silently never checked.
+    if (!constName) {
+      problems.push(`enum ${enumName} is in the manifest with no const mapped in ENUM_CONST_OF`);
+      continue;
+    }
     const ours = consts[constName];
     if (!ours) {
       problems.push(`${constName} (for ${enumName}) is not an exported \`as const\` array`);
