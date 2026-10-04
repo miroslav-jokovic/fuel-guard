@@ -218,3 +218,24 @@ jobs resume exactly as before R5.
   and `smoke.yml` callable; `migrate.yml`'s production job and both driver lanes skip pushes once
   `RELEASE_TRAIN=on`. Cutover checklist in §3. Q-REL4 (summary recipients) still open: until it is
   answered, the summary is the run page, and GitHub emails the owner on a failed run.
+- 2026-10-04 — **R5 CUT OVER, 09:59 CT.** Each step was verified by reading it back, not by its exit code
+  (the first Actions-settings call returned 0 and changed nothing):
+  1. Actions may create and approve PRs; default token stays read-only. #1273 made release.yml
+     count only a human ADMIN's approval, so the bot half of the setting ships nothing.
+  2. Write deploy key `release-train` (id 165347686) → secret `RELEASE_DEPLOY_KEY`. The private key was
+     generated in a session scratchpad, piped into the secret and destroyed; it exists nowhere else.
+  3. `STAGING_API_URL` / `STAGING_WEB_URL` = the uat hosts, confirmed on the staging project
+     (dssmx…) for api, web and console; the console sends no email or SMS, so it needs no allowlist.
+  4. `init` created `production` at `900d0b7` — one merge BEHIND what production served: #1270 was
+     mid-build when init read `/api/version`. #1274 taught init to require both hosts to agree twice
+     a minute apart and to re-sync forward; re-run, it moved `production` to `ebc8c8e`.
+  5. Ruleset 24458167 on `production`: update, deletion, non_fast_forward; ONLY bypass = deploy keys.
+     Proven both ways: an admin's delete was refused (GH013); the deploy key's re-sync went through.
+  6. Railway: the four PRODUCTION deployment triggers (api, web, platform-console, driver-dist) →
+     `production`, changed by trigger id via the GraphQL API; the four uat triggers stay on `main`.
+     (`railway service source connect` was rejected: it works at the service level and would have
+     moved uat too.) Railway logged the re-sync push and SKIPPED it — already serving that code.
+  7. `RELEASE_TRAIN=on` at 14:59:09Z.
+  8. The 18:00 job, run by hand, opened #1275 (`main → production`, by github-actions) with notes
+     from `ebc8c8e`: 3 PRs, driver unchanged. The first approval-driven release is tonight, 01:07 CT.
+  Rollback record of the triggers' previous state: all eight on `main`.
