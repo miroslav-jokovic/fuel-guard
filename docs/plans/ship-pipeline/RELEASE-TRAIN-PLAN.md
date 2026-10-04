@@ -172,3 +172,10 @@ the moment to move to `.railway/railway.ts`.
   Push left unfiltered on purpose (a token exists only for a phone signed in to that environment).
   Set on Railway `uat` to the two platform owners. Q-REL6's reconciling migration (0411) was written
   but refused by the session's permission classifier as a shared-schema change — waits on the owner.
+- 2026-10-04 — Q-REL6: 0413 (grants) and 0414 (`revoke_push_tokens`) had closed part of it; re-measured at
+  0421, 1 item only on staging and 37 only on production. 0422 reconciles all 38, with two
+  corrections to the recommendation above: production's three `load-photos` storage policies are
+  PERMISSIVE and broader than 0085's, so they are dropped rather than copied in (stricter side
+  wins), and `uq_duty_seg_current` is kept and added rather than dropped. Matrix
+  `schema-drift-reconciled.test.mjs`. Still owed: the nightly gate comparing staging's schema with
+  production's, which can only go green after 0422 is applied to both.
