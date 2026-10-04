@@ -385,6 +385,9 @@ export const SURFACES: readonly Surface[] = [
   { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.efs", label: "EFS integration", path: "/settings/efs-soap", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // The FleetPal connection (2026-10-04). Admin-only for `fleetpal.connection`'s reason in
+  // namedGrants.ts: the key it stores speaks for the carrier to the shop system.
+  { key: "admin.settings.fleetpal", label: "FleetPal integration", path: "/settings/fleetpal", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },

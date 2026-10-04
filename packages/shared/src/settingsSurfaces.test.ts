@@ -20,8 +20,8 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all sixteen screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(16);
+  it("links the directory to all seventeen screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(17);
   });
 
   for (const r of OFFICE_ROLES) {
@@ -108,7 +108,7 @@ describe("a section can open the door, but only an admin's answer walks a role t
 describe("the catalogue says what the rulings said", () => {
   it("keeps exactly Q-SET1's four screens admin-only", () => {
     expect(ADMIN_ONLY_SURFACES.map((s) => s.key).sort()).toEqual(
-      ["admin.settings.card-control", "admin.settings.efs", "admin.settings.permissions", "admin.users"],
+      ["admin.settings.card-control", "admin.settings.efs", "admin.settings.fleetpal", "admin.settings.permissions", "admin.users"],
     );
   });
 

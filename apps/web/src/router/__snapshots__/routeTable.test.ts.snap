@@ -506,6 +506,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/efs-soap",
   },
   {
+    "name": "fleetpal-settings",
+    "params": {},
+    "url": "/settings/fleetpal",
+  },
+  {
     "name": "org-settings",
     "params": {},
     "url": "/settings/org",
@@ -1199,6 +1204,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "efs-soap",
     "path": "/settings/efs-soap",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "FleetPal Integration",
+    },
+    "name": "fleetpal-settings",
+    "path": "/settings/fleetpal",
     "redirect": null,
   },
   {
