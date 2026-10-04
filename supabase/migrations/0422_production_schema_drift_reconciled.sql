@@ -139,6 +139,13 @@ drop index if exists public.idx_load_events_org_kind;
 drop index if exists public.idx_load_stop_photos_load;
 drop index if exists public.idx_load_stop_photos_stop;
 drop index if exists public.idx_load_stops_load;
+-- Edited after staging applied this file (2026-10-04, owner-approved in PR review): production's first
+-- push failed HERE with 2BP01, because on production uq_load_stops_seq is a UNIQUE CONSTRAINT, not
+-- a bare index, and its index cannot be dropped on its own. The transaction rolled back, so
+-- production stayed at 0421 untouched, and would have retried this file and failed on every push
+-- after. The line below is a no-op wherever the constraint does not exist, which includes staging,
+-- so every database that already applied 0422 is in the state this edit would have produced.
+alter table public.load_stops drop constraint if exists uq_load_stops_seq;
 drop index if exists public.uq_load_stops_seq;
 drop index if exists public.idx_loads_driver;
 drop index if exists public.idx_loads_pending;
