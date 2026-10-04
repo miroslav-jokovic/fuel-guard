@@ -52,7 +52,7 @@ const PATHS = SETTINGS_CARDS.map((c) => SURFACES.find((s) => s.key === c.key)!.p
 describe("the directory's cards come from the catalogue", () => {
   it("shows the admin every card, in the directory's order", () => {
     expect(cards("admin")).toEqual(PATHS);
-    expect(PATHS).toHaveLength(17);
+    expect(PATHS).toHaveLength(18);
   });
 
   for (const r of USER_ROLES.filter((x) => x !== "driver" && x !== "admin")) {
@@ -65,9 +65,9 @@ describe("the directory's cards come from the catalogue", () => {
     expect(cards("fleet_manager", null, { "admin.settings.org": true })).toEqual(["/settings/org"]);
   });
 
-  it("never shows the four Q-SET1 screens to anyone but the admin, whatever is stored", () => {
+  it("never shows the four Q-SET1 screens, or the FleetPal connection, to anyone but the admin, whatever is stored", () => {
     const shown = cards("fleet_manager", null, ALL_ON);
-    for (const p of ["/settings/users", "/settings/permissions", "/settings/efs-soap", "/settings/card-control"])
+    for (const p of ["/settings/users", "/settings/permissions", "/settings/efs-soap", "/settings/card-control", "/settings/fleetpal"])
       expect(shown, p).not.toContain(p);
   });
 

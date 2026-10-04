@@ -30,6 +30,8 @@
  * convenient exception at a time.
  */
 export { startFleetpalScheduler, isFleetpalSyncDue } from "./scheduler.js";
+export { registerFleetpalIntegrationRoutes } from "./routes/integration.js";
+export { probeApiKey, type ProbeOutcome } from "./probe.js";
 export {
   getCredential,
   getApiKey,

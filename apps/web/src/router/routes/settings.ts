@@ -122,6 +122,17 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/settings/fleetpal",
+    name: "fleetpal-settings",
+    component: () => import("@/pages/FleetpalSettingsPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "FleetPal Integration",
+      parent: "/settings",
+    },
+  },
+  {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),

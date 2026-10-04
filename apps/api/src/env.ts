@@ -401,8 +401,13 @@ const EnvSchema = z.object({
    * Hourly, because every resource in the sweep is watermarked or bounded: an hourly pass over a
    * quiet collection asks `updated_after=<an hour ago>` and gets an empty page, so "too often"
    * costs one round trip per resource and "not often enough" costs a report built on yesterday.
+   * ⚠ An enum, not `z.coerce.boolean()` (until 2026-10-04): `Boolean("false")` is true, so setting
+   * the kill switch to "false" switched the collector ON. A typo now fails boot instead.
    */
-  FLEETPAL_SYNC_ENABLED: z.coerce.boolean().default(false),
+  FLEETPAL_SYNC_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   FLEETPAL_SYNC_HOURS: z.coerce.number().min(1).default(1),
 });
 

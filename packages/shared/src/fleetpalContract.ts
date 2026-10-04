@@ -72,3 +72,37 @@ export const fleetpalUnitLinkSchema = z.union([
   z.object({ unlink: z.literal(true) }),
 ]);
 export type FleetpalUnitLink = z.infer<typeof fleetpalUnitLinkSchema>;
+
+/**
+ * The key, as the admin pastes it into Settings → FleetPal.
+ *
+ * Bounds only, no shape: the vendor documents a bearer token and nothing about its format, and a
+ * pattern guessed from one key would refuse the next one FleetPal issues. The real check is the
+ * probe the route makes before it stores anything.
+ */
+export const fleetpalApiKeySchema = z.object({ apiKey: z.string().trim().min(16).max(512) });
+export type FleetpalApiKeyInput = z.infer<typeof fleetpalApiKeySchema>;
+
+/**
+ * `GET /api/integrations/fleetpal/config` — never key material, not even a masked prefix.
+ *
+ * ⚠ **Three switches, and the page must name the one that is off.** `hasKey` and `enabled` are this
+ * org's; `schedulerOn` is the deploy's `FLEETPAL_SYNC_ENABLED`. Until 2026-10-04 the plan said "store
+ * the key through `setApiKey`" and nothing called it, so the collector sat idle for thirteen days
+ * with every one of these false and no screen that said so.
+ */
+export interface FleetpalConnectionStatus {
+  hasKey: boolean;
+  enabled: boolean;
+  schedulerOn: boolean;
+  syncHours: number;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  /** One row per collection that has ever run; an empty list means no sweep has happened yet. */
+  resources: {
+    resource: string;
+    lastRunAt: string | null;
+    lastError: string | null;
+    rowsSeen: number;
+  }[];
+}

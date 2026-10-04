@@ -93,7 +93,7 @@ const PROBES = [
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data", "/settings/recruiting",
-  "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
+  "/settings/efs-soap", "/settings/fleetpal", "/settings/org", "/settings/notifications", "/settings/audit",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated
   // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
   "/privacy", "/terms", "/support", "/sms-terms",

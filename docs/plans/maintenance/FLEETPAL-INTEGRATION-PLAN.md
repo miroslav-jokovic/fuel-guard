@@ -1620,3 +1620,28 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F9c** (VMRS descriptions), then **F9d**, then F10. F9d wants Q10 ruled first, and it is
   the only open question in §6.2.
+
+- **2026-10-04 · The connection door — the go-live step had no door to go through.** Production
+  held **zero rows in every `fleetpal_*` table**, thirteen days after F8 merged. The "two owner acts"
+  were `FLEETPAL_SYNC_ENABLED=true` and "the key stored per org through `setApiKey`" — and nothing
+  called `setApiKey`. The key is sealed under the production `SECRETS_ENCRYPTION_KEY`, which exists
+  only inside the api service, so the only other way to store one was copying that key onto a laptop,
+  the posture `credentials.ts` is written against. A missing capability, not an owner delay.
+
+  Built: `/api/integrations/fleetpal/{config,key,enable,disable,sync-now}`
+  (`modules/fleetpal/routes/integration.ts`) behind a new admin-only capability
+  `fleetpal.connection`, and the page `/settings/fleetpal` (surface `admin.settings.fleetpal`).
+  **The key is probed against `/v1/shops/` BEFORE it is sealed** — a refused key is never written
+  (400 `fleetpal_key_refused`), and neither is one FleetPal did not answer about (502). Storing a key
+  and switching the sweep on take a fresh sign-in; switching it off does not. The status read names
+  all three switches — the org's key, the org's sweep, the deploy's flag — because all three were off
+  and no screen said so.
+
+  **And the deploy flag was a trap.** `FLEETPAL_SYNC_ENABLED` was `z.coerce.boolean()`, and
+  `Boolean("false")` is true: setting the kill switch to "false" would have switched the collector
+  ON. Now the `PSP_ORDERS_ENABLED` enum shape. Pinned by "reads "false" as off — coercion read it
+  as on".
+
+  **Go-live, as it now is:** owner sets `FLEETPAL_SYNC_ENABLED=true` on `@fleetguard/api` only, then
+  Settings → FleetPal integration → paste key → Switch sweep on → Sync now. The first sweep should
+  reproduce **"at least 58.2%" for July 2026** (§8, F9b).
