@@ -3,12 +3,13 @@ import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
-  gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD,
+  gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD, formatDisplayDate,
   type CarriedFuelFill, type FuelPolicy, type PolicyGallonCell, type TargetVariance,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
@@ -29,6 +30,15 @@ import { usd, usd3, gal, pct1 } from "./format";
  * `gallonsBought − miles / baselineMpg`, which is a lower bound and understates roughly fivefold
  * against the measurement where both exist. A total mixing them is a floor. Calling it "the cost"
  * would be the same overreach as a partial numerator over a full denominator (B3, L14).
+ *
+ * ── RESULTS FIRST, METHOD ONE CLICK AWAY (design verdict 2026-10-03, E4/E10) ─────────────────────
+ * The tab used to open on three paragraphs of method, then four cards (one repeating the headline's
+ * dollars), the targets, an eight-state price table, and only then the purchases a reader acts on. Now:
+ * the headline with ONE sentence that keeps the material qualification in view (how many trips were
+ * measured and how many estimated, and that the estimate undercounts), the purchases, the targets, and
+ * behind two `ExplainerPanel`s the method (pump price vs fuel price, the trips that produced nothing) and
+ * the state table. Nothing was deleted; `<details>` keeps it in the page's own search while closed. The
+ * one state finding, a dear state no policy names, stays in view — it is a result, not reference.
  */
 const props = withDefaults(defineProps<{
   /** Every fill the window needs INCLUDING the 14-day lookback — see `useBuyFills`. */
@@ -179,12 +189,13 @@ const stateCols: DataTableColumn[] = [
 const rows = computed(() =>
   report.value.findings.map((f, i) => ({
     id: `${i}`,
-    date: f.from.date ?? "—",
+    // MM/DD/YYYY like every date on screen; the sort key below keeps the ISO string, which sorts.
+    date: f.from.date ? formatDisplayDate(f.from.date) : "—",
     unit: f.unit ?? "—",
     leg: `${f.from.state ?? "?"} → ${f.to.state ?? "?"}`,
     bought: f.from.gallonsBought.toFixed(0),
     carried: f.carriedGallons.toFixed(0),
-    basis: f.basis === "tank_level" ? "tank level" : "miles (floor)",
+    basis: f.basis === "tank_level" ? "Tank reading" : "Miles driven (at least)",
     fromPer: usd3(f.from.preTaxPerGal),
     toPer: usd3(f.to.preTaxPerGal),
     excess: usd(f.excess),
@@ -207,9 +218,9 @@ const cols: DataTableColumn[] = [
   { key: "date", label: "Bought", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
   { key: "unit", label: "Unit", width: "xs", sortable: true, cellClass: "text-ink-secondary" },
   { key: "leg", label: "Trip between fuel stops", width: "sm", sortable: true, cellClass: "text-ink-secondary" },
-  { key: "bought", label: "Bought", numeric: true, width: "sm", sortable: true },
+  { key: "bought", label: "Gallons bought", numeric: true, width: "sm", sortable: true },
   { key: "carried", label: "Fuel left in tank (gal)", numeric: true, width: "sm", sortable: true },
-  { key: "basis", label: "From", width: "sm", sortable: true, cellClass: "text-ink-tertiary" },
+  { key: "basis", label: "Measured by", width: "sm", sortable: true, cellClass: "text-ink-tertiary" },
   { key: "fromPer", label: "Fuel / gal there", numeric: true, width: "sm", sortable: true },
   { key: "toPer", label: "…and here", numeric: true, width: "sm", sortable: true },
   { key: "excess", label: "Cost", numeric: true, width: "sm", sortable: true },
@@ -236,9 +247,7 @@ function exportRows() {
         <div class="min-w-0">
           <h3 class="text-sm font-semibold text-ink">Fuel carried out of dearer states</h3>
           <p class="mt-1 max-w-2xl text-sm text-ink-muted">
-            Diesel bought where it costs more and still in the tank on arrival somewhere it costs less. The
-            truck's next fill is the proof it made the trip, so there is no route to argue about — only the
-            gallons and the two prices.
+            Diesel bought where it costs more and still in the tank on arrival somewhere it costs less.
           </p>
         </div>
         <div class="text-right">
@@ -249,21 +258,14 @@ function exportRows() {
         </div>
       </div>
 
-      <!-- F10's rule, applied to a saving. The pump-price version of this figure is larger and most of
-           the difference is a jurisdiction's tax rate, which is owed on the miles driven there whichever
-           state the diesel was bought in — so it is shown as a comparison and never as the headline. -->
-      <p class="mt-3 text-xs text-ink-tertiary">
-        Priced on the fuel itself, with each state's diesel tax removed. On pump price the same trips read
-        {{ usd(report.pumpExcess) }} — the gap is tax the carrier owes wherever it buys, so it is not a saving.
-      </p>
-
-      <!-- Half these legs are measured from a tank level and half bounded from miles burned. The bound
-           understates roughly fivefold where both exist, so the total is a floor and must read as one. -->
-      <p class="mt-2 text-xs text-ink-tertiary">
+      <!-- The one qualification that changes how the figure is read stays beside it: half the trips are
+           estimated from miles, and that estimate undercounts roughly fivefold, so the total is a minimum. -->
+      <p class="mt-3 text-xs text-ink-tertiary" data-testid="carried-basis">
+        {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
         {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
-        ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} bounded from
-        miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which
-        understates. The total is a floor, not an estimate.
+        ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
+        miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which undercounts —
+        so the total is a minimum.
       </p>
 
       <!--
@@ -273,24 +275,46 @@ function exportRows() {
       -->
     </BaseCard>
 
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatCard label="Trips between fuel stops" :value="coverage.findings.toLocaleString()" :sub="`of ${coverage.pairs.toLocaleString()} examined`" />
-      <StatCard label="Gallons carried" :value="gal(report.gallons)" sub="out of the dearer state" />
-      <StatCard label="Extra fuel cost — at least" :value="usd(report.excess)" sub="at least — see the note above" />
-      <StatCard
-        label="Could not be judged"
-        :value="coverage.blind.toLocaleString()"
-        :sub="coverage.blindShare == null ? '—' : `${pct1(coverage.blindShare)} of pairs`"
-      />
+    <div>
+      <div class="mb-2 flex items-center justify-between">
+        <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
+        <BaseButton v-if="report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
+      </div>
+      <BaseCard padding="none">
+        <DataTable
+          :columns="cols"
+          :rows="pageRows"
+          :sort="sort"
+          :empty-text="loading ? 'Loading…' : 'No fuel was carried out of a dearer state in this window.'"
+          @sort="sort = toggleSort(sort, $event); page = 1"
+        >
+          <template #footer>
+            <TablePagination v-model:page="page" :page-size="PER_PAGE" :total="sortedRows.length" />
+          </template>
+        </DataTable>
+      </BaseCard>
     </div>
 
-    <!-- Most of what produced no finding is not missing data, and saying so is the difference between a
-         caveat and a panic: the truck stayed in one state, or drove the way the policy wants. -->
-    <p class="text-xs text-ink-tertiary">
-      Of {{ coverage.pairs.toLocaleString() }} trips between fuel stops, {{ coverage.sameState.toLocaleString() }} stayed inside one
-      state and {{ coverage.towardDearer.toLocaleString() }} ran from cheaper fuel toward dearer — the way round
-      the policy asks for, so neither is a finding. Only {{ coverage.blind }} could not be judged at all.
-    </p>
+    <ExplainerPanel summary="How the extra cost is worked out">
+      <p>
+        The truck's next fill is the proof it made the trip, so there is no route to argue about — only the
+        gallons and the two prices.
+      </p>
+      <!-- F10's rule, applied to a saving. The pump-price version of this figure is larger and most of
+           the difference is a jurisdiction's tax rate, which is owed on the miles driven there whichever
+           state the diesel was bought in — so it is shown as a comparison and never as the headline. -->
+      <p>
+        Priced on the fuel itself, with each state's diesel tax removed. On pump price the same trips read
+        {{ usd(report.pumpExcess) }} — the gap is tax the carrier owes wherever it buys, so it is not a saving.
+      </p>
+      <!-- Most of what produced no finding is not missing data, and saying so is the difference between a
+           caveat and a panic: the truck stayed in one state, or drove the way the policy wants. -->
+      <p>
+        Of {{ coverage.pairs.toLocaleString() }} trips between fuel stops, {{ coverage.sameState.toLocaleString() }} stayed inside one
+        state and {{ coverage.towardDearer.toLocaleString() }} ran from cheaper fuel toward dearer — the way round
+        the policy asks for, so neither is a finding. Only {{ coverage.blind }} could not be judged at all<template v-if="coverage.blindShare != null"> ({{ pct1(coverage.blindShare) }})</template>.
+      </p>
+    </ExplainerPanel>
 
     <!-- ── the targets, graded (C8) ─────────────────────────────────────────────────────────────
          The two figures the policy is held to, each against the standard the carrier set for it, or
@@ -357,47 +381,27 @@ function exportRows() {
       </template>
     </div>
 
-    <div v-if="stateRows.length">
-      <h4 class="mb-2 text-sm font-semibold text-ink">What fuel costs, by state, with the tax taken out</h4>
+    <!-- Ranked, shown, and flagged — never applied. A carrier avoids a state for reasons a price cannot
+         see (CARB, tolls, a customer who will not take the truck), so the configured list stays
+         authoritative and this reports where the two disagree. The disagreement is a result and stays in
+         view; the table it comes from is reference, one click away. -->
+    <p v-if="divergence.unlisted.length" class="text-sm text-ink-secondary">
+      {{ listStates(divergence.unlisted.map((s) => s.state)) }}
+      {{ divergence.unlisted.length === 1 ? "is" : "are" }} among your dearest fuel and
+      {{ divergence.unlisted.length === 1 ? "is" : "are" }} in no policy list.
+      <template v-if="props.policy.avoidStates.length">
+        You avoid {{ listStates(props.policy.avoidStates) }}.
+      </template>
+    </p>
+    <ExplainerPanel v-if="stateRows.length" summary="What fuel costs, by state, with the tax taken out">
       <BaseCard padding="none">
         <DataTable :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
       </BaseCard>
-      <!-- Ranked, shown, and flagged — never applied. A carrier avoids a state for reasons a price cannot
-           see (CARB, tolls, a customer who will not take the truck), so the configured list stays
-           authoritative and this reports where the two disagree. -->
-      <p v-if="divergence.unlisted.length" class="mt-2 text-sm text-ink-secondary">
-        {{ listStates(divergence.unlisted.map((s) => s.state)) }}
-        {{ divergence.unlisted.length === 1 ? "is" : "are" }} among your dearest fuel and
-        {{ divergence.unlisted.length === 1 ? "is" : "are" }} in no policy list.
-        <template v-if="props.policy.avoidStates.length">
-          You avoid {{ listStates(props.policy.avoidStates) }}.
-        </template>
-      </p>
-      <p class="mt-1 text-xs text-ink-tertiary">
+      <p class="text-xs text-ink-tertiary">
         This is what the fleet PAID, not what fuel costs in that state — somewhere you only ever stop at
         expensive sites looks dear for a reason of your own making. States under
         {{ gal(2000) }} gallons are left out: a rule over a handful of stops is a rule about noise.
       </p>
-    </div>
-
-    <div>
-      <div class="mb-2 flex items-center justify-between">
-        <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
-        <BaseButton v-if="report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
-      </div>
-      <BaseCard padding="none">
-        <DataTable
-          :columns="cols"
-          :rows="pageRows"
-          :sort="sort"
-          :empty-text="loading ? 'Loading…' : 'No fuel was carried out of a dearer state in this window.'"
-          @sort="sort = toggleSort(sort, $event); page = 1"
-        >
-          <template #footer>
-            <TablePagination v-model:page="page" :page-size="PER_PAGE" :total="sortedRows.length" />
-          </template>
-        </DataTable>
-      </BaseCard>
-    </div>
+    </ExplainerPanel>
   </div>
 </template>
