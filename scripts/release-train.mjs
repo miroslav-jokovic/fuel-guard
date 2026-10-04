@@ -83,7 +83,7 @@ function notes(before, after) {
     .split("\n").filter(Boolean);
   const prs = prNumbers(subjects).map((number) => {
     let title = "(title unavailable)";
-    try { title = execFileSync("gh", ["pr", "view", String(number), "--json", "title", "--jq", ".title"], { encoding: "utf8" }).trim(); } catch {}
+    try { title = execFileSync("gh", ["pr", "view", String(number), "--json", "title", "--jq", ".title"], { encoding: "utf8" }).trim(); } catch { /* the notes still list the number; one missing title must not stop a release */ }
     return { number, title };
   });
   return renderNotes({ before: before || after, after, prs, migrations: migrationsIn(files), driver: driverChanged(files) });
