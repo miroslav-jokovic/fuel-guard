@@ -20,16 +20,42 @@ name: Verify deployment
 #   API_URL   e.g. https://fleetguardapi-production.up.railway.app
 #   WEB_URL   e.g. https://fleetguardweb-production.up.railway.app
 
+#
+# ── Two targets since the release train (RELEASE-TRAIN-PLAN R5, 2026-10-04) ───────────────────────
+# release.yml CALLS this to verify production at the release commit (`target: production`, `sha`,
+# `before` = the previous production commit). A push to main verifies PRODUCTION until the cutover
+# sets RELEASE_TRAIN=on, and STAGING after it — main then feeds only the uat hosts, read from
+# STAGING_API_URL / STAGING_WEB_URL. The variable names are derived (`STAGING_` + the production
+# name), never a second list.
+
 on:
   push:
     branches: [main]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      sha:
+        description: "The commit the hosts must serve"
+        type: string
+        required: true
+      before:
+        description: "The commit the hosts served before; empty means always verify"
+        type: string
+        required: false
+        default: ""
+      target:
+        description: "production | staging"
+        type: string
+        required: false
+        default: production
 
 jobs:
   verify:
     # Same machine switch as ci.yml (CI_RUNNER; its header says why).
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
+    env:
+      URL_PREFIX: ${{ (inputs.target == 'staging' || (github.event_name == 'push' && vars.RELEASE_TRAIN == 'on')) && 'STAGING_' || '' }}
     strategy:
       # Report on every host rather than stopping at the first one that lags. "The API is behind" and
       # "the web host is behind" are different problems with different fixes, and learning them one
@@ -43,13 +69,15 @@ jobs:
             url_var: WEB_URL
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
 
       - name: Check the URL is configured
         env:
-          TARGET_URL: ${{ vars[matrix.url_var] }}
+          TARGET_URL: ${{ vars[format('{0}{1}', env.URL_PREFIX, matrix.url_var)] }}
         run: |
           if [ -z "$TARGET_URL" ]; then
-            echo "::error::Repository variable ${{ matrix.url_var }} is not set — cannot verify the ${{ matrix.host }} host."
+            echo "::error::Repository variable ${URL_PREFIX}${{ matrix.url_var }} is not set — cannot verify the ${{ matrix.host }} host."
             echo "Both hosts must be verifiable. A missing variable is an unverified deployment, not a skip."
             exit 1
           fi
@@ -73,7 +101,8 @@ jobs:
       - name: Does this push change anything Railway deploys?
         id: deploys
         env:
-          BEFORE: ${{ github.event.before }}
+          BEFORE: ${{ inputs.sha && inputs.before || github.event.before }}
+          HEAD_SHA: ${{ inputs.sha || github.sha }}
         run: |
           set -o pipefail
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
@@ -85,16 +114,16 @@ jobs:
           specs=()
           while IFS= read -r spec; do specs+=("$spec"); done < <(jq -r '(.build.watchPatterns // [])[]
             | if startswith("!") then ":(exclude,glob)" + .[1:] else ":(glob)" + . end' railway.json)
-          if ! changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- "${specs[@]}"); then
-            echo "Could not diff ${BEFORE::7}..${GITHUB_SHA::7} — verifying."
+          if ! changed=$(git diff --name-only "$BEFORE" "$HEAD_SHA" -- "${specs[@]}"); then
+            echo "Could not diff ${BEFORE::7}..${HEAD_SHA::7} — verifying."
             echo "deploys=true" >> "$GITHUB_OUTPUT"
           elif [ -n "$changed" ]; then
             echo "Railway deploys this push; it changes:"
             echo "$changed" | sed 's/^/  /'
             echo "deploys=true" >> "$GITHUB_OUTPUT"
           else
-            echo "✓ Nothing to deploy: ${BEFORE::7}..${GITHUB_SHA::7} touches only paths railway.json's watchPatterns exclude."
-            echo "✓ Nothing to deploy — \`${GITHUB_SHA::7}\` touches only paths railway.json's watchPatterns exclude." >> "$GITHUB_STEP_SUMMARY"
+            echo "✓ Nothing to deploy: ${BEFORE::7}..${HEAD_SHA::7} touches only paths railway.json's watchPatterns exclude."
+            echo "✓ Nothing to deploy — \`${HEAD_SHA::7}\` touches only paths railway.json's watchPatterns exclude." >> "$GITHUB_STEP_SUMMARY"
             echo "deploys=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -110,8 +139,8 @@ jobs:
       - name: Wait for the ${{ matrix.host }} host to serve this commit
         if: steps.deploys.outputs.deploys == 'true'
         env:
-          TARGET_URL: ${{ vars[matrix.url_var] }}
-          EXPECTED: ${{ github.sha }}
+          TARGET_URL: ${{ vars[format('{0}{1}', env.URL_PREFIX, matrix.url_var)] }}
+          EXPECTED: ${{ inputs.sha || github.sha }}
           HOST: ${{ matrix.host }}
           GH_TOKEN: ${{ github.token }}
         run: |

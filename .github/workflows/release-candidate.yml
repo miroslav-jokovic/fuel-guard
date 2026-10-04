@@ -1,0 +1,89 @@
+name: Release candidate
+
+# At 18:00 CT on a release night (D-REL5, D-REL7), opens — or refreshes — the release PR
+# `main → production` whose body is tonight's release notes. Approving it is the go signal for
+# release.yml at 01:00; the approval pins the reviewed commit, so later merges ride the next train.
+# Run it by hand to refresh the notes after a late merge.
+#
+# 23:00 UTC is 18:00 CDT / 17:00 CST, Sunday–Thursday by both clocks.
+#
+# Dormant until cutover like release.yml: with RELEASE_TRAIN not `on`, or before `production`
+# exists, it writes tonight's would-be notes to the run summary and opens nothing.
+#
+# The PR is opened with GITHUB_TOKEN on purpose: it then belongs to github-actions, so the owner can
+# approve it (GitHub refuses a self-approval). That needs Settings → Actions → "Allow GitHub Actions
+# to create and approve pull requests" — a cutover step.
+
+on:
+  schedule:
+    - cron: "0 23 * * 0-4"
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-candidate
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRAIN: ${{ vars.RELEASE_TRAIN }}
+      FREEZE: ${{ vars.RELEASE_FREEZE }}
+      API_URL: ${{ vars.API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Open or refresh tonight's release PR
+        run: |
+          set -euo pipefail
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          after=$(git rev-parse origin/main)
+          before=""
+          if git rev-parse -q --verify origin/production >/dev/null; then before=$(git rev-parse origin/production); fi
+          branch="$before"
+          # Before cutover there is no production branch: compare against the commit production serves.
+          if [ -z "$before" ]; then
+            before=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.commit // empty' || true)
+            [ -n "$before" ] && git cat-file -e "$before^{commit}" 2>/dev/null || before=""
+          fi
+
+          if [ -n "$before" ] && [ "$before" = "$after" ]; then say "✓ Production is already at main (\`${after::7}\`) — no release tonight."; exit 0; fi
+          node scripts/release-train.mjs notes "$before" "$after" > notes.md
+
+          if [ "$TRAIN" != "on" ] || [ -z "$branch" ]; then
+            say "🎭 **Rehearsal** — RELEASE_TRAIN is not \`on\` or \`production\` does not exist yet; no PR opened. Tonight's notes would be:"
+            cat notes.md >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          [ "$FREEZE" != "true" ] || say "🧊 RELEASE_FREEZE=true — the PR is refreshed, but release.yml will not ship it until the freeze lifts."
+          # The title names the commit, not a date: the tag is minted at 01:00, on the NEXT Central day.
+          title="Release candidate — main @ ${after::7}"
+          {
+            echo "**Approve this PR to ship it at 01:00 CT** (release.yml, D-REL6). The approval pins the commit you"
+            echo "reviewed; anything merged after it rides the next train. No approval, no release."
+            echo
+            echo "Check it on staging first: the uat hosts serve main within minutes of every merge."
+            echo
+            cat notes.md
+          } > body.md
+          pr=$(gh pr list --base production --head main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body-file body.md
+            say "Refreshed release PR #$pr."
+          else
+            gh pr create --base production --head main --title "$title" --body-file body.md
+            say "Opened tonight's release PR."
+          fi
