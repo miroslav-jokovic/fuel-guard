@@ -84,6 +84,17 @@ const mapDefect = (row: FleetpalDefect) => ({
  */
 const OVERLAP_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * ⚠ **FleetPal answers a lowercase boolean filter with an HTML 500.** Measured 2026-10-04 against
+ * the live account: `is_resolved=false` and `=true` on `/v1/defects/`, and `is_completed=false` and
+ * `=true` on `/v1/expirations/`, all 500, while `False`/`True` and `0`/`1` answer 200, and
+ * `False` (46) + `True` (578) = the unfiltered 624. The spec types both as arrays of boolean and
+ * says nothing about spelling, so the lowercase form a JSON reader would pick is exactly the one
+ * that fails. The first production sweep failed both resources on it (FLEETPAL §8, 2026-10-04).
+ * The capitalised form is used because it is the value the vendor's own server parses.
+ */
+const FLEETPAL_FALSE = "False";
+
 export async function ingestDefects(ctx: IngestContext): Promise<IngestResult> {
   const { admin, client, orgId } = ctx;
   const resource = "defects";
@@ -91,7 +102,7 @@ export async function ingestDefects(ctx: IngestContext): Promise<IngestResult> {
   const lastWindowEnd = state?.windowEnd ?? null;
 
   try {
-    const open = await client.walk("/v1/defects/", fleetpalDefectSchema, { is_resolved: "false" });
+    const open = await client.walk("/v1/defects/", fleetpalDefectSchema, { is_resolved: FLEETPAL_FALSE });
     // A day of overlap, because the two clocks are not the same clock and a defect detected in the
     // seconds around a sweep boundary must not fall between two windows. Re-reading a day of
     // defects costs one page on a fleet this size and the stage call is idempotent.
@@ -148,7 +159,7 @@ export async function ingestExpirations(ctx: IngestContext): Promise<IngestResul
 
   try {
     const rows = await client.walk("/v1/expirations/", fleetpalExpirationSchema, {
-      is_completed: "false",
+      is_completed: FLEETPAL_FALSE,
     });
     if (rows.length > 0) {
       const payload = rows.map((row: FleetpalExpiration) => ({

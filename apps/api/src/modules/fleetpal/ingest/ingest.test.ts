@@ -339,7 +339,7 @@ describe("the bounded re-read tier (F7)", () => {
     });
     const result = await ingestDefects({ admin: rec.client, client, orgId: ORG });
     expect(result.error).toBeNull();
-    expect(urls[0]).toContain("is_resolved=false");
+    expect(urls[0]).toContain("is_resolved=False");
     expect(urls[1]).toContain("detected_after=");
     // A day of overlap, because the two clocks are not the same clock.
     expect(urls[1]).toContain("2026-09-19T00%3A00%3A00");
@@ -386,7 +386,7 @@ describe("the bounded re-read tier (F7)", () => {
     const { client, urls } = clientWith([page([])]);
     const rec = recorderWith();
     const result = await ingestExpirations({ admin: rec.client, client, orgId: ORG });
-    expect(urls[0]).toContain("is_completed=false");
+    expect(urls[0]).toContain("is_completed=False");
     expect(result.fetched).toBe(0);
     expect(rec.writtenRows("fleetpal_sync_state")[0]!.window_end).toEqual(expect.any(String));
   });
