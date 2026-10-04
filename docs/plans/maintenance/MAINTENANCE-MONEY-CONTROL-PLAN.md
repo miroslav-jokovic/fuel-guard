@@ -348,3 +348,31 @@ owner, plain word first and accounting term in the hover (the office readers are
   **C1's last done-when ("a July walk stages 169 payments") waits on the first production sweep.**
   The walk itself returns 169 with the inclusive window and every row parses; staging in production
   needs the key pasted in Settings → FleetPal integration.
+
+- **2026-10-04 · C1b stopped: its premise changed.** C1b was written as "production holds no rows
+  yet, so it is cheap now". By 16:40Z it held **4,095** `fleetpal_po_invoices` (the first sweep,
+  15:17Z), and the two three-decimal invoices are already stored **rounded**:
+  - `cqUW4Msw` (`X101239989:01`): FleetPal `108.489`, ours `108.49`, vendor `updated`
+    2025-12-31.
+  - `7uUeeoFb` (`X101211349:01`): FleetPal `188.774`, ours `188.77`, vendor `updated`
+    2025-06-13.
+
+  A live walk of all 4,095 finds no other three-decimal amount. Both rows sit behind the
+  `purchase-order-invoices` watermark, and `updated_after` is exclusive, so **widening the column
+  alone leaves both rounded for ever**. Nothing in `modules/fleetpal` resets a watermark. Candidate
+  shapes, for the owner:
+  - **(a)** C1b's migration widens the column and the stage function's recordset, and clears that
+    one resource's watermark, so the next sweep re-walks 4,095 invoices once (~21 pages) and the
+    idempotent stage rewrites both from FleetPal. **Recommended:** the value still comes from the
+    vendor, the cost is one walk, and staging (no key) is a no-op.
+  - **(b)** A general "re-walk a resource" door. A new capability; out of scope for two rows.
+  - **(c)** Hand-update the two rows in the migration. That's a copy of vendor data, against D-FP16.
+    Rejected.
+
+  The difference is $0.001 + $0.004 = **$0.005** across all time. It matters only because D-MMC3's
+  identity is to the cent and K1 must reproduce FleetPal's own total.
+
+- **2026-10-04 · Production state at 16:29Z, for the post-release check.** Migration 0423, the
+  `production` branch at `ebc8c8e`, release PR #1275 open and unapproved. 0424's tables are absent
+  in production, as the release train intends. Separately, `defects` and `expirations` had never
+  staged a row: FleetPal 500s on `is_resolved=false`. Fixed in #1280 and logged in FLEETPAL §8.

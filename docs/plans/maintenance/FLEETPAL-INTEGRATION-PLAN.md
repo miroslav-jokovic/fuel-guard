@@ -1687,3 +1687,33 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   by two tests, both caught when the loop is collapsed back to one call. The other staging calls
   (shops 1, defects 604, expirations 0, PM schedules) are small; the PM schedule count is read from
   this sweep's result before that claim stands.
+
+- **2026-10-04 · Defects and expirations never staged: FleetPal 500s on a lowercase boolean.**
+  Production's `fleetpal_sync_state` at 16:29Z, migration 0423: `defects` and `expirations` both
+  read `last_error = "server: FleetPal returned 500"` (15:37Z), `rows_seen` 0, and both tables
+  hold **0 rows**. **The entry above calling defects "small" (604) was wrong:** 604 is F4's count,
+  and nothing has ever staged one. PM schedules did stage: **1,037** rows seen, no error. Issues
+  298, purchase-order invoices 4,095.
+
+  Measured against the live account with read-only `GET`s, same key:
+
+  | Query | Answer |
+  |---|---|
+  | `/v1/defects/?is_resolved=false` / `=true` | **500**, HTML |
+  | `/v1/defects/?is_resolved=False` / `=0` | 200, **46** |
+  | `/v1/defects/?is_resolved=True` / `=1` | 200, **578** |
+  | `/v1/defects/` (no filter) | 200, **624** = 46 + 578 |
+  | `/v1/expirations/?is_completed=false` / `=true` | **500**, HTML |
+  | `/v1/expirations/?is_completed=False` / `=0` | 200, 0 |
+
+  The spec types both parameters as an array of boolean and says nothing about spelling. The
+  collector sent `"false"` at both call sites (`ingest/condition.ts`). `FleetpalClient.walk` run
+  against the live account reproduces the production error with `false` and walks 46 defects with
+  `False`. Fixed: both send `FLEETPAL_FALSE = "False"`. The two F7 tests that assert the URL now
+  expect `False`, and both fail when the constant is put back to `"false"`. `/v1/issues/` takes no
+  `is_resolved` parameter (absent from its spec entry; it answers 298 with or without it), and no
+  other boolean query value is sent anywhere in `modules/fleetpal`.
+
+  Like #1278, this reaches production with the next release, not on merge. The post-release check
+  is the handoff's: every resource has rows and no `last_error`. That includes defects (46 open,
+  plus whatever was detected in the overlap window) and expirations (0 rows, no error).
