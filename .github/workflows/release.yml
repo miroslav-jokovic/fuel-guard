@@ -32,8 +32,14 @@ name: Release
 # Hotfix and rollback ignore it: a freeze is for routine change, not for repairs.
 #
 # Secrets: SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD (as migrate.yml);
-# RELEASE_TOKEN — a fine-grained token of a repository admin with contents:write, because the
-# production ruleset lets only admins move the branch and GITHUB_TOKEN is not one.
+# RELEASE_DEPLOY_KEY — the private half of a WRITE deploy key on this repository, and the only actor
+# the `production` ruleset lets move the branch. A deploy key reaches this one repository and
+# nothing else; the admin's personal token first planned here would have reached every repository
+# the admin owns, from a secret any workflow on main can read (2026-10-04, at cutover).
+#
+# Who approves: only a review by a human with ADMIN permission on this repository counts. Cutover
+# step 1 lets github-actions open the release PR, and that same setting lets it approve one; a bot
+# approval must never be a go signal.
 
 on:
   schedule:
@@ -112,7 +118,9 @@ jobs:
 
           dry=false
           if [ "$DRY_INPUT" = "true" ]; then dry=true; fi
-          if [ "$TRAIN" != "on" ]; then dry=true; say "🎭 **Rehearsal** — RELEASE_TRAIN is not \`on\`, so nothing is pushed, migrated, tagged or deployed."; fi
+          # init is exempt: creating the branch deploys nothing until Railway follows it, and the
+          # cutover needs the branch BEFORE the train is switched on.
+          if [ "$TRAIN" != "on" ] && [ "$MODE" != "init" ]; then dry=true; say "🎭 **Rehearsal** — RELEASE_TRAIN is not \`on\`, so nothing is pushed, migrated, tagged or deployed."; fi
           out dry "$dry"; out mode "$MODE"
 
           case "$MODE" in hotfix|rollback) [ -n "$REASON" ] || { echo "::error::$MODE needs a reason."; exit 1; } ;; esac
@@ -135,16 +143,26 @@ jobs:
               stop "😴 Not a release night (D-REL7: Sunday–Thursday nights only)."
             fi
             pr=$(gh pr list --base production --head main --state open --json number --jq '.[0].number // empty')
-            sha=""
+            sha="" approver=""
             if [ -n "$pr" ]; then
-              sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr}/reviews" --jq '[.[] | select(.state == "APPROVED")] | last | .commit_id // empty')
+              # The latest approval by a human repository ADMIN; anyone else's approval is ignored.
+              while read -r login commit; do
+                [ -n "$login" ] || continue
+                perm=$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${login}/permission" --jq .permission 2>/dev/null || echo none)
+                if [ "$perm" = "admin" ]; then sha="$commit"; approver="$login"; fi
+              done < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${pr}/reviews" \
+                        --jq '.[] | select(.state == "APPROVED" and .user.type == "User") | "\(.user.login) \(.commit_id)"')
+              # The approved commit must be main's: a review pinned to anything else is not a release.
+              if [ -n "$sha" ] && ! git merge-base --is-ancestor "$sha" origin/main; then
+                echo "::error::The approved commit ${sha::7} is not on main."; exit 1
+              fi
             fi
             if [ -z "$sha" ]; then
               [ "$dry" = "true" ] || stop "⏭ No approved release PR${pr:+ (#$pr is open, not approved)} — today's work rides the next train (D-REL5)."
               sha=$(git rev-parse origin/main)
               say "Rehearsing with main's head \`${sha::7}\`; a real run ships only an approved release PR's commit."
             else
-              say "Release PR #$pr approved at \`${sha::7}\`."
+              say "Release PR #$pr approved by ${approver} at \`${sha::7}\`."
             fi
           elif [ "$MODE" = "hotfix" ]; then
             sha=$(git rev-parse --verify "${INPUT_SHA}^{commit}") || { echo "::error::sha '$INPUT_SHA' is not a commit here."; exit 1; }
@@ -207,7 +225,8 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          # SSH with the deploy key when present; a rehearsal without it falls back to the read token.
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       - name: Require CI green for this commit
         if: needs.plan.outputs.mode != 'init'
@@ -221,7 +240,7 @@ jobs:
           [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && missing+=(SUPABASE_ACCESS_TOKEN)
           [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ] && missing+=(SUPABASE_PROJECT_REF)
           [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ] && missing+=(SUPABASE_DB_PASSWORD)
-          if [ "$DRY" != "true" ] && [ -z "${{ secrets.RELEASE_TOKEN }}" ]; then missing+=(RELEASE_TOKEN); fi
+          if [ "$DRY" != "true" ] && [ -z "${{ secrets.RELEASE_DEPLOY_KEY }}" ]; then missing+=(RELEASE_DEPLOY_KEY); fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing repository secrets: ${missing[*]} — nothing was released."
             exit 1

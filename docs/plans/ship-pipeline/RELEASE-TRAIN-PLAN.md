@@ -120,14 +120,17 @@ production jobs keep running, until the repository variable `RELEASE_TRAIN` is `
 changes nothing users see. The cutover is one sitting, after 19:00 CT, in this order:
 
 1. Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" (the
-   release PR must be opened by github-actions, so the owner can approve it).
-2. A fine-grained token of a repository admin, `contents: write` on this repository, saved as the
-   secret `RELEASE_TOKEN` (the ruleset below lets only admins move `production`).
+   release PR must be opened by github-actions, so the owner can approve it). release.yml counts
+   only approvals by a human repository ADMIN, so the bot half of that setting ships nothing.
+2. A WRITE deploy key on this repository; its private half is the secret `RELEASE_DEPLOY_KEY`, never
+   written anywhere else. (First planned as an admin's personal token — rejected at cutover: a PAT
+   reaches every repository its owner can, a deploy key only this one.)
 3. Repository variables `STAGING_API_URL` / `STAGING_WEB_URL` (the uat hosts), so a push to main
    verifies staging once the train is on.
 4. Run Release with `mode=init`: creates `production` at the commit production serves, read from
-   `/api/version`.
-5. A ruleset on `production`: restrict updates, deletions and force pushes; bypass: repository admin.
+   `/api/version`. It runs with the train still off — creating a branch deploys nothing.
+5. A ruleset on `production`: restrict updates, deletions and force pushes; the ONLY bypass actor is
+   deploy keys. No admin bypass: an admin can still disable the ruleset, deliberately and visibly.
 6. Railway: `@fleetguard/api`, `@fleetguard/web`, `platform-console`, `driver-dist` in the
    production environment → source branch `production`.
 7. `RELEASE_TRAIN=on`. From this moment a merge deploys staging only.
