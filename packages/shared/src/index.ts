@@ -166,6 +166,7 @@ export * from "./employmentCoverage.js";
 export * from "./addressCoverage.js";
 export * from "./idleRollup.js";
 export * from "./idleBreakdown.js";
+export * from "./idleTotals.js";
 export * from "./idleCostBasis.js";
 export * from "./driverAuthContract.js";
 export * from "./efsTime.js";

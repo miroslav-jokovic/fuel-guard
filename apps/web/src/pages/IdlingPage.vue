@@ -23,7 +23,7 @@ const {
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
-  dateFrom, dateTo, rangeLabel, priceNote,
+  dateFrom, dateTo, rangeLabel, estimate,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
@@ -40,13 +40,16 @@ const {
     <SamsaraFeedLine :feeds="['idle']" />
 
     <!-- Which window every card + table below reflects (the date picker lives in the tab toolbars). -->
-    <div class="flex items-center gap-2 text-sm">
+    <div class="flex flex-wrap items-center gap-2 text-sm">
       <span class="text-ink-muted">Showing</span>
       <span class="rounded-control bg-surface-muted px-2 py-0.5 font-semibold text-ink">{{ rangeLabel }}</span>
+      <!-- How far the data reaches, and that the table's filters don't narrow the cards (design verdict, move 4). -->
+      <span v-if="estimate" class="text-xs text-ink-tertiary" data-testid="idle-scope">{{ estimate.scope }}</span>
     </div>
 
     <!-- Fleet engine-time summary: running = drive + idle, with BOTH idle measures — avoidable (waste on
-         trucks that had an alternative) and reducible (what equipping the rest of the fleet would save). -->
+         trucks that had an alternative) and reducible (what equipping the rest of the fleet would save).
+         Each money card carries its own coverage and pricing lines (design verdict, move 4). -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
@@ -61,14 +64,15 @@ const {
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
         <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">across {{ fleet.confidentTrucks }}/{{ fleet.totalTrucks }} trucks with confident data</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" title="Fuel price the idle cost is figured at">{{ priceNote }}</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</dd>
+        <dd v-if="estimate?.avoidablePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</dd>
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
         <dd class="mt-1 text-2xl font-bold text-warning-600">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry, across {{ fleet.reducibleTrucks }}/{{ fleet.totalTrucks }} trucks</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">includes trucks with no idle-reduction equipment — this is the case for fitting it, not waste to coach</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</dd>
+        <dd v-if="estimate?.reduciblePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</dd>
       </BaseCard>
     </div>
 

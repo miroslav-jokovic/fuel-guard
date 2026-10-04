@@ -30,12 +30,15 @@ vi.mock("@/composables/useIdleBreakdown", () => ({
     fleet: {
       engineOnH: 1000, driveH: 700, idleH: 300, offH: 0, drivePct: 70, idlePct: 30, avoidableH: 20, avoidableUsd: 80,
       reducibleH: 50, reducibleUsd: 200, reducibleTrucks: 2, confidentTrucks: 2, totalTrucks: 2, rangeDays: 30,
+      thinTrucks: 0, throughDay: "2026-10-02",
+      avoidablePricing: { blendedPricePerGal: 5.912, pricedDays: 27, unpricedDays: 3 },
+      reduciblePricing: { blendedPricePerGal: 5.9, pricedDays: 30, unpricedDays: 0 },
     },
   }),
 }));
 vi.mock("@/features/idle/useIdleDrivers", () => ({ useIdleDrivers: () => query([]) }));
 vi.mock("@/composables/useIdleCostBasis", () => ({
-  useIdleCostBasis: () => computed(() => ({ fuelPricePerGal: 3.9, priceSource: "truck_stops" })),
+  useIdleCostBasis: () => computed(() => ({ idleGalPerHour: 0.8, fuelPricePerGal: 3.9, priceSource: "truck_stops" })),
 }));
 vi.mock("@/features/idle/useIdleCapabilities", () => ({ useIdleCapabilities: () => ({ data: computed(() => []) }) }));
 vi.mock("@/features/idle/useIdleSettings", () => ({
@@ -76,6 +79,28 @@ async function mountPage() {
 }
 
 const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((h) => h.text()).filter(Boolean);
+
+describe("IdlingPage — each total says what it covers, how it was priced, and how far the data reaches", () => {
+  it("puts the coverage and pricing lines on the card they qualify, and the reach above the cards", async () => {
+    const w = await mountPage();
+    const text = (id: string) => w.get(`[data-testid="${id}"]`).text();
+    expect(text("idle-scope")).toBe(
+      "Idle data through 10/02/2026. The cards are fleet totals; the search and filters below narrow the table, not them.",
+    );
+    expect(text("avoidable-coverage")).toBe("Counts 2 of 2 trucks.");
+    expect(text("avoidable-pricing")).toContain("$5.912/gal on average");
+    expect(text("avoidable-pricing")).toContain("3 of 30 days had no price and used $3.900/gal, the recent truck-stop median.");
+    expect(text("reducible-coverage")).toBe("From 2 of 2 trucks: the ones with rest idle an APU would carry.");
+    expect(text("reducible-pricing")).toContain("$5.900/gal on average");
+    expect(text("reducible-pricing")).not.toContain("had no price");
+    // Each line sits inside its own card, beside its own dollars.
+    const card = (id: string) => w.get(`[data-testid="${id}"]`).element.closest("dl, div.rounded-surface, [class*='card']")?.textContent ?? "";
+    expect(card("avoidable-pricing")).toContain("Avoidable idle");
+    expect(card("reducible-pricing")).toContain("Needs an APU");
+    // The old line named the fallback price as if every dollar were charged at it.
+    expect(w.text()).not.toContain("live truck-stop prices");
+  });
+});
 
 describe("IdlingPage — the Trucks table", () => {
   it("leads with the two costs, and keeps the table to seven columns", async () => {

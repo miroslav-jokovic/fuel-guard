@@ -7,6 +7,7 @@ import {
   type AvoidableInput,
 } from "./idleAvoidable.js";
 import type { IdleCapability } from "./idleSessions.js";
+import { idleThroughDay, idleTotalPricing, type IdlePricedPart, type IdleTotalPricing } from "./idleTotals.js";
 export type IdleBreakdownEnvelopeStatus =
   "sufficient" | "insufficient" | "ambiguous" | "not_applicable" | "unavailable";
 export type IdleBreakdownEnvelopeSource = "documented_default" | "learned_behavioral" | "none";
@@ -310,6 +311,13 @@ export interface FleetIdleVerdict {
   confidentTrucks: number;
   totalTrucks: number;
   rangeDays: number;
+  /** Left out of the reducible total: under half the range observed (avoidable's are total − confident). */
+  thinTrucks: number;
+  /** The latest day any truck has engine-state coverage for — how far the figures reach. Null with none. */
+  throughDay: string | null;
+  /** How each total's dollars were priced (`idleTotals.ts`). */
+  avoidablePricing: IdleTotalPricing;
+  reduciblePricing: IdleTotalPricing;
 }
 
 const hrs = (sec: number) => Math.round(sec / 360) / 10; // seconds → hours, 0.1h
@@ -372,6 +380,8 @@ export function computeIdleBreakdown(
   const periodSec = opts.rangeDays * 86_400;
 
   const trucks: TruckIdleVerdict[] = [];
+  /** Each truck's dated seconds and costs, kept for the fleet totals' pricing lines. */
+  const dated = new Map<string, { days: AvoidableDaySeconds[]; cost: ReturnType<typeof avoidableCostByDay> }>();
   for (const v of vehicles) {
     const s = sums.get(v.id);
     if (!s) continue; // nothing observed for this truck in the range
@@ -392,15 +402,17 @@ export function computeIdleBreakdown(
       optimizedEnvelope: envelopeFor(s, v.hasOptimizedIdle),
       dutyEvidence: dutyEvidenceFor(s),
     });
+    const daySeconds = avoidableDaySeconds(
+      rowsByVehicle.get(v.id) ?? [],
+      { hasApu: v.hasApu, hasOptimizedIdle: v.hasOptimizedIdle, learnedCapability: v.learnedCapability },
+      { avoidableIdleSec: r.avoidableIdleSec, reducibleIdleSec: r.reducibleIdleSec },
+    );
     const dayCost = avoidableCostByDay(
-      avoidableDaySeconds(
-        rowsByVehicle.get(v.id) ?? [],
-        { hasApu: v.hasApu, hasOptimizedIdle: v.hasOptimizedIdle, learnedCapability: v.learnedCapability },
-        { avoidableIdleSec: r.avoidableIdleSec, reducibleIdleSec: r.reducibleIdleSec },
-      ),
+      daySeconds,
       dayPrices,
       { idleGalPerHour: opts.costBasis.idleGalPerHour, fuelPricePerGal: opts.costBasis.fuelPricePerGal },
     );
+    dated.set(v.id, { days: daySeconds, cost: dayCost });
     trucks.push({
       vehicleId: v.id,
       unit: v.unitNumber,
@@ -435,8 +447,10 @@ export function computeIdleBreakdown(
 
   let engineOn = 0, drive = 0, idle = 0, off = 0;
   let avoidH = 0, avoidUsd = 0, confidentTrucks = 0;
-  let reduceH = 0, reduceUsd = 0, reducibleTrucks = 0;
+  let reduceH = 0, reduceUsd = 0, reducibleTrucks = 0, thinTrucks = 0;
+  const avoidableParts: IdlePricedPart[] = [], reducibleParts: IdlePricedPart[] = [];
   for (const t of trucks) {
+    const d = dated.get(t.vehicleId)!;
     engineOn += t.engineOnH;
     drive += t.driveH;
     idle += t.idleH;
@@ -445,6 +459,7 @@ export function computeIdleBreakdown(
       avoidH += t.avoidableH;
       avoidUsd += t.avoidableUsd;
       confidentTrucks += 1;
+      avoidableParts.push({ days: d.days, gallons: d.cost.avoidable.gallons, usd: d.cost.avoidable.usd });
     }
     // Reducible deliberately does NOT gate on `confident`: confidence is about whether we can BLAME the
     // truck, and the equipment flag it turns on is exactly what the opportunity measure works without.
@@ -453,7 +468,9 @@ export function computeIdleBreakdown(
       reduceH += t.reducibleH;
       reduceUsd += t.reducibleUsd ?? 0;
       reducibleTrucks += 1;
+      reducibleParts.push({ days: d.days, gallons: d.cost.reducible.gallons, usd: d.cost.reducible.usd });
     }
+    if (t.coveragePct < 50) thinTrucks += 1;
   }
   const r1 = (n: number) => Math.round(n * 10) / 10;
   return {
@@ -473,6 +490,10 @@ export function computeIdleBreakdown(
       confidentTrucks,
       totalTrucks: trucks.length,
       rangeDays: opts.rangeDays,
+      thinTrucks,
+      throughDay: idleThroughDay(rows, new Set(trucks.map((t) => t.vehicleId))),
+      avoidablePricing: idleTotalPricing(avoidableParts, "avoidableIdleSec", dayPrices),
+      reduciblePricing: idleTotalPricing(reducibleParts, "reducibleIdleSec", dayPrices),
     },
   };
 }
