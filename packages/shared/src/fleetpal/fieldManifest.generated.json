@@ -325,6 +325,14 @@
       "description",
       "key",
       "sample_payload"
+    ],
+    "CodeKey33": [
+      "code",
+      "description",
+      "id",
+      "level",
+      "parent",
+      "url"
     ]
   },
   "enums": {

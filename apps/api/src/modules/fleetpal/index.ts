@@ -64,6 +64,8 @@ export {
 export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export { readCoverage, monthsBetween, type CoverageAnswer } from "./coverage.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
+export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
+export { labelRepairs } from "./componentLabels.js";
 export {
   sweepRepairRecord,
   runIngest,

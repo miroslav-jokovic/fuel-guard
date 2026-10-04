@@ -1645,3 +1645,23 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
   **Go-live, as it now is:** owner sets `FLEETPAL_SYNC_ENABLED=true` on `@fleetguard/api` only, then
   Settings → FleetPal integration → paste key → Switch sweep on → Sync now. The first sweep should
   reproduce **"at least 58.2%" for July 2026** (§8, F9b).
+- **2026-10-04 · F9c DONE — and the thing it resolves was never a code.** Every `component` field
+  FleetPal sends (Job, JobItem, ServiceHistory, Defect, Issue, PMSchedule) is the opaque id of a
+  `/v1/vmrs-components` node — the spec says "a `/v1/vmrs-components` id" on each, and the fixtures
+  carry `hovDtcRc`, `SVQX9Nc4`. F9b's `UnitRepair.component` was documented as a CODE and the step
+  text above said "a repair report that cannot say ALTERNATOR must still say 013". We never hold the
+  013. So F9c resolves **id → code + words**, and its degraded answer is `componentLabel: null`, with
+  the page falling back to the shop's own free-text `description` of the repair — printing the id
+  would be worse than printing nothing.
+
+  `modules/fleetpal/vmrs.ts`: one `GET /v1/vmrs-components/{id}/` per distinct id not already held,
+  six at a time, 5 s deadline, no retry; an in-process cache keyed **org + id** (a 404 is "another
+  company's", and companies add their own codes), one hour, 5,000 entries. A 404 is cached as null;
+  an outage is not, so the next page view asks again. The module imports nothing that can write —
+  pinned by "holds no database client — the words have nowhere to be written".
+  `componentLabels.ts` unseals the key on the read path, which is the cost this step was split out
+  to name, and answers every label null for an org with no key or with its sweep off.
+  The `CodeKey33` schema (the vendor generator's name, kept verbatim) joined the field manifest, so
+  `lint:fleetpal-contract` holds `fleetpalVmrsComponentSchema` like the other twenty.
+
+  **Next: F9d**, which wants **Q10** ruled, then F10.

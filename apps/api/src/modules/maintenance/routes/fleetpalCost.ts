@@ -4,7 +4,7 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { readCoverage, readUnitCost } from "../../fleetpal/index.js";
+import { labelRepairs, readCoverage, readUnitCost } from "../../fleetpal/index.js";
 
 /**
  * Per-unit maintenance cost and its coverage bound (FLEETPAL-INTEGRATION-PLAN.md F9b).
@@ -88,7 +88,8 @@ export function fleetpalCostRouter(): Router {
         return;
       }
 
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
 
       // ⚠ The bound is computed BEFORE the cost and gates it. Computing the cost first and then
@@ -108,7 +109,10 @@ export function fleetpalCostRouter(): Router {
       }
 
       const cost = await readUnitCost(admin, orgId, kind, String(req.params.id), w.from, w.to);
-      res.json({ ok: true, ...cost, coverage: coverage.months, unmatchedUnits: coverage.unmatchedUnits });
+      // F9c: words beside each component id, fetched live and never stored (D-FP8). A null label
+      // means FleetPal did not say — the repair's own description is what the page prints then.
+      const repairs = await labelRepairs(admin, env, orgId, cost.repairs);
+      res.json({ ok: true, ...cost, repairs, coverage: coverage.months, unmatchedUnits: coverage.unmatchedUnits });
     }),
   );
 
