@@ -1305,3 +1305,15 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   as MM/DD/YYYY (was ISO), "Gallons bought" (two columns were both "Bought"), "Measured by" with "Tank reading" / "Miles
   driven (at least)". Nothing deleted; `<details>` keeps closed text findable by the browser's search. Tests +3, two
   rewordings; mutation 11/11 killed. Seen rendered at 1440 px (preview build, stubbed RPCs).
+- **2026-10-03** Design verdict move 4, coverage and freshness beside each Idling estimate. Each money card now says what
+  it counts and why the rest are out ("Counts 180 of 187 trucks; 7 with too little data are left out" / "From 150 of 187
+  trucks: the ones with rest idle an APU would carry. 4 seen for under half the range are left out"), and how it was
+  priced: the burn rate, the BLENDED day price the total actually carries, and how many calendar days had no day price and
+  fell back to the cost basis, named by source. The old line printed the fallback basis ("$5.87/gal · live truck-stop
+  prices") as if every dollar were charged at it, which they are not (`avoidableCostByDay` prices per day). Beside the
+  "Showing" chip: "Idle data through MM/DD/YYYY" (latest day with coverage among listed trucks) and that the table's
+  filters do not narrow the cards (audit copy note 9). Shared: `FleetIdleVerdict` gains `thinTrucks`, `throughDay`,
+  `avoidablePricing`, `reduciblePricing` (new `idleTotals.ts`, split out to keep `idleBreakdown.ts` at 499 lines); the
+  API's `readFleetIdleVerdict` returns them too and reads nothing new. Tests: shared +7, web +6; mutation 26/26 killed
+  (one first survivor, a day that added nothing being counted, was a fixture with no zero-idle day; that case is now a
+  test). Seen rendered at 1440 and 390 px. The red/amber dollar tones are untouched (owner's question).

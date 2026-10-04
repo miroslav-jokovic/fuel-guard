@@ -6,6 +6,7 @@ import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useIdleConfidence } from "./useIdleConfidence";
+import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
@@ -60,20 +61,24 @@ const rangeLabel = computed(() => {
 const costBasis = useIdleCostBasis();
 const priceSource = computed(() => costBasis.value.priceSource);
 const fuelPricePerGal = computed(() => costBasis.value.fuelPricePerGal);
-const priceNote = computed(() => {
-  const p = usd2(costBasis.value.fuelPricePerGal) + "/gal";
-  return costBasis.value.priceSource === "truck_stops"
-    ? `${p} · live truck-stop prices`
-    : costBasis.value.priceSource === "settings"
-      ? `${p} · from idle settings`
-      : `${p} · default estimate`;
-});
 
 // Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
 const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter, costBasis);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
+/** What each total covers, how it was priced, and how far the data reaches — beside it (`idleEstimateLines`). */
+const estimate = computed(() => {
+  const f = fleet.value;
+  if (!f) return null;
+  return {
+    scope: idleScopeLine(f),
+    avoidableCoverage: avoidableCoverageLine(f),
+    avoidablePricing: idlePricingLine(f.avoidablePricing, costBasis.value),
+    reducibleCoverage: reducibleCoverageLine(f),
+    reduciblePricing: idlePricingLine(f.reduciblePricing, costBasis.value),
+  };
+});
 // The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
 // breakdown reads — no separate raw-table scan, no silent-failure path.
 const { data: caps } = useIdleCapabilities();
@@ -306,7 +311,7 @@ const capColumns: DataTableColumn[] = [
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
-    priceSource, fuelPricePerGal, priceNote,
+    priceSource, fuelPricePerGal, estimate,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   };
