@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { FleetpalClient } from "../client.js";
-import { runIngest } from "./run.js";
+import { runIngest, STAGE_BATCH } from "./run.js";
 import { workOrdersIngest, jobItemsIngest, serviceHistoryIngest } from "./repair.js";
 import { ingestPmSchedules } from "./equipment.js";
 import { ingestShops } from "./reference.js";
@@ -134,6 +134,43 @@ describe("the watermark", () => {
     // The only write is the failure note; nothing carries a watermark.
     expect(writes.every((row) => row.watermark === undefined)).toBe(true);
     expect(writes.some((row) => typeof row.last_error === "string")).toBe(true);
+  });
+
+  it("⚠ stages a large walk in batches, not one call — 35,121 job items in one call hit the statement timeout (2026-10-04)", async () => {
+    const rows = Array.from({ length: 2 * STAGE_BATCH + 500 }, (_, i) =>
+      workOrder({ id: `W${i}`, updated: `2026-09-${String(1 + (i % 28)).padStart(2, "0")}T00:00:00Z` }));
+    const { client } = clientWith([page(rows)]);
+    const sizes: number[] = [];
+    const rec = createSupabaseRecorder({
+      tables: { fleetpal_sync_state: () => ({ data: [], error: null }) },
+      rpc: (_fn: string, args: unknown) => {
+        const n = (args as { p_rows: unknown[] }).p_rows.length;
+        sizes.push(n);
+        return { data: n, error: null };
+      },
+    });
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, workOrdersIngest);
+    expect(sizes).toEqual([STAGE_BATCH, STAGE_BATCH, 500]);
+    expect(result.staged).toBe(rows.length);
+    expect(result.advancedTo).toBe("2026-09-28T00:00:00Z");
+  });
+
+  it("⚠ stops at the first refused batch and does not move — the batches already written are rewritten next sweep", async () => {
+    const rows = Array.from({ length: 3 * STAGE_BATCH }, (_, i) => workOrder({ id: `W${i}` }));
+    const { client } = clientWith([page(rows)]);
+    let calls = 0;
+    const rec = createSupabaseRecorder({
+      tables: { fleetpal_sync_state: () => ({ data: [], error: null }) },
+      rpc: () => (++calls === 2
+        ? { data: null, error: { message: "canceling statement due to statement timeout" } }
+        : { data: STAGE_BATCH, error: null }),
+    });
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, workOrdersIngest);
+    expect(calls).toBe(2);
+    expect(result.error).toContain("statement timeout");
+    expect(result.staged).toBe(STAGE_BATCH);
+    expect(result.advancedTo).toBeNull();
+    expect(rec.writtenRows("fleetpal_sync_state").every((row) => row.watermark === undefined)).toBe(true);
   });
 
   it("⚠ does not move when the page was empty", async () => {
