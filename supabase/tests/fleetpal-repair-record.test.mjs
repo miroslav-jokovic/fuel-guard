@@ -364,6 +364,51 @@ ok("re-staging a corrected invoice updates it in place — a re-run cannot doubl
   Number(restaged?.amount) === 1750.00 &&
   (await one(`select count(*)::int n from fleetpal_po_invoices where org_id=$1 and fleetpal_id='fVN5wBtF'`, [ORG])).n === 1);
 
+// ── 10b. an invoice keeps its third decimal, and the rounded ones are re-read (0425, C1b) ─────────
+// The two live invoices with three decimals (2 of 4,095, 2026-10-04), by their real ids. Before 0425
+// the column and the recordset were (14,2) and both were stored rounded in production.
+await stage("stage_fleetpal_po_invoices", ORG, [
+  { fleetpal_id: "cqUW4Msw", purchase_order_fleetpal_id: "PO-C1B", invoice_type: "STANDARD",
+    invoice_number: "X101239989:01", invoice_date: "2025-12-31T00:00:00Z", amount: 108.489 },
+]);
+const invAmount = async (id) =>
+  (await one(`select amount::text a from fleetpal_po_invoices where org_id=$1 and fleetpal_id=$2`, [ORG, id]))?.a;
+ok("⚠ an invoice amount keeps its third decimal — 108.489, not 108.49 (0425; the control sums to the cent)",
+  (await invAmount("cqUW4Msw")) === "108.489", String(await invAmount("cqUW4Msw")));
+// The production case: a row already stored rounded is corrected by the next stage of the same id.
+await db.query(`update fleetpal_po_invoices set amount = 188.77 where org_id=$1 and fleetpal_id='cqUW4Msw'`, [ORG]);
+await stage("stage_fleetpal_po_invoices", ORG, [
+  { fleetpal_id: "cqUW4Msw", purchase_order_fleetpal_id: "PO-C1B", invoice_type: "STANDARD",
+    invoice_number: "X101239989:01", invoice_date: "2025-12-31T00:00:00Z", amount: 108.489 },
+]);
+ok("a row stored rounded before 0425 is rewritten with the vendor's three decimals when it is staged again",
+  (await invAmount("cqUW4Msw")) === "108.489", String(await invAmount("cqUW4Msw")));
+
+// The re-read itself. 0425 is written to be re-applied safely, so the matrix seeds the positions
+// production holds and runs the file again: only `purchase-order-invoices` may lose its watermark.
+// A clear that also reset jobs or meters would re-walk 35,121 + 135,631 rows for two cents.
+const C1B = MIGRATIONS.find((f) => f.startsWith("0425_"));
+await db.query(
+  `insert into fleetpal_sync_state (org_id, resource, watermark, window_end) values
+     ($1,'purchase-order-invoices','2026-10-03T18:00:38Z',null),
+     ($1,'purchase-order-payments','2026-10-03T18:00:00Z',null),
+     ($1,'jobs','2026-10-03T17:00:00Z',null),
+     ($2,'purchase-order-invoices','2026-10-02T00:00:00Z',null),
+     ($1,'defects',null,'2026-10-04T15:37:00Z')`,
+  [ORG, OTHER],
+);
+await db.exec(read(join("migrations", C1B)));
+const wm = async (org, resource) =>
+  (await one(`select watermark, window_end from fleetpal_sync_state where org_id=$1 and resource=$2`, [org, resource]));
+ok("0425 clears the invoice watermark, so the next sweep re-walks every invoice and re-stages the two rounded ones",
+  (await wm(ORG, "purchase-order-invoices"))?.watermark === null &&
+  (await wm(OTHER, "purchase-order-invoices"))?.watermark === null);
+ok("⚠ 0425 leaves every other resource's position alone — no re-walk of jobs, payments or a window",
+  (await wm(ORG, "purchase-order-payments"))?.watermark !== null &&
+  (await wm(ORG, "jobs"))?.watermark !== null &&
+  (await wm(ORG, "defects"))?.window_end !== null);
+ok("re-applying 0425 keeps the amounts it widened", (await invAmount("cqUW4Msw")) === "108.489");
+
 // ── 11. payments and order lines (0424, MAINTENANCE-MONEY-CONTROL-PLAN.md C1) ─────────────────────
 // Rows shaped from the fixtures recorded 2026-10-04. Each assertion names the measured edge case it
 // keeps: a check number's zeros, an empty number that is not null, a payment settling two invoices,
