@@ -40,7 +40,16 @@ vi.mock("@/features/idle/useIdleDrivers", () => ({ useIdleDrivers: () => query([
 vi.mock("@/composables/useIdleCostBasis", () => ({
   useIdleCostBasis: () => computed(() => ({ idleGalPerHour: 0.8, fuelPricePerGal: 3.9, priceSource: "truck_stops" })),
 }));
-vi.mock("@/features/idle/useIdleCapabilities", () => ({ useIdleCapabilities: () => ({ data: computed(() => []) }) }));
+// The capability read's state, per test: loaded and empty unless a test says it is pending or failed.
+const caps = vi.hoisted(() => ({ loading: false, failed: false, refetch: (() => {}) as () => void }));
+vi.mock("@/features/idle/useIdleCapabilities", () => ({
+  useIdleCapabilities: () => ({
+    data: computed(() => (caps.loading || caps.failed ? undefined : [])),
+    isLoading: ref(caps.loading), isError: ref(caps.failed),
+    error: ref(caps.failed ? new Error("Could not read the trucks' idle equipment") : null),
+    isFetching: ref(false), refetch: caps.refetch,
+  }),
+}));
 vi.mock("@/features/idle/useIdleSettings", () => ({
   useIdleSettings: () => ({ data: computed(() => null) }),
   useAdoptComfortBand: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
@@ -50,6 +59,7 @@ vi.mock("@/features/idle/useIdleConfidence", () => ({ useIdleConfidence: () => (
 import IdlingPage from "./IdlingPage.vue";
 
 beforeEach(() => {
+  Object.assign(caps, { loading: false, failed: false, refetch: vi.fn() });
   rows.trucks = [
     truck({}),
     truck({ vehicleId: "v2", unit: "754", avoidableUsd: 0, avoidableH: 0, reducibleUsd: null, reducibleH: null, restIdleH: null, workIdleH: null, capability: "continuous_only" }),
@@ -143,5 +153,75 @@ describe("IdlingPage — the Trucks table", () => {
     expect(value("Idling while off duty or sleeping")).toBe("—");
     expect(value("Idling on duty")).toBe("—");
     expect(detail.text()).toContain("Continuous idle only");
+  });
+});
+
+describe("IdlingPage — the tab strip and the two disclosures say what they are (design verdict, E8)", () => {
+  it("is a labelled tablist whose tabs select the panel that names them", async () => {
+    const w = await mountPage();
+    expect(w.get('[role="tablist"]').attributes("aria-label")).toBe("Idling views");
+    const tabs = w.findAll('[role="tab"]');
+    // Each read has answered, so each tab carries its count — zero included.
+    expect(tabs.map((t) => t.text().replace(/\s+/g, " "))).toEqual(["Trucks 2", "Drivers 0", "Truck capability 0"]);
+    expect(tabs.map((t) => t.attributes("aria-selected"))).toEqual(["true", "false", "false"]);
+    expect(w.get('[role="tabpanel"]').attributes("aria-labelledby")).toBe("idling-tab-trucks");
+    await tabs[2]!.trigger("click");
+    expect(tabs.map((t) => t.attributes("aria-selected"))).toEqual(["false", "false", "true"]);
+    const panel = w.get('[role="tabpanel"]');
+    expect(panel.attributes("id")).toBe(tabs[2]!.attributes("aria-controls"));
+    expect(panel.attributes("aria-labelledby")).toBe(tabs[2]!.attributes("id"));
+    expect(panel.text()).toContain("No trucks match");
+    expect(panel.text()).toContain("0 trucks");
+  });
+
+  it("says whether How idle is scored is open, and points at what it opened", async () => {
+    const w = await mountPage();
+    const btn = w.findAll("button").find((b) => b.text().includes("How idle is scored"))!;
+    expect(btn.attributes("aria-expanded")).toBe("false");
+    expect(btn.attributes("aria-controls")).toBeUndefined();
+    await btn.trigger("click");
+    expect(btn.attributes("aria-expanded")).toBe("true");
+    // Still named for what it opens: "Hide" alone tells a screen reader nothing about which region.
+    expect(btn.text()).toBe("How idle is scored");
+    const region = w.get(`#${btn.attributes("aria-controls")}`);
+    expect(region.text()).toContain("Avoidable idle is waste we can coach");
+    await btn.trigger("click");
+    expect(btn.attributes("aria-expanded")).toBe("false");
+    expect(w.find("#idling-how-scored").exists()).toBe(false);
+  });
+
+  it("says whether Data completeness is open", async () => {
+    const w = await mountPage();
+    const btn = w.findAll("button").find((b) => b.text().includes("Data completeness"))!;
+    expect(btn.attributes("aria-expanded")).toBe("false");
+    await btn.trigger("click");
+    expect(btn.attributes("aria-expanded")).toBe("true");
+  });
+});
+
+describe("IdlingPage — the Truck capability table never reads a pending or failed load as no trucks", () => {
+  const openCapability = async () => {
+    const w = await mountPage();
+    await w.findAll('[role="tab"]')[2]!.trigger("click");
+    return { w, panel: w.get("#idling-panel-capability") };
+  };
+
+  it("shows the table loading while the read is pending", async () => {
+    caps.loading = true;
+    const { w, panel } = await openCapability();
+    expect(panel.text()).not.toContain("No trucks match");
+    expect(panel.find(".animate-pulse").exists()).toBe(true);
+    // Nor does its tab, or the bar above the table, claim a count it has not read.
+    expect(w.findAll('[role="tab"]')[2]!.text()).toBe("Truck capability");
+    expect(panel.text()).not.toContain("0 trucks");
+  });
+
+  it("shows the failure and a retry that reads again", async () => {
+    caps.failed = true;
+    const { panel } = await openCapability();
+    expect(panel.text()).not.toContain("No trucks match");
+    expect(panel.text()).toContain("Could not read the trucks' idle equipment");
+    await panel.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(caps.refetch).toHaveBeenCalledTimes(1);
   });
 });
