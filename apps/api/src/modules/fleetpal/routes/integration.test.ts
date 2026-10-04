@@ -32,7 +32,7 @@ vi.mock("../probe.js", () => ({
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const ADMIN: AuthContext = { userId: "u-admin", email: "a@x.test", orgId: ORG, role: "admin" };
-const KEY = "fp_live_3f9c2a71b0d84e5f9a6c";
+const KEY = "test-fleetpal-key-not-real";
 const env = loadEnv({
   NODE_ENV: "test",
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
