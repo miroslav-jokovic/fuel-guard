@@ -290,3 +290,11 @@ jobs resume exactly as before R5.
   backup under 26 h old (Q-REL7 opened for PITR). A 01:37 CT retry ships an approved release a
   delayed or dropped 01:07 run missed — the first night's ran 46 minutes late — and is silent
   otherwise. Runbook table: `docs/DEPLOYMENT.md` §What a release night does.
+- 2026-10-05 — Recipients move into the console (owner: "make this in settings so we can add and remove
+  phone numbers"). Table `platform_alert_recipients` (0427, soft-removed, RLS with no client policy),
+  `/admin/alert-recipients` in admin-api (any platform role reads with phones masked; owner/admin with a
+  fresh second factor adds and removes; both audited), and Settings → Alert recipients in the console.
+  `release-notify.mjs` reads the live rows from production through the management API and, per
+  channel, falls back to the `RELEASE_NOTIFY_*` secrets when the read fails or the channel is empty —
+  never the union, so a removal takes effect. Matrix `platform-alert-recipients.test.mjs`. Also the
+  first answer to DATA-LIFECYCLE-PLAN Q9's "where does a platform alarm go": this list.

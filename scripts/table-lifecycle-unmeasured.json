@@ -78,6 +78,7 @@
 "part_stock",
 "parts",
 "platform_admins",
+"platform_alert_recipients",
 "platform_audit_log",
 "psp_requests",
 "qualification_records",

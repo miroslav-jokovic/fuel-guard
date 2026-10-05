@@ -406,6 +406,9 @@
   "platform_admins": [
     "apps/admin-api/src/lib/platformAdmins.ts"
   ],
+  "platform_alert_recipients": [
+    "apps/admin-api/src/lib/alertRecipients.ts"
+  ],
   "platform_audit_log": [
     "apps/admin-api/src/lib/audit.ts"
   ],

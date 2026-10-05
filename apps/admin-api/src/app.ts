@@ -12,6 +12,7 @@ import { apiError } from "./lib/http.js";
 import { meRouter } from "./routes/me.js";
 import { orgsRouter } from "./routes/orgs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
+import { alertRecipientsRouter } from "./routes/alertRecipients.js";
 
 /**
  * Build the PLATFORM (admin) Express app. Factory with no side effects so tests can construct it freely
@@ -58,6 +59,7 @@ export function createApp(env: Env): Express {
   app.use("/admin/me", meRouter());
   app.use("/admin/orgs", orgsRouter());
   app.use("/admin/impersonation", impersonationRouter());
+  app.use("/admin/alert-recipients", alertRecipientsRouter());
 
   // ── Serve the built admin SPA (single-service deploy for the platform plane) ────────────────
   const here = path.dirname(fileURLToPath(import.meta.url)); // apps/admin-api/src

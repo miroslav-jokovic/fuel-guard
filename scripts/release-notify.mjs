@@ -19,8 +19,14 @@
  * Kinds: candidate · shipped · skipped · failed · rolled-back · rollback-failed · rollback
  *
  * Environment: TAG, SHA, BEFORE, MODE, REASON, DETAIL, RUN_URL, PR_URL, NOTES_FILE, PR_COUNT;
- * secrets BREVO_API_KEY, MAIL_FROM, RELEASE_NOTIFY_EMAILS, TELNYX_API_KEY, TELNYX_FROM,
- * RELEASE_NOTIFY_PHONES (comma-separated). A missing provider or recipient is a workflow WARNING, not
+ * secrets BREVO_API_KEY, MAIL_FROM, TELNYX_API_KEY, TELNYX_FROM.
+ *
+ * RECIPIENTS come from the console's Settings → Alert recipients (table platform_alert_recipients,
+ * 0427), read at send time from the production database through Supabase's management API with
+ * SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF — the credentials the release already migrates with.
+ * Per channel, the list is the table's when the read works and holds anyone on that channel; else the
+ * RELEASE_NOTIFY_EMAILS / RELEASE_NOTIFY_PHONES secrets (comma-separated). Never the union: a person
+ * removed in the console must stop hearing alarms, which a union would quietly undo. A missing provider or recipient is a workflow WARNING, not
  * a failure: a release must never fail because its summary could not be sent, and GitHub still emails
  * the repository owner about any failed run.
  */
@@ -128,9 +134,39 @@ export function fitSms(text) {
 /** "a@x, b@y" → ["a@x", "b@y"]. Pure. */
 export const list = (s) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
-async function sendEmail(env, subject, text) {
-  const to = list(env.RELEASE_NOTIFY_EMAILS);
-  if (!env.BREVO_API_KEY || !env.MAIL_FROM || !to.length) return "email not configured (BREVO_API_KEY, MAIL_FROM, RELEASE_NOTIFY_EMAILS)";
+/**
+ * Who gets this message, per channel, and where that list came from. Pure.
+ * `rows` is the table's live rows, or null when it could not be read (not yet migrated on this
+ * database, management API down, no credentials).
+ */
+export function chooseRecipients(rows, env) {
+  const pick = (channel, secret) => {
+    const fromTable = (rows ?? []).filter((r) => r.channel === channel).map((r) => r.address);
+    return fromTable.length ? { to: fromTable, source: "console" } : { to: list(env[secret]), source: "secret" };
+  };
+  return { email: pick("email", "RELEASE_NOTIFY_EMAILS"), sms: pick("sms", "RELEASE_NOTIFY_PHONES") };
+}
+
+async function readTable(env) {
+  if (!env.SUPABASE_ACCESS_TOKEN || !env.SUPABASE_PROJECT_REF) return null;
+  try {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${env.SUPABASE_PROJECT_REF}/database/query`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ query: "select channel, address from platform_alert_recipients where removed_at is null", read_only: true }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : null;
+  } catch (e) {
+    console.log(`::warning::Release summary: could not read the console's alert recipients (${e.message}) — using the RELEASE_NOTIFY secrets.`);
+    return null;
+  }
+}
+
+async function sendEmail(env, to, subject, text) {
+  if (!env.BREVO_API_KEY || !env.MAIL_FROM || !to.length) return "email not configured (BREVO_API_KEY, MAIL_FROM, and a recipient in the console or RELEASE_NOTIFY_EMAILS)";
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
@@ -140,9 +176,8 @@ async function sendEmail(env, subject, text) {
   return res.ok ? null : `email refused: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`;
 }
 
-async function sendSms(env, text) {
-  const to = list(env.RELEASE_NOTIFY_PHONES);
-  if (!env.TELNYX_API_KEY || !env.TELNYX_FROM || !to.length) return "SMS not configured (TELNYX_API_KEY, TELNYX_FROM, RELEASE_NOTIFY_PHONES)";
+async function sendSms(env, to, text) {
+  if (!env.TELNYX_API_KEY || !env.TELNYX_FROM || !to.length) return "SMS not configured (TELNYX_API_KEY, TELNYX_FROM, and a phone in the console or RELEASE_NOTIFY_PHONES)";
   const errors = [];
   for (const phone of to) {
     const res = await fetch("https://api.telnyx.com/v2/messages", {
@@ -165,8 +200,10 @@ async function main(kind) {
     tag: env.TAG, sha: env.SHA, before: env.BEFORE, mode: env.MODE, reason: env.REASON, detail: env.DETAIL,
     runUrl: env.RUN_URL, prUrl: env.PR_URL, prCount: env.PR_COUNT, notes,
   });
-  const problems = [await sendEmail(env, msg.subject, msg.text).catch((e) => `email failed: ${e.message}`)];
-  if (msg.sms) problems.push(await sendSms(env, msg.sms).catch((e) => `SMS failed: ${e.message}`));
+  const who = chooseRecipients(await readTable(env), env);
+  console.log(`Recipients: ${who.email.to.length} email (${who.email.source}), ${who.sms.to.length} phone (${who.sms.source}).`);
+  const problems = [await sendEmail(env, who.email.to, msg.subject, msg.text).catch((e) => `email failed: ${e.message}`)];
+  if (msg.sms) problems.push(await sendSms(env, who.sms.to, msg.sms).catch((e) => `SMS failed: ${e.message}`));
   for (const p of problems.filter(Boolean)) console.log(`::warning::Release summary: ${p}`);
   console.log(`Sent "${msg.subject}"${msg.sms ? " + SMS" : ""}${problems.some(Boolean) ? " (with warnings above)" : ""}.`);
 }
@@ -214,6 +251,15 @@ function selfTest() {
   eq("a rollback push that failed pages as rollback-failed", k({ verify: "failure", rollback: "failure" }), "rollback-failed");
   eq("a tagging failure is a failure that says production IS on the release",
     outcomeOf({ ...ok, publish: "failure" }).detail.includes("IS on the release"), true);
+  const secrets = { RELEASE_NOTIFY_EMAILS: "s@x.com", RELEASE_NOTIFY_PHONES: "+15550000000" };
+  eq("the console's list wins on a channel that has anyone",
+    chooseRecipients([{ channel: "sms", address: "+18728008639" }], secrets).sms, { to: ["+18728008639"], source: "console" });
+  eq("…and the secret covers a channel the console leaves empty",
+    chooseRecipients([{ channel: "sms", address: "+18728008639" }], secrets).email, { to: ["s@x.com"], source: "secret" });
+  eq("an unreadable table falls back to the secrets on both channels",
+    [chooseRecipients(null, secrets).email.source, chooseRecipients(null, secrets).sms.source], ["secret", "secret"]);
+  eq("never the union — a number removed in the console stops hearing alarms",
+    chooseRecipients([{ channel: "email", address: "c@x.com" }], secrets).email.to, ["c@x.com"]);
   eq("recipients are a comma list, blanks dropped", list(" a@x.com, ,b@y.com "), ["a@x.com", "b@y.com"]);
   let threw = false;
   try { compose("nonsense", base); } catch { threw = true; }

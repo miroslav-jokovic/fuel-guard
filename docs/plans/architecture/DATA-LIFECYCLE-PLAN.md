@@ -1652,3 +1652,9 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   the triggers are not recreated. `audit-telemetry-ignored.test.mjs` gains four cases: two names
   sorted; telemetry in the same statement not named; a date of birth named and its value absent; an
   insert keeping `{}`. Six mutants, all killed, bytes sha256-restored.
+- 2026-10-05 — Q9, half answered by the release train: a platform alert channel now EXISTS — table
+  `platform_alert_recipients` (0427), kept in the console's Settings, read by
+  `scripts/release-notify.mjs` (email always, SMS for failures). What Q9 still needs before L7 is the
+  PUSH: a check that sends `lifecycle_maintenance_health()` going non-`ok` to that list. Recommendation
+  (a) is unchanged, except its `PLATFORM_ALERT_EMAIL` env var is superseded by the table.
+
