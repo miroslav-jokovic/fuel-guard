@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, RouterLink } from "vue-router";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -122,6 +122,14 @@ const cols: DataTableColumn[] = [
   { key: "surcharge", label: "Surcharge", numeric: true, width: "sm" },
 ];
 const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
+
+/**
+ * A row opens the trucks behind it, for the same quarter. The click is the mouse's path; the link in
+ * the jurisdiction cell is the keyboard's and the screen reader's (contract §5.7 — a row that only
+ * opens on click has nothing focusable in it).
+ */
+const jurisdictionLink = (code: string) => ({ path: `/ifta/${code}`, query: { q: selectedKey.value } });
+const openJurisdiction = (row: Record<string, unknown>) => void router.push(jurisdictionLink(String(row.id)));
 </script>
 
 <template>
@@ -198,7 +206,16 @@ const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
           :rows="rows"
           row-key="id"
           empty-text="No miles or fuel recorded for this quarter."
-        />
+          @row-click="openJurisdiction"
+        >
+          <template #cell-jurisdiction="{ row }">
+            <RouterLink
+              :to="jurisdictionLink(String(row.id))"
+              class="font-medium text-brand-700 hover:underline"
+              @click.stop
+            >{{ row.jurisdiction }}</RouterLink>
+          </template>
+        </DataTable>
       </BaseCard>
 
       <!-- The filing workflow is not built (Q-IF5). Said outright rather than behind a disclosure: the

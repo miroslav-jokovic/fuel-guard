@@ -10,8 +10,9 @@
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
-  computeIftaPosition, tieOutMiles,
+  computeIftaPosition, tieOutMiles, iftaJurisdictionTrucks,
   type IftaFuelPurchase, type IftaJurisdictionMiles, type IftaPosition, type MilesTieOut,
+  type IftaJurisdictionTrucks, type IftaJurisdictionTrucksResponse,
 } from "@silvicom/shared";
 import { milesFromMeters } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -139,6 +140,26 @@ export const quarterKey = (q: IftaQuarter): string => `${q.year}-Q${q.quarter}`;
 export function parseQuarterKey(key: string | null | undefined): IftaQuarter | null {
   const m = /^(\d{4})-Q([1-4])$/.exec(String(key ?? "").trim());
   return m ? { year: Number(m[1]), quarter: Number(m[2]) } : null;
+}
+
+/**
+ * One jurisdiction's quarter, truck by truck — what a ledger row is made of. The API returns
+ * Samsara's metres; `iftaJurisdictionTrucks` converts them with the conversion the ledger used, so
+ * the total here and the row it was opened from are the same number.
+ */
+export function useIftaJurisdictionQuery(quarter: Ref<IftaQuarter>, jurisdiction: Ref<string>) {
+  return useQuery({
+    queryKey: ["ifta_jurisdiction", quarter, jurisdiction],
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<IftaJurisdictionTrucks> => {
+      const q = quarter.value;
+      const r = await apiFetch<IftaJurisdictionTrucksResponse>(
+        `/api/ifta/period/jurisdiction?year=${q.year}&quarter=${q.quarter}&code=${encodeURIComponent(jurisdiction.value)}`,
+      );
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load this jurisdiction");
+      return iftaJurisdictionTrucks(r.data.trucks);
+    },
+  });
 }
 
 export const useIftaQuarterOptions = (now: Ref<Date>) =>

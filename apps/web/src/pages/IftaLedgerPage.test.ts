@@ -95,7 +95,10 @@ beforeEach(() => {
 async function mountPage(query = "") {
   const router: Router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/ifta", name: "ifta", component: { template: "<div/>" }, meta: { title: "IFTA" } }],
+    routes: [
+      { path: "/ifta", name: "ifta", component: { template: "<div/>" }, meta: { title: "IFTA" } },
+      { path: "/ifta/:jurisdiction", name: "ifta-jurisdiction", component: { template: "<div/>" } },
+    ],
   });
   await router.push(`/ifta${query}`);
   await router.isReady();
@@ -205,5 +208,20 @@ describe("IftaLedgerPage", () => {
     errored.value = true;
     period.value = null;
     expect((await mountPage()).w.text()).toContain("Couldn't load this quarter");
+  });
+
+  // ── a row opens the trucks behind it ──────────────────────────────────────────────────────────
+  it("links each jurisdiction to its trucks for the SAME quarter, so the drill-down matches the row", async () => {
+    const { w } = await mountPage("?q=2026-Q1");
+    const texas = w.findAll("a").find((a) => a.text() === "Texas");
+    expect(texas?.attributes("href")).toBe("/ifta/TX?q=2026-Q1");
+  });
+
+  it("opens the jurisdiction when the row itself is clicked", async () => {
+    const { w, router } = await mountPage("?q=2026-Q1");
+    const push = vi.spyOn(router, "push");
+    const row = w.findAll("tbody tr").find((tr) => tr.text().includes("California"));
+    await row!.trigger("click");
+    expect(push).toHaveBeenCalledWith({ path: "/ifta/CA", query: { q: "2026-Q1" } });
   });
 });

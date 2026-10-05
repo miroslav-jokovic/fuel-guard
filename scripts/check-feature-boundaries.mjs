@@ -360,6 +360,11 @@ const API_ALLOW = new Set([
   //     who depended on it.
   "fleetpal -> mcleod",
   "fleetpal -> samsara",
+  // The IFTA ledger's drill-down (2026-10-05): one jurisdiction's quarter, truck by truck. The
+  // period RPCs (0256) already fold the trucks together, so the per-truck sums come through
+  // samsara's own `readJurisdictionVehicleMiles` — the collector's door onto its jurisdiction table,
+  // the same kind of read the CPM harness and FleetPal take — never a `.from()` on the raw table.
+  "ifta -> samsara",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

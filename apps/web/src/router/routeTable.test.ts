@@ -59,7 +59,7 @@ const PROBES = [
   "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates", "/recruitment/ap_1",
   // C7b renamed the ledger to /findings and left the old address as a redirect, so both are probed
   // for the same reason /cpm's predecessors are below: a link somebody sent last week must still open.
-  "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta",
+  "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta", "/ifta/TX",
   // FS3 (D-FSV8): Pilot invoices and one saved check, the check probed with a placeholder id.
   "/fuel-invoices", "/fuel-invoices/run_1", "/fuel-buy-discipline",
   // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
