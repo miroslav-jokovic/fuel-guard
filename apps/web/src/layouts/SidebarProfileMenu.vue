@@ -12,6 +12,7 @@ import { USER_ROLE_LABELS, type UserRole } from "@silvicom/shared";
 import { RouterLink } from "vue-router";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { useOpens } from "@/composables/useOpens";
+import { useServedRelease } from "@/composables/useServedRelease";
 
 const props = defineProps<{
   email: string | null;
@@ -41,6 +42,12 @@ const SCHEME_OPTIONS: { value: ColorScheme; label: string; icon: typeof SchemeSy
   { value: "light", label: "Light", icon: SchemeLightIcon },
   { value: "dark", label: "Dark", icon: SchemeDarkIcon },
 ];
+
+/**
+ * The release this page is (R6, D-REL10), last in the menu: the screenshot to ask for when somebody
+ * says "it still looks the same", one click from anywhere. Hidden until it is known.
+ */
+const release = useServedRelease();
 
 const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "Signed in"));
 /** What the trigger and the menu head say first: the name if there is one, else the email. */
@@ -117,5 +124,9 @@ const subline = computed(() => (props.name && props.email ? `${props.email} · $
     >
       Sign out
     </button>
+    <template v-if="release">
+      <div class="sidebar-divider mt-1 border-t" />
+      <p class="sidebar-muted px-3 py-1.5 text-2xs tabular-nums" data-testid="served-release">Version {{ release }}</p>
+    </template>
   </KebabMenu>
 </template>

@@ -1,8 +1,8 @@
 # Release train — merge all day, release once a night
 
-**Status:** LIVE since 2026-10-04 09:59 CT. R0, R2, R3, R4, R5 (cut over) and R7 (docs) done; Q-REL6
-(production schema drift) closed by 0422/0423 with a nightly drift check. Open: R6 (CalVer in
-`/api/version`, web, driver; PR template; labels) and Q-REL4 (summary recipients).
+**Status:** LIVE since 2026-10-04 09:59 CT. R0, R2, R3, R4, R5 (cut over), R6a (version) and R7 (docs) done; Q-REL6
+(production schema drift) closed by 0422/0423 with a nightly drift check. Open: R6b (PR template,
+area labels, notes by area) and Q-REL4 (summary recipients).
 
 **Supersedes** the "merge = deploy" model from SHIP-PIPELINE-PLAN.md D0–D4 for the two Railway app
 services, Supabase migrations and the driver OTA lane. Store builds (`driver-store.yml`, tag-driven)
@@ -246,3 +246,16 @@ jobs resume exactly as before R5.
   says which window applies where; its open question is answered for production) and
   `docs/DEPLOYMENT.md` (two environments, two branches; per-environment triggers). Historical plans and
   audits are left as written: they record what was true then.
+- 2026-10-05 — R6a, the version half of D-REL10. The release tag is minted AFTER the code it names is
+  deployed and verified, so no build can carry it: `/api/version` gains `version`, read at runtime
+  from the repository's own tags (`apps/api/src/lib/releaseVersion.ts`). The repository is public, so
+  the read needs no credential; a `releases` table written by release.yml was rejected as a second
+  record of a fact git already holds. Bounded for GitHub's 60/hour unauthenticated limit: only a
+  process deployed from `production` asks, a found tag is kept for the process's life, and an
+  untagged one retries at most every 5 minutes. Shown in the web account menu (from the page's own
+  origin — the web service is the code on screen) and the driver build card's Server row, each
+  falling back to the commit. `pnpm verify:live` now takes a target: production vs
+  `origin/production` (default, release tag included), `staging` vs `origin/main`, a URL vs HEAD.
+  Measured the same day: production's current deploy reports branch `main` — built before the
+  cutover moved its trigger — so it will report a version only from the first release onward.
+  Still owed (R6b): PR template, area labels, notes grouped by area.

@@ -19,6 +19,7 @@
  *   --self-test
  */
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const TZ = "America/Chicago";
 
@@ -122,8 +123,11 @@ function selfTest() {
   process.exitCode = fail ? 1 : 0;
 }
 
+// Run as a command only; imported (apps/api's releaseVersion test holds the API's tag pattern to
+// `releaseTag`), it only exports.
 const [cmd, ...args] = process.argv.slice(2);
-if (cmd === "--self-test") selfTest();
+if (import.meta.url !== pathToFileURL(process.argv[1] ?? "").href) { /* imported */ }
+else if (cmd === "--self-test") selfTest();
 else if (cmd === "tag") console.log(releaseTag(new Date(), args));
 else if (cmd === "night") console.log(isReleaseNight(new Date()) ? "release" : "rest");
 else if (cmd === "notes" && args.length === 2) console.log(notes(args[0], args[1]));

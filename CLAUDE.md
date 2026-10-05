@@ -29,10 +29,12 @@ stripped before Claude reads the file. -->
 - `pnpm test` — unit suites AND every `supabase/tests/*.test.mjs` matrix, unconditionally. Matrices are
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
 - `pnpm typecheck` · `pnpm lint` · `pnpm build` (mostly `tsc --noEmit`).
-- `pnpm verify:live` — answers "why don't I see my changes?": compares git HEAD + highest migration
-  against the deployed `GET /api/version`. Since the release train, production trails main BY DESIGN
-  until the next release: check staging (`https://fleetguardapi-uat.up.railway.app`) for a merge,
-  production for a release, and `git log origin/production` for what was last released.
+- `pnpm verify:live` — answers "why don't I see my changes?": compares a deployed `GET /api/version`
+  (commit, release tag, migration) with the git ref that host follows. Production trails main BY
+  DESIGN until the next release, so it takes a target: no argument = production vs
+  `origin/production`, `staging` = staging vs `origin/main` (a merge shows there in minutes), a URL =
+  that host vs your HEAD. Production's release tag (`v2026.10.05`, D-REL10) is also in the web
+  account menu and the driver app's build card.
 - The full gate list lives in root `package.json` — every `lint:*` script is documented by its
   sibling `"//lint:*"` comment key. CI runs most of them by name in the `gates` job
   (`.github/workflows/ci.yml`); the rest are chained onto one of those. **A gate that is in
