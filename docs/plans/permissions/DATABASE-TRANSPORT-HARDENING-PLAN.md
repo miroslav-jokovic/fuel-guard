@@ -87,12 +87,12 @@ once enforced, and the grant/RLS hardening of 0411–0417.
 
 ## Status re-measured — 2026-10-05 (after the Micro → Small upgrade)
 
-| Setting | Production now | Source |
-|---|---|---|
-| SSL enforcement | **off** (`currentConfig.database: false`) | `supabase ssl-enforcement get --experimental` |
-| Network | **open**: `0.0.0.0/0`, `::/0` | `supabase network-restrictions get --experimental` |
-| PITR | **off** (`pitr_enabled: false`, `walg_enabled: true`) | `supabase backups list` |
-| Physical backups | 9 daily, latest 2026-10-05 16:39 UTC, region us-west-2 | same |
+| Setting          | Production now                                         | Source                                             |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| SSL enforcement  | **off** (`currentConfig.database: false`)              | `supabase ssl-enforcement get --experimental`      |
+| Network          | **open**: `0.0.0.0/0`, `::/0`                          | `supabase network-restrictions get --experimental` |
+| PITR             | **off** (`pitr_enabled: false`, `walg_enabled: true`)  | `supabase backups list`                            |
+| Physical backups | 9 daily, latest 2026-10-05 16:39 UTC, region us-west-2 | same                                               |
 
 **Q-DT1 is still blocked on access, not on a decision.** `supabase db query` reaches only the linked
 project, so measuring staging's `pg_postmaster_start_time()` before and after needs the staging link the
@@ -105,4 +105,3 @@ Cost is the dashboard's quoted price at enablement; this plan does not restate a
 
 **Q-DT2 recommendation unchanged** (self-hosted runner for the two migration jobs only). Prerequisite
 noted: the new platform-health monitor (#1312) deliberately stays on GitHub-hosted runners.
-
