@@ -1547,10 +1547,10 @@
       "layer": "derived",
       "lifecycle": {
         "growth": "time",
-        "retention_days": null,
+        "retention_days": 90,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "delivery queue for Expo Push. Retention unruled \u2014 L9."
+        "why": "the bell's inbox and the Expo Push delivery queue. 90 days (DATA-LIFECYCLE-PLAN Q11, ruled 2026-10-05): prunable since 0432 moved the dedupe keys to notification_dedupe_keys."
       }
     },
     "notification_preferences": {

@@ -88,6 +88,18 @@ describe("retention policy (the config itself)", () => {
     expect(listed.has("hazmat_documents")).toBe(false);
   });
 
+  /**
+   * Q11 (DATA-LIFECYCLE-PLAN, 0432): the inbox is pruned, the dedupe ledger never is. Asserted as a
+   * pair because each half is only safe given the other.
+   */
+  it("prunes the notification inbox and cannot reach the dedupe ledger that makes that safe", () => {
+    const inbox = RETENTION_RULES.find((r) => r.table === "notification_events");
+    expect(inbox?.keepDays).toBe(90);
+    expect(inbox?.orgScoped).toBe(true);
+    expect(RETENTION_FORBIDDEN).toContain("notification_dedupe_keys");
+    expect(RETENTION_RULES.some((r) => r.table === "notification_dedupe_keys")).toBe(false);
+  });
+
   it("keeps raw telematics at least 13 months and only prunes finished jobs", () => {
     for (const r of RETENTION_RULES) {
       if (["idle_events", "hos_duty_segments", "idle_park_sessions", "vehicle_engine_days"].includes(r.table)) {
