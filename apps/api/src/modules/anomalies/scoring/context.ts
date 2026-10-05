@@ -143,7 +143,8 @@ export async function healMissingAttribution(
       const { error: fillVehicleError } = await admin
         .from("fuel_transactions")
         .update({ vehicle_id: vehicleId })
-        .eq("id", txnId);
+        .eq("id", txnId)
+        .eq("org_id", orgId);
       if (fillVehicleError) {
         throw new Error(`[scoring] could not attribute vehicle for ${txnId}: ${fillVehicleError.message}`);
       }
@@ -181,7 +182,8 @@ export async function healMissingAttribution(
       const { error: fillDriverError } = await admin
         .from("fuel_transactions")
         .update({ driver_id: driverId })
-        .eq("id", txnId);
+        .eq("id", txnId)
+        .eq("org_id", orgId);
       if (fillDriverError) {
         throw new Error(`[scoring] could not attribute driver for ${txnId}: ${fillDriverError.message}`);
       }

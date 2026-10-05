@@ -54,7 +54,7 @@ type RuleInputs = {
   marketPricePerGal: number | null;
 };
 
-async function reattributeIfNeeded(
+export async function reattributeIfNeeded(
   admin: SupabaseClient,
   orgId: string,
   txnId: string,
@@ -88,7 +88,8 @@ async function reattributeIfNeeded(
       vehicle_id: attribution.logbookVehicleId,
       logbook_vehicle_id: attribution.logbookVehicleId,
     })
-    .eq("id", txnId);
+    .eq("id", txnId)
+    .eq("org_id", orgId);
   if (error) throw new Error(`[scoring] could not reattribute transaction ${txnId}: ${error.message}`);
   return true;
 }
