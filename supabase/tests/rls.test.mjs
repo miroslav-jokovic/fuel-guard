@@ -2208,6 +2208,9 @@ async function main() {
     "auth_module_enabled",
     // 0371: the loads whose current dispatch names the calling driver — reads only the caller's claims.
     "auth_dispatched_load_ids",
+    // 0436 (Q-DA3): name-only driver list — no parameter, scoped by the caller's own claims, returns
+    // id and full_name only. Its contract is pinned by driver-names.test.mjs.
+    "driver_names",
   ]);
 
   const definers = await db.query(`
