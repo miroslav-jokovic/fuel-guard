@@ -527,7 +527,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet). RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "financial_entries": {
@@ -538,7 +538,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span \u2014 that is a BACKFILL, not a steady rate; re-measure before trusting this budget."
+        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span \u2014 that is a BACKFILL, not a steady rate; re-measure before trusting this budget. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "fleetpal_credentials": {
@@ -1363,7 +1363,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_billing": {
@@ -1374,7 +1374,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_deductions": {
@@ -1385,7 +1385,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_dispatch_movements": {
@@ -1418,7 +1418,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_gl_days": {
@@ -1429,7 +1429,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_gl_totals": {
@@ -1440,7 +1440,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_movements": {
@@ -1451,7 +1451,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_office_lines": {
@@ -1462,7 +1462,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 50,
-        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_settlements": {
@@ -1473,7 +1473,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "memberships": {

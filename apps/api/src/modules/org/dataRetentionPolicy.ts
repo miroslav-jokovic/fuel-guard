@@ -480,4 +480,27 @@ export const RETENTION_FORBIDDEN = [
    * so nothing about keeping it works against the request it records.
    */
   "driver_account_closure_requests",
+  /**
+   * The books and the McLeod staging they are projected from (finance inventory, 2026-10-05).
+   * `finance_month_closes` says a month tied to the cent against `mcleod_gl_totals`; the income
+   * statement, fuel tie-out and `financial_entries` are sums of the staged settlements, vouchers,
+   * deductions, billing and ledger rows. A prune by age would leave a closed month citing figures
+   * nobody can produce, and McLeod is re-swept only 75 days back, so they would not come back.
+   * Measured on production the same day: ~134 MB in total after a backfill to 2024-01-01, so no
+   * storage argument exists. The statutory period is the carrier's accountant's question; "never by
+   * rule" cannot be shorter than any answer. Deleting any of these is an explicit, audited act.
+   * Not here: the dispatch-side tables (`mcleod_dispatch_*`, `tms_*`, `load_external_payloads`),
+   * which are operational, not books, and stay unruled.
+   */
+  "financial_entries",
+  "finance_month_closes",
+  "mcleod_settlements",
+  "mcleod_ap_vouchers",
+  "mcleod_deductions",
+  "mcleod_billing",
+  "mcleod_office_lines",
+  "mcleod_movements",
+  "mcleod_gl_accounts",
+  "mcleod_gl_days",
+  "mcleod_gl_totals",
 ] as const;
