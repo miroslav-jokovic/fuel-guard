@@ -369,6 +369,10 @@ const API_ALLOW = new Set([
   // `readJurisdictionFills`, on the ledger row's own predicate, so the trucks' gallons add up to it.
   // ARCHITECTURE §4 always had ifta reading "samsara staging + fuel"; this is the fuel arrow drawn.
   "ifta -> fuel",
+  // The roster sweep hands McLeod's fuel-tax switch (`tractor.exclude_fueltax`) to ifta's
+  // `recordFuelTaxExclusion`, which owns the dated periods in 0433. The collector delivers the fact;
+  // ifta decides what a period is. Same shape as `mcleod -> evidence` for credentials.
+  "mcleod -> ifta",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

@@ -50,6 +50,9 @@ const MODULE_SECTIONS = {
   anomalies: "fuel",
   routing: "fuel",
   "posted-prices": "fuel", // carved out of fuel at P1.5; its tables' client policies were authored under the fuel section
+  // Its first table arrived 2026-10-05 (0433). `/api/ifta/period` already gates on fuel: view, so the
+  // section is the one the API asks, not a new one; 0433's own policy is org-wide and names no role.
+  ifta: "fuel",
   samsara: null,
   mcleod: null,
   // A collector, and deny-all in both directions: the four 0334 tables carry no client policy

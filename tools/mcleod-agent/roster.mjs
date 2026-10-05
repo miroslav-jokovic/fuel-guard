@@ -86,7 +86,8 @@ export function usableEmail(raw) {
   return /\.[a-z]{2,4}$/i.test(v) ? v : null; // at the limit: only if it still ends in a TLD
 }
 
-const MAP = {
+/** Exported for the tests only: the vendor-letter → neutral-fact mapping is the thing worth pinning. */
+export const MAP = {
   drivers: (r) => ({
     external_id: s(r.external_id),
     company_id: s(r.company_id),
@@ -141,6 +142,12 @@ const MAP = {
            * instead of `active` — still in the fleet, still inspected, still on the map.
            */
           in_shop: s(r.tractor_status) === "S",
+          /**
+           * McLeod's fuel-tax exclusion, sent as the FACT. `Y` excludes; `N` includes. A blank or any
+           * other letter sends nothing (undefined) rather than a guess — Silvicom 360 treats an absent
+           * fact as "unknown" and never closes an exclusion period on it.
+           */
+          fuel_tax_excluded: s(r.exclude_fueltax) === "Y" ? true : s(r.exclude_fueltax) === "N" ? false : undefined,
           make: s(r.make),
           model: s(r.model),
           year: year(r.model_year),

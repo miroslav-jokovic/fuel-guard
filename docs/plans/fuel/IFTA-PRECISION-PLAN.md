@@ -238,3 +238,9 @@ and run the rest — run each statement on its own, since one bad column kills t
 - 2026-10-05 — McLeod probed directly (read-only): Q-IP1 and Q-IP4 answered, Q-IP3 measured (§0.1, §0.2).
   IP4 revised to mirror `exclude_fueltax`; IP6 revised to read `fuel_tax_history.source = 'F'` into the
   IFTA credit side only, dropping the 2 rows that duplicate a card fill.
+- 2026-10-05 — IP4 built (0433 `vehicle_fuel_tax_exclusions`; agent reads `exclude_fueltax` →
+  `fuel_tax_excluded`; `recordFuelTaxExclusion` opens/closes dated periods from the vehicle sweep).
+  Live dry run of the new query: 193 tractors, all `fuel_tax_excluded = false` — no rows will be written
+  until the carrier flips the switch. The review routine Alex approved is rebuilt and changed by one
+  column; he needs telling. IP5 (the IFTA reads honour the periods) is the next merge. Owner ruled the
+  sandbox (`lme_analytics`) may backfill PAST quarters' hand-keyed fuel for IP6 while Q-IP3 is open.
