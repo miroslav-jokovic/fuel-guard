@@ -5,6 +5,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { getBuildInfo } from "../lib/buildInfo.js";
 import { getSchemaStatus } from "../lib/schemaVersion.js";
 import { getMaintenanceHealth, maintenanceHealthy } from "../lib/maintenanceHealth.js";
+import { getReleaseVersion } from "../lib/releaseVersion.js";
 
 /**
  * `GET /api/version` — what is actually running (ship-pipeline plan D0.3).
@@ -30,10 +31,14 @@ export function versionRouter(): Router {
       const build = getBuildInfo();
       const schema = await getSchemaStatus(env);
       const maintenance = await getMaintenanceHealth(env);
+      const version = await getReleaseVersion();
       res.setHeader("Cache-Control", "no-store");
       res.json({
         service: `${APP_NAME} API`,
         env: env.NODE_ENV,
+        // The release tag (D-REL10), or null off production and in the minutes before release.yml
+        // tags what it shipped. Callers show `commitShort` when it is null.
+        version,
         commit: build.commit,
         commitShort: build.commitShort,
         branch: build.branch,

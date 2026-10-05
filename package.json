@@ -30,7 +30,7 @@
     "test": "node scripts/run-tests.mjs",
     "//test:rls": "The behavioural matrices alone. History worth keeping: two of them (load-lifecycle, duty-sessions) were never wired in and had not executed in months behind stale migration filenames, while the ledger quoted their pass counts \u2014 42/42 and 20/20 \u2014 as fact. Both counts turned out to be real, but only after four unimplemented behaviours the matrices specified were actually built (migrations 0141-0143). They were also chained with `&&`, so the first failure hid the other three.",
     "test:rls": "node scripts/run-tests.mjs --matrices-only",
-    "//verify:live": "Answers \"why don't I see my changes?\" in one command: compares git HEAD + the highest migration file against the deployed API's GET /api/version. Exits non-zero on drift.",
+    "//verify:live": "Answers \"why don't I see my changes?\" in one command: compares production with origin/production (default), `staging` with origin/main, or a URL with HEAD — commit, release tag, migration — against GET /api/version. Exits non-zero on drift.",
     "verify:live": "node scripts/verify-live.mjs",
     "backfill:efs-soap-passwords": "pnpm --filter @silvicom/api backfill:efs-soap-passwords",
     "verify:idle": "node scripts/verify-idle-precision.mjs",
