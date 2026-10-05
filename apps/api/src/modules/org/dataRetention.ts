@@ -18,8 +18,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *    one monster run.
  */
 
-/** Ids per delete statement (id strategy). */
+/** Ids selected per batch (id strategy). */
 const BATCH = 1000;
+/**
+ * Ids per DELETE request. The ids travel in the URL (`id=in.(…)`), and Supabase rejects a long one with
+ * a bare `400 Bad Request`: measured 2026-10-05, 500 uuids (18.6 KB) passed and 700 (26 KB) did not.
+ * 200 uuids is ~7.5 KB. Deleting the whole 1,000-id batch at once failed the real fleet's run every
+ * day from 2026-09-23.
+ */
+const DELETE_IDS = 200;
 /** Max delete statements per table per run — a backlog drains across daily runs. */
 const MAX_BATCHES = 30;
 /** Time-slice width for tables pruned oldest-first without an id column. */
@@ -76,11 +83,14 @@ async function pruneById(
     if (error) throw new Error(`${rule.table} select: ${error.message}`);
     const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
     if (ids.length === 0) break;
-    let d = admin.from(rule.table).delete().in("id", ids);
-    if (rule.orgScoped) d = d.eq("org_id", orgId);
-    const { error: derr } = await d;
-    if (derr) throw new Error(`${rule.table} delete: ${derr.message}`);
-    deleted += ids.length;
+    for (let i = 0; i < ids.length; i += DELETE_IDS) {
+      const part = ids.slice(i, i + DELETE_IDS);
+      let d = admin.from(rule.table).delete().in("id", part);
+      if (rule.orgScoped) d = d.eq("org_id", orgId);
+      const { error: derr } = await d;
+      if (derr) throw new Error(`${rule.table} delete: ${derr.message}`);
+      deleted += part.length;
+    }
     if (ids.length < BATCH) {
       batches++;
       break;

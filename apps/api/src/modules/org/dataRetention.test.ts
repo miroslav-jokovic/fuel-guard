@@ -151,6 +151,29 @@ describe("runDataRetention", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  /**
+   * A delete by id names its ids in the URL (`id=in.(…)`), and Supabase answers a long one with a bare
+   * `400 Bad Request` before PostgREST sees it. Measured 2026-10-05 against production: 500 uuids
+   * (18,583-byte URL) answered, 700 (25,983) did not. A full 1,000-id batch is ~37 KB, which is why
+   * the real fleet's run failed on `scoring_attempts` every day from 2026-09-23, the first day it had
+   * rows past 45 days. 8 KB keeps half the measured headroom; the test org never had a full batch, so
+   * only a production-sized page reproduces it.
+   */
+  it("id strategy: a full batch is deleted in requests whose id list fits a URL", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    }));
+    const rec = createSupabaseRecorder({ tables: { idle_events: { pages: [full, []] } } });
+    const res = await runDataRetention(rec.client, ORG, [idRule]);
+    expect(res.totalDeleted).toBe(1000);
+    expect(deletedIds(rec, "idle_events")).toEqual(full.map((r) => r.id));
+    for (const q of deleteStatements(rec, "idle_events")) {
+      const ids = q.filters().find((f) => f.col === "id")?.val as string[];
+      expect(`id=in.(${ids.join(",")})`.length).toBeLessThan(8_000);
+    }
+    expectOrgScoped(rec, ORG);
+  });
+
   it("id strategy: nothing past the cutoff → zero deletes issued", async () => {
     const rec = createSupabaseRecorder({ tables: { idle_events: { pages: [[]] } } });
     const res = await runDataRetention(rec.client, ORG, [idRule]);
