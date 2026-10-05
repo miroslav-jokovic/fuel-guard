@@ -89,7 +89,13 @@ runs:
 
           # Several runs can share a head SHA (a re-run, or a push plus a manual dispatch). The most
           # recently started one is the authoritative answer for this commit.
-          latest=$(echo "$json" | jq -c '[.workflow_runs[]?] | sort_by(.run_started_at) | last // empty')
+          #
+          # Except the release PR's (main → production): a pull_request run whose head branch is main.
+          # It tests main's commit merged onto production, not the commit, and GitHub holds it at
+          # action_required because github-actions opened the PR — so, started after main's own push
+          # run, it read as "CI concluded action_required" and refused the 2026-10-05 release while
+          # main's CI for that very commit was green. A real PR never has main as its head branch.
+          latest=$(echo "$json" | jq -c '[.workflow_runs[]? | select((.event == "pull_request" and .head_branch == "main") | not)] | sort_by(.run_started_at) | last // empty')
 
           if [ -z "$latest" ] || [ "$latest" = "null" ]; then
             echo "  no ${WORKFLOW} run recorded for ${sha::7} yet — waiting"

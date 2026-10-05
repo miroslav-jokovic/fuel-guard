@@ -45,6 +45,14 @@
  * Run by hand it works on a branch (against `origin/main`) and on a merge commit (against its first
  * parent) — the second is how the #430 merge above was checked after the fact.
  *
+ * ── THE RELEASE PR (main → production) ─────────────────────────────────────────────────────────
+ * With `MIGRATION_ORDERING_MERGES_TO` set (CI sets it to the release PR's head), the range
+ * base..that commit is checked ONE MAIN MERGE AT A TIME, each against its own first parent — the
+ * same unit each was checked in on its own PR. Read as one diff, a day of merges joins a column and
+ * its reader that main correctly took in two merges: on 2026-10-05 that refused the release over
+ * 0430's `dismissed_at` (#1298) and its reader (#1301). A single merge that adds a column and reads
+ * it is still refused; only the false join is gone.
+ *
  * ── THE HONEST FIX IS NOT MINE TO MAKE ─────────────────────────────────────────────────────────
  * This gate polices the window. CLOSING it means ordering the app deploy behind the migration —
  * Railway deploying on a workflow trigger that runs after `migrate.yml` instead of on push. That is
@@ -197,6 +205,12 @@ if (process.argv.includes("--self-test")) {
   process.exit(failed.length === 0 ? 0 : 1);
 }
 
+/**
+ * What to check: one change, or — for the release PR — each main merge in it on its own (header,
+ * THE RELEASE PR). `--first-parent` walks main's own history, so every step is one merge as it
+ * landed, read against main just before it.
+ */
+const mergesTo = process.env.MIGRATION_ORDERING_MERGES_TO?.trim();
 const base = baseRef();
 if (!base) {
   console.error(
@@ -206,23 +220,6 @@ if (!base) {
       "  mode migrate.yml's own header warns about.",
   );
   process.exit(1);
-}
-
-/**
- * Committed changes AND the working tree, because a gate that only sees commits gives a FALSE PASS
- * to the person most likely to run it: someone who has just written the migration and the reader
- * together and wants to know before they commit. `git diff <base>` (no HEAD) already spans the tree;
- * a brand-new migration is untracked, so it has to be asked for separately.
- */
-const changed = [
-  ...git(["diff", "--name-only", "--diff-filter=ACMR", base]).split("\n"),
-  ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
-].filter(Boolean);
-const addedMigrations = changed.filter((p) => /^supabase\/migrations\/\d+.*\.sql$/.test(p));
-
-if (addedMigrations.length === 0) {
-  console.log("✓ migration ordering ok — no migrations in this change.");
-  process.exit(0);
 }
 
 /**
@@ -258,51 +255,91 @@ function addedColumns(sql) {
   return found;
 }
 
-const pending = [];
-for (const file of addedMigrations) {
-  for (const c of addedColumns(readFileSync(join(ROOT, file), "utf8"))) pending.push({ ...c, file });
+/**
+ * The violations one change makes: `base` → `head`, or `base` → the working tree when `head` is
+ * absent.
+ *
+ * The working tree, because a gate that only sees commits gives a FALSE PASS to the person most
+ * likely to run it: someone who has just written the migration and the reader together and wants to
+ * know before they commit. `git diff <base>` (no HEAD) already spans the tree; a brand-new migration
+ * is untracked, so it has to be asked for separately. A named `head` (one release merge) has no tree.
+ */
+function check(from, head) {
+  const read = (file) => (head ? git(["show", `${head}:${file}`]) : readFileSync(join(ROOT, file), "utf8"));
+  const changed = head
+    ? git(["diff", "--name-only", "--diff-filter=ACMR", from, head]).split("\n").filter(Boolean)
+    : [
+        ...git(["diff", "--name-only", "--diff-filter=ACMR", from]).split("\n"),
+        ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
+      ].filter(Boolean);
+  const migrations = changed.filter((p) => /^supabase\/migrations\/\d+.*\.sql$/.test(p));
+  const pending = [];
+  for (const file of migrations) {
+    for (const c of addedColumns(read(file))) pending.push({ ...c, file });
+  }
+  const violations = [];
+  if (pending.length === 0) return { migrations: migrations.length, pending: 0, violations };
+
+  // A column name is matched as a WORD (readsIntroduced): a substring match would fire on
+  // `renderer_version_label`, and would not fire on a column whose name is a common word in prose.
+  for (const file of changed.filter((p) => SOURCE_RE.test(p) && !IS_TEST(p))) {
+    let body;
+    try {
+      body = read(file);
+    } catch {
+      continue; // renamed away or deleted in a later commit on this branch
+    }
+    let beforeBody = "";
+    try {
+      beforeBody = git(["show", `${from}:${file}`]);
+    } catch {
+      /* the file is new on this branch */
+    }
+    violations.push(...readsIntroduced(file, body, beforeBody, pending));
+  }
+  return { migrations: migrations.length, pending: pending.length, violations };
 }
 
-if (pending.length === 0) {
-  console.log(
-    `✓ migration ordering ok — ${addedMigrations.length} migration(s), no column added to an existing table.`,
-  );
+const steps = mergesTo
+  ? git(["rev-list", "--first-parent", "--reverse", `${base}..${mergesTo}`])
+      .split("\n")
+      .filter(Boolean)
+      .map((c) => ({ from: `${c}^1`, head: c }))
+  : [{ from: base, head: undefined }];
+if (steps.length === 0) {
+  console.error(`✗ migration ordering: no commits in ${base.slice(0, 7)}..${mergesTo.slice(0, 7)} — refusing a silent pass.`);
+  process.exit(1);
+}
+
+let migrations = 0;
+let pending = 0;
+const violations = [];
+for (const { from, head } of steps) {
+  const r = check(from, head);
+  migrations += r.migrations;
+  pending += r.pending;
+  violations.push(...r.violations.map((v) => ({ ...v, merge: head })));
+}
+const scope = mergesTo ? ` across ${steps.length} merge(s), each on its own` : "";
+
+if (migrations === 0) {
+  console.log(`✓ migration ordering ok — no migrations in this change${scope}.`);
   process.exit(0);
 }
-
-/**
- * A column name has to be matched as a WORD.
- *
- * A substring match would fire on `renderer_version_label`, and worse, would not fire on a column
- * whose name is a common word appearing in prose. Word boundaries keep both honest.
- */
-const violations = [];
-for (const file of changed.filter((p) => SOURCE_RE.test(p) && !IS_TEST(p))) {
-  let body;
-  try {
-    body = readFileSync(join(ROOT, file), "utf8");
-  } catch {
-    continue; // renamed away or deleted in a later commit on this branch
-  }
-  let beforeBody = "";
-  try {
-    beforeBody = git(["show", `${base}:${file}`]);
-  } catch {
-    /* the file is new on this branch */
-  }
-  violations.push(...readsIntroduced(file, body, beforeBody, pending));
+if (pending === 0) {
+  console.log(`✓ migration ordering ok — ${migrations} migration(s)${scope}, no column added to an existing table.`);
+  process.exit(0);
 }
-
 if (violations.length === 0) {
   console.log(
-    `✓ migration ordering ok — ${pending.length} new column(s) on existing tables, none read by code in the same change.`,
+    `✓ migration ordering ok — ${pending} new column(s) on existing tables${scope}, none read by code in the same merge.`,
   );
   process.exit(0);
 }
 
 console.error(`✗ ${violations.length} column(s) added and read in the same merge:\n`);
 for (const v of violations) {
-  console.error(`  ${v.file}`);
+  console.error(`  ${v.file}${v.merge ? ` (merge ${v.merge.slice(0, 7)})` : ""}`);
   console.error(`    names "${v.column}", which ${v.migration} adds to ${v.table} in this same change.`);
 }
 console.error(
