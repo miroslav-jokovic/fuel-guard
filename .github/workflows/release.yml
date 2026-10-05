@@ -37,6 +37,21 @@ name: Release
 # nothing else; the admin's personal token first planned here would have reached every repository
 # the admin owns, from a secret any workflow on main can read (2026-10-04, at cutover).
 #
+# ── HARDENING (2026-10-05) ───────────────────────────────────────────────────────────────────────
+#   Retry      a second cron at 01:37 CT. GitHub delays scheduled runs (the first night's 01:07 ran at
+#              01:53) and may drop one under load; the retry ships an approved release a dropped run
+#              missed, and finds "production already at" when the first run shipped. Its skips are
+#              silent, so a night yields one summary, not two.
+#   Backups    a nightly release refuses to start unless production's newest COMPLETED backup is under
+#              26 h old (daily physical backups land ~03:40 CT; PITR is off, measured 2026-10-05). A
+#              release is the moment a restore is most likely to be needed; a dead backup schedule is
+#              found here, not in the middle of one. A hotfix only warns: it is the repair.
+#   Rollback   a nightly or hotfix release that deploys but fails verify or smoke moves production
+#              back to the previous commit, verifies THAT, and pages. Migrations stay (D-REL9): old
+#              code on new schema is the direction every migration is written to survive.
+#   Summary    every outcome is an email to the owners; a failure or rollback also a text
+#              (scripts/release-notify.mjs, Q-REL4). Rehearsals send nothing.
+#
 # Who approves: only a review by a human with ADMIN permission on this repository counts. Cutover
 # step 1 lets github-actions open the release PR, and that same setting lets it approve one; a bot
 # approval must never be a go signal.
@@ -44,6 +59,8 @@ name: Release
 on:
   schedule:
     - cron: "7 6 * * 1-5"
+    # The retry (header: HARDENING). Keep it the SECOND entry: the plan step tells them apart by it.
+    - cron: "37 6 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
@@ -90,6 +107,8 @@ jobs:
       before: ${{ steps.plan.outputs.before }}
       tag: ${{ steps.plan.outputs.tag }}
       driver: ${{ steps.plan.outputs.driver }}
+      reason: ${{ steps.plan.outputs.reason }}
+      notify_skip: ${{ steps.plan.outputs.notify_skip }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,11 +130,14 @@ jobs:
           FREEZE: ${{ vars.RELEASE_FREEZE }}
           API_URL: ${{ vars.API_URL }}
           WEB_URL: ${{ vars.WEB_URL }}
+          IS_RETRY: ${{ github.event.schedule == '37 6 * * 1-5' && 'true' || 'false' }}
         run: |
           set -euo pipefail
           say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
           out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
-          stop() { say "$1"; out ship false; exit 0; }
+          stop() { say "$1"; out ship false; out reason "$1"; exit 0; }
+          # A skip the owners hear about (no approval, frozen) — once a night, from the first run only.
+          skip() { [ "$IS_RETRY" = "true" ] || out notify_skip true; stop "$1"; }
 
           dry=false
           if [ "$DRY_INPUT" = "true" ]; then dry=true; fi
@@ -158,7 +180,7 @@ jobs:
           fi
 
           if [ "$MODE" = "nightly" ]; then
-            [ "$FREEZE" != "true" ] || stop "🧊 Frozen (RELEASE_FREEZE=true) — no release tonight."
+            [ "$FREEZE" != "true" ] || skip "🧊 Frozen (RELEASE_FREEZE=true) — no release tonight."
             if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$(node scripts/release-train.mjs night)" != "release" ]; then
               stop "😴 Not a release night (D-REL7: Sunday–Thursday nights only)."
             fi
@@ -178,7 +200,7 @@ jobs:
               fi
             fi
             if [ -z "$sha" ]; then
-              [ "$dry" = "true" ] || stop "⏭ No approved release PR${pr:+ (#$pr is open, not approved)} — today's work rides the next train (D-REL5)."
+              [ "$dry" = "true" ] || skip "⏭ No approved release PR${pr:+ (#$pr is open, not approved)} — today's work rides the next train (D-REL5)."
               sha=$(git rev-parse origin/main)
               say "Rehearsing with main's head \`${sha::7}\`; a real run ships only an approved release PR's commit."
             else
@@ -266,6 +288,29 @@ jobs:
             exit 1
           fi
 
+      # Header: HARDENING — Backups. Read from Supabase's management API with the token migrations use.
+      - name: Require a recent production backup
+        if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          body=$(curl -sS --max-time 20 -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${REF}/database/backups" || echo '{}')
+          if [ "$(echo "$body" | jq -r '.pitr_enabled // false')" = "true" ]; then echo "✓ Point-in-time recovery is on."; exit 0; fi
+          latest=$(echo "$body" | jq -r '[.backups[]? | select(.status == "COMPLETED") | .inserted_at] | max // empty')
+          age_h=$([ -n "$latest" ] && echo $(( ( $(date +%s) - $(date -d "$latest" +%s) ) / 3600 )) || echo none)
+          if [ "$age_h" != "none" ] && [ "$age_h" -lt 26 ]; then
+            echo "✓ Newest production backup completed ${latest} (${age_h} h ago)."
+            echo "Backup: newest completed ${latest} (${age_h} h ago); PITR off." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          msg="No completed production backup in the last 26 h (newest: ${latest:-none})."
+          if [ "$MODE" = "hotfix" ]; then echo "::warning::${msg} Shipping anyway: a hotfix is the repair."; exit 0; fi
+          echo "::error::${msg} Nothing was released. Check Supabase → Database → Backups, then re-run."
+          exit 1
+
       # Same CLI pin as migrate.yml. A rollback never touches the schema (D-REL9), and init ships nothing.
       - uses: supabase/setup-cli@v1
         if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
@@ -301,6 +346,7 @@ jobs:
       sha: ${{ needs.plan.outputs.sha }}
       before: ${{ needs.plan.outputs.before }}
       target: production
+      rollback: ${{ needs.plan.outputs.mode == 'rollback' }}
 
   smoke:
     needs: [plan, verify]
@@ -352,3 +398,91 @@ jobs:
       - name: Record the rollback
         if: needs.plan.outputs.mode == 'rollback'
         run: echo "↩ production rolled back to \`${SHA::7}\` — ${REASON}. Migrations were NOT reversed (D-REL9)." >> "$GITHUB_STEP_SUMMARY"
+
+  # Header: HARDENING — Rollback. Only for a release that DEPLOYED (ship succeeded) and then failed its
+  # checks; a failure before the push left production where it was, and needs no rollback.
+  auto-rollback:
+    needs: [plan, ship, verify, smoke]
+    if: >-
+      always() && needs.plan.outputs.dry != 'true' && needs.ship.result == 'success' &&
+      (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix') &&
+      needs.plan.outputs.before != '' &&
+      (needs.verify.result == 'failure' || needs.smoke.result == 'failure')
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    env:
+      SHA: ${{ needs.plan.outputs.sha }}
+      BEFORE: ${{ needs.plan.outputs.before }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+      - name: Move production back to the previous commit
+        run: |
+          set -euo pipefail
+          # The lease names the release commit: if anything else moved production since, refuse.
+          git push --force-with-lease="production:${SHA}" origin "${BEFORE}:refs/heads/production"
+          echo "↩ production → \`${BEFORE::7}\` (automatic, after \`${SHA::7}\` failed its checks)" >> "$GITHUB_STEP_SUMMARY"
+
+  verify-rollback:
+    needs: [plan, auto-rollback]
+    if: always() && needs.auto-rollback.result == 'success'
+    uses: ./.github/workflows/deploy-verify.yml
+    with:
+      sha: ${{ needs.plan.outputs.before }}
+      before: ${{ needs.plan.outputs.sha }}
+      target: production
+      rollback: true
+
+  # Header: HARDENING — Summary. Runs whatever happened above, and decides which message that was.
+  notify:
+    needs: [plan, ship, verify, smoke, publish, auto-rollback, verify-rollback]
+    if: always() && needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: release-notes
+      - name: Which outcome
+        id: outcome
+        env:
+          PLAN: ${{ needs.plan.result }}
+          SHIP_DECIDED: ${{ needs.plan.outputs.ship }}
+          NOTIFY_SKIP: ${{ needs.plan.outputs.notify_skip }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          SHIP: ${{ needs.ship.result }}
+          VERIFY: ${{ needs.verify.result }}
+          SMOKE: ${{ needs.smoke.result }}
+          PUBLISH: ${{ needs.publish.result }}
+          ROLLBACK: ${{ needs.auto-rollback.result }}
+          VERIFY_ROLLBACK: ${{ needs.verify-rollback.result }}
+        run: |
+          node scripts/release-notify.mjs outcome | tee -a "$GITHUB_OUTPUT"
+      - name: Send the summary
+        if: steps.outcome.outputs.kind != ''
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          BEFORE: ${{ needs.plan.outputs.before }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          REASON: ${{ inputs.reason }}
+          DETAIL: ${{ steps.outcome.outputs.kind == 'skipped' && needs.plan.outputs.reason || steps.outcome.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTES_FILE: notes.md
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          RELEASE_NOTIFY_EMAILS: ${{ secrets.RELEASE_NOTIFY_EMAILS }}
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_FROM: ${{ secrets.TELNYX_FROM }}
+          RELEASE_NOTIFY_PHONES: ${{ secrets.RELEASE_NOTIFY_PHONES }}
+        run: node scripts/release-notify.mjs "${{ steps.outcome.outputs.kind }}"

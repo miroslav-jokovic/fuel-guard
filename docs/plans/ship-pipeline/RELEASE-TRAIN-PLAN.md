@@ -2,7 +2,7 @@
 
 **Status:** LIVE since 2026-10-04 09:59 CT. R0, R2–R7 done (R6: release version, PR template, notes
 by area); Q-REL6 (production schema drift) closed by 0422/0423 with a nightly drift check. Open:
-Q-REL4 (summary recipients).
+Q-REL7 (point-in-time recovery — owner's call).
 
 **Supersedes** the "merge = deploy" model from SHIP-PIPELINE-PLAN.md D0–D4 for the two Railway app
 services, Supabase migrations and the driver OTA lane. Store builds (`driver-store.yml`, tag-driven)
@@ -150,8 +150,10 @@ jobs resume exactly as before R5.
 - **Q-REL2 — Approval required every night?** Taken as **yes** (D-REL5) from "proceed as proposed".
   Alternative: auto-release when all checks are green, owner can veto by closing the PR.
 - **Q-REL3 — Release nights.** Taken as **Sun–Thu** (D-REL7).
-- **Q-REL4 — Who approves; who gets the summary, and how.** Recommend: owner approves; summary by
-  email to the owner, SMS only on a failed/rolled-back release.
+- **Q-REL4 — Who approves; who gets the summary, and how.** **ANSWERED 2026-10-05** (owner: "lets
+  solve this", on the recommendation): the owner approves; every outcome is an email to the owners,
+  and a failure or rollback is also a text. The 18:00 release PR is an email too. Sent from the
+  workflow straight to Brevo/Telnyx, never through our API (`scripts/release-notify.mjs`).
 - **Q-REL6 — Production does not match its own migrations.** Building staging from the 407
   migrations (2026-10-02) and fingerprinting both databases (columns, indexes, triggers, function
   bodies, policies, grants, RLS flags) found drift in BOTH directions, all from the 0084–0094 era
@@ -178,6 +180,15 @@ jobs resume exactly as before R5.
     functions and the 0094 index; leave the stale overloads for a second, separate migration after
     checking nothing calls them. Then a CI gate that diffs a migrations-built schema against
     production's fingerprint so drift is caught the day it happens.
+- **Q-REL7 — Point-in-time recovery.** Production keeps one physical backup a day (~03:40 CT);
+  PITR is off (measured 2026-10-05). A release that damages data at 01:07 restores to ~21 h earlier.
+  The release now refuses to start without a backup under 26 h old, which proves backups run but
+  does not shrink that window. (a) Turn PITR on: per Supabase's backup docs (read 2026-10-05) it
+  needs at least the Small compute add-on (production is Micro) and costs ~$100/month for 7 days'
+  retention, and it REPLACES daily backups; restore point in minutes. (b) Keep daily backups and rely
+  on forward-only, additive migrations (D-REL9). **Recommend (a)** together with the Micro → Small
+  move the database already needs (memory: the DB is Micro and swapping) — the owner's call, it is
+  spend. The backup gate reads `pitr_enabled` and passes on it, so (a) needs no workflow change.
 - **Q-REL5 — PSP UAT orders on the shared database.** uat has `PSP_ORDERS_ENABLED=true` against
   PSP's sandbox, but writes its order rows into the PRODUCTION database. Resolved by R3; until then,
   do not place PSP orders from uat.
@@ -268,3 +279,14 @@ jobs resume exactly as before R5.
   under nine headings instead of one list. `.github/pull_request_template.md` asks what changes for
   a user, migration and risk, how to check it on staging, and tests; root CLAUDE.md tells sessions
   to write those headings, because `gh pr create --body-file` skips the template.
+- 2026-10-05 — Hardening, after R6. Q-REL4 answered and built: `scripts/release-notify.mjs` sends one
+  summary per night (email; a failure or rollback also texts), and the 18:00 PR is announced by
+  email. A release that deploys and then fails verify or smoke now ROLLS ITSELF BACK and verifies the
+  rollback. Building that found two defects in the never-run manual rollback mode, both in
+  `deploy-verify.yml`: it accepted a host on a LATER commit (the broken release is later than the
+  target, so it passed at once with the broken code live), and it waited for schema `current` (a
+  rollback past a migration is `ahead` by design, so it would time out); `rollback: true` now
+  requires the exact commit and accepts `ahead`. A nightly release refuses to start without a
+  backup under 26 h old (Q-REL7 opened for PITR). A 01:37 CT retry ships an approved release a
+  delayed or dropped 01:07 run missed — the first night's ran 46 minutes late — and is silent
+  otherwise. Runbook table: `docs/DEPLOYMENT.md` §What a release night does.
