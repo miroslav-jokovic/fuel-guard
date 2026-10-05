@@ -38,6 +38,7 @@ const NO_ORG_COLUMN = {
   geocode_cache: "global station geocode cache shared across organizations (0018)",
   migration_markers: "service-only migration bookkeeping with no tenant data (0026)",
   platform_admins: "platform control-plane authority, service-role only (0070)",
+  platform_alert_recipients: "who hears a platform alarm (release outcome), service-role only (0426)",
   platform_audit_log: "platform-wide control-plane audit trail, service-role only (0071)",
   route_geometries: "global geographic route cache shared across organizations (0059)",
   vehicle_make_model_catalog:

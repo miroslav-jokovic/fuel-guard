@@ -44,11 +44,18 @@ Plan, decisions and the cutover record: `docs/plans/ship-pipeline/RELEASE-TRAIN-
 | 01:37 CT | retry: ships an approved release a delayed or dropped 01:07 run missed; otherwise silent | — |
 
 The summary is sent from the workflow straight to Brevo and Telnyx (`scripts/release-notify.mjs`),
-never through our API — the message that matters most is the one saying the API is broken. It reads
-six repository secrets: `BREVO_API_KEY`, `MAIL_FROM`, `TELNYX_API_KEY`, `TELNYX_FROM` (copies of
-production `@fleetguard/api`'s own; rotate them in both places) and the recipients
-`RELEASE_NOTIFY_EMAILS` / `RELEASE_NOTIFY_PHONES` (comma-separated). Missing ones are a workflow
-warning, never a failed release; GitHub's own failed-run email still reaches the repository owner.
+never through our API — the message that matters most is the one saying the API is broken.
+
+**Who receives it is kept in the platform console → Settings → Alert recipients** (table
+`platform_alert_recipients`, 0427): add or remove an email or a phone there, owner/admin with a fresh
+authenticator code, recorded in the platform audit trail, no deploy. Phones show as their last four
+digits. The workflow reads the list from production's database at send time through Supabase's
+management API. Per channel, if that read fails or the list has nobody on it, it falls back to the
+repository secrets `RELEASE_NOTIFY_EMAILS` / `RELEASE_NOTIFY_PHONES` (comma-separated), so keep one
+number there as the safety net. It never merges the two: someone removed in the console stops hearing
+alarms. The providers come from four more secrets, `BREVO_API_KEY`, `MAIL_FROM`, `TELNYX_API_KEY`,
+`TELNYX_FROM` — copies of production `@fleetguard/api`'s own; rotate them in both places. A missing one
+is a workflow warning, never a failed release.
 
 **Backups.** Production takes one physical backup a day (~03:40 CT, 7 kept); point-in-time recovery
 is OFF (measured 2026-10-05). A release at 01:07 that damaged data could be restored only to the

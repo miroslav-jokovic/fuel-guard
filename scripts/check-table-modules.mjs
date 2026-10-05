@@ -96,6 +96,9 @@ const GRANDFATHERED_WRITERS = new Set([
   "org_integrations <- apps/api/src/modules/mcleod/tmsIngest.ts",
   "org_modules <- apps/admin-api/src/lib/orgs.ts",
   "platform_admins <- apps/admin-api/src/lib/platformAdmins.ts",
+  // Added 2026-10-05 (0427), not inherited: the same platform-plane writer as its neighbours, so it
+  // follows their open carve-out decision rather than pre-empting it with a module of its own.
+  "platform_alert_recipients <- apps/admin-api/src/lib/alertRecipients.ts",
   "platform_audit_log <- apps/admin-api/src/lib/audit.ts",
   "qualification_records <- apps/api/src/modules/psp/pspImport.ts",
   "qualification_records <- apps/api/src/modules/psp/pspOrder.ts",

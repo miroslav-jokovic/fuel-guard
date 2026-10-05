@@ -11,7 +11,21 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** POST JSON to admin-api with the current bearer token. Throws on non-2xx. */
+/**
+ * A refused admin-api request. `code` is the API's own error code (`step_up_required`, `duplicate`…),
+ * so a page can say what to do about it; the message stays the generic one every caller already shows.
+ */
+export class ApiRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+    readonly detail: string | null,
+  ) {
+    super(`Request failed (${status})`);
+  }
+}
+
+/** POST JSON to admin-api with the current bearer token. Throws ApiRequestError on non-2xx. */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -20,7 +34,10 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiRequestError(res.status, err?.error?.code ?? null, err?.error?.message ?? null);
+  }
   return (await res.json()) as T;
 }
 
@@ -87,5 +104,14 @@ export interface ViewAnomaly {
   severity: string;
   status: string;
   message: string;
+  createdAt: string;
+}
+
+/** A platform alert recipient (0427). Phones arrive masked to their last four digits. */
+export interface AlertRecipient {
+  id: string;
+  channel: "email" | "sms";
+  address: string;
+  label: string | null;
   createdAt: string;
 }
