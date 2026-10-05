@@ -332,6 +332,9 @@
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_fuel_tax_receipts": [
+    "apps/api/src/modules/mcleod/fuelTaxReceipts.ts"
+  ],
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
