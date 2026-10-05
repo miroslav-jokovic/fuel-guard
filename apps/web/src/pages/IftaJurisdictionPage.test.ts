@@ -88,8 +88,8 @@ async function mountPage(path: string) {
 }
 
 describe("IftaJurisdictionPage", () => {
-  it("lists every truck that drove in the jurisdiction with its miles there", async () => {
-    const t = (await mountPage("/ifta/TX?q=2026-Q3")).text();
+  it("lists every truck that drove in the jurisdiction with its miles there, under All trucks", async () => {
+    const t = (await mountPage("/ifta/TX?q=2026-Q3&show=all")).text();
     expect(t).toContain("Texas");
     expect(t).toContain("732");
     expect(t).toContain("3,000");
@@ -98,6 +98,48 @@ describe("IftaJurisdictionPage", () => {
     expect(t).toContain("75.0%");
     expect(t).toContain("1 of 3");
     expect(t).not.toContain("NaN");
+  });
+
+  // ── the owner's ruling of 2026-10-05: the resting view is the trucks that bought fuel here ──
+  const listedUnits = (w: Awaited<ReturnType<typeof mountPage>>) =>
+    w.findAll("tbody tr").map((tr) => tr.text()).filter((s) => !s.includes("Date"));
+
+  it("lists only the trucks that bought fuel here by default, and says the list is narrower than the cards", async () => {
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    const rows = listedUnits(w);
+    expect(rows.some((r) => r.includes("732"))).toBe(true);
+    expect(rows.some((r) => r.includes("Not assigned to a truck"))).toBe(true);
+    expect(rows.some((r) => r.includes("101"))).toBe(false);
+    // The cards still describe the whole jurisdiction — 101's miles are in them.
+    expect(w.text()).toContain("4,000");
+    expect(w.find('[data-testid="narrower"]').text()).toContain("Listing 1 of 2 trucks");
+  });
+
+  it("shows the trucks that drove here and bought nothing, on request — they are what makes the state owed tax", async () => {
+    const rows = listedUnits(await mountPage("/ifta/TX?q=2026-Q3&show=drove"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain("101");
+  });
+
+  it("finds a truck by unit number, and the search lives in the link", async () => {
+    const rows = listedUnits(await mountPage("/ifta/TX?q=2026-Q3&show=all&search=73"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain("732");
+  });
+
+  it("says why the list is empty when the filter, not the jurisdiction, emptied it", async () => {
+    const t = (await mountPage("/ifta/TX?q=2026-Q3&search=999")).text();
+    expect(t).toContain('No truck matching "999"');
+  });
+
+  it("pages a long jurisdiction 25 trucks at a time", async () => {
+    trucks.value = iftaJurisdictionTrucks(
+      Array.from({ length: 30 }, (_, i) => raw(String(100 + i), 1_000 + i, 1_000 + i, 3)),
+      Array.from({ length: 30 }, (_, i) => fill(`f${i}`, `v-${100 + i}`, 10, 38, "2026-07-14", "Pilot")),
+    );
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    expect(listedUnits(w)).toHaveLength(25);
+    expect(w.text()).toContain("30");
   });
 
   it("totals the jurisdiction, so the figure can be checked against the ledger row", async () => {
@@ -130,7 +172,7 @@ describe("IftaJurisdictionPage", () => {
   });
 
   it("offers nothing to open on a truck that bought no fuel here", async () => {
-    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    const w = await mountPage("/ifta/TX?q=2026-Q3&show=all");
     const row = w.findAll("tbody tr").find((tr) => tr.text().includes("101"));
     await row!.trigger("click");
     expect(w.find('[data-testid="fills-v-101"]').exists()).toBe(false);
