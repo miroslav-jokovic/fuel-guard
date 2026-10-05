@@ -962,6 +962,24 @@ registry L1 extended) and enforced by a gate, so a new column defaults to names-
 everything. **Recommendation: (b)**, but only once someone asks for a value the names cannot answer.
 Until then (a) holds at no cost. (c) is ruled out by the permission model, not by preference.
 
+**Q11 — may `notification_events` be pruned, given its rows are the alert schedulers' dedupe ledger? OPENED 2026-10-05 by 0430.**
+The table has no rule (`table-modules.json`: "Retention unruled — L9") and grows with every alert
+fan-out: ~2,100 rows in 30 days to seven office people, 590 in the busiest inbox, 146 of them from the
+09-30 card status poll alone. The obvious "keep 90 days" is unsafe as written, because the rows are not
+only an inbox: `dqAlertScheduler.sentKeys`, `fuelSweepFreshness.alreadySent` and `financialFreshness`
+read past `dedupe_key`s to decide what is NEW, and the unique index `uq_notification_dedupe` is the
+idempotency guarantee. Delete a row and its alert re-arms — an expiry already reported would be
+reported again on the next run. 0430 cleared the bell with a per-user `dismissed_at` stamp for exactly
+this reason, rather than a delete.
+Candidates: (a) prune only rows whose `dedupe_key` encodes an instance that cannot recur (a job id, a
+day, an hour — `card_status_changed:…:<hour>`, `fuel:stale:…:<day>`), keyed by category, and never the
+`dq:%` keys; (b) move dedupe out of the inbox into its own narrow ledger (`org_id, dedupe_key,
+first_sent_at`) so the inbox can be pruned freely; (c) leave it unbounded. **Recommendation: (b)** —
+it is the honest split (an inbox and an idempotency ledger have opposite lifecycles, the same argument
+D-LIFE4 made for `audit_logs`), and it also retires a second defect: `sentKeys` reads every `dq:%` key
+with no limit, so past 1,000 rows PostgREST truncates it and the scheduler re-sends. (a) is cheaper
+but leaves that defect and needs a per-category list kept in step with every new alert.
+
 ## 8. Progress log
 
 Append dated lines at the END. Never edit a row above (see `plan-progress-log-not-table-rows`).
@@ -1657,4 +1675,4 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   `scripts/release-notify.mjs` (email always, SMS for failures). What Q9 still needs before L7 is the
   PUSH: a check that sends `lifecycle_maintenance_health()` going non-`ok` to that list. Recommendation
   (a) is unchanged, except its `PLATFORM_ALERT_EMAIL` env var is superseded by the table.
-
+- 2026-10-05 — Q11 opened: `notification_events` retention is blocked on its dedupe role (found while fixing the bell's Mark all read, 0430). No rule added.
