@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { IftaJurisdictionTrucksResponse } from "@silvicom/shared";
 import { readJurisdictionVehicleMiles } from "../samsara/index.js";
+import { readJurisdictionFills } from "../fuel/index.js";
 
 /**
  * The quarterly IFTA reads, made server-side. Until program step P1.10 (2026-08-27) the harness
@@ -35,10 +36,11 @@ export async function readIftaPeriod(
 }
 
 /**
- * One jurisdiction's quarter, per truck — the drill-down behind a ledger row. The miles come
- * through samsara's own read interface (D-SEP1: nothing outside the collector touches its staging),
- * the unit numbers from `vehicles`, both scoped to `orgId` by hand because the service role bypasses
- * RLS. Units stay Samsara's; `iftaJurisdictionTrucks` in `@silvicom/shared` converts them (D-IF1).
+ * One jurisdiction's quarter, per truck — the drill-down behind a ledger row: the miles each truck
+ * drove there and the fills it bought there. The miles come through samsara's own read interface
+ * (D-SEP1: nothing outside the collector touches its staging), the fills through fuel's, the unit
+ * numbers from `vehicles` — all scoped to `orgId` by hand because the service role bypasses RLS.
+ * Units stay Samsara's; `iftaJurisdictionTrucks` in `@silvicom/shared` converts and joins (D-IF1).
  */
 export async function readIftaJurisdictionTrucks(
   admin: SupabaseClient,
@@ -48,10 +50,16 @@ export async function readIftaJurisdictionTrucks(
   jurisdiction: string,
 ): Promise<IftaJurisdictionTrucksResponse> {
   const months = [1, 2, 3].map((i) => (quarter - 1) * 3 + i);
-  const miles = await readJurisdictionVehicleMiles(admin, orgId, year, months, jurisdiction);
+  const pad = (m: number) => String(m).padStart(2, "0");
+  const fromDay = `${year}-${pad(months[0]!)}-01`;
+  const toDayExclusive = quarter === 4 ? `${year + 1}-01-01` : `${year}-${pad(months[2]! + 1)}-01`;
+  const [miles, fills] = await Promise.all([
+    readJurisdictionVehicleMiles(admin, orgId, year, months, jurisdiction),
+    readJurisdictionFills(admin, orgId, jurisdiction, fromDay, toDayExclusive),
+  ]);
 
   const units = new Map<string, string | null>();
-  const ids = miles.map((m) => m.vehicleId);
+  const ids = [...new Set([...miles.map((m) => m.vehicleId), ...fills.flatMap((f) => (f.vehicleId ? [f.vehicleId] : []))])];
   // In chunks: a PostgREST `in` list rides in the URL, and a large fleet's ids would overrun it.
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await admin
@@ -70,5 +78,7 @@ export async function readIftaJurisdictionTrucks(
     year,
     quarter,
     trucks: miles.map((m) => ({ ...m, unitNumber: units.get(m.vehicleId) ?? null })),
+    fills,
+    units: Object.fromEntries(units),
   };
 }

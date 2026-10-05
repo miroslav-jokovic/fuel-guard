@@ -157,7 +157,7 @@ export function useIftaJurisdictionQuery(quarter: Ref<IftaQuarter>, jurisdiction
         `/api/ifta/period/jurisdiction?year=${q.year}&quarter=${q.quarter}&code=${encodeURIComponent(jurisdiction.value)}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load this jurisdiction");
-      return iftaJurisdictionTrucks(r.data.trucks);
+      return iftaJurisdictionTrucks(r.data.trucks, r.data.fills ?? [], r.data.units ?? {});
     },
   });
 }

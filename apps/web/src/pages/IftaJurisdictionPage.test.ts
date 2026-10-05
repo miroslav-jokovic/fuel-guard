@@ -45,10 +45,30 @@ const raw = (unitNumber: string | null, taxableMiles: number, totalMiles: number
   taxableMeters: metersFromMiles(taxableMiles), totalMeters: metersFromMiles(totalMiles), months,
 });
 
+const fill = (id: string, vehicleId: string | null, gallons: number, totalCost: number, day: string, location: string) => ({
+  id, vehicleId, fueledAt: `${day}T15:00:00Z`, businessDate: day, gallons, pricePerGal: totalCost / gallons, totalCost, location,
+});
+
 beforeEach(() => {
   session.role = "admin";
   errored.value = false;
-  trucks.value = iftaJurisdictionTrucks([raw("732", 3_000, 3_100, 3), raw("101", 1_000, 1_000, 1)]);
+  // A desktop viewport, so DataTable renders its table rather than the phone cards.
+  Object.defineProperty(window, "matchMedia", {
+    writable: true, configurable: true,
+    value: (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addListener: () => {}, removeListener: () => {},
+      addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+    }),
+  });
+  trucks.value = iftaJurisdictionTrucks(
+    [raw("732", 3_000, 3_100, 3), raw("101", 1_000, 1_000, 1)],
+    [
+      fill("f1", "v-732", 120, 456, "2026-07-14", "Love's #512, Amarillo TX"),
+      fill("f2", "v-732", 80, 300, "2026-08-02", "Pilot #301, El Paso TX"),
+      fill("f3", null, 40, 150, "2026-08-20", "TA Dallas"),
+    ],
+  );
 });
 
 async function mountPage(path: string) {
@@ -83,6 +103,38 @@ describe("IftaJurisdictionPage", () => {
   it("totals the jurisdiction, so the figure can be checked against the ledger row", async () => {
     const t = (await mountPage("/ifta/TX?q=2026-Q3")).text();
     expect(t).toContain("4,000");
+    // 120 + 80 + the 40 bought with no truck attached: the ledger row's "Gallons bought" counts it too.
+    expect(t).toContain("240");
+    expect(t).toContain("in 3 fills");
+  });
+
+  it("shows each truck's fuel bought here, and keeps fills with no truck on a row of their own", async () => {
+    const t = (await mountPage("/ifta/TX?q=2026-Q3")).text();
+    expect(t).toContain("Gallons bought");
+    expect(t).toContain("$756");
+    expect(t).toContain("Not assigned to a truck");
+  });
+
+  it("opens a truck's fills in this jurisdiction — date, station, gallons, price — when its row is clicked", async () => {
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    expect(w.find('[data-testid="fills-v-732"]').exists()).toBe(false);
+    const row = w.findAll("tbody tr").find((tr) => tr.text().includes("732"));
+    await row!.trigger("click");
+    const fills = w.find('[data-testid="fills-v-732"]');
+    expect(fills.exists()).toBe(true);
+    expect(fills.text()).toContain("Pilot #301, El Paso TX");
+    expect(fills.text()).toContain("08/02/2026");
+    expect(fills.text()).toContain("$3.800");
+    // Newest first: August's fill before July's.
+    expect(fills.text().indexOf("El Paso")).toBeLessThan(fills.text().indexOf("Amarillo"));
+  });
+
+  it("offers nothing to open on a truck that bought no fuel here", async () => {
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    const row = w.findAll("tbody tr").find((tr) => tr.text().includes("101"));
+    await row!.trigger("click");
+    expect(w.find('[data-testid="fills-v-101"]').exists()).toBe(false);
+    expect(row!.find("button[aria-expanded]").exists()).toBe(false);
   });
 
   it("asks for the jurisdiction and quarter the link names, upper-casing a hand-typed code", async () => {
@@ -104,7 +156,7 @@ describe("IftaJurisdictionPage", () => {
 
   it("says so when no truck drove there that quarter", async () => {
     trucks.value = iftaJurisdictionTrucks([]);
-    expect((await mountPage("/ifta/NV?q=2026-Q3")).text()).toContain("No truck reported miles in Nevada");
+    expect((await mountPage("/ifta/NV?q=2026-Q3")).text()).toContain("No truck drove or bought fuel in Nevada");
   });
 
   it("renders the error rather than an empty table", async () => {

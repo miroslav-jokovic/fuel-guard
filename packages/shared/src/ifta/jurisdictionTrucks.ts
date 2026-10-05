@@ -3,15 +3,17 @@
  *
  * ── WHY THIS IS A SECOND SHAPE AND NOT A FILTER OF THE FIRST ─────────────────────────────────────
  * The ledger's read (`ifta_period_jurisdictions`, 0256) sums every truck into one row per
- * jurisdiction, because a return is filed per jurisdiction. "Which trucks drove in Texas, and how
- * far" is the question an auditor asks of that row, and the stored rows already answer it — they are
- * per truck per month (0255). So the API returns the per-truck sums in Samsara's units, and this
- * module does the only arithmetic: metres to miles with the same `milesFromMeters` the ledger uses
- * (D-IF1), so a drill-down's total and the row it opened from are one conversion of one sum.
+ * jurisdiction, because a return is filed per jurisdiction. "Which trucks drove in Texas, how far,
+ * and where did they buy fuel there" is the question an auditor asks of that row, and the stored
+ * rows already answer it — miles per truck per month (0255), fills per truck (`fuel_transactions`).
+ * So the API returns both halves raw, and this module does the only arithmetic: metres to miles
+ * with the same `milesFromMeters` the ledger uses (D-IF1), and gallons summed from the same fills
+ * the ledger's "Gallons bought" sums — so the drill-down's totals and the row it opened from are
+ * one figure, not two that happen to agree.
  */
 import { milesFromMeters } from "../smartFueling/units.js";
 
-/** One truck in `GET /api/ifta/period/jurisdiction`. Units are Samsara's, unconverted. */
+/** One truck's miles in `GET /api/ifta/period/jurisdiction`. Units are Samsara's, unconverted. */
 export interface IftaJurisdictionTruckRaw {
   vehicleId: string;
   /** Null when the vehicle row has no unit number — shown as such, never dropped. */
@@ -22,57 +24,123 @@ export interface IftaJurisdictionTruckRaw {
   months: number;
 }
 
+/** One tractor fill bought in the jurisdiction during the quarter. */
+export interface IftaJurisdictionFillRaw {
+  id: string;
+  /** Null for a fill no truck is attached to. It is in the ledger's total, so it is kept. */
+  vehicleId: string | null;
+  fueledAt: string;
+  /** Station-local date — the basis the quarter is cut on (0247). */
+  businessDate: string | null;
+  gallons: number;
+  pricePerGal: number | null;
+  totalCost: number | null;
+  location: string | null;
+}
+
 export interface IftaJurisdictionTrucksResponse {
   jurisdiction: string;
   year: number;
   quarter: number;
   trucks: IftaJurisdictionTruckRaw[];
+  fills: IftaJurisdictionFillRaw[];
+  /** Unit numbers for trucks that bought fuel here but reported no miles here. */
+  units: Record<string, string | null>;
 }
 
 export interface IftaJurisdictionTruck {
-  vehicleId: string;
+  /** Null on the one row holding fills that no truck is attached to. */
+  vehicleId: string | null;
   unitNumber: string | null;
   taxableMiles: number;
   totalMiles: number;
   /** This truck's share of the jurisdiction's TAXABLE miles, 0–1; null when the jurisdiction has none. */
   share: number | null;
   months: number;
+  gallonsBought: number;
+  spent: number;
+  /** Newest first. */
+  fills: IftaJurisdictionFillRaw[];
 }
 
 export interface IftaJurisdictionTrucks {
   trucks: IftaJurisdictionTruck[];
   taxableMiles: number;
   totalMiles: number;
+  gallonsBought: number;
+  spent: number;
+  fillCount: number;
 }
 
+const r1 = (n: number) => Math.round(n * 10) / 10;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
- * Converts, shares and orders the trucks — most taxable miles first, the order a reader checking a
- * jurisdiction's figure wants. Totals are summed from the unrounded miles, then each figure is
- * rounded to a whole mile for display, the precision the ledger shows.
+ * Joins the two halves by truck, converts, and orders — most taxable miles first, then most gallons,
+ * which puts a truck that only fuelled here (a border-town stop) below every truck that drove here.
+ * Totals are summed from unrounded figures and rounded once, the precision the ledger shows.
  */
-export function iftaJurisdictionTrucks(raw: IftaJurisdictionTruckRaw[]): IftaJurisdictionTrucks {
-  const converted = raw.map((t) => ({
-    vehicleId: t.vehicleId,
-    unitNumber: t.unitNumber,
-    taxable: milesFromMeters(t.taxableMeters),
-    total: milesFromMeters(t.totalMeters),
-    months: t.months,
-  }));
-  const taxable = converted.reduce((acc, t) => acc + t.taxable, 0);
-  const total = converted.reduce((acc, t) => acc + t.total, 0);
-  const trucks = converted
-    .map((t) => ({
-      vehicleId: t.vehicleId,
+export function iftaJurisdictionTrucks(
+  raw: IftaJurisdictionTruckRaw[],
+  fills: IftaJurisdictionFillRaw[] = [],
+  units: Record<string, string | null> = {},
+): IftaJurisdictionTrucks {
+  const taxable = raw.reduce((acc, t) => acc + milesFromMeters(t.taxableMeters), 0);
+  const total = raw.reduce((acc, t) => acc + milesFromMeters(t.totalMeters), 0);
+
+  const fillsBy = new Map<string | null, IftaJurisdictionFillRaw[]>();
+  for (const f of fills) fillsBy.set(f.vehicleId, [...(fillsBy.get(f.vehicleId) ?? []), f]);
+  const fuelOf = (id: string | null) => {
+    const list = [...(fillsBy.get(id) ?? [])].sort((a, b) => b.fueledAt.localeCompare(a.fueledAt));
+    return {
+      fills: list,
+      gallonsBought: r1(list.reduce((acc, f) => acc + f.gallons, 0)),
+      spent: r2(list.reduce((acc, f) => acc + (f.totalCost ?? 0), 0)),
+    };
+  };
+
+  const drove = raw.map((t) => {
+    const tx = milesFromMeters(t.taxableMeters);
+    return {
+      vehicleId: t.vehicleId as string | null,
       unitNumber: t.unitNumber,
-      taxableMiles: Math.round(t.taxable),
-      totalMiles: Math.round(t.total),
-      share: taxable > 0 ? t.taxable / taxable : null,
+      taxableMiles: Math.round(tx),
+      totalMiles: Math.round(milesFromMeters(t.totalMeters)),
+      share: taxable > 0 ? tx / taxable : null,
       months: t.months,
-    }))
-    .sort(
-      (a, b) =>
-        b.taxableMiles - a.taxableMiles ||
-        String(a.unitNumber ?? "").localeCompare(String(b.unitNumber ?? ""), undefined, { numeric: true }),
-    );
-  return { trucks, taxableMiles: Math.round(taxable), totalMiles: Math.round(total) };
+      ...fuelOf(t.vehicleId),
+    };
+  });
+  const seen = new Set(raw.map((t) => t.vehicleId));
+  const fuelledOnly = [...fillsBy.keys()]
+    .filter((id): id is string => id != null && !seen.has(id))
+    .map((id) => ({
+      vehicleId: id as string | null,
+      unitNumber: units[id] ?? null,
+      taxableMiles: 0,
+      totalMiles: 0,
+      share: taxable > 0 ? 0 : null,
+      months: 0,
+      ...fuelOf(id),
+    }));
+
+  const byUnit = (a: { unitNumber: string | null }, b: { unitNumber: string | null }) =>
+    String(a.unitNumber ?? "").localeCompare(String(b.unitNumber ?? ""), undefined, { numeric: true });
+  const trucks: IftaJurisdictionTruck[] = [...drove, ...fuelledOnly].sort(
+    (a, b) => b.taxableMiles - a.taxableMiles || b.gallonsBought - a.gallonsBought || byUnit(a, b),
+  );
+  // Fills with no truck LAST, as their own row: they are in the ledger's "Gallons bought", so leaving
+  // them out would make this page's total disagree with the row it was opened from.
+  if (fillsBy.has(null)) {
+    trucks.push({ vehicleId: null, unitNumber: null, taxableMiles: 0, totalMiles: 0, share: null, months: 0, ...fuelOf(null) });
+  }
+
+  return {
+    trucks,
+    taxableMiles: Math.round(taxable),
+    totalMiles: Math.round(total),
+    gallonsBought: r1(fills.reduce((acc, f) => acc + f.gallons, 0)),
+    spent: r2(fills.reduce((acc, f) => acc + (f.totalCost ?? 0), 0)),
+    fillCount: fills.length,
+  };
 }
