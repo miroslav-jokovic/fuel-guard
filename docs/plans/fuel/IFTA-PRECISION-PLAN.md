@@ -28,6 +28,61 @@ Q-IF1..6); nothing here changes a decision made there.
 means "up to whatever was restored" — the newest owner-operator settlement is 2026-09-01. Good enough to
 size the problem; not good enough to decide a filing.
 
+### 0.1 McLeod's own IFTA module — measured 2026-10-05 on `lme_analytics` (restore ends 2026-09-06)
+
+The carrier already keeps an IFTA ledger in McLeod: **`dbo.fuel_tax_history`** (425,862 rows), one row
+per tractor × state × source document, with `loaded_distance`, `empty_distance`, `fuel_volume`, a
+`source` code, `source_date`, `process_date` and `void_date`. Its three sources:
+
+| `source` | Rows (all time) | What it is | Evidence |
+|---|---:|---|---|
+| `X` | 352,921 | **Trip miles** per state, from dispatch movements | miles only, `movement_id` set; Jul–Aug 2026 = 3,033,367 mi |
+| `O` | 71,686 | **Card fuel**, imported from EFS | Q3 2026 = **506,408.26 gal — identical** to `fuel_detail_hist`'s tractor gallons; all `interface_id = 'H'` ("EFS LLC"), 13-digit card on every line |
+| `F` | **1,255** | **Fuel keyed by hand** — the cash / own-card receipts | no movement; `source_id` points at a document; entered in a batch in the first week after each quarter closes (`process_date` 2026-04-09…15 for Q1, **2026-07-06 for Q2**) |
+
+What that settles:
+
+- **Q-IP1 is answered: a manual receipt is `fuel_tax_history.source = 'F'`.** It is NOT in `fuel_detail`
+  / `fuel_detail_hist` (every 2026 line there is the EFS interface) and NOT in `fuel_ticket_hist` (those
+  are the EFS invoices, keyed by the two users who run the import). Volume is small but not noise:
+  **2026 Q1 = 67 rows / 5,427 gal, Q2 = 49 rows / 3,499 gal**, ~25 per quarter historically.
+- **Unit 512 is the counter-example to the "no fills = files its own IFTA" guess.** It is an
+  owner-operator, it bought nothing on our cards in Q3, and it is the single largest source of `F`
+  rows: **83 of 2026's rows, 6,700 gal**. Its fuel IS in the carrier's IFTA — on paper receipts. So the
+  heuristic in §2 IP4 ("drove with no fills on our cards") is a reason to LOOK, never a reason to exclude.
+- **Q3 2026's manual receipts do not exist yet anywhere.** The office keys them in the first week after
+  the quarter (Q2's on 2026-07-06), so Q3's land around 2026-10-06 — and the analytics restore ends
+  2026-09-06 regardless.
+- **The live login cannot read any of it.** On `lme`, `silvicom_dispatch_ro` has `SELECT` on `tractor`
+  but NOT on `fuel_tax_history`, `fuel_ticket_hist`, `fuel_detail_hist` or `drs_settle_hist` (all 0 from
+  `HAS_PERMS_BY_NAME`). That is Q-IP3, now a measured fact rather than a suspicion.
+- McLeod's dispatch miles (`X`) and Samsara's GPS miles are two independent readings of the same
+  quarter — a third tie-out beside D-IF9's, available the day this table is read.
+- **2 of 2026's 116 `F` rows duplicate an `O` row** (same tractor, state, day, gallons within 0.5): a
+  receipt keyed by hand for a fill the card had already imported. The reader must drop those two shapes.
+
+### 0.2 Ownership and McLeod's own fuel-tax exclusion — measured 2026-10-05 on LIVE `lme`
+
+`dbo.tractor` carries **`exclude_fueltax`** — McLeod's per-truck switch for leaving a tractor out of the
+fuel-tax (IFTA) module — beside `owner` and `pay_owner`. The live login reads `tractor`.
+
+| `pay_owner` | `owner` | Active trucks | Paid as `owner_operator` in settlements |
+|---|---|---:|---:|
+| `D` | `SILVMEIL` (147) or blank (51) | 198 | **0** |
+| `B` | `SCORELIL` | 9 | **9** |
+| `O` | six owners (IVETJOIL ×2, KANEBGIL, QUALSCIL, ALLARONY, SWISSANM, YOANNAB) | 7 | **7** |
+
+Every one of the 16 units settled as owner-operator is `B` or `O`; no `D` truck is. That is strong
+evidence for D = company, B = a fleet owner (SCORELIL, 9 trucks), O = single owner-operator — still a
+reading of the data, which is why Q-IP2 stays open for the carrier's one-line confirmation.
+
+**`exclude_fueltax = 'N'` on every tractor McLeod holds, active or retired — zero exclusions, ever.**
+The carrier's own IFTA therefore includes every owner-operator truck today, and so does ours. There is
+nothing to filter out this quarter. What the owner asked for — "make sure owner-operators not under our
+IFTA are filtered" — becomes: **follow McLeod's `exclude_fueltax` the day it changes**, dated, so a
+re-filed quarter uses that quarter's value (D-IP3). That replaces IP4's hand-kept coverage table with
+the carrier's own switch (derive, don't restate).
+
 ---
 
 ## 1. Decisions
@@ -84,7 +139,14 @@ are unmapped by D-FG12 until the carrier says what they mean
 (`docs/plans/mcleod/CARRIER-CODE-QUESTIONS.md` #2, #3). Once answered, the roster sync fills
 `vehicles.ownership_type` and IP4 has a suggestion to show.
 
-### IP4 · IFTA coverage, dated, confirmed by a person
+### IP4 · IFTA coverage, dated — REVISED 2026-10-05: mirror McLeod's `exclude_fueltax`
+
+§0.2 found the carrier already keeps this fact per truck. So the roster sweep (live login, already reads
+`tractor`) collects `exclude_fueltax`, `owner` and `pay_owner`; a change to `exclude_fueltax` writes a
+dated row, and IP5 excludes a truck only for the days McLeod excluded it. The hand-decided table below
+stays the fallback for a carrier that does not keep the flag in its TMS.
+
+Original shape, kept for that fallback:
 
 New table (next migration number; RLS on; owner module `ifta`): `vehicle_ifta_coverage (org_id,
 vehicle_id, covered_by 'carrier' | 'own_account', ifta_account, effective_from, effective_to,
@@ -98,12 +160,22 @@ beside each: the McLeod ownership code (IP3) and "drove N miles here with no fil
 never edited); its reader ships a merge later (`lint:migration-ordering`). Both halves leave together
 (D-IP4). The page says how many trucks and miles were excluded and why, beside the totals.
 
-### IP6 · McLeod manual fuel lines into `fuel_transactions` — WAITS on IP2 and Q-IP3
+### IP6 · McLeod's hand-keyed fuel into the IFTA credit side — WAITS on Q-IP3
 
-McLeod-owned staging (`mcleod_fuel_lines`, raw, verbatim) filled by the existing agent's
-`FUEL_PURCHASES`; a projection writes ONLY the non-card lines into `fuel_transactions` with
-`source = 'mcleod_manual'` and the McLeod id as `external_ref`, so a re-sweep is idempotent. They then
-reach the ledger, the drill-down and fuel costs with no further change.
+**Revised 2026-10-05 by §0.1.** The source is `fuel_tax_history` rows with `source = 'F'` — not
+`fuel_detail_hist`, which holds only the EFS import we already have, so D-IP6's double-count risk does
+not arise from reading `F` alone. Shape: a McLeod-owned raw staging table (`mcleod_fuel_tax_receipts`,
+verbatim: tractor, state, `fuel_volume`, `source_date`, `process_date`, `void_date`, McLeod `id`) filled
+by the agent; the IFTA reads (`ifta_period_jurisdictions`' successor and the drill-down) add it to the
+purchased side as its own labelled source, "Receipt keyed in McLeod".
+
+⚠ **Into the IFTA credit, NOT into `fuel_transactions`.** An `F` row has no card, no price and no time
+of day — only a date, a state and gallons. Writing it into `fuel_transactions` would put it in front of
+card-fraud scoring, MPG intervals and the spend report, all of which assume a card transaction. IFTA
+needs gallons per state per quarter, which is exactly what the row has.
+
+Also check before the first read: whether any `F` row duplicates an `O` row (same tractor, state, day,
+gallons). The probe's duplicate check failed on a SQL Server aggregate rule and was not re-run.
 
 ### IP7 · The 87 fills with no truck
 
@@ -116,10 +188,10 @@ can be attributed. They are kept on their own row until then, so no total is wro
 
 | # | Question | Who | Candidate answers · recommendation | Blocks |
 |---|---|---|---|---|
-| **Q-IP1** | **How does a hand-keyed or cash receipt look in `fuel_detail_hist`?** | Miki (runs §4) | (a) `fuel_card_id` NULL; (b) a vendor or source code; (c) both. **Measure, don't pick.** | IP2, IP6 |
+| **Q-IP1** | ~~How does a hand-keyed or cash receipt look in McLeod?~~ | — | **ANSWERED 2026-10-05 (§0.1): `fuel_tax_history.source = 'F'`.** Not in `fuel_detail_hist` (all EFS) nor `fuel_ticket_hist` (EFS invoices). | — |
 | **Q-IP2** | **What do `tractor.pay_owner` D/B/O and `tractor.owner` codes mean?** | Carrier (Alex) | Likely D = company, O = owner-operator, B = ?; SILVMEIL = Silvicom. **One email; D-FG12 forbids guessing.** | IP3 |
-| **Q-IP3** | **Can the agent's login read `fuel_detail_hist` on LIVE `lme`?** The financial sweep reads the frozen `lme_analytics` restore (D-PREC12), which would make cash fuel only as fresh as somebody's restore. | Carrier DBA | Grant `SELECT` on `fuel_detail`, `fuel_detail_hist` to the live login. **Recommended** — a stale quarter is a wrong return. | IP6 |
-| **Q-IP4** | **Which of the 16 owner-operator units file under their OWN IFTA account?** Start with 718 and 512 (miles, no fills on our cards). | Miki / safety | Read from each lease. Recorded as IP4 rows once IP4 exists. | IP5 |
+| **Q-IP3** | **The live login (`silvicom_dispatch_ro` on `lme`) cannot read the fuel-tax tables — measured 2026-10-05.** | Carrier DBA (Alex) | `GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro` — one table, read-only, no PII. **Recommended**: the frozen `lme_analytics` restore would make every quarter's manual fuel only as fresh as somebody's restore habit (D-PREC12). | IP6 |
+| **Q-IP4** | ~~Which of the 16 owner-operator units file under their own IFTA account?~~ | — | **ANSWERED 2026-10-05 (§0.2): none, per McLeod.** `exclude_fueltax = 'N'` on every tractor; 512's fuel is in McLeod's IFTA as hand-keyed receipts. Follow the flag from now on (IP4 revised). | — |
 | **Q-IP5** | **Do receipts that never reach McLeod exist?** | Miki | If yes, an upload with the image (D-IP5). If no, no upload. **Ask the office before building one.** | an upload |
 
 ---
@@ -162,4 +234,7 @@ and run the rest — run each statement on its own, since one bad column kills t
 
 ## 5. Progress log
 
-- 2026-10-05 — Plan opened. IP1 built on `claude/ifta-state-filters`.
+- 2026-10-05 — Plan opened. IP1 built on `claude/ifta-state-filters`, merged as #1302.
+- 2026-10-05 — McLeod probed directly (read-only): Q-IP1 and Q-IP4 answered, Q-IP3 measured (§0.1, §0.2).
+  IP4 revised to mirror `exclude_fueltax`; IP6 revised to read `fuel_tax_history.source = 'F'` into the
+  IFTA credit side only, dropping the 2 rows that duplicate a card fill.
