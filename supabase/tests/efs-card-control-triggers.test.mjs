@@ -79,8 +79,8 @@ const CHECKER = (await one(`insert into auth.users (id, email) values (gen_rando
 console.log("\n-- 0196: efs_soap_credentials.updated_at is a CONFIGURATION timestamp --");
 
 await db.query(
-  `insert into efs_soap_credentials (org_id, environment, endpoint_url, soap_username, soap_password, account_id)
-   values ($1, 'sandbox', 'https://qa.efsllc.com/axis2/services/CardManagementWS/', 'user', 'pass', 'ACC-1')`,
+  `insert into efs_soap_credentials (org_id, environment, endpoint_url, soap_username, soap_password, soap_password_sealed, account_id)
+   values ($1, 'sandbox', 'https://qa.efsllc.com/axis2/services/CardManagementWS/', 'user', '', 'sealed-v1', 'ACC-1')`,
   [ORG],
 );
 /**
@@ -164,7 +164,7 @@ const sentinelIntact = async () => (await credUpdatedAt()) === SENTINEL_TS;
   // The other half. If this regressed, the column would be frozen forever and the "fix" would have
   // destroyed the answer in the opposite direction — which is why it is asserted, not assumed.
   await plantSentinel();
-  await db.query(`update efs_soap_credentials set soap_password = 'rotated' where org_id=$1`, [ORG]);
+  await db.query(`update efs_soap_credentials set soap_password_sealed = 'sealed-v2' where org_id=$1`, [ORG]);
   ok("a password rotation DOES move updated_at", !(await sentinelIntact()));
 }
 
@@ -421,6 +421,20 @@ console.log("\n-- 0200: the account's prompt vocabulary, and the two things it m
   // every write. Without this, a constraint that refused everything would score four passes.
   ok("…and the row is still writable afterwards, so the refusals are about shape",
     (await set(["DRID", "UNIT"], new Date().toISOString())) === null);
+}
+
+console.log("\n-- 0426: the plaintext password column holds nothing but '' --");
+
+{
+  // Production measured both rows sealed with '' here on 2026-10-05. The reader no longer falls back
+  // to this column, and the database refuses a password in it whoever writes it: a service-role
+  // client bypasses RLS, so a CHECK is the one rule a future writer cannot forget.
+  const refused = await err(db.query(`update efs_soap_credentials set soap_password = 'hunter2' where org_id=$1`, [ORG]));
+  ok("a plaintext password is refused", /efs_soap_credentials_password_plaintext_empty/.test(refused ?? ""), refused ?? "(accepted)");
+  const nulled = await err(db.query(`update efs_soap_credentials set soap_password = null where org_id=$1`, [ORG]));
+  ok("null is refused too, so the column stays the empty string old code writes", nulled !== null, nulled ?? "(accepted)");
+  const kept = await err(db.query(`update efs_soap_credentials set soap_password = '', soap_username = 'user2' where org_id=$1`, [ORG]));
+  ok("old code's '' save still succeeds", kept === null, kept ?? "");
 }
 
 await db.close();

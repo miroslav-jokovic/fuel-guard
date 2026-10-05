@@ -105,7 +105,7 @@ function seededClient(opts: { promoted?: boolean } = {}): SupabaseRecorder {
       },
       efs_soap_credentials: [{
         org_id: ORG, environment: "sandbox", endpoint_url: ENDPOINT,
-        soap_username: "user", soap_password: "pass", soap_password_sealed: null, account_id: null,
+        soap_username: "user", soap_password: "", soap_password_sealed: seal(env, "pass", secretAad(ORG, "efs_soap_password.v1")), account_id: null,
         posted_last_cursor: null, rejected_last_cursor: null,
         posted_last_polled_at: null, rejected_last_polled_at: null,
         posted_last_success_at: null, rejected_last_success_at: null,
