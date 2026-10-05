@@ -18,7 +18,7 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
 | 1 | Denied sections still readable — `fuel_transactions` | **Fixed** | 0417 (restrictive `ftxn_section_read` on production, checked 2026-10-05); web halves #1239, #1240 |
 | 1 | Denied sections still readable — `drivers` | Open | needs a name-only surface first (Q-DA3) |
 | 3 | Stale JWTs after suspension | Open | design needed (Q-DA4) |
-| 4 | Tenant identity across foreign keys | Open | 0 existing mismatches found in the two core tables checked |
+| 4 | Tenant identity across foreign keys | **First table built** | 0433 (#1314): `fuel_transactions` → `vehicles`/`drivers` composite keys. Measured 2026-10-05: 182 tenant FKs lack `org_id`, 0 cross-org links (see Q-DA5) |
 | 5 (rest) | Nine production-only policies, five columns, ~20 indexes, two stale overloads, two FK differences | Open | the replay tests a database production is not |
 | 6, 7 | SSL not enforced, network open, leaked-password protection off | Open (SSL off and `0.0.0.0/0` rechecked 2026-10-05) | dashboard/CLI settings, not migrations |
 | — | `efs_soap_credentials.soap_password` plaintext beside `soap_password_sealed` | **Merge 1 of 2** | measured 2026-10-05: both rows `''` with a sealed copy; 0426 forbids any other value and the reader no longer falls back. Merge 2 drops the column once no deployed code writes `''` |
@@ -71,3 +71,29 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
   mitigation only. Needs the owner: it is a performance-versus-revocation trade.
 - **Q-DA5 — Cross-tenant foreign keys (finding 4).** Composite `(org_id, id)` keys or invariant triggers,
   starting with `fuel_transactions` → `vehicles`/`drivers`. Nothing is wrong in the data today.
+
+## Evidence update — 2026-10-05 (owner asked for the open questions resolved, measured, not assumed)
+
+- **Q-DA5 measured and started.** Production catalog: 475 foreign keys; 189 join two tenant tables;
+  **182 do not include `org_id`** (the report's "284 of 473" is wrong). All 180 with under 300k child
+  rows joined in full under a 30 s statement timeout: **0 cross-org links**. The two largest sampled at
+  1% (`scoring_attempts.transaction_id` 23,262 rows, `hos_duty_segments.driver_id` 4,950): **0**.
+  Prevention, not repair. **0433 (#1314)** adds composite keys for `fuel_transactions` →
+  `vehicles`/`drivers` (NOT VALID then VALIDATE; matrix fails 2/5 on main; both mutants killed; 126/126
+  matrices pass). Next: the same pattern for the rest, core business tables first, one PR each, large
+  tables validated in a quiet window.
+- **Q-DA3 sized.** 5 web files read `drivers` directly (2 select `id, full_name`, 1 `select *`) plus 3
+  embedded `drivers(...)` selects. Option (a) is therefore a small change. Its one real design question
+  is the view's security: `security_invoker` would inherit the very roster gate it exists to avoid, so
+  the name-only surface must be a definer view or function scoped by `auth_org_id()` and returning
+  `id, full_name` only. **Recommendation unchanged: (a)**, built as: name-only function + matrix first,
+  web reads moved second, roster gate on `drivers` third — three merges.
+- **Q-DA4 measured.** Every policy calls `auth_org_id()` bare: **201 uses, 0 wrapped** as
+  `(select auth_org_id())`. A bare STABLE call is evaluated per row, so a membership lookup placed inside
+  the helper would cost one index probe **per row read**, not per query. That makes (a) unsafe as
+  stated. **Recommendation: (a′)** in two steps — first wrap the helpers in every policy (Supabase's own
+  RLS performance guidance; an initplan evaluated once per statement; a pure speed-up with no behaviour
+  change, provable by the matrices), then add the membership check to the helper, which then costs one
+  lookup per query. Until then (c), a shorter `jwt_expiry`, is the only mitigation; it is a dashboard
+  setting and trades revocation delay against refresh traffic. Still the owner's call.
+
