@@ -266,9 +266,14 @@ body {
      inside an arbitrary Tailwind value is a string nobody can review. The numbers are the
      prototype's, so `prototypes/dashboard-v2.html` and this block can be diffed line for line.
 
-     ⚠ `--backdrop-bleed` is the shell's own gutter, handed in by `AppShell` rather than restated:
-     the layer has to end exactly where the page padding does on the right, and the gutter is
-     responsive (16 / 24 / 32px). A literal here would be right at one breakpoint and wrong at two.
+     ⚠ `right: 0` already IS the window edge, with no bleed. An absolute box is placed against its
+     containing block's PADDING edge, and the containing block is `AppShell`'s gutter box, whose
+     padding is the gutter — so the layer spans the gutter without being told to. From 2026-09-20
+     to 2026-10-05 it carried `right: calc(var(--backdrop-bleed) * -1)`, the gutter negated a second
+     time, written on the belief that `0` meant the content edge. That put the plate 16 / 24 / 32px
+     past the window at every breakpoint, and every plated page — the Dashboard's Fleet overview
+     first — scrolled sideways by exactly the gutter (measured 2026-10-05 at 1440: document 1457px
+     wide in a 1425px viewport, the excess the `.page-backdrop` box alone).
 
      `--backdrop-h` is where "the photograph stops mattering" is decided, and it is the HEADER's
      height plus a landing — not a distance down the page.
@@ -286,7 +291,9 @@ body {
      Guessing at a landing is what produced 400 in the first place; both numbers here are read off
      `getBoundingClientRect`.) */
   /* ⚠ `--backdrop-lift` is the top bar (4rem) plus `<main>`'s own `py-6` (1.5rem), handed in by
-     `AppShell` beside the bleed and for the same reason (D-DT22). Until 2026-09-22 the layer started
+     `AppShell` rather than restated here (D-DT22). Unlike the right edge it IS needed: the lift
+     climbs out of the gutter box's top, past `<main>`'s padding and the bar, which no inset of 0
+     reaches. Until 2026-09-22 the layer started
      at the page content, so 88px of empty canvas and a hairline sat ABOVE the photograph and the
      photograph began on a hard edge — a strip pasted into the page. Lifted, it starts at the top of
      the column and the bar stands on the sky; `--backdrop-h` keeps its meaning (how far below the
@@ -301,7 +308,7 @@ body {
     position: absolute;
     top: calc(var(--backdrop-lift, 0px) * -1);
     left: 0;
-    right: calc(var(--backdrop-bleed, 0px) * -1);
+    right: 0;
     height: calc(var(--backdrop-h, 144px) + var(--hero-grow, 0px) + var(--backdrop-lift, 0px));
     z-index: 0;
     pointer-events: none;
