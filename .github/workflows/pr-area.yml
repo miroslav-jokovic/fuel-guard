@@ -1,0 +1,53 @@
+name: PR area
+
+# Gives every PR into main one `area:<id>` label, worked out from the files it touches
+# (RELEASE-TRAIN-PLAN R6, D-REL10). The nightly release notes group the night's PRs by it, so the
+# owner reads "Fuel: 3, Maintenance: 2" instead of one long list.
+#
+# The rules are AREAS in scripts/release-train.mjs — the same code the notes fall back to for a PR
+# with no label — and its self-test (`lint:release-train`) fails when a module, feature, package or
+# plan folder exists that no area names. The label is applied ONCE: a PR that already carries an
+# `area:` label keeps it, so a person who corrects it is not overruled by the next push.
+#
+# Not a gate: a labelling failure shows red here, but blocks nothing, and the notes still work it out
+# from the files.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, ready_for_review, synchronize]
+
+concurrency:
+  group: pr-area-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  label:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write # labels are an issues API: creating one the first time it is used
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Label the PR with its area
+        run: |
+          set -euo pipefail
+          has=$(gh pr view "$PR" --json labels --jq '[.labels[].name | select(startswith("area:"))] | first // empty')
+          if [ -n "$has" ]; then echo "PR #$PR already has $has — kept."; exit 0; fi
+          mapfile -t files < <(gh pr view "$PR" --json files --jq '.files[].path')
+          label=$(node scripts/release-train.mjs area "${files[@]}")
+          # The label set is the AREAS list, so a label is created the first time an area is used,
+          # never typed into the repository settings by hand.
+          gh label create "$label" --color c5def5 --description "Release-notes area (scripts/release-train.mjs AREAS)" 2>/dev/null || true
+          gh pr edit "$PR" --add-label "$label"
+          echo "PR #$PR → $label" >> "$GITHUB_STEP_SUMMARY"
