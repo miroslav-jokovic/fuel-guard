@@ -49,7 +49,23 @@ export function useMarkNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids?: string[]): Promise<void> => {
-      await apiFetch("/api/me/notifications/read", { method: "POST", body: ids ? { ids } : {} });
+      const res = await apiFetch("/api/me/notifications/read", { method: "POST", body: ids ? { ids } : {} });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not mark your notifications read");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/**
+ * Clear the bell (0430). The server stamps the caller's own read rows; the events stay, because the
+ * alert schedulers dedupe against them — so this empties one person's list and re-sends nothing.
+ */
+export function useDismissNotifications() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      const res = await apiFetch("/api/me/notifications/dismiss", { method: "POST" });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not clear your notifications");
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
   });

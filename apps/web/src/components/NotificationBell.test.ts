@@ -10,14 +10,20 @@ import NotificationBell from "@/components/NotificationBell.vue";
  */
 const calls: Array<{ path: string; init?: { method?: string; body?: unknown } }> = [];
 let unreadState = 1;
+let cleared = false;
+let failNext = false;
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
     calls.push({ path, init });
+    if (failNext) {
+      failNext = false;
+      return { ok: false, error: { code: "db_error", message: "Could not mark your notifications read" } };
+    }
     if (path === "/api/me/notifications" && !init?.method) {
       return {
         ok: true,
         data: {
-          notifications: [
+          notifications: cleared ? [] : [
             {
               id: "00000000-0000-4000-8000-0000000000e1",
               category: "dq_expired",
@@ -30,13 +36,17 @@ vi.mock("@/lib/api", () => ({
               read_at: unreadState > 0 ? null : "2026-08-19T12:00:00Z",
             },
           ],
-          unread: unreadState,
+          unread: cleared ? 0 : unreadState,
         },
       };
     }
     if (path === "/api/me/notifications/read") {
       unreadState = 0;
       return { ok: true, data: { ok: true } };
+    }
+    if (path === "/api/me/notifications/dismiss") {
+      cleared = true;
+      return { ok: true, data: { ok: true, dismissed: 1 } };
     }
     return { ok: true, data: {} };
   }),
@@ -48,6 +58,8 @@ vi.mock("@/lib/api", () => ({
  */
 const session = vi.hoisted(() => ({ role: "admin" as string, admin: true, sections: null, surfaces: null as Record<string, boolean> | null }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
 
 let router: ReturnType<typeof createRouter>;
 function mountBell() {
@@ -75,6 +87,9 @@ describe("NotificationBell (C6)", () => {
   beforeEach(() => {
     calls.length = 0;
     unreadState = 1;
+    cleared = false;
+    failNext = false;
+    toast.error.mockClear();
     session.role = "admin";
     session.admin = true;
     session.surfaces = null;
@@ -123,5 +138,44 @@ describe("NotificationBell (C6)", () => {
     await flushPromises();
     const read = calls.find((c) => c.path === "/api/me/notifications/read");
     expect(read!.init?.body).toEqual({});
+  });
+
+  const button = (w: ReturnType<typeof mountBell>, label: string) =>
+    w.findAll("button").find((b) => b.text() === label);
+
+  it("a failed Mark all read tells the user instead of failing silently", async () => {
+    const w = mountBell();
+    await flushPromises();
+    failNext = true;
+    await button(w, "Mark all read")!.trigger("click");
+    await flushPromises();
+    expect(toast.error).toHaveBeenCalledWith("Could not mark all read", "Could not mark your notifications read");
+  });
+
+  it("Clear all asks first, in place of the list, and posts nothing until confirmed", async () => {
+    const w = mountBell();
+    await flushPromises();
+    await button(w, "Clear all…")!.trigger("click");
+
+    expect(w.text()).toContain("Clear all notifications?");
+    expect(w.text()).not.toContain("Marcus Reyes");
+    expect(calls.find((c) => c.path === "/api/me/notifications/dismiss")).toBeUndefined();
+
+    await button(w, "Back")!.trigger("click");
+    expect(w.text()).toContain("Marcus Reyes");
+    expect(calls.find((c) => c.path === "/api/me/notifications/dismiss")).toBeUndefined();
+  });
+
+  it("confirming Clear all posts the dismiss and leaves an empty bell", async () => {
+    const w = mountBell();
+    await flushPromises();
+    await button(w, "Clear all…")!.trigger("click");
+    await button(w, "Clear all")!.trigger("click");
+    await flushPromises();
+
+    expect(calls.find((c) => c.path === "/api/me/notifications/dismiss")?.init?.method).toBe("POST");
+    expect(w.text()).toContain("Nothing yet.");
+    expect(w.get("button[aria-label]").attributes("aria-label")).toBe("Notifications");
+    expect(button(w, "Clear all…")!.attributes("disabled")).toBeDefined();
   });
 });
