@@ -144,8 +144,12 @@ const exposed = (await all(
       and p.prorettype <> 'trigger'::regtype
       and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))
     order by 1`));
-const stray = exposed.filter((r) => !RLS_HELPERS.includes(r.proname)).map((r) => r.sig);
-ok("no SECURITY DEFINER function outside the RLS helpers is executable by anon or authenticated",
+// Name-only surfaces (Q-DA3, 0436). Definer so a roster gate on the table cannot blank them; each
+// takes no org argument, scopes by the caller's JWT, and returns names only. Its own matrix
+// (driver-names.test.mjs) pins that contract.
+const NAME_SURFACES = ["driver_names"];
+const stray = exposed.filter((r) => !RLS_HELPERS.includes(r.proname) && !NAME_SURFACES.includes(r.proname)).map((r) => r.sig);
+ok("no SECURITY DEFINER function outside the RLS helpers and name surfaces is executable by anon or authenticated",
   stray.length === 0, `stray: ${JSON.stringify(stray)}`);
 const missing = RLS_HELPERS.filter((h) => !exposed.some((r) => r.proname === h));
 ok("every allowlisted RLS helper still exists and is executable (the allowlist is not stale)",
