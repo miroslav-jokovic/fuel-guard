@@ -459,10 +459,10 @@ async function signOut() {
             ⚠ The layer is a SIBLING of the page, first in the document and inside the gutter's own
             box. First, so everything the page draws paints over it without a single band knowing it
             is there — one `position: relative` above, no z-index ladder, and no page needing to opt
-            in. Inside the gutter's box, because the bleed is expressed as a negative of that exact
-            padding: `--backdrop-bleed` carries the gutter's current value at each breakpoint, so the
-            plate reaches the window edge at 1440 and at 820 without either number being written
-            twice. The classes are in `style.css` — see that block for the crop arithmetic.
+            in. Inside the gutter's box, because an absolute layer sits on that box's PADDING edge,
+            so `right: 0` reaches the window edge at every breakpoint (a bleed that negated the
+            gutter again scrolled every plated page sideways until 2026-10-05). The classes are in
+            `style.css` — see that block for the measurement and the crop arithmetic.
 
             Decorative, so `aria-hidden` and no `alt` text: a screen reader announcing "a truck on a
             highway" before the day's numbers is noise. The words that sit on it stay legible by the
@@ -470,7 +470,7 @@ async function signOut() {
           -->
           <template v-if="plate">
             <div
-              class="page-backdrop [--backdrop-bleed:1rem] [--backdrop-lift:5.5rem] sm:[--backdrop-bleed:1.5rem] lg:[--backdrop-bleed:2rem]"
+              class="page-backdrop [--backdrop-lift:5.5rem]"
               aria-hidden="true"
             >
               <div class="page-backdrop__plate"></div>
