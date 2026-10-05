@@ -962,7 +962,7 @@ registry L1 extended) and enforced by a gate, so a new column defaults to names-
 everything. **Recommendation: (b)**, but only once someone asks for a value the names cannot answer.
 Until then (a) holds at no cost. (c) is ruled out by the permission model, not by preference.
 
-**Q11 — may `notification_events` be pruned, given its rows are the alert schedulers' dedupe ledger? OPENED 2026-10-05 by 0430.**
+**Q11 — may `notification_events` be pruned, given its rows are the alert schedulers' dedupe ledger? OPENED 2026-10-05 by 0430; RULED (b) by the owner the same day.**
 The table has no rule (`table-modules.json`: "Retention unruled — L9") and grows with every alert
 fan-out: ~2,100 rows in 30 days to seven office people, 590 in the busiest inbox, 146 of them from the
 09-30 card status poll alone. The obvious "keep 90 days" is unsafe as written, because the rows are not
@@ -979,6 +979,19 @@ it is the honest split (an inbox and an idempotency ledger have opposite lifecyc
 D-LIFE4 made for `audit_logs`), and it also retires a second defect: `sentKeys` reads every `dq:%` key
 with no limit, so past 1,000 rows PostgREST truncates it and the scheduler re-sends. (a) is cheaper
 but leaves that defect and needs a per-category list kept in step with every new alert.
+**As built:** 0432 adds `notification_dedupe_keys` (per recipient, backfilled with each key's first
+send time; RLS on, no policies) and `emit_notification` claims a key there before writing an event.
+`notification_keys_sent()` answers the schedulers in one array, and all three read it through
+`keysAlreadySent()` in `messaging`. `notification_events` takes a 90-day rule in the SAME merge as
+those readers, so a revert takes both; the ledger is pinned in `RETENTION_FORBIDDEN`.
+Found on the way and fixed with it: the DQ threshold key carried no expiry date, so a renewed
+document was never alerted on again at the same threshold. The key now carries `goodUntil`; an
+old-format key still counts when first sent within 91 days (the current cycle), so the change
+re-alerts nothing. That transition code can go after 2027-01-05.
+Left open: a SUPPRESSED emit (module off, muted, quiet hours) claims no key, as before, so a
+scheduler whose every recipient is suppressed sees its finding as new on every run and emails the
+office each time. Zero `notification_preferences` rows on 2026-10-05, so it cannot fire today; it
+becomes real the day the first person mutes a category.
 
 ## 8. Progress log
 
@@ -1676,3 +1689,4 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   PUSH: a check that sends `lifecycle_maintenance_health()` going non-`ok` to that list. Recommendation
   (a) is unchanged, except its `PLATFORM_ALERT_EMAIL` env var is superseded by the table.
 - 2026-10-05 — Q11 opened: `notification_events` retention is blocked on its dedupe role (found while fixing the bell's Mark all read, 0430). No rule added.
+- 2026-10-05 — Q11 ruled (b) and built: 0432 (ledger), then the readers + the 90-day `notification_events` rule in one merge. DQ renewal key fixed alongside.

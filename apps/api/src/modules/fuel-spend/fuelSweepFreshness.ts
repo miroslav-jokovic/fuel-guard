@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { sendEmail } from "../../lib/mailer.js";
-import { notify } from "../messaging/index.js";
+import { keysAlreadySent, notify } from "../messaging/index.js";
 import { usersWhoManage } from "../org/index.js";
 import { recentFailedJobs, type FailedJobRow } from "../../queue/metrics.js";
 import { SWEEP_CRITICAL_AFTER_MS, SWEEP_STALE_AFTER_MS } from "./fuelSweepCadence.js";
@@ -148,17 +148,6 @@ export function planFuelSweepFindings(
   return findings;
 }
 
-async function alreadySent(admin: SupabaseClient, orgId: string, keys: string[]): Promise<Set<string>> {
-  if (!keys.length) return new Set();
-  const { data, error } = await admin
-    .from("notification_events")
-    .select("dedupe_key")
-    .eq("org_id", orgId)
-    .in("dedupe_key", keys);
-  if (error) throw new Error(error.message);
-  return new Set(((data ?? []) as { dedupe_key: string | null }[]).map((r) => r.dedupe_key ?? ""));
-}
-
 const escapeHtml = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** One pass for one org. Returns the findings that were NEW this run. Exported for its test. */
@@ -173,7 +162,7 @@ export async function runFuelSweepFreshnessOnce(
   const failed = await recentFailedJobs(admin, orgId, [FUEL_SWEEP_JOB_KIND], since);
   const planned = planFuelSweepFindings(orgId, state, failed, now);
   if (!planned.length) return [];
-  const sent = await alreadySent(admin, orgId, planned.map((f) => f.dedupeKey));
+  const sent = await keysAlreadySent(admin, orgId, planned.map((f) => f.dedupeKey));
   const fresh = planned.filter((f) => !sent.has(f.dedupeKey));
   if (!fresh.length) return [];
 
@@ -181,7 +170,7 @@ export async function runFuelSweepFreshnessOnce(
   for (const f of fresh) {
     for (const userId of users) {
       // emit_notification applies entitlement, mutes, quiet hours and the dedupe key — the same key
-      // to every recipient, one row each (uq_notification_dedupe is per org, user, key).
+      // to every recipient, one row each (the dedupe ledger is per org, user, key — 0432).
       await notify(admin, {
         orgId,
         userId,

@@ -283,6 +283,19 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "AW14 (APPLICATION-FLOW-V2-PLAN §6.8): screen visits on the applicant's link, names and times only, read by the completion-time query; 180 days as 0376's table comment promised",
   },
+  {
+    // DATA-LIFECYCLE-PLAN Q11 (ruled (b), 2026-10-05). Prunable ONLY because 0432 moved the dedupe
+    // keys to `notification_dedupe_keys` (pinned in RETENTION_FORBIDDEN) — this rule ships in the
+    // same merge as the schedulers' move to that ledger, so a revert takes both. 90 days against the
+    // readers: the bell shows the newest 100, the push sweep reads minutes-old rows, and the routing
+    // plan's counts read 30 days. Reads cascade with their event. Measurements: the plan's Q11.
+    table: "notification_events",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "Q11 (DATA-LIFECYCLE-PLAN): the bell's inbox — newest 100 shown, unpushed rows minutes old; dedupe keys live in notification_dedupe_keys since 0432, so a pruned event re-sends nothing",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */
@@ -302,6 +315,9 @@ export const RETENTION_FORBIDDEN = [
   "vehicle_inspections",
   "vehicle_inspection_items",
   "audit_logs", // append-only compliance ledger
+  // The notification dedupe ledger (0432, Q11): a deleted key re-arms its alert. The inbox is
+  // prunable precisely because this table is not.
+  "notification_dedupe_keys",
   /**
    * The driver's signatures, place by place, on the application packet (0339) and the handbook (0374)
    * — G-6, APPLICATION-FLOW-V2-PLAN.md. Both are append-only by trigger, and each row is the fact a

@@ -19,7 +19,9 @@ const STALE_HOURS = SWEEP_STALE_AFTER_MS / 3_600_000;
 const BORN_LONG_AGO = hoursAgo(5_000);
 
 const notifyCalls: Array<Record<string, unknown>> = [];
-vi.mock("../messaging/index.js", () => ({
+// notify() is faked; keysAlreadySent() is the REAL one, reading the ledger RPC the recorder answers.
+vi.mock("../messaging/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../messaging/index.js")>()),
   notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
     notifyCalls.push(input);
     return "evt";
@@ -125,10 +127,14 @@ function recorder(over: { sweptAt?: string | null; failed?: Record<string, unkno
   return createSupabaseRecorder({
     tables: {
       jobs: over.failed ?? [],
-      notification_events: (over.sentKeys ?? []).map((dedupe_key) => ({ dedupe_key })),
       memberships: [{ user_id: "u-admin" }, { user_id: "u-fuel" }, { user_id: "u-admin" }],
       organizations: [{ notifications_enabled: true, notification_emails: over.emails === undefined ? ["office@example.test"] : over.emails }],
     },
+    // The dedupe ledger (0432): of the keys asked about, the ones already sent.
+    rpc: (fn, args) =>
+      fn === "notification_keys_sent"
+        ? (args as { p_keys: string[] }).p_keys.filter((k) => (over.sentKeys ?? []).includes(k))
+        : null,
   });
 }
 
