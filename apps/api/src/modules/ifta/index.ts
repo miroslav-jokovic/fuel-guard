@@ -7,3 +7,5 @@
  */
 export { iftaRouter } from "./routes/index.js";
 export { readIftaPeriod, readIftaJurisdictionTrucks, type IftaPeriodRows } from "./periodReads.js";
+/** The roster sweep's door onto 0433: a truck's fuel-tax exclusion, recorded as dated periods. */
+export { recordFuelTaxExclusion, type FuelTaxExclusionChange } from "./fuelTaxExclusion.js";

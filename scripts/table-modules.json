@@ -2015,6 +2015,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "vehicle_fuel_tax_exclusions": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-05 (0433): one row per fuel-tax exclusion period a carrier sets on a truck in McLeod; no truck had ever been excluded when it shipped, so growth and budget are owed at first write (D-LIFE1 ratchet)."
+      }
+    },
     "vehicle_engine_days": {
       "module": "idle",
       "layer": "derived",

@@ -88,7 +88,11 @@ const VEHICLE_IDENTITY = `
       -- Distribution within P4, 2026-09-22:
       -- A 148 · V 16 · I 15 · S 12 · null 2. The S reading is the owner's and is corroborated by
       -- behaviour rather than by a labelfile this login can reach (§1.3, assumption A1, Q-2).
-      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')   AS tractor_status`;
+      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')   AS tractor_status,
+      -- McLeod's own switch for leaving a tractor out of its fuel-tax (IFTA) module. Measured on the
+      -- live database 2026-10-05: N on every tractor, active or retired. roster.mjs turns it into the
+      -- neutral fuel_tax_excluded fact (IFTA-PRECISION-PLAN IP4).
+      NULLIF(LTRIM(RTRIM(t.exclude_fueltax)), '')  AS exclude_fueltax`;
 
 const TRAILER_MATCH = `
       LTRIM(RTRIM(r.id))                         AS external_id,

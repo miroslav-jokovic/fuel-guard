@@ -301,6 +301,16 @@ export const tmsVehicleInputSchema = z.object({
    * why the derivation treats absent and false alike: "no evidence of a shop" is not "in a shop".
    */
   in_shop: z.boolean().nullish(),
+  /**
+   * Has the carrier left this truck OUT of its fuel-tax (IFTA) reporting? A neutral fact for the same
+   * reason as `in_shop`: McLeod spells it `tractor.exclude_fueltax = 'Y'`, and that letter stops at
+   * `roster.mjs`. It decides whether a leased-on owner-operator's miles and fuel belong in the carrier's
+   * return (IFTA-PRECISION-PLAN D-IP2); `recordFuelTaxExclusion` turns it into dated periods (0433).
+   *
+   * Absent when the agent did not read the column — and absent is NOT "not excluded": an older agent
+   * must never close a period it could not see.
+   */
+  fuel_tax_excluded: z.boolean().nullish(),
 });
 export type TmsVehicleInput = z.infer<typeof tmsVehicleInputSchema>;
 

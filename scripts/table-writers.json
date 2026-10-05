@@ -488,6 +488,9 @@
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
   ],
+  "vehicle_fuel_tax_exclusions": [
+    "apps/api/src/modules/ifta/fuelTaxExclusion.ts"
+  ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
   ],
