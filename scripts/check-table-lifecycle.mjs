@@ -46,7 +46,11 @@ const MANIFEST = join(ROOT, "scripts", "table-modules.json");
 // The POLICY file, not the runner: the rules were split out of dataRetention.ts on 2026-09-22 when
 // L3 pushed it past the 500-line budget. Pointing at the wrong one parses an empty rule set and this
 // gate passes while enforcing nothing — so the self-test below asserts the parse found rules at all.
-const RETENTION_TS = join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionPolicy.ts");
+// The policy and the forbidden list live in two files since 2026-10-05; the parser reads them as one.
+const RETENTION_TS = [
+  join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionPolicy.ts"),
+  join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionForbidden.ts"),
+];
 const SCHEMA_SNAPSHOT = join(ROOT, "supabase", "schema.generated.sql");
 
 const GROWTH = ["time", "fleet", "static", "unmeasured"];
@@ -165,7 +169,7 @@ function selfTest(manifest, retention) {
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-const retention = parseRetention(readFileSync(RETENTION_TS, "utf8"));
+const retention = parseRetention(RETENTION_TS.map((f) => readFileSync(f, "utf8")).join("\n"));
 
 if (process.argv.includes("--self-test")) {
   const fails = selfTest(manifest, retention);
