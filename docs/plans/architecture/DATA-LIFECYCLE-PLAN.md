@@ -936,7 +936,7 @@ which does not exist; (c) accept drift: bound the cascade, re-sync history only 
 rebuild. **Recommendation: (c)**, pending the `verdict_hash` measurement in §8's 2026-09-22 entry for
 #971 — it is what the live path already does, and it makes the import path agree with it.
 
-**Q9 — where does a PLATFORM alarm go? OPENED 2026-09-22 by L6; must be answered before L7.**
+**Q9 — where does a PLATFORM alarm go? OPENED 2026-09-22 by L6; must be answered before L7. ANSWERED 2026-10-05:** to the platform owners' list in Settings → Alert recipients (`platform_alert_recipients`, 0427, chosen for the release summary under RELEASE-TRAIN Q-REL4), pushed by `.github/workflows/platform-health.yml` every 15 minutes from outside the API and database (a variant of (a) that also covers "the API itself is down", which (a) could not). It pages a non-ok `maintenance.state`, a schema drift, or an unreachable `/api/version` on the second sighting in a row, once, by email and SMS, and sends the recovery. L7 is no longer blocked on Q9. Original question follows.
 Every alarm in this repo today notifies an org's office through `notify()` + email to the users who
 manage a section — `fuelSweepFreshness.ts`, `samsaraFeedAlarm.ts`, D-FIN3. That is right for "your
 numbers are stale" and wrong for "the database's partition maintenance stopped": no carrier's office

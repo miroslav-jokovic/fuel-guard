@@ -1,0 +1,77 @@
+name: Platform health
+
+# Pushes a PLATFORM alarm (DATA-LIFECYCLE-PLAN Q9) to Settings → Alert recipients (0427): the
+# production API not answering, the database's scheduled maintenance not ok (L6, D-LIFE10), or the
+# schema not matching the code. `/api/version` publishes all three; until now nobody was told.
+# scripts/platform-health.mjs says why it runs here and not in our API, and how it debounces.
+#
+# When: every 15 minutes. A problem pages on its second sighting in a row, once; its recovery is sent.
+# GitHub may delay a scheduled run under load, so this is a 15–30 minute alarm, not a pager SLA.
+#
+# Runner: GitHub-hosted on purpose, NOT vars.CI_RUNNER. A monitor must not depend on the machine it
+# might be reporting about (the office runner, the McLeod agent's host).
+#
+# Secrets: the release summary's (release.yml "Send the summary"), read-only use of the management
+# API for the recipient list. Writes nothing anywhere except its own cache entry.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/platform-health.mjs"
+      - "scripts/release-notify.mjs"
+      - ".github/workflows/platform-health.yml"
+
+concurrency:
+  group: platform-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write # the cache entry that carries the previous observation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Self-test the decision
+        run: node scripts/platform-health.mjs --self-test && node scripts/release-notify.mjs --self-test
+
+      - name: Previous observation
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: platform-health-state.json
+          key: platform-health-${{ github.run_id }}
+          restore-keys: platform-health-
+
+      - name: Check production
+        if: github.event_name != 'pull_request'
+        env:
+          API_URL: ${{ vars.API_URL }}
+          STATE_FILE: platform-health-state.json
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          RELEASE_NOTIFY_EMAILS: ${{ secrets.RELEASE_NOTIFY_EMAILS }}
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_FROM: ${{ secrets.TELNYX_FROM }}
+          RELEASE_NOTIFY_PHONES: ${{ secrets.RELEASE_NOTIFY_PHONES }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/platform-health.mjs check
+
+      - name: Keep this observation for the next run
+        if: always() && github.event_name != 'pull_request' && hashFiles('platform-health-state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: platform-health-state.json
+          key: platform-health-${{ github.run_id }}
