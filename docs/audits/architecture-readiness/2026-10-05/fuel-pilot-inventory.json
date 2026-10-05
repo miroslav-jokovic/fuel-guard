@@ -1,0 +1,1576 @@
+{
+  "commit": "e182588",
+  "totals": {
+    "rawAccessGrandfathered": 29,
+    "writersGrandfathered": 58
+  },
+  "tables": {
+    "anomalies": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "business records, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      },
+      "writers": [
+        "apps/api/src/modules/anomalies/assignAnomalies.ts",
+        "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
+        "apps/api/src/modules/anomalies/entityRisk.ts",
+        "apps/api/src/modules/anomalies/routes/anomalies.ts",
+        "apps/api/src/modules/anomalies/scoring/consumptionContext.ts",
+        "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
+        "apps/api/src/modules/efs/services/efsProcessing.ts",
+        "apps/api/src/modules/fuel-spend/findingsAssign.ts",
+        "apps/api/src/modules/fuel-spend/findingsRead.ts",
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/insights/routes/reports.ts",
+        "apps/api/src/modules/messaging/notifications.ts",
+        "apps/api/src/modules/org/digest.ts",
+        "apps/api/src/modules/org/routes/audit.ts"
+      ],
+      "readers_web": [
+        "apps/web/src/features/anomalies/useAnomalies.ts",
+        "apps/web/src/pages/DriverDetailPage.vue",
+        "apps/web/src/pages/VehicleDetailPage.vue"
+      ],
+      "readers_other": ["apps/admin-api/src/lib/impersonation.ts"],
+      "sql_functions": [
+        {
+          "fn": "platform_org_overview",
+          "migration": "0072",
+          "writes": false,
+          "definer": true
+        },
+        {
+          "fn": "persist_scoring_outcome",
+          "migration": "0158",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "transition_anomaly",
+          "migration": "0158",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "dashboard_summary",
+          "migration": "0347",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_anomalies_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_anomalies_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [
+        "anomalies_driver_deny [RESTRICTIVE/SELECT]",
+        "anomalies_driver_insert [RESTRICTIVE/INSERT]",
+        "anomalies_driver_scope [RESTRICTIVE/SELECT]",
+        "anomalies_select [PERMISSIVE/SELECT]",
+        "anomalies_update [PERMISSIVE/UPDATE]"
+      ],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "anomaly_thresholds": {
+      "module": "anomalies",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/anomalies/thresholdSettings.ts"],
+      "readers_api": ["apps/api/src/modules/anomalies/scoring/loaders.ts"],
+      "readers_web": [
+        "apps/web/src/features/roster/useOdometerMismatches.ts",
+        "apps/web/src/features/settings/useThresholds.ts"
+      ],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "audit_threshold_change",
+          "migration": "0009",
+          "writes": false,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "audit_thresholds",
+          "fn": "audit_threshold_change"
+        },
+        {
+          "name": "trg_anomaly_thresholds_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_thresholds_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [
+        "anomaly_thresholds_driver_insert [RESTRICTIVE/INSERT]",
+        "anomaly_thresholds_driver_scope [RESTRICTIVE/SELECT]",
+        "thresholds_driver_deny [RESTRICTIVE/SELECT]",
+        "thresholds_select [PERMISSIVE/SELECT]"
+      ],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "anomaly_transitions": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [],
+      "readers_api": ["apps/api/src/modules/anomalies/routes/anomalies.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "transition_anomaly",
+          "migration": "0158",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_anomaly_transitions_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["anomaly_transitions_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "card_write_counters": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "one row per card per day; a counter bounded by the card fleet."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "bump_card_write_counter",
+          "migration": "0180",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "declined_transactions": {
+      "module": "fuel",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw declines, RETENTION_FORBIDDEN; feeds declinedScoring. retention_days null because the table is in RETENTION_FORBIDDEN."
+      },
+      "writers": [
+        "apps/api/src/modules/anomalies/declinedScoring.ts",
+        "apps/api/src/modules/efs/services/efsIngestReject.ts",
+        "apps/api/src/modules/fuel/declineDriverResolution.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/entityRisk.ts",
+        "apps/api/src/modules/efs/services/efsPreview.ts",
+        "apps/api/src/modules/efs/services/efsProcessing.ts",
+        "apps/api/src/modules/fuel/declinedCount.ts",
+        "apps/api/src/modules/fuel/fuelListExport.ts",
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/org/digest.ts"
+      ],
+      "readers_web": ["apps/web/src/features/fuel/useEfsData.ts"],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        },
+        {
+          "fn": "decline_facets",
+          "migration": "0314",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_declined_transactions_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_declined_txn_scores",
+          "fn": "sync_declined_txn_scores"
+        }
+      ],
+      "policies": ["declined_select [PERMISSIVE/SELECT]", "declined_write [PERMISSIVE/ALL]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/anomalies/declinedScoring.ts",
+        "apps/api/src/modules/anomalies/entityRisk.ts",
+        "apps/api/src/modules/efs/services/efsIngestReject.ts",
+        "apps/api/src/modules/efs/services/efsProcessing.ts",
+        "apps/api/src/modules/efs/services/efsPreview.ts",
+        "apps/api/src/modules/org/digest.ts",
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/web/src/features/fuel/useEfsData.ts"
+      ],
+      "grandfathered_writers": [
+        "apps/api/src/modules/anomalies/declinedScoring.ts",
+        "apps/api/src/modules/efs/services/efsIngestReject.ts"
+      ]
+    },
+    "declined_txn_scores": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "bounded by declined_transactions; measured on updated_at."
+      },
+      "writers": ["apps/api/src/modules/anomalies/declinedScoring.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_declined_txn_scores",
+          "migration": "0263",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "driver_scores": {
+      "module": "performance",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "business records, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+      },
+      "writers": ["apps/api/src/modules/performance/driverScoreSync.ts"],
+      "readers_api": [
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/performance/driverPerformanceSnapshot.ts"
+      ],
+      "readers_web": ["apps/web/src/features/drivers/useDriverPerformance.ts"],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        },
+        {
+          "fn": "merge_driver_v2",
+          "migration": "0264",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_driver_scores_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": [
+        "driver_scores_select [PERMISSIVE/SELECT]",
+        "driver_scores_write [PERMISSIVE/ALL]"
+      ],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_capability_promotions": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [
+        "apps/api/src/modules/efs/routes/promote.ts",
+        "apps/api/src/modules/efs/routes/prove.ts"
+      ],
+      "readers_api": ["apps/api/src/modules/efs/services/efsCardControlAccess.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_capability_proofs": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/efs/routes/prove.ts"],
+      "readers_api": [
+        "apps/api/src/modules/efs/routes/promote.ts",
+        "apps/api/src/modules/efs/routes/restore.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_card_control_approvers": {
+      "module": "efs",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/efs/routes/settings.ts"],
+      "readers_api": ["apps/api/src/modules/efs/services/efsCardControlAccess.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_card_control_settings": {
+      "module": "efs",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [
+        "apps/api/src/modules/efs/routes/inventory.ts",
+        "apps/api/src/modules/efs/routes/scan.ts",
+        "apps/api/src/modules/efs/routes/settings.ts",
+        "apps/api/src/modules/efs/routes/writeProbe.ts",
+        "apps/api/src/modules/efs/services/efsSoapCredentials.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/efs/orchestrator/editableInfoIds.ts",
+        "apps/api/src/modules/efs/routes/promote.ts",
+        "apps/api/src/modules/efs/services/efsCardControlAccess.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_efs_card_control_settings_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_card_mutations": {
+      "module": "efs",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "budget derived from production 2026-09-21: 0 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [
+        "apps/api/src/modules/efs/orchestrator/ledger.ts",
+        "apps/api/src/modules/efs/services/efsCardUnresolved.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/efs/routes/mutationLog.ts",
+        "apps/api/src/modules/efs/routes/restore.ts",
+        "apps/api/src/modules/efs/services/efsCardStatusPoll.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "efs_card_mutation_evidence_frozen",
+          "fn": "efs_card_mutation_evidence_frozen"
+        },
+        {
+          "name": "efs_card_mutation_requires_approver",
+          "fn": "efs_card_mutation_requires_approver"
+        },
+        {
+          "name": "trg_efs_card_mutations_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_cards": {
+      "module": "efs",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": [
+        "apps/api/src/modules/efs/services/efsCardLinking.ts",
+        "apps/api/src/modules/efs/services/efsCardMirror.ts",
+        "apps/api/src/modules/efs/services/efsCardTombstone.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/efs/efsCardExport.ts",
+        "apps/api/src/modules/efs/routes/probeGuards.ts",
+        "apps/api/src/modules/efs/routes/prove.ts",
+        "apps/api/src/modules/efs/routes/read.ts",
+        "apps/api/src/modules/efs/routes/restore.ts",
+        "apps/api/src/modules/efs/routes/scan.ts",
+        "apps/api/src/modules/efs/services/efsCardStatusPoll.ts",
+        "apps/api/src/modules/fuel/declineDriverResolution.ts",
+        "apps/api/src/scripts/runConfigScan.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_efs_cards_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/fuel/declineDriverResolution.ts",
+        "apps/api/src/scripts/runConfigScan.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "efs_processing_runs": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "operational run log for EFS post-acquisition scoring. Measured 176/day. Retention unruled — L9."
+      },
+      "writers": ["apps/api/src/modules/efs/services/efsProcessing.ts"],
+      "readers_api": [
+        "apps/api/src/modules/efs/services/efsProcessingScheduler.ts",
+        "apps/api/src/modules/efs/services/efsSoapStatus.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "claim_efs_processing_run",
+          "migration": "0354",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_efs_processing_runs_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_efs_processing_runs_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": ["efs_processing_runs_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_soap_client_certs": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/efs/services/efsSoapClientCerts.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_efs_soap_client_certs_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_efs_soap_client_certs_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_soap_credentials": {
+      "module": "efs",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": [
+        "apps/api/src/modules/efs/services/efsSoapCertExpiry.ts",
+        "apps/api/src/modules/efs/services/efsSoapCredentials.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/efs/routes/feedFreshness.ts",
+        "apps/api/src/modules/efs/routes/promote.ts",
+        "apps/api/src/modules/efs/services/efsCardControlAccess.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_efs_soap_credentials_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_efs_soap_credentials_updated",
+          "fn": "efs_soap_credentials_touch_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "efs_transactions": {
+      "module": "efs",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "raw EFS feed, RETENTION_FORBIDDEN; ancillary non-fuel spend reads it directly (D-FS6). Measured 406/day. retention_days null because the table is in RETENTION_FORBIDDEN."
+      },
+      "writers": ["apps/api/src/modules/efs/services/efsIngest.ts"],
+      "readers_api": [
+        "apps/api/src/modules/efs/efsListExport.ts",
+        "apps/api/src/modules/efs/services/efsLineItems.ts",
+        "apps/api/src/modules/efs/services/efsPreview.ts",
+        "apps/api/src/modules/efs/services/efsSync.ts",
+        "apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
+        "apps/api/src/modules/fuel/declineDriverResolution.ts",
+        "apps/api/src/modules/fuel/driverAttribution.ts"
+      ],
+      "readers_web": ["apps/web/src/features/fuel/useEfsData.ts"],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "efs_transaction_facets",
+          "migration": "0313",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_efs_transactions_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["efs_txn_select [PERMISSIVE/SELECT]", "efs_txn_write [PERMISSIVE/ALL]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
+        "apps/api/src/modules/fuel/declineDriverResolution.ts",
+        "apps/api/src/modules/fuel/driverAttribution.ts",
+        "apps/web/src/features/fuel/useEfsData.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "fuel_cards": {
+      "module": "fuel",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": ["apps/api/src/modules/fuel/cardAssignments.ts"],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/scoring/cardContext.ts",
+        "apps/api/src/modules/efs/services/efsCardLinking.ts"
+      ],
+      "readers_web": ["apps/web/src/composables/useCardAssignments.ts"],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_cards_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_fuel_cards_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": ["fuel_cards_select [PERMISSIVE/SELECT]", "fuel_cards_write [PERMISSIVE/ALL]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_discount_rules": {
+      "module": "fuel",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/fuel/discountRules.ts"],
+      "readers_api": [
+        "apps/api/src/modules/routing/fuelPlanning.ts",
+        "apps/api/src/modules/routing/routes/stations.ts"
+      ],
+      "readers_web": ["apps/web/src/features/fueling/useDiscountRules.ts"],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_fuel_discount_rules_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["fuel_discount_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_events": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [
+        "apps/api/src/modules/samsara/fuelEventsWebhook.ts",
+        "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/org/digest.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_fuel_events_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["fuel_events_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/org/digest.ts",
+        "apps/api/src/modules/insights/askData.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "fuel_exception_events": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelExceptions.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_exception_events_append_only",
+          "migration": "0250",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "sync_fuel_exceptions",
+          "migration": "0320",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_exception_events_append_only",
+          "fn": "fuel_exception_events_append_only"
+        }
+      ],
+      "policies": ["fuel_exception_events_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_exceptions": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Measured on updated_at, so the rate is rows TOUCHED, not added. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [
+        "apps/api/src/modules/fuel-spend/findingsAssign.ts",
+        "apps/api/src/modules/fuel-spend/fuelExceptions.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/fuel-spend/findingsOpportunities.ts",
+        "apps/api/src/modules/fuel-spend/findingsRead.ts",
+        "apps/api/src/modules/fuel-spend/fuelDisputePacket.ts",
+        "apps/api/src/modules/fuel-spend/fuelExceptionExport.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_fuel_exceptions",
+          "migration": "0320",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_exceptions_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": ["fuel_exceptions_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_plans": {
+      "module": "routing",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [
+        "apps/api/src/modules/routing/fuelPlanHistory.ts",
+        "apps/api/src/modules/routing/routes/plans.ts"
+      ],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_fuel_plans_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["fuel_plans_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_price_days": {
+      "module": "fuel",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "per station-day price rollup, joined by fuel_spend_lines (0246)."
+      },
+      "writers": ["apps/api/src/modules/fuel/fuelPriceDaySync.ts"],
+      "readers_api": ["apps/api/src/modules/idle/fuelIdleVerdict.ts"],
+      "readers_web": ["apps/web/src/composables/useIdleBreakdown.ts"],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": ["fuel_price_days_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_prices": {
+      "module": "posted-prices",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw posted-price feed. Measured 888/day. Retention unruled — L9."
+      },
+      "writers": ["apps/api/src/modules/posted-prices/pilotPriceIngest.ts"],
+      "readers_api": [
+        "apps/api/src/modules/fuel/fuelPriceDaySync.ts",
+        "apps/api/src/modules/posted-prices/dieselMedian.ts",
+        "apps/api/src/modules/routing/fuelPlanning.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_prices_for_planning",
+          "migration": "0245",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_price_coverage",
+          "migration": "0251",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_spend_lines",
+          "migration": "0405",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_prices_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["fuel_prices_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/routing/fuelPlanning.ts",
+        "apps/api/src/modules/fuel/fuelPriceDaySync.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "fuel_prices_posted": {
+      "module": "posted-prices",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw posted-price rows from the public table."
+      },
+      "writers": [
+        "apps/api/src/modules/posted-prices/lovesIngest.ts",
+        "apps/api/src/modules/posted-prices/postedPriceIngest.ts",
+        "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/scoring/marketPrice.ts",
+        "apps/api/src/modules/routing/fuelPlanning.ts",
+        "apps/api/src/modules/routing/routes/stations.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": ["fuel_prices_posted_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/anomalies/scoring/marketPrice.ts",
+        "apps/api/src/modules/routing/routes/stations.ts",
+        "apps/api/src/modules/routing/fuelPlanning.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "fuel_recon_run_rows": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "FS3 (0406): one row per reconciliation run, holding its lines as jsonb. A run is a hand upload of a weekly statement or monthly export: 3 runs ever by 2026-10-01, at most ~5/month. Evidence, RETENTION_FORBIDDEN; ~0.3 MB per weekly statement, TOASTed."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelReconRun.ts"],
+      "readers_api": ["apps/api/src/modules/fuel-spend/reconRunRead.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_recon_run_rows_immutable",
+          "migration": "0406",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_recon_run_rows_no_delete",
+          "fn": "fuel_recon_run_rows_immutable"
+        },
+        {
+          "name": "trg_fuel_recon_run_rows_no_update",
+          "fn": "fuel_recon_run_rows_immutable"
+        }
+      ],
+      "policies": ["fuel_recon_run_rows_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_recon_runs": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelReconRun.ts"],
+      "readers_api": ["apps/api/src/modules/fuel-spend/reconRunRead.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_recon_runs_supersede_only",
+          "migration": "0249",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_recon_runs_no_delete",
+          "migration": "0249",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "sync_fuel_exceptions",
+          "migration": "0320",
+          "writes": false,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_recon_runs_no_delete",
+          "fn": "fuel_recon_runs_no_delete"
+        },
+        {
+          "name": "trg_fuel_recon_runs_supersede_only",
+          "fn": "fuel_recon_runs_supersede_only"
+        }
+      ],
+      "policies": ["fuel_recon_runs_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_spend_days": {
+      "module": "fuel-spend",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "THE pattern this plan protects: one row per truck per day (0244). 272 trucks → ~100k rows/yr, ~0.04 GB/yr. No retention rule and none wanted; it IS the history."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelSpendRollup.ts"],
+      "readers_api": [
+        "apps/api/src/modules/fuel-spend/fleetMpg.ts",
+        "apps/api/src/modules/fuel-spend/fuelSpendReport.ts",
+        "apps/api/src/modules/fuel-spend/mileageAgreement.ts"
+      ],
+      "readers_web": [
+        "apps/web/src/features/reconcile/useSpendDays.ts",
+        "apps/web/src/features/reconcile/useSpendFreshness.ts"
+      ],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_spend_by_period",
+          "migration": "0252",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "ifta_period_summary",
+          "migration": "0258",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_spend_days_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": ["fuel_spend_days_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_statement_lines": {
+      "module": "fuel-spend",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelStatementIngest.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_statement_lines_immutable",
+          "migration": "0243",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_statement_lines_immutable",
+          "fn": "fuel_statement_lines_immutable"
+        }
+      ],
+      "policies": ["fuel_statement_lines_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_statements": {
+      "module": "fuel-spend",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/fuel-spend/fuelStatementIngest.ts"],
+      "readers_api": ["apps/api/src/modules/fuel-spend/routes/statements.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_statements_supersede_only",
+          "migration": "0243",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_fuel_statements_supersede_only",
+          "fn": "fuel_statements_supersede_only"
+        }
+      ],
+      "policies": ["fuel_statements_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_stations": {
+      "module": "fuel",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": [
+        "apps/api/src/modules/posted-prices/kwikTripIngest.ts",
+        "apps/api/src/modules/posted-prices/lovesIngest.ts",
+        "apps/api/src/modules/posted-prices/pilotLocationsIngest.ts",
+        "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+        "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/fuel-spend/fuelStatementIngest.ts",
+        "apps/api/src/modules/fuel/fuelStationResolve.ts",
+        "apps/api/src/modules/posted-prices/postedPriceIngest.ts",
+        "apps/api/src/modules/routing/fuelPlanning.ts",
+        "apps/api/src/modules/routing/routes/stations.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "fuel_spend_lines",
+          "migration": "0405",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_report_sites",
+          "migration": "0405",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": ["fuel_stations_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": [
+        "apps/api/src/modules/posted-prices/kwikTripIngest.ts",
+        "apps/api/src/modules/posted-prices/lovesIngest.ts",
+        "apps/api/src/modules/posted-prices/pilotLocationsIngest.ts",
+        "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
+        "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
+      ]
+    },
+    "fuel_transactions": {
+      "module": "fuel",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "core evidence — the fuel bill, RETENTION_FORBIDDEN. Measured 205/day; 1,268 B average row, wide (73 columns) but NOT payload-bloated (40 kB TOAST in the whole table). retention_days null because the table is in RETENTION_FORBIDDEN."
+      },
+      "writers": [
+        "apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
+        "apps/api/src/modules/anomalies/scoring/context.ts",
+        "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
+        "apps/api/src/modules/efs/services/efsIngest.ts",
+        "apps/api/src/modules/efs/services/efsIngestShared.ts",
+        "apps/api/src/modules/efs/services/efsSync.ts",
+        "apps/api/src/modules/fuel/driverAttribution.ts",
+        "apps/api/src/modules/fuel/fillWeather.ts",
+        "apps/api/src/modules/fuel/fuelStationResolve.ts",
+        "apps/api/src/modules/org/routes/audit.ts",
+        "apps/web/src/features/fuel/useCreateFillUp.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/declinedScoring.ts",
+        "apps/api/src/modules/anomalies/entityRisk.ts",
+        "apps/api/src/modules/anomalies/routes/anomalies.ts",
+        "apps/api/src/modules/anomalies/scoring/backfill.ts",
+        "apps/api/src/modules/anomalies/scoring/cardContext.ts",
+        "apps/api/src/modules/anomalies/scoring/cardMultiReconcile.ts",
+        "apps/api/src/modules/anomalies/scoring/cascadeScope.ts",
+        "apps/api/src/modules/anomalies/scoring/consumptionContext.ts",
+        "apps/api/src/modules/anomalies/scoring/learnVehicle.ts",
+        "apps/api/src/modules/anomalies/scoring/loaders.ts",
+        "apps/api/src/modules/anomalies/scoring/persist.ts",
+        "apps/api/src/modules/anomalies/scoring/reconcile.ts",
+        "apps/api/src/modules/anomalies/scoringHealth.ts",
+        "apps/api/src/modules/efs/routes/feedFreshness.ts",
+        "apps/api/src/modules/efs/services/efsPreview.ts",
+        "apps/api/src/modules/efs/services/efsProcessing.ts",
+        "apps/api/src/modules/financial/projection.ts",
+        "apps/api/src/modules/fuel-spend/fuelReconRun.ts",
+        "apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
+        "apps/api/src/modules/fuel/cardAssignments.ts",
+        "apps/api/src/modules/fuel/fuelListExport.ts",
+        "apps/api/src/modules/fuel/fuelPriceDaySync.ts",
+        "apps/api/src/modules/fuel/recentFuelReads.ts",
+        "apps/api/src/modules/fuel/routes/transactions.ts",
+        "apps/api/src/modules/fuel/stationGeocodeLearning.ts",
+        "apps/api/src/modules/idle/idleSync.ts",
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/insights/routes/reports.ts",
+        "apps/api/src/modules/org/digest.ts",
+        "apps/api/src/modules/samsara/samsaraDiagnostics.ts",
+        "apps/api/src/modules/samsara/samsaraFeedHealth.ts"
+      ],
+      "readers_web": [
+        "apps/web/src/composables/useFuelLog.ts",
+        "apps/web/src/features/anomalies/useAnomalies.ts",
+        "apps/web/src/features/fuel/useDetectionCoverage.ts",
+        "apps/web/src/features/fuel/useReeferCoverage.ts",
+        "apps/web/src/features/reconcile/useFuelReconcile.ts",
+        "apps/web/src/features/roster/useOdometerMismatches.ts",
+        "apps/web/src/pages/DriverDetailPage.vue",
+        "apps/web/src/pages/VehicleDetailPage.vue"
+      ],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sample_clear_transactions",
+          "migration": "0035",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "platform_org_overview",
+          "migration": "0072",
+          "writes": false,
+          "definer": true
+        },
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        },
+        {
+          "fn": "persist_scoring_outcome",
+          "migration": "0158",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "persist_scoring_outcome_v2",
+          "migration": "0319",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "fuel_buy_fills",
+          "migration": "0258",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "ifta_period_jurisdictions",
+          "migration": "0258",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_range_totals",
+          "migration": "0315",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_range_miles_inputs",
+          "migration": "0316",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "telematics_coverage_buckets",
+          "migration": "0322",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "dashboard_summary",
+          "migration": "0347",
+          "writes": false,
+          "definer": false
+        },
+        {
+          "fn": "fuel_spend_lines",
+          "migration": "0405",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_ftxn_business_date",
+          "fn": "set_fuel_transaction_business_date"
+        },
+        {
+          "name": "trg_ftxn_updated",
+          "fn": "set_updated_at"
+        },
+        {
+          "name": "trg_fuel_transactions_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_fuel_txn_satellites",
+          "fn": "sync_fuel_txn_satellites"
+        }
+      ],
+      "policies": [
+        "ftxn_delete [PERMISSIVE/DELETE]",
+        "ftxn_driver_insert [RESTRICTIVE/INSERT]",
+        "ftxn_driver_select [RESTRICTIVE/SELECT]",
+        "ftxn_insert [PERMISSIVE/INSERT]",
+        "ftxn_section_read [RESTRICTIVE/SELECT]",
+        "ftxn_select [PERMISSIVE/SELECT]",
+        "ftxn_update [PERMISSIVE/UPDATE]",
+        "fuel_tx_driver_insert [RESTRICTIVE/INSERT]",
+        "fuel_tx_driver_scope [RESTRICTIVE/SELECT]"
+      ],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": [
+        "apps/api/src/modules/anomalies/anomalyFlagReconcile.ts",
+        "apps/api/src/modules/anomalies/scoring/context.ts",
+        "apps/api/src/modules/anomalies/scoring/scoreTransaction.ts",
+        "apps/api/src/modules/efs/services/efsIngest.ts",
+        "apps/api/src/modules/efs/services/efsIngestShared.ts",
+        "apps/api/src/modules/efs/services/efsSync.ts",
+        "apps/api/src/modules/org/routes/audit.ts",
+        "apps/web/src/features/fuel/useCreateFillUp.ts"
+      ]
+    },
+    "fuel_txn_dispositions": {
+      "module": "fuel",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_fuel_txn_satellites",
+          "migration": "0261",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_txn_recon": {
+      "module": "samsara",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "1:1 with fuel_transactions; same reasoning as fuel_txn_scores."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_fuel_txn_satellites",
+          "migration": "0261",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "fuel_txn_scores": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "1:1 with fuel_transactions (17,289 = 17,289, measured 2026-09-21) — bounded BY that table, not independently time-growing. Measured on updated_at, so 576/day is rescoring churn, not growth."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_fuel_txn_satellites",
+          "migration": "0261",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "route_fuel_settings": {
+      "module": "routing",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [
+        "apps/api/src/modules/posted-prices/routes/networks.ts",
+        "apps/api/src/modules/routing/routeFuelSettings.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/fuel-spend/fuelSpendLines.ts",
+        "apps/api/src/modules/routing/fuelPlanning.ts",
+        "apps/api/src/modules/routing/routes/stations.ts"
+      ],
+      "readers_web": ["apps/web/src/composables/useRouteFuelSettings.ts"],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_route_fuel_settings_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["route_fuel_settings_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": ["apps/api/src/modules/posted-prices/routes/networks.ts"]
+    },
+    "scoring_attempts": {
+      "module": "anomalies",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 45,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "derived and rebuildable. Measured 2026-09-21: 139.7 attempts per fuel transaction, 75,041/day, and its own idx_scoring_attempts_org_started had 0 scans. L3 set 45d — DERIVED, not chosen: scoringHealth() is the only reader and clamps its window to at most 30 days, so 30 is the floor and 45 leaves a fortnight of headroom. ⚠ Budget stays deliberately BELOW the measured rate so the L8 judge keeps firing: retention caps the storage but does not stop the rescan (plan Q6)."
+      },
+      "writers": ["apps/api/src/modules/anomalies/scoring/persist.ts"],
+      "readers_api": ["apps/api/src/modules/anomalies/scoringHealth.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "persist_scoring_outcome",
+          "migration": "0158",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_scoring_attempts_org_immutable",
+          "fn": "forbid_org_change"
+        },
+        {
+          "name": "trg_scoring_attempts_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": ["scoring_attempts_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "station_geocode_learned": {
+      "module": "fuel",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "learned station geocodes — small and valuable; measured on updated_at."
+      },
+      "writers": ["apps/api/src/modules/fuel/stationGeocodeLearning.ts"],
+      "readers_api": ["apps/api/src/modules/routing/geocode.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_station_geocode_learned_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["sgl_select [PERMISSIVE/SELECT]", "sgl_write [PERMISSIVE/ALL]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    }
+  }
+}
