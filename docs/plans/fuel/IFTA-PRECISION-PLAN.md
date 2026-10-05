@@ -244,3 +244,9 @@ and run the rest — run each statement on its own, since one bad column kills t
   until the carrier flips the switch. The review routine Alex approved is rebuilt and changed by one
   column; he needs telling. IP5 (the IFTA reads honour the periods) is the next merge. Owner ruled the
   sandbox (`lme_analytics`) may backfill PAST quarters' hand-keyed fuel for IP6 while Q-IP3 is open.
+- 2026-10-05 — IP4 merged (#1313). IP6 collection built: 0434 `mcleod_fuel_tax_receipts` (raw, service-role
+  only), agent `FUEL_TAX_RECEIPTS` (source F only) on the financial sweep with a two-year nightly re-read
+  that IS the backfill, `POST /api/tms/fuel-tax-receipts`, and `readFuelTaxReceipts` for the ifta module.
+  Sandbox dry run: 447 receipts, 2024-Q4 → 2026-Q2, all valid, none dropped. Grant script gains
+  `fuel_tax_history` on both databases (NOT YET RUN — Alex). Nothing reads the table yet; the IFTA
+  ledger and the state page add it to "fuel bought" in the next merge, with the card-duplicate rule.

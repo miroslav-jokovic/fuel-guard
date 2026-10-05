@@ -30,6 +30,11 @@
 -- each) and statements 1-8, 16 and 22-24 run; on lme_analytics all sixteen tables read and
 -- statements 9-21 run, 15 to 18 included. Still no write permission anywhere.
 -- Nothing in this file is waiting to be run; running the whole file again is harmless.
+--
+-- 2026-10-05 - WAITING TO BE RUN: one table, fuel_tax_history (the IFTA fuel-tax history), on
+-- both databases. The new statement "FUEL RECEIPTS KEYED BY HAND" reads only its source F rows -
+-- the cash and own-card receipts the office keys in - and no personal data. Two lines, marked
+-- below in Part 2 and Part 3.
 -- ========================================================================================
 
 
@@ -77,6 +82,21 @@ GRANT SELECT ON dbo.movement_order   TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.orders           TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.stop             TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.users            TO silvicom_dispatch_ro;
+
+-- Added 2026-10-05, NOT YET RUN: the fuel-tax history, for "FUEL RECEIPTS KEYED BY HAND".
+GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
+GO
+
+
+-- ----------------------------------------------------------------------------------------
+-- PART 3 - FUEL-TAX HISTORY ON LME (added 2026-10-05, NOT YET RUN)
+-- The same one table on the live database, so the hand-keyed receipts are read from the
+-- books as they are today rather than from the analytics copy's last restore.
+-- ----------------------------------------------------------------------------------------
+USE lme;
+GO
+
+GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
 GO
 
 
@@ -92,7 +112,7 @@ SELECT t.name AS table_name,
  WHERE t.name IN ('reference_number', 'gl_ledger', 'gl_ledger_hist', 'gl_account',
                   'billing_history', 'drs_settle_hist', 'drs_deduct_hist', 'voucher',
                   'voucher_hist', 'fuel_detail', 'fuel_detail_hist', 'equipment_item',
-                  'movement', 'movement_order', 'orders', 'stop', 'users');
+                  'movement', 'movement_order', 'orders', 'stop', 'users', 'fuel_tax_history');
 -- customer is granted by column, so it is checked by column: all five should show 1.
 SELECT HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'company_id', 'COLUMN') AS customer_company_id,
        HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'id', 'COLUMN')       AS customer_id,

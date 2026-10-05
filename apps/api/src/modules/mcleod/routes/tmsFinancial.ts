@@ -8,6 +8,7 @@ import {
   tmsDeductionsPayloadSchema,
   tmsLedgerTotalsPayloadSchema,
   tmsGlAccountsPayloadSchema,
+  tmsFuelTaxReceiptsPayloadSchema,
 } from "@silvicom/shared";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -17,6 +18,7 @@ import { ingestSettlements, ingestApVouchers, ingestBilling,
 import { ingestMovementFacts } from "../movementFactIngest.js";
 import { ingestLedgerTotals, ingestGlAccounts } from "../ledgerControlIngest.js";
 import { stampFinancialSynced } from "../tmsIngest.js";
+import { ingestFuelTaxReceipts } from "../fuelTaxReceipts.js";
 
 /**
  * Financial staging endpoints for the on-prem agent (P3.2). Registered INSIDE tmsIngestRouter,
@@ -146,6 +148,23 @@ export function registerTmsFinancialRoutes(router: Router): void {
       // D-FIN3: the financial sweep stamps its own freshness row, so "figures as of" and the stale
       // finding read a fact rather than guessing from the roster stamp.
       await stampFinancialSynced(admin, req.tms!.orgId);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  // Hand-keyed IFTA fuel receipts (0434, IFTA-PRECISION-PLAN IP6). Rides the financial sweep because
+  // that is the sweep that reads McLeod's finance-side tables; it does NOT stamp the financial
+  // freshness row, because a receipt says nothing about whether the BOOKS are current.
+  router.post(
+    "/fuel-tax-receipts",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsFuelTaxReceiptsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", `Invalid fuel-tax-receipts payload: ${parsed.error.issues[0]?.message ?? "unreadable"}`));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await ingestFuelTaxReceipts(admin, req.tms!.orgId, parsed.data);
       res.json({ ok: true, ...result });
     }),
   );

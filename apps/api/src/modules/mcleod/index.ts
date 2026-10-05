@@ -56,3 +56,5 @@ export {
   type StagedGlTotal,
   type StagedGlAccount,
 } from "./financialReads.js";
+/** McLeod's hand-keyed IFTA fuel receipts (0434) — the ifta module's door onto them. */
+export { readFuelTaxReceipts, type FuelTaxReceipt } from "./fuelTaxReceipts.js";

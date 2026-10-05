@@ -1,5 +1,6 @@
 export * from "./movementFact.js";
 export * from "./fuelFact.js";
+export * from "./fuelTaxReceipt.js";
 export * from "./expenseFact.js";
 export * from "./billingFact.js";
 export * from "./settlementFact.js";

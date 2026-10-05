@@ -1410,6 +1410,17 @@
         "why": "budget derived from live lme 2026-09-24: 209.7 stops/day over the same 28 days (max 12 on one movement), x3 headroom. Cascades from mcleod_dispatch_movements, so its retention is the movement's \u2014 LOADS-MIRROR-PLAN Q-LMR8."
       }
     },
+    "mcleod_fuel_tax_receipts": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "budget derived from lme_analytics 2026-10-05: 447 hand-keyed receipts over 2 years (~0.6/day, keyed in quarterly batches of ~70), x8 headroom for a batch day. The nightly 2-year re-read upserts in place, so it adds no rows. Retention unruled \u2014 an IFTA return is kept 4 years (IFTA-PRECISION-PLAN)."
+      }
+    },
     "mcleod_gl_accounts": {
       "module": "mcleod",
       "layer": "raw",
