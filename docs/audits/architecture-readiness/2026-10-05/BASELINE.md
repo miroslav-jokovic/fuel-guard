@@ -78,7 +78,7 @@ needs the service-role key, and this session may not read `.env`. Still unverifi
 | 6 — SSL not enforced                                      | **Still open**                         | `ssl-enforcement get`: `database: false`                                               |
 | 6 — network open                                          | **Still open**                         | `dbAllowedCidrs` `0.0.0.0/0`, `::/0`                                                   |
 | 7 — leaked-password protection                            | Unverified                             | not readable from the CLI used                                                         |
-| `soap_password` plaintext                                 | **Still open, narrower than recorded** | 2 rows, both also sealed; code writes `""` on save and falls back to plaintext on read |
+| `soap_password` plaintext | **No plaintext stored** (corrected the same day) | both rows `length(soap_password)` 0 with a sealed copy; the first reading counted `is not null` on a NOT NULL column. Column retired by 0426 |
 | PITR                                                      | Off                                    | `backups list`: `pitr_enabled: false`, 8 daily backups, latest 2026-10-05 08:37 UTC    |
 
 ## Allowed existing APIs (plan §Phase 0 table)

@@ -21,7 +21,7 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
 | 4 | Tenant identity across foreign keys | Open | 0 existing mismatches found in the two core tables checked |
 | 5 (rest) | Nine production-only policies, five columns, ~20 indexes, two stale overloads, two FK differences | Open | the replay tests a database production is not |
 | 6, 7 | SSL not enforced, network open, leaked-password protection off | Open (SSL off and `0.0.0.0/0` rechecked 2026-10-05) | dashboard/CLI settings, not migrations |
-| — | `efs_soap_credentials.soap_password` plaintext beside `soap_password_sealed` | Open | two-merge pattern |
+| — | `efs_soap_credentials.soap_password` plaintext beside `soap_password_sealed` | **Merge 1 of 2** | measured 2026-10-05: both rows `''` with a sealed copy; 0426 forbids any other value and the reader no longer falls back. Merge 2 drops the column once no deployed code writes `''` |
 
 ## What the report got right, and what this check changed
 

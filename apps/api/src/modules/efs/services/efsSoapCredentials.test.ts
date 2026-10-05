@@ -105,10 +105,15 @@ describe("EFS credential password sealing", () => {
     expect(loaded?.soapPassword).toBe("sealed-password");
   });
 
-  it("still reads an unsealed legacy password during migration", async () => {
+  /**
+   * The plaintext column is retired (0426): production measured both rows sealed with an empty
+   * `soap_password` on 2026-10-05, so the fallback had nothing left to read. A row without a sealed
+   * password is a misconfiguration, treated as not connected rather than read as a password.
+   */
+  it("never reads the plaintext column, even when the sealed one is missing", async () => {
     const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("legacy-password", null)] } });
     const loaded = await getEfsSoapCredentials(db.client, env, ORG);
-    expect(loaded?.soapPassword).toBe("legacy-password");
+    expect(loaded).toBeNull();
   });
 });
 
@@ -270,7 +275,7 @@ describe("EFS processing status — an abandoned run must not go quiet", () => {
   const statusFor = async (rows: ReturnType<typeof runRow>[]) => {
     const db = createSupabaseRecorder({
       tables: {
-        efs_soap_credentials: [credentialRow("plain-password", null)],
+        efs_soap_credentials: [credentialRow("", seal(env, "plain-password", secretAad(ORG, "efs_soap_password.v1")))],
         efs_processing_runs: runsHonouringFilter(rows),
       },
     });

@@ -56,7 +56,6 @@ interface DbRow {
   environment: string;
   endpoint_url: string;
   soap_username: string;
-  soap_password: string;
   soap_password_sealed: string | null;
   account_id: string | null;
   posted_last_cursor: string | null;
@@ -70,10 +69,17 @@ interface DbRow {
   enabled: boolean;
 }
 
-function fromRow(row: DbRow, tls: EfsTlsMaterial | null, env: Env): EfsSoapCredentials {
-  const soapPassword = row.soap_password_sealed
-    ? open(env, row.soap_password_sealed, secretAad(row.org_id, "efs_soap_password.v1"))
-    : row.soap_password;
+function fromRow(row: DbRow, tls: EfsTlsMaterial | null, env: Env): EfsSoapCredentials | null {
+  // Only the sealed password is ever read. The plaintext column is retired (0426 forbids anything
+  // but '' in it): a row without a sealed password is a misconfiguration, reported as not connected.
+  if (!row.soap_password_sealed) {
+    console.error(
+      `[efs-soap] The EFS credential for org ${row.org_id} has no sealed password. ` +
+        "Re-save the EFS connection in Settings; until then EFS is treated as not connected.",
+    );
+    return null;
+  }
+  const soapPassword = open(env, row.soap_password_sealed, secretAad(row.org_id, "efs_soap_password.v1"));
   return {
     orgId: row.org_id,
     environment: row.environment === "production" ? "production" : "sandbox",
