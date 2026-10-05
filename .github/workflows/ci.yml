@@ -152,6 +152,9 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           MIGRATION_ORDERING_BASE: ${{ github.event.pull_request.base.sha }}
+          # The release PR (main → production) is a day of merges: check each one on its own, the unit
+          # it was checked in on its PR (scripts/check-migration-ordering.mjs, THE RELEASE PR).
+          MIGRATION_ORDERING_MERGES_TO: ${{ github.base_ref == 'production' && github.event.pull_request.head.sha || '' }}
         run: node scripts/check-migration-ordering.mjs
 
       # Fleet MPG has ONE definition. Four implementations of the same one landed without anyone
