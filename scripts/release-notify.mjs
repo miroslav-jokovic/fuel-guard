@@ -147,7 +147,7 @@ export function chooseRecipients(rows, env) {
   return { email: pick("email", "RELEASE_NOTIFY_EMAILS"), sms: pick("sms", "RELEASE_NOTIFY_PHONES") };
 }
 
-async function readTable(env) {
+export async function readTable(env) {
   if (!env.SUPABASE_ACCESS_TOKEN || !env.SUPABASE_PROJECT_REF) return null;
   try {
     const res = await fetch(`https://api.supabase.com/v1/projects/${env.SUPABASE_PROJECT_REF}/database/query`, {
@@ -165,18 +165,18 @@ async function readTable(env) {
   }
 }
 
-async function sendEmail(env, to, subject, text) {
+export async function sendEmail(env, to, subject, text, senderName = "Silvicom 360 releases") {
   if (!env.BREVO_API_KEY || !env.MAIL_FROM || !to.length) return "email not configured (BREVO_API_KEY, MAIL_FROM, and a recipient in the console or RELEASE_NOTIFY_EMAILS)";
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: { "api-key": env.BREVO_API_KEY, "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ sender: { email: env.MAIL_FROM, name: "Silvicom 360 releases" }, to: to.map((email) => ({ email })), subject, textContent: text }),
+    body: JSON.stringify({ sender: { email: env.MAIL_FROM, name: senderName }, to: to.map((email) => ({ email })), subject, textContent: text }),
     signal: AbortSignal.timeout(15_000),
   });
   return res.ok ? null : `email refused: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`;
 }
 
-async function sendSms(env, to, text) {
+export async function sendSms(env, to, text) {
   if (!env.TELNYX_API_KEY || !env.TELNYX_FROM || !to.length) return "SMS not configured (TELNYX_API_KEY, TELNYX_FROM, and a phone in the console or RELEASE_NOTIFY_PHONES)";
   const errors = [];
   for (const phone of to) {
