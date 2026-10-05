@@ -158,6 +158,17 @@ function literalFromCheck(meta, table, col) {
   const defs = (meta.checkOf.get(table) ?? []).filter((d) => new RegExp(`\\b${col}\\b`).test(d));
   if (defs.length === 0) return null;
 
+  // A check that PINS the column to one literal (`col = 'v'`, rendered `CHECK ((col = 'v'::text))`)
+  // admits exactly that value, the empty string included. 0426's `soap_password = ''` is the first;
+  // the quoted-literal scan below cannot see '' at all, and widening it to match '' would make a
+  // `btrim(col) <> ''` check seed the one value it forbids.
+  for (const def of defs) {
+    // Anchored: only a check that IS the equality. `fuel_price_days_carry_check` has
+    // `price_source = 'carried_forward'` as one branch of an OR, and that pins nothing.
+    const pinned = def.match(new RegExp(`^CHECK \\(\\(${col} = '([^']*)'::[a-z ]+\\)\\)$`));
+    if (pinned) return pinned[1];
+  }
+
   const forbidden = new Set();
   for (const def of defs) {
     for (const m of def.matchAll(new RegExp(`\\b${col}\\b\\s*<>\\s*'([^']+)'`, "g"))) forbidden.add(m[1]);
@@ -212,7 +223,7 @@ function valueFor(meta, table, c, orgId, tsIndex = 0) {
     // A CHECK pins the value; otherwise make it UNIQUE. Several tables carry unique indexes over a
     // free-text business key (loads.ref is the one that bit first), and seeding two rows with the
     // same placeholder collides — which reads as "cannot seed" when the schema is in fact fine.
-    return literal ? `'${literal}'` : `('x-' || gen_random_uuid()::text)`;
+    return literal !== null ? `'${literal}'` : `('x-' || gen_random_uuid()::text)`;
   }
   if (/^(smallint|integer|bigint|numeric|real|double precision)/.test(t)) return "1";
   if (t === "boolean") return "false";
