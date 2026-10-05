@@ -51,3 +51,52 @@ describe("iftaJurisdictionTrucks", () => {
     expect(r.taxableMiles).toBe(4);
   });
 });
+
+const fill = (vehicleId: string | null, gallons: number, totalCost: number | null, fueledAt: string) => ({
+  id: `f-${vehicleId}-${fueledAt}`, vehicleId, fueledAt, businessDate: fueledAt.slice(0, 10),
+  gallons, pricePerGal: totalCost == null ? null : totalCost / gallons, totalCost, location: "Pilot #123, Amarillo TX",
+});
+
+describe("iftaJurisdictionTrucks — the fuel bought there", () => {
+  it("puts each fill on the truck that bought it, newest first, with its gallons and spend", () => {
+    const r = iftaJurisdictionTrucks(
+      [truck("101", 1_000)],
+      [fill("v-101", 100, 380, "2026-07-02T10:00:00Z"), fill("v-101", 120.5, 450, "2026-08-09T10:00:00Z")],
+    );
+    const t = r.trucks[0]!;
+    expect(t.gallonsBought).toBe(220.5);
+    expect(t.spent).toBe(830);
+    expect(t.fills.map((f) => f.fueledAt)).toEqual(["2026-08-09T10:00:00Z", "2026-07-02T10:00:00Z"]);
+  });
+
+  it("keeps a truck that fuelled here without reporting miles here, below every truck that drove here", () => {
+    const r = iftaJurisdictionTrucks(
+      [truck("101", 50)],
+      [fill("v-777", 150, 600, "2026-07-03T10:00:00Z")],
+      { "v-777": "777" },
+    );
+    expect(r.trucks.map((t) => [t.unitNumber, t.taxableMiles, t.gallonsBought])).toEqual([
+      ["101", 50, 0],
+      ["777", 0, 150],
+    ]);
+  });
+
+  it("keeps fills with no truck as their own last row, so the page's gallons equal the ledger row's", () => {
+    const r = iftaJurisdictionTrucks(
+      [truck("101", 1_000)],
+      [fill("v-101", 100, 400, "2026-07-02T10:00:00Z"), fill(null, 80, 300, "2026-07-05T10:00:00Z")],
+    );
+    expect(r.gallonsBought).toBe(180);
+    expect(r.fillCount).toBe(2);
+    const last = r.trucks[r.trucks.length - 1]!;
+    expect(last.vehicleId).toBeNull();
+    expect(last.gallonsBought).toBe(80);
+    expect(r.trucks.reduce((a, t) => a + t.gallonsBought, 0)).toBe(r.gallonsBought);
+  });
+
+  it("counts a fill with no recorded cost as no spend rather than NaN", () => {
+    const r = iftaJurisdictionTrucks([truck("101", 10)], [fill("v-101", 50, null, "2026-07-02T10:00:00Z")]);
+    expect(r.spent).toBe(0);
+    expect(r.trucks[0]!.gallonsBought).toBe(50);
+  });
+});

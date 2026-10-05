@@ -23,7 +23,21 @@ const MILES = [
   { vehicle_id: "v101", samsara_vehicle_id: "a", period_year: 2026, period_month: 6, jurisdiction: "TX", taxable_meters: 99_000, total_meters: 99_000 },
 ];
 
-const filtersOf = (q: RecordedQuery) => Object.fromEntries(q.filters().map((f) => [f.col, f.val]));
+const fillRow = (id: string, vehicle_id: string | null, state: string, business_date: string, gallons: number) => ({
+  id, vehicle_id, state, business_date, fueled_at: `${business_date}T15:00:00Z`, gallons,
+  price_per_gal: "3.800", total_cost: String(gallons * 3.8), location_text: "Pilot, Amarillo", tank_type: "tractor",
+});
+const FILLS = [
+  fillRow("f1", "v101", "TX", "2026-07-10", 100),
+  // Bought in Texas by a truck Samsara never saw drive there — its unit number must still resolve.
+  fillRow("f2", "v555", "TX", "2026-09-30", 50),
+  fillRow("f3", null, "TX", "2026-08-01", 20),
+  // Noise: the next quarter's first day, and another state.
+  fillRow("f4", "v101", "TX", "2026-10-01", 999),
+  fillRow("f5", "v101", "OK", "2026-07-10", 999),
+];
+
+const filtersOf =(q: RecordedQuery) => Object.fromEntries(q.filters().map((f) => [f.col, f.val]));
 
 function recorder() {
   return createSupabaseRecorder({
@@ -42,7 +56,18 @@ function recorder() {
         return [
           { id: "v732", unit_number: " 732 " },
           { id: "v101", unit_number: "101" },
+          { id: "v555", unit_number: "555" },
         ].filter((v) => ids.includes(v.id));
+      },
+      fuel_transactions: (q) => {
+        const ops = q.ops.map((o) => [o.method, ...o.args] as unknown[]);
+        const arg = (method: string, col: string) => ops.find((o) => o[0] === method && o[1] === col)?.[2];
+        return FILLS.filter(
+          (f) =>
+            String(f.state).toUpperCase() === String(arg("ilike", "state")).toUpperCase() &&
+            f.business_date >= String(arg("gte", "business_date")) &&
+            f.business_date < String(arg("lt", "business_date")),
+        );
       },
     },
   });
@@ -70,6 +95,26 @@ describe("readIftaJurisdictionTrucks", () => {
     const rec = recorder();
     await readIftaJurisdictionTrucks(rec.client as unknown as SupabaseClient, ORG, 2026, 3, "TX");
     expectOrgScoped(rec, ORG);
+  });
+
+  it("returns the quarter's fills bought in the jurisdiction, including a fuel-only truck and an unattached fill", async () => {
+    const rec = recorder();
+    const r = await readIftaJurisdictionTrucks(rec.client as unknown as SupabaseClient, ORG, 2026, 3, "TX");
+    expect(r.fills.map((f) => [f.id, f.vehicleId, f.gallons])).toEqual([
+      ["f1", "v101", 100],
+      ["f2", "v555", 50],
+      ["f3", null, 20],
+    ]);
+    expect(r.fills[0]!.totalCost).toBe(380);
+    expect(r.units.v555).toBe("555");
+  });
+
+  it("cuts a Q4 quarter at the next year's first day", async () => {
+    const rec = recorder();
+    await readIftaJurisdictionTrucks(rec.client as unknown as SupabaseClient, ORG, 2026, 4, "TX");
+    const fuel = rec.queries.find((q) => q.table === "fuel_transactions")!;
+    const lt = fuel.ops.find((o) => o.method === "lt" && o.args[0] === "business_date");
+    expect(lt?.args[1]).toBe("2027-01-01");
   });
 
   it("reads no vehicles at all when the jurisdiction has no trucks", async () => {

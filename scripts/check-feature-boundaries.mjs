@@ -365,6 +365,10 @@ const API_ALLOW = new Set([
   // samsara's own `readJurisdictionVehicleMiles` — the collector's door onto its jurisdiction table,
   // the same kind of read the CPM harness and FleetPal take — never a `.from()` on the raw table.
   "ifta -> samsara",
+  // …and its purchases half: the tractor fills bought in that jurisdiction, through fuel's own
+  // `readJurisdictionFills`, on the ledger row's own predicate, so the trucks' gallons add up to it.
+  // ARCHITECTURE §4 always had ifta reading "samsara staging + fuel"; this is the fuel arrow drawn.
+  "ifta -> fuel",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
