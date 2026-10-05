@@ -1,8 +1,8 @@
 # Release train — merge all day, release once a night
 
-**Status:** LIVE since 2026-10-04 09:59 CT. R0, R2, R3, R4, R5 (cut over), R6a (version) and R7 (docs) done; Q-REL6
-(production schema drift) closed by 0422/0423 with a nightly drift check. Open: R6b (PR template,
-area labels, notes by area) and Q-REL4 (summary recipients).
+**Status:** LIVE since 2026-10-04 09:59 CT. R0, R2–R7 done (R6: release version, PR template, notes
+by area); Q-REL6 (production schema drift) closed by 0422/0423 with a nightly drift check. Open:
+Q-REL4 (summary recipients).
 
 **Supersedes** the "merge = deploy" model from SHIP-PIPELINE-PLAN.md D0–D4 for the two Railway app
 services, Supabase migrations and the driver OTA lane. Store builds (`driver-store.yml`, tag-driven)
@@ -259,3 +259,12 @@ jobs resume exactly as before R5.
   Measured the same day: production's current deploy reports branch `main` — built before the
   cutover moved its trigger — so it will report a version only from the first release onward.
   Still owed (R6b): PR template, area labels, notes grouped by area.
+- 2026-10-05 — R6b, the notes half of D-REL10. An area is derived from the files a PR touches, never
+  typed: `AREAS` in `scripts/release-train.mjs` names each api module, web feature, app, package and
+  plan folder once, and its self-test fails when one exists that no area names. A PR's area is where
+  most of its code is; a schema-and-docs PR takes its plan folder's area (C1b's 0425 is
+  maintenance). `pr-area.yml` applies it once as an `area:<id>` label (created on first use), which a
+  person may correct; the notes read the label and fall back to the files. Release notes now print
+  under nine headings instead of one list. `.github/pull_request_template.md` asks what changes for
+  a user, migration and risk, how to check it on staging, and tests; root CLAUDE.md tells sessions
+  to write those headings, because `gh pr create --body-file` skips the template.

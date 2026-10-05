@@ -138,7 +138,11 @@ So, when the honest fix is out of scope:
   service, a table, or a feature. The product is Silvicom 360; "FuelGuard" in code predates the
   rename step and is expected until it lands.
 - Branches: `claude/<topic>`; PRs to `main`. Commit messages are one descriptive sentence in the
-  style of `git log` (they read as a narrative, not conventional-commit tags).
+  style of `git log` (they read as a narrative, not conventional-commit tags). A PR's TITLE is its
+  line in the release notes, so write it for an office reader; its body follows the four headings of
+  `.github/pull_request_template.md` (what changes for a user, migration and risk, how to check it on
+  staging, tests) — `gh pr create --body-file` skips the template, so write them in. The `area:`
+  label is applied from the files by `pr-area.yml` (rules: `AREAS` in `scripts/release-train.mjs`).
 - Background work runs in the worker (`WORKER_ROLE=scheduler|consumer|both`); schedulers must run in
   exactly ONE process fleet-wide — never add one without checking `docs/WORKER-DEPLOYMENT.md`.
   `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service never given it runs them: `api`
