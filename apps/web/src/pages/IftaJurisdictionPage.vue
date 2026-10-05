@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
@@ -9,6 +9,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -60,11 +61,45 @@ const keyOf = (t: IftaJurisdictionTruck) => t.vehicleId ?? UNASSIGNED;
 const truckLabel = (t: IftaJurisdictionTruck) =>
   t.vehicleId == null ? "Not assigned to a truck" : (t.unitNumber ?? "No unit number");
 
+/**
+ * Which trucks the table lists, from `?show=`. The resting view (`""`) is the trucks that BOUGHT fuel
+ * here — the owner's ruling of 2026-10-05, because the question this page is opened with is "where
+ * did our fuel go". Resting on `""` rather than `"fuelled"` is not cosmetic: `FilterSelect` reads any
+ * non-empty value as an applied filter and draws it as a chip with a clear button.
+ *
+ * ⚠ A truck that drove here and bought nothing is not noise — its miles are what make this
+ * jurisdiction OWED tax. So it is one choice away rather than gone, the cards above keep the whole
+ * jurisdiction's figures, and the count says "N of M" whenever the list is narrower than the cards.
+ */
+type Show = "" | "drove" | "all";
+const SHOW_OPTIONS: { value: Show; label: string }[] = [
+  { value: "", label: "Bought fuel here" },
+  { value: "drove", label: "Drove here, bought none" },
+  { value: "all", label: "All trucks" },
+];
+const show = computed<Show>({
+  get: () => (["drove", "all"].includes(String(route.query.show)) ? (route.query.show as Show) : ""),
+  set: (v) => void router.replace({ query: { ...route.query, show: v || undefined } }),
+});
+const search = computed<string>({
+  get: () => String(route.query.search ?? ""),
+  set: (v) => void router.replace({ query: { ...route.query, search: v.trim() ? v : undefined } }),
+});
+const shows = (t: IftaJurisdictionTruck): boolean =>
+  show.value === "all" || (show.value === "drove" ? t.fills.length === 0 : t.fills.length > 0);
+const matches = (t: IftaJurisdictionTruck): boolean => {
+  const q = search.value.trim().toLowerCase();
+  return !q || truckLabel(t).toLowerCase().includes(q);
+};
+const activeFilterCount = computed(() => (show.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
+const resetFilters = () => void router.replace({ query: { ...route.query, show: undefined, search: undefined } });
+
 const sort = ref<SortState>({ key: null, dir: "asc" });
 const byKey = computed(() => new Map((data.value?.trucks ?? []).map((t) => [keyOf(t), t])));
+const visible = computed(() => (data.value?.trucks ?? []).filter((t) => shows(t) && matches(t)));
 const rows = computed(() =>
   sortRows(
-    (data.value?.trucks ?? []).map((t) => ({
+    visible.value.map((t) => ({
       id: keyOf(t),
       unit: truckLabel(t),
       taxableMiles: t.taxableMiles,
@@ -90,7 +125,24 @@ const cols: DataTableColumn[] = [
 ];
 /** Trucks, not rows: the fills with no truck sit on a row of their own and are not a truck. */
 const truckCount = computed(() => (data.value?.trucks ?? []).filter((t) => t.vehicleId != null).length);
+const listedTrucks = computed(() => visible.value.filter((t) => t.vehicleId != null).length);
 const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
+/** Client-side pages over the filtered list — a jurisdiction-quarter is at most a few hundred trucks. */
+const PAGE_SIZE = 25;
+const page = ref(1);
+watch([rows, sort], () => (page.value = 1));
+const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
+/** An empty list says which of the two it is: nothing here at all, or nothing this filter keeps. */
+const emptyText = computed(() => {
+  const where = `${name.value} in ${quarterLabel(quarter.value)}`;
+  if (!data.value?.trucks.length) return `No truck drove or bought fuel in ${where}.`;
+  if (search.value.trim()) return `No truck matching "${search.value.trim()}". Clear the search to see them all.`;
+  if (show.value === "") return `No truck bought fuel in ${where}. Choose "All trucks" to see the ones that drove there.`;
+  if (show.value === "drove") return `Every truck that drove in ${where} also bought fuel there.`;
+  return `No truck drove or bought fuel in ${where}.`;
+});
 
 /** A truck's fills open under its row — the mouse clicks the row, the keyboard the chevron. */
 const expanded = ref(new Set<string>());
@@ -128,9 +180,18 @@ const fillRows = (id: string) =>
       :description="`Every truck that drove or bought fuel in ${name} in ${quarterLabel(quarter)}: its miles there and its fills there.`"
     />
 
-    <FilterBar :count="truckCount" count-label="trucks">
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search truck…"
+      :count="listedTrucks"
+      count-label="trucks"
+    >
       <template #filters>
         <FilterSelect v-model="selectedKey" :options="quarterOptions" label="Quarter" />
+        <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
+      </template>
+      <template #actions>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
     </FilterBar>
 
@@ -146,15 +207,20 @@ const fillRows = (id: string) =>
         <StatCard label="Trucks" :value="truckCount.toLocaleString('en-US')" :sub="`drove or fuelled in ${name}`" />
       </div>
 
+      <p v-if="data && listedTrucks !== truckCount" class="text-xs text-ink-tertiary" data-testid="narrower">
+        Listing {{ listedTrucks.toLocaleString("en-US") }} of {{ truckCount.toLocaleString("en-US") }} trucks. The
+        figures above are the whole of {{ name }} for the quarter.
+      </p>
+
       <BaseCard padding="none">
         <DataTable
           :columns="cols"
-          :rows="rows"
+          :rows="paged"
           row-key="id"
           :loading="isLoading || isFetching"
           :sort="sort"
           :expanded="expanded"
-          :empty-text="`No truck drove or bought fuel in ${name} in ${quarterLabel(quarter)}.`"
+          :empty-text="emptyText"
           @sort="onSort"
           @retry="() => refetch()"
           @row-click="toggle"
@@ -197,6 +263,9 @@ const fillRows = (id: string) =>
               row-key="id"
               :data-testid="`fills-${row.id}`"
             />
+          </template>
+          <template #footer>
+            <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
           </template>
         </DataTable>
       </BaseCard>
