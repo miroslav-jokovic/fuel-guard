@@ -1,0 +1,406 @@
+{
+  "commit": "77eff5f",
+  "totals": {
+    "rawAccessGrandfathered": 29,
+    "writersGrandfathered": 59
+  },
+  "tables": {
+    "finance_month_closes": {
+      "module": "financial",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/financial/monthClose.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_finance_month_closes_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "financial_entries": {
+      "module": "financial",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span — that is a BACKFILL, not a steady rate; re-measure before trusting this budget."
+      },
+      "writers": ["apps/api/src/modules/financial/projection.ts"],
+      "readers_api": ["apps/api/src/modules/financial/reads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_financial_entries_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "load_external_payloads": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 5 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"],
+      "readers_api": ["apps/api/src/modules/loads/dispatchLoads/duty.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_load_external_payloads_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["load_external_payloads_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": ["apps/api/src/modules/loads/dispatchLoads/duty.ts"],
+      "grandfathered_writers": []
+    },
+    "mcleod_ap_vouchers": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/financialIngest.ts"],
+      "readers_api": [
+        "apps/api/src/modules/mcleod/financialReads.ts",
+        "apps/api/src/modules/mcleod/maintenanceVouchers.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_mcleod_ap_vouchers_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_billing": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/financialIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_mcleod_billing_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_deductions": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/financialIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_mcleod_deductions_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_dispatch_movements": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "budget derived from live lme 2026-09-24: 99.3 new movements/day by first scheduled stop over the 28 days to 2026-09-22, x3 headroom. One row per movement, updated in place while it is on the board. Retention unruled — LOADS-MIRROR-PLAN Q-LMR8, DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/dispatchMovementIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/dispatchProjection.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_dispatch_stops": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 650,
+        "why": "budget derived from live lme 2026-09-24: 209.7 stops/day over the same 28 days (max 12 on one movement), x3 headroom. Cascades from mcleod_dispatch_movements, so its retention is the movement's — LOADS-MIRROR-PLAN Q-LMR8."
+      },
+      "writers": ["apps/api/src/modules/mcleod/dispatchMovementIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/dispatchProjection.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_gl_accounts": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": ["apps/api/src/modules/mcleod/ledgerControlIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_gl_days": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "replace_mcleod_gl_days",
+          "migration": "0310",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_gl_totals": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "replace_mcleod_gl_month",
+          "migration": "0304",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "replace_mcleod_gl_days",
+          "migration": "0310",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_mcleod_gl_totals_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_movements": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/movementFactIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_mcleod_movements_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_office_lines": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/financialIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "mcleod_settlements": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": ["apps/api/src/modules/mcleod/financialIngest.ts"],
+      "readers_api": ["apps/api/src/modules/mcleod/financialReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_mcleod_settlements_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "tms_dispatchers": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per McLeod dispatcher account, upserted on (org_id, provider, external_id) - 16 on the live board 2026-09-23 (L4, its first writer). Bounded by the carrier's staff, not by elapsed time."
+      },
+      "writers": ["apps/api/src/modules/mcleod/tmsDispatcherIngest.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "tms_movements": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/mcleod/tmsIngest.ts"],
+      "readers_api": ["apps/api/src/modules/anomalies/scoring/context.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_tms_movements_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": [
+        "tms_movements_driver_deny [RESTRICTIVE/SELECT]",
+        "tms_movements_driver_scope [RESTRICTIVE/SELECT]",
+        "tms_movements_select [PERMISSIVE/SELECT]"
+      ],
+      "grandfathered_raw_access": ["apps/api/src/modules/anomalies/scoring/context.ts"],
+      "grandfathered_writers": []
+    }
+  }
+}

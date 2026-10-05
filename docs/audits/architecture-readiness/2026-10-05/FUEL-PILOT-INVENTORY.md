@@ -46,7 +46,7 @@ These are classifications with evidence, not yet failing tests. Each names the p
    nothing for scoring to overwrite today. It becomes a defect the moment such a path exists.
    Both updates (`scoreTransaction.ts:87`, `context.ts:145`) filter by `id` alone, without the
    `org_id` filter D-APR7 asks of service-role queries; the id is a UUID, so this is a missing
-   second check, not a known leak.
+   second check, not a known leak. **Fixed in #1299** (all three updates now filter `org_id`).
 3. **A re-sent vendor row with changed values is discarded (D-APR4, Q4).** Both the raw and canonical
    upserts are `ON CONFLICT DO NOTHING`. Whether EFS ever re-sends a corrected transaction under the
    same `external_ref` is **unverified**; if it does, neither table records the correction.
@@ -65,7 +65,7 @@ These are classifications with evidence, not yet failing tests. Each names the p
 
 ## Not covered yet
 
-- Other domains (telemetry/idle, finance) — after the pilot, per APR0.2.
+- Other domains: see `TELEMETRY-INVENTORY.md` and `FINANCE-INVENTORY.md`.
 - Pilot fixtures (missing data, corrections, duplicates, DST, …) — APR0.2's second half.
 - Readers through views and RPCs mapped to their callers; the 10 dynamic `.from()` sites.
 - Whether EFS re-sends corrections (point 3) — needs EFS documentation or a measured duplicate with

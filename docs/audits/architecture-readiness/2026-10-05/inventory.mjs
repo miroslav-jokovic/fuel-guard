@@ -1,6 +1,8 @@
-// APR0.1 inventory generator for the fuel pilot (PRODUCTION-READINESS-AND-DATA-SEPARATION-PLAN.md).
-// Run from the repo root: node docs/audits/architecture-readiness/2026-10-05/inventory.mjs > \
-//   docs/audits/architecture-readiness/2026-10-05/fuel-pilot-inventory.json
+// APR0.1 inventory generator (PRODUCTION-READINESS-AND-DATA-SEPARATION-PLAN.md).
+// Run from the repo root: node docs/audits/architecture-readiness/2026-10-05/inventory.mjs [scope] > \
+//   docs/audits/architecture-readiness/2026-10-05/<scope>-inventory.json
+// Scopes: fuel (default; the pilot, selected by table name — written as fuel-pilot-inventory.json),
+// telemetry (idle + samsara modules), finance (financial + mcleod modules).
 // Structural only: writers come from table-writers.json, readers from a `.from("<table>")` scan of
 // non-test source, functions from the LAST migration that defines them (a later drop removes one),
 // triggers and policies from schema.generated.sql, exceptions from the two gates' grandfather lists.
@@ -16,9 +18,15 @@ const writers = JSON.parse(fs.readFileSync("scripts/table-writers.json", "utf8")
 const snap = fs.readFileSync("supabase/schema.generated.sql", "utf8");
 
 const PILOT = /fuel|efs|card|anomal|scor|declin|recon|spend|discount|station|price/;
-const tables = Object.keys(tablesMeta)
-  .filter((t) => PILOT.test(t))
-  .sort();
+const SCOPES = {
+  fuel: (t) => PILOT.test(t),
+  telemetry: (t) => ["idle", "samsara"].includes(tablesMeta[t].module),
+  finance: (t) => ["financial", "mcleod"].includes(tablesMeta[t].module),
+};
+const scope = process.argv[2] ?? "fuel";
+if (!SCOPES[scope])
+  throw new Error(`unknown scope ${scope}; one of ${Object.keys(SCOPES).join(", ")}`);
+const tables = Object.keys(tablesMeta).filter(SCOPES[scope]).sort();
 
 // Latest definition of every function, by migration order (last create wins; a later drop removes it).
 const migDir = "supabase/migrations";
