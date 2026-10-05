@@ -51,6 +51,12 @@ export interface IftaFuelPurchase {
   jurisdiction: string;
   tranDate: string;
   gallons: number;
+  /**
+   * Where the gallons come from. Absent means a card fill. `mcleod_receipt` is a receipt the office
+   * keyed into McLeod by hand (IP6): it is fuel bought, so it counts exactly like a card fill, and it
+   * is ALSO summed on its own so a page can say how much of "gallons bought" rests on receipts.
+   */
+  source?: "card" | "mcleod_receipt";
 }
 
 export interface IftaJurisdictionPosition {
@@ -60,6 +66,8 @@ export interface IftaJurisdictionPosition {
   /** `taxableMiles ÷ fleetMpg`. Null when the MPG could not be measured. */
   gallonsConsumed: number | null;
   gallonsPurchased: number;
+  /** The part of `gallonsPurchased` from receipts keyed in McLeod (IP6). Zero when there are none. */
+  gallonsFromReceipts: number;
   /** The jurisdiction's diesel rate for this period, or null when the table cannot price it. */
   ratePerGal: number | null;
   liability: number | null;
@@ -92,6 +100,8 @@ export interface IftaPosition {
   credit: number;
   net: number;
   surcharge: number;
+  /** Gallons from receipts keyed in McLeod, inside `mpg.totalGallons` — all jurisdictions. */
+  receiptGallons: number;
   /** Miles the tax table could price, over all miles. Null when there are none. */
   pricedMileShare: number | null;
   /** Jurisdictions carrying miles that could not be priced — named, so the gap is nameable. */
@@ -178,12 +188,18 @@ export function computeIftaPosition(
   }
 
   const purchased = new Map<string, number>();
+  const fromReceipts = new Map<string, number>();
   let totalGallons = 0;
+  let receiptGallons = 0;
   for (const p of purchases) {
     if (!(p.gallons > 0)) continue;
     const code = p.jurisdiction.trim().toUpperCase();
     purchased.set(code, (purchased.get(code) ?? 0) + p.gallons);
     totalGallons += p.gallons;
+    if (p.source === "mcleod_receipt") {
+      fromReceipts.set(code, (fromReceipts.get(code) ?? 0) + p.gallons);
+      receiptGallons += p.gallons;
+    }
   }
 
   const totalMiles = [...byJurisdiction.values()].reduce((s, a) => s + a.taxable, 0);
@@ -215,6 +231,7 @@ export function computeIftaPosition(
       totalMiles: Math.round(m.total),
       gallonsConsumed: gallonsConsumed == null ? null : Math.round(gallonsConsumed * 10) / 10,
       gallonsPurchased: Math.round(gallonsPurchased * 10) / 10,
+      gallonsFromReceipts: Math.round((fromReceipts.get(code) ?? 0) * 10) / 10,
       ratePerGal,
       liability,
       credit,
@@ -241,6 +258,7 @@ export function computeIftaPosition(
     credit: sum((j) => j.credit),
     net: sum((j) => j.net),
     surcharge: sum((j) => j.surcharge),
+    receiptGallons: Math.round(receiptGallons * 10) / 10,
     pricedMileShare: totalMiles > 0 ? pricedMiles / totalMiles : null,
     unpriced: unpriced.sort(),
   };

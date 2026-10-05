@@ -64,6 +64,7 @@ function healthy(over: Partial<IftaPeriodData> = {}): IftaPeriodData {
     },
     samsaraTaxPaidLiters: 0,
     neverFetched: false,
+    receipts: { jurisdictions: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] },
     ...over,
   };
 }
@@ -121,6 +122,36 @@ describe("IftaLedgerPage", () => {
     const t = (await mountPage()).w.text();
     expect(t).toContain("Fleet MPG used");
     expect(t).toContain("7.00");
+  });
+
+  // ── McLeod's hand-keyed receipts (IP6) ─────────────────────────────────────────────────────────
+  it("says gallons bought are card fills only while McLeod has no receipts for the quarter", async () => {
+    const { w } = await mountPage();
+    expect(w.find('[data-testid="receipt-line"]').text()).toContain("No receipts keyed in McLeod for this quarter");
+    expect(w.text()).not.toContain("from receipts keyed in McLeod");
+  });
+
+  it("shows how much of a state's gallons bought came from receipts, and accounts for the ones left out", async () => {
+    const position = computeIftaPosition(
+      [miles("TX", 35_000), miles("CA", 35_000)],
+      [bought("TX", 9_600), { ...bought("TX", 400), source: "mcleod_receipt" }],
+      "2026-05-15",
+    );
+    period.value = healthy({
+      position,
+      receipts: {
+        jurisdictions: [{ jurisdiction: "TX", gallons: 400, receipts: 3 }],
+        duplicatesDropped: 2, duplicateGallons: 160, unmatched: 1, unmatchedUnits: ["999"],
+      },
+    });
+    const { w } = await mountPage();
+    const tx = w.findAll("tbody tr").find((tr) => tr.text().includes("Texas"))!;
+    expect(tx.text()).toContain("10,000");
+    expect(tx.text()).toContain("incl. 400 gal from receipts keyed in McLeod");
+    const line = w.find('[data-testid="receipt-line"]').text();
+    expect(line).toContain("include 400 gal from 3 receipts keyed in McLeod");
+    expect(line).toContain("2 more matched a card fill");
+    expect(line).toContain("McLeod unit 999");
   });
 
   it("says nothing alarming about a quarter that hangs together", async () => {

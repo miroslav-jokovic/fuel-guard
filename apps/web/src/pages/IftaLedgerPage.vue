@@ -52,6 +52,35 @@ const tieOut = computed(() => data.value?.tieOut ?? null);
 const summary = computed(() => data.value?.summary ?? null);
 
 /**
+ * What "gallons bought" owes to McLeod's hand-keyed receipts (IP6) — cash and drivers' own cards,
+ * which no card feed sees. Said every time, including when there are none: a quarter's receipts are
+ * keyed in the week after it closes, so "card fills only" is a fact about the quarter, not silence.
+ */
+const receiptLine = computed(() => {
+  const r = data.value?.receipts;
+  const p = position.value;
+  if (!r || !p) return null;
+  const count = r.jurisdictions.reduce((n, j) => n + j.receipts, 0);
+  const parts: string[] = [];
+  parts.push(
+    count > 0
+      ? `Gallons bought include ${gal(p.receiptGallons)} gal from ${count.toLocaleString("en-US")} receipt${count === 1 ? "" : "s"} keyed in McLeod (cash and drivers' own cards)`
+      : "No receipts keyed in McLeod for this quarter, so gallons bought are card fills only. The office keys cash and own-card receipts in the week after a quarter closes",
+  );
+  if (r.duplicatesDropped > 0) {
+    parts.push(
+      `${r.duplicatesDropped} more matched a card fill (same truck, state, day and gallons) and ${r.duplicatesDropped === 1 ? "is" : "are"} counted once`,
+    );
+  }
+  if (r.unmatched > 0) {
+    parts.push(
+      `${r.unmatched} came from McLeod unit${r.unmatchedUnits.length === 1 ? "" : "s"} ${r.unmatchedUnits.join(", ")}, matched to no truck here, and ${r.unmatched === 1 ? "is" : "are"} counted in ${r.unmatched === 1 ? "its" : "their"} state`,
+    );
+  }
+  return `${parts.join(" · ")}.`;
+});
+
+/**
  * One line saying whether the numbers below can be trusted, in the order a reader needs them.
  *
  * The MPG verdict comes first because every liability derives from it. The tie-out's concern comes
@@ -105,6 +134,7 @@ const rows = computed(() =>
     rate: j.ratePerGal == null ? "—" : usd3(j.ratePerGal),
     liability: j.liability == null ? "—" : usd(j.liability),
     purchased: gal(j.gallonsPurchased),
+    fromReceipts: j.gallonsFromReceipts > 0 ? gal(j.gallonsFromReceipts) : null,
     credit: j.credit == null ? "—" : usd(j.credit),
     net: j.net == null ? "not priced" : usd(j.net),
     surcharge: j.surcharge == null || j.surcharge === 0 ? "—" : usd(j.surcharge),
@@ -198,6 +228,8 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
         </template>
       </p>
 
+      <p v-if="receiptLine" class="text-xs text-ink-tertiary" data-testid="receipt-line">{{ receiptLine }}</p>
+
       <p v-for="(note, i) in samsaraNotes" :key="i" class="text-xs text-ink-tertiary">{{ note }}</p>
 
       <BaseCard padding="none">
@@ -214,6 +246,10 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
               class="font-medium text-brand-700 hover:underline"
               @click.stop
             >{{ row.jurisdiction }}</RouterLink>
+          </template>
+          <template #cell-purchased="{ row }">
+            {{ row.purchased }}
+            <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from receipts keyed in McLeod</span>
           </template>
         </DataTable>
       </BaseCard>

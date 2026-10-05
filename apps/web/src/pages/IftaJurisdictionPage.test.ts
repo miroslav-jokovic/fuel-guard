@@ -171,6 +171,36 @@ describe("IftaJurisdictionPage", () => {
     expect(fills.text().indexOf("El Paso")).toBeLessThan(fills.text().indexOf("Amarillo"));
   });
 
+  // ── McLeod's hand-keyed receipts (IP6) ─────────────────────────────────────────────────────────
+  /** Unit 512's real shape: an owner-operator whose fuel reaches the IFTA only as paper receipts. */
+  const withReceipts = () => {
+    trucks.value = iftaJurisdictionTrucks(
+      [raw("732", 3_000, 3_100, 3)],
+      [fill("f1", "v-732", 120, 456, "2026-07-14", "Love's #512, Amarillo TX")],
+      { "v-512": "512" },
+      [{ externalId: "r1", vehicleId: "v-512", mcleodUnit: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 110 }],
+    );
+  };
+
+  it("lists a truck whose only fuel here was a receipt keyed in McLeod under Bought fuel here", async () => {
+    withReceipts();
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    const row = w.findAll("tbody tr").find((tr) => tr.text().includes("512"));
+    expect(row).toBeTruthy();
+    await row!.trigger("click");
+    const fills = w.find('[data-testid="fills-v-512"]');
+    expect(fills.text()).toContain("Receipt keyed in McLeod · TX");
+    expect(fills.text()).toContain("08/15/2026");
+    expect(fills.text()).toContain("110");
+  });
+
+  it("counts receipts in the jurisdiction's gallons bought and says how many there were", async () => {
+    withReceipts();
+    const t = (await mountPage("/ifta/TX?q=2026-Q3")).text();
+    expect(t).toContain("230");
+    expect(t).toContain("in 1 fill + 1 receipt keyed in McLeod (110 gal)");
+  });
+
   it("offers nothing to open on a truck that bought no fuel here", async () => {
     const w = await mountPage("/ifta/TX?q=2026-Q3&show=all");
     const row = w.findAll("tbody tr").find((tr) => tr.text().includes("101"));

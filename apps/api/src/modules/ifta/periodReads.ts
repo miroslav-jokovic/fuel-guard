@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { IftaJurisdictionTrucksResponse } from "@silvicom/shared";
+import type { IftaJurisdictionTrucksResponse, IftaPeriodReceipts } from "@silvicom/shared";
 import { readJurisdictionVehicleMiles } from "../samsara/index.js";
 import { readJurisdictionFills } from "../fuel/index.js";
+import { quarterWindow, readIftaJurisdictionReceipts, readIftaPeriodReceipts } from "./receiptReads.js";
 
 /**
  * The quarterly IFTA reads, made server-side. Until program step P1.10 (2026-08-27) the harness
@@ -14,6 +15,12 @@ import { readJurisdictionFills } from "../fuel/index.js";
 export interface IftaPeriodRows {
   jurisdictions: Record<string, unknown>[];
   summary: Record<string, unknown> | null;
+  /**
+   * McLeod's hand-keyed receipts per jurisdiction (IP6), card duplicates dropped. Beside the RPC's
+   * card gallons rather than inside them: the browser adds them as their own source, so the page can
+   * say how much of "gallons bought" rests on receipts.
+   */
+  receipts: IftaPeriodReceipts;
 }
 
 export async function readIftaPeriod(
@@ -23,15 +30,17 @@ export async function readIftaPeriod(
   quarter: number,
 ): Promise<IftaPeriodRows> {
   const args = { p_org: orgId, p_year: year, p_quarter: quarter };
-  const [jurisdictions, summaryRows] = await Promise.all([
+  const [jurisdictions, summaryRows, receipts] = await Promise.all([
     admin.rpc("ifta_period_jurisdictions", args),
     admin.rpc("ifta_period_summary", args),
+    readIftaPeriodReceipts(admin, orgId, year, quarter),
   ]);
   if (jurisdictions.error) throw new Error(jurisdictions.error.message);
   if (summaryRows.error) throw new Error(summaryRows.error.message);
   return {
     jurisdictions: (jurisdictions.data ?? []) as Record<string, unknown>[],
     summary: ((summaryRows.data ?? []) as Record<string, unknown>[])[0] ?? null,
+    receipts,
   };
 }
 
@@ -50,16 +59,18 @@ export async function readIftaJurisdictionTrucks(
   jurisdiction: string,
 ): Promise<IftaJurisdictionTrucksResponse> {
   const months = [1, 2, 3].map((i) => (quarter - 1) * 3 + i);
-  const pad = (m: number) => String(m).padStart(2, "0");
-  const fromDay = `${year}-${pad(months[0]!)}-01`;
-  const toDayExclusive = quarter === 4 ? `${year + 1}-01-01` : `${year}-${pad(months[2]! + 1)}-01`;
+  const { fromDay, toDayExclusive } = quarterWindow(year, quarter);
   const [miles, fills] = await Promise.all([
     readJurisdictionVehicleMiles(admin, orgId, year, months, jurisdiction),
     readJurisdictionFills(admin, orgId, jurisdiction, fromDay, toDayExclusive),
   ]);
+  const receipts = await readIftaJurisdictionReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction, fills);
 
   const units = new Map<string, string | null>();
-  const ids = [...new Set([...miles.map((m) => m.vehicleId), ...fills.flatMap((f) => (f.vehicleId ? [f.vehicleId] : []))])];
+  const ids = [...new Set([
+    ...miles.map((m) => m.vehicleId),
+    ...[...fills, ...receipts.kept].flatMap((f) => (f.vehicleId ? [f.vehicleId] : [])),
+  ])];
   // In chunks: a PostgREST `in` list rides in the URL, and a large fleet's ids would overrun it.
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await admin
@@ -80,5 +91,7 @@ export async function readIftaJurisdictionTrucks(
     trucks: miles.map((m) => ({ ...m, unitNumber: units.get(m.vehicleId) ?? null })),
     fills,
     units: Object.fromEntries(units),
+    receipts: receipts.kept,
+    receiptDuplicates: receipts.duplicates.length,
   };
 }

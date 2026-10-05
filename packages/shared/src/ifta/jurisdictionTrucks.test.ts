@@ -99,4 +99,43 @@ describe("iftaJurisdictionTrucks — the fuel bought there", () => {
     expect(r.spent).toBe(0);
     expect(r.trucks[0]!.gallonsBought).toBe(50);
   });
+
+  describe("receipts keyed in McLeod (IP6)", () => {
+    const receipt = (externalId: string, vehicleId: string | null, gallons: number, receiptDate: string, mcleodUnit = "512") => ({
+      externalId, vehicleId, mcleodUnit, jurisdiction: "TX", receiptDate, gallons,
+    });
+
+    it("lists a truck whose only fuel here was a receipt as a truck that bought fuel here", () => {
+      const r = iftaJurisdictionTrucks(
+        [truck("101", 1_000)],
+        [fill("v-101", 100, 400, "2026-07-02T10:00:00Z")],
+        { "v-512": "512" },
+        [receipt("r1", "v-512", 120, "2026-08-15"), receipt("r2", "v-512", 30, "2026-09-01")],
+      );
+      const t512 = r.trucks.find((t) => t.unitNumber === "512")!;
+      expect(t512).toMatchObject({ vehicleId: "v-512", taxableMiles: 0, gallonsBought: 150, spent: 0 });
+      expect(t512.fills.map((f) => [f.businessDate, f.source, f.fueledAt, f.pricePerGal, f.totalCost])).toEqual([
+        ["2026-09-01", "mcleod_receipt", null, null, null],
+        ["2026-08-15", "mcleod_receipt", null, null, null],
+      ]);
+    });
+
+    it("puts receipts in the jurisdiction's gallons, so the page still equals the ledger row", () => {
+      const r = iftaJurisdictionTrucks(
+        [truck("101", 1_000)],
+        [fill("v-101", 100, 400, "2026-07-02T10:00:00Z")],
+        {},
+        [receipt("r1", "v-101", 20, "2026-07-20"), receipt("r2", null, 40, "2026-08-01", "999")],
+      );
+      expect(r).toMatchObject({ gallonsBought: 160, fillCount: 1, receiptCount: 2, receiptGallons: 60, spent: 400 });
+      expect(r.trucks.reduce((a, t) => a + t.gallonsBought, 0)).toBe(r.gallonsBought);
+    });
+
+    it("keeps a receipt from a McLeod unit we do not have on the no-truck row, naming the unit", () => {
+      const r = iftaJurisdictionTrucks([truck("101", 1_000)], [], {}, [receipt("r9", null, 40, "2026-08-01", "999")]);
+      const last = r.trucks[r.trucks.length - 1]!;
+      expect(last.vehicleId).toBeNull();
+      expect(last.fills[0]!.location).toBe("McLeod unit 999, matched to no truck");
+    });
+  });
 });

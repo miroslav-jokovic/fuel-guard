@@ -37,6 +37,19 @@ const FILLS = [
   fillRow("f5", "v101", "OK", "2026-07-10", 999),
 ];
 
+// McLeod's hand-keyed receipts (IP6). 101's duplicates card fill f1; 512 bought nothing on our cards.
+const RECEIPTS = [
+  { external_id: "rA", tractor_unit: "101", jurisdiction: "TX", receipt_date: "2026-07-10", gallons: "100.4", processed_at: null },
+  { external_id: "rB", tractor_unit: "512", jurisdiction: "TX", receipt_date: "2026-08-15", gallons: "120", processed_at: null },
+  { external_id: "rC", tractor_unit: "512", jurisdiction: "OK", receipt_date: "2026-08-16", gallons: "90", processed_at: null },
+];
+const VEHICLES = [
+  { id: "v732", unit_number: " 732 ", mcleod_tractor_id: null },
+  { id: "v101", unit_number: "101", mcleod_tractor_id: "101" },
+  { id: "v555", unit_number: "555", mcleod_tractor_id: null },
+  { id: "v512", unit_number: "512", mcleod_tractor_id: "512" },
+];
+
 const filtersOf =(q: RecordedQuery) => Object.fromEntries(q.filters().map((f) => [f.col, f.val]));
 
 function recorder() {
@@ -52,12 +65,16 @@ function recorder() {
         );
       },
       vehicles: (q) => {
-        const ids = filtersOf(q).id as string[];
-        return [
-          { id: "v732", unit_number: " 732 " },
-          { id: "v101", unit_number: "101" },
-          { id: "v555", unit_number: "555" },
-        ].filter((v) => ids.includes(v.id));
+        const f = filtersOf(q);
+        const hit = (col: string, value: string | null) => Array.isArray(f[col]) && value != null && (f[col] as string[]).includes(value);
+        return VEHICLES.filter((v) => hit("id", v.id) || hit("mcleod_tractor_id", v.mcleod_tractor_id) || hit("unit_number", v.unit_number));
+      },
+      mcleod_fuel_tax_receipts: (q) => {
+        const f = filtersOf(q);
+        const ops = q.ops.map((o) => [o.method, ...o.args] as unknown[]);
+        const arg = (method: string, col: string) => ops.find((o) => o[0] === method && o[1] === col)?.[2];
+        return RECEIPTS.filter((r) => r.jurisdiction === f.jurisdiction &&
+          r.receipt_date >= String(arg("gte", "receipt_date")) && r.receipt_date < String(arg("lt", "receipt_date")));
       },
       fuel_transactions: (q) => {
         const ops = q.ops.map((o) => [o.method, ...o.args] as unknown[]);
@@ -107,6 +124,17 @@ describe("readIftaJurisdictionTrucks", () => {
     ]);
     expect(r.fills[0]!.totalCost).toBe(380);
     expect(r.units.v555).toBe("555");
+  });
+
+  it("adds the jurisdiction's McLeod receipts, minus the one a card fill already carries, and names their trucks", async () => {
+    const rec = recorder();
+    const r = await readIftaJurisdictionTrucks(rec.client as unknown as SupabaseClient, ORG, 2026, 3, "TX");
+    expect(r.receipts).toEqual([
+      { externalId: "rB", vehicleId: "v512", mcleodUnit: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 120 },
+    ]);
+    expect(r.receiptDuplicates).toBe(1);
+    // 512 drove nowhere Samsara saw and bought nothing on our cards: its unit still resolves.
+    expect(r.units.v512).toBe("512");
   });
 
   it("cuts a Q4 quarter at the next year's first day", async () => {
