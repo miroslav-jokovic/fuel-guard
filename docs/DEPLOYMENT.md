@@ -31,6 +31,31 @@ works at the SERVICE level and would move both environments at once.
 A release that needs to go out NOW is `release.yml` → `mode=hotfix`; going back is `mode=rollback`.
 Plan, decisions and the cutover record: `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`.
 
+### What a release night does on its own, and what it tells you (2026-10-05)
+
+| Moment | What happens | You hear |
+|---|---|---|
+| 18:00 CT | `release-candidate.yml` opens or refreshes the `main → production` PR | email: "Release ready for your approval", notes + link |
+| 01:07 CT | `release.yml` ships the approved commit: CI green → **a backup under 26 h** → migrations → push → verify → smoke → tag | email: "Released v…" with the notes |
+| — not approved / frozen | nothing ships | email: "No release tonight — …" |
+| — fails BEFORE the push | production unchanged (migrations that ran stay) | email **+ text** |
+| — fails AFTER the push | **automatic rollback** to the previous commit, verified on its own | email **+ text**: "rolled back" |
+| — rollback does not verify | nothing more is automatic | email **+ text**: "act now" — run `mode=rollback` with the last tag, or roll back the Railway deploy |
+| 01:37 CT | retry: ships an approved release a delayed or dropped 01:07 run missed; otherwise silent | — |
+
+The summary is sent from the workflow straight to Brevo and Telnyx (`scripts/release-notify.mjs`),
+never through our API — the message that matters most is the one saying the API is broken. It reads
+six repository secrets: `BREVO_API_KEY`, `MAIL_FROM`, `TELNYX_API_KEY`, `TELNYX_FROM` (copies of
+production `@fleetguard/api`'s own; rotate them in both places) and the recipients
+`RELEASE_NOTIFY_EMAILS` / `RELEASE_NOTIFY_PHONES` (comma-separated). Missing ones are a workflow
+warning, never a failed release; GitHub's own failed-run email still reaches the repository owner.
+
+**Backups.** Production takes one physical backup a day (~03:40 CT, 7 kept); point-in-time recovery
+is OFF (measured 2026-10-05). A release at 01:07 that damaged data could be restored only to the
+previous morning — about 21 h of writes lost. The release refuses to start without a backup under
+26 h old, which proves the schedule is alive but cannot shrink that window; only PITR can (Supabase add-on, ~$100/month for 7 days, needs
+at least Small compute — the owner's call, RELEASE-TRAIN-PLAN Q-REL7).
+
 Staging cannot reach real people or money: `OUTBOUND_ALLOWLIST` on uat api + web limits email and
 SMS to the two owners, EFS SOAP/routes are off, card control and PSP orders default off, and the
 Samsara token is read-only. uat `@fleetguard/web` runs the schedulers against the staging database

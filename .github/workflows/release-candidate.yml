@@ -46,6 +46,7 @@ jobs:
           node-version: 22
 
       - name: Open or refresh tonight's release PR
+        id: candidate
         run: |
           set -euo pipefail
           say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
@@ -85,5 +86,27 @@ jobs:
             say "Refreshed release PR #$pr."
           else
             gh pr create --base production --head main --title "$title" --body-file body.md
-            say "Opened tonight's release PR."
+            pr=$(gh pr list --base production --head main --state open --json number --jq '.[0].number')
+            say "Opened tonight's release PR #$pr."
           fi
+          {
+            echo "notify=true"
+            echo "pr_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${pr}"
+            echo "sha=${after}"
+            echo "pr_count=$(git log --first-parent --merges --format=%s "${before}..${after}" | grep -c '^Merge pull request #' || true)"
+          } >> "$GITHUB_OUTPUT"
+
+      # Q-REL4: the owners hear about tonight's release PR, because an unapproved PR ships nothing
+      # (scripts/release-notify.mjs). A refresh by hand after a late merge sends it again, on purpose:
+      # what is up for approval changed.
+      - name: Tell the owners it is waiting for approval
+        if: steps.candidate.outputs.notify == 'true'
+        env:
+          SHA: ${{ steps.candidate.outputs.sha }}
+          PR_URL: ${{ steps.candidate.outputs.pr_url }}
+          PR_COUNT: ${{ steps.candidate.outputs.pr_count }}
+          NOTES_FILE: notes.md
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          RELEASE_NOTIFY_EMAILS: ${{ secrets.RELEASE_NOTIFY_EMAILS }}
+        run: node scripts/release-notify.mjs candidate

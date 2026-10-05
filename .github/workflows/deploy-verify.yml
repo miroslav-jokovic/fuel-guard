@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: production
+      rollback:
+        description: "The hosts are being moved BACK to `sha`: require exactly it, and accept a schema ahead of it"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   verify:
@@ -136,6 +141,12 @@ jobs:
       # deployed; the later commit's own run still verifies the later commit. "Later" is asked of
       # GitHub's compare API (`ahead` = live descends from this commit), so a host that is on some
       # OTHER branch's commit, or behind, still fails.
+      #
+      # A ROLLBACK (2026-10-05) turns both allowances off. The commit being left is LATER than the one
+      # being returned to, so "a later commit passes" would pass the instant it started, with the
+      # broken code still live; and a rollback past a migration leaves the database AHEAD of the code
+      # by design (D-REL9), so waiting for "current" would time out on every such rollback. Before
+      # this input, release.yml's rollback mode had both defects and had never been run.
       - name: Wait for the ${{ matrix.host }} host to serve this commit
         if: steps.deploys.outputs.deploys == 'true'
         env:
@@ -143,6 +154,7 @@ jobs:
           EXPECTED: ${{ inputs.sha || github.sha }}
           HOST: ${{ matrix.host }}
           GH_TOKEN: ${{ github.token }}
+          ROLLBACK: ${{ inputs.rollback && 'true' || 'false' }}
         run: |
           deadline=$(( $(date +%s) + 900 ))
           checked="" contains=""
@@ -151,14 +163,14 @@ jobs:
             live=$(echo "$body" | jq -r '.commit // empty')
             schema=$(echo "$body" | jq -r '.schema.state // "unknown"')
             echo "[$HOST] live=${live:-none} schema=${schema}"
-            if [ -n "$live" ] && [ "$live" != "$EXPECTED" ] && [ "$live" != "$checked" ]; then
+            if [ "$ROLLBACK" != "true" ] && [ -n "$live" ] && [ "$live" != "$EXPECTED" ] && [ "$live" != "$checked" ]; then
               checked="$live"
               rel=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED}...${live}" --jq .status 2>/dev/null || echo unknown)
               echo "  live is ${rel} of ${EXPECTED::7}"
               contains=$([ "$rel" = "ahead" ] && echo yes || echo "")
             fi
             if [ "$live" = "$EXPECTED" ] || { [ "$live" = "$checked" ] && [ -n "$contains" ]; }; then
-              if [ "$schema" = "current" ]; then
+              if [ "$schema" = "current" ] || { [ "$ROLLBACK" = "true" ] && [ "$schema" = "ahead" ]; }; then
                 if [ "$live" = "$EXPECTED" ]; then
                   echo "✓ ${TARGET_URL} is serving ${EXPECTED::7} with a matching schema."
                 else
