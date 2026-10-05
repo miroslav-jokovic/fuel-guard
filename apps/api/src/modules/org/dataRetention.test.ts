@@ -213,4 +213,37 @@ describe("runDataRetention", () => {
     expect(deletedIds(rec, "idle_events")).toEqual(["x"]); // the healthy table was still pruned
     expectOrgScoped(rec, ORG);
   });
+
+  /**
+   * A failed run goes through `fail_job`, which stores the error and no stats — so before this, the
+   * Data & Sync page showed a bare "nope" and nothing of what the run DID delete. On 2026-10-05 the
+   * real fleet's run had failed daily since 09-23 and nobody could tell which tables still pruned.
+   * The error itself now carries the per-table summary.
+   */
+  it("a failed run's error says what every table deleted before it failed", async () => {
+    const failing: RetentionRule = { ...idRule, table: "boom" };
+    const rec = createSupabaseRecorder({
+      tables: {
+        boom: { error: { message: "nope" } },
+        idle_events: { pages: [[{ id: "x" }], []] },
+      },
+    });
+    await expect(runDataRetention(rec.client, ORG, [failing, idRule])).rejects.toThrow(
+      "boom select: nope — deleted this run: boom 0 (failed), idle_events 1",
+    );
+  });
+
+  it("rows a table deleted before its later batch failed are counted, not reported as 0", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({ id: `id-${i}` }));
+    let deletes = 0;
+    const rec = createSupabaseRecorder({
+      tables: {
+        // 200-id delete chunks: the first two land, the third is rejected.
+        idle_events: (q) => (q.write ? (++deletes > 2 ? { writeError: { message: "timeout" } } : {}) : { data: full }),
+      },
+    });
+    await expect(runDataRetention(rec.client, ORG, [idRule])).rejects.toThrow(
+      "idle_events delete: timeout — deleted this run: idle_events 400 (failed)",
+    );
+  });
 });
