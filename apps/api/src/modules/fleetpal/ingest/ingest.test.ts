@@ -173,6 +173,59 @@ describe("the watermark", () => {
     expect(rec.writtenRows("fleetpal_sync_state").every((row) => row.watermark === undefined)).toBe(true);
   });
 
+  /**
+   * Meters, 2026-10-05: 139,609 rows walked every two hours, a batch timed out on a database under
+   * memory pressure, and because the position moved only after the LAST batch, no meter was ever
+   * kept and every sweep started again from zero. Progress is now kept per batch, oldest first.
+   */
+  it("⚠ keeps the progress of the batches that succeeded when a later one is refused", async () => {
+    const day = (i: number) => `2026-09-${String(1 + Math.floor(i / STAGE_BATCH) * 10).padStart(2, "0")}T00:00:00Z`;
+    // Handed over newest first, so the run has to order them itself.
+    const rows = Array.from({ length: 3 * STAGE_BATCH }, (_, i) => workOrder({ id: `W${i}`, updated: day(i) })).reverse();
+    const { client } = clientWith([page(rows)]);
+    let calls = 0;
+    const firstBatch: string[] = [];
+    const rec = createSupabaseRecorder({
+      tables: { fleetpal_sync_state: () => ({ data: [], error: null }) },
+      rpc: (_fn: string, args: unknown) => {
+        calls += 1;
+        if (calls === 1) firstBatch.push(...(args as { p_rows: { vendor_updated_at: string }[] }).p_rows.map((r) => r.vendor_updated_at));
+        return calls === 2
+          ? { data: null, error: { message: "canceling statement due to statement timeout" } }
+          : { data: STAGE_BATCH, error: null };
+      },
+    });
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, workOrdersIngest);
+    expect(new Set(firstBatch)).toEqual(new Set(["2026-09-01T00:00:00Z"]));
+    expect(result.error).toContain("statement timeout");
+    expect(result.staged).toBe(STAGE_BATCH);
+    expect(result.advancedTo).toBe("2026-09-01T00:00:00Z");
+    // `advance` updates, then inserts when no row existed; either way it is one position, 09-01.
+    expect(new Set(rec.writtenRows("fleetpal_sync_state").map((row) => row.watermark).filter(Boolean))).toEqual(new Set(["2026-09-01T00:00:00Z"]));
+    // The refusal is still on record after the position moved, so an operator still sees it.
+    expect(rec.writtenRows("fleetpal_sync_state").at(-1)?.last_error).toContain("statement timeout");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("⚠ never moves past a timestamp whose rows straddle a batch boundary — `updated_after` is exclusive", async () => {
+    // The first batch ends in the middle of the 09-02 rows. Moving to 09-02 would make the next
+    // sweep skip the 09-02 rows not staged yet, so the safe position is 09-01.
+    const rows = [
+      ...Array.from({ length: STAGE_BATCH - 10 }, (_, i) => workOrder({ id: `A${i}`, updated: "2026-09-01T00:00:00Z" })),
+      ...Array.from({ length: 20 }, (_, i) => workOrder({ id: `B${i}`, updated: "2026-09-02T00:00:00Z" })),
+    ];
+    const { client } = clientWith([page(rows)]);
+    let calls = 0;
+    const rec = createSupabaseRecorder({
+      tables: { fleetpal_sync_state: () => ({ data: [], error: null }) },
+      rpc: () => (++calls === 2
+        ? { data: null, error: { message: "canceling statement due to statement timeout" } }
+        : { data: STAGE_BATCH, error: null }),
+    });
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, workOrdersIngest);
+    expect(result.advancedTo).toBe("2026-09-01T00:00:00Z");
+  });
+
   it("⚠ does not move when the page was empty", async () => {
     const { client } = clientWith([page([])]);
     const rec = recorderWith();
