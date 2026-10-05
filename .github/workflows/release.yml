@@ -252,7 +252,9 @@ jobs:
   ship:
     needs: plan
     if: needs.plan.outputs.ship == 'true'
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    # DATABASE_TRANSPORT Q-DT2: this job opens the Postgres connection (`supabase db push`), so it runs
+    # where DB_RUNNER says and a network allow-list can name one fixed address. Unset = as before.
+    runs-on: ${{ vars.DB_RUNNER || vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       actions: read
