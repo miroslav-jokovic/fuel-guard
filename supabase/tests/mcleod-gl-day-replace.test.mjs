@@ -158,6 +158,13 @@ ok("a second company's day for the same account is its own row, not an overwrite
   tms.length === 1 && tms2.length === 1 && tms[0].line_count === 1 && tms2[0].line_count === 7,
   JSON.stringify({ tms, tms2 }));
 ok("  and sweeping TMS2 did not remove TMS's rows", tms.length === 1);
+// The rollup must keep the same identity (0431). Before it, mcleod_gl_totals was unique on
+// (org, period, module, account) and the conflict branch rewrote company_id, so TMS2's sweep
+// replaced TMS's June fuel total with its own 7 lines.
+const rollup = (await month(ORG_A, JUNE)).filter((r) => r.post_module === "FUEL" && r.glid === "40050000");
+const byCo = Object.fromEntries(rollup.map((r) => [r.company_id, r.line_count]));
+ok("  and each company keeps its own month total for that account",
+  rollup.length === 2 && byCo.TMS === 1 && byCo.TMS2 === 7, JSON.stringify(rollup));
 
 // ── 6. tenant scope is the argument ───────────────────────────────────────────────────────────
 await replace(ORG_B, JUNE, JULY, [
