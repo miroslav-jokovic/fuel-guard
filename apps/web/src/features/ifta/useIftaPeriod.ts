@@ -12,7 +12,7 @@ import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
   computeIftaPosition, tieOutMiles, iftaJurisdictionTrucks,
   type IftaFuelPurchase, type IftaJurisdictionMiles, type IftaPosition, type MilesTieOut,
-  type IftaJurisdictionTrucks, type IftaJurisdictionTrucksResponse,
+  type IftaJurisdictionTrucks, type IftaJurisdictionTrucksResponse, type IftaPeriodReceipts,
 } from "@silvicom/shared";
 import { milesFromMeters } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
@@ -43,7 +43,13 @@ export interface IftaPeriodData {
   samsaraTaxPaidLiters: number;
   /** True when no miles have been pulled for this quarter at all. Different from "no miles driven". */
   neverFetched: boolean;
+  /** McLeod's hand-keyed receipts (IP6): already inside the position's gallons; here for the page's account of them. */
+  receipts: IftaPeriodReceipts;
 }
+
+const NO_RECEIPTS: IftaPeriodReceipts = {
+  jurisdictions: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [],
+};
 
 const num = (v: unknown): number => {
   const n = typeof v === "number" ? v : Number(v);
@@ -56,6 +62,29 @@ export function rateDateFor(q: IftaQuarter): string {
   return `${q.year}-${month}-15`;
 }
 
+/**
+ * The purchases one quarter's position is computed over. The read already aggregates the card fuel per
+ * jurisdiction, so each row is one "purchase" of that jurisdiction's whole quarter; the rate is selected
+ * by the quarter, not by a fill's own day. McLeod's hand-keyed receipts are fuel bought too (IP6): one
+ * more purchase per jurisdiction, marked as such so the position carries their share of "gallons
+ * bought" as its own figure. They move the fleet MPG with them, which is right — the return divides
+ * miles by ALL the fuel, and a truck fuelled only on paper (unit 512) otherwise drives on nothing.
+ */
+export function periodPurchases(
+  rows: Record<string, unknown>[],
+  receipts: IftaPeriodReceipts,
+  rateDate: string,
+): IftaFuelPurchase[] {
+  return [
+    ...rows
+      .filter((r) => num(r.purchased_gallons) > 0)
+      .map((r) => ({ jurisdiction: String(r.jurisdiction), gallons: num(r.purchased_gallons), tranDate: rateDate })),
+    ...receipts.jurisdictions.map((j) => ({
+      jurisdiction: j.jurisdiction, gallons: j.gallons, tranDate: rateDate, source: "mcleod_receipt" as const,
+    })),
+  ];
+}
+
 export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
   return useQuery({
     queryKey: ["ifta_period", quarter],
@@ -64,7 +93,11 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
     queryFn: async (): Promise<IftaPeriodData> => {
       // Served by the ifta API module since P1.10 (2026-08-27) — the browser no longer calls
       // the period RPCs (and so no longer reads the samsara collector's staging) directly.
-      const r = await apiFetch<{ jurisdictions: Record<string, unknown>[]; summary: Record<string, unknown> | null }>(
+      const r = await apiFetch<{
+        jurisdictions: Record<string, unknown>[];
+        summary: Record<string, unknown> | null;
+        receipts?: IftaPeriodReceipts;
+      }>(
         `/api/ifta/period?year=${quarter.value.year}&quarter=${quarter.value.quarter}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the IFTA period");
@@ -76,12 +109,9 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
         totalMeters: num(r.total_meters),
         taxPaidLiters: num(r.tax_paid_liters),
       }));
-      // The read already aggregates the fuel per jurisdiction, so each row is one "purchase" of that
-      // jurisdiction's whole quarter. The rate is selected by the quarter, not by a fill's own day.
       const rateDate = rateDateFor(quarter.value);
-      const purchases: IftaFuelPurchase[] = rows
-        .filter((r) => num(r.purchased_gallons) > 0)
-        .map((r) => ({ jurisdiction: String(r.jurisdiction), gallons: num(r.purchased_gallons), tranDate: rateDate }));
+      const receipts = r.data.receipts ?? NO_RECEIPTS;
+      const purchases = periodPurchases(rows, receipts, rateDate);
 
       const s = r.data.summary ?? {};
       const summary: IftaPeriodSummary = {
@@ -109,6 +139,7 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
         summary,
         samsaraTaxPaidLiters: miles.reduce((acc, m) => acc + m.taxPaidLiters, 0),
         neverFetched: summary.monthsFetched === 0,
+        receipts,
       };
     },
   });
@@ -151,13 +182,16 @@ export function useIftaJurisdictionQuery(quarter: Ref<IftaQuarter>, jurisdiction
   return useQuery({
     queryKey: ["ifta_jurisdiction", quarter, jurisdiction],
     staleTime: 5 * 60_000,
-    queryFn: async (): Promise<IftaJurisdictionTrucks> => {
+    queryFn: async (): Promise<IftaJurisdictionTrucks & { receiptDuplicates: number }> => {
       const q = quarter.value;
       const r = await apiFetch<IftaJurisdictionTrucksResponse>(
         `/api/ifta/period/jurisdiction?year=${q.year}&quarter=${q.quarter}&code=${encodeURIComponent(jurisdiction.value)}`,
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load this jurisdiction");
-      return iftaJurisdictionTrucks(r.data.trucks, r.data.fills ?? [], r.data.units ?? {});
+      return {
+        ...iftaJurisdictionTrucks(r.data.trucks, r.data.fills ?? [], r.data.units ?? {}, r.data.receipts ?? []),
+        receiptDuplicates: r.data.receiptDuplicates ?? 0,
+      };
     },
   });
 }

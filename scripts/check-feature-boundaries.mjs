@@ -373,6 +373,12 @@ const API_ALLOW = new Set([
   // `recordFuelTaxExclusion`, which owns the dated periods in 0433. The collector delivers the fact;
   // ifta decides what a period is. Same shape as `mcleod -> evidence` for credentials.
   "mcleod -> ifta",
+  // …and the other way, a READ: McLeod's hand-keyed fuel receipts (cash and drivers' own cards,
+  // `fuel_tax_history.source = 'F'`) are fuel bought, so the IFTA ledger and its state page add them
+  // to "gallons bought" (IP6). Through the collector's `readFuelTaxReceipts`, never a `.from()` on
+  // `mcleod_fuel_tax_receipts`; ifta maps McLeod's unit to our truck and drops card duplicates.
+  // Same shape as `fleetpal -> mcleod`: a reader of McLeod facts, with nothing written back.
+  "ifta -> mcleod",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");

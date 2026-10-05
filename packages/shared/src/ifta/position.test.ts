@@ -87,6 +87,23 @@ describe("computeIftaPosition", () => {
     expect(tx.credit).toBeCloseTo(10_000 * 0.2, 0);
   });
 
+  it("counts a receipt keyed in McLeod as fuel bought, and carries its share as its own figure", () => {
+    const p = computeIftaPosition(
+      [miles("TX", 35_000), miles("CA", 35_000)],
+      [bought("TX", 9_000), { ...bought("TX", 1_000), source: "mcleod_receipt" }],
+      "2026-08-15",
+    );
+    const tx = p.jurisdictions.find((j) => j.jurisdiction === "TX")!;
+    // Exactly the all-card quarter above: a receipt credits, and moves the MPG, like any gallon bought.
+    expect(tx.gallonsPurchased).toBe(10_000);
+    expect(tx.credit).toBe(lopsided().jurisdictions.find((j) => j.jurisdiction === "TX")!.credit);
+    expect(p.mpg.fleetMpg).toBeCloseTo(7, 6);
+    expect(tx.gallonsFromReceipts).toBe(1_000);
+    expect(p.jurisdictions.find((j) => j.jurisdiction === "CA")!.gallonsFromReceipts).toBe(0);
+    expect(p.receiptGallons).toBe(1_000);
+    expect(lopsided().receiptGallons).toBe(0);
+  });
+
   it("nets to what is owed and what is refundable, per jurisdiction", () => {
     // Buying every gallon in Texas while driving half the miles in California is the classic shape:
     // California is owed, Texas has overpaid, and the fleet total is the sum of both.

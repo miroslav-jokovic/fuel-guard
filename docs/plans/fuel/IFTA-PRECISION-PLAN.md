@@ -250,3 +250,15 @@ and run the rest — run each statement on its own, since one bad column kills t
   Sandbox dry run: 447 receipts, 2024-Q4 → 2026-Q2, all valid, none dropped. Grant script gains
   `fuel_tax_history` on both databases (NOT YET RUN — Alex). Nothing reads the table yet; the IFTA
   ledger and the state page add it to "fuel bought" in the next merge, with the card-duplicate rule.
+- 2026-10-05 — IP6 read side built: the IFTA ledger and the state page add McLeod's hand-keyed receipts
+  to "gallons bought" as their own source. Ledger rows say "incl. N gal from receipts keyed in McLeod"
+  and one line under the cards accounts for every receipt (kept, dropped as a card duplicate, or from a
+  McLeod unit matched to no truck); with none it says gallons bought are card fills only. The state
+  page lists each receipt as a fill row "Receipt keyed in McLeod" (date, state, gallons; no price,
+  station or time), so a truck fuelled only on paper (512) is a truck that bought fuel there.
+  Duplicate rule in shared (`dropCardDuplicateReceipts`): same truck, state, station-local day,
+  gallons within 0.5, one card fill per receipt, closest first. Both pages call it, so the state
+  page's gallons still equal the ledger row's. Receipts move the fleet MPG with them, deliberately —
+  the return divides miles by ALL fuel. McLeod unit → truck by `mcleod_tractor_id`, then
+  `unit_number`, retired trucks included. New boundary edge `ifta -> mcleod` (a read). Nothing shows on
+  staging or production until a release plus one nightly `--financial` sweep fills 0434.
