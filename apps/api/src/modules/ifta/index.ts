@@ -6,4 +6,4 @@
  * the position/tie-out math stays pure in the web feature and packages/shared. Owns no tables.
  */
 export { iftaRouter } from "./routes/index.js";
-export { readIftaPeriod, type IftaPeriodRows } from "./periodReads.js";
+export { readIftaPeriod, readIftaJurisdictionTrucks, type IftaPeriodRows } from "./periodReads.js";

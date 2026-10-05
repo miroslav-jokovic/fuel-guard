@@ -94,6 +94,14 @@ export const fuelRoutes: RouteRecordRaw[] = [
     // should not need permission to upload a statement in order to see what the fleet owes Texas.
     meta: { requiresAuth: true, title: "IFTA" },
   },
+  {
+    // One ledger row opened: the trucks that drove in that jurisdiction and their miles there. The
+    // quarter rides along as `?q=`, so the link the ledger opens is the link that can be forwarded.
+    path: "/ifta/:jurisdiction",
+    name: "ifta-jurisdiction",
+    component: () => import("@/pages/IftaJurisdictionPage.vue"),
+    meta: { requiresAuth: true, title: "IFTA jurisdiction", parent: "/ifta" },
+  },
   // The old paths are kept forever, not for a deprecation window. This page exists to be sent to
   // somebody: links to it are in emails, in tickets, and in the `?tab=&from=&to=` form the filters
   // produce. `redirect` preserves the query string, so a link sent in June still opens on what its

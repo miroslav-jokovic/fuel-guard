@@ -269,6 +269,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
+  { key: "fuel.ifta.jurisdiction", label: "IFTA jurisdiction", path: "/ifta/:jurisdiction", group: "fuel", gate: section("fuel"), parent: "fuel.ifta" },
   // FS2, Q-FSV12: the spend page's Buy discipline tab, its own screen now that the report has no tabs.
   // Reached from Fuel Costs and sharing its grant, so it asks the same `manage` the tab sat behind.
   { key: "fuel.spend.buy-discipline", label: "Buy discipline", path: "/fuel-buy-discipline", group: "fuel", gate: manage("fuel"), parent: "fuel.spend" },
