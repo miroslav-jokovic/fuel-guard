@@ -1,6 +1,7 @@
 # Feature inventory — the product readiness programme (PR0)
 
-**Status:** PROPOSED, 2026-10-06. This is the index for the product readiness programme. Every
+**Status:** RULED 2026-10-06 (Q-PR1, Q-PR2, Q-PR4; Q-PR3 open). F02 + F04 audited, plan
+waiting on the owner. This is the index for the product readiness programme. Every
 feature gets its own folder under `docs/plans/product-readiness/`, with its own audit and plan,
 built from the checklist in §4.
 
@@ -466,14 +467,17 @@ Each feature folder (`docs/plans/product-readiness/Fnn-<name>/`) holds two files
 
 ## 6. Open questions for the owner
 
-- **Q-PR1, order.** Accept §3's tiers and start with F02 + F04? *Recommendation:* yes. It is the
-  product's core promise, and its human workflow (dispositions) shows zero use.
+- **Q-PR1, order.** Accept §3's tiers and start with F02 + F04? **RULED 2026-10-06: yes**, as
+  one audit, because findings and alerts are about those transactions. Folder:
+  `F02-F04-fuel-transactions-and-findings/`.
 - **Q-PR2, Tier C.** Hide Hazmat, Inventory, Messages, Driver-app duty and Ask AI from the sidebar
-  until each has a named first user? *Recommendation:* hide; retire nothing yet.
+  until each has a named first user? **RULED 2026-10-06: hide; retire nothing.** Use the existing
+  surface grants (`startsOnFor` / section), not a new code path.
 - **Q-PR3, who the users are.** Name the person who uses each Tier A feature, so the §4.3 task
-  walk is done with them, not imagined.
-- **Q-PR4, X1.** Build the page-view count first? *Recommendation:* yes. It is small, and every
-  "is it used?" answer depends on it.
+  walk is done with them, not imagined. **STILL OPEN.** It is asked before each feature's task
+  walk. For F02 + F04 it is that plan's Q-F1.
+- **Q-PR4, X1.** Build the page-view count first? **RULED 2026-10-06: yes, early.** It is Step 1
+  of the F02 + F04 plan.
 
 ---
 
@@ -481,3 +485,9 @@ Each feature folder (`docs/plans/product-readiness/Fnn-<name>/`) holds two files
 
 - 2026-10-06: Inventory measured and written (PR0). No feature folder created yet; waiting on
   Q-PR1.
+- 2026-10-06: Owner ruled Q-PR1, Q-PR2 and Q-PR4 ("proceed as proposed"). Q-PR3 is still open.
+  The first feature folder, `F02-F04-fuel-transactions-and-findings/` (AUDIT + PLAN), is written
+  and waits on its own Q-F1..Q-F6. Correction to §1.1: "fuel findings given a disposition, ever:
+  0" measured `fuel_txn_dispositions`, which holds Recall audit verdicts, not finding reviews.
+  Findings have 1 human close (`fuel_exceptions`), and alerts had 410 human status changes, from
+  07-01 to 08-14.
