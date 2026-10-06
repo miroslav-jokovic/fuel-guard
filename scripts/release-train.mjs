@@ -91,7 +91,7 @@ export const AREAS = [
   { id: "platform", title: "Platform",
     api: ["org"], web: ["audit", "jobs", "permissions", "settings"], apps: ["admin", "admin-api"],
     packages: ["shared", "ui", "tokens"],
-    plans: ["architecture", "ci", "design-system", "permissions", "platform-console", "ship-pipeline", "silvicom360"] },
+    plans: ["architecture", "ci", "design-system", "permissions", "platform-console", "product-readiness", "ship-pipeline", "silvicom360"] },
   { id: "docs", title: "Plans and docs" },
 ];
 
