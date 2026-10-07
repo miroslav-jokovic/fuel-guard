@@ -1,6 +1,6 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
-**Status:** AUDITED 2026-10-06. Waiting on the owner's answers to Q-F1..Q-F6 below. Nothing built.
+**Status:** AUDITED 2026-10-06. Q-F1..Q-F4 ruled 2026-10-06; Q-F5 and Q-F6 open. Nothing built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -8,18 +8,19 @@ remaining phases in order with this feature's other fixes.
 
 ---
 
-## Owner questions (answer these first)
+## Owner questions
 
-**Q-F1. Who owns the fuel-security queue?** Nobody has acted on an alert since 08-14, and 0 of
+**Q-F1. Who owns the fuel-security queue? RULED 2026-10-06: (a), Miroslav Jokovic.** Nobody has acted on an alert since 08-14, and 0 of
 158 money findings are assigned (AUDIT §0.7).
 - (a) One named person reviews alerts and findings every working day. Everything is assigned to
   them by default.
 - (b) Each truck's dispatcher reviews their own trucks.
 - (c) Nobody reviews. The product only notifies on card fraud, and the queue is removed.
 - **Recommendation: (a).** Name the person. One owner and one short daily list is the only shape
-  that has a chance with today's 1-of-12 weekly sign-ins. This also answers Q-PR3 for F02 + F04.
+  that has a chance with today's 1-of-12 weekly sign-ins. This also answers Q-PR3 for F02 + F04:
+  the task walk is done with Miroslav.
 
-**Q-F2. Money findings nobody can recover: keep them in a queue?** 138 of 157 open findings are
+**Q-F2. Money findings nobody can recover: keep them in a queue? RULED 2026-10-06: (a).** 138 of 157 open findings are
 buying habits (avoided state, out of network, avoided brand), worth ≈ $19.5k. No vendor credits
 them (AUDIT §0.6, N8).
 - (a) Move them out of the queue into Fuel Costs (F03) as a monthly "buying habits" report, per
@@ -29,30 +30,33 @@ them (AUDIT §0.6, N8).
 - **Recommendation: (a).** A queue item with no possible action is noise, and the totals then
   mean what they say.
 
-**Q-F3. Card status messages (1,422 in 30 days, 17% read).** Cards go HOLD around 8–10 am CT
+**Q-F3. Card status messages (1,422 in 30 days, 17% read). RULED 2026-10-06: (a).** Cards go HOLD around 8–10 am CT
 and back to ACTIVE in the afternoon, on 108 cards in 10 days (AUDIT W8, D4).
 - (a) Stop the per-change message. Send one daily summary, and send an immediate message only
   for a card made ACTIVE outside working hours or marked FRAUD.
 - (b) Keep per-change messages, but only to one named person.
 - (c) Keep as is.
 - **Recommendation: (a).** Also: is the daily HOLD/ACTIVE rhythm someone in the office, or an
-  EFS rule? You will know; the data can't tell.
+  EFS rule? You will know; the data can't tell. *(Still unanswered; Step 3 does not depend on it.)*
 
-**Q-F4. Tools with no user: hide them from the sidebar until someone needs them?** Recall audit
+**Q-F4. Tools with no user: hide them from the sidebar until someone needs them? RULED 2026-10-06: as recommended.** Recall audit
 (never used), Card control "check" (an engineering tool), Anomaly thresholds, Detection coverage,
 Reefer coverage. Use the Q-PR2 method (surface grants, nothing retired).
 - **Recommendation: hide all five for every role except admin.** The admin can still reach
   them by URL.
 
-**Q-F5. Which day does a fill belong to?** EFS's date (`tran_date`), or the station's local
+**Q-F5. Which day does a fill belong to? OPEN.** EFS's date (`tran_date`), or the station's local
 date (`business_date`)? Pages and finance disagree on 41 fills since 08-01, one of them across a
 month ($639.24, AUDIT N3).
 - (a) EFS's date everywhere. It matches the EFS statement and McLeod.
 - (b) The station's local date everywhere.
 - **Recommendation: (a).** Reconciling with EFS and McLeod is the point. A station-local time
   can still show beside the date.
+- *2026-10-06:* the owner answered "this is regulated by permissions". The question is not about
+  who may see a fill. It asks which calendar date a fill is counted on when the two dates differ.
+  Re-asked in plain words.
 
-**Q-F6. The "Log fill-up" button (used 0 times in 17,955 fills).**
+**Q-F6. The "Log fill-up" button (used 0 times in 17,955 fills). OPEN, re-asked in plain words.**
 - **Recommendation:** move it into the page's "…" menu. Do not remove it; cash fills may need it
   one day.
 
@@ -208,3 +212,5 @@ feature is DONE when every AUDIT finding is fixed, ruled won't-fix, or moved by 
 
 - 2026-10-06: Audit measured and written (AUDIT.md). Plan drafted. Waiting on Q-F1..Q-F6.
   Q-PR1/2/4 rulings recorded in FEATURE-INVENTORY.md.
+- 2026-10-06: Owner ruled Q-F1 (a): Miroslav Jokovic owns the queue. Also ruled Q-F2 (a), Q-F3 (a)
+  and Q-F4 as recommended. Q-F5 and Q-F6 were re-asked in plain words.
