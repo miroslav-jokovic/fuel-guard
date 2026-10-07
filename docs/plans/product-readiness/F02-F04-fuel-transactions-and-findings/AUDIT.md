@@ -101,6 +101,16 @@ line has a `transaction_id`, and none is non-canonical.
   $1,318,538.03, Oct $229,797.93 vs $229,158.69, a $639.24 gap each way. Pages use
   `business_date` (`fuel_range_totals`, 0315), the finance tie-out uses `tran_date`
   (`efsLineItems.ts`), and Declines uses "Central time" (Declines tab footnote).
+- **N3a. Cause, measured 2026-10-07: EFS keeps time in Central, and `business_date` uses the
+  station's zone.**
+  - The EFS guide: "All our servers are central time" (p. 10); reject `tranDate` is "Central Time
+    zone" (p. 107).
+  - Read as Central, EFS's time matches the Samsara-confirmed fueling moment for 856 out-of-zone
+    September fills (median 0 minutes off; read as the station's zone, 60 minutes off).
+  - `(fueled_at at time zone 'America/Chicago')::date` equals `tran_date` on 4,601 of 4,601 fills
+    since 08-01.
+  - 0287's comment calls the station date "the day EFS prints". That was checked against UTC, never
+    against `tran_date`.
 - **N4. DEF and other items are not on the Fuel Log.** Same week: DEF $11,467.47 (299 lines),
   scales $1,623.00, oil, washer fluid and other items. These are in Source records only, and no
   tile totals them.
@@ -188,6 +198,10 @@ still owed (Q-PR3). Click counts are counted from the code path.
   rhythm: HOLD around 13–15 UTC, ACTIVE in the afternoon (`audit_logs`
   `card.status_changed_externally`; per-card from/to is consistent, 1 mismatch in 240). These are
   real EFS changes, most likely the office's or EFS's routine, announced one by one to 6 people.
+- **W8a. The card changes are made by people, in office hours (measured 2026-10-07).** 237 of 245
+  external changes fell Monday–Friday, 7 am–6 pm Central, while the poll ran 773 times at night and
+  592 times at weekends in the last 7 days. Only 15 of 106 "now ACTIVE" changes were followed by a
+  fill within 4 hours, so this is not "unlock for one fill".
 - **W9. Counts of controls:**
   - Findings: 4 tiles, 5 filters, 2 export buttons, a bulk-assign bar.
   - Alerts: 2 view buttons, 4 filters, a search, 3 bulk actions, a 4-item kebab.
@@ -252,6 +266,14 @@ still owed (Q-PR3). Click counts are counted from the code path.
 - **P2. Human changes are audited.** Card writes, alert transitions, finding moves and mileage
   overrides all write `audit_logs`. Machine closes (1,929 auto-dismissals) leave no human audit
   row, which is correct, but they are not visible as a count anywhere on the page.
+- **P4. The browser can write EFS fills directly, without an audit row.**
+  - Policies `ftxn_insert`, `ftxn_update` and `ftxn_delete` (permissive; `fuel: manage`, which
+    means admin or fleet manager by default) let a signed-in manager insert, change or delete any
+    row of `fuel_transactions` through PostgREST.
+  - The only browser code that uses them is "Log fill-up"'s insert (`useCreateFillUp.ts:54`),
+    used 0 times. No code updates or deletes fills from the browser.
+  - `audit_logs` has 0 human rows on `fuel_transactions`. The two restrictive insert policies only
+    narrow drivers; there is no cross-org opening.
 - **P3. No runbook line for "the fuel feed stopped".** Freshness is computed
   (`efs/routes/feedFreshness.ts`); who is told, and what they do, is not written down for this
   feature.
