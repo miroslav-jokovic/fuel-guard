@@ -36,10 +36,22 @@ import { apiFetch } from "@/lib/api";
  * withholds the vendor's error text, which is the field that made widening the card unacceptable.
  * Reading the card's route here would 403 for most of the people this line is written for.
  */
-const props = defineProps<{
-  /** The tiers the figures on this page are built from. See the header — never all eight. */
-  feeds: readonly SamsaraFeedId[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** The tiers the figures on this page are built from. See the header — never all eight. */
+    feeds: readonly SamsaraFeedId[];
+    /**
+     * `line` is the caveat above a page, as it has always been. `chip` is the Fleet overview's
+     * control-row status (D-FO8): a 28px pill beside the range picker that says "Telematics
+     * current · 4 min ago" in muted ink when all is well, and turns caution-toned with the same
+     * `lead` sentence when a feed is stale — it never grows into a banner, because the row it sits
+     * in is navigation and a banner there would push the tab strip. The sentence is identical in
+     * both variants; only the frame differs.
+     */
+    variant?: "line" | "chip";
+  }>(),
+  { variant: "line" },
+);
 
 const pulse = ref<SamsaraFeedPulse[] | null>(null);
 
@@ -61,13 +73,26 @@ const shown = computed(() =>
   pulse.value ? (worstSamsaraFeed(pulse.value, props.feeds) ?? oldestSamsaraFeed(pulse.value, props.feeds)) : null,
 );
 
-const tone = computed(() =>
-  shown.value?.needsAttention
+const tone = computed(() => {
+  if (props.variant === "chip") {
+    return shown.value?.needsAttention
+      ? "inline-flex h-7 max-w-72 items-center gap-1.5 truncate rounded-full bg-caution-50 px-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
+      : "inline-flex h-7 max-w-72 items-center gap-1.5 truncate rounded-full bg-surface-subtle px-2.5 text-xs text-ink-muted";
+  }
+  return shown.value?.needsAttention
     ? "rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100"
-    : "text-xs text-ink-tertiary",
-);
+    : "text-xs text-ink-tertiary";
+});
 </script>
 
 <template>
-  <p v-if="shown" :class="tone" data-testid="samsara-feed-line">{{ shown.lead }}</p>
+  <p v-if="shown" :class="tone" :title="variant === 'chip' ? shown.lead : undefined" data-testid="samsara-feed-line">
+    <span
+      v-if="variant === 'chip'"
+      class="size-1.5 shrink-0 rounded-full"
+      :class="shown.needsAttention ? 'bg-caution-600' : 'bg-success-500'"
+      aria-hidden="true"
+    />
+    <span class="truncate">{{ shown.lead }}</span>
+  </p>
 </template>

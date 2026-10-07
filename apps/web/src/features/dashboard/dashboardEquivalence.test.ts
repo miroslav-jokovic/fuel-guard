@@ -24,6 +24,12 @@ import { callerCanView, type AppSection, type UserRole } from "@silvicom/shared"
  * screen's contents today (LM-F / Q-LM-F1). `fleet_manager` holds `accounting: none` and lost the
  * spend figures when #803 shipped; if LM9 quietly gave them back, every assertion about tile COUNT
  * would still pass and only this one would notice.
+ *
+ * ── 2026-10-06: THE SNAPSHOTS WERE RE-CAPTURED, ON PURPOSE, FOR FLEET OVERVIEW v3 ───────────────
+ * `FLEET-OVERVIEW-REDESIGN-PROPOSAL.md` replaced the nine cards with six (D-FO10), which is the
+ * one kind of change this file exists to make loud rather than silent. The two snapshots below
+ * now pin the v3 tab — a regression from here is still told from a redesign by whether the
+ * progress log names it — and the third test, the money rule, is unchanged and still the point.
  */
 
 // ── Fixtures: a summary shaped like the real one, with every field the tab reads ─────────────────
@@ -78,7 +84,15 @@ vi.mock("@/composables/useDashboardLayout", () => ({
 vi.mock("./useDashboardComparison", () => ({
   useDashboardComparison: () => ({
     previousRange: computed(() => ({ from: "2026-08-01", to: "2026-08-31" })),
-    previous: computed(() => undefined), mpgPrevious: computed(() => undefined), isLoading: ref(false),
+    previous: computed(() => undefined), mpgPrevious: computed(() => undefined),
+    mpgPreviousWeeks: computed(() => []), fuelPrevious: computed(() => undefined), isLoading: ref(false),
+  }),
+}));
+// The savings card is the Fuel costs page's strip (D-FO9); its query is vue-query and is answered here.
+vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
+  useFuelOpportunitiesQuery: () => ({
+    data: computed(() => [{ kind: "out_of_network", label: "Out of network", count: 3, amount: 410.5, withAmount: 3, oldest: "2026-09-02" }]),
+    isLoading: computed(() => false), isError: computed(() => false),
   }),
 }));
 vi.mock("./useDashboard", () => ({

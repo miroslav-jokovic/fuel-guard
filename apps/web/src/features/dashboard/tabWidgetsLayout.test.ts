@@ -50,7 +50,15 @@ vi.mock("@/composables/useModules", () => ({
 vi.mock("./useDashboardComparison", () => ({
   useDashboardComparison: () => ({
     previousRange: computed(() => ({ from: "2026-08-01", to: "2026-08-31" })),
-    previous: computed(() => undefined), mpgPrevious: computed(() => undefined), isLoading: ref(false),
+    previous: computed(() => undefined), mpgPrevious: computed(() => undefined),
+    mpgPreviousWeeks: computed(() => []), fuelPrevious: computed(() => undefined), isLoading: ref(false),
+  }),
+}));
+// The savings card is the Fuel costs page's strip (D-FO9); its query is vue-query and is answered here.
+vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
+  useFuelOpportunitiesQuery: () => ({
+    data: computed(() => [{ kind: "out_of_network", label: "Out of network", count: 3, amount: 410.5, withAmount: 3, oldest: "2026-09-02" }]),
+    isLoading: computed(() => false), isError: computed(() => false),
   }),
 }));
 vi.mock("./useDashboard", () => ({
@@ -152,51 +160,34 @@ beforeEach(() => {
 });
 
 describe("TabWidgets applies the caller's own layout", () => {
+  /** The v3 fleet tab, in catalogue order (D-FO10): six cards, named rather than derived. */
+  const FLEET = ["fleet.fuel", "fleet.efficiency", "fleet.attention", "fleet.activity", "fleet.concentration", "fleet.savings"];
+
   it("renders every fleet card in catalogue order when there is no row", async () => {
     role.value = "admin";
     layout.value = null;
-    // The order the tab rendered before LM10 existed, named rather than derived — a test that
-    // compared the render to itself would pass on any implementation at all.
-    expect((await renderTab("fleet")).cards).toEqual([
-      "fleet.feed-freshness",
-      "fleet.kpi-hero",
-      "fleet.operating-metrics",
-      "fleet.spend-trend",
-      "fleet.mpg-trend",
-      "fleet.cost-composition",
-      "fleet.severity",
-      "fleet.top-vehicles",
-      "fleet.top-drivers",
-    ]);
+    expect((await renderTab("fleet")).cards).toEqual(FLEET);
   });
 
   it("puts the kept cards in the stored order, ahead of the ones nobody ruled on", async () => {
     role.value = "admin";
     // Last and first in the catalogue, named in the opposite order. Catalogue order cannot produce
     // this, so the assertion cannot pass on an implementation that ignored the stored list.
-    layout.value = { widgetKeys: ["fleet.top-drivers", "fleet.feed-freshness"], hiddenKeys: [] };
+    layout.value = { widgetKeys: ["fleet.savings", "fleet.fuel"], hiddenKeys: [] };
     const { cards: out } = await renderTab("fleet");
-    expect(out.slice(0, 2)).toEqual(["fleet.top-drivers", "fleet.feed-freshness"]);
-    // …and the seven they said nothing about follow, still in catalogue order.
-    expect(out.slice(2)).toEqual([
-      "fleet.kpi-hero",
-      "fleet.operating-metrics",
-      "fleet.spend-trend",
-      "fleet.mpg-trend",
-      "fleet.cost-composition",
-      "fleet.severity",
-      "fleet.top-vehicles",
-    ]);
+    expect(out.slice(0, 2)).toEqual(["fleet.savings", "fleet.fuel"]);
+    // …and the four they said nothing about follow, still in catalogue order.
+    expect(out.slice(2)).toEqual(["fleet.efficiency", "fleet.attention", "fleet.activity", "fleet.concentration"]);
   });
 
   it("drops a hidden card and keeps every card nobody ruled on", async () => {
     role.value = "admin";
-    layout.value = { widgetKeys: [], hiddenKeys: ["fleet.top-drivers"] };
+    layout.value = { widgetKeys: [], hiddenKeys: ["fleet.savings"] };
     const { cards: out } = await renderTab("fleet");
-    expect(out).not.toContain("fleet.top-drivers");
-    // ⚠ The Done-when: the eight they did NOT rule on are all still here, on their own default.
-    expect(out).toHaveLength(8);
-    expect(out[0]).toBe("fleet.feed-freshness");
+    expect(out).not.toContain("fleet.savings");
+    // ⚠ The Done-when: the five they did NOT rule on are all still here, on their own default.
+    expect(out).toHaveLength(5);
+    expect(out[0]).toBe("fleet.fuel");
   });
 
   it("shows the empty state, not a blank tab, when everything on it is hidden", async () => {
@@ -205,42 +196,35 @@ describe("TabWidgets applies the caller's own layout", () => {
     const all = (await renderTab("fleet")).cards;
 
     // Hide the lot. `widget_keys: []` with a row is D-DW3's "show me nothing".
-    layout.value = {
-      widgetKeys: [],
-      hiddenKeys: [
-        "fleet.feed-freshness",
-        "fleet.kpi-hero",
-        "fleet.operating-metrics",
-        "fleet.spend-trend",
-        "fleet.mpg-trend",
-        "fleet.cost-composition",
-        "fleet.severity",
-        "fleet.top-vehicles",
-        "fleet.top-drivers",
-      ],
-    };
+    layout.value = { widgetKeys: [], hiddenKeys: FLEET };
     const { cards: out, html, buttons } = await renderTab("fleet");
-    expect(all).toHaveLength(9);
+    expect(all).toHaveLength(6);
     expect(out).toEqual([]);
     expect(isEmptyState(html)).toBe(true);
     expect(buttons).toContain("Customize");
   });
 
   /**
-   * D-DW2's consequence, and the reason the editor had to ship in the same merge as this rendering:
-   * `dispatch.live-map` defaults to `dispatcher` alone, so an admin's Dispatch tab is empty until
-   * they ask for the map. Empty with a way out — never empty with none.
+   * Q-FO4 (b). Every fleet-tab row saved before 2026-10-06 names only the nine keys v3 retired,
+   * and the honest reading of that is "never arranged THIS tab" — the default, and one sentence
+   * saying so. A row that still names one living card is an arrangement and gets no note.
    */
-  /**
-   * ⚠ REWRITTEN BY D-DR24, and the old expectation is worth stating because it was deliberate too.
-   * This used to assert that a dispatcher got the map by default and an ADMIN got an empty tab with
-   * a Customize button — `defaultFor: ["dispatcher"]`, D-DW2. That is a reasonable thing to say
-   * about one card among nine and an absurd one about a tab whose only content is the map: the admin
-   * was shown an empty state offering a menu of exactly the thing they had come for.
-   *
-   * The Dispatch tab is now a `workspace`, so the per-user layout does not apply to it at all: every
-   * role whose gate passes gets the map, and nobody is offered a way to hide it.
-   */
+  it("says once that a saved arrangement from before the catalogue changed is not being used", async () => {
+    role.value = "admin";
+    layout.value = { widgetKeys: ["fleet.kpi-hero", "fleet.top-drivers"], hiddenKeys: ["fleet.severity"] };
+    const stale = await renderTab("fleet");
+    expect(stale.cards).toEqual(FLEET);
+    expect(stale.html).toContain('data-test="stale-layout-note"');
+
+    layout.value = { widgetKeys: ["fleet.attention", "fleet.kpi-hero"], hiddenKeys: [] };
+    const partly = await renderTab("fleet");
+    expect(partly.cards[0]).toBe("fleet.attention");
+    expect(partly.html).not.toContain('data-test="stale-layout-note"');
+
+    layout.value = null;
+    expect((await renderTab("fleet")).html).not.toContain('data-test="stale-layout-note"');
+  });
+
   it("gives the map to every role that can open the Dispatch tab, and offers nobody a way to hide it", async () => {
     layout.value = null;
 
@@ -256,12 +240,6 @@ describe("TabWidgets applies the caller's own layout", () => {
     expect((await renderTab("dispatch")).cards).toEqual(["dispatch.live-map"]);
   });
 
-  /**
-   * ⚠ A DIFFERENT empty from the one above, and it must not offer a Customize button: the Dispatch
-   * TAB is gated on the `dispatch` section alone while `dispatch.live-map` also needs the `dispatch`
-   * MODULE, so an org that has not bought the module passes the tab gate with nothing behind it.
-   * Offering to rearrange an empty set would open a drawer on no rows and a Save that saves nothing.
-   */
   it("says so plainly, and offers no Customize, when the org has no cards for this tab at all", async () => {
     role.value = "dispatcher";
     layout.value = null;
@@ -275,24 +253,15 @@ describe("TabWidgets applies the caller's own layout", () => {
     expect(isEmptyState(html)).toBe(false);
   });
 
-  /**
-   * The property that makes a layout safe to store at all: it narrows what the gates admitted and can
-   * never widen it. A `fleet_manager` holds `accounting: none`, so the two money cards are not theirs
-   * — naming them in a layout must change nothing.
-   */
   it("cannot show a card the caller's gates refused, however the layout names it", async () => {
     role.value = "fleet_manager";
     layout.value = null;
     const withoutMoney = (await renderTab("fleet")).cards;
-    expect(withoutMoney).not.toContain("fleet.spend-trend");
-    expect(withoutMoney).not.toContain("fleet.cost-composition");
+    expect(withoutMoney).not.toContain("fleet.savings");
 
-    layout.value = {
-      widgetKeys: ["fleet.spend-trend", "fleet.cost-composition"],
-      hiddenKeys: [],
-    };
+    layout.value = { widgetKeys: ["fleet.savings", "fleet.fuel"], hiddenKeys: [] };
     const { cards: out, html } = await renderTab("fleet");
-    expect(out).toEqual(withoutMoney);
+    expect(out).toEqual(["fleet.fuel", ...withoutMoney.filter((k) => k !== "fleet.fuel")]);
     expect(html).not.toMatch(/\$\s?\d/);
   });
 });

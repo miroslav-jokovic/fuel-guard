@@ -112,6 +112,7 @@ export * from "./dashboardLayoutContract.js";
 export * from "./pageViewsContract.js";
 export * from "./dashboardWidgets.js";
 export * from "./dashboardComparison.js";
+export * from "./fleetLead.js";
 export * from "./featureCatalog.js";
 export * from "./sentryScrub.js";
 export * from "./notificationsContract.js";

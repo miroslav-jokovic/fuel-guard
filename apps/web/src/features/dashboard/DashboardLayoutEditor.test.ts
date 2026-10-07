@@ -46,7 +46,7 @@ const w = (key: string, label: string): DashboardWidget => ({
   label,
   tab: "fleet",
   gate: section("fuel"),
-  span: "full",
+  span: 12,
 });
 const ALPHA = w("fleet.alpha", "Alpha");
 const BETA = w("fleet.beta", "Beta");
