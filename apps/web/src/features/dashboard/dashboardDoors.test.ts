@@ -31,6 +31,10 @@ vi.mock("./fleetWidgetData", async (orig) => ({
     isLoading: ref(false), isFetching: ref(false), canSeeMoney: computed(() => true),
     mpgTotal: computed(() => ({ mpg: 7 })), mpgWeeks: computed(() => []), mpgSub: computed(() => ""),
     mpgTitle: computed(() => ""), rangeLabel: computed(() => "Sep 1 – Sep 15"),
+    // DR2b: no previous window in this harness — the doors are the subject, not the pills.
+    previousRange: computed(() => ({ from: "2026-08-17", to: "2026-08-31" })),
+    previousLabel: computed(() => "Aug 17 – Aug 31"),
+    deltas: computed(() => ({ spend: null, gallons: null, idleHours: null, idleCost: null, reefer: null, declined: null, mpg: null })),
   }),
 }));
 vi.mock("@/composables/useVehicles", () => ({

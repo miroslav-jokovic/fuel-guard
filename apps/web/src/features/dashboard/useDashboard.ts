@@ -30,7 +30,7 @@ import { apiFetch, type ApiResult } from "@/lib/api";
  * rather than coercing it (D-PREC5). An instant is what put the viewer's timezone into these
  * figures in the first place, and the picker has always emitted days.
  */
-interface DashboardEnvelope {
+export interface DashboardEnvelope {
   ok: boolean;
   data?: DashboardSummary;
   error?: { message?: string };

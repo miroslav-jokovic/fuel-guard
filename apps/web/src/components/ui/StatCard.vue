@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, AppIconChip, type ChipTone } from "@silvicom/ui";
+import { AppCard as BaseCard, AppDelta, AppIconChip, type ChipTone, type DeltaDirection, type DeltaTone } from "@silvicom/ui";
 import { type Icon } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import SparkLine from "@/components/SparkLine.vue";
@@ -117,8 +117,16 @@ const props = withDefaults(
      * wrong on half the tiles of the first page that used it.
      */
     subTone?: string;
+    /**
+     * The period-over-period pill on the head row (DR2b, D-DT6). Absent means no pill at all —
+     * not a dash — because a tile whose measure is current state ("Active alerts") has no previous
+     * period to compare with, and drawing one there is the category error D-DR12 names. The tone
+     * is the caller's verdict (D-DT8); this component never reads it off the arrow.
+     */
+    delta?: { direction: DeltaDirection; tone: DeltaTone; label: string; against?: string };
   }>(),
   {
+    delta: undefined,
     // `withDefaults` makes every optional prop want an explicit default (vue/require-default-prop).
     // Spelling them out is not ceremony here: `pressed` MUST be one for the reason above, and a list
     // that names all of them is a list nobody has to wonder about.
@@ -225,7 +233,27 @@ const valueClass = computed(() =>
           -->
           <div :class="inlineSpark ? 'flex flex-wrap items-center gap-x-4 gap-y-3' : ''">
             <div :class="inlineSpark ? 'min-w-32 flex-1' : 'min-w-0'">
-          <p :class="labelClass">{{ label }}</p>
+          <!--
+            D-DT6: the delta pill sits on the HEAD row, right of the label — not beside the value.
+            Beside the value it wrapped: at 1440 a four-up hero tile's figure column is ~165px once
+            the inline spark has its 112 + 16, and `$151.9K` at 30px is ~130 with the pill ~58, so
+            two of four tiles broke to a second line and the row went ragged. On the head row the
+            movement also sits beside the thing it qualifies, and the value line can never wrap
+            whatever the figure is. The pill is a `span` so the `p` order the tests read (label,
+            value, caption) is unchanged; pinned in `StatCard.test.ts` by
+            "puts the delta pill on the head row beside the label, and draws none when the caller gives none".
+          -->
+          <div class="flex items-center justify-between gap-2">
+            <p :class="labelClass">{{ label }}</p>
+            <AppDelta
+              v-if="delta && !loading"
+              :direction="delta.direction"
+              :tone="delta.tone"
+              :label="delta.label"
+              :against="delta.against"
+              class="shrink-0"
+            />
+          </div>
           <template v-if="loading">
             <div class="mt-2.5 h-8 w-24 animate-pulse rounded-control bg-surface-muted" />
             <div class="mt-2 h-3 w-16 animate-pulse rounded-control bg-surface-muted" />

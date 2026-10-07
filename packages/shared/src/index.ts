@@ -110,6 +110,7 @@ export * from "./accessReview.js";
 export * from "./namedGrants.js";
 export * from "./dashboardLayoutContract.js";
 export * from "./dashboardWidgets.js";
+export * from "./dashboardComparison.js";
 export * from "./featureCatalog.js";
 export * from "./sentryScrub.js";
 export * from "./notificationsContract.js";

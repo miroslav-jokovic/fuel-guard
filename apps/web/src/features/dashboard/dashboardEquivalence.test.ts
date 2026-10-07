@@ -73,6 +73,14 @@ vi.mock("@/composables/useDashboardLayout", () => ({
     reset: async () => {},
   }),
 }));
+// DR2b: the comparison composable is its own module so the previous window can be cached harder than
+// the live one; mocked EMPTY here, so no delta pill renders and these assertions stay about layout.
+vi.mock("./useDashboardComparison", () => ({
+  useDashboardComparison: () => ({
+    previousRange: computed(() => ({ from: "2026-08-01", to: "2026-08-31" })),
+    previous: computed(() => undefined), mpgPrevious: computed(() => undefined), isLoading: ref(false),
+  }),
+}));
 vi.mock("./useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => SUMMARY), isLoading: ref(false), isFetching: ref(false) }),
 }));

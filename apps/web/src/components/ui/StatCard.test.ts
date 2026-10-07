@@ -168,3 +168,31 @@ describe("subTone", () => {
     expect(plain.get("p.text-ink-tertiary").text()).toContain("4 weeks");
   });
 });
+
+/**
+ * The delta pill (DR2b, D-DT6). It is on the HEAD row beside the label, because beside the value
+ * it wrapped two of four hero tiles at 1440 and the row went ragged; and it is a `span`, so the
+ * `p` order every anatomy test above reads (label, value, caption) is untouched by its presence.
+ */
+describe("delta pill", () => {
+  it("puts the delta pill on the head row beside the label, and draws none when the caller gives none", () => {
+    const withPill = mountCard({
+      size: "hero",
+      delta: { direction: "up", tone: "bad", label: "12%", against: "Jul 19 – Aug 18" },
+    });
+    const head = withPill.get("p").element.parentElement!;
+    expect(head.classList.contains("flex")).toBe(true);
+    expect(head.querySelector("[data-direction='up']")).not.toBeNull();
+    expect(withPill.text()).toContain("Up 12% versus Jul 19 – Aug 18");
+    // The three `p`s are still label, value, caption — the pill did not become one of them.
+    expect(withPill.findAll("p").map((p) => p.text())).toEqual(["Files with work left", "12"]);
+
+    const without = mountCard({ size: "hero" });
+    expect(without.find("[data-direction]").exists()).toBe(false);
+  });
+
+  it("hides the pill while loading, so a skeleton never carries last window's verdict", () => {
+    const w = mountCard({ loading: true, delta: { direction: "down", tone: "good", label: "3%" } });
+    expect(w.find("[data-direction]").exists()).toBe(false);
+  });
+});

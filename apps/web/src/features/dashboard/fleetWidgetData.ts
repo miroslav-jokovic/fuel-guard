@@ -13,9 +13,10 @@
  */
 import { computed, type Ref } from "vue";
 import { useDashboard } from "./useDashboard";
+import { useDashboardComparison } from "./useDashboardComparison";
 import { useFleetMpgSeries } from "@/composables/useFleetMpg";
 import { useSessionStore } from "@/stores/session";
-import { fleetMpgWindowNote, formatDisplayDayShort } from "@silvicom/shared";
+import { fleetMpgWindowNote, formatDisplayDayShort, periodDelta } from "@silvicom/shared";
 
 export interface FleetRange {
   from: string;
@@ -63,12 +64,41 @@ export function useFleetWidgetData(range: Ref<FleetRange>) {
   /** The hover, which is where the full sentence goes when the tile only had room for the dates. */
   const mpgTitle = computed(() => fleetMpgWindowNote(mpgTotal.value ?? { partial: false, to: "", requestedTo: "" }) ?? mpgTotal.value?.reason ?? undefined);
 
-  const rangeLabel = computed(() => {
-    const { from: f, to: t } = range.value;
-    return f === t ? labelDay(f) : `${labelDay(f)} – ${labelDay(t)}`;
-  });
+  const windowLabel = (w: { from: string; to: string }) =>
+    w.from === w.to ? labelDay(w.from) : `${labelDay(w.from)} – ${labelDay(w.to)}`;
+  const rangeLabel = computed(() => windowLabel(range.value));
 
-  return { s, isLoading, isFetching, canSeeMoney, mpgTotal, mpgWeeks, mpgSub, mpgTitle, rangeLabel };
+  /**
+   * ── THE COMPARISON (DR2b, D-FO3) ──────────────────────────────────────────────────────────────
+   * Each delta is `null` until both windows have answered, and stays null for a measure the
+   * previous window could not give (an MPG withheld for too little measured distance). A null
+   * delta draws no pill — never a dash, never a zero — because a pill against an absent number is
+   * the thing D-DR12 refused to ship.
+   *
+   * ⚠ Deliberately NOT derived from `spendTrend`'s own points: the spark is thirty days INSIDE the
+   * selected range and a previous-period delta is a different window entirely (Q-DT4's warning).
+   *
+   * ⚠ No delta for the alert figures. `openAnomalies` and `anomaliesBySeverity` are CURRENT STATE
+   * (open now), and "open now vs open a month ago" is a comparison of two snapshots the summary
+   * does not take. The previous window's summary carries the same current-state counts, so a delta
+   * computed from it would always read flat — a number that looks right and is not.
+   */
+  const { previousRange, previous, mpgPrevious } = useDashboardComparison(range);
+  const previousLabel = computed(() => windowLabel(previousRange.value));
+  const deltas = computed(() => ({
+    spend: periodDelta(s.value?.totalSpend, previous.value?.totalSpend),
+    gallons: periodDelta(s.value?.totalGallons, previous.value?.totalGallons),
+    idleHours: periodDelta(s.value?.idleHours, previous.value?.idleHours),
+    idleCost: periodDelta(s.value?.idleCostUsd, previous.value?.idleCostUsd),
+    reefer: periodDelta(s.value?.reeferSpend, previous.value?.reeferSpend),
+    declined: periodDelta(s.value?.declinedCount, previous.value?.declinedCount),
+    mpg: periodDelta(mpgTotal.value?.mpg, mpgPrevious.value?.mpg),
+  }));
+
+  return {
+    s, isLoading, isFetching, canSeeMoney, mpgTotal, mpgWeeks, mpgSub, mpgTitle, rangeLabel,
+    previousRange, previousLabel, deltas,
+  };
 }
 
 export const fmtInt = (n: number) => Math.round(n).toLocaleString("en-US");
