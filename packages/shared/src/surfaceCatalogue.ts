@@ -144,7 +144,8 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "dispatch.loads", label: "Loads", path: "/loads", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
-  { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread" },
+  // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
+  { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread", startsOnFor: [] },
   { key: "dispatch.assignments", label: "Assignments", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.fuel-planning", label: "Fuel Planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
   { key: "dispatch.truck-stops", label: "Truck Stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
@@ -174,8 +175,9 @@ export const SURFACES: readonly Surface[] = [
    * for `recruiter`, `accountant` and `technician`, whose shipped `hazmat` is `none`; the review
    * queue's own write stays with HAZMAT_REVIEW_ROLES (D6), which a section grant never widens.
    */
-  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: section("hazmat"), module: "hazmatguard" },
-  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: section("hazmat"), module: "hazmatguard", badge: "hazmatReview" },
+  // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
+  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: section("hazmat"), module: "hazmatguard", startsOnFor: [] },
+  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: section("hazmat"), module: "hazmatguard", badge: "hazmatReview", startsOnFor: [] },
 
   // ── recruitment ───────────────────────────────────────────────────────────────────────────────
   // The hiring half of §391, and its OWN section — not a corner of Fleet. Gating it on `fleet` (how
@@ -431,6 +433,14 @@ export const SURFACES: readonly Surface[] = [
 for (const s of SURFACES) {
   const dir = s.reachedFrom ? SURFACES.find((d) => d.key === s.reachedFrom) : undefined;
   if (dir?.gate.kind === "directory") (dir.gate.screens as Surface[]).push(s);
+}
+
+// A child answers to its parent's key (D-SURF8), so it must also START as its parent does — or
+// hiding Hazmat review (Q-PR2) would leave `/hazmat/loads/:id` open. Copied from the parent here
+// rather than written on the child, which `lint:surfaces` refuses: nobody can answer for a child.
+for (const s of SURFACES) {
+  const parent = s.parent ? SURFACES.find((p) => p.key === s.parent) : undefined;
+  if (parent?.startsOnFor) s.startsOnFor = parent.startsOnFor;
 }
 
 export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);
