@@ -1,7 +1,8 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
-is built. Inventory (2b) waits on Q-F7. Next: chunk 3a.
+is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3a (urgent card messages only) is built.
+Next: chunk 3b.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -112,6 +113,12 @@ Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No n
   hours in the org's zone. Every change keeps its audit row.
   - Accept: replaying 10-01 → 10-06 from `audit_logs` (237 changes) in a test sends exactly the
     5 off-hours changes immediately, not one message per change per person (1,422 in 30 days). A FRAUD change sends immediately at noon on a Tuesday.
+  - Built: `cardStatusUrgency.ts` (shared) decides; the status poll asks it. The replay holds all
+    237 recorded changes and sends exactly the 5. Office hours are a constant, not
+    `organizations.operating_hours`: that column is when the trucks run, and the real fleet's is
+    24/7, so read as office hours it would have sent nothing. Only the zone comes from it.
+  - ⚠ Until 3b ships, a daytime change has its audit row and no message at all. Ship 3a and 3b
+    in the same release.
 - **3b** One daily summary per fuel manager: "Yesterday 23 cards went on hold and 19 came back",
   with the cards listed by truck. It goes through the existing digest, not a new scheduler.
   - Accept: exactly one per recipient per day, and none on a day with no changes.
@@ -255,3 +262,8 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   detail page starts as its parent does. Production stores no answer for any Tier C key, so this
   holds for every org. Inventory waits on Q-F7 (the Shop page is the inventory home). Driver-app
   duty has no switch by design.
+- 2026-10-07: Chunk 2a merged (#1337, 2d04392); staging serves it. Q-F7 asked.
+- 2026-10-07: Chunk 3a built: only FRAUD or an off-hours change is messaged at once. Replay of
+  10-01 → 10-06 (237 changes from `audit_logs`) sends exactly the 5 off-hours ones. Seven
+  mutants, each red (two first survived and the tests were strengthened: the weekday case needs a
+  zone ahead of UTC, and a no-op mutant was replaced).

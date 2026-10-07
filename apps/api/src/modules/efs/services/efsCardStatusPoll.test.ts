@@ -15,7 +15,8 @@ import { staleAfterMinutes } from "../routes/read.js";
  *  • a status that changed without us is re-read and gets an audit row naming both states;
  *  • a change our own write explains is not attributed to anyone else;
  *  • a poll where a large share of the fleet "changes" at once is held back, not written;
- *  • every query is org-scoped and no PAN is written in the clear.
+ *  • every query is org-scoped and no PAN is written in the clear;
+ *  • only an URGENT change is messaged at once (Q-F3): FRAUD, or outside office hours on the org's clock.
  */
 
 const ORG = "org-1";
@@ -77,6 +78,11 @@ vi.mock("../../messaging/index.js", () => ({
     return "evt";
   }),
 }));
+/** 21:00 Sunday in Chicago — off-hours, so a change detected now is sent at once (Q-F3). */
+const SUNDAY_NIGHT = new Date("2026-10-05T02:00:00Z");
+/** 12:00 Tuesday in Chicago — office hours, so only FRAUD is sent at once. */
+const NOON_TUESDAY = new Date("2026-10-06T17:00:00Z");
+const CHICAGO_ORG = { id: ORG, operating_hours: { start: "00:00", end: "00:00", tz: "America/Chicago" } };
 /** Two fuel managers — one of them listed twice, as a user with two memberships would be. */
 const MANAGERS = [{ user_id: "u-fleet" }, { user_id: "u-admin" }, { user_id: "u-fleet" }];
 
@@ -192,9 +198,9 @@ describe("pollEfsCardStatus", () => {
 
 describe("the office alert for an external change (category card_status_changed, 0397)", () => {
   it("tells each fuel manager once, names the card and both states, and deep-links the card", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "INACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "INACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS, organizations: [CHICAGO_ORG] } });
     const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "ACTIVE" }])]);
-    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl, now: SUNDAY_NIGHT });
     expect(notified.map((n) => n.userId).sort()).toEqual(["u-admin", "u-fleet"]);
     expect(notified[0]).toMatchObject({
       orgId: ORG,
@@ -213,26 +219,73 @@ describe("the office alert for an external change (category card_status_changed,
   });
 
   it("a card marked Fraud is critical", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [], audit_logs: [], memberships: MANAGERS, organizations: [CHICAGO_ORG] } });
     const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "FRAUD" }])]);
-    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl });
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl, now: SUNDAY_NIGHT });
     expect(new Set(notified.map((n) => n.severity))).toEqual(new Set(["critical"]));
   });
 
   it("our own write, a held batch and an unchanged fleet tell nobody anything", async () => {
     const own = createSupabaseRecorder({
-      tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [{ efs_card_id: mirrorRow(2, "").id }], audit_logs: [], memberships: MANAGERS },
+      tables: { efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, "ACTIVE")], efs_card_mutations: [{ efs_card_id: mirrorRow(2, "").id }], audit_logs: [], memberships: MANAGERS, organizations: [CHICAGO_ORG] },
     });
-    await pollEfsCardStatus(own.client, env, creds, { fetchImpl: vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]).fetchImpl });
+    await pollEfsCardStatus(own.client, env, creds, { fetchImpl: vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: "HOLD" }])]).fetchImpl, now: SUNDAY_NIGHT });
     __resetEfsSessions();
     const cards = Array.from({ length: 10 }, (_, k) => k + 1);
-    const held = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [], memberships: MANAGERS } });
-    await pollEfsCardStatus(held.client, env, creds, { fetchImpl: vendor([loginOk, roster(cards.map((n) => ({ n, status: "A" })))]).fetchImpl });
+    const held = createSupabaseRecorder({ tables: { efs_cards: cards.map((n) => mirrorRow(n, "ACTIVE")), efs_card_mutations: [], audit_logs: [], memberships: MANAGERS, organizations: [CHICAGO_ORG] } });
+    await pollEfsCardStatus(held.client, env, creds, { fetchImpl: vendor([loginOk, roster(cards.map((n) => ({ n, status: "A" })))]).fetchImpl, now: SUNDAY_NIGHT });
     expect(notified).toHaveLength(0);
     // Nobody to tell means nobody is looked up — asserted on the own-write poll, the one that reaches
     // the attribution step with a change in hand and must still find nothing external in it.
     expect(own.forTable("memberships")).toHaveLength(0);
     expect(held.forTable("memberships")).toHaveLength(0);
+  });
+});
+
+describe("only an urgent change is messaged at once (Q-F3, F02-F04 PLAN.md chunk 3a)", () => {
+  const poll = async (from: string, to: string, now: Date, tz = "America/Chicago") => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_cards: [mirrorRow(1, "ACTIVE"), mirrorRow(2, from)],
+        efs_card_mutations: [],
+        audit_logs: [],
+        memberships: MANAGERS,
+        organizations: [{ ...CHICAGO_ORG, operating_hours: { ...CHICAGO_ORG.operating_hours, tz } }],
+      },
+    });
+    const v = vendor([loginOk, roster([{ n: 1, status: "ACTIVE" }, { n: 2, status: to }])]);
+    const result = await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl, now });
+    return { rec, result };
+  };
+
+  it("a hold put on at noon on a Tuesday is audited and sent to nobody", async () => {
+    const { rec, result } = await poll("ACTIVE", "HOLD", NOON_TUESDAY);
+    expect(result.externalChanges).toBe(1);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(1);
+    expect(notified).toHaveLength(0);
+    // Nobody to tell now means nobody is looked up.
+    expect(rec.forTable("memberships")).toHaveLength(0);
+  });
+
+  it("the same hold at 21:00 on a Sunday is sent to each fuel manager", async () => {
+    const { rec } = await poll("ACTIVE", "HOLD", SUNDAY_NIGHT);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(1);
+    expect(notified.map((n) => n.userId).sort()).toEqual(["u-admin", "u-fleet"]);
+    expect(String(notified[0]!.dedupeKey)).toMatch(/:hold:2026-10-05T02$/);
+  });
+
+  it("a FRAUD change at noon on a Tuesday is sent at once, as critical", async () => {
+    await poll("ACTIVE", "FRAUD", NOON_TUESDAY);
+    expect(notified).toHaveLength(2);
+    expect(new Set(notified.map((n) => n.severity))).toEqual(new Set(["critical"]));
+  });
+
+  it("office hours are read on the org's clock: noon in Chicago is 02:00 in Tokyo", async () => {
+    const { rec } = await poll("ACTIVE", "HOLD", NOON_TUESDAY, "Asia/Tokyo");
+    expect(notified).toHaveLength(2);
+    // Read by its own key — `organizations.id` IS the org — and scoped like every other query.
+    expect(rec.forTable("organizations")[0]!.filters()).toEqual([{ col: "id", val: ORG }]);
+    expectOrgScoped(rec, ORG);
   });
 });
 

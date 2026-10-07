@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardLast4, efsStatusEquals } from "@silvicom/shared";
+import { cardLast4, cardStatusChangeIsUrgent, efsStatusEquals, isFraudStatusChange, organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { notify } from "../../messaging/index.js";
@@ -68,7 +68,7 @@ export async function pollEfsCardStatus(
   admin: SupabaseClient,
   env: Env,
   creds: EfsSoapCredentials,
-  opts: { fetchImpl?: typeof fetch; maxDetail?: number } = {},
+  opts: { fetchImpl?: typeof fetch; maxDetail?: number; now?: Date } = {},
 ): Promise<CardStatusPollResult> {
   const orgId = creds.orgId;
   const result: CardStatusPollResult = {
@@ -129,7 +129,7 @@ export async function pollEfsCardStatus(
 
   if (!result.refused) {
     await refreshDetails(admin, env, creds, [...changes.map((c) => c.summary), ...fresh], opts, result);
-    result.externalChanges = await recordExternalChanges(admin, orgId, changes);
+    result.externalChanges = await recordExternalChanges(admin, orgId, changes, opts.now ?? new Date());
   }
   return result;
 }
@@ -176,19 +176,24 @@ async function refreshDetails(
 }
 
 /**
- * Write an audit row for every change nobody made through us.
+ * Write an audit row for every change nobody made through us, and send the urgent ones at once.
  *
  * "Through us" means a card-control write on that card inside `OWN_WRITE_WINDOW_MS`. Our own writes
  * update the mirror from their verifying read, so the poll should never see them as changes at all;
  * the window is for the one it can — a write whose mirror update failed or has not landed yet.
+ *
+ * Urgent is Q-F3's rule (`cardStatusChangeIsUrgent`): FRAUD, or outside office hours on the org's
+ * clock. Every other change keeps its audit row and is left for the daily summary (chunk 3b), which
+ * reads those rows; it is not messaged one by one any more.
  */
 async function recordExternalChanges(
   admin: SupabaseClient,
   orgId: string,
   changes: StatusChange[],
+  now: Date,
 ): Promise<number> {
   if (!changes.length) return 0;
-  const since = new Date(Date.now() - OWN_WRITE_WINDOW_MS).toISOString();
+  const since = new Date(now.getTime() - OWN_WRITE_WINDOW_MS).toISOString();
   const { data, error } = await admin
     .from("efs_card_mutations")
     .select("efs_card_id")
@@ -202,12 +207,15 @@ async function recordExternalChanges(
   }
   const ours = new Set(((data ?? []) as { efs_card_id: string }[]).map((r) => r.efs_card_id));
   const external = changes.filter((c) => !ours.has(c.row.id));
+  const timeZone = external.length ? await orgTimeZone(admin, orgId) : null;
+  const urgent = (c: StatusChange) =>
+    timeZone !== null && cardStatusChangeIsUrgent({ from: c.row.status, to: c.summary.status!, at: now, timeZone });
   // Who hears it: everyone who may MANAGE fuel, from the section matrix — the people who can act on a
-  // card. Read once per poll, and only when there is something to say.
-  const recipients = external.length ? await fuelManagers(admin, orgId) : [];
+  // card. Read once per poll, and only when there is something to say now.
+  const recipients = external.some(urgent) ? await fuelManagers(admin, orgId) : [];
   let recorded = 0;
-  for (const { summary, row } of changes) {
-    if (ours.has(row.id)) continue;
+  for (const change of external) {
+    const { summary, row } = change;
     const to = summary.status!;
     await writeAudit(admin, {
       orgId,
@@ -218,10 +226,20 @@ async function recordExternalChanges(
       meta: { from: row.status, to, last4: cardLast4(summary.cardNumber), via: "efs_status_poll" },
     });
     signalCardStatusChangedExternally({ orgId, efsCardId: row.id, from: row.status, to });
-    await notifyStatusChange(admin, orgId, recipients, row, to, cardLast4(summary.cardNumber));
+    if (urgent(change)) await notifyStatusChange(admin, orgId, recipients, row, to, cardLast4(summary.cardNumber), now);
     recorded += 1;
   }
   return recorded;
+}
+
+/**
+ * The org's clock, from `organizations.operating_hours` — the ZONE only. Its hours are when the trucks
+ * run, not when the office works; see `cardStatusUrgency.ts`. Unreadable falls to the column's default
+ * zone, so a database blip can only misjudge the hour, never lose the audit row.
+ */
+async function orgTimeZone(admin: SupabaseClient, orgId: string): Promise<string> {
+  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  return organizationTimezone((data as { operating_hours?: object | null } | null)?.operating_hours);
 }
 
 async function fuelManagers(admin: SupabaseClient, orgId: string): Promise<string[]> {
@@ -236,9 +254,9 @@ async function fuelManagers(admin: SupabaseClient, orgId: string): Promise<strin
 }
 
 /**
- * The office alert for one external change (category `card_status_changed`, migration 0397).
+ * The office alert for one URGENT external change (category `card_status_changed`, migration 0397).
  *
- * Every direction is announced, not only locks: a card UNLOCKED in the WEX portal is the change with
+ * Every direction is announced when it is urgent, not only locks: a card UNLOCKED in the WEX portal is the change with
  * money attached — on 2026-09-30 the first poll found ••••7464 reactivated and fuelled while this page
  * still called it Inactive. Critical when either side is Fraud, a warning otherwise.
  *
@@ -252,9 +270,10 @@ async function notifyStatusChange(
   row: MirrorRow,
   to: string,
   last4: string | null,
+  now: Date,
 ): Promise<void> {
-  const fraud = /fraud/i.test(row.status) || /fraud/i.test(to);
-  const hour = new Date().toISOString().slice(0, 13);
+  const fraud = isFraudStatusChange(row.status, to);
+  const hour = now.toISOString().slice(0, 13);
   for (const userId of recipients) {
     await notify(admin, {
       orgId,
