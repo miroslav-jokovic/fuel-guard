@@ -29,7 +29,7 @@ import {
   type LiveSlot,
 } from "@/features/apply/capture/liveFrame";
 import type { PickedPhoto } from "@/features/apply/capture/webFileProvider";
-import { pickImageFile, pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
+import { pickImageFile, pickPhotoFromCamera, uploadAccept } from "@/features/apply/capture/webImageIo";
 import { APPLY_COPY } from "@/features/apply/strings";
 
 /**
@@ -200,7 +200,7 @@ function pastTips(): void {
 /** The camera app or a picked photo, from the driver's press — the live camera is let go first. */
 async function fallBack(to: "camera" | "file"): Promise<void> {
   scan.stop();
-  const file = to === "camera" ? await pickPhotoFromCamera(kind.facing) : await pickImageFile("image/*");
+  const file = to === "camera" ? await pickPhotoFromCamera(kind.facing) : await pickImageFile(uploadAccept(props.photo));
   if (file) emit("captured", { file, captureMode: "web_file_input" });
   else if (!refused.value && !tipsOpen.value) void scan.start();
 }

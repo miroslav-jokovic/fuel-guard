@@ -163,16 +163,17 @@ const fillCols: DataTableColumn[] = [
   { key: "total", label: "Total", numeric: true, width: "sm" },
 ];
 /**
- * A receipt keyed in McLeod (IP6) is a row of its own kind: it has a date, a state and gallons, and
- * McLeod holds no station, price or time for it — so those cells stay empty rather than invented.
+ * A receipt is a row of its own kind. One keyed in McLeod (IP6) has a date, a state and gallons —
+ * McLeod holds no station, price or time for it, so those cells stay empty rather than invented. A
+ * driver-paid fill the office uploaded (IP8) shows whatever its file carried.
  */
-const RECEIPT = "Receipt keyed in McLeod";
+const RECEIPT_LABEL = { mcleod_receipt: "Receipt keyed in McLeod", uploaded_receipt: "Driver-paid, uploaded" } as const;
 const fillRows = (id: string) =>
   (byKey.value.get(id)?.fills ?? []).map((f) => ({
     id: f.id,
     date: formatDate(f.businessDate ?? f.fueledAt),
-    location: f.source === "mcleod_receipt"
-      ? [`${RECEIPT} · ${code.value}`, f.location].filter(Boolean).join(" · ")
+    location: f.source === "mcleod_receipt" || f.source === "uploaded_receipt"
+      ? [`${RECEIPT_LABEL[f.source]} · ${code.value}`, f.location].filter(Boolean).join(" · ")
       : f.location,
     gallons: gal(f.gallons),
     price: f.pricePerGal == null ? null : usd3(f.pricePerGal),
@@ -186,7 +187,7 @@ const boughtSub = computed(() => {
   const fills = `in ${d.fillCount.toLocaleString("en-US")} fill${d.fillCount === 1 ? "" : "s"}`;
   if (!d.receiptCount) return fills;
   const n = d.receiptCount.toLocaleString("en-US");
-  return `${fills} + ${n} receipt${d.receiptCount === 1 ? "" : "s"} keyed in McLeod (${gal(d.receiptGallons)} gal)`;
+  return `${fills} + ${n} driver-paid receipt${d.receiptCount === 1 ? "" : "s"} (${gal(d.receiptGallons)} gal)`;
 });
 </script>
 
@@ -289,9 +290,10 @@ const boughtSub = computed(() => {
 
       <p class="text-xs text-ink-tertiary">
         Miles are Samsara's monthly jurisdiction report for each truck, added up over the quarter. Fills are
-        tractor diesel bought at {{ name }} stations, dated in the station's own time zone. Receipts keyed in
-        McLeod are the cash and drivers'-own-card fuel the office types in after the quarter closes; one that
-        matches a card fill (same truck, day and gallons) is counted once<template v-if="data?.receiptDuplicates">
+        tractor diesel bought at {{ name }} stations, dated in the station's own time zone. Driver-paid receipts
+        are the cash, own-card and fuel-app fills no card feed sees: uploaded on the IFTA page, or keyed in McLeod
+        after the quarter closes. One that matches a card fill or another copy of itself (same truck, day and
+        gallons) is counted once<template v-if="data?.receiptDuplicates">
         ({{ data.receiptDuplicates }} here)</template>. All of it is what the IFTA page's {{ name }} row adds up
         across trucks, so the totals above match that row.
       </p>

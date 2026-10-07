@@ -53,10 +53,11 @@ export interface IftaFuelPurchase {
   gallons: number;
   /**
    * Where the gallons come from. Absent means a card fill. `mcleod_receipt` is a receipt the office
-   * keyed into McLeod by hand (IP6): it is fuel bought, so it counts exactly like a card fill, and it
-   * is ALSO summed on its own so a page can say how much of "gallons bought" rests on receipts.
+   * keyed into McLeod by hand (IP6), `uploaded_receipt` a driver-paid fill the office uploaded (IP8):
+   * both are fuel bought, so they count exactly like a card fill, and they are ALSO summed on their
+   * own so a page can say how much of "gallons bought" rests on receipts.
    */
-  source?: "card" | "mcleod_receipt";
+  source?: "card" | "mcleod_receipt" | "uploaded_receipt";
 }
 
 export interface IftaJurisdictionPosition {
@@ -66,7 +67,7 @@ export interface IftaJurisdictionPosition {
   /** `taxableMiles ÷ fleetMpg`. Null when the MPG could not be measured. */
   gallonsConsumed: number | null;
   gallonsPurchased: number;
-  /** The part of `gallonsPurchased` from receipts keyed in McLeod (IP6). Zero when there are none. */
+  /** The part of `gallonsPurchased` from receipts — keyed in McLeod (IP6) or uploaded (IP8). Zero when none. */
   gallonsFromReceipts: number;
   /** The jurisdiction's diesel rate for this period, or null when the table cannot price it. */
   ratePerGal: number | null;
@@ -100,7 +101,7 @@ export interface IftaPosition {
   credit: number;
   net: number;
   surcharge: number;
-  /** Gallons from receipts keyed in McLeod, inside `mpg.totalGallons` — all jurisdictions. */
+  /** Gallons from receipts (keyed in McLeod or uploaded), inside `mpg.totalGallons` — all jurisdictions. */
   receiptGallons: number;
   /** Miles the tax table could price, over all miles. Null when there are none. */
   pricedMileShare: number | null;
@@ -196,7 +197,7 @@ export function computeIftaPosition(
     const code = p.jurisdiction.trim().toUpperCase();
     purchased.set(code, (purchased.get(code) ?? 0) + p.gallons);
     totalGallons += p.gallons;
-    if (p.source === "mcleod_receipt") {
+    if (p.source === "mcleod_receipt" || p.source === "uploaded_receipt") {
       fromReceipts.set(code, (fromReceipts.get(code) ?? 0) + p.gallons);
       receiptGallons += p.gallons;
     }

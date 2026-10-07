@@ -38,8 +38,11 @@ export interface IftaJurisdictionFillRaw {
   pricePerGal: number | null;
   totalCost: number | null;
   location: string | null;
-  /** Absent on a card fill. `mcleod_receipt`: keyed by hand in McLeod (IP6) — no price, station or time. */
-  source?: "card" | "mcleod_receipt";
+  /**
+   * Absent on a card fill. `mcleod_receipt`: keyed by hand in McLeod (IP6) — no price, station or time.
+   * `uploaded_receipt`: a driver-paid fill the office uploaded (IP8), with whatever its file carried.
+   */
+  source?: "card" | "mcleod_receipt" | "uploaded_receipt";
 }
 
 export interface IftaJurisdictionTrucksResponse {
@@ -50,7 +53,7 @@ export interface IftaJurisdictionTrucksResponse {
   fills: IftaJurisdictionFillRaw[];
   /** Unit numbers for trucks that bought fuel here but reported no miles here. */
   units: Record<string, string | null>;
-  /** Receipts keyed in McLeod for this jurisdiction, card duplicates already dropped (IP6). */
+  /** Receipts for this jurisdiction — keyed in McLeod (IP6) and uploaded (IP8) — duplicates already dropped. */
   receipts?: IftaReceiptRaw[];
   /** How many receipts the duplicate rule dropped — said on the page, never silent. */
   receiptDuplicates?: number;
@@ -79,7 +82,7 @@ export interface IftaJurisdictionTrucks {
   spent: number;
   /** Card fills only; receipts are counted in `receiptCount`. */
   fillCount: number;
-  /** Receipts keyed in McLeod, and their gallons — both already inside `gallonsBought`. */
+  /** Receipts (keyed in McLeod or uploaded), and their gallons — both already inside `gallonsBought`. */
   receiptCount: number;
   receiptGallons: number;
 }
@@ -105,15 +108,15 @@ export function iftaJurisdictionTrucks(
   const fills: IftaJurisdictionFillRaw[] = [
     ...cardFills,
     ...receipts.map((r) => ({
-      id: `receipt:${r.externalId}`,
+      id: `receipt:${r.source}:${r.externalId}`,
       vehicleId: r.vehicleId,
       fueledAt: null,
       businessDate: r.receiptDate,
       gallons: r.gallons,
-      pricePerGal: null,
-      totalCost: null,
-      location: r.vehicleId ? null : `McLeod unit ${r.mcleodUnit}, matched to no truck`,
-      source: "mcleod_receipt" as const,
+      pricePerGal: r.pricePerGal ?? null,
+      totalCost: r.totalCost ?? null,
+      location: r.vehicleId ? (r.location ?? null) : `McLeod unit ${r.unitAsFiled}, matched to no truck`,
+      source: r.source === "mcleod" ? ("mcleod_receipt" as const) : ("uploaded_receipt" as const),
     })),
   ];
   const taxable = raw.reduce((acc, t) => acc + milesFromMeters(t.taxableMeters), 0);

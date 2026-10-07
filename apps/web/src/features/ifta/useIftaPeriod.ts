@@ -43,12 +43,12 @@ export interface IftaPeriodData {
   samsaraTaxPaidLiters: number;
   /** True when no miles have been pulled for this quarter at all. Different from "no miles driven". */
   neverFetched: boolean;
-  /** McLeod's hand-keyed receipts (IP6): already inside the position's gallons; here for the page's account of them. */
+  /** Driver-paid receipts (McLeod IP6, uploads IP8): already inside the position's gallons; here for the page's account of them. */
   receipts: IftaPeriodReceipts;
 }
 
 const NO_RECEIPTS: IftaPeriodReceipts = {
-  jurisdictions: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [],
+  jurisdictions: [], sources: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [],
 };
 
 const num = (v: unknown): number => {

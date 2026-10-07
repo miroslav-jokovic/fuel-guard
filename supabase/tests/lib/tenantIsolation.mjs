@@ -209,9 +209,16 @@ function jsonbFromCheck(meta, table, col) {
 }
 
 /** A minimal, constraint-satisfying literal for one column. */
+const FORMAT_PINNED = {
+  "ifta_fuel_receipt_uploads.file_sha256": "repeat('a', 64)", // check (file_sha256 ~ '^[0-9a-f]{64}$')
+  "ifta_fuel_receipts.jurisdiction": "'TX'", // check (jurisdiction ~ '^[A-Z]{2}$')
+};
+
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
   if (c.col === "card_last4") return "'0000'";
+  // Regex CHECKs `literalFromCheck` cannot read a literal out of, pinned the way `card_last4` is (0436).
+  if (FORMAT_PINNED[`${table}.${c.col}`]) return FORMAT_PINNED[`${table}.${c.col}`];
   if (c.typtype === "e") {
     const labels = meta.enumOf.get(c.typname) ?? [];
     if (labels.length) return `'${labels[0]}'`;
