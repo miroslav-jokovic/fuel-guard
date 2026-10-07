@@ -2267,6 +2267,11 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      // 0435: `surface_key` and `role` are shape-checked by regex, and the generic seeder reads a
+      // CHECK's first quoted literal as a value — here that is the pattern itself.
+      surface_page_views: (org) =>
+        `insert into surface_page_views (org_id, day, surface_key, role, views) ` +
+        `values ('${org}', current_date, 'fuel.log', 'admin', 1)`,
       efs_cards: (org) =>
         `insert into efs_cards (org_id, card_last4, card_ref_hmac, card_number_sealed, status, document, card_version) ` +
         `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version')`,

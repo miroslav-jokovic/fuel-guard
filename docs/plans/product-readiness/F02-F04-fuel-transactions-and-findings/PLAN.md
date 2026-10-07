@@ -1,6 +1,6 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
-**Status:** AUDITED 2026-10-06. Q-F1..Q-F4 ruled 2026-10-06; Q-F5 and Q-F6 open. Nothing built.
+**Status:** BUILDING. Step 1a (page-view table, 0435) in review; 1b (the writer) next. Q-F5 and Q-F6 open.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -82,6 +82,10 @@ AUDIT.md + PLAN.md. FEATURE-INVENTORY.md §6 and its Log record the Q-PR1/2/4 ru
 - **Accept:** `lint:release-train` and `lint:comment-claims` pass, and CI is green.
 
 ### Step 1 — X1, page-view count (cross-cutting, ruled Q-PR4)
+Two merges, because staging can serve code before the migration applies: **1a** the table and
+`record_surface_views` (0435) with its matrix; **1b** the API route and the router hook that call
+it. The day is the org's calendar day (`todayInZone`), and the role comes from the server's auth
+check, never from the browser.
 A daily count per surface key and role, with no user id and no query string. Written from the
 router's after-each hook through one small API call, batched.
 - Needs a new table with RLS, an entry in `scripts/table-modules.json`, and an owner module of
@@ -214,3 +218,5 @@ feature is DONE when every AUDIT finding is fixed, ruled won't-fix, or moved by 
   Q-PR1/2/4 rulings recorded in FEATURE-INVENTORY.md.
 - 2026-10-06: Owner ruled Q-F1 (a): Miroslav Jokovic owns the queue. Also ruled Q-F2 (a), Q-F3 (a)
   and Q-F4 as recommended. Q-F5 and Q-F6 were re-asked in plain words.
+- 2026-10-07: Step 1a built: `surface_page_views` + `record_surface_views` (0435), matrix
+  `surface-page-views.test.mjs` (21 checks; four mutants each turn it red), RLS hand-seed added.
