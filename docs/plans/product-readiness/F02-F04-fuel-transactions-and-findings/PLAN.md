@@ -1,6 +1,7 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
-**Status:** BUILDING. Step 1a merged (#1328, 0435 on staging); 1b (the writer) in review. Q-F5 and Q-F6 open.
+**Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Every question is ruled. Next:
+chunk 2.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -8,207 +9,202 @@ remaining phases in order with this feature's other fixes.
 
 ---
 
-## Owner questions
+## Rulings
 
-**Q-F1. Who owns the fuel-security queue? RULED 2026-10-06: (a), Miroslav Jokovic.** Nobody has acted on an alert since 08-14, and 0 of
-158 money findings are assigned (AUDIT §0.7).
-- (a) One named person reviews alerts and findings every working day. Everything is assigned to
-  them by default.
-- (b) Each truck's dispatcher reviews their own trucks.
-- (c) Nobody reviews. The product only notifies on card fraud, and the queue is removed.
-- **Recommendation: (a).** Name the person. One owner and one short daily list is the only shape
-  that has a chance with today's 1-of-12 weekly sign-ins. This also answers Q-PR3 for F02 + F04:
-  the task walk is done with Miroslav.
-
-**Q-F2. Money findings nobody can recover: keep them in a queue? RULED 2026-10-06: (a).** 138 of 157 open findings are
-buying habits (avoided state, out of network, avoided brand), worth ≈ $19.5k. No vendor credits
-them (AUDIT §0.6, N8).
-- (a) Move them out of the queue into Fuel Costs (F03) as a monthly "buying habits" report, per
-  driver and truck. The queue keeps only what can be disputed: invoice mismatch and paid above
-  Pilot's quote.
-- (b) Keep them in the queue, with a "Talked to the driver" close action.
-- **Recommendation: (a).** A queue item with no possible action is noise, and the totals then
-  mean what they say.
-
-**Q-F3. Card status messages (1,422 in 30 days, 17% read). RULED 2026-10-06: (a).** Cards go HOLD around 8–10 am CT
-and back to ACTIVE in the afternoon, on 108 cards in 10 days (AUDIT W8, D4).
-- (a) Stop the per-change message. Send one daily summary, and send an immediate message only
-  for a card made ACTIVE outside working hours or marked FRAUD.
-- (b) Keep per-change messages, but only to one named person.
-- (c) Keep as is.
-- **Recommendation: (a).** Also: is the daily HOLD/ACTIVE rhythm someone in the office, or an
-  EFS rule? You will know; the data can't tell. *(Still unanswered; Step 3 does not depend on it.)*
-
-**Q-F4. Tools with no user: hide them from the sidebar until someone needs them? RULED 2026-10-06: as recommended.** Recall audit
-(never used), Card control "check" (an engineering tool), Anomaly thresholds, Detection coverage,
-Reefer coverage. Use the Q-PR2 method (surface grants, nothing retired).
-- **Recommendation: hide all five for every role except admin.** The admin can still reach
-  them by URL.
-
-**Q-F5. Which day does a fill belong to? OPEN.** EFS's date (`tran_date`), or the station's local
-date (`business_date`)? Pages and finance disagree on 41 fills since 08-01, one of them across a
-month ($639.24, AUDIT N3).
-- (a) EFS's date everywhere. It matches the EFS statement and McLeod.
-- (b) The station's local date everywhere.
-- **Recommendation: (a).** Reconciling with EFS and McLeod is the point. A station-local time
-  can still show beside the date.
-- *2026-10-06:* the owner answered "this is regulated by permissions". The question is not about
-  who may see a fill. It asks which calendar date a fill is counted on when the two dates differ.
-  Re-asked in plain words.
-
-**Q-F6. The "Log fill-up" button (used 0 times in 17,955 fills). OPEN, re-asked in plain words.**
-- **Recommendation:** move it into the page's "…" menu. Do not remove it; cash fills may need it
-  one day.
+- **Q-F1. Who owns the fuel-security queue? RULED 2026-10-06: Miroslav Jokovic.** He reviews
+  alerts and findings, new items are assigned to him by default, and the task walk is done with
+  him. This answers Q-PR3 for F02 + F04.
+- **Q-F2. Money findings nobody can recover: RULED 2026-10-06: they leave the queue.** The 138
+  buying-habit findings (avoided state, out of network, avoided brand; ≈ $19.5k) become a monthly
+  report in Fuel Costs (F03). The queue keeps only what can be disputed: invoice mismatch and
+  paid above Pilot's quote.
+- **Q-F3. Card status messages: RULED 2026-10-06: one daily summary,** plus an immediate message
+  for FRAUD and for a change made outside office hours.
+  - *Who changes the cards, measured 2026-10-07:* 245 external changes since 09-30. 237 of them
+    (97%) fall Monday–Friday, 7 am–6 pm Central. 8 do not, and none was FRAUD. The status poll ran
+    around the clock (last 7 days: 773 polls at night and 592 at weekends, all `done`), so
+    nothing was missed off-hours. Only 15 of 106 "now ACTIVE" changes were followed by a fill
+    within 4 hours.
+  - So the changes are people in the office working in the WEX portal during the day, not an EFS
+    rule and not "unlock for one fill". Office hours are Mon–Fri 07:00–18:00 in the org's zone.
+- **Q-F4. Unused tools: RULED 2026-10-06: hidden for every role but admin.** The tools are Recall
+  audit, Card control check, Anomaly thresholds, Detection coverage and Reefer coverage. They
+  are hidden through surface grants, and nothing is retired.
+- **Q-F5. Which day a fill belongs to: DECIDED 2026-10-07 on the owner's instruction to analyze
+  and solve: EFS's day, which is Central time.**
+  - EFS's guide: "All our servers are central time" (p. 10). Reject `tranDate` is "Central Time
+    zone" (p. 107), and `serverTime` is "based on the Central Time zone" (p. 133).
+  - *Measured, September:* for 856 fills at stations outside Central, EFS's time read as Central
+    lands on the Samsara-confirmed fueling moment (median 0 minutes off). Read as the station's
+    zone, it is 60 minutes off.
+  - *Measured, 08-01 → 10-05:* `(fueled_at at time zone 'America/Chicago')::date` equals EFS's
+    `tran_date` on **4,601 of 4,601** fills. Today's `business_date` (the station's own date)
+    differs on 42.
+  - D-FUI11 (0287) chose the station's date as "the day EFS prints". The measurement shows EFS
+    prints the Central day, so this change carries out D-FUI11's stated intent rather than
+    reversing it.
+  - The station's own clock time still shows, in the row's hover (F-H2).
+- **Q-F6. The "Log fill-up" button: DECIDED 2026-10-07 on the same instruction: removed, together
+  with the browser's write access to fills.**
+  - Used 0 times in 17,955 fills.
+  - Cash fuel is already keyed in McLeod (fuel-tax receipts, IP6, 0434) and reaches IFTA from
+    there. A second door for the same receipt is a second source of truth.
+  - The button writes **from the browser straight into `fuel_transactions`**
+    (`useCreateFillUp.ts:54`), so no audit row is written.
+  - The same database policies (`ftxn_insert`, `ftxn_update`, `ftxn_delete`) let an admin or fleet
+    manager change or delete any EFS fill from the browser, without a trace. No app code uses
+    update or delete.
+  - If hand entry is ever needed, it returns as an audited API route.
+- **Q-PR1, Q-PR2, Q-PR4** (2026-10-06): F02 + F04 first; Tier C hidden through surface grants;
+  X1 built early (done).
 
 ---
 
-## Rulings already given (2026-10-06, "proceed as proposed")
+## How the work is cut
 
-- **Q-PR1:** F02 + F04 first, as one audit (this folder).
-- **Q-PR2:** hide Tier C from the sidebar through the existing surface grants (`startsOnFor` /
-  section). Retire nothing.
-- **Q-PR4:** build X1 (page-view count) early.
-- **Q-PR3:** still open. Q-F1 asks it for this feature.
+Each chunk is **one PR with one purpose**. Rules for every chunk:
+- It is reviewed and merged before the next one starts.
+- A schema chunk ships alone, and the code that uses it comes in the next chunk (the deploy
+  window).
+- A migration number is chosen right before merge, after checking the NAME on `origin/main`.
+- Each chunk proves that its tests fail when its rule is broken (a mutation, recorded in the PR).
+- Production gets a chunk only in a release you approve.
 
----
+**Order and why.** Chunks 2–3 stop the noise people see today. Chunk 4 must come before chunk 6:
+re-scoring history would otherwise delete reviewed alerts again (AUDIT A3).
 
-## The PRs, in order
+### Done
+- **1a** `surface_page_views` + `record_surface_views` (0435), #1328.
+- **1b** `POST /api/page-views` + router hook, #1330. Counts are visible on staging.
 
-Each PR is small and merges on its own. A migration number is picked only right before merge,
-after checking the NAME on `origin/main`. A column and its first reader ship in separate merges.
+### Chunk 2 — hide Tier C (Q-PR2)
+Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No new code path.
+- **Accept:** `SidebarPreview` per role no longer lists them, and each URL still opens for admin.
 
-### Step 0 — this PR (docs only)
-AUDIT.md + PLAN.md. FEATURE-INVENTORY.md §6 and its Log record the Q-PR1/2/4 rulings.
-- **Accept:** `lint:release-train` and `lint:comment-claims` pass, and CI is green.
+### Chunk 3 — card status messages (Q-F3)
+- **3a** Per-change messages are sent only for FRAUD, or for a change detected outside office
+  hours in the org's zone. Every change keeps its audit row.
+  - Accept: replaying 10-01 → 10-06 from `audit_logs` (237 changes) in a test sends exactly the
+    5 off-hours changes immediately, not one message per change per person (1,422 in 30 days). A FRAUD change sends immediately at noon on a Tuesday.
+- **3b** One daily summary per fuel manager: "Yesterday 23 cards went on hold and 19 came back",
+  with the cards listed by truck. It goes through the existing digest, not a new scheduler.
+  - Accept: exactly one per recipient per day, and none on a day with no changes.
+- **3c** Titles name the truck and driver first, and the last four digits second (N7: 246 of 309
+  cards share their last four with another card).
+  - Accept: a test with two cards ending in the same four digits produces two different titles.
 
-### Step 1 — X1, page-view count (cross-cutting, ruled Q-PR4)
-Two merges, because staging can serve code before the migration applies: **1a** the table and
-`record_surface_views` (0435) with its matrix; **1b** the API route and the router hook that call
-it. The day is the org's calendar day (`todayInZone`), and the role comes from the server's auth
-check, never from the browser.
-A daily count per surface key and role, with no user id and no query string. Written from the
-router's after-each hook through one small API call, batched.
-- Needs a new table with RLS, an entry in `scripts/table-modules.json`, and an owner module of
-  `org`.
-- **Accept:**
-  - A matrix pins (surface, role, day) as unique, so a second view adds to the count instead of
-    adding a row.
-  - A unit test proves no path or query string is stored.
-  - After one day on staging, the fuel pages show counts.
+### Chunk 4 — a rebuild never deletes a reviewed alert (AUDIT A3)
+Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_transitions`.
+- **Accept:** a PGlite matrix runs a rebuild over a human-closed case. The case and its
+  transitions survive, and removing the guard turns the matrix red.
 
-### Step 2 — Q-PR2, hide Tier C (cross-cutting)
-Set the surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI so the sidebar
-does not show them. Same mechanism, no new code path.
-- **Accept:** `SidebarPreview` for each role no longer lists them. Each URL still opens for admin.
+### Chunk 5 — card fraud incidents (CF2, D-CF1/D-CF2), rebuilt from main
+#1216 is closed with a link, never merged: it holds migration 0410 and deletes the idle code.
+- **5a** Pure fold in `packages/shared` + unit tests. Five real cards → 7 incidents. The 4
+  proximity rows open none.
+- **5b** Migration: `card_fraud_incidents` with RLS and its matrix.
+- **5c** The decline and fill scorers write incidents.
+- **Accept:** each part's own tests, plus the card-fraud plan's CF2 check.
 
-### Step 3 — stop the card-status flood (after Q-F3)
-In `efsCardStatusPoll.ts`, send the per-change message only for the cases Q-F3 names. Add one
-daily summary through the existing digest. Name the card by **truck and driver**, with the last
-four digits second (N7).
-- **Accept:**
-  - Replaying the 10-05 production change list in a test sends ≤ 1 summary per recipient, plus
-    0 immediate messages.
-  - A FRAUD transition still sends immediately.
-  - The title names the truck.
-
-### Step 4 — card fraud CF2, rebuilt from main (D-CF1, D-CF2)
-Rebuild #1216's incident fold and table **from current main**. Do not merge #1216: it carries
-migration 0410 and deletes the idle burn-rate code. Then close #1216 with a link.
-- **Accept:** the card-fraud plan's own CF2 check. The PGlite matrix and unit tests pin the 5
-  real cards (7 incidents) and the 4 proximity rows that must NOT open one.
-
-### Step 5 — CF5, approved-fill rules become notes (D-CF3, D-CF4)
-Weights in `catalog.yaml` (`pnpm gen:rules`), with a `SCORING_VERSION` bump. Only
-`tank_fill_short` stays a Review.
-- **Accept:** re-scoring the last 60 days in a test gives 0 alerts from `tank_space_exceeded`,
+### Chunk 6 — approved-fill rules become notes (CF5, D-CF3/D-CF4)
+`catalog.yaml` weights, `pnpm gen:rules`, and a `SCORING_VERSION` bump. Only `tank_fill_short`
+stays a Review.
+- **Accept:** re-scoring 60 days in a test raises 0 alerts from `tank_space_exceeded`,
   `odometer_mismatch` or `card_multi_vehicle`.
 
-### Step 6 — CF0, the reset (D-CF9), as one audited act
-Set the detection epoch and retire the 81 open cases per Q-CF1. Also fix AUDIT A3: a rebuild must
-never delete a case a person has touched.
-- **Accept:**
-  - The Alerts page shows only cases on or after the epoch.
-  - A matrix proves a rebuild leaves human-closed cases and their `anomaly_transitions` in place.
-  - One audit row names the actor, the epoch and the counts.
+### Chunk 7 — the reset (CF0, D-CF9), one audited act
+Set a detection epoch, and retire the 81 open cases per Q-CF1.
+- **Accept:** the Alerts page shows only cases on or after the epoch, and one audit row names the
+  actor, the epoch and the counts.
 
-### Step 7 — one fuel-security inbox, one sidebar group (W1, after Q-F1 and Q-F2)
-"Findings" and "Alerts" become one page under FUEL, called **"Fuel problems"** (wording to
-confirm). It lists card-fraud incidents, `tank_fill_short` reviews and disputable money
-findings. Every item opens its own drawer on this page, so the theft-case click that does
-nothing for a dispatcher goes away. Default owner per Q-F1. The old paths redirect.
+### Chunk 8 — one fuel queue with a default owner (Q-F1, W1)
+- **8a** Schema: an org setting for the fuel queue owner. A new item is assigned to that person.
+  Migration alone.
+- **8b** Set it to Miroslav, and assign the open items to him (an audited act).
+- **8c** One page, **"Fuel problems"**, under FUEL. It lists card-fraud incidents,
+  `tank_fill_short` reviews and disputable money findings. Every row opens its own drawer on
+  that page, so the theft-case click that does nothing for a dispatcher goes away. The old paths
+  redirect.
 - **Accept:**
   - Each role in the matrix opens every row it can see.
   - Closing an item takes ≤ 3 clicks.
   - The open count on the page equals the dashboard's.
 
-### Step 8 — move buying habits to Fuel Costs (after Q-F2 = a)
-The three habit kinds leave the queue and become a monthly table in F03's Fuel Costs, per driver
-and truck. The Findings tiles become **Can be disputed / Disputed / Credited back**, over
-disputable kinds only.
-- **Accept:**
-  - The tile total equals the sum of the disputable rows, to the cent.
-  - The habits report total for September equals the sum of those `fuel_exceptions.amount`
-    values for September.
+### Chunk 9 — buying habits move to Fuel Costs (Q-F2)
+- **9a** A monthly buying-habits table in Fuel Costs, per driver and truck.
+  - Accept: September's total equals the sum of those `fuel_exceptions.amount` values, to the
+    cent.
+- **9b** The three habit kinds leave the queue. The tiles become **Can be disputed / Disputed /
+  Credited back**.
+  - Accept: the tile total equals the sum of the disputable rows.
 
-### Step 9 — numbers on the Fuel Log (N5, N6, N9)
-- "Flagged" counts fills with an **open** case and links to them. A cleared fill is not
-  "needs review".
-- Add an **Amount** column (`total_cost`), and format Gallons.
-- Every tile shows "—" and "Not available" while loading or on error, never $0 or 0. This
-  applies on Findings too.
-- **Accept:** a test with a dismissed case shows Flagged = 0, and a failed totals query renders
-  "—".
+### Chunk 10 — one day for a fill (Q-F5)
+- **10a** Migration: `fuel_business_date` reads EFS's clock (`America/Chicago`, named as EFS's
+  clock, not as the org's). Backfill the 42 moved fills and rebuild the spend days they touch.
+  - Accept: a matrix pins a Nevada fill at 22:12 local on 09-30 to 10-01. In production, every
+    fill's `business_date` equals its EFS `tran_date`.
+- **10b** The Fuel Log's "When" shows office time, with the station's time in the hover. The
+  footnotes "the day of the fill at the station" and "Central time" become one sentence on every
+  tab.
+  - Accept: September on the Fuel Log equals EFS's September line total (fuel lines, $1,317,898.79).
 
-### Step 10 — one day for a fill (N3, after Q-F5)
-Fuel pages, exports and the finance tie-out use one date definition, from `packages/shared`.
-- **Accept:** the September total on the Fuel Log equals the EFS line total for September
-  ($1,317,898.79 by `tran_date`, if Q-F5 = a).
+### Chunk 11 — Fuel Log numbers (N5, N6, N9)
+- **11a** "Flagged" counts fills with an **open** case and links to them.
+  - Accept: a fill whose case was dismissed is not counted.
+- **11b** An **Amount** column, and Gallons formatted.
+- **11c** A tile shows "—" and "Not available" while loading or on error, never $0, on the Fuel
+  Log and on Findings.
+  - Accept: a failed totals query renders "—".
 
-### Step 11 — wording pass (W2–W7)
-- Remove repo paths, environment-variable names and engineering words from all eleven pages.
-- Fix the Fuel Log tab texts (the data is fetched, not uploaded).
-- Use MM/DD/YYYY in the Findings scope line.
-- Turn decline errors into plain reasons, with the vendor text in the hover.
-- Replace the Alerts segmented buttons with `AppTabs`, or remove them.
-- One plain sentence per page header.
-- **Accept:** a reviewer reads every label aloud as a non-native speaker. `lint:date-format`
-  passes. No string contains `docs/`, `_MINUTES` or "anomaly engine".
+### Chunk 12 — remove the browser's write door on fills (Q-F6)
+- **12a** Remove "Log fill-up", `FillUpForm` and `useCreateFillUp`.
+  - Accept: no web code writes `fuel_transactions`, and `table-writers.json` loses the entry.
+- **12b** Migration: drop `ftxn_insert`, `ftxn_update` and `ftxn_delete`. Reads are unchanged.
+  - Accept: the RLS matrix shows a fuel manager's browser insert, update and delete on a fill all
+    refused, while the API's service-role writers still work.
 
-### Step 12 — hide the unused tools (after Q-F4)
-Surface grants for Recall audit, Card control check, Thresholds, Detection coverage and Reefer
-coverage, per Q-F4. "Log fill-up" moves to the menu (Q-F6).
+### Chunk 13 — hide the unused tools (Q-F4)
+Surface grants for the five tools, as chunk 2.
 - **Accept:** `SidebarPreview` per role, and each URL still opens for admin.
 
-### Step 13 — tests and coverage pages (A2, N10)
-- A behaviour test for `POST /api/anomalies/:id/transition`: org scope, version conflict, a role
-  without `safety: manage` refused, and the audit row. Mutate the org filter and watch it fail.
-- Move the two coverage pages' sums into SQL, only if Q-F4 keeps them visible.
-- **Accept:** the mutation turns the test red, and the coverage numbers equal the SQL to the
-  unit.
+### Chunk 14 — wording, one page group per PR (W2–W7)
+- **14a** EFS integration and Card control settings: no repo paths, environment-variable names
+  or test vocabulary.
+- **14b** Fuel Log tabs and Declines: the data is fetched, not uploaded, and decline errors read
+  as plain reasons, with the EFS text in the hover.
+- **14c** Alerts and Findings leftovers not covered by chunk 8: MM/DD/YYYY scope lines, and
+  `AppTabs` instead of hand-made buttons.
+- **Accept, each:** a reviewer reads every label aloud as a non-native speaker, and
+  `lint:date-format` passes. No string contains `docs/`, `_MINUTES` or "anomaly engine".
 
-### Step 14 — reconcile with an outside source, and the runbook line (N1, N2, P3)
-- When F14 refreshes the McLeod FUEL sweep, tie September's card fuel to McLeod GL FUEL and
-  record the difference here.
-- Add one runbook line to `docs/DEPLOYMENT.md`: "EFS feed older than 2 hours: who is told, what
-  to check."
-- **Accept:** the difference is recorded in this plan's log, with an explanation of any gap
-  over $50.
+### Chunk 15 — alert transition test (A2)
+A behaviour test for `POST /api/anomalies/:id/transition`: org scope, version conflict, a role
+without `safety: manage` refused, and the audit row.
+- **Accept:** mutating the org filter turns it red.
+
+### Chunk 16 — reconcile with an outside source, and the runbook line
+- When F14 refreshes McLeod's FUEL sweep, tie September's card fuel to McLeod GL FUEL and log the
+  difference here.
+- Add one line to `docs/DEPLOYMENT.md`: "EFS feed older than 2 hours: who is told, and what to
+  check."
+- **Accept:** any gap over $50 is explained in this log.
 
 ### Then — the task walk (definition of done)
-The person named in Q-F1 does the top tasks (AUDIT §3) without help, while X1 counts. The
-feature is DONE when every AUDIT finding is fixed, ruled won't-fix, or moved by name.
+Miroslav does the top tasks (AUDIT §3) without help, while X1 counts. The feature is DONE when
+every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 
 ---
 
 ## Not in this plan (moved, by name)
 
 - McLeod FUEL sweep freshness (D3, N2) → **F14**.
-- Buying-habits report design → **F03** (Step 8 only moves the data).
-- Card-write machinery size (A1): no change while card control has a user. Revisit if Q-F4 hides
-  it.
-- `fuel_cards.status` vs `efs_cards.status` (A4): traced to a screen first. A fix only if a page
-  reads the wrong one.
+- Buying-habits report design → **F03** (chunk 9 only moves the data).
+- Card-write machinery size (A1): no change while card control has a user.
+- `fuel_cards.status` vs `efs_cards.status` (A4): trace it to a screen first, and fix it only if a
+  page reads the wrong one.
 - "Finance job failed" alarm cause (D2): stopped 09-30. Reopen if it returns.
+- Coverage pages computing in the browser (N10): won't fix while chunk 13 hides them. Reopen if
+  they are shown again.
 
 ---
 
@@ -224,3 +220,8 @@ feature is DONE when every AUDIT finding is fixed, ruled won't-fix, or moved by 
   Step 1b built: `POST /api/page-views` (org + role from the token, day from the org's clock, unknown
   keys dropped), `lib/pageViews.ts` queue, router `afterEach`. Read the counts with
   `select day, surface_key, role, views from surface_page_views where org_id = … order by day desc`.
+- 2026-10-07: Step 1b merged (#1330, 50525f0); staging serves it (`verify:live staging` matches).
+- 2026-10-07: The owner asked for the open questions to be analyzed and solved. Q-F5 was decided
+  as EFS's Central day (guide pp. 10, 107, 133; 4,601 of 4,601 fills match), and Q-F6 as removing
+  the button and the browser's write policies. The Q-F3 pattern was measured: office staff, office
+  hours. The plan was re-cut into single-purpose chunks; the A3 guard moved ahead of re-scoring.
