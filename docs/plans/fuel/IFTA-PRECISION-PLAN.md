@@ -206,13 +206,30 @@ and the state page. UI: "Driver-paid fuel" on the IFTA page (fuel managers uploa
 page sees the uploads), with an undo per upload. Both real files parse completely (40 + 61 rows, 0
 refused, all 15 of the app's stated totals agree).
 
-### IP9 · The return as Excel and PDF — NEXT
+### IP9 · The return as Excel and PDF — BUILT
 
 The owner asked for two tabs: miles by truck × state, gallons by truck × state, totals both ways.
 Recommended and accepted shape (2026-10-07): Excel with (1) the return by state, (2) miles truck ×
 state, (3) gallons truck × state with each truck's MPG, (4) every fill with its source, (5) what needs a
 look (miles and no fuel, fills with no truck, dropped duplicates). PDF: the return by state, then one
 block per truck — a 190 × 40 matrix does not print.
+
+Built (2026-10-07): `GET /api/ifta/return.xlsx` and `/return.pdf?year&quarter` (fuel view, audited
+`export.generated`), "Excel" and "PDF" on the IFTA page for the quarter it shows.
+
+- **D-IP8 · One set of figures in the file, checked against the page.** The return tab is computed
+  from the same truck rows as the two grids (`buildIftaReturnReport`, same `computeIftaPosition`), so
+  a column total IS its return line by construction. It is then compared with the page's own position
+  (`ledgerPosition`, now shared by the page and the export); a state that differs by more than a mile
+  or 0.1 gal is listed under "Needs a look" (a sync landed between the reads; export again).
+- **D-IP9 · Unrounded cells, live totals.** Grid cells hold the unrounded miles and gallons under a
+  display format; totals are SUM formulas with cached values. Summing whole-mile cells drifts from the
+  return by up to half a mile per truck.
+- "Needs a look" also lists: fleet MPG outside `IFTA_MPG_BAND`, states with no rate, a truck with miles
+  and no fuel, a truck MPG outside `PLAUSIBLE_FLEET_MPG` (carve-out recorded in `lint:mpg`, D-MPG2 per
+  truck), fuel with no truck, and every receipt the duplicate rule dropped.
+- Found while building: `pdfDraw.table()` drew each header a little lower than the one before and
+  right-aligned headers overhung their figures by 6pt. Fixed for every document using it.
 
 ---
 
@@ -299,3 +316,7 @@ and run the rest — run each statement on its own, since one bad column kills t
   card fill. Owner ruled D-IP7 (uploads; our entry wins over McLeod's copy; grant comes with the VM; July
   later the same way). IP8 built: 0436, shared parser + `foldReceiptSources`, `POST/GET
   /api/ifta/receipt-uploads` (+ `/:id/void`), the dialog on the IFTA page. IP9 (export) is next.
+- 2026-10-07 — IP9 built: the return as Excel (return, miles grid, fuel grid + MPG, every fill, needs a
+  look) and PDF (return, needs a look, a block per truck). D-IP8 (checked against the page), D-IP9
+  (unrounded cells, live totals). `periodPurchases`/`rateDateFor` moved from the web hook to
+  `@silvicom/shared` (`ledgerPosition`). 14 mutants, all killed.

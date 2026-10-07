@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readIftaJurisdictionTrucks, readIftaPeriod } from "../periodReads.js";
 import { registerReceiptUploadRoutes } from "./receiptUploads.js";
+import { registerReturnExportRoutes } from "./returnExport.js";
 
 const querySchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
@@ -66,5 +67,6 @@ export function iftaRouter(): Router {
     }),
   );
   registerReceiptUploadRoutes(router);
+  registerReturnExportRoutes(router);
   return router;
 }

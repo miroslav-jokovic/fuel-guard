@@ -407,20 +407,29 @@ const ROW_PAD = 5;
  * fit whole.
  */
 export function table(doc: PDFKit.PDFDocument, columns: Column[], rows: Cell[][]): void {
+  /**
+   * ⚠ Every header at ONE captured y, and as wide as the cells under it (IFTA IP9, 2026-10-07).
+   * Each header used to be drawn at the running `doc.y` and walked back by `currentLineHeight()`,
+   * which is not what pdfkit had advanced, so every column sat a little lower than the one before:
+   * measured on the eight-column IFTA return, NET sat ~5pt below STATE. And a right-aligned header
+   * spanned the full column while its cells stop 6pt short of it, so the header overhung its figures:
+   * it is moved 6pt left rather than narrowed, because a narrower box wraps a header that fits today
+   * ("GAL BOUGHT" did, in a 58pt column).
+   */
   const drawHeader = (): void => {
     let x = MARGIN;
+    const y = doc.y;
     doc.fillColor(MUTED).font("Helvetica-Bold").fontSize(8);
     for (const c of columns) {
-      doc.text(pdfkitText(doc, c.header.toUpperCase()), x, doc.y, {
+      doc.text(pdfkitText(doc, c.header.toUpperCase()), c.align === "right" ? x - 6 : x, y, {
         width: c.width,
         align: c.align ?? "left",
         continued: false,
         lineBreak: false,
       });
-      doc.y -= doc.currentLineHeight();
       x += c.width;
     }
-    doc.y += doc.currentLineHeight() + 3;
+    doc.y = y + doc.currentLineHeight() + 3;
     doc
       .strokeColor(RULE)
       .lineWidth(0.5)

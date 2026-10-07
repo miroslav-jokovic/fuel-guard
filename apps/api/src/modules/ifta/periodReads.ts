@@ -66,11 +66,27 @@ export async function readIftaJurisdictionTrucks(
   ]);
   const receipts = await readIftaJurisdictionReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction, fills);
 
-  const units = new Map<string, string | null>();
-  const ids = [...new Set([
+  const units = await readUnitNumbers(admin, orgId, [
     ...miles.map((m) => m.vehicleId),
     ...[...fills, ...receipts.kept].flatMap((f) => (f.vehicleId ? [f.vehicleId] : [])),
-  ])];
+  ]);
+
+  return {
+    jurisdiction,
+    year,
+    quarter,
+    trucks: miles.map((m) => ({ ...m, unitNumber: units.get(m.vehicleId) ?? null })),
+    fills,
+    units: Object.fromEntries(units),
+    receipts: receipts.kept,
+    receiptDuplicates: receipts.duplicates.length,
+  };
+}
+
+/** vehicle id → unit number, for the trucks an IFTA read names. Retired trucks included: they own their quarter's miles. */
+export async function readUnitNumbers(admin: SupabaseClient, orgId: string, vehicleIds: string[]): Promise<Map<string, string | null>> {
+  const units = new Map<string, string | null>();
+  const ids = [...new Set(vehicleIds)];
   // In chunks: a PostgREST `in` list rides in the URL, and a large fleet's ids would overrun it.
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await admin
@@ -83,15 +99,5 @@ export async function readIftaJurisdictionTrucks(
       units.set(v.id, v.unit_number?.trim() || null);
     }
   }
-
-  return {
-    jurisdiction,
-    year,
-    quarter,
-    trucks: miles.map((m) => ({ ...m, unitNumber: units.get(m.vehicleId) ?? null })),
-    fills,
-    units: Object.fromEntries(units),
-    receipts: receipts.kept,
-    receiptDuplicates: receipts.duplicates.length,
-  };
+  return units;
 }

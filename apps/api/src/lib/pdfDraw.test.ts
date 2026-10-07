@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { pdfDrawnLines, pdfPageTexts } from "../testing/pdfText.js";
 import {
-  PAGE_HEIGHT, body, caption, field, heading, muted, newDrawing, section,
+  PAGE_HEIGHT, body, caption, field, heading, muted, newDrawing, section, table,
 } from "./pdfDraw.js";
 
 describe("a label and its value, at the foot of a sheet", () => {
@@ -410,5 +410,29 @@ describe("a caption and the block it introduces", () => {
 
     // A caption does not: it owns the gap between itself and the block it introduces.
     expect(at("CAPTION-FOLLOWER") - at("CAPTIONED-METADATA-LINE")).toBeGreaterThan(ownLeading);
+  });
+});
+
+describe("a table's header row", () => {
+  // IFTA IP9, 2026-10-07: each header was drawn a little lower than the one before it (NET ~5pt
+  // under STATE on the eight-column return), and a right-aligned header overhung its figures by 6pt.
+  it("draws every header on one line, and ends a right-aligned header where its figures end", async () => {
+    const { doc, done } = newDrawing("table header");
+    const right = { align: "right" as const };
+    table(doc, [
+      { width: 74, header: "State" }, { width: 56, header: "Taxable mi", ...right }, { width: 58, header: "Gal bought", ...right },
+      { width: 72, header: "Tax due", ...right }, { width: 72, header: "Credit", ...right }, { width: 74, header: "Net", ...right },
+    ], [[{ text: "Texas" }, { text: "1" }, { text: "2" }, { text: "3" }, { text: "4" }, { text: "5" }]]);
+    doc.end();
+    const lines = await pdfDrawnLines(await done);
+    const headers = lines.filter((l) => ["STATE", "TAXABLE MI", "GAL BOUGHT", "TAX DUE", "CREDIT", "NET"].includes(l.text));
+    expect(headers).toHaveLength(6);
+    expect(new Set(headers.map((h) => h.y.toFixed(2))).size).toBe(1);
+    // Right edges: the header's and its cell's, from the same font measurement pdfkit used.
+    doc.font("Helvetica-Bold").fontSize(8);
+    const net = headers.find((h) => h.text === "NET")!;
+    const five = lines.find((l) => l.text === "5")!;
+    const measure = (text: string, size: number, bold: boolean) => doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(size).widthOfString(text);
+    expect(net.x + measure("NET", 8, true)).toBeCloseTo(five.x + measure("5", 9, false), 1);
   });
 });

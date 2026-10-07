@@ -67,6 +67,10 @@ const CARVE_OUTS = new Map([
     "D-MPG2's family: a PLAUSIBILITY test, not a reported figure. `impliedMpg` asks whether the miles could have been driven on the fuel recorded, against IFTA_MPG_BAND.max, and is compared to a threshold rather than shown as the fleet's efficiency. Replacing it with the operating MPG would make the tie-out check its input against itself.",
   ],
   [
+    "packages/shared/src/ifta/returnReport.ts",
+    "D-MPG2 per truck: the IFTA return export's taxable miles ÷ purchased gallons for one truck over a quarter (IP9). A plausibility check on the return's inputs, listed under \"Needs a look\" when it falls outside PLAUSIBLE_FLEET_MPG, on the tax basis the return is filed on rather than the operating one.",
+  ],
+  [
     "packages/shared/src/anomalyRules/helpers.ts",
     "computedMpg is ONE FILL's ratio — the input an anomaly rule judges, never a fleet figure. D-MPG3's reasoning: a per-subject MPG is a different number and says so.",
   ],

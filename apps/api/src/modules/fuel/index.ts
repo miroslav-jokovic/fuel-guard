@@ -44,4 +44,4 @@ export { readRecentlyFuelledVehicleIds, type RecentFuelResult } from "./recentFu
  * The same fills, per truck across every state, as the four facts IFTA's receipt duplicate rule
  * compares (IP6) — so a hand-keyed McLeod receipt the card already carried is not credited twice.
  */
-export { readJurisdictionFills, readVehicleTractorFillKeys } from "./jurisdictionFillReads.js";
+export { readJurisdictionFills, readQuarterTractorFills, readVehicleTractorFillKeys } from "./jurisdictionFillReads.js";

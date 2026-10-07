@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { computed, ref } from "vue";
+import { createPinia, setActivePinia } from "pinia";
 import { computeIftaPosition, tieOutMiles, type IftaFuelPurchase, type IftaJurisdictionMiles } from "@silvicom/shared";
 import { metersFromMiles } from "@silvicom/shared";
 import type { IftaPeriodData } from "@/features/ifta/useIftaPeriod";
@@ -42,6 +43,12 @@ vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
   };
 });
 
+const download = vi.fn(async (_path: string, _filename: string) => {});
+vi.mock("@/lib/api", async (orig) => ({
+  ...(await orig<typeof import("@/lib/api")>()),
+  apiDownload: (path: string, filename: string) => download(path, filename),
+}));
+
 import IftaLedgerPage from "./IftaLedgerPage.vue";
 
 const miles = (jurisdiction: string, taxableMiles: number): IftaJurisdictionMiles => ({
@@ -80,6 +87,7 @@ function fuelHole(): IftaPeriodData {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia()); // the export buttons' failure toast
   period.value = healthy();
   loading.value = false;
   errored.value = false;
@@ -240,6 +248,20 @@ describe("IftaLedgerPage", () => {
     errored.value = true;
     period.value = null;
     expect((await mountPage()).w.text()).toContain("Couldn't load this quarter");
+  });
+
+  // ── the return as a file (IP9) ──────────────────────────────────────────────────────────────────
+  it("exports the quarter the page is showing, as Excel and as PDF", async () => {
+    download.mockClear();
+    const { w } = await mountPage("?q=2026-Q1");
+    expect(w.find('[data-testid="export-ifta-xlsx"]').text()).toContain("Q1 2026");
+    await w.find('[data-testid="export-ifta-xlsx"] button').trigger("click");
+    await w.find('[data-testid="export-ifta-pdf"] button').trigger("click");
+    await flushPromises();
+    expect(download.mock.calls).toEqual([
+      ["/api/ifta/return.xlsx?year=2026&quarter=1", "ifta-return-2026-Q1.xlsx"],
+      ["/api/ifta/return.pdf?year=2026&quarter=1", "ifta-return-2026-Q1.pdf"],
+    ]);
   });
 
   // ── a row opens the trucks behind it ──────────────────────────────────────────────────────────
