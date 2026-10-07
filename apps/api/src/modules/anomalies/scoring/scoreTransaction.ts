@@ -42,6 +42,7 @@ import {
   startScoringAttempt,
 } from "./persist.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
+import { fillFraudAttempt, recordCardFraud } from "../cardFraudIncidents.js";
 
 type RuleInputs = {
   consumption: Awaited<ReturnType<typeof loadConsumptionContext>>;
@@ -402,6 +403,7 @@ export async function scoreTransaction(
     throw error;
   }
 
+  await recordCardFraud(admin, orgId, fillFraudAttempt(r, recon));
   await dispatchAlertSweep(admin, env, orgId, txnId, assessment, opts.skipLearn);
 
   await learnAndUpdateVehicle(
