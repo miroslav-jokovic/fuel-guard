@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { IFTA_MONTHS, iftaMonthNumber, type IftaVehicleReport } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
-import { makeSamsaraIftaFetcher, type SamsaraIftaFetcher } from "./lib/samsaraIfta.js";
+import {
+  IftaPeriodNotReadyError,
+  makeSamsaraIftaFetcher,
+  type SamsaraIftaFetcher,
+} from "./lib/samsaraIfta.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 
 /**
@@ -182,6 +186,79 @@ export async function syncIftaMilesForMonth(
  * this is called from a scheduler and must be testable without a fake clock.
  */
 export function monthsToSync(now: Date, back = 3): { year: number; month: string }[] {
+  return completedMonths(now, back);
+}
+
+export interface IftaRunResult {
+  /** Rows written per month that synced, keyed "September 2026". */
+  months: Record<string, number>;
+  rows: number;
+  unmappedVehicles: number;
+  /** Months Samsara is still processing — skipped, not failed (`IftaPeriodNotReadyError`). */
+  notReady: string[];
+}
+
+/**
+ * One sync run: every month `monthsToSync` names, each its own fetch.
+ *
+ * ── ONE IMPLEMENTATION, BECAUSE THERE WERE TWO (incident 2026-10-01) ─────────────────────────────
+ * The daily scheduler tier and the queue handler each carried their own copy of this loop. The
+ * handler's copy caught a refused month and went on; the scheduler's — the one that actually runs
+ * every day — did not, so the first refusal threw and the months behind it were never fetched. Both
+ * callers now run this, so a rule fixed here is fixed for both.
+ *
+ * Rules, in order:
+ *  - A month Samsara says it is still processing is SKIPPED and reported in `notReady`. It is the
+ *    ordinary state of the newest month for three days after it ends, not a fault.
+ *  - Any other failure does not stop the other months: each is fetched and written on its own.
+ *  - But it does fail the RUN, once every month has been tried. Returning success with a quiet
+ *    `failed` list would keep the IFTA feed green while a month was missing from a tax filing.
+ */
+export async function syncIftaMonths(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  options: IftaSyncOptions = {},
+): Promise<IftaRunResult> {
+  const now = options.now ?? new Date();
+  const result: IftaRunResult = { months: {}, rows: 0, unmappedVehicles: 0, notReady: [] };
+  const failed: string[] = [];
+  for (const { year, month } of monthsToSync(now)) {
+    const label = `${month} ${year}`;
+    try {
+      const r = await syncIftaMilesForMonth(admin, env, orgId, year, month, { ...options, now });
+      result.months[label] = r.rows;
+      result.rows += r.rows;
+      result.unmappedVehicles = Math.max(result.unmappedVehicles, r.unmappedVehicles);
+      if (r.unmappedVehicles > 0) {
+        // Samsara reporting trucks we do not hold means the fleet and the telematics account disagree
+        // about what exists. Loud, because it silently shrinks every jurisdiction total.
+        console.warn(`[samsara] ifta ${label}: ${r.unmappedVehicles} vehicle(s) could not be mapped`);
+      }
+    } catch (e) {
+      // A missing token is the whole org's state, not one month's — let the caller handle it once.
+      if (e instanceof NoSamsaraTokenError) throw e;
+      if (e instanceof IftaPeriodNotReadyError) {
+        result.notReady.push(label);
+        console.log(`[samsara] ifta ${label}: ${e.message} — skipped until Samsara serves it`);
+        continue;
+      }
+      const why = e instanceof Error ? e.message : String(e);
+      failed.push(`${label}: ${why}`);
+      console.error(`[samsara] ifta ${label} failed: ${why}`);
+    }
+  }
+  if (failed.length > 0) {
+    const written = Object.keys(result.months);
+    throw new Error(
+      `IFTA sync failed for ${failed.join("; ")}` +
+        (written.length > 0 ? ` (written: ${written.join(", ")})` : ""),
+    );
+  }
+  return result;
+}
+
+function completedMonths(now: Date, back: number): { year: number; month: string }[] {
   const out: { year: number; month: string }[] = [];
   // `i` starts at 1: month 0 is the one in progress, which Samsara refuses outright.
   for (let i = 1; i <= back; i += 1) {

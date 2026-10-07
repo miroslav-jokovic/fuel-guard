@@ -42,7 +42,7 @@ export {
   type TelematicsCoverageResult,
 } from "./telematicsCoverage.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
-export { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+export { monthsToSync, syncIftaMilesForMonth, syncIftaMonths } from "./samsaraIftaSync.js";
 export {
   syncVehicleOdometerReadings,
   ODOMETER_SOURCE_WINDOW_DAYS,
