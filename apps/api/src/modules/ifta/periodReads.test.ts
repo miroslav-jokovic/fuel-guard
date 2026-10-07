@@ -130,7 +130,7 @@ describe("readIftaJurisdictionTrucks", () => {
     const rec = recorder();
     const r = await readIftaJurisdictionTrucks(rec.client as unknown as SupabaseClient, ORG, 2026, 3, "TX");
     expect(r.receipts).toEqual([
-      { externalId: "rB", vehicleId: "v512", mcleodUnit: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 120 },
+      { externalId: "rB", source: "mcleod", vehicleId: "v512", unitAsFiled: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 120 },
     ]);
     expect(r.receiptDuplicates).toBe(1);
     // 512 drove nowhere Samsara saw and bought nothing on our cards: its unit still resolves.

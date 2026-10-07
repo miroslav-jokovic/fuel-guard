@@ -178,7 +178,7 @@ describe("IftaJurisdictionPage", () => {
       [raw("732", 3_000, 3_100, 3)],
       [fill("f1", "v-732", 120, 456, "2026-07-14", "Love's #512, Amarillo TX")],
       { "v-512": "512" },
-      [{ externalId: "r1", vehicleId: "v-512", mcleodUnit: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 110 }],
+      [{ externalId: "r1", source: "mcleod" as const, vehicleId: "v-512", unitAsFiled: "512", jurisdiction: "TX", receiptDate: "2026-08-15", gallons: 110 }],
     );
   };
 
@@ -198,7 +198,7 @@ describe("IftaJurisdictionPage", () => {
     withReceipts();
     const t = (await mountPage("/ifta/TX?q=2026-Q3")).text();
     expect(t).toContain("230");
-    expect(t).toContain("in 1 fill + 1 receipt keyed in McLeod (110 gal)");
+    expect(t).toContain("in 1 fill + 1 driver-paid receipt (110 gal)");
   });
 
   it("offers nothing to open on a truck that bought no fuel here", async () => {

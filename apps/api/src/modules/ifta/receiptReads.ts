@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  dropCardDuplicateReceipts, summarizePeriodReceipts,
+  foldReceiptSources, summarizePeriodReceipts,
   type IftaCardFillKey, type IftaPeriodReceipts, type IftaReceiptRaw, type ReceiptDuplicateSplit,
 } from "@silvicom/shared";
 import { readFuelTaxReceipts } from "../mcleod/index.js";
 import { readVehicleTractorFillKeys } from "../fuel/index.js";
+import { readUploadedReceipts } from "./uploadedReceipts.js";
 
 /**
  * McLeod's hand-keyed fuel receipts, as the IFTA reads need them (IFTA-PRECISION-PLAN IP6).
@@ -30,12 +31,12 @@ export function quarterWindow(year: number, quarter: number): { fromDay: string;
 }
 
 /**
- * McLeod unit → our vehicle id. A receipt's `tractor_unit` is McLeod's tractor id, which the roster
+ * McLeod unit → our vehicle id (also the unit an uploaded file names, IP8). A receipt's `tractor_unit` is McLeod's tractor id, which the roster
  * sweep stores as `vehicles.mcleod_tractor_id` and which is also the unit number painted on the
  * truck; the link column wins, the unit number covers a truck the sweep never linked. Retired trucks
  * are included on purpose: a truck sold in November still owns the fuel it bought in August.
  */
-async function mapMcleodUnits(admin: SupabaseClient, orgId: string, units: string[]): Promise<Map<string, string>> {
+export async function matchTractorUnits(admin: SupabaseClient, orgId: string, units: string[]): Promise<Map<string, string>> {
   const byLink = new Map<string, string>();
   const byUnit = new Map<string, string>();
   for (let i = 0; i < units.length; i += 200) {
@@ -55,8 +56,8 @@ async function mapMcleodUnits(admin: SupabaseClient, orgId: string, units: strin
   }));
 }
 
-/** The quarter's live receipts (optionally one jurisdiction), each mapped to a truck where one matches. */
-async function readMappedReceipts(
+/** McLeod's live receipts for the window (optionally one jurisdiction), each mapped to a truck where one matches. */
+async function readMappedMcleodReceipts(
   admin: SupabaseClient,
   orgId: string,
   fromDay: string,
@@ -66,11 +67,12 @@ async function readMappedReceipts(
   const rows = await readFuelTaxReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction);
   if (rows.length === 0) return [];
   const units = [...new Set(rows.map((r) => r.tractorUnit.trim()))];
-  const vehicleOf = await mapMcleodUnits(admin, orgId, units);
+  const vehicleOf = await matchTractorUnits(admin, orgId, units);
   return rows.map((r) => ({
     externalId: r.externalId,
+    source: "mcleod" as const,
     vehicleId: vehicleOf.get(r.tractorUnit.trim()) ?? null,
-    mcleodUnit: r.tractorUnit.trim(),
+    unitAsFiled: r.tractorUnit.trim(),
     jurisdiction: r.jurisdiction.trim().toUpperCase(),
     receiptDate: r.receiptDate,
     gallons: r.gallons,
@@ -78,7 +80,25 @@ async function readMappedReceipts(
 }
 
 /**
- * The ledger's receipts: every state, card duplicates dropped, summed per jurisdiction. The duplicate
+ * Every receipt source for the window: McLeod's hand-keyed receipts and the office's uploads (IP8).
+ * Which copy of a fill counts is `foldReceiptSources`' rule, applied by both callers below.
+ */
+async function readAllReceipts(
+  admin: SupabaseClient,
+  orgId: string,
+  fromDay: string,
+  toDayExclusive: string,
+  jurisdiction?: string,
+): Promise<IftaReceiptRaw[]> {
+  const [mcleod, uploaded] = await Promise.all([
+    readMappedMcleodReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction),
+    readUploadedReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction),
+  ]);
+  return [...uploaded, ...mcleod];
+}
+
+/**
+ * The ledger's receipts: every state, duplicates dropped (card fills first, then source order), summed per jurisdiction. The duplicate
  * candidates are only the fills of trucks that HAVE a receipt this quarter — a match needs the same
  * truck, so no other fill can matter.
  */
@@ -89,12 +109,12 @@ export async function readIftaPeriodReceipts(
   quarter: number,
 ): Promise<IftaPeriodReceipts> {
   const { fromDay, toDayExclusive } = quarterWindow(year, quarter);
-  const receipts = await readMappedReceipts(admin, orgId, fromDay, toDayExclusive);
+  const receipts = await readAllReceipts(admin, orgId, fromDay, toDayExclusive);
   const vehicleIds = [...new Set(receipts.flatMap((r) => (r.vehicleId ? [r.vehicleId] : [])))];
   const fills = vehicleIds.length
     ? await readVehicleTractorFillKeys(admin, orgId, vehicleIds, fromDay, toDayExclusive)
     : [];
-  return summarizePeriodReceipts(dropCardDuplicateReceipts(receipts, fills));
+  return summarizePeriodReceipts(foldReceiptSources(receipts, fills));
 }
 
 /**
@@ -109,7 +129,7 @@ export async function readIftaJurisdictionReceipts(
   jurisdiction: string,
   jurisdictionFills: Array<Omit<IftaCardFillKey, "state">>,
 ): Promise<ReceiptDuplicateSplit<IftaReceiptRaw>> {
-  const receipts = await readMappedReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction);
+  const receipts = await readAllReceipts(admin, orgId, fromDay, toDayExclusive, jurisdiction);
   if (receipts.length === 0) return { kept: [], duplicates: [] };
-  return dropCardDuplicateReceipts(receipts, jurisdictionFills.map((f) => ({ ...f, state: jurisdiction })));
+  return foldReceiptSources(receipts, jurisdictionFills.map((f) => ({ ...f, state: jurisdiction })));
 }

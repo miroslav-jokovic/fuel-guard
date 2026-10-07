@@ -209,3 +209,4 @@ export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";
 export * from "./paging.js";
+export * from "./iftaReceiptUploadContract.js";

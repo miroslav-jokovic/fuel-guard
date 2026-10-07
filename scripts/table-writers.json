@@ -271,6 +271,12 @@
   "idle_telemetry_windows": [
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
+  "ifta_fuel_receipt_uploads": [
+    "apps/api/src/modules/ifta/uploadedReceipts.ts"
+  ],
+  "ifta_fuel_receipts": [
+    "apps/api/src/modules/ifta/uploadedReceipts.ts"
+  ],
   "import_rows": [
     "apps/api/src/modules/efs/services/efsIngestRejects.ts"
   ],

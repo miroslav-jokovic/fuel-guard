@@ -1135,6 +1135,28 @@
         "why": "raw telemetry windows; its 400d rule predates this plan and is kept."
       }
     },
+    "ifta_fuel_receipt_uploads": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "budget derived from the first two files (2026-10-07): a fuel-app report and a McLeod ticket export per quarter, re-sent with additions — a handful of uploads a quarter, x40 headroom for a busy upload day. Evidence, append-only, pinned in RETENTION_FORBIDDEN (an IFTA return is kept 4 years)."
+      }
+    },
+    "ifta_fuel_receipts": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "budget derived from the first two files (2026-10-07): 101 driver-paid fills for Q3 2026 (~1.1/day), but they arrive in quarterly batches, so a day can bring a whole quarter at once; 200 covers a batch day with headroom. Evidence, append-only, pinned in RETENTION_FORBIDDEN (an IFTA return is kept 4 years)."
+      }
+    },
     "import_rows": {
       "module": "efs",
       "layer": "raw",
