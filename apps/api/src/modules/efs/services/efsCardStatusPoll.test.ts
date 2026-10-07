@@ -43,9 +43,15 @@ const soap = (body: string) =>
   `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;
 const loginOk = soap("<loginResponse><result>sess-1</result></loginResponse>");
 const pan = (n: number) => `708300000000${String(n).padStart(5, "0")}`;
-const roster = (cards: { n: number; status: string }[]) =>
+const roster = (cards: { n: number; status: string; unit?: string; driver?: string; pan?: string }[]) =>
   soap(`<getCardSummariesV2Response><result>${cards
-    .map((c) => `<value><cardNumber>${pan(c.n)}</cardNumber><policyNumber>1</policyNumber><status>${c.status}</status><override>0</override></value>`)
+    .map(
+      (c) =>
+        `<value><cardNumber>${c.pan ?? pan(c.n)}</cardNumber><policyNumber>1</policyNumber>` +
+        (c.unit ? `<unitNumber>${c.unit}</unitNumber>` : "") +
+        (c.driver ? `<driverName>${c.driver}</driverName>` : "") +
+        `<status>${c.status}</status><override>0</override></value>`,
+    )
     .join("")}</result></getCardSummariesV2Response>`);
 const cardDetail = soap(
   "<getCardv2Response><result><header><status>Hold</status><policyNumber>1</policyNumber><handEnter>POLICY</handEnter>" +
@@ -205,12 +211,12 @@ describe("the office alert for an external change (category card_status_changed,
     expect(notified[0]).toMatchObject({
       orgId: ORG,
       category: "card_status_changed",
-      title: "Fuel card ••••0002 is now ACTIVE",
+      title: "••••0002 is now Active",
       severity: "warning",
       entityType: "efs_card",
       entityId: mirrorRow(2, "").id,
     });
-    expect(String(notified[0]!.body)).toContain("It was INACTIVE");
+    expect(String(notified[0]!.body)).toContain("It was Inactive");
     expect(String(notified[0]!.dedupeKey)).toMatch(new RegExp(`^card_status_changed:${mirrorRow(2, "").id}:active:\\d{4}-\\d{2}-\\d{2}T\\d{2}$`));
     // Recipients come from the section matrix, never a re-typed role list.
     const roles = rec.forTable("memberships").flatMap((q) => q.filters().filter((f) => f.col === "role").map((f) => f.val));
@@ -239,6 +245,37 @@ describe("the office alert for an external change (category card_status_changed,
     // the attribution step with a change in hand and must still find nothing external in it.
     expect(own.forTable("memberships")).toHaveLength(0);
     expect(held.forTable("memberships")).toHaveLength(0);
+  });
+});
+
+describe("the alert names the truck and driver first, the last four last (chunk 3c, AUDIT N7)", () => {
+  it("two cards ending in the same four digits get two different titles", async () => {
+    // 59 endings are shared by 246 of 309 cards; on 10-05 "••••7977 is now HOLD" came from two cards.
+    const twin = (n: number) => `70830000000${n}7977`;
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_cards: [
+          { ...mirrorRow(1, "ACTIVE"), card_ref_hmac: cardRefHmac(env, ORG, twin(1)) },
+          { ...mirrorRow(2, "ACTIVE"), card_ref_hmac: cardRefHmac(env, ORG, twin(2)) },
+        ],
+        efs_card_mutations: [],
+        audit_logs: [],
+        memberships: [{ user_id: "u-fleet" }],
+        organizations: [CHICAGO_ORG],
+      },
+    });
+    const v = vendor([
+      loginOk,
+      roster([
+        { n: 1, pan: twin(1), status: "HOLD", unit: "887", driver: "TEST DRIVER ONE" },
+        { n: 2, pan: twin(2), status: "HOLD", unit: "990" },
+      ]),
+    ]);
+    await pollEfsCardStatus(rec.client, env, creds, { fetchImpl: v.fetchImpl, now: SUNDAY_NIGHT });
+    expect(notified.map((n) => n.title).sort()).toEqual([
+      "Truck 887 · TEST DRIVER ONE · ••••7977 is now On hold",
+      "Truck 990 · ••••7977 is now On hold",
+    ]);
   });
 });
 

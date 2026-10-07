@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardLast4, cardStatusChangeIsUrgent, efsStatusEquals, isFraudStatusChange } from "@silvicom/shared";
+import { cardLast4, cardStatusChangeIsUrgent, cardStatusChangeMessage, efsStatusEquals, isFraudStatusChange } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { notify } from "../../messaging/index.js";
@@ -227,7 +227,7 @@ async function recordExternalChanges(
       meta: { from: row.status, to, last4: cardLast4(summary.cardNumber), via: "efs_status_poll" },
     });
     signalCardStatusChangedExternally({ orgId, efsCardId: row.id, from: row.status, to });
-    if (urgent(change)) await notifyStatusChange(admin, orgId, recipients, row, to, cardLast4(summary.cardNumber), now);
+    if (urgent(change)) await notifyStatusChange(admin, orgId, recipients, row, summary, now);
     recorded += 1;
   }
   return recorded;
@@ -253,25 +253,35 @@ async function fuelManagers(admin: SupabaseClient, orgId: string): Promise<strin
  *
  * Deduped per card, per new state, per hour: a card flapping between two states cannot fill an inbox,
  * and a genuine second change an hour later still arrives. `notify()` itself never throws.
+ *
+ * The truck and driver come from the roster row this poll just read — the same EFS fields the mirror
+ * stores as `unit_prompt` and `driver_name` — so naming the card costs no extra read (chunk 3c).
  */
 async function notifyStatusChange(
   admin: SupabaseClient,
   orgId: string,
   recipients: readonly string[],
   row: MirrorRow,
-  to: string,
-  last4: string | null,
+  summary: CardSummaryRow,
   now: Date,
 ): Promise<void> {
+  const to = summary.status!;
   const fraud = isFraudStatusChange(row.status, to);
   const hour = now.toISOString().slice(0, 13);
+  const message = cardStatusChangeMessage({
+    unit: summary.unitNumber?.trim() || null,
+    driver: summary.driverName,
+    last4: cardLast4(summary.cardNumber),
+    from: row.status,
+    to,
+  });
   for (const userId of recipients) {
     await notify(admin, {
       orgId,
       userId,
       category: "card_status_changed",
-      title: `Fuel card ••••${last4 ?? "????"} is now ${to}`,
-      body: `It was ${row.status}. The change was made at EFS — in the WEX portal or by EFS itself — not in Silvicom 360.`,
+      title: message.title,
+      body: message.body,
       severity: fraud ? "critical" : "warning",
       entityType: "efs_card",
       entityId: row.id,

@@ -1,8 +1,8 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
-is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3a is merged (#1339). Chunk 3b (daily
-summary) is built. Next: chunk 3c.
+is merged (#1337); Inventory (2b) waits on Q-F7. Chunks 3a and 3b are merged (#1339, #1340); 3c
+(titles) is built. Release 3a–3c together. Next: chunk 4.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -134,6 +134,10 @@ Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No n
 - **3c** Titles name the truck and driver first, and the last four digits second (N7: 246 of 309
   cards share their last four with another card).
   - Accept: a test with two cards ending in the same four digits produces two different titles.
+  - Built: `cardStatusChangeMessage` (shared) names the card with 3b's `cardLabel`, and the states
+    in plain words ("On hold", "Fraud hold"). The truck and driver come from the roster row the poll
+    already read, so no extra query. A card EFS knows no truck or driver for still reads "••••7977"
+    (about half the cards).
 
 ### Chunk 4 — a rebuild never deletes a reviewed alert (AUDIT A3)
 Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_transitions`.
@@ -281,3 +285,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   the weekly digest (reasons in chunk 3b). A replayed morning of polls sends one per person. Seven
   mutants, each red; the UTC-day one first survived, because in Chicago the send window never
   crosses a UTC date, so a Tokyo case was added.
+- 2026-10-07: Chunk 3b merged (#1340, 9f31966); staging serves it.
+- 2026-10-07: Chunk 3c built: the urgent message title is "Truck 887 · driver · ••••7977 is now On
+  hold". Two cards ending 7977 give two titles. Three mutants, each red.
