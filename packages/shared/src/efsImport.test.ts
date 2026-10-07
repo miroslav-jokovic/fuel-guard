@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   detectReportKind,
   normalizeTransactionRows,
@@ -446,6 +446,24 @@ describe("zonedWallTimeToUtcIso (station-local → UTC, DST-correct)", () => {
   it("handles Arizona (no DST) and Newfoundland (half-hour zone)", () => {
     expect(zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "America/Phoenix")).toBe("2026-07-15T19:00:00.000Z");
     expect(zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "America/St_Johns")).toBe("2026-07-15T14:30:00.000Z");
+  });
+  it("builds one formatter per timezone, not one per conversion", () => {
+    // Incident 2026-10-06: a formatter per call made the idle rollup block the API for minutes.
+    const parts = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    try {
+      for (let d = 1; d <= 28; d++) {
+        const day = `2026-02-${String(d).padStart(2, "0")}`;
+        expect(zonedWallTimeToUtcIso(day, "00:00:00", "America/Boise")).toBe(`${day}T07:00:00.000Z`);
+      }
+      expect(parts.mock.calls).toHaveLength(56);
+      expect(new Set(parts.mock.contexts).size).toBe(1);
+    } finally {
+      parts.mockRestore();
+    }
+  });
+  it("still refuses an unknown timezone, and does not cache the refusal", () => {
+    expect(() => zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "Not/AZone")).toThrow(RangeError);
+    expect(() => zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "Not/AZone")).toThrow(RangeError);
   });
 });
 

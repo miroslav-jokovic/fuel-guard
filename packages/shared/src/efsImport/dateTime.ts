@@ -92,14 +92,32 @@ export function stateTimeZone(state: string | null | undefined): string | null {
   return s ? (STATE_IANA_TZ[s] ?? null) : null;
 }
 
+/**
+ * One formatter per timezone, built once. WHY (incident 2026-10-06): constructing an Intl.DateTimeFormat
+ * costs ~100× a `formatToParts` call, and this ran it twice per conversion. The idle rollup converts every
+ * day boundary of every park session and of every driver↔vehicle assignment (85k in 30 days), so building
+ * one rollup spent ~90 s here — a synchronous block that froze the whole API process for 5–6 minutes every
+ * time sync_hos ran. Same cache `dayInTz` (dashboard.ts) already keeps. An unknown zone still throws from
+ * the constructor and is never cached, so callers see the same RangeError as before.
+ */
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+function offsetFormatter(tz: string): Intl.DateTimeFormat {
+  let fmt = offsetFormatters.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    });
+    offsetFormatters.set(tz, fmt);
+  }
+  return fmt;
+}
+
 /** Offset (ms) such that wallClock(tz, utcMs) = utcMs + offset. */
 function tzOffsetMs(tz: string, utcMs: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(utcMs));
+  const parts = offsetFormatter(tz).formatToParts(new Date(utcMs));
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
   const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
   return asUtc - utcMs;

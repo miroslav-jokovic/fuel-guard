@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buildIdleRollupDays } from "./idleRollup.js";
 
 const T0 = Date.parse("2026-06-01T00:00:00.000Z"); // day boundary
@@ -398,5 +398,31 @@ describe("buildIdleRollupDays", () => {
       "hosGraceSec",
     ] as const;
     for (const field of seconds) expect(Number.isInteger(rows[0]![field])).toBe(true);
+  });
+
+  it("converts each local midnight once, however many assignments cross it", () => {
+    // Incident 2026-10-06: production's 85k assignments re-converted the same ~31 midnights on every
+    // assignment-day, a synchronous block that froze the API for 5–6 minutes per sync_hos run.
+    const assignments = Array.from({ length: 300 }, (_, i) => ({
+      vehicleId: `v${i % 30}`,
+      driverId: `d${i}`,
+      startMs: T0 + (i % 7) * H,
+      endMs: T0 + 6 * 86_400_000 + (i % 5) * H,
+    }));
+    const parts = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    try {
+      const rows = buildIdleRollupDays({
+        engineDays: [],
+        sessions: [],
+        assignments,
+        tz: "America/Chicago",
+        ...win,
+      });
+      expect(rows).toEqual([]);
+      // Two offset lookups per distinct midnight (~7 here); one per assignment-day would be ~3,600.
+      expect(parts.mock.calls.length).toBeLessThanOrEqual(2 * 8);
+    } finally {
+      parts.mockRestore();
+    }
   });
 });

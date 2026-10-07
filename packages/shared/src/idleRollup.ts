@@ -135,12 +135,26 @@ function dayBoundary(tz?: string | null): DayBoundary {
       nextMidnight: (ms) => Math.floor(ms / DAY_MS) * DAY_MS + DAY_MS,
     };
   }
-  const key = (ms: number): string => dayInTz(new Date(ms).toISOString(), tz);
+  // A rollup window holds ~31 local days, but the attribution loop asks for the next midnight once per
+  // day of every assignment (85k of them in production) — so the wall-clock→UTC conversion is memoised
+  // per day, and so is the key of each midnight it produced (every step after a span's first lands on
+  // one). Without these this was a multi-minute synchronous block that froze the API (incident 2026-10-06).
+  const midnightAfter = new Map<string, number>();
+  const dayStartingAt = new Map<number, string>();
+  const key = (ms: number): string =>
+    dayStartingAt.get(ms) ?? dayInTz(new Date(ms).toISOString(), tz);
   return {
     key,
     nextMidnight: (ms) => {
-      const nextDay = new Date(Date.parse(`${key(ms)}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
-      return Date.parse(zonedWallTimeToUtcIso(nextDay, "00:00:00", tz));
+      const day = key(ms);
+      let next = midnightAfter.get(day);
+      if (next === undefined) {
+        const nextDay = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+        next = Date.parse(zonedWallTimeToUtcIso(nextDay, "00:00:00", tz));
+        midnightAfter.set(day, next);
+        dayStartingAt.set(next, dayInTz(new Date(next).toISOString(), tz));
+      }
+      return next;
     },
   };
 }
