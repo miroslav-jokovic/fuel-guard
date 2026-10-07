@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardLast4, cardStatusChangeIsUrgent, efsStatusEquals, isFraudStatusChange, organizationTimezone } from "@silvicom/shared";
+import { cardLast4, cardStatusChangeIsUrgent, efsStatusEquals, isFraudStatusChange } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { notify } from "../../messaging/index.js";
@@ -7,6 +7,7 @@ import { usersWhoManage } from "../../org/index.js";
 import { isSecretBoxConfigured } from "../../../lib/secretBox.js";
 import { signalCardStatusChangedExternally, signalStatusPollRefused } from "../../../lib/cardControlSignals.js";
 import { getCardSummaries, type CardSummaryRow } from "../lib/efsCardOps.js";
+import { orgTimeZone } from "./cardStatusSummary.js";
 import { cardRefHmac, refreshCardDetail, upsertFromSummary } from "./efsCardMirror.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
@@ -183,7 +184,7 @@ async function refreshDetails(
  * the window is for the one it can — a write whose mirror update failed or has not landed yet.
  *
  * Urgent is Q-F3's rule (`cardStatusChangeIsUrgent`): FRAUD, or outside office hours on the org's
- * clock. Every other change keeps its audit row and is left for the daily summary (chunk 3b), which
+ * clock. Every other change keeps its audit row and is left for the daily summary (`cardStatusSummary.ts`), which
  * reads those rows; it is not messaged one by one any more.
  */
 async function recordExternalChanges(
@@ -230,16 +231,6 @@ async function recordExternalChanges(
     recorded += 1;
   }
   return recorded;
-}
-
-/**
- * The org's clock, from `organizations.operating_hours` — the ZONE only. Its hours are when the trucks
- * run, not when the office works; see `cardStatusUrgency.ts`. Unreadable falls to the column's default
- * zone, so a database blip can only misjudge the hour, never lose the audit row.
- */
-async function orgTimeZone(admin: SupabaseClient, orgId: string): Promise<string> {
-  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
-  return organizationTimezone((data as { operating_hours?: object | null } | null)?.operating_hours);
 }
 
 async function fuelManagers(admin: SupabaseClient, orgId: string): Promise<string[]> {

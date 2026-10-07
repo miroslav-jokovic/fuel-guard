@@ -49,6 +49,7 @@ export * from "./displayDate.js";
 export * from "./calendarDay.js";
 export * from "./csv.js";
 export * from "./efsCards.js";
+export * from "./cardStatusSummary.js";
 export * from "./cardStatusUrgency.js";
 export * from "./fuelSpend/index.js";
 export * from "./findingAssignment.js";

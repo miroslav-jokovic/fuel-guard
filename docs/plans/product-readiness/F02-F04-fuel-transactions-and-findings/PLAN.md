@@ -1,8 +1,8 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
-is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3a (urgent card messages only) is built.
-Next: chunk 3b.
+is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3a is merged (#1339). Chunk 3b (daily
+summary) is built. Next: chunk 3c.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -122,6 +122,15 @@ Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No n
 - **3b** One daily summary per fuel manager: "Yesterday 23 cards went on hold and 19 came back",
   with the cards listed by truck. It goes through the existing digest, not a new scheduler.
   - Accept: exactly one per recipient per day, and none on a day with no changes.
+  - Built: `cardStatusSummary.ts` (shared: the words; efs: read and send). **It rides the status
+    poll, not the weekly digest.** The digest is a weekly AI-written email to the org's addresses,
+    not a daily message per person. It also lives in `org`, which `efs` already imports, so calling
+    the card code from it would close a cycle. "No new scheduler" still holds: the poll runs every
+    5 minutes and the summary runs at its end, between 07:00 and 12:00 on the org's clock.
+  - Once a day per person: the key `card_status_summary:<day>` sits in the dedupe ledger (0432),
+    which keeps a key per person forever. No migration.
+  - It lists each card as "Truck 887 · driver · ••••1234" (EFS's own unit and driver, known for
+    about half the cards), the shape 3c will reuse for titles.
 - **3c** Titles name the truck and driver first, and the last four digits second (N7: 246 of 309
   cards share their last four with another card).
   - Accept: a test with two cards ending in the same four digits produces two different titles.
@@ -267,3 +276,8 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   10-01 → 10-06 (237 changes from `audit_logs`) sends exactly the 5 off-hours ones. Seven
   mutants, each red (two first survived and the tests were strengthened: the weekday case needs a
   zone ahead of UTC, and a no-op mutant was replaced).
+- 2026-10-07: Chunk 3a merged (#1339, ede9269); staging serves it.
+- 2026-10-07: Chunk 3b built: one summary per fuel manager per day, on the status poll rather than
+  the weekly digest (reasons in chunk 3b). A replayed morning of polls sends one per person. Seven
+  mutants, each red; the UTC-day one first survived, because in Chicago the send window never
+  crosses a UTC date, so a Tokyo case was added.
