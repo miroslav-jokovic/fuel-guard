@@ -3,7 +3,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 import type { LiveCapture, LiveScanState } from "@/features/apply/capture/useLiveScan";
 import { TAKEN_HOLD_MS, type LiveRefusal, type LiveSlot } from "@/features/apply/capture/liveFrame";
-import { pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
+import { pickImageFile, pickPhotoFromCamera } from "@/features/apply/capture/webImageIo";
 
 /**
  * The live scanner's SCREEN (2026-09-30, the owner-approved mock): what each state shows and what each press
@@ -32,7 +32,9 @@ vi.mock("@/features/apply/capture/useLiveScan", () => ({
   },
 }));
 const picked = { camera: null as File | null, file: null as File | null };
-vi.mock("@/features/apply/capture/webImageIo", () => ({
+// The pickers are faked; the accept list is the real one, so the upload test reads what the page would ask for.
+vi.mock("@/features/apply/capture/webImageIo", async (importOriginal) => ({
+  uploadAccept: (await importOriginal<typeof import("@/features/apply/capture/webImageIo")>()).uploadAccept,
   pickPhotoFromCamera: vi.fn(async () => picked.camera),
   pickImageFile: vi.fn(async () => picked.file),
 }));
@@ -301,5 +303,20 @@ describe("the selfie", () => {
     button("Camera app")!.click();
     await flushPromises();
     expect(pickPhotoFromCamera).toHaveBeenCalledWith("environment");
+  });
+
+  // 2026-10-07: the scanner's own "Upload a photo" takes what the screen's does (`uploadAccept`) — a
+  // medical card the clinic emailed as a PDF, but never a file in place of a face.
+  it("lets a document's upload choose a PDF, and the selfie's choose only a picture", async () => {
+    await open({ photo: "medical_card" });
+    button("Upload a photo")!.click();
+    await flushPromises();
+    expect(pickImageFile).toHaveBeenLastCalledWith("image/*,application/pdf");
+    wrapper?.unmount();
+    document.body.innerHTML = "";
+    await open({ photo: "selfie" });
+    button("Upload a photo")!.click();
+    await flushPromises();
+    expect(pickImageFile).toHaveBeenLastCalledWith("image/*");
   });
 });
