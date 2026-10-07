@@ -1,3 +1,4 @@
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 
 /**
@@ -45,6 +46,8 @@ export interface RequestMetricsSnapshot {
   /** Busiest routes, and the slowest — the two questions a summary is read for. */
   byRoute: Array<{ route: string; count: number; p95: number; max: number }>;
   distinctRoutes: number;
+  /** Longest event-loop stall in the window, when the reporter measured one (see the reporter). */
+  eventLoopMaxMs?: number;
 }
 
 /**
@@ -212,6 +215,7 @@ export function formatMetricsLine(s: RequestMetricsSnapshot): string {
     refused429: s.refused429,
     errors5xx: s.serverErrors5xx,
     latencyMs: { p50: s.p50, p95: s.p95, p99: s.p99, max: s.max },
+    ...(s.eventLoopMaxMs !== undefined ? { eventLoopMaxMs: s.eventLoopMaxMs } : {}),
     distinctRoutes: s.distinctRoutes,
     busiest: s.byRoute.slice(0, 5),
     slowest: [...s.byRoute].sort((a, b) => b.p95 - a.p95).slice(0, 3),
@@ -237,15 +241,39 @@ export const METRICS_REPORT_INTERVAL_MS = 60_000;
  *
  * ⚠ `unref()` so a process with nothing else to do can still exit. Without it this timer would hold
  * the event loop open forever and every test that builds an app would hang on teardown.
+ *
+ * ── EVENT-LOOP STALLS (incident 2026-10-06) ─────────────────────────────────────────────────────
+ * Every 6 hours sync_hos's idle rollup held the event loop for 5–6 minutes and this process answered
+ * nothing — not even a CORS preflight — while every dashboard went blank. Request latency could not
+ * show it (a request that never starts has no duration), and the only trace was a window that ran
+ * 320 s instead of 60. So the line now carries the longest stall measured in the window, and a window
+ * with a stall of a second or more is reported even if no request finished in it.
+ *
+ * ⚠ Two measurements, because neither sees every stall. The delay histogram catches a stall that ends
+ * mid-window, but when one ends right at the tick this callback can run BEFORE the histogram records
+ * it, and the reset below would then erase it — measured, that is how a 100 s block read as 0. How
+ * late this tick itself fired catches exactly that case, and is the signal the incident left behind.
  */
+export const EVENT_LOOP_STALL_REPORT_MS = 1_000;
+
 export function startRequestMetricsReporter(
   intervalMs: number = METRICS_REPORT_INTERVAL_MS,
   log: (line: string) => void = console.log,
 ): NodeJS.Timeout {
+  const loop = monitorEventLoopDelay({ resolution: 20 });
+  loop.enable();
+  let lastTickMs = performance.now();
   const timer = setInterval(() => {
+    const nowMs = performance.now();
+    const tickLateMs = nowMs - lastTickMs - intervalMs;
+    lastTickMs = nowMs;
     const snapshot = snapshotRequestMetrics();
+    snapshot.eventLoopMaxMs = Math.round(Math.max(0, loop.max / 1e6, tickLateMs));
+    loop.reset();
     // A window nobody touched is not worth a line. An idle service should be quiet, not repetitive.
-    if (snapshot.requests > 0) log(formatMetricsLine(snapshot));
+    if (snapshot.requests > 0 || snapshot.eventLoopMaxMs >= EVENT_LOOP_STALL_REPORT_MS) {
+      log(formatMetricsLine(snapshot));
+    }
     resetRequestMetrics();
   }, intervalMs);
   timer.unref();
