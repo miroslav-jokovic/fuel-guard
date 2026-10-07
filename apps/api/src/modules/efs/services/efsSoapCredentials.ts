@@ -82,7 +82,7 @@ function fromRow(row: DbRow, tls: EfsTlsMaterial | null, env: Env): EfsSoapCrede
   const soapPassword = open(env, row.soap_password_sealed, secretAad(row.org_id, "efs_soap_password.v1"));
   return {
     orgId: row.org_id,
-    environment: row.environment === "production" ? "production" : "sandbox",
+    environment: efsEnvironment(row.environment),
     endpointUrl: row.endpoint_url,
     soapUsername: row.soap_username,
     soapPassword,
@@ -200,24 +200,59 @@ export async function getEfsSoapCredentials(
  * minutes, not by a tenant finding someone else's cards.
  */
 export async function orgsWithEfsSoap(admin: SupabaseClient, env: Env): Promise<string[]> {
-  const set = new Set<string>();
+  return (await efsSoapOrgs(admin, env)).map((o) => o.orgId);
+}
+
+/** An org with EFS SOAP configured, and which EFS it talks to. */
+export interface EfsSoapOrg {
+  orgId: string;
+  environment: "sandbox" | "production";
+}
+
+/** The one reading of a stored environment — anything that is not "production" is the sandbox. */
+function efsEnvironment(value: string | null | undefined): "sandbox" | "production" {
+  return value === "production" ? "production" : "sandbox";
+}
+
+/**
+ * `orgsWithEfsSoap`, with each org's environment — so a poller can treat EFS's QA endpoint
+ * (`ws.partner.efsllc.com`) differently from production without a second notion of "configured".
+ *
+ * The environment is resolved exactly as `getEfsSoapCredentials` resolves the credentials a poll will
+ * actually use: the org's ROW wins (even a disabled one, which that function also returns), and the
+ * deploy variable `EFS_SOAP_ENVIRONMENT` applies only to the env-bound org when it has no row.
+ */
+export async function efsSoapOrgs(admin: SupabaseClient, env: Env): Promise<EfsSoapOrg[]> {
+  const byOrg = new Map<string, EfsSoapOrg>();
   const { data } = await admin
     .from("efs_soap_credentials")
-    .select("org_id, enabled")
+    .select("org_id, enabled, environment")
     .eq("enabled", true);
-  for (const row of (data ?? []) as { org_id: string; enabled: boolean }[]) {
-    set.add(row.org_id);
+  for (const row of (data ?? []) as { org_id: string; environment: string | null }[]) {
+    byOrg.set(row.org_id, { orgId: row.org_id, environment: efsEnvironment(row.environment) });
   }
+  const fallbackOrg = env.EFS_SOAP_ORG_ID;
   if (
-    env.EFS_SOAP_ORG_ID &&
+    fallbackOrg &&
     env.EFS_SOAP_ENDPOINT_URL &&
     env.EFS_SOAP_USERNAME &&
     env.EFS_SOAP_PASSWORD &&
-    env.EFS_SOAP_ENABLED
+    env.EFS_SOAP_ENABLED &&
+    !byOrg.has(fallbackOrg)
   ) {
-    set.add(env.EFS_SOAP_ORG_ID);
+    const { data: row } = await admin
+      .from("efs_soap_credentials")
+      .select("environment")
+      .eq("org_id", fallbackOrg)
+      .maybeSingle();
+    byOrg.set(fallbackOrg, {
+      orgId: fallbackOrg,
+      environment: row
+        ? efsEnvironment((row as { environment: string | null }).environment)
+        : env.EFS_SOAP_ENVIRONMENT,
+    });
   }
-  return [...set];
+  return [...byOrg.values()];
 }
 
 export interface UpsertEfsSoapInput {

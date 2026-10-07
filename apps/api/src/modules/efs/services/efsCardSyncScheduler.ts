@@ -1,7 +1,7 @@
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
-import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
+import { efsSoapOrgs, orgsWithEfsSoap, type EfsSoapOrg } from "./efsSoapCredentials.js";
 import { lastDoneJob } from "../../org/index.js";
 
 /**
@@ -84,6 +84,25 @@ export function startEfsCardSyncScheduler(env: Env): void {
 }
 
 /**
+ * Which orgs the few-minute status poll covers: those on EFS PRODUCTION only.
+ *
+ * ── WHY THE SANDBOX IS LEFT OUT (measured 2026-10-07) ───────────────────────────────────────────
+ * Over seven days the poll failed 466 times, and every failure was the QA org on EFS's sandbox
+ * (`ws.partner.efsllc.com`) — "did not answer within 20000 ms", ~40% of its runs 09:00–15:00 Central
+ * and none overnight. The production fleet ran 1,925 polls with no failure at all. The sandbox is EFS's
+ * QA system, slow in business hours, and nothing on it changes at EFS without us: the poll exists to
+ * notice a status a human or EFS changed on a REAL card (EFS audit, 2026-09-30). So polling it every
+ * few minutes bought only failed jobs, plus load the guide warns about (p11: "Excessive polling may
+ * lead to account suspension by WEX IT").
+ *
+ * A sandbox org keeps everything else: the daily detail sweep above, the transaction feeds, and an
+ * on-demand `efs_card_status` run from the jobs route when a QA drill needs one.
+ */
+export function orgsForStatusPoll(orgs: EfsSoapOrg[]): string[] {
+  return orgs.filter((o) => o.environment === "production").map((o) => o.orgId);
+}
+
+/**
  * The few-minute status poll (efsCardStatusPoll.ts). Its own timer, so a nine-minute detail sweep
  * never holds it back; the jobs ledger's (org, kind) slot keeps one poll per org in flight.
  */
@@ -96,7 +115,7 @@ function startEfsCardStatusPoll(env: Env): void {
     running = true;
     try {
       const admin = getSupabaseAdmin(env);
-      for (const orgId of await orgsWithEfsSoap(admin, env)) {
+      for (const orgId of orgsForStatusPoll(await efsSoapOrgs(admin, env))) {
         try {
           await dispatchJob(admin, env, "efs_card_status", { orgId, payload: { orgId } });
         } catch (error) {
