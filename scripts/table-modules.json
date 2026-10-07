@@ -1938,6 +1938,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "surface_page_views": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 700,
+        "why": "daily page-view count per (org, day, screen, role), product readiness X1 (0435). Ceiling is 72 screens x 9 roles = 648 rows per org per day; one office reads far fewer. No window yet: the usage history is the evidence the keep/hide rulings rest on."
+      }
+    },
     "thread_participants": {
       "module": "messaging",
       "layer": "core",
