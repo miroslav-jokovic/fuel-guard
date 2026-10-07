@@ -13,7 +13,7 @@ import { syncDriverScores } from "../../modules/performance/index.js";
 import { stampIntegrationSynced } from "../../modules/org/index.js";
 import { writeAudit } from "../../lib/audit.js";
 import type { JobHandler } from "../types.js";
-import { monthsToSync, syncIftaMilesForMonth } from "../../modules/samsara/index.js";
+import { syncIftaMonths } from "../../modules/samsara/index.js";
 import { syncVehicleOdometerReadings } from "../../modules/samsara/index.js";
 
 /**
@@ -199,46 +199,21 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
 };
 
 /**
- * Samsara IFTA jurisdiction miles — the current month and the two before it (S1).
+ * Samsara IFTA jurisdiction miles — the three most recent COMPLETED months (S1).
  *
  * Three months rather than one because a carrier files a QUARTER, and the month a quarter opens is
- * still being restated while the next one runs. Each month is its own fetch and its own row in
- * `samsara_ifta_fetches`, so a partial run leaves the months it did complete intact and says which.
+ * still being restated while the next one runs. The run itself is `syncIftaMonths`, shared with the
+ * daily scheduler tier so the two can never handle a refused month differently again (2026-10-01).
  */
 export const syncIftaHandler: JobHandler = async (ctx, job) => {
   const { admin, env } = ctx;
-  const orgId = job.org_id;
-  const actorId = asStr(job.payload.actorId);
-  const months = monthsToSync(new Date());
-  const done: Record<string, number> = {};
-  let rows = 0;
-  let unmapped = 0;
-  const failed: string[] = [];
-  for (const { year, month } of months) {
-    // Each month is its own request and its own fetch row, so one refusal must not cost the others.
-    // Before this guard the loop threw on the first month and the rest were never attempted — which
-    // mattered, because Samsara 400s an in-progress month outright (see `monthsToSync`).
-    let r;
-    try {
-      r = await syncIftaMilesForMonth(admin, env, orgId, year, month, { actorId });
-    } catch (e) {
-      failed.push(`${month} ${year}: ${e instanceof Error ? e.message : String(e)}`);
-      console.error(`[samsara] ifta ${month} ${year} failed: ${e instanceof Error ? e.message : e}`);
-      continue;
-    }
-    done[`${month} ${year}`] = r.rows;
-    rows += r.rows;
-    unmapped = Math.max(unmapped, r.unmappedVehicles);
-    if (r.unmappedVehicles > 0) {
-      // Samsara reporting trucks we do not hold means the fleet and the telematics account disagree
-      // about what exists. Loud, because it silently shrinks every jurisdiction total.
-      console.warn(`[samsara] ifta ${month} ${year}: ${r.unmappedVehicles} vehicle(s) could not be mapped`);
-    }
+  try {
+    const r = await syncIftaMonths(admin, env, job.org_id, { actorId: asStr(job.payload.actorId) });
+    return { months: r.months, rows: r.rows, unmappedVehicles: r.unmappedVehicles, notReady: r.notReady };
+  } catch (e) {
+    if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
+    throw e;
   }
-  // A run where EVERY month failed is a failed run: returning a tidy zero would leave the ledger empty
-  // and the job green, which is the pair of facts that hides an outage.
-  if (failed.length === months.length) throw new Error(`Every IFTA month failed — ${failed.join("; ")}`);
-  return { months: done, rows, unmappedVehicles: unmapped, failed };
 };
 
 /**
