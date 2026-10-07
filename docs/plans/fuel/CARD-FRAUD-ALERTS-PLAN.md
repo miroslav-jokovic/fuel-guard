@@ -242,3 +242,7 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
   main; #1216 is not merged. Table (5b) and scorers (5c) follow as their own PRs.
 - 2026-10-07 — CF2 part 2 (chunk 5b): migration 0438, the incident tables and their one writer, with
   the matrix replaying the 13 §1 declines through the real fold. The scorers (5c) follow.
+- 2026-10-07 — CF2 part 3 (chunk 5c): the decline and fill scorers record incidents
+  (`apps/api/src/modules/anomalies/cardFraudIncidents.ts`). Records only; CF4 delivers. History is
+  recorded, with no cutoff (the epoch is CF0's); a fill qualifies on Samsara's "away" verdict alone
+  (5 fills in 180 days). CF2 is complete once this merges.

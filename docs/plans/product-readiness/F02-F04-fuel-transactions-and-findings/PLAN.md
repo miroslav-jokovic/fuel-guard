@@ -2,7 +2,8 @@
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
-3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is built.
+3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
+scorers write incidents) is built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -196,6 +197,27 @@ Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_tra
     incidents, 13 attempts, 8 steps. It first caught a missing `grant execute … to service_role`,
     which would have been a production 500 on 5c's first call.
 - **5c** The decline and fill scorers write incidents.
+  - Built: `apps/api/src/modules/anomalies/cardFraudIncidents.ts`, the loop between the fold and
+    `card_fraud_record` (read the card's latest incident, apply, write; on `moved` or `closed` read
+    again, at most 3 tries; `duplicate` ends it). `scoreDeclinedAttempt` and `scoreTransaction` each
+    call it in one line, after their own score is stored. A failure is logged (attempt id, never the
+    card number) and swallowed. Records only: no notification, `declined_alert` untouched (CF4).
+  - An attempt that does not qualify returns before any read, so re-scoring every fill costs nothing.
+  - **History is recorded, no cutoff (settled at the start of 5c, measured read-only 2026-10-07).**
+    The boot rebuild re-scores **fills over 180 days** (`RECENT_REBUILD_DAYS`; the handoff's "14 days"
+    was wrong) and **never declines**: declines are scored at import and by the Rejections "Rescore"
+    button. Of 11,828 fills in 180 days, 5 have Samsara's "away" verdict, so the first deploy opens at
+    most 5 incidents (04-15 → 09-03). The 16 "away" declines since 09-02 are recorded as new imports
+    arrive or when someone presses Rescore. A date cutoff in 5c would be a second copy of chunk 7's
+    epoch (D-CF9), so there is none: the epoch decides what is shown and told.
+  - **What qualifies a fill: D-CF1 as written, Samsara says away (settled the same way).** For a fill,
+    "no fill explains it" does not apply (`explainedByFill` is false). Four of the five "away" fills have
+    a tank rise matching the gallons (`tank_confirmed`); that is not an exoneration: card …67559 bought
+    fuel in Bellemont, AZ (06-06 17:34) and again in Stratford, TX (20:27), about 600 miles in three
+    hours. Station coordinates are right in all five; the truck position is what disagrees.
+  - CF2 check: scoring production's 17 declines through `scoreDeclinedAttempt` leaves 7 incidents,
+    13 attempts and 8 steps, equal to the fold; scoring them again changes nothing. Twenty-two mutants,
+    each red.
 - **Accept:** each part's own tests, plus the card-fraud plan's CF2 check.
 
 ### Chunk 6 — approved-fill rules become notes (CF5, D-CF3/D-CF4)
@@ -344,3 +366,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-07: Chunk 5a merged (#1346, c6f2779); staging serves it. Chunk 5b built: migration 0438
   (`card_fraud_incidents`, `card_fraud_incident_attempts`, `card_fraud_record`, the delete guard)
   and its matrix.
+- 2026-10-07: Chunk 5b merged (#1349, 8517994); staging serves it. Chunk 5c built: the decline and fill
+  scorers record incidents through `cardFraudIncidents.ts`. Measured first: the boot rebuild re-scores
+  180 days of fills and no declines; 5 fills in 180 days are "away", so recording history needs no
+  cutoff. Fills qualify on Samsara's verdict alone. Twenty-two mutants, each red.

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scoreTransaction } from "./scoreTransaction.js";
 import { testEnv } from "../../../testing/testEnv.js";
@@ -196,5 +196,32 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
     expect(rpc!.args.p_attempt_id).toBeTruthy();
     expect(rpc!.args.p_result_hash).toMatch(/^sha256:/);
+  });
+
+  // CF2 (chunk 5c): once the score is stored, an approved fill Samsara placed away from its station goes
+  // to the card fraud hook. The hook's own behaviour is ../cardFraudFill.test.ts; this pins the wiring.
+  // This fake answers every RPC with the scoring shape, so the incident write fails and is logged.
+  const awayFill = { ...txnRow, card_ref: "7083050000000367559", samsara_location_matched: false as boolean | null, samsara_location_confidence: "mismatch" };
+  const fraudWrites = (row: typeof awayFill) => async () => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [row];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      return [];
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+    warn.mockRestore();
+    expect(rpcCalls.some((c) => c.fn === "persist_scoring_outcome_v2")).toBe(true);
+    return rpcCalls.filter((c) => c.fn === "card_fraud_record");
+  };
+
+  it("an approved fill Samsara placed away from the station is recorded as a card fraud attempt", async () => {
+    const calls = await fraudWrites(awayFill)();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.args).toMatchObject({ p_org: "org1", p_attempt_source: "fill", p_attempt_id: "t1", p_fuel_taken: true });
+  });
+
+  it("a fill Samsara placed at the station is not", async () => {
+    expect(await fraudWrites({ ...awayFill, samsara_location_matched: true })()).toHaveLength(0);
   });
 });
