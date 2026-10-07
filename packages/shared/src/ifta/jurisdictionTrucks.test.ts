@@ -101,8 +101,8 @@ describe("iftaJurisdictionTrucks — the fuel bought there", () => {
   });
 
   describe("receipts keyed in McLeod (IP6)", () => {
-    const receipt = (externalId: string, vehicleId: string | null, gallons: number, receiptDate: string, mcleodUnit = "512") => ({
-      externalId, vehicleId, mcleodUnit, jurisdiction: "TX", receiptDate, gallons,
+    const receipt = (externalId: string, vehicleId: string | null, gallons: number, receiptDate: string, unitAsFiled = "512") => ({
+      externalId, source: "mcleod" as const, vehicleId, unitAsFiled, jurisdiction: "TX", receiptDate, gallons,
     });
 
     it("lists a truck whose only fuel here was a receipt as a truck that bought fuel here", () => {

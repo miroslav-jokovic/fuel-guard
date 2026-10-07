@@ -107,7 +107,7 @@ not a column.
 fleet MPG and the drill-down together. Removing one side moves the fleet MPG every liability scales with
 (the 2026 Q2 10.5 mpg lesson, run in reverse).
 
-**D-IP5 — Cash and manual receipts come from McLeod before they come from an upload.** The office already
+**D-IP5 — Cash and manual receipts come from McLeod before they come from an upload.** ⚠ SUPERSEDED 2026-10-07 by D-IP7. The office already
 keys them into McLeod's fuel entry. A second entry point in our app is the same receipt typed twice and a
 duplicate waiting to happen. An upload is built only for receipts that provably never reach McLeod, and
 then it stores the image (`fuel_transactions.receipt_path` already exists), because a tax-paid credit
@@ -116,6 +116,17 @@ without its receipt is a credit an auditor can refuse.
 **D-IP6 — From McLeod, only the lines no card produced.** `fuel_detail_hist` also carries the card fills
 EFS already gives us. Importing them would double-count fuel. Which column separates a hand-keyed
 receipt from a card import is a MEASUREMENT (Q-IP1), not a guess.
+
+**D-IP7 — Driver-paid fuel is uploaded as files, and the upload wins (supersedes D-IP5).** The owner's
+ruling, 2026-10-07, after two files arrived: a fuel-discount app's IFTA report (40 fills, 3,397.5 gal,
+14 states, Q3 2026 — all unit 512's, which no card and no McLeod receipt had shown) and McLeod's "Fuel
+Ticket Hist Listing" (61 hand-keyed receipts, 6,094 gal, 718 and 777 nearly all of it). The office will
+keep sending such CSV or Excel files, and July is added the same way later. Production held neither:
+0434 is empty until the McLeod VM's read grant exists (Q-IP3, "granted when the VM is set up"). So
+the file is an entry point of its own (IP8), and because the same fill can then arrive as the app's
+row, the office's McLeod export AND McLeod's ledger, the IFTA read keeps ONE copy: card fill first,
+then the fuel app's row, then the McLeod export, then McLeod's ledger (option b — "our entry wins", it
+carries station, time and price). Dropped copies are counted on the page, never silent.
 
 ---
 
@@ -182,6 +193,27 @@ gallons). The probe's duplicate check failed on a SQL Server aggregate rule and 
 Separate and small: why they have no `vehicle_id` (card not assigned? unit unknown?) and attribute what
 can be attributed. They are kept on their own row until then, so no total is wrong — only unexplained.
 
+### IP8 · Driver-paid fuel uploads — BUILT 2026-10-07 (D-IP7)
+
+0436 `ifta_fuel_receipt_uploads` + `ifta_fuel_receipts`: evidence, append-only by trigger (the one
+change allowed is a void with a reason), pinned in `RETENTION_FORBIDDEN`, one live row per fingerprint
+so a re-uploaded file adds only its new rows. `parseDriverFuelFile` (shared) reads both formats and
+checks the fuel app's own "Total Gallons" lines against its rows; DEF, reefer, off-highway, unknown
+states and voided McLeod tickets are refused or skipped with their line. Each row's truck: the unit in
+the file, else the driver's Samsara assignment on the fill's day, else ONE question per driver or unit
+answered on the preview — never guessed. `foldReceiptSources` applies D-IP7's order in both the ledger
+and the state page. UI: "Driver-paid fuel" on the IFTA page (fuel managers upload; anyone who sees the
+page sees the uploads), with an undo per upload. Both real files parse completely (40 + 61 rows, 0
+refused, all 15 of the app's stated totals agree).
+
+### IP9 · The return as Excel and PDF — NEXT
+
+The owner asked for two tabs: miles by truck × state, gallons by truck × state, totals both ways.
+Recommended and accepted shape (2026-10-07): Excel with (1) the return by state, (2) miles truck ×
+state, (3) gallons truck × state with each truck's MPG, (4) every fill with its source, (5) what needs a
+look (miles and no fuel, fills with no truck, dropped duplicates). PDF: the return by state, then one
+block per truck — a 190 × 40 matrix does not print.
+
 ---
 
 ## 3. Open questions
@@ -192,7 +224,7 @@ can be attributed. They are kept on their own row until then, so no total is wro
 | **Q-IP2** | **What do `tractor.pay_owner` D/B/O and `tractor.owner` codes mean?** | Carrier (Alex) | Likely D = company, O = owner-operator, B = ?; SILVMEIL = Silvicom. **One email; D-FG12 forbids guessing.** | IP3 |
 | **Q-IP3** | **The live login (`silvicom_dispatch_ro` on `lme`) cannot read the fuel-tax tables — measured 2026-10-05.** | Carrier DBA (Alex) | `GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro` — one table, read-only, no PII. **Recommended**: the frozen `lme_analytics` restore would make every quarter's manual fuel only as fresh as somebody's restore habit (D-PREC12). | IP6 |
 | **Q-IP4** | ~~Which of the 16 owner-operator units file under their own IFTA account?~~ | — | **ANSWERED 2026-10-05 (§0.2): none, per McLeod.** `exclude_fueltax = 'N'` on every tractor; 512's fuel is in McLeod's IFTA as hand-keyed receipts. Follow the flag from now on (IP4 revised). | — |
-| **Q-IP5** | **Do receipts that never reach McLeod exist?** | Miki | If yes, an upload with the image (D-IP5). If no, no upload. **Ask the office before building one.** | an upload |
+| **Q-IP5** | ~~Do receipts that never reach McLeod exist?~~ | — | **ANSWERED 2026-10-07: the office sends CSV/Excel files and wants them uploaded (D-IP7, IP8).** The receipt image is not part of either file; storing it is not built. | — |
 
 ---
 
@@ -262,3 +294,8 @@ and run the rest — run each statement on its own, since one bad column kills t
   the return divides miles by ALL fuel. McLeod unit → truck by `mcleod_tractor_id`, then
   `unit_number`, retired trucks included. New boundary edge `ifta -> mcleod` (a read). Nothing shows on
   staging or production until a release plus one nightly `--financial` sweep fills 0434.
+- 2026-10-07 — Two files analysed (fuel app CSV: unit 512, found from the driver's Samsara assignment;
+  McLeod ticket export: 718/777). Production checked read-only: 0434 holds 0 rows; no ticket duplicates a
+  card fill. Owner ruled D-IP7 (uploads; our entry wins over McLeod's copy; grant comes with the VM; July
+  later the same way). IP8 built: 0436, shared parser + `foldReceiptSources`, `POST/GET
+  /api/ifta/receipt-uploads` (+ `/:id/void`), the dialog on the IFTA page. IP9 (export) is next.

@@ -44,9 +44,22 @@ const FILLS = [
 const opsOf = (q: RecordedQuery) => q.ops.map((o) => [o.method, ...o.args] as unknown[]);
 const arg = (q: RecordedQuery, m: string, c: string) => opsOf(q).find((o) => o[0] === m && o[1] === c)?.[2];
 
-function recorder(receipts = RECEIPTS) {
+/**
+ * Uploaded driver-paid fills (IP8). u1 is the SAME fill as McLeod's r1 (512, TX, 07/10, 100.2 gal):
+ * the office keyed it into McLeod and also uploaded the fuel app's file — counted once, as the upload.
+ */
+const uploaded = (id: string, vehicle_id: string, jurisdiction: string, fueled_on: string, gallons: number) => ({
+  id, vehicle_id, jurisdiction, fueled_on, gallons: String(gallons), price_per_gal: "5.43", amount_paid: "544.09",
+  station: "OnCue #145", city: "Yukon", unit_as_filed: null, ifta_fuel_receipt_uploads: { format: "fuel_app_csv" },
+});
+const UPLOADS = [uploaded("u1", "v512", "TX", "2026-07-10", 100.2), uploaded("u2", "v512", "OK", "2026-07-11", 75.595)];
+
+function recorder(receipts = RECEIPTS, uploads: ReturnType<typeof uploaded>[] = []) {
   return createSupabaseRecorder({
     tables: {
+      ifta_fuel_receipts: (q) =>
+        uploads.filter((u) =>
+          u.fueled_on >= String(arg(q, "gte", "fueled_on")) && u.fueled_on < String(arg(q, "lt", "fueled_on"))),
       mcleod_fuel_tax_receipts: (q) =>
         receipts.filter((r) =>
           r.receipt_date >= String(arg(q, "gte", "receipt_date")) && r.receipt_date < String(arg(q, "lt", "receipt_date"))),
@@ -96,8 +109,26 @@ describe("readIftaPeriodReceipts", () => {
   it("reads as card fills only, touching nothing else, when McLeod has no receipts yet", async () => {
     const rec = recorder([]);
     const r = await readIftaPeriodReceipts(rec.client as unknown as SupabaseClient, ORG, 2026, 3);
-    expect(r).toEqual({ jurisdictions: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] });
-    expect(rec.queries.map((q) => q.table)).toEqual(["mcleod_fuel_tax_receipts"]);
+    expect(r).toEqual({ jurisdictions: [], sources: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] });
+    expect(rec.queries.map((q) => q.table).sort()).toEqual(["ifta_fuel_receipts", "mcleod_fuel_tax_receipts"]);
+  });
+
+  it("counts an uploaded fill once when McLeod also has it — the upload is kept, McLeod's copy dropped", async () => {
+    const rec = recorder(RECEIPTS, UPLOADS);
+    const r = await readIftaPeriodReceipts(rec.client as unknown as SupabaseClient, ORG, 2026, 3);
+    expect(r.sources).toEqual([
+      { source: "fuel_app", receipts: 2, gallons: 175.795 },
+      { source: "mcleod", receipts: 3, gallons: 180 },
+    ]);
+    // r1 (McLeod, 100 gal) is u1 (uploaded, 100.2 gal); r2 is still the card's duplicate.
+    expect(r).toMatchObject({ duplicatesDropped: 2, duplicateGallons: 180.3 });
+    // Unrounded by design (the position rounds once), so compared at the files' third decimal.
+    expect(r.jurisdictions.map((j) => ({ ...j, gallons: Math.round(j.gallons * 1000) / 1000 }))).toEqual([
+      { jurisdiction: "NM", gallons: 60, receipts: 1 },
+      { jurisdiction: "OK", gallons: 155.595, receipts: 2 },
+      { jurisdiction: "TX", gallons: 140.2, receipts: 2 },
+    ]);
+    expectOrgScoped(rec, ORG);
   });
 });
 

@@ -312,9 +312,9 @@ export const RETENTION_FORBIDDEN = [
    * The rows are already frozen once final by 0280's trigger; pinning them here is what stops a
    * retention rule deleting a report that a roadside inspection is about to ask for.
    */
-  "vehicle_inspections",
-  "vehicle_inspection_items",
+  "vehicle_inspections", "vehicle_inspection_items",
   "audit_logs", // append-only compliance ledger
+  "ifta_fuel_receipt_uploads", "ifta_fuel_receipts", // IFTA credit evidence (0436): voided, never deleted
   // The notification dedupe ledger (0432, Q11): a deleted key re-arms its alert. The inbox is
   // prunable precisely because this table is not.
   "notification_dedupe_keys",

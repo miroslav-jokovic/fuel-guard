@@ -7,7 +7,7 @@ import { periodPurchases } from "./useIftaPeriod";
  * hand-keyed receipts (IP6) as their own source. The page tests mock the query, so this is where the
  * join itself is pinned.
  */
-const NONE = { jurisdictions: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] };
+const NONE = { jurisdictions: [], sources: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] };
 
 describe("periodPurchases", () => {
   it("adds each state's receipts to its card gallons, marked as receipts", () => {

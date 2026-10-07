@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
@@ -14,6 +14,8 @@ import {
   type IftaQuarter,
 } from "@/features/ifta/useIftaPeriod";
 import { usd, usd3, gal, pct1 } from "@/features/reconcile/format";
+import DriverFuelUploadDialog from "@/features/ifta/DriverFuelUploadDialog.vue";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * The IFTA jurisdiction ledger — what the carrier owes each jurisdiction against what it has paid.
@@ -52,24 +54,27 @@ const tieOut = computed(() => data.value?.tieOut ?? null);
 const summary = computed(() => data.value?.summary ?? null);
 
 /**
- * What "gallons bought" owes to McLeod's hand-keyed receipts (IP6) — cash and drivers' own cards,
- * which no card feed sees. Said every time, including when there are none: a quarter's receipts are
- * keyed in the week after it closes, so "card fills only" is a fact about the quarter, not silence.
+ * What "gallons bought" owes to receipts — the fuel no card feed sees: driver-paid fills the office
+ * uploaded (IP8) and receipts keyed in McLeod (IP6). Said every time, including when there are none:
+ * a quarter's receipts arrive in the week after it closes, so "card fills only" is a fact about the
+ * quarter, not silence.
  */
+const SOURCE_WORDS = { fuel_app: "uploaded from the fuel app", mcleod_export: "uploaded from McLeod", mcleod: "keyed in McLeod" } as const;
 const receiptLine = computed(() => {
   const r = data.value?.receipts;
   const p = position.value;
   if (!r || !p) return null;
   const count = r.jurisdictions.reduce((n, j) => n + j.receipts, 0);
   const parts: string[] = [];
+  const bySource = (r.sources ?? []).map((s) => `${s.receipts.toLocaleString("en-US")} ${SOURCE_WORDS[s.source]}`);
   parts.push(
     count > 0
-      ? `Gallons bought include ${gal(p.receiptGallons)} gal from ${count.toLocaleString("en-US")} receipt${count === 1 ? "" : "s"} keyed in McLeod (cash and drivers' own cards)`
-      : "No receipts keyed in McLeod for this quarter, so gallons bought are card fills only. The office keys cash and own-card receipts in the week after a quarter closes",
+      ? `Gallons bought include ${gal(p.receiptGallons)} gal from ${count.toLocaleString("en-US")} driver-paid receipt${count === 1 ? "" : "s"}${bySource.length ? ` (${bySource.join(", ")})` : ""}`
+      : "No driver-paid receipts for this quarter yet, so gallons bought are card fills only. Upload the fuel app's report or McLeod's fuel ticket listing once the quarter closes",
   );
   if (r.duplicatesDropped > 0) {
     parts.push(
-      `${r.duplicatesDropped} more matched a card fill (same truck, state, day and gallons) and ${r.duplicatesDropped === 1 ? "is" : "are"} counted once`,
+      `${r.duplicatesDropped} more matched a card fill or a better-documented copy of the same receipt (same truck, state, day and gallons) and ${r.duplicatesDropped === 1 ? "is" : "are"} counted once`,
     );
   }
   if (r.unmatched > 0) {
@@ -79,6 +84,11 @@ const receiptLine = computed(() => {
   }
   return `${parts.join(" · ")}.`;
 });
+
+/** Driver-paid fuel uploads (IP8): anyone who can see the page sees the uploads; fuel managers upload. */
+const session = useSessionStore();
+const canManageFuel = computed(() => session.can("fuel"));
+const uploadOpen = ref(false);
 
 /**
  * One line saying whether the numbers below can be trusted, in the order a reader needs them.
@@ -164,7 +174,13 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps." />
+    <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps.">
+      <template #actions>
+        <BaseButton data-testid="open-driver-fuel" @click="uploadOpen = true">Driver-paid fuel</BaseButton>
+      </template>
+    </PageHeader>
+    <!-- Mounted on open, so its upload list and truck list load when somebody asks for them. -->
+    <DriverFuelUploadDialog v-if="uploadOpen" :open="uploadOpen" :can-manage="canManageFuel" @close="uploadOpen = false" />
 
     <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
          The jurisdiction miles the ledger owes tax on come from one tier and nothing else. -->
@@ -249,7 +265,7 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
           </template>
           <template #cell-purchased="{ row }">
             {{ row.purchased }}
-            <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from receipts keyed in McLeod</span>
+            <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from driver-paid receipts</span>
           </template>
         </DataTable>
       </BaseCard>

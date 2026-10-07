@@ -53,3 +53,65 @@ export function toCsv<T extends Record<string, unknown>>(
     rows.map((r) => columns.map((c) => r[c.key])),
   );
 }
+
+/**
+ * RFC-4180 tokenizer (moved here from the EFS reader for the IFTA receipt upload, IP8): fields may be quoted; quoted fields may contain commas, CRLF/newlines, and
+ * escaped quotes (""). A naive line/comma split miscounts columns and silently drops data — the same
+ * failure the web reader's comments call out. Handles LF, CRLF and lone-CR line endings.
+ */
+export function tokenizeCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let field = "";
+  let row: string[] = [];
+  let inQuotes = false;
+  let sawAny = false; // did the current row have any content (so a trailing newline doesn't add [""])
+
+  const endField = () => {
+    row.push(field);
+    field = "";
+    sawAny = true;
+  };
+  const endRow = () => {
+    row.push(field);
+    field = "";
+    rows.push(row);
+    row = [];
+    sawAny = false;
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      endField();
+    } else if (c === "\n") {
+      endRow();
+    } else if (c === "\r") {
+      if (text[i + 1] === "\n") continue; // CRLF — let the \n end the row
+      endRow(); // lone CR
+    } else {
+      field += c;
+      sawAny = true;
+    }
+  }
+  // Flush a final unterminated row (no trailing newline).
+  if (sawAny || field !== "" || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
