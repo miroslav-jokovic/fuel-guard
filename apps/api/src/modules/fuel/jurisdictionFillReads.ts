@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { IftaCardFillKey, IftaJurisdictionFillRaw } from "@silvicom/shared";
+import type { IftaCardFillKey, IftaJurisdictionFillRaw, IftaQuarterFillRaw } from "@silvicom/shared";
 
 /**
  * The fuel module's answer to the IFTA drill-down's second question: **which fills were bought in
@@ -118,6 +118,59 @@ export async function readVehicleTractorFillKeys(
       }
       if (rows.length < PAGE) break;
     }
+  }
+  return out;
+}
+
+/**
+ * The same predicate once more, uncut by state: every tractor fill of the quarter, the fuel grid of
+ * the IFTA return export (IP9). `state is not null` because the ledger's read groups by state and a
+ * fill without one is in no jurisdiction's "gallons bought" (0256). ~6,000 fills a quarter, six pages.
+ */
+export async function readQuarterTractorFills(
+  admin: SupabaseClient,
+  orgId: string,
+  fromDay: string,
+  toDayExclusive: string,
+): Promise<IftaQuarterFillRaw[]> {
+  const out: IftaQuarterFillRaw[] = [];
+  const PAGE = 1000;
+  const shift = (ymd: string, days: number) =>
+    new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86_400_000).toISOString();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from("fuel_transactions")
+      .select("id, vehicle_id, state, fueled_at, business_date, gallons, price_per_gal, total_cost, location_text")
+      .eq("org_id", orgId)
+      .not("state", "is", null)
+      .gt("gallons", 0)
+      .gte("fueled_at", shift(fromDay, -1))
+      .lt("fueled_at", shift(toDayExclusive, 1))
+      .gte("business_date", fromDay)
+      .lt("business_date", toDayExclusive)
+      .or("tank_type.is.null,tank_type.eq.tractor")
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fuel_transactions read failed: ${error.message}`);
+    const rows = (data ?? []) as Array<{
+      id: string; vehicle_id: string | null; state: string; fueled_at: string; business_date: string;
+      gallons: number | string; price_per_gal: number | string | null; total_cost: number | string | null;
+      location_text: string | null;
+    }>;
+    for (const r of rows) {
+      out.push({
+        id: r.id,
+        vehicleId: r.vehicle_id,
+        state: r.state.trim().toUpperCase(),
+        businessDate: r.business_date,
+        fueledAt: r.fueled_at,
+        gallons: Number(r.gallons),
+        pricePerGal: r.price_per_gal == null ? null : Number(r.price_per_gal),
+        totalCost: r.total_cost == null ? null : Number(r.total_cost),
+        location: r.location_text,
+      });
+    }
+    if (rows.length < PAGE) break;
   }
   return out;
 }

@@ -64,6 +64,7 @@ export {
   readVehicleMonthlyMiles,
   readMonthlyMileageByMonth,
   readJurisdictionVehicleMiles,
+  readQuarterTruckStateMiles,
   type JurisdictionVehicleMiles,
 } from "./samsaraIftaReads.js";
 export {

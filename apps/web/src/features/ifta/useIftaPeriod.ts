@@ -10,8 +10,8 @@
 import { computed, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import {
-  computeIftaPosition, tieOutMiles, iftaJurisdictionTrucks,
-  type IftaFuelPurchase, type IftaJurisdictionMiles, type IftaPosition, type MilesTieOut,
+  ledgerPosition, tieOutMiles, iftaJurisdictionTrucks,
+  type IftaPosition, type MilesTieOut,
   type IftaJurisdictionTrucks, type IftaJurisdictionTrucksResponse, type IftaPeriodReceipts,
 } from "@silvicom/shared";
 import { milesFromMeters } from "@silvicom/shared";
@@ -56,35 +56,6 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Any date inside the quarter. IFTA rates are quarterly, so every day of it shares one rate. */
-export function rateDateFor(q: IftaQuarter): string {
-  const month = String((q.quarter - 1) * 3 + 2).padStart(2, "0"); // the middle month, comfortably inside
-  return `${q.year}-${month}-15`;
-}
-
-/**
- * The purchases one quarter's position is computed over. The read already aggregates the card fuel per
- * jurisdiction, so each row is one "purchase" of that jurisdiction's whole quarter; the rate is selected
- * by the quarter, not by a fill's own day. McLeod's hand-keyed receipts are fuel bought too (IP6): one
- * more purchase per jurisdiction, marked as such so the position carries their share of "gallons
- * bought" as its own figure. They move the fleet MPG with them, which is right — the return divides
- * miles by ALL the fuel, and a truck fuelled only on paper (unit 512) otherwise drives on nothing.
- */
-export function periodPurchases(
-  rows: Record<string, unknown>[],
-  receipts: IftaPeriodReceipts,
-  rateDate: string,
-): IftaFuelPurchase[] {
-  return [
-    ...rows
-      .filter((r) => num(r.purchased_gallons) > 0)
-      .map((r) => ({ jurisdiction: String(r.jurisdiction), gallons: num(r.purchased_gallons), tranDate: rateDate })),
-    ...receipts.jurisdictions.map((j) => ({
-      jurisdiction: j.jurisdiction, gallons: j.gallons, tranDate: rateDate, source: "mcleod_receipt" as const,
-    })),
-  ];
-}
-
 export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
   return useQuery({
     queryKey: ["ifta_period", quarter],
@@ -102,16 +73,9 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the IFTA period");
 
-      const rows = r.data.jurisdictions;
-      const miles: IftaJurisdictionMiles[] = rows.map((r) => ({
-        jurisdiction: String(r.jurisdiction),
-        taxableMeters: num(r.taxable_meters),
-        totalMeters: num(r.total_meters),
-        taxPaidLiters: num(r.tax_paid_liters),
-      }));
-      const rateDate = rateDateFor(quarter.value);
       const receipts = r.data.receipts ?? NO_RECEIPTS;
-      const purchases = periodPurchases(rows, receipts, rateDate);
+      // The join is `@silvicom/shared`'s, so the return export's tie-check reads the same figure (IP9).
+      const { miles, position } = ledgerPosition(r.data.jurisdictions, receipts, quarter.value);
 
       const s = r.data.summary ?? {};
       const summary: IftaPeriodSummary = {
@@ -126,7 +90,6 @@ export function useIftaPeriodQuery(quarter: Ref<IftaQuarter>) {
         troubleshooting: (s.troubleshooting as Record<string, number | boolean> | null) ?? null,
       };
 
-      const position = computeIftaPosition(miles, purchases, rateDate);
       const samsaraMiles = miles.reduce((acc, m) => acc + milesFromMeters(m.taxableMeters), 0);
       return {
         position,

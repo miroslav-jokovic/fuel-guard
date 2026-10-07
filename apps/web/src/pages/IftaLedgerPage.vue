@@ -15,6 +15,7 @@ import {
 } from "@/features/ifta/useIftaPeriod";
 import { usd, usd3, gal, pct1 } from "@/features/reconcile/format";
 import DriverFuelUploadDialog from "@/features/ifta/DriverFuelUploadDialog.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -89,6 +90,13 @@ const receiptLine = computed(() => {
 const session = useSessionStore();
 const canManageFuel = computed(() => session.can("fuel"));
 const uploadOpen = ref(false);
+
+/**
+ * The return as a file (IP9): Excel carries the truck × state grids and every fill, the PDF the return
+ * and one block per truck. Same quarter as the page, same gate as the page (fuel view).
+ */
+const exportQuery = computed(() => `year=${quarter.value.year}&quarter=${quarter.value.quarter}`);
+const exportName = computed(() => `ifta-return-${quarter.value.year}-Q${quarter.value.quarter}`);
 
 /**
  * One line saying whether the numbers below can be trusted, in the order a reader needs them.
@@ -176,6 +184,22 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
   <div class="space-y-6">
     <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps.">
       <template #actions>
+        <ExportButton
+          data-testid="export-ifta-xlsx"
+          :href="`/api/ifta/return.xlsx?${exportQuery}`"
+          :filename="`${exportName}.xlsx`"
+          :scope="quarterLabel(quarter)"
+          label="Excel"
+          variant="secondary"
+        />
+        <ExportButton
+          data-testid="export-ifta-pdf"
+          :href="`/api/ifta/return.pdf?${exportQuery}`"
+          :filename="`${exportName}.pdf`"
+          scope=""
+          label="PDF"
+          variant="secondary"
+        />
         <BaseButton data-testid="open-driver-fuel" @click="uploadOpen = true">Driver-paid fuel</BaseButton>
       </template>
     </PageHeader>

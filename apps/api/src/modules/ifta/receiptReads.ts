@@ -83,7 +83,7 @@ async function readMappedMcleodReceipts(
  * Every receipt source for the window: McLeod's hand-keyed receipts and the office's uploads (IP8).
  * Which copy of a fill counts is `foldReceiptSources`' rule, applied by both callers below.
  */
-async function readAllReceipts(
+export async function readAllReceipts(
   admin: SupabaseClient,
   orgId: string,
   fromDay: string,

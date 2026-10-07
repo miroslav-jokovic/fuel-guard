@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeIftaPosition, metersFromMiles } from "@silvicom/shared";
-import { periodPurchases } from "./useIftaPeriod";
+import { computeIftaPosition } from "./position.js";
+import { metersFromMiles } from "../smartFueling/units.js";
+import { periodPurchases } from "./periodPosition.js";
 
 /**
  * The ledger's "gallons bought": the period read's card gallons per jurisdiction, plus McLeod's
  * hand-keyed receipts (IP6) as their own source. The page tests mock the query, so this is where the
- * join itself is pinned.
+ * join itself is pinned — for the page and for the return export, which both call it (IP9).
  */
 const NONE = { jurisdictions: [], sources: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] };
 
