@@ -59,6 +59,9 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // is nobody else's business. A section gate here would invent a capability nobody needs: whichever
   // widgets a caller may see, they may certainly decide which of them to look at.
   ["/api/dashboard-layout", "the caller's own Dashboard arrangement — a list of widget keys that grants nothing (the resolver never sees the catalogue) and reveals nothing; isolated by org_id + user_id on every query and by 0343's own-row RLS"],
+  // X1 (Q-PR4, 0435). Write-only and answers nothing but a status: a member reports which catalogue
+  // screens they opened, and that is all any member may do here.
+  ["/api/page-views", "the page-view count (X1): a signed-in member reports catalogue keys of screens they opened. Grants nothing and reveals nothing — the route answers 204 with no body. Org and role come from the token, the day from the org's clock; unknown keys are dropped (`acceptedPageViewKeys`). Pinned by \"ignores a role or org in the body — only the token decides them\" in modules/org/routes/pageViews.test.ts"],
 
   // Queue item 5 step 3. The FIGURES, beside the arrangement above, and open for the same reason the
   // findings strip on this page is: the Dashboard is `gate: ALWAYS` in surfaceCatalogue, so every

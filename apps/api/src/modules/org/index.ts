@@ -21,6 +21,7 @@ export { usersWhoManage } from "./memberLookup.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { orgSettingsRouter } from "./routes/orgSettings.js";
 export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";
+export { pageViewsRouter } from "./routes/pageViews.js";
 export { auditRouter } from "./routes/audit.js";
 export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";

@@ -109,6 +109,7 @@ export * from "./accessReviewContract.js";
 export * from "./accessReview.js";
 export * from "./namedGrants.js";
 export * from "./dashboardLayoutContract.js";
+export * from "./pageViewsContract.js";
 export * from "./dashboardWidgets.js";
 export * from "./featureCatalog.js";
 export * from "./sentryScrub.js";

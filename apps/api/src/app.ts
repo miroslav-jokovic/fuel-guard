@@ -21,7 +21,7 @@ import { registerAllHandlers } from "./queue/handlers/index.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
-import { dashboardLayoutRouter, orgSettingsRouter, savedViewsRouter } from "./modules/org/index.js";
+import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
 import { anomaliesRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
@@ -236,6 +236,8 @@ function mountApiRouters(app: Express, env: Env): void {
   // The caller's own Dashboard arrangement (LM10, D-DW3). A preference, not a permission, so it sits
   // beside saved views rather than beside the two access routers above: no role gate, no audit row.
   app.use("/api/dashboard-layout", dashboardLayoutRouter());
+  // Screens opened per role and day, no person attached (X1, 0435); same no-gate shape as the layout.
+  app.use("/api/page-views", pageViewsRouter());
   // The fleet Dashboard's own figures (queue item 5 step 3), beside the arrangement above: ten
   // browser reads become one call. Mounted AFTER the longer prefix, the /api/me precedent.
   app.use("/api/dashboard", dashboardRouter());
