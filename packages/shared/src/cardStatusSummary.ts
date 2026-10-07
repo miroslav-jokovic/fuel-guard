@@ -38,6 +38,20 @@ const statusWord = (s: string): string => {
   return known && known in EFS_CARD_STATUS_LABELS ? EFS_CARD_STATUS_LABELS[known as EfsCardStatus] : s;
 };
 
+/**
+ * The words of the message sent AT ONCE for one urgent change (Q-F3 3a; titles from chunk 3c). The
+ * card is named as the summary names it — truck, driver, last four — because "Fuel card ••••7977 is
+ * now HOLD" came from two different cards on 10-05 (AUDIT N7).
+ */
+export function cardStatusChangeMessage(
+  c: Pick<SummaryCardChange, "unit" | "driver" | "last4" | "from" | "to">,
+): { title: string; body: string } {
+  return {
+    title: `${cardLabel(c)} is now ${statusWord(c.to)}`,
+    body: `It was ${statusWord(c.from)}. The change was made at EFS, in the WEX portal or by EFS itself, not in Silvicom 360.`,
+  };
+}
+
 const cards = (n: number) => `${n} card${n === 1 ? "" : "s"}`;
 
 export function summarizeCardStatusChanges(changes: readonly SummaryCardChange[]): { title: string; body: string } | null {

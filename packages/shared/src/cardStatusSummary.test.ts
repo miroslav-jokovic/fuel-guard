@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardLabel, SUMMARY_MAX_LINES, summarizeCardStatusChanges, type SummaryCardChange } from "./cardStatusSummary.js";
+import { cardLabel, cardStatusChangeMessage, SUMMARY_MAX_LINES, summarizeCardStatusChanges, type SummaryCardChange } from "./cardStatusSummary.js";
 
 /**
  * The daily card status summary's words (Q-F3; F02-F04 PLAN.md chunk 3b).
@@ -79,5 +79,24 @@ describe("the daily card status summary", () => {
     const b = cardLabel({ unit: "990", driver: "BOB", last4: "1234" });
     expect(a).not.toBe(b);
     expect(cardLabel({ unit: null, driver: null, last4: null })).toBe("••••????");
+  });
+});
+
+describe("the message sent at once for one urgent change (chunk 3c)", () => {
+  it("names the truck and driver first, the last four last, and the states in plain words", () => {
+    expect(cardStatusChangeMessage({ unit: "887", driver: "TEST DRIVER ONE", last4: "7977", from: "ACTIVE", to: "FRAUD" })).toEqual({
+      title: "Truck 887 · TEST DRIVER ONE · ••••7977 is now Fraud hold",
+      body: "It was Active. The change was made at EFS, in the WEX portal or by EFS itself, not in Silvicom 360.",
+    });
+  });
+
+  it("gives two cards with the same last four two different titles", () => {
+    const a = cardStatusChangeMessage({ unit: "887", driver: null, last4: "7977", from: "ACTIVE", to: "HOLD" }).title;
+    const b = cardStatusChangeMessage({ unit: "990", driver: null, last4: "7977", from: "ACTIVE", to: "HOLD" }).title;
+    expect(a).not.toBe(b);
+  });
+
+  it("falls back to the last four when EFS knows neither truck nor driver", () => {
+    expect(cardStatusChangeMessage({ unit: null, driver: "  ", last4: "0002", from: "HOLD", to: "ACTIVE" }).title).toBe("••••0002 is now Active");
   });
 });
