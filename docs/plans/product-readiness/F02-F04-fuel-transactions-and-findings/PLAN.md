@@ -2,7 +2,7 @@
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
-3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is built.
+3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -182,6 +182,19 @@ Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_tra
   - Sixteen mutants, each red; one first survived (an escalated incident falling back to "alert")
     and the test was strengthened.
 - **5b** Migration: `card_fraud_incidents` with RLS and its matrix.
+  - Built: migration 0438. Two tables: `card_fraud_incidents`, with the fold's columns plus a
+    person's status and disposition (0034's words), and `card_fraud_incident_attempts`, where each
+    decline or fill sits in exactly one incident, so a re-score records nothing. Both are deny-all
+    RLS and `RETENTION_FORBIDDEN`.
+  - One writer, `card_fraud_record` (service role only). It takes a per-card lock and refuses a
+    write unless the card's latest incident is still the one the caller read. #1216 left that open:
+    two workers could each open an incident for the same card. It also refuses extending an
+    incident a person has closed; the retry opens a new one.
+  - A reviewed incident cannot be deleted (the Q-F8 rule, as 0437); deleting the org still cascades.
+  - Matrix `card-fraud-incidents.test.mjs` (35 checks) records production's 13 attempts one at a
+    time through the real fold, and the store equals `foldFraudAttempts` field for field: 7
+    incidents, 13 attempts, 8 steps. It first caught a missing `grant execute … to service_role`,
+    which would have been a production 500 on 5c's first call.
 - **5c** The decline and fill scorers write incidents.
 - **Accept:** each part's own tests, plus the card-fraud plan's CF2 check.
 
@@ -328,3 +341,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-07: Chunk 4 merged (#1344) and released (v2026.10.07.1). Chunk 5a built: the card fraud
   incident fold, from main (#1216 read for ideas only). The 13 declines of 09-02 → 10-02 fold into 7
   incidents; the four proximity rows open none. Card …07967 was tried again on 10-05.
+- 2026-10-07: Chunk 5a merged (#1346, c6f2779); staging serves it. Chunk 5b built: migration 0438
+  (`card_fraud_incidents`, `card_fraud_incident_attempts`, `card_fraud_record`, the delete guard)
+  and its matrix.

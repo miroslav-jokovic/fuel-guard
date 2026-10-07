@@ -240,3 +240,5 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 - 2026-10-07 — CF2 part 1 (F02-F04 PLAN.md chunk 5a): the pure fold `packages/shared/src/cardFraud.ts`,
   pinned against the 13 §1 declines (7 incidents) and the four proximity rows (none). Rebuilt from
   main; #1216 is not merged. Table (5b) and scorers (5c) follow as their own PRs.
+- 2026-10-07 — CF2 part 2 (chunk 5b): migration 0438, the incident tables and their one writer, with
+  the matrix replaying the 13 §1 declines through the real fold. The scorers (5c) follow.
