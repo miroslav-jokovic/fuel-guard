@@ -134,6 +134,28 @@
         "why": "D-LIFE4: evidence, append-only, RETENTION_FORBIDDEN \u2014 never pruned. Budget set by L2 (migration 0352), which stopped the trigger recording telemetry. Basis: everything that was NOT vehicle.update/driver.update measured 1,191 rows/30d \u2248 40/day on 2026-09-21, plus identity and compliance changes which are rare (zero vehicle.insert or vehicle.delete in seven days); 500/day is ~12x headroom. \u26a0 PROVISIONAL until the post-0352 rate is measured in production \u2014 re-measure and tighten. L7 partitions this table (its pkey takes 3 scans, so nothing looks it up by id)."
       }
     },
+    "card_fraud_incident_attempts": {
+      "module": "anomalies",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "each decline or fill Samsara put away from its truck, in one incident (CF2, 0438). Measured 2026-10-07: 13 in 09-02..10-02, so under 1 a day; x10 headroom. RETENTION_FORBIDDEN: the incident's evidence."
+      }
+    },
+    "card_fraud_incidents": {
+      "module": "anomalies",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "one per card per episode (CF2, 0438): 7 in 09-02..10-02 on production's declines. core, not derived: status and disposition are a person's verdict, which no rebuild can recreate. RETENTION_FORBIDDEN."
+      }
+    },
     "card_write_counters": {
       "module": "efs",
       "layer": "infra",

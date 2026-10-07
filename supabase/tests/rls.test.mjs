@@ -2283,6 +2283,17 @@ async function main() {
       // 0255's period columns are range-checked (`period_year between 2015 and 2100`), which the
       // generic seeder's placeholder integer cannot satisfy — a real year is cheaper than loosening a
       // constraint that exists to stop a month landing in year zero.
+      // 0438: the fold columns are shape-checked (`places`/`steps` a non-empty array, `level` one of two
+      // words), and an attempt references its incident through `(incident_id, org_id)`, a composite FK
+      // the generic synthesiser cannot follow — handed a real parent, as `vehicle_positions` below.
+      card_fraud_incidents: (org) =>
+        `insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps) ` +
+        `values ('${org}', gen_random_uuid()::text, 'rls', 'rls', now(), now(), 'alert', 1, '[{}]', '[{}]')`,
+      card_fraud_incident_attempts: (org) =>
+        `with i as (insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps) ` +
+        `values ('${org}', gen_random_uuid()::text, 'rls', 'rls', now(), now(), 'alert', 1, '[{}]', '[{}]') returning id) ` +
+        `insert into card_fraud_incident_attempts (source, source_id, org_id, incident_id, attempted_at) ` +
+        `select 'decline', gen_random_uuid(), '${org}', id, now() from i`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

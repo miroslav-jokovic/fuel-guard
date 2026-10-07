@@ -378,7 +378,7 @@ export const RETENTION_FORBIDDEN = [
   "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",
-  "anomalies",
+  "anomalies", "card_fraud_incidents", "card_fraud_incident_attempts", // 0438: a person's fraud verdict + its evidence
   "driver_scores",
   "driver_performance_weeks", // frozen rewards ledger
   "organizations",
