@@ -23,6 +23,10 @@ describe("notificationRoute", () => {
     expect(notificationRoute("card_status_changed", "driver", "c1")).toBeNull();
   });
 
+  it("the daily card summary names no card, so it opens the card list (Q-F3, chunk 3b)", () => {
+    expect(notificationRoute("card_status_changed", null, null)).toBe("/fuel-cards");
+  });
+
   it("messages go to the messages page", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });

@@ -1,6 +1,7 @@
 import { getEfsSoapCredentials } from "../../modules/efs/services/efsSoapCredentials.js";
 import { syncEfsCards } from "../../modules/efs/services/efsCardMirror.js";
 import { pollEfsCardStatus } from "../../modules/efs/services/efsCardStatusPoll.js";
+import { sendCardStatusSummary } from "../../modules/efs/services/cardStatusSummary.js";
 import { resolveUnresolvedMutations } from "../../modules/efs/services/efsCardUnresolved.js";
 import type { JobHandler } from "../types.js";
 
@@ -87,6 +88,14 @@ export const efsCardStatusHandler: JobHandler = async (ctx, job) => {
         `${result.newCards} new, ${result.failed} failed`,
     );
   }
-  return { ...result, errors: result.errors.slice(0, 5) };
+  // The daily summary (Q-F3, chunk 3b) rides the poll rather than a scheduler of its own. Its own
+  // failure must not mark a poll that worked as failed: the next poll, five minutes on, tries again.
+  let summary: Record<string, unknown> | null = null;
+  try {
+    summary = { ...(await sendCardStatusSummary(ctx.admin, job.org_id, new Date())) };
+  } catch (error) {
+    console.error(`[efs-cards] org ${job.org_id}: card status summary — ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return { ...result, errors: result.errors.slice(0, 5), summary };
 };
 
