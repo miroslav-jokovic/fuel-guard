@@ -38,6 +38,13 @@ const series = ref<{ total: ReturnType<typeof period>; periods: unknown[] }>({
 vi.mock("@/composables/useFleetMpg", () => ({
   useFleetMpgSeries: () => ({ data: computed(() => series.value) }),
 }));
+// DR2b: no previous window here, so no delta pill; this file is not about the comparison.
+vi.mock("../useDashboardComparison", () => ({
+  useDashboardComparison: () => ({
+    previousRange: computed(() => ({ from: "2026-08-01", to: "2026-08-31" })),
+    previous: computed(() => undefined), mpgPrevious: computed(() => undefined), isLoading: ref(false),
+  }),
+}));
 vi.mock("../useDashboard", () => ({
   useDashboard: () => ({ data: computed(() => null), isLoading: ref(false), isFetching: ref(false) }),
 }));

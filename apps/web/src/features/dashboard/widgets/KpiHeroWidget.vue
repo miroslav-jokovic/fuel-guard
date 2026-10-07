@@ -15,10 +15,20 @@ import { useOpens } from "@/composables/useOpens";
 import { applyMoneyGate } from "../moneyGate";
 import { useFleetWidgetData, type FleetRange } from "../fleetWidgetData";
 import { viz, fmtMoney, fmtCompact } from "@/lib/chartTheme";
+import { deltaLabel, deltaTone, type PeriodDelta } from "@silvicom/shared";
 
 const props = defineProps<{ range: FleetRange }>();
-const { s, isLoading, canSeeMoney, mpgTotal, mpgWeeks, mpgSub, mpgTitle, rangeLabel } =
+const { s, isLoading, canSeeMoney, mpgTotal, mpgWeeks, mpgSub, mpgTitle, rangeLabel, previousLabel, deltas } =
   useFleetWidgetData(computed(() => props.range));
+
+/**
+ * The head-row pill (DR2b, D-DT6), or nothing. `upIsGood` is this tile's own verdict (D-DT8): spend
+ * and idle up are bad, MPG up is good. `unit: "abs"` for MPG because it moves by tenths and a
+ * reader has "7.4 → 7.7" in their head, not "4%". Undefined, not a dash, while either window is
+ * still missing — a dash would claim "no change" about a comparison nobody has made yet.
+ */
+const pill = (d: PeriodDelta | null, upIsGood: boolean, unit: "pct" | "abs" = "pct") =>
+  d ? { direction: d.direction, tone: deltaTone(d, upIsGood), label: deltaLabel(d, unit), against: previousLabel.value } : undefined;
 
 const statsRaw = computed(() => {
   const sev = s.value?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 };
@@ -30,6 +40,7 @@ const statsRaw = computed(() => {
       valueTitle: s.value ? fmtMoney(s.value.totalSpend) : undefined,
       sub: rangeLabel.value, icon: CurrencyDollarIcon, tone: "success" as const,
       spark: s.value?.spendTrend.map((p) => p.value), sparkColor: viz.spend, to: "/transactions",
+      delta: pill(deltas.value.spend, false),
     },
     {
       label: "Fleet avg MPG",
@@ -37,9 +48,12 @@ const statsRaw = computed(() => {
       valueTitle: mpgTitle.value, sub: mpgSub.value, icon: GaugeIcon, tone: "brand" as const,
       // A weekly spark, because there is no honest daily point to draw (D-MPG6).
       spark: mpgWeeks.value.map((p) => p.mpg), sparkColor: viz.brand, to: "/driver-performance",
+      delta: pill(deltas.value.mpg, true, "abs"),
     },
     {
       label: "Idle waste", money: true as const,
+      // Hours, not dollars, so the pill means the same thing whether or not the reader sees money.
+      delta: pill(deltas.value.idleHours, false),
       // The one money tile with an honest operational twin, so a caller without `accounting` keeps
       // the hours — the number a dispatcher can act on — and loses only the dollars.
       withoutMoney: { value: s.value ? Math.round(s.value.idleHours).toLocaleString() : "—", sub: "idle hrs" },
@@ -54,6 +68,9 @@ const statsRaw = computed(() => {
       icon: FireIcon, tone: "caution" as const, to: "/idling",
     },
     {
+      // ⚠ No `delta`, and that is a ruling rather than an omission (D-DR12, Q-DT4): this figure is
+      // CURRENT STATE, not a period measure, so there is no previous period to compare it with. A
+      // pill here would be a category error however the number was produced.
       label: "Active alerts",
       value: s.value ? String(alerts) : "—",
       sub: s.value ? `${s.value.openAnomalies} open case${s.value.openAnomalies === 1 ? "" : "s"}` : undefined,
