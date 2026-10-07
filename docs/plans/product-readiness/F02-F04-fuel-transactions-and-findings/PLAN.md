@@ -1,8 +1,8 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
-is merged (#1337); Inventory (2b) waits on Q-F7. Chunks 3a and 3b are merged (#1339, #1340); 3c
-(titles) is built. Release 3a–3c together. Next: chunk 4.
+is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
+3a–3c together. Chunk 4 (migration 0437) is built. Next: chunk 5.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -58,6 +58,17 @@ remaining phases in order with this feature's other fixes.
   - If hand entry is ever needed, it returns as an audited API route.
 - **Q-PR1, Q-PR2, Q-PR4** (2026-10-06): F02 + F04 first; Tier C hidden through surface grants;
   X1 built early (done).
+- **Q-F8. How chunk 4 guards reviewed alerts: RULED 2026-10-07 (a), a migration.**
+  - *Measured on production, read-only, 2026-10-07:* 416 alerts carry a human status change. All
+    311 reviewed 07-01 → 08-05 are gone; all 105 reviewed from 08-06 on exist. The old scoring
+    deleted and re-created cases; 0156/0158 (early August) replaced it. Today no code deletes an
+    alert, and re-scoring only supersedes OPEN cases.
+  - Correction to AUDIT A3: `anomaly_transitions` starting 08-09 is the day 0158 created it, not
+    evidence of deletion. The 311 cannot be restored; `audit_logs` still says who changed each.
+  - The door left open: deleting a fill cascades to its alerts, and the browser holds a fill
+    delete policy (Q-F6). Nothing in the database refused it.
+  - (a) chosen: a trigger refuses deleting an alert a person touched. (b) rejected: rely on
+    chunk 12 alone, which leaves no database rule.
 - **Q-F7. Inventory lives on the Shop page. OPEN (asked 2026-10-07).** Hiding Parts, Assets and
   Units is easy. But the Shop page (`/shop`) is the inventory home: Scan, Count shelf, Low stock,
   Short of kit, and "No parts on shelves yet". Only its Repair spend tile is not inventory.
@@ -143,6 +154,11 @@ Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No n
 Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_transitions`.
 - **Accept:** a PGlite matrix runs a rebuild over a human-closed case. The case and its
   transitions survive, and removing the guard turns the matrix red.
+- Built (Q-F8 (a)): migration 0437, a BEFORE DELETE trigger on `anomalies`. Refused: a case that
+  is investigating, resolved or dismissed, has a disposition, or has a transition. A fill delete
+  that would cascade onto one fails whole. Allowed: an untouched open or superseded case, and
+  deleting the organization. Production: 2,041 rows protected, 250 not.
+  Matrix `reviewed-alerts-guard.test.mjs` (29 checks); removing the guard turns 15 red.
 
 ### Chunk 5 — card fraud incidents (CF2, D-CF1/D-CF2), rebuilt from main
 #1216 is closed with a link, never merged: it holds migration 0410 and deletes the idle code.
@@ -288,3 +304,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-07: Chunk 3b merged (#1340, 9f31966); staging serves it.
 - 2026-10-07: Chunk 3c built: the urgent message title is "Truck 887 · driver · ••••7977 is now On
   hold". Two cards ending 7977 give two titles. Three mutants, each red.
+- 2026-10-07: Chunk 3c merged (#1341, 7f575e7); staging serves it. Chunk 3 is complete.
+- 2026-10-07: Chunk 4 measured: no reviewed alert lost since 08-06; the 311 lost were the old
+  scoring. Owner ruled Q-F8 (a). Built migration 0437 and its matrix; five mutants, each red
+  (removing the org exception refuses the org delete, which proves the cascade sees the org gone).
