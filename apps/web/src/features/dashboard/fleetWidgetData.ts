@@ -15,8 +15,9 @@ import { computed, type Ref } from "vue";
 import { useDashboard } from "./useDashboard";
 import { useDashboardComparison } from "./useDashboardComparison";
 import { useFleetMpgSeries } from "@/composables/useFleetMpg";
+import { useFuelRangeTotals } from "@/composables/useFuelLog";
 import { useSessionStore } from "@/stores/session";
-import { fleetMpgWindowNote, formatDisplayDayShort, periodDelta } from "@silvicom/shared";
+import { dateRangeDays, fleetMpgWindowNote, formatDisplayDayShort, periodDelta } from "@silvicom/shared";
 
 export interface FleetRange {
   from: string;
@@ -83,8 +84,22 @@ export function useFleetWidgetData(range: Ref<FleetRange>) {
    * does not take. The previous window's summary carries the same current-state counts, so a delta
    * computed from it would always read flat — a number that looks right and is not.
    */
-  const { previousRange, previous, mpgPrevious } = useDashboardComparison(range);
+  const { previousRange, previous, mpgPrevious, mpgPreviousWeeks, fuelPrevious } = useDashboardComparison(range);
   const previousLabel = computed(() => windowLabel(previousRange.value));
+  /** "the previous 31 days" — what the pills and the lead sentence compare against, in words. */
+  const previousPhrase = computed(() => {
+    const n = dateRangeDays(previousRange.value.from, previousRange.value.to).length;
+    return n === 1 ? "the day before" : `the previous ${n} days`;
+  });
+
+  /**
+   * Fill-ups and miles come from `fuel_range_totals`, which takes the picked CALENDAR DAYS and
+   * nothing else (D-PREC5, queue item 4). The `business_date` column is a calendar column; the
+   * code that once built a browser-midnight instant here read 104 fills for a day that had 45.
+   * Pinned by "passes the picked calendar days through, undecorated" in `ActivityWidget.test.ts`.
+   */
+  const { data: fuelTotals, isLoading: fuelLoading } = useFuelRangeTotals(computed(() => ({ from: range.value.from, to: range.value.to })));
+
   const deltas = computed(() => ({
     spend: periodDelta(s.value?.totalSpend, previous.value?.totalSpend),
     gallons: periodDelta(s.value?.totalGallons, previous.value?.totalGallons),
@@ -93,11 +108,14 @@ export function useFleetWidgetData(range: Ref<FleetRange>) {
     reefer: periodDelta(s.value?.reeferSpend, previous.value?.reeferSpend),
     declined: periodDelta(s.value?.declinedCount, previous.value?.declinedCount),
     mpg: periodDelta(mpgTotal.value?.mpg, mpgPrevious.value?.mpg),
+    fillUps: periodDelta(fuelTotals.value?.fillUps, fuelPrevious.value?.fillUps),
+    miles: periodDelta(fuelTotals.value?.totalMiles, fuelPrevious.value?.totalMiles),
   }));
 
   return {
     s, isLoading, isFetching, canSeeMoney, mpgTotal, mpgWeeks, mpgSub, mpgTitle, rangeLabel,
-    previousRange, previousLabel, deltas,
+    previousRange, previousLabel, previousPhrase, previous, mpgPrevious, mpgPreviousWeeks,
+    fuelTotals, fuelLoading, deltas,
   };
 }
 

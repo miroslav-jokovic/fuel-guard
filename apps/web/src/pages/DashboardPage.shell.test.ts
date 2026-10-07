@@ -91,6 +91,10 @@ function mountShell() {
           template: '<div :data-test="tab + \'-tab\'" :data-range="range ? range.from + \'\u2192\' + range.to : undefined" />',
         },
         DateRangeFilter: { template: '<div data-test="range-filter" />' },
+        // v3: both read the fleet figures through vue-query; the shell test is about which tab
+        // the shell chose, so they are stubbed to their markers.
+        SamsaraFeedLine: { template: '<span data-test="feed-chip" />' },
+        FleetLeadLine: { template: '<span data-test="fleet-lead" />' },
         PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },
         MenuButton: true,

@@ -317,6 +317,20 @@ as the fix if the request metrics ever show it.
 
 ## 8. Progress log
 
+- **2026-10-07** — **Fleet overview v3 built** on `claude/fleet-overview-v3` (DR2b merged first as
+  #1331). The catalogue's `span` is a column count of twelve (Q-FO3 b) and the fleet tab is six
+  cards: `fleet.fuel` (5), `fleet.efficiency` (4), `fleet.attention` (3), `fleet.activity` (12),
+  `fleet.concentration` (6), `fleet.savings` (6, gated `accounting`, draws
+  `FuelOpportunitiesStrip` in a new `card` variant — D-FO9). The Fuel card draws the previous
+  period as ghost bars and the Efficiency card as a band (D-FO3); severity is a stacked bar in the
+  rail (D-FO4); one ranked bar list with a Vehicles | Drivers switch (D-FO5); feed freshness is a
+  chip in the control row (D-FO8); the greeting's second line is `fleetLead` (Q-FO6 a). A stored
+  row naming only retired keys resolves to the default and `TabWidgets` says so once (Q-FO4 b).
+  `ChartCard` and the new `DoorLink` moved to `components/ui` so the reconcile feature's card can
+  use them without crossing a feature boundary. `dashboardEquivalence`'s two snapshots were
+  re-captured deliberately and its money rule is unchanged. Nine widgets, `RiskList`,
+  `SeverityBreakdown` and `DonutBreakdown` are deleted.
+
 - **2026-10-06 (later)** — Owner: "proceed as recommended", which rules Q-FO1 (a), Q-FO2 (a),
   Q-FO3 (b), Q-FO4 (b), Q-FO5 (a), Q-FO6 (a), Q-FO7 (a). **DR2b built** on
   `claude/fleet-overview-dr2b`: `dashboardComparison.ts` in shared (`previousWindow`, `periodDelta`,

@@ -51,8 +51,8 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 }
 
 /** Real catalogue keys — the router checks against `DASHBOARD_WIDGETS`, so invented ones would 400. */
-const KEPT = ["dispatch.live-map", "fleet.kpi-hero"];
-const HIDDEN = ["fleet.severity"];
+const KEPT = ["dispatch.live-map", "fleet.fuel"]; // v3 keys (2026-10-07); the old nine are gone
+const HIDDEN = ["fleet.attention"];
 
 const seed = (rows: unknown[]) => createSupabaseRecorder({ tables: { user_dashboard_layout: rows } });
 
@@ -140,7 +140,7 @@ describe("dashboard layout API", () => {
       const res = await fetch(`${base}/api/dashboard-layout`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ widgetKeys: ["fleet.severity"], hiddenKeys: ["fleet.severity"] }),
+        body: JSON.stringify({ widgetKeys: ["fleet.attention"], hiddenKeys: ["fleet.attention"] }),
       });
       return res.status;
     });

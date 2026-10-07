@@ -63,8 +63,13 @@ withDefaults(
       week with no measured distance), and a row that collapses would move the plot under the
       pointer mid-scrub.
     -->
+    <!-- `#beside-readout` is where the delta pill goes (DR2b, D-FO3): between the figure and what
+         it is of, so the total, its pill and "vs the previous 31 days" read as one line. (No
+         currency sign in this comment: Vue keeps template comments in the test build, and the
+         money-gate harness greps the whole HTML for one.) -->
     <div v-if="readout" class="mb-3 flex min-h-9 flex-wrap items-baseline gap-x-2 gap-y-0.5">
       <p class="text-2xl font-bold tabular-nums text-ink">{{ readout }}</p>
+      <slot name="beside-readout" />
       <p v-if="caption" class="text-xs text-ink-tertiary">{{ caption }}</p>
     </div>
 

@@ -29,6 +29,13 @@ const props = defineProps<{
   vehicleIds: string[];
   /** Whether the Findings inbox opens for this caller (`useOpens`). */
   canOpenInbox: boolean;
+  /**
+   * `page` is the strip as the Fuel costs page draws it — its own heading, its own ringed list.
+   * `card` is the same rows inside a Dashboard card (D-FO9, Fleet overview v3): the card supplies
+   * the heading and the frame, so the strip drops both and keeps the rows, the link rule and the
+   * "counted separately" caveat, which are the parts worth reusing.
+   */
+  variant?: "page" | "card";
 }>();
 
 const linkFor = (kind: string) => ({
@@ -45,8 +52,8 @@ const detail = (o: FuelOpportunity) =>
 </script>
 
 <template>
-  <section class="space-y-2" aria-labelledby="fuel-opportunities-heading">
-    <h3 id="fuel-opportunities-heading" class="text-sm font-semibold text-ink">Open fuel findings</h3>
+  <section class="space-y-2" :aria-labelledby="variant === 'card' ? undefined : 'fuel-opportunities-heading'" :aria-label="variant === 'card' ? 'Open fuel findings' : undefined">
+    <h3 v-if="variant !== 'card'" id="fuel-opportunities-heading" class="text-sm font-semibold text-ink">Open fuel findings</h3>
 
     <p v-if="error" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
       Couldn't load the open findings. Reload to try again.
@@ -57,8 +64,8 @@ const detail = (o: FuelOpportunity) =>
     </p>
 
     <template v-else-if="rows">
-      <ul class="divide-y divide-edge rounded-surface bg-surface ring-1 ring-edge">
-        <li v-for="o in rows" :key="o.kind" class="flex items-center justify-between gap-4 px-4 py-3">
+      <ul :class="variant === 'card' ? 'divide-y divide-edge-subtle' : 'divide-y divide-edge rounded-surface bg-surface ring-1 ring-edge'">
+        <li v-for="o in rows" :key="o.kind" class="flex items-center justify-between gap-4 py-3" :class="variant === 'card' ? 'first:pt-0' : 'px-4'">
           <div class="min-w-0">
             <RouterLink v-if="canOpenInbox" :to="linkFor(o.kind)" class="text-sm font-medium text-link hover:text-link-hover">
               {{ o.label }}

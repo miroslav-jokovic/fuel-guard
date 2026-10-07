@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dashboardLayoutSetSchema,
   inDefaultLayout,
+  layoutNamesNothingHere,
   mergeTabLayout,
   resolveDashboardLayout,
   type StoredDashboardLayout,
@@ -25,7 +26,7 @@ const w = (key: string, defaultFor?: readonly UserRole[]): DashboardWidget => ({
   label: key,
   tab: "fleet",
   gate: section("fuel"),
-  span: "full",
+  span: 12,
   ...(defaultFor ? { defaultFor } : {}),
 });
 
@@ -218,5 +219,31 @@ describe("dashboardLayoutSetSchema", () => {
         hiddenKeys: [],
       }).success,
     ).toBe(false);
+  });
+});
+
+/**
+ * Q-FO4, ruled (b): a row that names nothing on today's catalogue is a reset, not an arrangement.
+ * Fleet overview v3 replaced nine keys with six, so every row saved before 2026-10-06 is this case.
+ */
+describe("resolveDashboardLayout — a row from before the catalogue changed", () => {
+  const admin: UserRole = "admin";
+  const today = [w("fleet.fuel"), w("fleet.efficiency"), w("fleet.attention")];
+
+  it("shows the role default when the stored keys all belong to cards that no longer exist", () => {
+    const stale: StoredDashboardLayout = { widgetKeys: ["fleet.kpi-hero"], hiddenKeys: ["fleet.severity"] };
+    expect(layoutNamesNothingHere(today, stale)).toBe(true);
+    expect(resolveDashboardLayout(today, admin, stale).map((x) => x.key)).toEqual(["fleet.fuel", "fleet.efficiency", "fleet.attention"]);
+  });
+
+  it("is not a reset when even one stored key still exists — that is an arrangement, kept as such", () => {
+    const partly: StoredDashboardLayout = { widgetKeys: ["fleet.attention", "fleet.kpi-hero"], hiddenKeys: ["fleet.fuel"] };
+    expect(layoutNamesNothingHere(today, partly)).toBe(false);
+    expect(resolveDashboardLayout(today, admin, partly).map((x) => x.key)).toEqual(["fleet.attention", "fleet.efficiency"]);
+  });
+
+  it("is not a reset when the row is deliberately empty — that is 'show me nothing' (D-DW3)", () => {
+    const empty: StoredDashboardLayout = { widgetKeys: [], hiddenKeys: [] };
+    expect(layoutNamesNothingHere(today, empty)).toBe(false);
   });
 });
