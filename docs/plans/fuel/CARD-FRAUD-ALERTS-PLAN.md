@@ -237,3 +237,6 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 
 - 2026-10-02 — Plan written from production measurements in §1. Nothing built.
 - 2026-10-02 — Owner ruled Q-CF1 (a) retire, Q-CF2 flat 100 mi, Q-CF3 owner asks Telnyx, Q-CF4 `manage("settings")`.
+- 2026-10-07 — CF2 part 1 (F02-F04 PLAN.md chunk 5a): the pure fold `packages/shared/src/cardFraud.ts`,
+  pinned against the 13 §1 declines (7 incidents) and the four proximity rows (none). Rebuilt from
+  main; #1216 is not merged. Table (5b) and scorers (5c) follow as their own PRs.

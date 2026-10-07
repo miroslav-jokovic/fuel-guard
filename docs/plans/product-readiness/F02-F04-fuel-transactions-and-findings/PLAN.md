@@ -2,7 +2,7 @@
 
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
-3a–3c together. Chunk 4 (migration 0437) is built. Next: chunk 5.
+3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -164,6 +164,23 @@ Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_tra
 #1216 is closed with a link, never merged: it holds migration 0410 and deletes the idle code.
 - **5a** Pure fold in `packages/shared` + unit tests. Five real cards → 7 incidents. The 4
   proximity rows open none.
+  - Built: `cardFraud.ts` (shared). The fold decides D-CF1 itself: Samsara says the truck was away
+    (`false`, not unknown), and no fill explains it. So the four proximity rows reach the fold and
+    open nothing; they are not filtered out before it.
+  - *Measured on production, read-only, 2026-10-07:* 13 declines in 09-02 → 10-02 kept
+    `location_mismatch`, on 5 cards; the fold makes 7 incidents and 8 messages (7 openings, 1
+    escalation) instead of 13 alerts. The four proximity rows (Avoca, Vandalia, Bowman, Corbin) had
+    Samsara placing the truck at the station; the plan's "Gretna" and "Effingham" are where their
+    follow-up fills were (85 and 7 minutes later).
+  - ⚠ Card …07967 (truck 555) was tried again on **10-05**: Jacksonville twice and Baldwin, FL. Its
+    third incident; the fold reads it as one opening and one new place.
+  - Two choices beyond D-CF2's text: an approved fill where the truck is not escalates (fuel was
+    lost; otherwise a fill at a place already in the incident would tell nobody), and a "repeat at
+    the same place" needs a 6-hour gap (EFS writes one pump try as 2–3 rows in the same minute; the
+    real returns were 11 h and 19 h later). The unit-number prompt is not an escalation: it is the
+    everyday typo.
+  - Sixteen mutants, each red; one first survived (an escalated incident falling back to "alert")
+    and the test was strengthened.
 - **5b** Migration: `card_fraud_incidents` with RLS and its matrix.
 - **5c** The decline and fill scorers write incidents.
 - **Accept:** each part's own tests, plus the card-fraud plan's CF2 check.
@@ -308,3 +325,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-07: Chunk 4 measured: no reviewed alert lost since 08-06; the 311 lost were the old
   scoring. Owner ruled Q-F8 (a). Built migration 0437 and its matrix; five mutants, each red
   (removing the org exception refuses the org delete, which proves the cascade sees the org gone).
+- 2026-10-07: Chunk 4 merged (#1344) and released (v2026.10.07.1). Chunk 5a built: the card fraud
+  incident fold, from main (#1216 read for ideas only). The 13 declines of 09-02 → 10-02 fold into 7
+  incidents; the four proximity rows open none. Card …07967 was tried again on 10-05.
