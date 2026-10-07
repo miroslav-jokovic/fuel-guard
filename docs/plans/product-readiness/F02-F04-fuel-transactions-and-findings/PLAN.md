@@ -1,6 +1,6 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
-**Status:** BUILDING. Step 1a (page-view table, 0435) in review; 1b (the writer) next. Q-F5 and Q-F6 open.
+**Status:** BUILDING. Step 1a merged (#1328, 0435 on staging); 1b (the writer) in review. Q-F5 and Q-F6 open.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -220,3 +220,7 @@ feature is DONE when every AUDIT finding is fixed, ruled won't-fix, or moved by 
   and Q-F4 as recommended. Q-F5 and Q-F6 were re-asked in plain words.
 - 2026-10-07: Step 1a built: `surface_page_views` + `record_surface_views` (0435), matrix
   `surface-page-views.test.mjs` (21 checks; four mutants each turn it red), RLS hand-seed added.
+- 2026-10-07: Step 1a merged (#1328); `migrate-staging` applied 0435, production waits for the release.
+  Step 1b built: `POST /api/page-views` (org + role from the token, day from the org's clock, unknown
+  keys dropped), `lib/pageViews.ts` queue, router `afterEach`. Read the counts with
+  `select day, surface_key, role, views from surface_page_views where org_id = … order by day desc`.
