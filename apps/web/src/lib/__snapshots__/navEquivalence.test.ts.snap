@@ -491,7 +491,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
       "Assignments → /assignments",
       "Truck Stops → /truck-stops",
     ],
@@ -503,8 +502,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -789,7 +786,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
@@ -799,8 +795,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Safety",
     "items": [
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -959,7 +953,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
@@ -972,8 +965,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1247,8 +1238,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1496,7 +1485,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
       "Assignments → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
@@ -1509,8 +1497,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1564,8 +1550,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": "Safety",
       "items": [
         "Driver Qualification → /compliance",
-        "Placard calculator → /hazmat/calculator",
-        "Hazmat review → /hazmat/review",
       ],
     },
     {

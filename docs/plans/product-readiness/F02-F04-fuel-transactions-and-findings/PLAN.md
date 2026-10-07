@@ -1,7 +1,7 @@
 # F02 + F04 plan — fuel transactions, cards, findings and alerts
 
-**Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Every question is ruled. Next:
-chunk 2.
+**Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
+is built. Inventory (2b) waits on Q-F7. Next: chunk 3a.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -57,6 +57,20 @@ remaining phases in order with this feature's other fixes.
   - If hand entry is ever needed, it returns as an audited API route.
 - **Q-PR1, Q-PR2, Q-PR4** (2026-10-06): F02 + F04 first; Tier C hidden through surface grants;
   X1 built early (done).
+- **Q-F7. Inventory lives on the Shop page. OPEN (asked 2026-10-07).** Hiding Parts, Assets and
+  Units is easy. But the Shop page (`/shop`) is the inventory home: Scan, Count shelf, Low stock,
+  Short of kit, and "No parts on shelves yet". Only its Repair spend tile is not inventory.
+  - Scan and Labels are inventory screens (they read stock lines, assets and shelf labels). They
+    sit under the Shop page's key (`maintenance.repair-spend`), not under Parts.
+  - The Repair spend ledger (F15, Tier B, not hidden by Q-PR2) sits under the same key.
+  - Production stores no answer for any of these keys (checked 2026-10-07).
+  - **(a) Recommended: hide the Shop page too.** Scan, Labels and the Repair spend ledger go with
+    it. The Maintenance group then shows Annual inspections and Inspectors. An admin grant on Shop
+    brings all of it back.
+  - (b) Hide Parts, Assets and Units only. Shop stays, and shows an empty inventory page whose
+    buttons are gone. Not recommended: a page that looks broken.
+  - (c) Give the Repair spend ledger its own sidebar entry, then hide Shop. Keeps the ledger
+    visible, but adds a sidebar row and a new key: its own small PR.
 
 ---
 
@@ -80,6 +94,18 @@ re-scoring history would otherwise delete reviewed alerts again (AUDIT A3).
 ### Chunk 2 — hide Tier C (Q-PR2)
 Surface grants for Hazmat, Inventory, Messages, driver-app duty and Ask AI. No new code path.
 - **Accept:** `SidebarPreview` per role no longer lists them, and each URL still opens for admin.
+- **2a, built:** Placard calculator, Hazmat review and Messages get `startsOnFor: []`. Ask AI had
+  it since 09-30. A detail page now starts the way its parent starts, so `/hazmat/loads/:id` hides
+  with Hazmat review. Test: `tierCSurfaces.test.ts`; five mutants each turn it red.
+- **2b, waiting on Q-F7:** Inventory (Parts, Assets, Units, and the Shop page question).
+- **Driver-app duty: no switch exists, and none is built here.** The driver app's feature list
+  (`featureCatalog.ts`) says the duty flow is core and "can never be remote-disabled", on purpose:
+  a settings mistake must not stop a driver's day. It has no web sidebar entry either. Hiding it
+  needs a new decision, not a grant.
+- **The API does not ask these screens' grants.** Only Ask AI's endpoint asks `requireSurface`.
+  Hazmat and Messages endpoints still ask the section, as before; the sidebar and the address bar
+  follow the grant. Messages' endpoints also serve drivers, so a screen grant must not be added
+  there without care. Hiding was the ruling, so the API is unchanged.
 
 ### Chunk 3 — card status messages (Q-F3)
 - **3a** Per-change messages are sent only for FRAUD, or for a change detected outside office
@@ -225,3 +251,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   as EFS's Central day (guide pp. 10, 107, 133; 4,601 of 4,601 fills match), and Q-F6 as removing
   the button and the browser's write policies. The Q-F3 pattern was measured: office staff, office
   hours. The plan was re-cut into single-purpose chunks; the A3 guard moved ahead of re-scoring.
+- 2026-10-07: Chunk 2a built: Hazmat and Messages start off for every role but the admin, and a
+  detail page starts as its parent does. Production stores no answer for any Tier C key, so this
+  holds for every org. Inventory waits on Q-F7 (the Shop page is the inventory home). Driver-app
+  duty has no switch by design.

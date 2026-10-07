@@ -60,6 +60,13 @@ import { buildNavGroups } from "./nav";
  *     sections claim: both LOSE it, the second because an equipment grant no longer opens a fuel screen.
  * No other entry, group, role or module set moved, and no gate other than this one. `odometerSurface.test.ts`
  * in packages/shared asserts the same gate for every role, so the snapshot is not the only witness.
+ *
+ * ── AND A FOURTH TIME, ON 2026-10-07: HAZMAT AND MESSAGES HIDDEN (Q-PR2) ─────────────────────────
+ * The owner ruled on 2026-10-06 to hide Tier C until each screen has a named first user (F02-F04
+ * PLAN.md chunk 2). Five snapshots moved — auditor, dispatcher, fleet_manager and safety_manager with
+ * all modules, and the fleet manager of the screen-answer case — and the whole change is 16 lines
+ * removed: `Placard calculator`, `Hazmat review` and `Messages`. No line added, no group emptied, no
+ * admin snapshot moved. `tierCSurfaces.test.ts` in packages/shared asserts it for every role.
  */
 
 /** Every module enabled, none, and the shipped default — the three that change what the nav shows. */
