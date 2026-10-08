@@ -77,6 +77,22 @@ vi.mock("@/composables/useVehicles", () => ({
   }),
 }));
 
+// The two case drawers are their own components with their own tests; here only WHICH opens matters.
+const byId = { asked: null as string | null };
+vi.mock("@/features/anomalies/useAnomalies", () => ({
+  useAnomalyById: (id: { value: string | null }) => ({
+    data: computed(() => { byId.asked = id.value; return id.value ? { id: id.value } : null; }),
+  }),
+}));
+vi.mock("@/features/anomalies/AnomalyDetail.vue", async () => {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ props: ["anomaly", "vehicleUnit"], setup: (p) => () => h("p", `anomaly-drawer:${(p.anomaly as { id: string }).id}`) }) };
+});
+vi.mock("@/features/anomalies/IncidentDetail.vue", async () => {
+  const { defineComponent, h } = await import("vue");
+  return { default: defineComponent({ props: ["id"], setup: (p) => () => h("p", `incident-drawer:${p.id}`) }) };
+});
+
 import FuelExceptionsPage from "./FuelExceptionsPage.vue";
 
 /** A money finding, as the unified read returns it. */
@@ -85,6 +101,13 @@ const row = (o: Record<string, unknown> = {}) => ({
   queueState: "open", occurredOn: "2026-08-17", unitNumber: "701",
   summary: "On Pilot's bill, not in our records", amountUsd: 242.11, assignedTo: null,
   openedAt: "2026-08-25T00:00:00Z", close: null, ...o,
+});
+
+/** A card-fraud incident (chunk 8c1): a fuel finding with no money. */
+const incidentRow = (o: Record<string, unknown> = {}) => ({
+  id: "i1", source: "incident", kind: "card_fraud", section: "fuel", queueState: "open", occurredOn: "2026-10-05",
+  unitNumber: null, summary: "Card ••••7967 tried 3 times in Jacksonville, FL", amountUsd: null, assignedTo: null,
+  openedAt: "2026-10-05T14:10:00Z", close: null, ...o,
 });
 
 /** A theft case, which since C7b sits in the same queue and carries no money by construction. */
@@ -322,31 +345,35 @@ describe("the Findings inbox", () => {
     expect(t).toContain("more findings than this page can hold");
   });
 
-  // The two sources have different detail surfaces (D-FUI7's per-kind close affordance, one layer up).
-  // A money finding opens the ledger drawer; a theft case has no detail ROUTE, so it hands the reader
-  // to the page that can work it rather than opening an empty drawer or the wrong one.
-  it("keeps a theft case where it is for a reader Alerts does not open for (SP5)", async () => {
+  // Chunk 8c3: every kind of row opens its own drawer ON THIS PAGE. Before it, a fill case handed the
+  // reader to /anomalies, which a dispatcher may not open, so the click did nothing for them.
+  it("opens a fill case in its drawer on this page, for a reader the Alerts page would refuse", async () => {
     listed.value = [theftRow()];
     listed.total = 1;
-    session.role = "accountant";
+    session.role = "dispatcher";
     try {
       const { w, router } = await mountPage();
       await w.findAll("tbody tr")[0]!.trigger("click");
       await flushPromises();
       expect(router.currentRoute.value.path).toBe("/findings");
+      expect(byId.asked).toBe("a1");
+      expect(document.body.textContent).toContain("anomaly-drawer:a1");
     } finally {
       session.role = "admin";
     }
   });
 
-  it("sends a theft case to the page that can work it, rather than the ledger drawer", async () => {
-    listed.value = [theftRow()];
+  it("opens a card-fraud incident in its own drawer", async () => {
+    listed.value = [incidentRow()];
     listed.total = 1;
+    byId.asked = null;
     const { w, router } = await mountPage();
     await w.findAll("tbody tr")[0]!.trigger("click");
     await flushPromises();
-    expect(router.currentRoute.value.path).toBe("/anomalies");
-    expect(router.currentRoute.value.query.case).toBe("a1");
+    expect(router.currentRoute.value.path).toBe("/findings");
+    expect(document.body.textContent).toContain("incident-drawer:i1");
+    // Not read as a fill case: the drawers are teleported, so body text from an earlier test is no proof.
+    expect(byId.asked).toBeNull();
   });
 
   // The packet is a document you send a vendor to bill money back. A theft case is an accusation

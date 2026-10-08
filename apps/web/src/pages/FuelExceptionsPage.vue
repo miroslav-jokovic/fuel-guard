@@ -7,8 +7,10 @@ import {
   findingAgeDays, exceptionStatusesIn,
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
-import { useRouter } from "vue-router";
-import { useOpens } from "@/composables/useOpens";
+import SlideOver from "@/components/SlideOver.vue";
+import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
+import IncidentDetail from "@/features/anomalies/IncidentDetail.vue";
+import { useAnomalyById } from "@/features/anomalies/useAnomalies";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -240,22 +242,25 @@ const columns: DataTableColumn[] = [
 ];
 
 /**
- * Opening a finding, which is per SOURCE because the two have different detail surfaces.
- *
- * D-FUI7 unifies the queue axis and leaves each source its own close affordance; this is that, one
- * layer up. A money finding opens the ledger drawer it always had. A theft case has no detail ROUTE
- * to open — `/anomalies` is a list and there is no `/anomalies/:id` — so it hands the reader to the
- * page that can work it rather than opening an empty drawer or, worse, the wrong one.
+ * Opening a finding: every kind opens its own drawer ON THIS PAGE (F02-F04 chunk 8c3), each with its own
+ * close (D-FUI7): a money finding the ledger drawer, a fill case the Alerts drawer, a card-fraud incident
+ * its own. Before 8c3 a fill case handed the reader to `/anomalies`, a page a dispatcher may not open,
+ * so the click did nothing for them; a row is only listed to someone who may see it, so its drawer opens.
  */
-const router = useRouter();
-const opens = useOpens();
+const caseId = ref<string | null>(null);
+const incidentId = ref<string | null>(null);
+const { data: openCase } = useAnomalyById(caseId);
+const unitOfRow = (id: string | null) => rows.value.find((r) => r.id === id)?.unitNumber ?? "—";
 function openFinding(row: Record<string, unknown>): void {
-  if (row.source === "exception") { selected.value = String(row.id); return; }
-  // A card-fraud incident has no detail surface until chunk 8c3 gives it a drawer on this page. 8c1
-  // to 8c3 ship in one release, so no released page has a row that opens nothing.
-  if (row.source === "incident") return;
-  // SP5: Findings is `fuel` view, Alerts is `safety` view — no hand-off to a page the guard refuses.
-  if (opens("/anomalies")) void router.push({ path: "/anomalies", query: { case: String(row.id) } });
+  const id = String(row.id);
+  if (row.source === "exception") selected.value = id;
+  else if (row.source === "anomaly") caseId.value = id;
+  else if (row.source === "incident") incidentId.value = id;
+}
+/** A case or incident moved in its drawer; each drawer's mutation refreshes the queue (`["findings"]`). */
+function closeChanged(): void {
+  caseId.value = null;
+  incidentId.value = null;
 }
 
 /**
@@ -439,5 +444,11 @@ async function downloadPacket() {
     </BaseCard>
 
     <ExceptionSlideOver :id="selected" @close="selected = null" />
+    <SlideOver :open="!!caseId" title="Possible theft" @close="caseId = null">
+      <AnomalyDetail v-if="openCase" :anomaly="openCase" :vehicle-unit="unitOfRow(caseId)" @changed="closeChanged" />
+    </SlideOver>
+    <SlideOver :open="!!incidentId" title="Card used away from its truck" @close="incidentId = null">
+      <IncidentDetail v-if="incidentId" :id="incidentId" @changed="closeChanged" />
+    </SlideOver>
   </div>
 </template>
