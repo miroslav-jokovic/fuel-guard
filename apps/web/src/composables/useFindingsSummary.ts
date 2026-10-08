@@ -20,6 +20,24 @@ export interface FindingsSummary {
   open: number | null;
   recoveredThisQuarter: number | null;
   quarterFrom: string;
+  /** The day of the oldest open item counted; the door to Fuel problems starts there (Q-F13 (a)). */
+  oldestOpenOn: string | null;
+}
+
+/**
+ * Where "open fuel problems" leads: the queue, from the day of the oldest item the count covers.
+ *
+ * Q-F13 (a), ruled 2026-10-08. The page reads a date window — 90 days unless the link names one — and
+ * the count is every open item, so a plain link listed fewer rows than the tile that sent the reader
+ * once anything open was older than 90 days. Carrying `from` makes the page list what was counted. With
+ * nothing open there is no day to name, and the plain link is the honest one.
+ */
+export function fuelProblemsDoor(summary: Pick<FindingsSummary, "oldestOpenOn"> | null | undefined): {
+  path: string;
+  query?: Record<string, string>;
+} {
+  const from = summary?.oldestOpenOn;
+  return from ? { path: "/fuel-problems", query: { from } } : { path: "/fuel-problems" };
 }
 
 export function useFindingsSummaryQuery() {
@@ -34,6 +52,8 @@ export function useFindingsSummaryQuery() {
         open: res.data.open,
         recoveredThisQuarter: res.data.recoveredThisQuarter,
         quarterFrom: res.data.quarterFrom,
+        // Null from an API older than Q-F13: the door then falls back to the plain link.
+        oldestOpenOn: res.data.oldestOpenOn ?? null,
       };
     },
   });
@@ -99,7 +119,7 @@ export function ledgerTiles(
       sub: "need somebody",
       icon: icons.open,
       tone: summary.open > 0 ? "warning" : "success",
-      to: { path: "/fuel-problems" },
+      to: fuelProblemsDoor(summary),
     });
   }
   if (summary.recoveredThisQuarter != null) {

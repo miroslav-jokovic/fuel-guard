@@ -296,6 +296,14 @@ export interface FindingsSummary {
   recoveredThisQuarter: number | null;
   /** The first day of the quarter the figure covers, so the tile can say which one. */
   quarterFrom: string;
+  /**
+   * The date of the oldest item `open` counts (YYYY-MM-DD, each source's own date column), or null when
+   * it counts none. Q-F13 (a), ruled 2026-10-08: the Dashboard's door to Fuel problems carries it as
+   * `?from=`, so the page lists the same items the tile counted. The page reads a date window (90 days
+   * unless the link names one) and the tile counts every open item; without this the two agreed only
+   * while nothing open was older than 90 days.
+   */
+  oldestOpenOn: string | null;
 }
 
 /** First day of the calendar quarter containing `now`, in UTC — the same basis every stored date uses. */
@@ -332,16 +340,17 @@ export async function readFindingsSummary(
   const [anomalies, exceptions, credited, incidents] = await Promise.all([
     sections.has("safety")
       ? countFromEpoch(
-          admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", anomalyOpen),
+          admin.from("anomalies").select("fueled_at", { count: "exact" }).eq("org_id", orgId).in("status", anomalyOpen),
           detectionEpochOrFilter(epoch),
+          "fueled_at",
         )
       : Promise.resolve({ count: null }),
     sections.has("fuel")
-      ? admin
-          .from("fuel_exceptions")
-          .select("id", { count: "exact", head: true })
-          .eq("org_id", orgId)
-          .in("status", exceptionOpen)
+      ? countFromEpoch(
+          admin.from("fuel_exceptions").select("occurred_on", { count: "exact" }).eq("org_id", orgId).in("status", exceptionOpen),
+          null,
+          "occurred_on",
+        )
       : Promise.resolve({ count: null }),
     sections.has("fuel")
       ? admin
@@ -353,26 +362,44 @@ export async function readFindingsSummary(
       : Promise.resolve({ data: null }),
     sections.has("fuel")
       ? countFromEpoch(
-          admin.from("card_fraud_incidents").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", incidentOpen),
+          admin.from("card_fraud_incidents").select("opened_at", { count: "exact" }).eq("org_id", orgId).in("status", incidentOpen),
           detectionEpochOrFilter(epoch, "opened_at"),
+          "opened_at",
         )
       : Promise.resolve({ count: null }),
   ]);
 
   const counts = [anomalies.count, exceptions.count, incidents.count].filter((c): c is number => typeof c === "number");
+  const oldest = [anomalies, exceptions, incidents]
+    .map((r) => ("oldestOn" in r ? r.oldestOn : null))
+    .filter((d): d is string => d != null)
+    .sort()[0] ?? null;
   const rows = (credited as { data: { credited_amount: number | string | null }[] | null }).data;
   return {
     // Null and not zero when the caller may see neither: "no findings you may see" is not "no findings".
     open: counts.length ? counts.reduce((a, b) => a + b, 0) : null,
     recoveredThisQuarter: rows == null ? null : rows.reduce((sum, r) => sum + (Number(r.credited_amount) || 0), 0),
     quarterFrom: from,
+    oldestOpenOn: oldest,
   };
 }
 
-/** A case count on the start-date rule. The table stays a literal at the caller (`lint:boundaries`' table access). */
-async function countFromEpoch<Q extends { or: (filter: string) => Q }>(
+/**
+ * An open count on the start-date rule, and the date of the oldest row it counts, in ONE read: ordered by
+ * the source's date, one row returned, and PostgREST's exact count is over the whole match, not the page.
+ * The date is the UTC day, which is the day the queue's own date filter compares on. The table stays a
+ * literal at the caller (`lint:boundaries`' table access).
+ */
+async function countFromEpoch<Q extends { or: (filter: string) => Q; order: (col: string, o: { ascending: boolean }) => Q; limit: (n: number) => Q }>(
   q: Q,
   afterReset: string | null,
-): Promise<{ count: number | null }> {
-  return (await (afterReset ? q.or(afterReset) : q)) as unknown as { count: number | null };
+  dateColumn: string,
+): Promise<{ count: number | null; oldestOn: string | null }> {
+  const scoped = afterReset ? q.or(afterReset) : q;
+  const r = (await scoped.order(dateColumn, { ascending: true }).limit(1)) as unknown as {
+    count: number | null;
+    data: Record<string, unknown>[] | null;
+  };
+  const first = r.data?.[0]?.[dateColumn];
+  return { count: r.count ?? null, oldestOn: typeof first === "string" ? first.slice(0, 10) : null };
 }

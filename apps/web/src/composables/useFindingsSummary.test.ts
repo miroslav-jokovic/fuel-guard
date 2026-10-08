@@ -36,7 +36,7 @@ const FMT = {
   money: (n: number) => `$${n.toFixed(2)}`,
 };
 const tiles = (o: Partial<Parameters<typeof ledgerTiles>[0] & object> | null) =>
-  ledgerTiles(o === null ? null : ({ quarterFrom: "2026-07-01", open: null, recoveredThisQuarter: null, ...o } as never), ICONS, FMT);
+  ledgerTiles(o === null ? null : ({ quarterFrom: "2026-07-01", open: null, recoveredThisQuarter: null, oldestOpenOn: null, ...o } as never), ICONS, FMT);
 
 describe("which ledger tiles a caller gets", () => {
   it("renders both for somebody who may see both", () => {
@@ -71,6 +71,8 @@ describe("which ledger tiles a caller gets", () => {
   it("sends each tile to the queue it counts", () => {
     const t = tiles({ open: 5, recoveredThisQuarter: 10 });
     expect(t[0]!.to).toEqual({ path: "/fuel-problems" });
+    // Q-F13 (a): with something open, the door starts on the oldest item counted.
+    expect(tiles({ open: 5, oldestOpenOn: "2026-08-01" })[0]!.to).toEqual({ path: "/fuel-problems", query: { from: "2026-08-01" } });
     // Recovered is money that was closed, so it opens the closed queue rather than the working one.
     expect(t[1]!.to).toEqual({ path: "/fuel-problems", query: { state: "closed" } });
   });

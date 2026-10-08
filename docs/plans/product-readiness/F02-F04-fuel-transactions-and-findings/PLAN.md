@@ -123,7 +123,7 @@ remaining phases in order with this feature's other fixes.
   `/fuel-problems`. (a), retiring Alerts into the fuel queue, was not taken: Alerts holds signals that
   are not fuel problems, and the queue already lists the one fill-case kind that is.
 
-- **Q-F13. Which window does the queue's count cover? OPEN (found building 8c4).** The Dashboard counts
+- **Q-F13. Which window does the queue's count cover? RULED 2026-10-08 (a): the door carries the window.** The Dashboard counts
   every open item; Fuel problems lists open items inside its date window, 90 days unless the link says
   otherwise. Measured on production 2026-10-08: 157 open money findings, the oldest dated 08-01, so
   today both say 157. From 10-30 the August items leave the page's default window and the page shows
@@ -136,6 +136,15 @@ remaining phases in order with this feature's other fixes.
     "last 90 days" over rows older than that.
   - (c) The Dashboard counts only the last 90 days. An unclaimed item would leave the count by aging,
     which is the opposite of what aging is for (Q-FUI4).
+  - Built: `GET /api/fueling/findings/summary` returns `oldestOpenOn`, read in the same query as each
+    count (ordered by the source's date, one row; the exact count covers the whole match). The
+    Dashboard's tile and attention row link `/fuel-problems?from=<that day>`.
+  - ⚠ Left, recorded rather than routed around: the page's END day. Fill cases and incidents are cut at
+    `<to>T23:59:59Z`, the end of the UTC day, while `to` is today on the carrier's clock. A case opened
+    after 19:00 Central is counted on the Dashboard and missing from the page until midnight UTC. Today
+    there are 0 open fill cases and 0 incidents, so nothing differs. The fix is to bound both ends of
+    the page's window on the carrier's day (`a calendar day is not an instant`), as Q-FUI13 already
+    asks for the start; recommended inside chunk 10, which moves fills onto one day.
 
 ---
 
@@ -451,11 +460,11 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
   - Each role in the matrix opens every row it can see.
     - 8c4: `fuelProblemsDrawers.test.ts` lists the queue for every role and opens each row through the
       route its drawer calls. A mutant gating the incident drawer at `fuel: manage` fails it.
-  - Closing an item takes ≤ 3 clicks.
-    - Counted from the queue row, 8c4: an incident 3 (row, verdict, Resolve), a fill case 3 (2 for
-      "False alarm"), a money finding 4 (row, the status menu, the status, Apply). Inside the drawer
-      all are ≤ 3. The money drawer predates this plan; making it 3 is a small change to
-      `ExceptionSlideOver` if the owner counts from the row.
+  - Closing an item takes ≤ 3 clicks, counted from the queue row (ruled 2026-10-08).
+    - An incident 3 (row, verdict, Resolve), a fill case 3 (2 for "False alarm"). A money finding was 4
+      (row, the status menu, the status, Save); its drawer now has one button per move, so a dismiss
+      or a dispute is 2 and a credit 3 (row, Credited, Save credit, the amount typed). Only fuel
+      managers see the moves, as the PATCH route requires.
   - The open count on the page equals the dashboard's.
     - 8c4: for every role, the Dashboard's count asks each table the same question as the queue's
       default view. True in production today; the date window is Q-F13.
@@ -614,3 +623,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-08: 8c3 merged (#1368, 361c023); staging serves it. Owner ruled Q-F12 (b): Alerts stays. 8c4
   built: Fuel problems at `/fuel-problems`, the open drawer in the URL, the Dashboard's count on the
   queue's start-date rule. Q-F13 (the count's window) recorded, open.
+- 2026-10-08: 8c4 merged (#1371, c3c334e) and released (v2026.10.08.4). Owner ruled Q-F13 (a) and that
+  clicks count from the row. Built: the Dashboard's door carries `?from=` the oldest open item, and the
+  money drawer's moves are buttons (close in 2 clicks). The page's end-of-day cut is recorded for chunk 10.

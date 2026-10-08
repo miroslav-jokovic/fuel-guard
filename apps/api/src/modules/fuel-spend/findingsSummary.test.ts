@@ -160,3 +160,52 @@ describe("the Dashboard's count and the queue it opens", () => {
     }
   });
 });
+
+/**
+ * Q-F13 (a), ruled 2026-10-08: the tile counts every open item and the page reads a date window, so the
+ * Dashboard's door carries the date of the oldest item counted. Read in the same query as each count.
+ */
+describe("the oldest open item the count covers", () => {
+  const dated = (o: { anomaly?: string; exception?: string; incident?: string }) =>
+    createSupabaseRecorder({
+      tables: {
+        anomalies: { count: o.anomaly ? 1 : 0, data: o.anomaly ? [{ fueled_at: o.anomaly }] : [] },
+        card_fraud_incidents: { count: o.incident ? 1 : 0, data: o.incident ? [{ opened_at: o.incident }] : [] },
+        organizations: [{ detection_epoch: null }],
+        fuel_exceptions: (q: RecordedQuery) =>
+          q.filters().some((f) => f.col === "status" && f.val === "credited")
+            ? { data: [] }
+            : { count: o.exception ? 1 : 0, data: o.exception ? [{ occurred_on: o.exception }] : [] },
+      },
+    });
+
+  it("is the earliest across the sources, as a day", async () => {
+    const rec = dated({ anomaly: "2026-09-02T03:10:00+00:00", exception: "2026-08-01", incident: "2026-10-05T14:10:00+00:00" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-08-01");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads each source's oldest row in the count's own query, by that source's date", async () => {
+    const rec = dated({ exception: "2026-08-01" });
+    await readFindingsSummary(rec.client, ORG, "admin", NOW);
+    const asked = (table: string) =>
+      rec.forTable(table).filter((q) => !q.filters().some((f) => f.val === "credited"))
+        .map((q) => q.ops.filter((o) => o.method === "order" || o.method === "limit").map((o) => [o.method, o.args[0]]));
+    expect(asked("anomalies")).toEqual([[["order", "fueled_at"], ["limit", 1]]]);
+    expect(asked("fuel_exceptions")).toEqual([[["order", "occurred_on"], ["limit", 1]]]);
+    expect(asked("card_fraud_incidents")).toEqual([[["order", "opened_at"], ["limit", 1]]]);
+    for (const t of ["anomalies", "fuel_exceptions", "card_fraud_incidents"]) {
+      const order = rec.forTable(t).flatMap((q) => q.ops).find((o) => o.method === "order")!;
+      expect(order.args[1]).toEqual({ ascending: true });
+    }
+  });
+
+  it("ignores a source the caller may not see", async () => {
+    const rec = dated({ anomaly: "2026-07-01T00:00:00+00:00", exception: "2026-08-01" });
+    expect((await readFindingsSummary(rec.client, ORG, "accountant", NOW)).oldestOpenOn).toBe("2026-08-01");
+  });
+
+  it("is null when nothing is open", async () => {
+    expect((await readFindingsSummary(dated({}).client, ORG, "admin", NOW)).oldestOpenOn).toBeNull();
+  });
+});

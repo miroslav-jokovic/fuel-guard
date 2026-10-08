@@ -6,9 +6,9 @@ import {
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
 import { useExceptionQuery, useMoveException } from "./useExceptions";
 import { usd } from "./format";
 import { formatDate } from "@/lib/format";
@@ -30,6 +30,9 @@ const props = defineProps<{ id: string | null }>();
 const emit = defineEmits<{ close: [] }>();
 
 const toast = useToastStore();
+const session = useSessionStore();
+/** The PATCH route is `fuel: manage`; a viewer is shown the record and no buttons that would 403. */
+const canAct = computed(() => session.can("fuel"));
 const id = computed(() => props.id);
 const { data, isLoading } = useExceptionQuery(id);
 const move = useMoveException();
@@ -52,30 +55,37 @@ const MOVES: { value: FuelExceptionStatus; label: string }[] = (
   ["open", "investigating", "disputed", "credited", "dismissed"] as const
 ).map((v) => ({ value: v, label: FUEL_EXCEPTION_STATUS_LABELS[v] }));
 
-const nextStatus = ref<FuelExceptionStatus | "">("");
-watch(ex, (e) => { nextStatus.value = e?.status ?? ""; });
+/**
+ * ── ONE BUTTON PER MOVE (F02-F04 8c4 follow-up, ruled 2026-10-08: clicks count from the row) ──────
+ * The footer was a status menu and a Save button: row, menu, status, Save — four clicks to close a
+ * finding, against the plan's three. Every move is now its own button and acts at once, so a close is
+ * two clicks; a credit asks for the amount first (row, Credited, Save credit), because what came back
+ * is a different number from what was claimed (E3) and it must be typed, never defaulted.
+ */
+const moves = computed(() => MOVES.filter((m) => m.value !== ex.value?.status));
+const crediting = ref(false);
+watch(id, () => { crediting.value = false; });
 
-const dirty = computed(
-  () => (nextStatus.value !== "" && nextStatus.value !== ex.value?.status) || note.value.trim() !== "",
-);
-
-async function apply() {
+async function apply(status: FuelExceptionStatus | undefined) {
   const e = ex.value;
-  if (!e || !dirty.value) return;
-  const status = nextStatus.value === "" || nextStatus.value === e.status ? undefined : nextStatus.value;
+  if (!e) return;
+  if (!status && note.value.trim() === "") return;
   try {
     await move.mutateAsync({
       id: e.id,
       status,
       note: note.value.trim() || undefined,
-      creditedAmount: status === "credited" ? Number(creditedAmount.value) || 0 : undefined,
+      creditedAmount: status === "credited" ? Number(creditedAmount.value) : undefined,
     });
     note.value = "";
+    creditedAmount.value = "";
+    crediting.value = false;
     toast.success(status ? `Marked ${FUEL_EXCEPTION_STATUS_LABELS[status].toLowerCase()}` : "Note added");
   } catch (err) {
     toast.error("Could not update that finding", err instanceof Error ? err.message : undefined);
   }
 }
+const creditReady = computed(() => creditedAmount.value !== "" && Number(creditedAmount.value) >= 0);
 
 const money = (v: number | string | null | undefined) => (v == null ? "—" : usd(Number(v)));
 const site = computed(() =>
@@ -142,22 +152,32 @@ const evidenceRows = computed(() =>
     </div>
 
     <template #footer>
-      <div v-if="ex" class="flex w-full flex-wrap items-end gap-3">
-        <FilterSelect v-model="nextStatus" label="Status" :options="MOVES" />
+      <div v-if="ex && canAct" class="flex w-full flex-col gap-3">
+        <AppInput v-model="note" type="text" placeholder="Add a note (optional)" class="w-full" />
         <!-- The credited amount is asked for ONLY when the move is a credit: what came back is a
              different number from what was claimed, and E3's whole point is not to conflate them. -->
-        <AppInput
-          v-if="nextStatus === 'credited'"
-          v-model="creditedAmount"
-          type="number"
-          step="0.01"
-          placeholder="Amount credited"
-          class="w-40"
-        />
-        <AppInput v-model="note" type="text" placeholder="Add a note" class="min-w-48 flex-1" />
-        <BaseButton variant="primary" :disabled="!dirty || move.isPending.value" @click="apply">
-          {{ move.isPending.value ? "Saving…" : "Save" }}
-        </BaseButton>
+        <div v-if="crediting" class="flex flex-wrap items-center gap-3">
+          <AppInput v-model="creditedAmount" type="number" step="0.01" placeholder="Amount credited" class="w-40" />
+          <BaseButton variant="primary" :disabled="!creditReady || move.isPending.value" @click="apply('credited')">
+            Save credit
+          </BaseButton>
+          <BaseButton variant="ghost" @click="crediting = false">Cancel</BaseButton>
+        </div>
+        <div v-else class="flex flex-wrap items-center gap-2">
+          <BaseButton
+            v-for="m in moves"
+            :key="m.value"
+            size="sm"
+            variant="secondary"
+            :disabled="move.isPending.value"
+            @click="m.value === 'credited' ? (crediting = true) : apply(m.value)"
+          >
+            {{ m.label }}
+          </BaseButton>
+          <BaseButton size="sm" variant="ghost" :disabled="!note.trim() || move.isPending.value" @click="apply(undefined)">
+            Add note
+          </BaseButton>
+        </div>
       </div>
     </template>
   </SlideOver>
