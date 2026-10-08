@@ -239,6 +239,11 @@ Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_tra
     most 5 incidents (04-15 → 09-03). The 16 "away" declines since 09-02 are recorded as new imports
     arrive or when someone presses Rescore. A date cutoff in 5c would be a second copy of chunk 7's
     epoch (D-CF9), so there is none: the epoch decides what is shown and told.
+  - ⚠ **Correction, 2026-10-08 (found in chunk 8): the boot rebuild does not run on production.**
+    `REBUILD_ON_BOOT` is false on the production API service (see `docs/plans/WP3C-FALSE-ALERT-FIX-AND-ALERT-RESET.md`), so the 180-day re-score
+    above never happened and production holds 0 incidents for the 5 "away" fills. They are recorded
+    when the nightly stale sweep reaches them: chunk 6's `SCORING_VERSION` 4 re-scores every fill,
+    2,000 a night, oldest first (about ten nights from the release that carries it).
   - **What qualifies a fill: D-CF1 as written, Samsara says away (settled the same way).** For a fill,
     "no fill explains it" does not apply (`explainedByFill` is false). Four of the five "away" fills have
     a tank rise matching the gallons (`tank_confirmed`); that is not an exoneration: card …67559 bought
@@ -279,6 +284,11 @@ stays a Review (and `tank_chronic_short`, Q-F10 (a)).
     the two tank rules. The pattern sweep runs only on an alert, so it stops.
   - Detection metrics: past reviewed cases are unchanged; new ones are only tank Reviews.
   - MPG baseline: fills that were alerts from non-volume rules now train it. Only notes use it.
+- **How history is re-scored (corrected 10-08, chunk 8):** not by the boot rebuild, which is off on
+  production (`REBUILD_ON_BOOT=false`), but by the nightly stale sweep: 2,000 fills a night, oldest
+  first, about ten nights for 18,062. A new fill is judged by the new weights at import, so new alerts
+  stop with the release; an older fill keeps its old verdict until the sweep reaches it. Fills before
+  the start date show no case either way (chunk 7b).
 - **Measured before building (read-only, 10-08 15:46 UTC):** 0 cases opened since the reset, 2 fills
   since. Re-scoring touches only OPEN cases: an open case that still has a tank signal is lowered to a
   review, any other is superseded. Re-measure before the release.
@@ -481,3 +491,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-08: Chunk 6 built: 22 rules become notes, `SCORING_VERSION` 4. The 60-day replay gives 0
   alerts and 6 reviews. The previous-fill choice now reads both signal lists, so the re-score does not
   change stored miles and MPG. Decline suspicion is not part of chunk 6.
+- 2026-10-08: Chunk 6 merged (#1357, b4e5039); staging serves it. Correction found at the start of chunk
+  8: the boot rebuild is off on production (`REBUILD_ON_BOOT=false`), so history is re-scored only by
+  the nightly sweep (about ten nights for chunk 6), and 5c's history incidents were never recorded.
+  Chunk 6's version bump records them as the sweep passes.
