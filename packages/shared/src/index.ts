@@ -60,6 +60,7 @@ export * from "./fuelTax/index.js";
 export * from "./ifta/index.js";
 export * from "./reeferCoverage.js";
 export * from "./detectionMetrics.js";
+export * from "./detectionEpoch.js";
 export * from "./detectionCoverage.js";
 export * from "./recallMetrics.js";
 export * from "./org.js";

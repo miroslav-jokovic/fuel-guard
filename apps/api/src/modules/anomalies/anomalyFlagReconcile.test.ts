@@ -64,4 +64,28 @@ describe("reconcileAnomalyFlags", () => {
     expect(rec.writes()).toHaveLength(0);
     expectOrgScoped(rec, ORG);
   });
+
+  // D-CF9 (0439): after the reset, a fill before the start date is not flagged — its case is closed and
+  // the Alerts page no longer lists it, so a red marker would lead nowhere. A case someone is
+  // investigating keeps its flag whatever its date.
+  it("after the reset, flags only cases on or after the start date, or being investigated", async () => {
+    const EPOCH = "2026-10-08T12:00:00+00:00";
+    const rec = createSupabaseRecorder({
+      tables: {
+        organizations: (q) => (q.filters().some((f) => f.col === "id" && f.val === ORG) ? [{ detection_epoch: EPOCH }] : []),
+        anomalies: [
+          { transaction_id: "t-retired", severity: "critical", status: "dismissed", fueled_at: "2026-09-30T18:00:00Z" },
+          { transaction_id: "t-working", severity: "high", status: "investigating", fueled_at: "2026-09-30T18:00:00Z" },
+          { transaction_id: "t-new", severity: "medium", status: "open", fueled_at: "2026-10-09T08:00:00Z" },
+        ],
+        fuel_transactions: [{ id: "t-retired" }, { id: "t-working" }],
+      },
+    });
+    const res = await reconcileAnomalyFlags(rec.client, ORG);
+    expect(res).toEqual({ cleared: 1, restored: 1 });
+    const writes = rec.writes();
+    expect(writtenIds(writes.find((w) => patchOf(w).has_anomaly === false)!)).toEqual(["t-retired"]);
+    expect(writtenIds(writes.find((w) => patchOf(w).has_anomaly === true)!)).toEqual(["t-new"]);
+    expectOrgScoped(rec, ORG);
+  });
 });

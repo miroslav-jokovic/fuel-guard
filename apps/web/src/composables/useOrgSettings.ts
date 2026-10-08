@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
 const COLS =
-  "id, name, dot_number, address_line1, city, state, postal_code, allowed_domains, operating_hours, notification_emails, notifications_enabled";
+  "id, name, dot_number, address_line1, city, state, postal_code, allowed_domains, operating_hours, notification_emails, notifications_enabled, detection_epoch";
 
 export function useOrgSettingsQuery() {
   return useQuery({

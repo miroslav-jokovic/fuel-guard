@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { afterReset, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
 import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
@@ -169,18 +170,22 @@ const { data: txns } = useQuery({
   queryFn: () => fetchAllFills(id.value),
 });
 
+// D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
+const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
 const { data: anomalies } = useQuery({
-  queryKey: ["driver-anomalies", id],
-  enabled: computed(() => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined),
+  queryKey: ["driver-anomalies", id, detectionEpoch],
+  enabled: computed(() => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined && epochReady.value),
   queryFn: async (): Promise<Anomaly[]> => {
     const transactionIds = (txns.value ?? []).map((t) => t.id);
     if (transactionIds.length === 0) return [];
-    const { data, error } = await supabase
-      .from("anomalies")
-      .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at")
-      .in("transaction_id", transactionIds)
-      .neq("status", "superseded")
-      .order("created_at", { ascending: false });
+    const { data, error } = await afterReset(
+      supabase
+        .from("anomalies")
+        .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at, fueled_at")
+        .in("transaction_id", transactionIds)
+        .neq("status", "superseded"),
+      detectionEpoch.value,
+    ).order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as Anomaly[];
   },

@@ -7,6 +7,7 @@ import {
   eventTime,
   timeReliable,
   CASE_RULE_ID,
+  beforeDetectionEpoch,
   shouldReattribute,
   type RuleContext,
   type RuleResult,
@@ -20,7 +21,7 @@ import { loadMarketPricePerGal } from "./marketPrice.js";
 
 export { learnVehicleValues } from "./learnVehicle.js"; // re-export: barrel + backfill import path unchanged
 import { deriveDriverHomeAtFill } from "./tmsGates.js";
-import { FTXN_COLS, toTxnView, loadThresholds, loadOperatingHours, n } from "./loaders.js";
+import { FTXN_COLS, toTxnView, loadThresholds, loadOperatingHours, loadDetectionEpoch, n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 import {
   loadVehicleContext,
@@ -353,8 +354,13 @@ export async function scoreTransaction(
   // stays "clear" (no anomaly) so normal fills don't all look flagged; independent corroborating signals
   // (or one physically-impossible one) become a single "theft_case" alert.
   const assessment = correlateSignals(fired);
-  const caseFired = makeCaseFired(assessment);
+  // D-CF9 (0439): a fill before the org's detection start date raises no case. Without this the boot
+  // rebuild would re-open every case the reset closed (0158: a closed case does not block a new one).
+  const epoch = opts.ctx?.detectionEpoch !== undefined ? opts.ctx.detectionEpoch : await loadDetectionEpoch(admin, orgId);
+  const beforeReset = beforeDetectionEpoch(r.fueled_at, epoch);
+  const caseFired = beforeReset ? [] : makeCaseFired(assessment);
   const { patch: outcome, verdict } = buildTxnOutcomePatch({
+    beforeReset,
     txn,
     previousTxn: inputs.consumption.previousTxn,
     intermediateGallons: inputs.consumption.intermediateGallons,
