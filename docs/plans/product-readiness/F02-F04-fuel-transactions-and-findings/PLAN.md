@@ -342,6 +342,28 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 ### Chunk 8 — one fuel queue with a default owner (Q-F1, W1)
 - **8a** Schema: an org setting for the fuel queue owner. A new item is assigned to that person.
   Migration alone.
+  - Built: migration 0442. `organizations.fuel_queue_owner`, `card_fraud_incidents.assigned_to`, and
+    one trigger on the three tables the queue lists (fill cases, money findings, card fraud incidents):
+    a new item with no assignee goes to the owner, if they are still a member. An insert that names a
+    person keeps them, and a re-ingest never overwrites a reassignment (its update leaves
+    `assigned_to` alone). `set_fuel_queue_owner(org, actor, owner)` is 8b's act: it refuses a non-member
+    or a missing actor, sets the owner, gives every OPEN unassigned item to them (never one a person
+    took), and writes one audit row with the counts. It does nothing until 8b runs it, so it is safe
+    to release alone.
+  - Q-F1 replaces Q-FUI15 ("unassigned by default") for the fuel queue; `findingAssignment.ts` now
+    says so.
+  - **Decided here, owner may overrule:** buying-habit findings get the owner too, until chunk 9 takes
+    them out of the queue. The other way needs the habit kinds listed in SQL, a second copy of Q-F2's
+    split. An assignment notifies nobody and can be undone.
+  - Not checked in SQL: whether the owner's role can close every item. Section access lives in the
+    JWT and the TypeScript matrix, so any API that sets the owner must check `rolesAssignableIn`
+    for fuel and safety. 8b sets an admin.
+  - *Measured on production, read-only, 2026-10-08:* 0 open fill cases, 0 card fraud incidents, and
+    157 open money findings: 14 can be disputed (4 contract variance, 4 amount, 6 missing on report)
+    and 143 are buying habits. None is assigned. The owner (miki@silvicominc.com) is an admin
+    member. So 8b will assign 157 findings.
+  - Matrix `fuel-queue-owner.test.mjs` (40 checks), including the real ingest
+    (`sync_fuel_exceptions`).
 - **8b** Set it to Miroslav, and assign the open items to him (an audited act).
 - **8c** One page, **"Fuel problems"**, under FUEL. It lists card-fraud incidents,
   `tank_fill_short` reviews and disputable money findings. Every row opens its own drawer on
@@ -495,3 +517,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   8: the boot rebuild is off on production (`REBUILD_ON_BOOT=false`), so history is re-scored only by
   the nightly sweep (about ten nights for chunk 6), and 5c's history incidents were never recorded.
   Chunk 6's version bump records them as the sweep passes.
+- 2026-10-08: Chunk 8a built: migration 0442 (the fuel queue owner, the assigning trigger, and the act
+  8b runs). Buying-habit findings get the owner too, until chunk 9.
