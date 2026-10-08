@@ -77,6 +77,8 @@ const echoVerify = cardEchoVerify<OverrideGrantBody>();
  */
 export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
   target: { kind: "card" },
+  /** McLeod rewrites TRIP/TRLR on every dispatch; this action decides nothing about prompts (`rebasesOver`). */
+  rebasesOver: ["infos"],
 
   mutation: {
     kind: "echo",

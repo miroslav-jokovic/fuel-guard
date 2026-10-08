@@ -31,6 +31,8 @@ const clearMeta = (mechanism: "deleteOverride" | "setCardv2") =>
 /** The proven mechanism, and the one that is live today. */
 export const overrideClearBehaviour = defineBehaviour(overrideClearContract, {
   target: { kind: "card" },
+  /** McLeod rewrites TRIP/TRLR on every dispatch; this action decides nothing about prompts (`rebasesOver`). */
+  rebasesOver: ["infos"],
   mutation: { kind: "echo", buildEdits: () => overrideClearEdits() },
   verify: cardEchoVerify<OverrideClearBody>(),
 
@@ -86,6 +88,8 @@ const deleteOverrideVerify: VerifyPlan<OverrideClearBody> = {
 
 export const deleteOverrideBehaviour = defineBehaviour(deleteOverrideContract, {
   target: { kind: "card" },
+  /** McLeod rewrites TRIP/TRLR on every dispatch; this action decides nothing about prompts (`rebasesOver`). */
+  rebasesOver: ["infos"],
   /** `ctx.opts` arrives already built, so this cannot choose its own retry policy or pacing lane. */
   mutation: { kind: "direct", dispatch: (ctx) => deleteOverrideOp(ctx.env, ctx.creds, ctx.cardNumber, ctx.opts) },
 
