@@ -11,6 +11,7 @@ import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
 import SkipLink from "@/components/SkipLink.vue";
+import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
 
@@ -88,5 +89,9 @@ const isShellLayout = computed(() => layout.value === undefined);
       <RouterView />
     </ErrorBoundary>
   </AppShell>
+  <!-- The assistant's launcher and dock (F21). Here rather than in `AppShell` because it floats over
+       the shell rather than living in it, beside the toasts; it renders only for a signed-in shell
+       page, and only for someone the `ask-ai` surface admits. -->
+  <AssistantLauncher v-if="isShellLayout && session.isAuthenticated" />
   <ToastContainer />
 </template>
