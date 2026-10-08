@@ -403,6 +403,18 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
       gives a 409, not an overwrite. Each move writes one `card_fraud.status_changed` audit row, which is
       the incident's history (no transitions table, so no migration).
   - **8c3** a drawer on this page for each kind of row.
+    - 8c2 merged (#1365, d0ff20c); staging serves it.
+    - Built: every row opens its own drawer on this page. A money finding opens the ledger drawer, as
+      before. A fill case opens the Alerts drawer (`AnomalyDetail`), read by id; before 8c3 it sent
+      the reader to `/anomalies`, which a dispatcher may not open, so the click did nothing. An incident
+      opens `IncidentDetail`, from `GET /api/card-fraud-incidents/:id` (fuel view; the API cuts the
+      card to its last four).
+    - The incident drawer says what happened in plain sentences (`incidentStory`: where the card was
+      tried, where Samsara had the truck, whether fuel was taken, any failed prompt) and lists each
+      attempt with its time. Closing works as for a fill case: pick a verdict, write a note,
+      Resolve or Dismiss, which is two clicks. A closed incident can be reopened. Only fuel managers
+      see the actions.
+    - Both drawers' moves refresh the queue.
   - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings` and `/anomalies`, and the
     acceptance tests below.
 - **Accept:**
@@ -560,3 +572,4 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-08: Chunk 8b merged (#1362, 1626ed3); staging applied 0443 and skipped (no Silvicom there).
   Owner ruled Q-F11 (a), incidents are fuel, and agreed the 8c cut. 8c1 built.
 - 2026-10-08: 8c1 merged (#1364, 0c9ac66); staging serves it. 8c2 built: closing an incident.
+- 2026-10-08: 8c2 merged (#1365, d0ff20c); staging serves it. 8c3 built: a drawer for every row.

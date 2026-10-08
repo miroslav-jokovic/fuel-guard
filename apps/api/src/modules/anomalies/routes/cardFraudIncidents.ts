@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { transitionCardFraudIncident } from "../transitionCardFraudIncident.js";
+import { readCardFraudIncident } from "../readCardFraudIncident.js";
 
 /**
  * Card-fraud incidents (CF2, 0438). Section `fuel` by Q-F11 (a), ruled 2026-10-08: acting on one means
@@ -16,6 +17,21 @@ import { transitionCardFraudIncident } from "../transitionCardFraudIncident.js";
 export function cardFraudIncidentsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg);
+
+  // Read for the queue's drawer (8c3): fuel VIEW, as the queue lists incidents to every fuel viewer.
+  router.get(
+    "/:id",
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const incident = await readCardFraudIncident(admin, req.auth!.orgId!, String(req.params.id));
+      if (!incident) {
+        res.status(404).json(apiError("not_found", "That incident is not in your queue."));
+        return;
+      }
+      res.json({ ok: true, incident });
+    }),
+  );
 
   router.post(
     "/:id/transition",
