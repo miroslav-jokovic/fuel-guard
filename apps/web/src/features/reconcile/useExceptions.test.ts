@@ -11,7 +11,7 @@ import { defineComponent, ref } from "vue";
  * lived: `?trucks=` was written by the filter bar, preserved in the URL, and never sent — because
  * `ExceptionQuery` had no vehicle field and this builder had no line for one. A page-level test cannot
  * catch that, because a page test stubs this module; the mutation that deleted the truck line from
- * `qs()` passed every assertion in `FuelExceptionsPage.test.ts`, which is how it was found.
+ * `qs()` passed every assertion in `FuelProblemsPage.test.ts`, which is how it was found.
  *
  * The second property is `exceptionExportQuery`: the export's parameters ARE the list's, minus paging.
  * A file assembled from a second encoding is a file that covers a different set than the screen it was

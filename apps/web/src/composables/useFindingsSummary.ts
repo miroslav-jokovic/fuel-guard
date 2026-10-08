@@ -94,12 +94,12 @@ export function ledgerTiles(
   const tiles: LedgerTile[] = [];
   if (summary.open != null) {
     tiles.push({
-      label: "Open findings",
+      label: "Fuel problems",
       value: fmt.int(summary.open),
       sub: "need somebody",
       icon: icons.open,
       tone: summary.open > 0 ? "warning" : "success",
-      to: { path: "/findings" },
+      to: { path: "/fuel-problems" },
     });
   }
   if (summary.recoveredThisQuarter != null) {
@@ -114,7 +114,7 @@ export function ledgerTiles(
       sub: quarterLabel(summary.quarterFrom),
       icon: icons.money,
       tone: "success",
-      to: { path: "/findings", query: { state: "closed" } },
+      to: { path: "/fuel-problems", query: { state: "closed" } },
     });
   }
   return tiles;

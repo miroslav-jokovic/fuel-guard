@@ -61,31 +61,34 @@ export const fuelRoutes: RouteRecordRaw[] = [
   },
   {
     /**
-     * The Findings inbox (C7b). Was `/fuel-spend/exceptions`, which is now a redirect below.
+     * Fuel problems (F02-F04 chunk 8c4): the fuel queue. It was the Findings inbox (C7b), and before
+     * that `/fuel-spend/exceptions`; both old paths redirect below.
      *
-     * It moved out from under `/fuel-spend` because it stopped being a spend surface: since C7b it
-     * holds theft cases alongside the money findings, and a path that says `fuel-spend` would be
-     * telling a safety manager their queue lives inside the accountant's report. `parent` is dropped
-     * for the same reason rather than repointed — this is a section-level surface now.
+     * It moved out from under `/fuel-spend` at C7b because it stopped being a spend surface, and it was
+     * renamed at 8c4 because it stopped being only findings: card-fraud incidents (8c1) and short fills
+     * sit in it beside the money findings, each opening its own drawer here (8c3). Alerts keeps
+     * `/anomalies` for safety work (Q-F12 (b), ruled 2026-10-08); nothing about it redirects here.
      */
-    path: "/findings",
-    name: "findings",
-    component: () => import("@/pages/FuelExceptionsPage.vue"),
-    // `requiresAuth` only, deliberately NOT `requiresManage`: the inbox is a read surface, and a
+    path: "/fuel-problems",
+    name: "fuel-problems",
+    component: () => import("@/pages/FuelProblemsPage.vue"),
+    // `requiresAuth` only, deliberately NOT `requiresManage`: the queue is a read surface, and a
     // controller checking what was recovered should not need permission to upload a statement. Moving
-    // a finding is gated on the API route, which is where the decision actually happens. ⚠ And the
+    // an item is gated on the API route, which is where the decision actually happens. ⚠ And the
     // per-KIND gate is applied per ROW by the API (Q-FUI1): a caller without `safety` is not refused
-    // this page, they simply have no theft cases in it.
-    meta: { requiresAuth: true, title: "Findings" },
+    // this page, they simply have no fill cases in it.
+    meta: { requiresAuth: true, title: "Fuel problems" },
   },
   /**
-   * Every link ever sent to the ledger still opens it. ⚠ The query is carried across but `?status=`
-   * is NOT translated into `?state=`: they name different vocabularies — `disputed` is a ledger
-   * status, `working` is a queue state — and silently reinterpreting one as the other would make a
-   * forwarded link show something its sender never saw. An old link lands on the default queue,
-   * which is the same fallback the retired `?tab=` values take on the spend page.
+   * Every link ever sent to the queue still opens it, the open drawer included (`?finding=`, `?case=`,
+   * `?incident=` ride along with the rest of the query). ⚠ From the ledger's own old path `?status=` is
+   * NOT translated into `?state=`: they name different vocabularies — `disputed` is a ledger status,
+   * `working` is a queue state — and silently reinterpreting one as the other would make a forwarded
+   * link show something its sender never saw. An old link lands on the default queue, which is the
+   * same fallback the retired `?tab=` values take on the spend page.
    */
-  { path: "/fuel-spend/exceptions", redirect: (to) => ({ path: "/findings", query: to.query }) },
+  { path: "/findings", redirect: (to) => ({ path: "/fuel-problems", query: to.query }) },
+  { path: "/fuel-spend/exceptions", redirect: (to) => ({ path: "/fuel-problems", query: to.query }) },
   {
     path: "/ifta",
     name: "ifta",

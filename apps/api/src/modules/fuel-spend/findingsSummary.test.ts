@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFindingsSummary, quarterStart } from "./findingsRead.js";
+import { USER_ROLES, type FindingQueueState } from "@silvicom/shared";
+import { readFindings, readFindingsSummary, quarterStart } from "./findingsRead.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 
 /**
@@ -123,5 +124,39 @@ describe("card-fraud incidents in the Dashboard's count", () => {
     const rec = seed({ incidents: 2 });
     await readFindingsSummary(rec.client, ORG, "technician", NOW);
     expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+});
+
+/**
+ * Chunk 8c4's acceptance: "the open count on the page equals the dashboard's". The recorder does not
+ * filter (it answers whatever a fixture says), so equal NUMBERS from it would prove nothing; what can be
+ * proved is that both sides ask each table the same question. The page opens on the queue's default
+ * states with no other narrowing, which is exactly what the Dashboard's door sends, so for every role the
+ * count's WHERE must equal the list's WHERE, table by table, and neither may read a table the other skips.
+ *
+ * ⚠ The date WINDOW is outside this: the page always reads one (90 days by default) and the Dashboard
+ * counts every open item. They agree today only because the oldest open item is younger than 90 days —
+ * Q-F13 in the plan.
+ */
+describe("the Dashboard's count and the queue it opens", () => {
+  const QUEUE_DEFAULT: FindingQueueState[] = ["open", "investigating", "working"];
+  const CASE_TABLES = ["anomalies", "fuel_exceptions", "card_fraud_incidents"] as const;
+  const WHERE = new Set(["eq", "neq", "in", "or", "gte", "lte", "gt", "lt", "is", "not"]);
+  const where = (q: RecordedQuery) =>
+    q.ops.filter((o) => WHERE.has(o.method)).map((o) => JSON.stringify([o.method, o.args])).sort();
+  const isCreditedRead = (q: RecordedQuery) => q.filters().some((f) => f.col === "status" && f.val === "credited");
+
+  it("asks every table the same question as the queue, for every role", async () => {
+    for (const role of USER_ROLES) {
+      const listRec = seed({ epoch: "2026-10-08T15:28:02Z" });
+      const countRec = seed({ epoch: "2026-10-08T15:28:02Z" });
+      await readFindings(listRec.client, ORG, role, { states: QUEUE_DEFAULT });
+      await readFindingsSummary(countRec.client, ORG, role, NOW);
+      for (const table of CASE_TABLES) {
+        const list = listRec.forTable(table).map(where);
+        const count = countRec.forTable(table).filter((q) => !isCreditedRead(q)).map(where);
+        expect({ role, table, where: count }).toEqual({ role, table, where: list });
+      }
+    }
   });
 });

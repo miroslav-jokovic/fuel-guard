@@ -118,6 +118,25 @@ remaining phases in order with this feature's other fixes.
   holding or replacing the card in WEX, which is the fuel manager's job. (b) safety, like fill cases,
   was not taken. Admin sees and closes everything either way.
 
+- **Q-F12. Does `/anomalies` (Alerts, SAFETY) redirect to Fuel problems? RULED 2026-10-08 (b): no.**
+  Alerts stays for safety work; only `/findings` (and `/fuel-spend/exceptions` before it) redirects to
+  `/fuel-problems`. (a), retiring Alerts into the fuel queue, was not taken: Alerts holds signals that
+  are not fuel problems, and the queue already lists the one fill-case kind that is.
+
+- **Q-F13. Which window does the queue's count cover? OPEN (found building 8c4).** The Dashboard counts
+  every open item; Fuel problems lists open items inside its date window, 90 days unless the link says
+  otherwise. Measured on production 2026-10-08: 157 open money findings, the oldest dated 08-01, so
+  today both say 157. From 10-30 the August items leave the page's default window and the page shows
+  fewer than the tile that links to it.
+  - **(a) Recommended: the Dashboard's door carries the window.** The summary also returns the date of
+    the oldest open item, and the door links `/fuel-problems?from=<that date>`. The page's meaning does
+    not change, the link says what it covers, and the two numbers agree by construction. Cost: three
+    small reads (oldest per table) on the Dashboard.
+  - (b) The queue ignores the window for open states. Simplest, but the date filter would then say
+    "last 90 days" over rows older than that.
+  - (c) The Dashboard counts only the last 90 days. An unclaimed item would leave the count by aging,
+    which is the opposite of what aging is for (Q-FUI4).
+
 ---
 
 ## How the work is cut
@@ -415,12 +434,31 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
       Resolve or Dismiss, which is two clicks. A closed incident can be reopened. Only fuel managers
       see the actions.
     - Both drawers' moves refresh the queue.
-  - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings` and `/anomalies`, and the
-    acceptance tests below.
+  - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings`, and the acceptance tests below.
+    `/anomalies` stays Alerts (Q-F12 (b)).
+    - 8c3 merged (#1368, 361c023); staging serves it.
+    - Built: the surface is "Fuel problems" at `/fuel-problems` (the key stays `fuel.exceptions`, so
+      saved grants still apply). `/findings` and `/fuel-spend/exceptions` redirect with their query.
+      The Dashboard's tile and attention row say "Fuel problems".
+    - The open drawer is in the URL: `?finding=`, `?case=` or `?incident=`, one at a time. A link with
+      one opens that item, also through the old `/findings` address.
+    - The Dashboard's count now applies the start-date rule to fill cases too. Before, an open fill
+      case dated before the start date was counted on the Dashboard and hidden on the page; the nightly
+      re-score (#1358) can open such cases.
+    - The page is split under its file budget (455 → 369 lines): the drawers and the export actions
+      are their own components in `pages/fuelProblems/`.
 - **Accept:**
   - Each role in the matrix opens every row it can see.
+    - 8c4: `fuelProblemsDrawers.test.ts` lists the queue for every role and opens each row through the
+      route its drawer calls. A mutant gating the incident drawer at `fuel: manage` fails it.
   - Closing an item takes ≤ 3 clicks.
+    - Counted from the queue row, 8c4: an incident 3 (row, verdict, Resolve), a fill case 3 (2 for
+      "False alarm"), a money finding 4 (row, the status menu, the status, Apply). Inside the drawer
+      all are ≤ 3. The money drawer predates this plan; making it 3 is a small change to
+      `ExceptionSlideOver` if the owner counts from the row.
   - The open count on the page equals the dashboard's.
+    - 8c4: for every role, the Dashboard's count asks each table the same question as the queue's
+      default view. True in production today; the date window is Q-F13.
 
 ### Chunk 9 — buying habits move to Fuel Costs (Q-F2)
 - **9a** A monthly buying-habits table in Fuel Costs, per driver and truck.
@@ -573,3 +611,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   Owner ruled Q-F11 (a), incidents are fuel, and agreed the 8c cut. 8c1 built.
 - 2026-10-08: 8c1 merged (#1364, 0c9ac66); staging serves it. 8c2 built: closing an incident.
 - 2026-10-08: 8c2 merged (#1365, d0ff20c); staging serves it. 8c3 built: a drawer for every row.
+- 2026-10-08: 8c3 merged (#1368, 361c023); staging serves it. Owner ruled Q-F12 (b): Alerts stays. 8c4
+  built: Fuel problems at `/fuel-problems`, the open drawer in the URL, the Dashboard's count on the
+  queue's start-date rule. Q-F13 (the count's window) recorded, open.

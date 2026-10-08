@@ -12,7 +12,7 @@ import type { ExceptionFilters } from "./fuelExceptions.js";
  * The finding ledger, as a file (FUEL-P2 / P3, D-FUI15).
  *
  * ── WHAT THIS REPLACES, AND WHY IT COUNTS AS A CORRECTNESS FIX ──────────────────────────────────
- * `FuelExceptionsPage.vue` had an "Export CSV" button that serialised `rows.value` — **the 25 rows on
+ * `FuelProblemsPage.vue` had an "Export CSV" button that serialised `rows.value` — **the 25 rows on
  * the current page**. A controller assembling a claim from a filtered ledger got page one of it, with
  * no indication that anything was missing, and the four tiles above the button said $41,000 while the
  * file said $600. That is not a smaller export, it is a wrong one.

@@ -93,7 +93,11 @@ vi.mock("@/features/anomalies/IncidentDetail.vue", async () => {
   return { default: defineComponent({ props: ["id"], setup: (p) => () => h("p", `incident-drawer:${p.id}`) }) };
 });
 
-import FuelExceptionsPage from "./FuelExceptionsPage.vue";
+import FuelProblemsPage from "./FuelProblemsPage.vue";
+import { fuelRoutes } from "@/router/routes/fuel";
+
+/** The real `/findings` redirect, so a test of an old link proves the route table, not a copy of it. */
+const findingsRedirect = fuelRoutes.find((r) => r.path === "/findings")!;
 
 /** A money finding, as the unified read returns it. */
 const row = (o: Record<string, unknown> = {}) => ({
@@ -147,24 +151,25 @@ const { __session: session } = (await import("@/stores/session")) as unknown as 
   __session: import("@/testing/fakeSession").FakeSession;
 };
 
-async function mountPage(query = "") {
+async function mountPage(query = "", path = "/fuel-problems") {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/findings", component: { template: "<div/>" }, meta: { title: "Findings" } },
+      { path: "/fuel-problems", component: { template: "<div/>" }, meta: { title: "Fuel problems" } },
       { path: "/anomalies", component: { template: "<div/>" }, meta: { title: "Alerts" } },
+      findingsRedirect,
     ],
   });
-  await router.push(`/findings${query}`);
+  await router.push(`${path}${query}`);
   await router.isReady();
   const pinia = createPinia();
   setActivePinia(pinia);
-  const w = mount(FuelExceptionsPage, { global: { plugins: [router, pinia] } });
+  const w = mount(FuelProblemsPage, { global: { plugins: [router, pinia] } });
   await flushPromises();
   return { w, router };
 }
 
-describe("the Findings inbox", () => {
+describe("Fuel problems", () => {
   it("leads with identified, claimed and recovered — three numbers, never one", async () => {
     // "We found $14,200" is a claim about the software; "we recovered $14,200" is a claim about the
     // business, and only the second one renews a contract. The gap between them is the point.
@@ -342,7 +347,7 @@ describe("the Findings inbox", () => {
   it("says so when the server could not fit the whole queue in one read", async () => {
     truncated.value = true;
     const t = (await mountPage()).w.text();
-    expect(t).toContain("more findings than this page can hold");
+    expect(t).toContain("more problems than this page can hold");
   });
 
   // Chunk 8c3: every kind of row opens its own drawer ON THIS PAGE. Before it, a fill case handed the
@@ -355,7 +360,7 @@ describe("the Findings inbox", () => {
       const { w, router } = await mountPage();
       await w.findAll("tbody tr")[0]!.trigger("click");
       await flushPromises();
-      expect(router.currentRoute.value.path).toBe("/findings");
+      expect(router.currentRoute.value.path).toBe("/fuel-problems");
       expect(byId.asked).toBe("a1");
       expect(document.body.textContent).toContain("anomaly-drawer:a1");
     } finally {
@@ -370,10 +375,42 @@ describe("the Findings inbox", () => {
     const { w, router } = await mountPage();
     await w.findAll("tbody tr")[0]!.trigger("click");
     await flushPromises();
-    expect(router.currentRoute.value.path).toBe("/findings");
+    expect(router.currentRoute.value.path).toBe("/fuel-problems");
     expect(document.body.textContent).toContain("incident-drawer:i1");
     // Not read as a fill case: the drawers are teleported, so body text from an earlier test is no proof.
     expect(byId.asked).toBeNull();
+  });
+
+  // Chunk 8c4: the open item is in the URL, so "look at this one" can be sent as a link.
+  it("names the open item in the address, one drawer at a time", async () => {
+    listed.value = [theftRow(), incidentRow()];
+    listed.total = 2;
+    const { w, router } = await mountPage("?finding=e9");
+    await w.findAll("tbody tr")[0]!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ case: "a1" });
+    await w.findAll("tbody tr")[1]!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ incident: "i1" });
+  });
+
+  it("opens the drawer a link names, without a click", async () => {
+    listed.value = [];
+    listed.total = 0;
+    byId.asked = null;
+    await mountPage("?incident=i7");
+    expect(document.body.textContent).toContain("incident-drawer:i7");
+    expect(byId.asked).toBeNull();
+  });
+
+  it("carries an open drawer through the old /findings address", async () => {
+    listed.value = [];
+    listed.total = 0;
+    const { router } = await mountPage("?case=a4&state=closed", "/findings");
+    expect(router.currentRoute.value.path).toBe("/fuel-problems");
+    expect(router.currentRoute.value.query).toEqual({ case: "a4", state: "closed" });
+    expect(byId.asked).toBe("a4");
+    expect(document.body.textContent).toContain("anomaly-drawer:a4");
   });
 
   // The packet is a document you send a vendor to bill money back. A theft case is an accusation
@@ -446,7 +483,7 @@ describe("the Findings inbox", () => {
     const { w, router } = await mountPage();
     await pick(w);
     expect(w.text()).toContain("1 selected");
-    await router.push("/findings?state=closed");
+    await router.push("/fuel-problems?state=closed");
     await flushPromises();
     expect(w.text()).not.toContain("1 selected");
   });

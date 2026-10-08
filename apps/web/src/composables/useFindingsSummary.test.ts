@@ -41,7 +41,7 @@ const tiles = (o: Partial<Parameters<typeof ledgerTiles>[0] & object> | null) =>
 describe("which ledger tiles a caller gets", () => {
   it("renders both for somebody who may see both", () => {
     expect(tiles({ open: 158, recoveredThisQuarter: 1161.55 }).map((t) => t.label)).toEqual([
-      "Open findings",
+      "Fuel problems",
       "Recovered",
     ]);
   });
@@ -55,7 +55,7 @@ describe("which ledger tiles a caller gets", () => {
 
   it("renders a real zero, because an org with nothing outstanding has earned the number", () => {
     const t = tiles({ open: 0, recoveredThisQuarter: 0 });
-    expect(t.map((x) => x.label)).toEqual(["Open findings", "Recovered"]);
+    expect(t.map((x) => x.label)).toEqual(["Fuel problems", "Recovered"]);
     expect(t[0]!.value).toBe("0");
     // Green rather than amber: nothing outstanding is good news and should not read as a warning.
     expect(t[0]!.tone).toContain("success");
@@ -65,14 +65,14 @@ describe("which ledger tiles a caller gets", () => {
   // the count is smaller. The page does not decide that — it renders what it was told.
   it("renders only the money tile when the count was withheld, and vice versa", () => {
     expect(tiles({ open: null, recoveredThisQuarter: 900 }).map((t) => t.label)).toEqual(["Recovered"]);
-    expect(tiles({ open: 76, recoveredThisQuarter: null }).map((t) => t.label)).toEqual(["Open findings"]);
+    expect(tiles({ open: 76, recoveredThisQuarter: null }).map((t) => t.label)).toEqual(["Fuel problems"]);
   });
 
   it("sends each tile to the queue it counts", () => {
     const t = tiles({ open: 5, recoveredThisQuarter: 10 });
-    expect(t[0]!.to).toEqual({ path: "/findings" });
+    expect(t[0]!.to).toEqual({ path: "/fuel-problems" });
     // Recovered is money that was closed, so it opens the closed queue rather than the working one.
-    expect(t[1]!.to).toEqual({ path: "/findings", query: { state: "closed" } });
+    expect(t[1]!.to).toEqual({ path: "/fuel-problems", query: { state: "closed" } });
   });
 
   it("names the quarter on the money tile, so the figure has a period", () => {

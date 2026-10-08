@@ -318,14 +318,23 @@ export async function readFindingsSummary(
   const anomalyOpen = [...new Set(openStates.flatMap((s) => anomalyStatusesIn(s)))];
   const exceptionOpen = [...new Set(openStates.flatMap((s) => exceptionStatusesIn(s)))];
   const incidentOpen = [...new Set(openStates.flatMap((s) => incidentStatusesIn(s)))];
-  // The same start-date rule as the list, so the count equals the rows the queue shows (8c accept).
-  const incidentsAfterReset = sections.has("fuel")
-    ? detectionEpochOrFilter(await detectionEpochOf(admin, orgId), "opened_at")
-    : null;
+  /*
+   * The same start-date rule as the list, for BOTH case sources, so the count equals the rows the queue
+   * shows (8c accept). ⚠ Until 8c4 only incidents had it: an open fill case dated before the start date
+   * was counted here and hidden there. The reset closed every such case, so the two agreed in practice,
+   * but the nightly sweep re-scores history (#1358) and a case it opens on an old fill made the Dashboard
+   * one higher than the page it links to.
+   * Pinned by "asks every table the same question as the queue, for every role" in findingsSummary.test.ts.
+   */
+  const readsCases = sections.has("fuel") || sections.has("safety");
+  const epoch = readsCases ? await detectionEpochOf(admin, orgId) : null;
 
   const [anomalies, exceptions, credited, incidents] = await Promise.all([
     sections.has("safety")
-      ? admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", anomalyOpen)
+      ? countFromEpoch(
+          admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", anomalyOpen),
+          detectionEpochOrFilter(epoch),
+        )
       : Promise.resolve({ count: null }),
     sections.has("fuel")
       ? admin
@@ -342,7 +351,12 @@ export async function readFindingsSummary(
           .eq("status", "credited")
           .gte("credited_on", from)
       : Promise.resolve({ data: null }),
-    sections.has("fuel") ? countOpenIncidents(admin, orgId, incidentOpen, incidentsAfterReset) : Promise.resolve({ count: null }),
+    sections.has("fuel")
+      ? countFromEpoch(
+          admin.from("card_fraud_incidents").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", incidentOpen),
+          detectionEpochOrFilter(epoch, "opened_at"),
+        )
+      : Promise.resolve({ count: null }),
   ]);
 
   const counts = [anomalies.count, exceptions.count, incidents.count].filter((c): c is number => typeof c === "number");
@@ -355,13 +369,10 @@ export async function readFindingsSummary(
   };
 }
 
-async function countOpenIncidents(
-  admin: SupabaseClient,
-  orgId: string,
-  statuses: string[],
+/** A case count on the start-date rule. The table stays a literal at the caller (`lint:boundaries`' table access). */
+async function countFromEpoch<Q extends { or: (filter: string) => Q }>(
+  q: Q,
   afterReset: string | null,
 ): Promise<{ count: number | null }> {
-  let q = admin.from("card_fraud_incidents").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", statuses);
-  if (afterReset) q = q.or(afterReset);
-  return await q;
+  return (await (afterReset ? q.or(afterReset) : q)) as unknown as { count: number | null };
 }

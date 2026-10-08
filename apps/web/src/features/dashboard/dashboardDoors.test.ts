@@ -81,7 +81,7 @@ describe("the attention rail", () => {
   it("links every row to its page for the admin", () => {
     const h = hrefs(mount(AttentionWidget, { props: { range }, global }));
     expect(h).toContain("/anomalies");
-    expect(h).toContain("/findings");
+    expect(h).toContain("/fuel-problems");
     expect(h).toContain("/idling");
     expect(h).toContain("/fuel-log?tab=declines");
   });
