@@ -44,9 +44,11 @@
  * **4 (2026-10-08)** — CF5 (D-CF3/D-CF4): every approved-fill rule but `tank_fill_short` and
  * `tank_chronic_short` reweighted to 0, so it is a note and never a case. Over the 60 days to
  * 2026-10-08 the engine raised 10 alerts and 18 reviews; under these weights the same fired signals
- * make 0 alerts and 6 reviews, every one carrying `tank_fill_short`. The 180-day boot rebuild re-scores
- * 11,533 of production's 18,062 fills 45 s after the deploy; this bump re-scores the other 6,529 over
- * about four nights.
+ * make 0 alerts and 6 reviews, every one carrying `tank_fill_short`. A new fill is judged by these weights
+ * when it is imported. History reaches them only through this bump: the nightly sweep re-scores 2,000 fills
+ * a night, oldest first, so production's 18,062 take about ten nights and the newest come last. The boot
+ * rebuild does not help: `REBUILD_ON_BOOT` is false on production (checked 2026-10-08), and this text said
+ * otherwise for a few hours on the day the bump was merged.
  *
  * It ships AFTER the reset (Q-F9 (a); 0441, released 2026-10-08 15:28 UTC), so it closes nothing old:
  * every case before the start date is already closed, and re-scoring touches only OPEN cases — one that
