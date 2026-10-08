@@ -1,6 +1,7 @@
 import { ActionRefusalError, CardControlError } from "../services/efsCardControlErrors.js";
 import { cardOpOptions } from "../services/efsCardOperationOptions.js";
 import { updateMirror } from "../services/efsCardReconcile.js";
+import { movedFieldsSinceMirror } from "./movedFields.js";
 import type { PlanCtx, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
 import { resolveOrgEditableInfoIds } from "./editableInfoIds.js";
@@ -117,12 +118,14 @@ async function assertUnmoved<TBody>(
   if (doc.version !== ctx.expectedVersion) {
     // Nothing is sent. The operator gets the fresh card and decides again — the only defence
     // available, since the guide offers no ETag and no row version.
+    // BEFORE `updateMirror`, which overwrites the only copy of what the screen was drawn from.
+    const moved = await movedFieldsSinceMirror(ctx, doc);
     await updateMirror(ctx, doc);
     throw new CardControlError(
       "This card changed in EFS since the screen was drawn.",
       "card_state_changed",
       409,
-      { currentVersion: doc.version, card: doc.card },
+      { currentVersion: doc.version, card: doc.card, movedFields: moved.paths, mirrorWasExpected: moved.mirrorWasExpected },
     );
   }
   return doc;

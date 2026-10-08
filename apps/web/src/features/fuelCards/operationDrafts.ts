@@ -72,3 +72,25 @@ export const emptyDraft = (current: string | null = null): OperationDraft =>
  */
 export const currentWritableStatus = (status: string | null): EfsWritableStatus =>
   EFS_WRITABLE_STATUSES.find((s) => efsStatusEquals(s, status)) ?? "Active";
+
+/**
+ * The operator's draft carried across a `card_state_changed` 409, field by field (2026-10-08).
+ *
+ * The 409 used to throw the whole draft away and reseed — so a grant on ••••7962 refused because
+ * the card's document had moved lost its use count, scope and product lines, and the operator, told
+ * only "review and try again", did not try again. Nothing they had typed was seeded from the card.
+ *
+ * Derived, not listed: a field is reseeded exactly when the card's move changed what `seedDraftFor`
+ * would have put in it — `before` and `after` are the two seeds — and kept otherwise. So a prompt
+ * edit is still reseeded when the card's prompts move (the operator must look again at what they are
+ * replacing), a status choice when the status moves, and a grant's inputs, which no card field seeds,
+ * survive any move. The frozen body is dropped by the caller either way: Confirm is pressed again.
+ */
+export const rebaseDraft = (draft: OperationDraft, before: OperationDraft, after: OperationDraft): OperationDraft => {
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  const rebased: Record<string, unknown> = {};
+  for (const key of Object.keys(after) as (keyof OperationDraft)[]) {
+    rebased[key] = same(before[key], after[key]) ? draft[key] : after[key];
+  }
+  return rebased as unknown as OperationDraft;
+};

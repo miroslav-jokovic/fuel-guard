@@ -102,9 +102,23 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
       if (!before.doc || !after.doc) return "indeterminate";
       return judgeGrant(unlandedEditNames(before.doc, after.doc, edits));
     },
+    /**
+     * ⚠ The count is SPENT, and a cycle later that is the whole difficulty (2026-10-08 analysis).
+     *
+     * The sweep reads the card about a day after the write. By then a granted use has usually been
+     * bought with, or the exception cleared, so the count reads 0 — and judging that as `not_landed`
+     * is how both production grants of 2026-08-18 came to be recorded `failed`: ••••6536 and ••••7971
+     * each showed the count 0 → 1 at write time, and ••••7971's own `override_clear` four seconds
+     * later read `overrideUsesBefore: 1`. A count below the one granted is "used or cleared" as
+     * readily as "never armed", and the card cannot say which, so it is `indeterminate`: the row
+     * stays where a person can see it instead of being settled by a guess. A count that DOES still
+     * read as granted is evidence, and the scope fields are then judged exactly as live.
+     */
     reconcile: (after, edits) => {
       if (!after.doc) return "indeterminate";
-      return judgeGrant(unlandedEditNamesFromAfter(after.doc, edits));
+      const unlanded = unlandedEditNamesFromAfter(after.doc, edits);
+      if (unlanded.includes("override")) return "indeterminate";
+      return judgeGrant(unlanded);
     },
   },
 
