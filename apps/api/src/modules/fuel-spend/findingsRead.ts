@@ -1,12 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  CARD_FRAUD_KIND,
   FINDING_ASSIGNABLE_SECTIONS,
   anomalyStatusesIn,
   byOccurredDesc,
   canViewSection,
+  detectionEpochOrFilter,
   exceptionStatusesIn,
   findingFromAnomaly,
   findingFromException,
+  findingFromIncident,
+  incidentStatusesIn,
   type AppSection,
   type FindingQueueState,
   type FindingKind,
@@ -91,6 +95,7 @@ export async function readFindings(
   // C7a rather than restated here — which is the whole reason that module maps back as well as forth.
   const anomalyStatuses = [...new Set(states.flatMap((s) => anomalyStatusesIn(s)))];
   const exceptionStatuses = [...new Set(states.flatMap((s) => exceptionStatusesIn(s)))];
+  const incidentStatuses = [...new Set(states.flatMap((s) => incidentStatusesIn(s)))];
 
   /*
    * ⚠ `anomalies` HAS NO `unit_number`. It carries `vehicle_id`, and the ledger carries the unit
@@ -103,26 +108,45 @@ export async function readFindings(
   const fleet = f.vehicleIds?.length ? await fleetScope(admin, orgId, f.vehicleIds) : null;
 
   const wantsAnomalies = !f.kinds?.length || f.kinds.includes(CASE_RULE_ID as FindingKind);
-  const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID);
+  const wantsIncidents = !f.kinds?.length || f.kinds.includes(CARD_FRAUD_KIND as FindingKind);
+  const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID && k !== CARD_FRAUD_KIND);
   const wantsExceptions = !f.kinds?.length || exceptionKinds.length > 0;
+  const readsCases = (wantsAnomalies && sections.has("safety")) || (wantsIncidents && sections.has("fuel"));
+  const epoch = readsCases ? await detectionEpochOf(admin, orgId) : null;
 
-  const [anomalies, exceptions] = await Promise.all([
+  const [anomalies, exceptions, incidents] = await Promise.all([
     wantsAnomalies && sections.has("safety") && anomalyStatuses.length
-      ? readAnomalies(admin, orgId, anomalyStatuses, f, fleet)
+      ? readAnomalies(admin, orgId, anomalyStatuses, f, fleet, epoch)
       : Promise.resolve([]),
     wantsExceptions && sections.has("fuel") && exceptionStatuses.length
       ? readExceptions(admin, orgId, exceptionStatuses, f, fleet, exceptionKinds)
       : Promise.resolve([]),
+    wantsIncidents && sections.has("fuel") && incidentStatuses.length
+      ? readIncidents(admin, orgId, incidentStatuses, f, fleet, epoch)
+      : Promise.resolve([]),
   ]);
 
-  const merged = [...anomalies, ...exceptions].sort(byOccurredDesc);
+  const merged = [...anomalies, ...exceptions, ...incidents].sort(byOccurredDesc);
   const limit = Math.min(Math.max(f.limit ?? 50, 1), 200);
   const offset = Math.max(f.offset ?? 0, 0);
   return {
     rows: merged.slice(offset, offset + limit),
     total: merged.length,
-    truncated: anomalies.length >= READ_CAP || exceptions.length >= READ_CAP,
+    truncated: anomalies.length >= READ_CAP || exceptions.length >= READ_CAP || incidents.length >= READ_CAP,
   };
+}
+
+/**
+ * The org's detection start date (D-CF9, 0439), or null. The inbox applies the one shared rule
+ * (`detectionEpoch.ts`) to both case sources: a case before the start date is not listed unless a person
+ * is investigating it. For a fill case that only matters in the closed view, because the reset closed
+ * every earlier open one; for a card-fraud incident it is the rule that keeps the history CF2 records as
+ * the nightly sweep re-scores old fills (#1358) out of today's queue — 5c said "the epoch decides what is
+ * shown and told", and this is the shown half.
+ */
+async function detectionEpochOf(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data } = await admin.from("organizations").select("detection_epoch").eq("id", orgId).maybeSingle();
+  return ((data as { detection_epoch?: string | null } | null)?.detection_epoch) ?? null;
 }
 
 /**
@@ -155,6 +179,7 @@ async function readAnomalies(
   statuses: string[],
   f: FindingsFilters,
   fleet: { ids: string[]; unitOf: Map<string, string> } | null,
+  epoch: string | null,
 ): Promise<FindingRow[]> {
   // A truck filter that matched no vehicle of this org must return nothing, not everything.
   if (fleet && fleet.ids.length === 0) return [];
@@ -170,6 +195,8 @@ async function readAnomalies(
   // slightly different things is a known and recorded inconsistency, not one introduced here.
   if (f.from) q = q.gte("fueled_at", f.from);
   if (f.to) q = q.lte("fueled_at", `${f.to}T23:59:59.999Z`);
+  const afterReset = detectionEpochOrFilter(epoch);
+  if (afterReset) q = q.or(afterReset);
   const { data } = await q.order("fueled_at", { ascending: false }).limit(READ_CAP);
   const rows = (data ?? []) as (Parameters<typeof findingFromAnomaly>[0] & { vehicle_id?: string | null })[];
   return rows.map((r) => findingFromAnomaly({ ...r, unit_number: unitFor(r.vehicle_id, fleet) }));
@@ -197,6 +224,36 @@ async function readExceptions(
   if (f.to) q = q.lte("occurred_on", f.to);
   const { data } = await q.order("occurred_on", { ascending: false }).limit(READ_CAP);
   return ((data ?? []) as Parameters<typeof findingFromException>[0][]).map(findingFromException);
+}
+
+/**
+ * Card-fraud incidents (CF2, 0438), section fuel (Q-F11 (a)). Dated by when the incident OPENED, the
+ * first attempt, so the date filter and the age read the same moment. A truck filter matches the card's
+ * truck (`vehicle_id`), as it matches a fill case's.
+ */
+async function readIncidents(
+  admin: SupabaseClient,
+  orgId: string,
+  statuses: string[],
+  f: FindingsFilters,
+  fleet: { ids: string[]; unitOf: Map<string, string> } | null,
+  epoch: string | null,
+): Promise<FindingRow[]> {
+  if (fleet && fleet.ids.length === 0) return [];
+  let q = admin
+    .from("card_fraud_incidents")
+    .select("id, status, disposition, card_ref, opened_at, attempt_count, fuel_taken, places, assigned_to, vehicle_id")
+    .eq("org_id", orgId)
+    .in("status", statuses);
+  if (fleet) q = q.in("vehicle_id", fleet.ids);
+  if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
+  if (f.from) q = q.gte("opened_at", f.from);
+  if (f.to) q = q.lte("opened_at", `${f.to}T23:59:59.999Z`);
+  const afterReset = detectionEpochOrFilter(epoch, "opened_at");
+  if (afterReset) q = q.or(afterReset);
+  const { data } = await q.order("opened_at", { ascending: false }).limit(READ_CAP);
+  const rows = (data ?? []) as (Parameters<typeof findingFromIncident>[0] & { vehicle_id?: string | null })[];
+  return rows.map((r) => findingFromIncident({ ...r, unit_number: unitFor(r.vehicle_id, fleet) }));
 }
 
 /**
@@ -260,8 +317,13 @@ export async function readFindingsSummary(
   const openStates: FindingQueueState[] = ["open", "investigating", "working"];
   const anomalyOpen = [...new Set(openStates.flatMap((s) => anomalyStatusesIn(s)))];
   const exceptionOpen = [...new Set(openStates.flatMap((s) => exceptionStatusesIn(s)))];
+  const incidentOpen = [...new Set(openStates.flatMap((s) => incidentStatusesIn(s)))];
+  // The same start-date rule as the list, so the count equals the rows the queue shows (8c accept).
+  const incidentsAfterReset = sections.has("fuel")
+    ? detectionEpochOrFilter(await detectionEpochOf(admin, orgId), "opened_at")
+    : null;
 
-  const [anomalies, exceptions, credited] = await Promise.all([
+  const [anomalies, exceptions, credited, incidents] = await Promise.all([
     sections.has("safety")
       ? admin.from("anomalies").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", anomalyOpen)
       : Promise.resolve({ count: null }),
@@ -280,9 +342,10 @@ export async function readFindingsSummary(
           .eq("status", "credited")
           .gte("credited_on", from)
       : Promise.resolve({ data: null }),
+    sections.has("fuel") ? countOpenIncidents(admin, orgId, incidentOpen, incidentsAfterReset) : Promise.resolve({ count: null }),
   ]);
 
-  const counts = [anomalies.count, exceptions.count].filter((c): c is number => typeof c === "number");
+  const counts = [anomalies.count, exceptions.count, incidents.count].filter((c): c is number => typeof c === "number");
   const rows = (credited as { data: { credited_amount: number | string | null }[] | null }).data;
   return {
     // Null and not zero when the caller may see neither: "no findings you may see" is not "no findings".
@@ -290,4 +353,15 @@ export async function readFindingsSummary(
     recoveredThisQuarter: rows == null ? null : rows.reduce((sum, r) => sum + (Number(r.credited_amount) || 0), 0),
     quarterFrom: from,
   };
+}
+
+async function countOpenIncidents(
+  admin: SupabaseClient,
+  orgId: string,
+  statuses: string[],
+  afterReset: string | null,
+): Promise<{ count: number | null }> {
+  let q = admin.from("card_fraud_incidents").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", statuses);
+  if (afterReset) q = q.or(afterReset);
+  return await q;
 }

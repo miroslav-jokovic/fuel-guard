@@ -20,12 +20,14 @@ const EXCEPTIONS = [
   { id: "e-1", kind: "off_network_premium", status: "open", occurred_on: "2026-09-04", amount: "120.50", credited_amount: null, unit_number: "701", assigned_to: null, first_seen_at: "2026-09-04T00:00:00Z" },
 ];
 
-const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[] } = {}) =>
+const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[]; incidents?: unknown[]; epoch?: string | null } = {}) =>
   createSupabaseRecorder({
     tables: {
       anomalies: o.anomalies ?? ANOMALIES,
       fuel_exceptions: o.exceptions ?? EXCEPTIONS,
       vehicles: o.vehicles ?? [{ id: V1, unit_number: "701" }],
+      card_fraud_incidents: o.incidents ?? [],
+      organizations: [{ detection_epoch: o.epoch ?? null }],
     },
   });
 
@@ -133,5 +135,80 @@ describe("paging a queue merged in memory", () => {
     const rec = seed({ exceptions: many(500, "e") });
     const page = await readFindings(rec.client, ORG, "admin");
     expect(page.truncated).toBe(true);
+  });
+});
+
+/**
+ * Card-fraud incidents in the queue (chunk 8c1). Section fuel by Q-F11 (a); the start date (D-CF9) keeps
+ * the history CF2 records as the nightly sweep re-scores old fills out of today's queue.
+ */
+describe("card-fraud incidents", () => {
+  const EPOCH = "2026-10-08T15:28:02Z";
+  const INCIDENT = {
+    id: "i-1", status: "open", disposition: null, card_ref: "7083050000000107967", opened_at: "2026-10-09T08:00:00Z",
+    attempt_count: 2, fuel_taken: false, places: [{ city: "Jacksonville", state: "FL" }], assigned_to: null, vehicle_id: V1,
+  };
+
+  it("are in the queue for a fuel role, newest first with the rest, and org-scoped", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin");
+    expect(page.rows.map((r) => r.id)).toEqual(["i-1", "e-1", "a-1"]);
+    expect(page.rows[0]).toMatchObject({ source: "incident", section: "fuel", summary: "Card ••••7967 tried 2 times in Jacksonville, FL" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("are seen by the accountant, who holds fuel and not safety", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "accountant");
+    expect(page.rows.map((r) => r.source).sort()).toEqual(["exception", "incident"]);
+  });
+
+  it("are never read for a role without fuel", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    await readFindings(rec.client, ORG, "technician");
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  it("are read on their own when the kind filter names only them", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["card_fraud"] });
+    expect(page.rows.map((r) => r.id)).toEqual(["i-1"]);
+    expect(rec.forTable("anomalies")).toHaveLength(0);
+    expect(rec.forTable("fuel_exceptions")).toHaveLength(0);
+  });
+
+  it("are left out when the kind filter names other kinds only", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["off_network_premium"] });
+    expect(page.rows.map((r) => r.id)).toEqual(["e-1"]);
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  it("are asked only from the start date on, unless someone is investigating them", async () => {
+    const rec = seed({ incidents: [INCIDENT], epoch: EPOCH });
+    await readFindings(rec.client, ORG, "admin");
+    const ors = rec.forTable("card_fraud_incidents")[0]!.ops.filter((o) => o.method === "or").map((o) => o.args[0]);
+    expect(ors).toEqual(["opened_at.gte.2026-10-08T15:28:02.000Z,status.eq.investigating"]);
+  });
+
+  it("apply the same rule to fill cases, on the fill's time", async () => {
+    const rec = seed({ epoch: EPOCH });
+    await readFindings(rec.client, ORG, "admin");
+    const ors = rec.forTable("anomalies")[0]!.ops.filter((o) => o.method === "or").map((o) => o.args[0]);
+    expect(ors).toEqual(["fueled_at.gte.2026-10-08T15:28:02.000Z,status.eq.investigating"]);
+  });
+
+  it("are not filtered by a start date an org never set", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    await readFindings(rec.client, ORG, "admin");
+    expect(rec.forTable("card_fraud_incidents")[0]!.ops.some((o) => o.method === "or")).toBe(false);
+  });
+
+  it("follow the truck filter through the card's truck", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { vehicleIds: [V1] });
+    const f = rec.forTable("card_fraud_incidents")[0]!.filters().find((x) => x.col === "vehicle_id");
+    expect(f?.val).toEqual([V1]);
+    expect(page.rows.find((r) => r.id === "i-1")?.unitNumber).toBe("701");
   });
 });

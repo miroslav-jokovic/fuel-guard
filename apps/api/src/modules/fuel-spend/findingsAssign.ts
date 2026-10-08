@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  CARD_FRAUD_KIND,
   CASE_RULE_ID,
   rolesAssignableIn,
   rolesThatManageFinding,
@@ -8,7 +9,7 @@ import {
   type FindingSource,
   type UserRole,
 } from "@silvicom/shared";
-import { assignAnomalies } from "../anomalies/index.js";
+import { assignAnomalies, assignCardFraudIncidents } from "../anomalies/index.js";
 
 /**
  * Giving a finding an owner — the one act both case tables genuinely share (C7b merge 3).
@@ -38,6 +39,27 @@ export const MAX_ASSIGN_BATCH = 200;
 export interface FindingRef {
   source: FindingSource;
   id: string;
+}
+
+/** The table each finding source lives in: the closed set a request's `source` is checked against, and
+ *  the audit row's entity. One map, so a new source cannot be accepted without naming its table. */
+export const FINDING_SOURCE_TABLE: Record<FindingSource, string> = {
+  anomaly: "anomalies",
+  exception: "fuel_exceptions",
+  incident: "card_fraud_incidents",
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The refs in an assign request body that name a known source and a uuid; anything else is dropped.
+ *  `Object.hasOwn`, not `in`: `"toString" in map` is true. */
+export function findingRefsFrom(findings: unknown): FindingRef[] {
+  if (!Array.isArray(findings)) return [];
+  return findings.filter(
+    (r): r is FindingRef =>
+      !!r && typeof r === "object" && UUID.test(String((r as FindingRef).id)) &&
+      Object.hasOwn(FINDING_SOURCE_TABLE, String((r as FindingRef).source)),
+  );
 }
 
 export type AssignResult =
@@ -133,6 +155,11 @@ export async function assignFindings(
     const { ok } = await assignAnomalies(admin, orgId, anomalyIds, assignee);
     if (!ok) return { ok: false, code: "not_found", message: "Could not assign those findings." };
   }
+  const incidentIds = resolved.filter((r) => r.ref.source === "incident").map((r) => r.ref.id);
+  if (incidentIds.length > 0) {
+    const { ok } = await assignCardFraudIncidents(admin, orgId, incidentIds, assignee);
+    if (!ok) return { ok: false, code: "not_found", message: "Could not assign those findings." };
+  }
   void actorId;
   return { ok: true, assigned: resolved.length };
 }
@@ -141,13 +168,17 @@ export async function assignFindings(
 async function resolveKinds(admin: SupabaseClient, orgId: string, refs: FindingRef[]): Promise<Resolved[]> {
   const exceptionIds = refs.filter((r) => r.source === "exception").map((r) => r.id);
   const anomalyIds = refs.filter((r) => r.source === "anomaly").map((r) => r.id);
+  const incidentIds = refs.filter((r) => r.source === "incident").map((r) => r.id);
 
-  const [exceptions, anomalies] = await Promise.all([
+  const [exceptions, anomalies, incidents] = await Promise.all([
     exceptionIds.length
       ? admin.from("fuel_exceptions").select("id, kind").eq("org_id", orgId).in("id", exceptionIds)
       : Promise.resolve({ data: [] }),
     anomalyIds.length
       ? admin.from("anomalies").select("id").eq("org_id", orgId).in("id", anomalyIds)
+      : Promise.resolve({ data: [] }),
+    incidentIds.length
+      ? admin.from("card_fraud_incidents").select("id").eq("org_id", orgId).in("id", incidentIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -158,6 +189,9 @@ async function resolveKinds(admin: SupabaseClient, orgId: string, refs: FindingR
   for (const row of ((anomalies.data ?? []) as { id: string }[])) {
     // The anomaly feed has exactly one kind and expresses it by being the anomaly feed.
     out.push({ ref: { source: "anomaly", id: row.id }, kind: CASE_RULE_ID as FindingKind });
+  }
+  for (const row of ((incidents.data ?? []) as { id: string }[])) {
+    out.push({ ref: { source: "incident", id: row.id }, kind: CARD_FRAUD_KIND as FindingKind });
   }
   return out;
 }

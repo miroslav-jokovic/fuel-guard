@@ -33,3 +33,23 @@ export async function assignAnomalies(
     .in("id", [...ids]);
   return { ok: !error };
 }
+
+/**
+ * The same, for card-fraud incidents (chunk 8c1). `card_fraud_incidents` is this module's table too
+ * (0438; `cardFraudIncidents.ts` is its one writer), so the inbox assigns through here for the reason
+ * given above, and this touches the one column for the same reason.
+ */
+export async function assignCardFraudIncidents(
+  admin: SupabaseClient,
+  orgId: string,
+  ids: readonly string[],
+  assignee: string | null,
+): Promise<{ ok: boolean }> {
+  if (ids.length === 0) return { ok: true };
+  const { error } = await admin
+    .from("card_fraud_incidents")
+    .update({ assigned_to: assignee })
+    .eq("org_id", orgId)
+    .in("id", [...ids]);
+  return { ok: !error };
+}

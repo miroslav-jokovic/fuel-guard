@@ -24,7 +24,7 @@ import {
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { readFindings, readFindingsSummary } from "../findingsRead.js";
-import { assignFindings, type FindingRef } from "../findingsAssign.js";
+import { assignFindings, findingRefsFrom, FINDING_SOURCE_TABLE } from "../findingsAssign.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
 import { renderDisputePacket } from "../fuelDisputePacket.js";
 import { ExportTooLargeError, MAX_EXPORT_ROWS } from "../../../lib/csvExport.js";
@@ -139,13 +139,7 @@ export function registerExceptionRoutes(router: Router): void {
         res.status(400).json(apiError("bad_request", "That is not somebody we can assign a finding to."));
         return;
       }
-      const refs = Array.isArray(body?.findings)
-        ? body.findings.filter(
-            (r): r is FindingRef =>
-              !!r && typeof r === "object" && UUID.test(String((r as FindingRef).id)) &&
-              ((r as FindingRef).source === "anomaly" || (r as FindingRef).source === "exception"),
-          )
-        : [];
+      const refs = findingRefsFrom(body?.findings);
 
       const result = await assignFindings(admin, req.auth!.orgId!, req.auth!.userId, req.auth!.role as UserRole, assignee, refs);
       if (!result.ok) {
@@ -171,7 +165,7 @@ export function registerExceptionRoutes(router: Router): void {
             orgId: req.auth!.orgId!,
             actorId: req.auth!.userId,
             action: "fuel.finding_assigned",
-            entity: r.source === "anomaly" ? "anomalies" : "fuel_exceptions",
+            entity: FINDING_SOURCE_TABLE[r.source],
             entityId: r.id,
             meta: { assignee, batch: result.assigned },
           }),

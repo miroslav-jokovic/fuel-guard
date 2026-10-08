@@ -2,9 +2,9 @@
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
-  FINDING_KINDS, FINDING_KIND_LABELS,
+  FINDING_KINDS, FINDING_KIND_LABELS, FUEL_EXCEPTION_KINDS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
-  findingAgeDays, exceptionStatusesIn, CASE_RULE_ID,
+  findingAgeDays, exceptionStatusesIn,
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
 import { useRouter } from "vue-router";
@@ -251,6 +251,9 @@ const router = useRouter();
 const opens = useOpens();
 function openFinding(row: Record<string, unknown>): void {
   if (row.source === "exception") { selected.value = String(row.id); return; }
+  // A card-fraud incident has no detail surface until chunk 8c3 gives it a drawer on this page. 8c1
+  // to 8c3 ship in one release, so no released page has a row that opens nothing.
+  if (row.source === "incident") return;
   // SP5: Findings is `fuel` view, Alerts is `safety` view — no hand-off to a page the guard refuses.
   if (opens("/anomalies")) void router.push({ path: "/anomalies", query: { case: String(row.id) } });
 }
@@ -279,7 +282,8 @@ function openFinding(row: Record<string, unknown>): void {
 const ledgerQuery = computed<ExceptionQuery>(() => ({
   // Translated through C7a rather than restated: the axis maps back into each source's vocabulary.
   status: [...new Set(states.value.flatMap((st) => exceptionStatusesIn(st)))],
-  kind: kinds.value.filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID),
+  // Only the ledger's own kinds: a theft case or an incident has no row in the money ledger.
+  kind: kinds.value.filter((k): k is FuelExceptionKind => (FUEL_EXCEPTION_KINDS as readonly string[]).includes(k)),
   vehicleIds: f.vehicleIds.value,
   assignedTo: assignedTo.value,
   from: f.from.value,

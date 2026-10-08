@@ -114,6 +114,10 @@ remaining phases in order with this feature's other fixes.
     repeated across many fills, and EFS cannot see it either.
   - (b) Make it a note, as D-CF3's text reads.
 
+- **Q-F11. Which section owns a card-fraud incident? RULED 2026-10-08 (a): fuel.** Acting on one means
+  holding or replacing the card in WEX, which is the fuel manager's job. (b) safety, like fill cases,
+  was not taken. Admin sees and closes everything either way.
+
 ---
 
 ## How the work is cut
@@ -377,6 +381,22 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
   `tank_fill_short` reviews and disputable money findings. Every row opens its own drawer on
   that page, so the theft-case click that does nothing for a dispatcher goes away. The old paths
   redirect.
+- **8c is cut in four, one release** (asked and agreed 2026-10-08). `/findings` already merges money
+  findings and fill cases (C7b), so it grows rather than a new page being built:
+  - **8c1** card-fraud incidents in the queue's read, count and assign (section fuel, Q-F11 (a)).
+    - Built: kind `card_fraud` ("Card used away from its truck"); incidents map onto the queue axis
+      and close with a disposition, never money. A row names the card by its last four only,
+      because `card_ref` can hold the full number. The start date (D-CF9) now applies to both
+      case sources in this queue and in the Dashboard's open count: before it, a case is listed only
+      while someone is investigating it. That keeps the history CF2 records as the nightly sweep
+      passes out of today's queue.
+    - Assignment goes through the anomalies module, which owns the table. The request's `source` is
+      checked against one map of source → table.
+    - Until 8c3, an incident row opens nothing, so 8c1–8c3 ship in one release.
+  - **8c2** closing an incident: an API with an audit row, as fill cases close.
+  - **8c3** a drawer on this page for each kind of row.
+  - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings` and `/anomalies`, and the
+    acceptance tests below.
 - **Accept:**
   - Each role in the matrix opens every row it can see.
   - Closing an item takes ≤ 3 clicks.
@@ -529,3 +549,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   8b runs). Buying-habit findings get the owner too, until chunk 9.
 - 2026-10-08: Chunk 8a merged (#1360, f4b756c). 8b built: migration 0443 sets Silvicom's fuel queue
   owner to Miroslav and gives him the open items, in one audited act.
+- 2026-10-08: Chunk 8b merged (#1362, 1626ed3); staging applied 0443 and skipped (no Silvicom there).
+  Owner ruled Q-F11 (a), incidents are fuel, and agreed the 8c cut. 8c1 built.

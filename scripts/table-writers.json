@@ -35,6 +35,9 @@
     "apps/admin-api/src/lib/impersonation.ts",
     "apps/api/src/lib/audit.ts"
   ],
+  "card_fraud_incidents": [
+    "apps/api/src/modules/anomalies/assignAnomalies.ts"
+  ],
   "case_pattern_reports": [
     "apps/api/src/modules/anomalies/entityRisk.ts"
   ],
