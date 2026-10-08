@@ -17,6 +17,10 @@
  *                                 driver-app changes called out (D-REL5)
  *   driver-changed <before> <after>  "yes" or "no": does the range touch what the driver app ships?
  *   area <files…>                 the area label a PR with these files gets (R6), e.g. `area:fuel`
+ *   marker <sha>                  the line release-candidate.yml writes into the PR body (D-REL14)
+ *   approval <pr>                 `<sha> <github|console> <who>` — tonight's go signal, or nothing
+ *                                 (D-REL5 + D-REL14; needs GITHUB_REPOSITORY, gh auth, and
+ *                                 SUPABASE_ACCESS_TOKEN/SUPABASE_PROJECT_REF for the console half)
  *   --self-test
  */
 import { execFileSync } from "node:child_process";
@@ -158,6 +162,84 @@ export function renderNotes({ before, after, prs, migrations, driver }) {
   return lines.join("\n").trimEnd();
 }
 
+/**
+ * D-REL14: the release PR's body names the commit its notes describe, so the console approves THAT
+ * commit and not main's head, which moves after 18:00. `release-candidate.yml` writes the marker;
+ * admin-api's `candidateShaFrom` reads it (its test holds the two together). Pure.
+ */
+export const candidateMarker = (sha) => `<!-- release-candidate-sha: ${sha} -->`;
+
+/**
+ * release.yml's read of the console's approvals (0440): the newest live one for this PR whose
+ * approver is STILL an active platform_owner — a suspended or demoted owner's yes stops counting
+ * the moment they are. `pr` is checked to be an integer because the management API takes no
+ * parameters. supabase/tests/platform-release-approvals.test.mjs runs this exact text.
+ */
+export function consoleApprovalSql(pr) {
+  if (!Number.isInteger(pr) || pr <= 0) throw new Error(`not a PR number: ${pr}`);
+  return `select a.commit_sha, a.approved_at, p.email
+  from platform_release_approvals a join platform_admins p on p.id = a.approved_by
+  where a.pr_number = ${pr} and a.revoked_at is null and p.role = 'platform_owner' and p.status = 'active'
+  order by a.approved_at desc limit 1`;
+}
+
+/**
+ * Tonight's go signal (D-REL5 + D-REL14): the NEWER of the latest GitHub admin review and the
+ * latest console approval, or null. Each is `{ sha, at, who }` or null. Newer wins because either
+ * one is the owner changing their mind: re-approving a refreshed PR in the console after an old
+ * GitHub review must ship what they approved last. Pure.
+ */
+export function goSignal(github, console_) {
+  if (!github || !console_) return github ?? console_ ?? null;
+  return Date.parse(console_.at) > Date.parse(github.at) ? console_ : github;
+}
+
+/** The latest review by a human repository ADMIN; anyone else's approval is ignored (D-REL5). */
+function githubApproval(repo, pr) {
+  const reviews = JSON.parse(execFileSync("gh", ["api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/reviews`], { encoding: "utf8" })).flat()
+    .filter((r) => r.state === "APPROVED" && r.user?.type === "User");
+  let last = null;
+  for (const r of reviews) {
+    let perm = "none";
+    try {
+      perm = execFileSync("gh", ["api", `repos/${repo}/collaborators/${r.user.login}/permission`, "--jq", ".permission"], { encoding: "utf8" }).trim();
+    } catch { /* not a collaborator any more */ }
+    if (perm === "admin") last = { sha: r.commit_id, at: r.submitted_at, who: r.user.login, via: "github" };
+  }
+  return last;
+}
+
+/** The console's approval (0440), read from production through Supabase's management API. */
+async function consoleApproval(pr, env) {
+  if (!env.SUPABASE_ACCESS_TOKEN || !env.SUPABASE_PROJECT_REF) throw new Error("no SUPABASE_ACCESS_TOKEN/SUPABASE_PROJECT_REF");
+  const res = await fetch(`https://api.supabase.com/v1/projects/${env.SUPABASE_PROJECT_REF}/database/query`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}`, "content-type": "application/json" },
+    body: JSON.stringify({ query: consoleApprovalSql(pr), read_only: true }),
+  });
+  if (!res.ok) throw new Error(`management API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const [row] = await res.json();
+  return row ? { sha: row.commit_sha, at: new Date(row.approved_at).toISOString(), who: row.email, via: "console" } : null;
+}
+
+/**
+ * `approval <pr>`: prints `<sha> <via> <who>` for tonight's go signal, or nothing. A console read
+ * that fails is a warning on stderr and the GitHub review alone decides (D-REL14 rule 4): the table
+ * reaches production only in a release, and an unreachable management API must not stop one that
+ * was approved on GitHub. A failed GitHub read still fails the run, as it did before D-REL14.
+ */
+async function approval(pr, env) {
+  const github = githubApproval(env.GITHUB_REPOSITORY, pr);
+  let fromConsole = null;
+  try {
+    fromConsole = await consoleApproval(pr, env);
+  } catch (e) {
+    console.error(`::warning::Could not read console approvals (${e.message}) — GitHub reviews alone decide tonight.`);
+  }
+  const go = goSignal(github, fromConsole);
+  return go ? `${go.sha} ${go.via} ${go.who}` : "";
+}
+
 const git = (...a) => execFileSync("git", a, { encoding: "utf8" }).trim();
 const changedFiles = (before, after) => (before ? git("diff", "--name-only", before, after) : git("ls-tree", "-r", "--name-only", after))
   .split("\n").filter(Boolean);
@@ -227,6 +309,17 @@ function selfTest() {
   eq("a schema PR takes its plan folder's area",
     prArea(["supabase/migrations/0425_x.sql", "supabase/tests/x.test.mjs", "docs/plans/maintenance/P.md"]), "maintenance");
   eq("a docs-only PR in an area's plan folder takes that area", prArea(["docs/plans/fuel/HANDOFF.md"]), "fuel");
+  const gh = { sha: "a".repeat(40), at: "2026-10-08T20:00:00Z", who: "owner", via: "github" };
+  const con = { sha: "b".repeat(40), at: "2026-10-08T23:00:00Z", who: "owner@example.com", via: "console" };
+  eq("no signal, no release", goSignal(null, null), null);
+  eq("a GitHub review alone ships", goSignal(gh, null), gh);
+  eq("a console approval alone ships", goSignal(null, con), con);
+  eq("the newer of the two wins (console later)", goSignal(gh, con), con);
+  eq("the newer of the two wins (GitHub later)", goSignal({ ...gh, at: "2026-10-09T00:00:00Z" }, con).via, "github");
+  eq("the marker carries the full commit", candidateMarker("c".repeat(40)), `<!-- release-candidate-sha: ${"c".repeat(40)} -->`);
+  let refused = false;
+  try { consoleApprovalSql("1; drop table x"); } catch { refused = true; }
+  eq("the console query takes only an integer PR number", refused, true);
   // Every module, feature, app and package directory that exists must be named by exactly one rule.
   const where = { api: "apps/api/src/modules", web: "apps/web/src/features", apps: "apps", packages: "packages", plans: "docs/plans" };
   for (const [key, dir] of Object.entries(where)) {
@@ -251,7 +344,9 @@ else if (cmd === "night") console.log(isReleaseNight(new Date()) ? "release" : "
 else if (cmd === "notes" && args.length === 2) console.log(notes(args[0], args[1]));
 else if (cmd === "area") console.log(`area:${prArea(args)}`);
 else if (cmd === "driver-changed" && args.length === 2) console.log(driverChanged(changedFiles(args[0], args[1])) ? "yes" : "no");
+else if (cmd === "marker" && args.length === 1) console.log(candidateMarker(args[0]));
+else if (cmd === "approval" && /^\d+$/.test(args[0] ?? "")) console.log(await approval(Number(args[0]), process.env));
 else {
-  console.error("usage: release-train.mjs tag <tags…> | night | notes <before> <after> | area <files…> | driver-changed <before> <after> | --self-test");
+  console.error("usage: release-train.mjs tag <tags…> | night | notes <before> <after> | area <files…> | driver-changed <before> <after> | marker <sha> | approval <pr> | --self-test");
   process.exit(2);
 }

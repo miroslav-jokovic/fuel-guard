@@ -40,6 +40,7 @@ const NO_ORG_COLUMN = {
   platform_admins: "platform control-plane authority, service-role only (0070)",
   platform_alert_recipients: "who hears a platform alarm (release outcome), service-role only (0426)",
   platform_audit_log: "platform-wide control-plane audit trail, service-role only (0071)",
+  platform_release_approvals: "the owner's console approval of a release, service-role only (0440)",
   route_geometries: "global geographic route cache shared across organizations (0059)",
   vehicle_make_model_catalog:
     "global reference data — what a VIN body code, a VIN manufacturer code or a spelling names — " +

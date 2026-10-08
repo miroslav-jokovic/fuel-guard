@@ -100,6 +100,9 @@ const GRANDFATHERED_WRITERS = new Set([
   // follows their open carve-out decision rather than pre-empting it with a module of its own.
   "platform_alert_recipients <- apps/admin-api/src/lib/alertRecipients.ts",
   "platform_audit_log <- apps/admin-api/src/lib/audit.ts",
+  // Added 2026-10-08 (0440, D-REL14), not inherited: same platform-plane writer and the same open
+  // carve-out decision as platform_alert_recipients above.
+  "platform_release_approvals <- apps/admin-api/src/lib/releaseApproval.ts",
   "qualification_records <- apps/api/src/modules/psp/pspImport.ts",
   "qualification_records <- apps/api/src/modules/psp/pspOrder.ts",
   "route_fuel_settings <- apps/api/src/modules/posted-prices/routes/networks.ts",

@@ -94,6 +94,26 @@ sweeper (1 h). R2 fixes both; no binder had been exported yet, so nothing leaked
   first tick is "one interval after boot" runs at the mercy of the deploy rhythm. Daily work fires
   at a fixed Central hour (the `nightlyReconcile.ts` pattern); short-interval sweeps also run a few
   minutes after boot. R2 applies this to the two schedulers that had never run.
+- **D-REL14 — The console approves a release too (owner, 2026-10-08).** The 10/08 night shipped
+  nothing because #1351 had no GitHub review: approving meant opening GitHub, which the owner does
+  not do at bedtime. D-REL5's go signal is now EITHER a GitHub review by a repository admin OR an
+  approval in the platform console (Settings → Tonight's release), stored in
+  `platform_release_approvals` (0440). Rules:
+  1. Only a `platform_owner`, at aal2 with a second factor proved in the last five minutes (the
+     console's step-up), may approve or withdraw; both reach the platform audit trail.
+  2. The approval pins the commit the release NOTES describe — `release-candidate.yml` writes it
+     into the PR body as `<!-- release-candidate-sha: … -->` — not main's moving head, so what the
+     owner read is what ships, and later merges ride the next train exactly as with a GitHub review.
+  3. Only the PRODUCTION console may approve (Railway's `RAILWAY_GIT_BRANCH=production`): the uat
+     console writes the staging database, which `release.yml` never reads.
+  4. `release.yml` takes the NEWER of the two signals; a console approval counts only while its
+     approver is still an active `platform_owner`. If the console read fails (management API
+     down, table not yet released), the run says so and falls back to GitHub reviews alone.
+  5. Withdrawing in the console withdraws console approvals only. A GitHub review is dismissed on
+     GitHub.
+  What this trades: the release no longer requires GitHub admin rights, only a console owner's
+  password and authenticator. The console's owner list (`platform_admins`) is the trust root, and it
+  is already the trust root for impersonation and alert recipients.
 
 ## 3. Phases
 
@@ -326,3 +346,12 @@ jobs resume exactly as before R5.
   `tools` package Google withdrew on 09-14; `driver-android.yml` now names `packages: platform-tools`
   as ci.yml has since that day (#1335). `/api/version` reads `version: null` for up to five minutes
   after a deploy because the tag is minted after it (`RETRY_MS`); verify:live prints `?` for it then.
+- 2026-10-08 — D-REL14 built (owner: "proceed as recommended" after the 10/08 night shipped nothing
+  because #1351 had no GitHub review). Migration 0440 `platform_release_approvals`; admin-api
+  `/admin/release` (GET for any platform role; approve/revoke owner-only, step-up, production console
+  only, audited, refused as `stale` when the PR or its notes' commit moved since the page loaded);
+  console Settings card that asks for the authenticator code in place, because "sign out and in again"
+  for step-up is not a bedtime action; `release-train.mjs approval <pr>` replaces release.yml's review
+  loop and takes the newer of GitHub and console; `release-candidate.yml` writes the
+  `release-candidate-sha` marker; the 18:00 email links the console when `CONSOLE_URL` is set.
+  The console half works only once 0440 and this code are RELEASED: until then, approve on GitHub.
