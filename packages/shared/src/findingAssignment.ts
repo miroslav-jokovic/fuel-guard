@@ -32,9 +32,15 @@ import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKin
  * the point of settling it now, while it is a map and not a migration.
  */
 
-/** Every kind the merged inbox will hold: the ledger's eight, plus the anomaly feed's one case type. */
-export const FINDING_KINDS = [...FUEL_EXCEPTION_KINDS, CASE_RULE_ID] as const;
-export type FindingKind = FuelExceptionKind | typeof CASE_RULE_ID;
+/**
+ * A card-fraud incident as a finding (CF2, D-CF1: a card used where its truck is not). One kind, as the
+ * anomaly feed has one: the incident table holds nothing else.
+ */
+export const CARD_FRAUD_KIND = "card_fraud";
+
+/** Every kind the merged inbox holds: the ledger's eight, the anomaly feed's one, the incidents' one. */
+export const FINDING_KINDS = [...FUEL_EXCEPTION_KINDS, CASE_RULE_ID, CARD_FRAUD_KIND] as const;
+export type FindingKind = FuelExceptionKind | typeof CASE_RULE_ID | typeof CARD_FRAUD_KIND;
 
 /**
  * The section a finding belongs to — TOTAL over `FindingKind`, so a new kind cannot be added without
@@ -54,6 +60,10 @@ export const FINDING_SECTIONS: Record<FindingKind, AppSection> = {
   // A theft case is an accusation about a person, not a variance about money. It is worked by the
   // safety manager on `/anomalies` today and stays theirs when the surfaces merge (Q-FUI1).
   [CASE_RULE_ID]: "safety",
+  // Q-F11 (a), ruled 2026-10-08: fuel. What a person does about a card used where its truck is not is
+  // hold or replace the card in WEX, which is the fuel manager's job; a safety manager without fuel
+  // cannot act on it. Recorded in F02-F04 PLAN.md, chunk 8c.
+  [CARD_FRAUD_KIND]: "fuel",
 };
 
 export const sectionOfFinding = (kind: FindingKind): AppSection => FINDING_SECTIONS[kind];
@@ -71,6 +81,7 @@ export const sectionOfFinding = (kind: FindingKind): AppSection => FINDING_SECTI
 export const FINDING_KIND_LABELS: Record<FindingKind, string> = {
   ...FUEL_EXCEPTION_KIND_LABELS,
   [CASE_RULE_ID]: "Possible theft",
+  [CARD_FRAUD_KIND]: "Card used away from its truck",
 };
 
 /**

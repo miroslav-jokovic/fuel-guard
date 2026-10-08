@@ -32,11 +32,12 @@ export function caseIsAfterReset(
 }
 
 /**
- * The same rule as a PostgREST `.or()` filter, for a browser query of `anomalies`; null when the org has
+ * The same rule as a PostgREST `.or()` filter, for a query of `anomalies` (`fueled_at`) or of
+ * `card_fraud_incidents` (`opened_at`: D-CF9 starts both at the same date, chunk 8c1); null when the org has
  * no start date (nothing to filter). The instant is normalised to UTC so the `+` of an offset never has
  * to survive the query string.
  */
-export function detectionEpochOrFilter(epoch: string | null | undefined): string | null {
+export function detectionEpochOrFilter(epoch: string | null | undefined, column = "fueled_at"): string | null {
   if (!epoch) return null;
-  return `fueled_at.gte.${new Date(epoch).toISOString()},status.eq.investigating`;
+  return `${column}.gte.${new Date(epoch).toISOString()},status.eq.investigating`;
 }

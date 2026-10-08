@@ -15,10 +15,12 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-09-06T12:00:00Z");
 
 /** Answers by the table AND the filters, so a count cannot be satisfied by the wrong query. */
-const seed = (o: { anomalies?: number; exceptions?: number; credited?: unknown[] } = {}) =>
+const seed = (o: { anomalies?: number; exceptions?: number; credited?: unknown[]; incidents?: number; epoch?: string | null } = {}) =>
   createSupabaseRecorder({
     tables: {
       anomalies: { count: o.anomalies ?? 82, data: [] },
+      card_fraud_incidents: { count: o.incidents ?? 0, data: [] },
+      organizations: [{ detection_epoch: o.epoch ?? null }],
       fuel_exceptions: (q: RecordedQuery) =>
         q.filters().some((f) => f.col === "status" && f.val === "credited")
           ? { data: o.credited ?? [] }
@@ -95,5 +97,31 @@ describe("which quarter the figure covers", () => {
     expect(quarterStart(new Date("2026-04-01T00:00:00Z"))).toBe("2026-04-01");
     expect(quarterStart(new Date("2026-09-06T12:00:00Z"))).toBe("2026-07-01");
     expect(quarterStart(new Date("2026-12-31T23:00:00Z"))).toBe("2026-10-01");
+  });
+});
+
+// Chunk 8c1: an open card-fraud incident is open fuel work, so the Dashboard's count includes it, on the
+// same start-date rule as the queue's list — the 8c acceptance "the open count equals the dashboard's".
+describe("card-fraud incidents in the Dashboard's count", () => {
+  it("adds them for a fuel role, and stays org-scoped", async () => {
+    const rec = seed({ incidents: 2 });
+    const s = await readFindingsSummary(rec.client, ORG, "admin", NOW);
+    expect(s.open).toBe(160);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("counts only open and investigating incidents from the start date on", async () => {
+    const rec = seed({ incidents: 2, epoch: "2026-10-08T15:28:02Z" });
+    await readFindingsSummary(rec.client, ORG, "admin", NOW);
+    const q = rec.forTable("card_fraud_incidents")[0]!;
+    expect([...(q.filters().find((f) => f.col === "status")?.val as string[])].sort()).toEqual(["investigating", "open"]);
+    expect(q.ops.filter((o) => o.method === "or").map((o) => o.args[0]))
+      .toEqual(["opened_at.gte.2026-10-08T15:28:02.000Z,status.eq.investigating"]);
+  });
+
+  it("never reads them for a role without fuel", async () => {
+    const rec = seed({ incidents: 2 });
+    await readFindingsSummary(rec.client, ORG, "technician", NOW);
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
   });
 });

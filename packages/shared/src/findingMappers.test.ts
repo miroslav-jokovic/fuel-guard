@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { findingFromAnomaly, findingFromException, byOccurredDesc } from "./findingMappers.js";
+import { findingFromAnomaly, findingFromException, findingFromIncident, byOccurredDesc } from "./findingMappers.js";
 import { ANOMALY_STATUSES } from "./constants.js";
 import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES } from "./fuelSpend/exceptions.js";
-import { findingAgeDays } from "./findingQueue.js";
+import { findingAgeDays, CARD_FRAUD_INCIDENT_STATUSES, INCIDENT_QUEUE_STATE, incidentStatusesIn, FINDING_QUEUE_STATES } from "./findingQueue.js";
 
 /**
  * The mapping is the part that can be wrong in a way nobody notices — a status landing in the wrong
@@ -103,5 +103,46 @@ describe("aging", () => {
   // A clock skew must not make a finding look like it opened in the future and age backwards.
   it("floors at zero rather than reporting a negative age", () => {
     expect(findingAgeDays({ openedAt: "2026-09-08T00:00:00Z" }, NOW)).toBe(0);
+  });
+});
+
+describe("a card-fraud incident read as a finding (chunk 8c1)", () => {
+  const base = {
+    id: "i-1", status: "open" as const, disposition: null, card_ref: "7083050000000107967",
+    opened_at: "2026-10-05T14:10:00Z", attempt_count: 3, fuel_taken: false,
+    places: [{ city: "Jacksonville", state: "FL" }, { city: "Baldwin", state: "FL" }], assigned_to: null,
+  };
+
+  it("names the card by its last four only, never the full number", () => {
+    const r = findingFromIncident(base);
+    expect(r.summary).toBe("Card ••••7967 tried 3 times in Jacksonville, FL");
+    expect(r.summary).not.toContain("7083050000000107967");
+  });
+
+  it("says once, the first place, and when fuel left the pump", () => {
+    expect(findingFromIncident({ ...base, attempt_count: 1, fuel_taken: true }).summary)
+      .toBe("Card ••••7967 tried once in Jacksonville, FL, fuel taken");
+    expect(findingFromIncident({ ...base, places: [] }).summary).toBe("Card ••••7967 tried 3 times");
+  });
+
+  it("is a fuel finding of its own kind, with no money, dated when it opened", () => {
+    const r = findingFromIncident(base);
+    expect(r).toMatchObject({ source: "incident", kind: "card_fraud", section: "fuel", amountUsd: null,
+      occurredOn: "2026-10-05", openedAt: "2026-10-05T14:10:00Z", queueState: "open", close: null });
+  });
+
+  it("closes with the person's disposition, never with money", () => {
+    expect(findingFromIncident({ ...base, status: "dismissed", disposition: "false_positive" }).close)
+      .toEqual({ via: "disposition", disposition: "false_positive" });
+    expect(findingFromIncident({ ...base, status: "resolved", disposition: "confirmed" }).queueState).toBe("closed");
+  });
+
+  it("places every incident status on the axis, and maps each state back to exactly those statuses", () => {
+    for (const st of CARD_FRAUD_INCIDENT_STATUSES) {
+      expect(incidentStatusesIn(INCIDENT_QUEUE_STATE[st])).toContain(st);
+    }
+    const back = FINDING_QUEUE_STATES.flatMap((q) => incidentStatusesIn(q));
+    expect([...back].sort()).toEqual([...CARD_FRAUD_INCIDENT_STATUSES].sort());
+    expect(incidentStatusesIn("working")).toEqual([]);
   });
 });
