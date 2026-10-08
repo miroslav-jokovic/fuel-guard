@@ -43,6 +43,14 @@ Plan, decisions and the cutover record: `docs/plans/ship-pipeline/RELEASE-TRAIN-
 | — rollback does not verify | nothing more is automatic | email **+ text**: "act now" — run `mode=rollback` with the last tag, or roll back the Railway deploy |
 | 01:37 CT | retry: ships an approved release a delayed or dropped 01:07 run missed; otherwise silent | — |
 
+**Approving is done in either of two places** (D-REL14): a review on the release PR by a repository
+admin, or **platform console → Settings → Tonight's release** by an active platform owner, who
+types an authenticator code there (table `platform_release_approvals`, 0440). Only the PRODUCTION
+console can approve; the uat one says so. The console approves the commit the notes describe (the
+`release-candidate-sha` line in the PR body), and `release.yml` takes the newer of the two signals.
+The 18:00 email links to the console when the repository variable `CONSOLE_URL` is set. If the
+console's approvals cannot be read at 01:07, the run warns and GitHub reviews alone decide.
+
 The summary is sent from the workflow straight to Brevo and Telnyx (`scripts/release-notify.mjs`),
 never through our API — the message that matters most is the one saying the API is broken.
 

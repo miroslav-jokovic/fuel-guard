@@ -1784,6 +1784,17 @@
         "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "platform_release_approvals": {
+      "module": "org",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-08 (0440, D-REL14): at most a few rows per release night, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
     "platform_audit_log": {
       "module": "org",
       "layer": "infra",

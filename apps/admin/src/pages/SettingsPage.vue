@@ -2,11 +2,13 @@
 import { computed, onMounted, ref } from "vue";
 import { AppButton, AppCard, AppInput, AppPageHeader, AppSelect, AppTable, type SelectOption } from "@silvicom/ui";
 import AppShell from "@/layouts/AppShell.vue";
+import ReleaseApprovalCard from "@/components/ReleaseApprovalCard.vue";
 import { apiGet, apiPost, ApiRequestError, type AlertRecipient } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
 /**
- * Platform settings. First section: who hears a platform alarm (0427) — the nightly release's
+ * Platform settings. First: tonight's release, approved here (D-REL14, ReleaseApprovalCard). Then
+ * who hears a platform alarm (0427) — the nightly release's
  * outcome by email, and a failed or rolled-back release by text as well. Added and removed here,
  * without a deploy; scripts/release-notify.mjs reads the list at send time.
  */
@@ -86,6 +88,8 @@ async function remove(r: AlertRecipient) {
 <template>
   <AppShell>
     <AppPageHeader title="Settings" description="Platform-wide settings. Changes apply at once and are recorded in the audit trail." />
+
+    <ReleaseApprovalCard class="mt-5" />
 
     <AppCard class="mt-5">
       <h2 class="text-base font-semibold text-ink">Alert recipients</h2>

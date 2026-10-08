@@ -11,6 +11,8 @@ export interface AppLocals {
   lookupPlatformAdmin?: (identity: { userId: string; email: string | null }) => Promise<PlatformAdmin | null>;
   /** Injected service-role client for tests; production resolves the real one lazily. */
   supabaseAdmin?: SupabaseClient;
+  /** Injected for tests: the GitHub read behind /admin/release (D-REL14). */
+  fetchGitHub?: typeof fetch;
 }
 
 export function setAppLocals(app: Application, locals: Partial<AppLocals>): void {

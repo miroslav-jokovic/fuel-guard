@@ -421,6 +421,9 @@
   "platform_audit_log": [
     "apps/admin-api/src/lib/audit.ts"
   ],
+  "platform_release_approvals": [
+    "apps/admin-api/src/lib/releaseApproval.ts"
+  ],
   "psp_requests": [
     "apps/api/src/modules/psp/pspOrder.ts"
   ],

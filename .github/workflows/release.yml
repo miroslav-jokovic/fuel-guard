@@ -52,9 +52,10 @@ name: Release
 #   Summary    every outcome is an email to the owners; a failure or rollback also a text
 #              (scripts/release-notify.mjs, Q-REL4). Rehearsals send nothing.
 #
-# Who approves: only a review by a human with ADMIN permission on this repository counts. Cutover
-# step 1 lets github-actions open the release PR, and that same setting lets it approve one; a bot
-# approval must never be a go signal.
+# Who approves: a review by a human with ADMIN permission on this repository, OR an approval in the
+# production console by an active platform owner (D-REL14, table 0440) — the newer of the two wins.
+# Cutover step 1 lets github-actions open the release PR, and that same setting lets it approve one;
+# a bot approval must never be a go signal. `scripts/release-train.mjs approval` decides.
 
 on:
   schedule:
@@ -121,6 +122,9 @@ jobs:
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
+          # D-REL14: the console's approvals live in production's database (0440).
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           MODE: ${{ inputs.mode || 'nightly' }}
           INPUT_SHA: ${{ inputs.sha }}
           INPUT_TAG: ${{ inputs.tag }}
@@ -185,15 +189,12 @@ jobs:
               stop "😴 Not a release night (D-REL7: Sunday–Thursday nights only)."
             fi
             pr=$(gh pr list --base production --head main --state open --json number --jq '.[0].number // empty')
-            sha="" approver=""
+            sha="" via="" approver=""
             if [ -n "$pr" ]; then
-              # The latest approval by a human repository ADMIN; anyone else's approval is ignored.
-              while read -r login commit; do
-                [ -n "$login" ] || continue
-                perm=$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${login}/permission" --jq .permission 2>/dev/null || echo none)
-                if [ "$perm" = "admin" ]; then sha="$commit"; approver="$login"; fi
-              done < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${pr}/reviews" \
-                        --jq '.[] | select(.state == "APPROVED" and .user.type == "User") | "\(.user.login) \(.commit_id)"')
+              # The newer of a repository ADMIN's GitHub review and an active platform owner's console
+              # approval (D-REL5 + D-REL14); anyone else's approval is ignored.
+              signal=$(node scripts/release-train.mjs approval "$pr")
+              read -r sha via approver <<< "$signal" || true
               # The approved commit must be main's: a review pinned to anything else is not a release.
               if [ -n "$sha" ] && ! git merge-base --is-ancestor "$sha" origin/main; then
                 echo "::error::The approved commit ${sha::7} is not on main."; exit 1
@@ -204,7 +205,7 @@ jobs:
               sha=$(git rev-parse origin/main)
               say "Rehearsing with main's head \`${sha::7}\`; a real run ships only an approved release PR's commit."
             else
-              say "Release PR #$pr approved by ${approver} at \`${sha::7}\`."
+              say "Release PR #$pr approved by ${approver} (${via}) at \`${sha::7}\`."
             fi
           elif [ "$MODE" = "hotfix" ]; then
             sha=$(git rev-parse --verify "${INPUT_SHA}^{commit}") || { echo "::error::sha '$INPUT_SHA' is not a commit here."; exit 1; }
