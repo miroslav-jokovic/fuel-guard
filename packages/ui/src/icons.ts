@@ -111,6 +111,11 @@ export {
   ResetPasswordIcon           as ResetPasswordIcon,
   Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)
   AiMagicIcon                 as SparklesIcon,                   // ✨ AI features
+  // The assistant's composer and dock: send is an arrow UP (the message rises into the thread),
+  // not the paper plane the old one-shot form used; expand opens the same thread as a full page.
+  ArrowUp02Icon               as ArrowUpIcon,
+  ArrowExpand01Icon           as ArrowsPointingOutIcon,
+  PencilEdit02Icon            as PencilSquareIcon,
   SmartPhone01Icon            as DevicePhoneMobileIcon,          // Driver App settings card
 
   // ── Time / calendar ─────────────────────────────────────────────────────
