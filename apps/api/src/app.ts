@@ -23,7 +23,7 @@ import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
 import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
-import { anomaliesRouter } from "./modules/anomalies/index.js";
+import { anomaliesRouter, cardFraudIncidentsRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
@@ -259,6 +259,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
+  app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/ifta", iftaRouter());
   mountFinanceRouters(app);

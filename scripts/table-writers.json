@@ -36,7 +36,8 @@
     "apps/api/src/lib/audit.ts"
   ],
   "card_fraud_incidents": [
-    "apps/api/src/modules/anomalies/assignAnomalies.ts"
+    "apps/api/src/modules/anomalies/assignAnomalies.ts",
+    "apps/api/src/modules/anomalies/transitionCardFraudIncident.ts"
   ],
   "case_pattern_reports": [
     "apps/api/src/modules/anomalies/entityRisk.ts"

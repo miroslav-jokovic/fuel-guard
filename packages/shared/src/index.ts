@@ -55,6 +55,7 @@ export * from "./cardStatusUrgency.js";
 export * from "./fuelSpend/index.js";
 export * from "./findingAssignment.js";
 export * from "./findingQueue.js";
+export * from "./cardFraudIncidentContract.js";
 export * from "./findingMappers.js";
 export * from "./fuelTax/index.js";
 export * from "./ifta/index.js";
