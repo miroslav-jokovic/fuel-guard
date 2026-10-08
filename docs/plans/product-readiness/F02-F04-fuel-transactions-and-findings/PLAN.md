@@ -290,6 +290,13 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 - **7c** The act: a migration that calls `reset_fill_detection` for Silvicom with the owner as actor
   (the 0359/0400 pattern: an owner-approved release runs it, and it writes its own audit row). Its own
   release, after 7b is served on production.
+  - 7b merged (#1353, c5abeae); staging serves it.
+  - Built: migration 0441 (0440 was taken by #1354 the same day). Actor: the owner's user (miki@silvicominc.com, admin, 410 recorded alert
+    actions; looked up read-only). Start date: the moment it runs. A database without Silvicom or the
+    owner, or one already reset, skips with a notice. Matrix `detection-reset-run.test.mjs` (12 checks)
+    runs the real file; six mutants, each red (two first survived, and the matrix gained a case with the
+    owner but no org and a second user).
+  - **HELD: its PR is merged only after a release has put #1353 on production.**
 
 ### Chunk 8 — one fuel queue with a default owner (Q-F1, W1)
 - **8a** Schema: an org setting for the fuel queue owner. A new item is assigned to that person.
@@ -435,3 +442,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   boot rebuild. 7a built: migration 0439 and its matrix.
 - 2026-10-08: 7a merged (#1352, a25677b); staging serves schema 0439. 7b built: scoring, the flag
   reconcile and the three case lists read the start date through one shared rule.
+- 2026-10-08: 7b merged (#1353, c5abeae); staging serves it. 7c built (migration 0441); its PR waits
+  for a release carrying 7b. Chunk 6 follows the release that carries 7c.
