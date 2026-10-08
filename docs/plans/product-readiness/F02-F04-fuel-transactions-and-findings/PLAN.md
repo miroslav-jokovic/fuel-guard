@@ -394,6 +394,14 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
       checked against one map of source → table.
     - Until 8c3, an incident row opens nothing, so 8c1–8c3 ship in one release.
   - **8c2** closing an incident: an API with an audit row, as fill cases close.
+    - 8c1 merged (#1364, 0c9ac66); staging serves it.
+    - Built: `POST /api/card-fraud-incidents/:id/transition`, gated `fuel: manage`. The request and
+      the allowed moves are derived from a fill case's (`cardFraudIncidentContract.ts`): investigate,
+      resolve or dismiss with a note and a disposition, reopen to investigate. Like `transition_anomaly`,
+      the person who acts takes the incident; a close records who and when, a reopen clears them. One
+      UPDATE guarded by the version read, so a second person or a new attempt recorded meanwhile
+      gives a 409, not an overwrite. Each move writes one `card_fraud.status_changed` audit row, which is
+      the incident's history (no transitions table, so no migration).
   - **8c3** a drawer on this page for each kind of row.
   - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings` and `/anomalies`, and the
     acceptance tests below.
@@ -551,3 +559,4 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   owner to Miroslav and gives him the open items, in one audited act.
 - 2026-10-08: Chunk 8b merged (#1362, 1626ed3); staging applied 0443 and skipped (no Silvicom there).
   Owner ruled Q-F11 (a), incidents are fuel, and agreed the 8c cut. 8c1 built.
+- 2026-10-08: 8c1 merged (#1364, 0c9ac66); staging serves it. 8c2 built: closing an incident.
