@@ -327,7 +327,8 @@ There are 22 features. For each one:
 ### F21 Ask AI
 - **Pages:** `/ask` → `AskAiPage` (92). Admin-only since 09-30.
 - **API:** `/api/ai`
-- **Used?** Can't be measured.
+- **Used?** 15 asks by 3 people, ever (07-02 → 09-23; `audit_logs` `ai.ask`, measured 10-08).
+- **Plans:** `F21-ask-ai/` — rebuild as a role-scoped assistant across the product (proposed 10-08).
 
 ### F22 Platform console (`apps/admin`, `apps/admin-api`)
 - **Pages:** Customers, CustomerDetail, CustomerView, CustomerIdleEngine, Dashboard, Settings (release alert recipients), Login, MFA
