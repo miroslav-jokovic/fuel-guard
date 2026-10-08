@@ -3,7 +3,8 @@
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
 3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
-scorers write incidents) is built.
+scorers write incidents) is merged (#1350). Chunk 7 now comes before chunk 6 (Q-F9 (a)); 7a (migration
+0439) is built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -84,6 +85,34 @@ remaining phases in order with this feature's other fixes.
     buttons are gone. Not recommended: a page that looks broken.
   - (c) Give the Repair spend ledger its own sidebar entry, then hide Shop. Keeps the ledger
     visible, but adds a sidebar row and a new key: its own small PR.
+
+- **Q-F9. Chunk 6 would close 46 open alerts as a side effect of its deploy. RULED 2026-10-08
+  (a): chunk 7 ships first, in its own release.**
+  - *Measured on production, read-only, 2026-10-07:* 81 open alerts (54 critical, 5 high, 22
+    medium), fills 01-01 → 09-30. None is being investigated and none has a disposition.
+  - Under chunk 6's weights, 35 still contain `tank_fill_short` and stay as Reviews. The other 46
+    contain only rules that become notes. Re-scoring marks them `superseded`, which is the engine's
+    normal path for an open case whose reasons no longer fire. The boot rebuild does this 45 s after
+    the deploy for fills from the last 180 days, and the `SCORING_VERSION` bump does it for older
+    fills over the following nights.
+  - D-CF9 says the reset is "an explicit, audited service-role act … never a side effect of a
+    deploy", and Q-CF1 ruled that open cases are retired with a disposition. So chunk 6 as planned
+    breaks a recorded decision, and the plan's own order (chunk 7 "once CF5 is served") causes it.
+  - **(a) Recommended: run chunk 7 before chunk 6, in separate releases.** Chunk 7 sets the epoch
+    and retires all 81 with the Q-CF1 disposition, in one audited act. Re-scoring only supersedes
+    OPEN cases, so chunk 6 then closes nothing old; it only recomputes the fills' flags. Cost: one
+    extra release night, and for that night the old engine can still raise new alerts, which the
+    page shows because they come after the epoch.
+  - (b) Ship chunk 6 first and accept the supersede. Simplest. The rows stay (`superseded` is
+    terminal and kept). But there is no audit row naming who or how many, and chunk 7 then retires
+    only the 35 that are left. This would amend D-CF9.
+- **Q-F10. Does `tank_chronic_short` stay a Review with `tank_fill_short`? RULED 2026-10-08 (a):
+  it stays a Review.** Reefer rules become notes; the 100 mi odometer threshold moves to CF6. It measures the same thing, the tank rising less than billed, but summed over at
+  least 6 fills (each one inside the per-fill tolerance). D-CF3 names only `tank_fill_short`.
+  Production: 0 in the last 60 days; 4 of the 81 open alerts.
+  - **(a) Recommended: keep it a Review (weight 65).** It is the only check that sees a small skim
+    repeated across many fills, and EFS cannot see it either.
+  - (b) Make it a note, as D-CF3's text reads.
 
 ---
 
@@ -226,10 +255,27 @@ stays a Review.
 - **Accept:** re-scoring 60 days in a test raises 0 alerts from `tank_space_exceeded`,
   `odometer_mismatch` or `card_multi_vehicle`.
 
-### Chunk 7 — the reset (CF0, D-CF9), one audited act
-Set a detection epoch, and retire the 81 open cases per Q-CF1.
+### Chunk 7 — the reset (CF0, D-CF9), one audited act — ships BEFORE chunk 6 (Q-F9 (a))
+Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 - **Accept:** the Alerts page shows only cases on or after the epoch, and one audit row names the
   actor, the epoch and the counts.
+- *Found while designing it (2026-10-08):* a closed case does not stop its fill raising a new one.
+  Since 0158 only `open` and `investigating` cases block a new insert, so the boot rebuild (180 days,
+  45 s after every deploy) would re-open every retired fill whose rules still fire. Scoring must read
+  the epoch BEFORE the retire runs. Hence three PRs, in this order, the last one in its own release:
+- **7a** Migration 0439: `organizations.detection_epoch` (null = never reset), the disposition
+  `retired_reset_2026_10` on `anomalies` and `anomaly_transitions`, and `reset_fill_detection(org,
+  actor, epoch)`. That function is the whole act, in one transaction: refuse a second reset, a missing
+  actor or a future date; set the epoch; dismiss every OPEN case before it, one transition each, as
+  `transition_anomaly` closes a case; one `audit_logs` row with the counts. Investigating cases are
+  kept and counted. Retiring, not filtering readers: a closed case is closed for every reader.
+  - Built. Matrix `detection-reset.test.mjs` (23 checks), including the re-open above.
+- **7b** Code: scoring raises no case for a fill before the epoch; the browser's disposition
+  contract and labels learn `retired_reset_2026_10` (shown, never offered); the Alerts page reads
+  from the epoch.
+- **7c** The act: a migration that calls `reset_fill_detection` for Silvicom with the owner as actor
+  (the 0359/0400 pattern: an owner-approved release runs it, and it writes its own audit row). Its own
+  release, after 7b is served on production.
 
 ### Chunk 8 — one fuel queue with a default owner (Q-F1, W1)
 - **8a** Schema: an org setting for the fuel queue owner. A new item is assigned to that person.
@@ -370,3 +416,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   scorers record incidents through `cardFraudIncidents.ts`. Measured first: the boot rebuild re-scores
   180 days of fills and no declines; 5 fills in 180 days are "away", so recording history needs no
   cutoff. Fills qualify on Samsara's verdict alone. Twenty-two mutants, each red.
+- 2026-10-08: Owner ruled Q-F9 (a) (chunk 7 before 6) and Q-F10 (a) (`tank_chronic_short` stays a
+  Review). Chunk 7 split into 7a/7b/7c after finding that a retired fill would be re-opened by the next
+  boot rebuild. 7a built: migration 0439 and its matrix.
