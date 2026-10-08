@@ -339,6 +339,15 @@ describe("a card that changes between the check and the write (2026-09-22 audit)
     expect(writes(s.bodies)).toEqual([]);
   });
 
+  it("names the field that moved, in the 409 and on the ledger row (2026-10-08)", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, PORTAL_EDITED);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch((e) => e);
+
+    expect(error.detail.movedFields).toEqual([expect.stringMatching(/\/policyNumber$/)]);
+    expect(settled(rec)?.efs_fault_message).toMatch(/Fields that moved: \S*policyNumber\./);
+  });
+
   it("settles its row failed — attempts 0, no approver — because nothing reached the vendor", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, PORTAL_EDITED);
