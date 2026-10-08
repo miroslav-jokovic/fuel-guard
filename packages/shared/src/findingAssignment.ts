@@ -21,9 +21,10 @@ import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKin
  * ── WHAT THIS IS NOT ─────────────────────────────────────────────────────────────────────────
  * It is not C7a. C7a maps the QUEUE AXIS and the two close models onto one read contract; this maps
  * kind → section, which is one fact C7a will consume and which two rulings needed first. And it is
- * not a lifecycle: no default assignee is invented here, because the ruling was **unassigned by
- * default** — a finding is claimed, and aging is what makes an unclaimed one visible rather than a
- * name written on it at creation that nobody agreed to.
+ * not a lifecycle: no default assignee is invented here. Q-FUI15 ruled **unassigned by default**; Q-F1
+ * (2026-10-06) replaced that for the fuel queue with a named owner, and the default lives in the
+ * database (migration 0442: the org's fuel queue owner, assigned by trigger on insert), not here. Whoever
+ * sets that owner must check `rolesAssignableIn` for every section below, as `findingsAssign.ts` does.
  *
  * ⚠ TODAY THIS CHANGES NO GATE. `fuel_exceptions` can only hold the eight kinds below, every one of
  * them `fuel`, so `requireSection("fuel")` on the ledger's writes is already exactly what this
