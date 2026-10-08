@@ -189,7 +189,7 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
           :from="f.from.value"
           :to="f.to.value"
           :vehicle-ids="f.vehicleIds.value"
-          :can-open-inbox="opens('/findings')"
+          :can-open-inbox="opens('/fuel-problems')"
         />
       </div>
 

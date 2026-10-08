@@ -70,11 +70,11 @@ const v = (n: number | null | undefined) => (isLoading.value || n == null ? "—
       </li>
 
       <li class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-0.5 py-3">
-        <span class="text-sm font-medium text-ink">Open findings</span>
+        <span class="text-sm font-medium text-ink">Fuel problems</span>
         <span class="text-lg font-bold tabular-nums text-ink" data-test="attention-findings">{{ v(findings?.open) }}</span>
         <span class="col-span-2 flex flex-wrap items-center justify-between gap-x-2 text-xs text-ink-tertiary">
           <span>need somebody · open now</span>
-          <DoorLink to="/findings">Assign</DoorLink>
+          <DoorLink to="/fuel-problems">Assign</DoorLink>
         </span>
       </li>
 

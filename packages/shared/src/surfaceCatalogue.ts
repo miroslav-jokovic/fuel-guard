@@ -126,7 +126,10 @@ export const SURFACES: readonly Surface[] = [
    * holds `fuel: "view"`, so nobody is hidden from a queue they can work, and a caller without
    * `safety` simply has no theft cases in their list rather than being refused the page.
    */
-  { key: "fuel.exceptions", label: "Findings", path: "/findings", group: "fuel", gate: section("fuel") },
+  // F02-F04 chunk 8c4 (Q-F12 (b), 2026-10-08): "Fuel problems" at `/fuel-problems`. The queue holds card
+  // fraud and short fills as well as money findings, and "Findings" named only the last. Alerts keeps
+  // `/anomalies` for safety work; `/findings` redirects here. The key stays, for the reason above.
+  { key: "fuel.exceptions", label: "Fuel problems", path: "/fuel-problems", group: "fuel", gate: section("fuel") },
   { key: "fuel.ifta", label: "IFTA", path: "/ifta", group: "fuel", gate: section("fuel") },
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────

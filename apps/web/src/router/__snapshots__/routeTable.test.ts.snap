@@ -253,7 +253,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-spend",
   },
   {
-    "name": "findings",
+    "name": "fuel-problems",
+    "params": {},
+    "url": "/fuel-problems",
+  },
+  {
+    "name": "",
     "params": {},
     "url": "/findings",
   },
@@ -749,13 +754,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Findings",
-    },
-    "name": "findings",
+    "meta": {},
+    "name": "",
     "path": "/findings",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -852,6 +854,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "fuel-planning",
     "path": "/fuel-planning",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel problems",
+    },
+    "name": "fuel-problems",
+    "path": "/fuel-problems",
     "redirect": null,
   },
   {

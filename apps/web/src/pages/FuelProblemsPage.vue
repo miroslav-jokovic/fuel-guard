@@ -2,15 +2,11 @@
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
-  FINDING_KINDS, FINDING_KIND_LABELS, FUEL_EXCEPTION_KINDS,
+  FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
-  findingAgeDays, exceptionStatusesIn,
-  type FindingKind, type FindingQueueState, type FuelExceptionKind,
+  findingAgeDays,
+  type FindingKind, type FindingQueueState, type FindingSource,
 } from "@silvicom/shared";
-import SlideOver from "@/components/SlideOver.vue";
-import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
-import IncidentDetail from "@/features/anomalies/IncidentDetail.vue";
-import { useAnomalyById } from "@/features/anomalies/useAnomalies";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -18,24 +14,27 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import ExceptionSlideOver from "@/features/reconcile/ExceptionSlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSpendFilters } from "@/features/reconcile/useSpendFilters";
-import { useExceptionTotalsQuery, exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
+import { useExceptionTotalsQuery } from "@/features/reconcile/useExceptions";
 import { useFindingsQuery, type FindingsQuery } from "@/features/reconcile/useFindings";
 import {
   useAssigneesQuery, useAssignFindings, assigneeLabel, sectionsOf,
 } from "@/features/reconcile/useFindingAssignment";
 import { usd } from "@/features/reconcile/format";
-import { apiDownload } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import { useQueryState } from "@/composables/useQueryState";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import ExportButton from "@/components/ExportButton.vue";
+import CaseDrawers from "@/features/anomalies/CaseDrawers.vue";
+import ExceptionSlideOver from "@/features/reconcile/ExceptionSlideOver.vue";
+import MoneyExportActions from "@/features/reconcile/MoneyExportActions.vue";
+import { useProblemDrawer } from "./fuelProblems/useProblemDrawer";
 
 /**
- * The fuel exception ledger — every finding the detectors made, and what anybody did about it.
+ * Fuel problems (F02-F04 chunk 8c4; the Findings inbox before it, the fuel exception ledger before
+ * that) — every card-fraud incident, short fill and money finding the checks made, and what anybody did
+ * about it.
  *
  * ── WHY THIS PAGE EXISTS ─────────────────────────────────────────────────────────────────────────
  * The spend page finds money. Until F6 it then forgot it: a discrepancy had no state, no owner and no
@@ -170,8 +169,6 @@ const tiles = computed(() => {
   ];
 });
 
-const selected = ref<string | null>(null);
-
 /**
  * Bulk selection, for the one bulk act this inbox offers (C7b merge 3).
  *
@@ -242,69 +239,15 @@ const columns: DataTableColumn[] = [
 ];
 
 /**
- * Opening a finding: every kind opens its own drawer ON THIS PAGE (F02-F04 chunk 8c3), each with its own
- * close (D-FUI7): a money finding the ledger drawer, a fill case the Alerts drawer, a card-fraud incident
- * its own. Before 8c3 a fill case handed the reader to `/anomalies`, a page a dispatcher may not open,
- * so the click did nothing for them; a row is only listed to someone who may see it, so its drawer opens.
+ * Every kind opens its own drawer on this page (8c3), each with its own close (D-FUI7): a money finding
+ * the ledger drawer, a fill case or an incident `CaseDrawers`. Named in the URL since 8c4.
  */
-const caseId = ref<string | null>(null);
-const incidentId = ref<string | null>(null);
-const { data: openCase } = useAnomalyById(caseId);
+const drawer = useProblemDrawer();
 const unitOfRow = (id: string | null) => rows.value.find((r) => r.id === id)?.unitNumber ?? "—";
-function openFinding(row: Record<string, unknown>): void {
-  const id = String(row.id);
-  if (row.source === "exception") selected.value = id;
-  else if (row.source === "anomaly") caseId.value = id;
-  else if (row.source === "incident") incidentId.value = id;
-}
-/** A case or incident moved in its drawer; each drawer's mutation refreshes the queue (`["findings"]`). */
-function closeChanged(): void {
-  caseId.value = null;
-  incidentId.value = null;
-}
-
-/**
- * FUEL-P2/P3 — the file, rendered on the server over the WHOLE filtered set.
- *
- * ⚠ This button used to serialise `rows.value`: the 25 rows on the current page. A controller
- * assembling a claim got page one of a filtered ledger with nothing saying so, while the four tiles
- * above it reported the whole window's money. A smaller export is one thing; an export that disagrees
- * with the tiles above the button it came from is another.
- */
-/**
- * The file, and what it can honestly contain.
- *
- * ⚠ `exceptions/export.csv` renders on the server from `fuel_exceptions` — the MONEY findings. Since
- * C7b the list above it also holds theft cases, so an export button that said nothing would produce a
- * file narrower than the list it sits under, which is the failure this page's own header calls "the
- * one that looks like a working download". Two things follow: the query is translated into the
- * ledger's own vocabulary so the file is exactly the money subset of what is on screen, and the scope
- * line says so in words.
- *
- * A theft case has no row in a dispute packet either — it is an accusation about a person, not a line
- * to bill back — so the same scoping covers the packet below.
- */
-const ledgerQuery = computed<ExceptionQuery>(() => ({
-  // Translated through C7a rather than restated: the axis maps back into each source's vocabulary.
-  status: [...new Set(states.value.flatMap((st) => exceptionStatusesIn(st)))],
-  // Only the ledger's own kinds: a theft case or an incident has no row in the money ledger.
-  kind: kinds.value.filter((k): k is FuelExceptionKind => (FUEL_EXCEPTION_KINDS as readonly string[]).includes(k)),
-  vehicleIds: f.vehicleIds.value,
-  assignedTo: assignedTo.value,
-  from: f.from.value,
-  to: f.to.value,
-  page: 1,
-  pageSize: PAGE_SIZE,
-}));
+const openFinding = (row: Record<string, unknown>): void => drawer.open(row.source as FindingSource, String(row.id));
 
 /** The money findings currently on screen — what the export and the packet actually cover. */
-const moneyRows = computed(() => rows.value.filter((r) => r.source === "exception"));
-
-const exportTarget = computed(() => ({
-  href: `/api/fueling/exceptions/export.csv?${exceptionExportQuery(ledgerQuery.value)}`,
-  filename: `fuel-findings-${f.from.value}-to-${f.to.value}.csv`,
-  scope: `${f.from.value} → ${f.to.value} · ${f.vehicleIds.value.length === 0 ? "all trucks" : `${f.vehicleIds.value.length} truck${f.vehicleIds.value.length === 1 ? "" : "s"}`} · money findings only`,
-}));
+const moneyIds = computed(() => rows.value.filter((r) => r.source === "exception").map((r) => r.id));
 
 /** The fleet, for the truck filter. Unit numbers on the menu, vehicle ids in the URL — this section's
  *  one truck vocabulary, resolved to the ledger's own `unit_number` by the API. */
@@ -315,29 +258,11 @@ const truckOptions = computed(() =>
     .map((v) => ({ value: v.id, label: v.unit_number })),
 );
 
-const packetBusy = ref(false);
-/**
- * The document you send Pilot. Rendered on the server from the persisted runs, not from whatever this
- * screen is showing — a figure in a dispute packet gets quoted back months later, so it comes from the
- * same records the finding was written from.
- */
-async function downloadPacket() {
-  if (packetBusy.value || moneyRows.value.length === 0) return;
-  packetBusy.value = true;
-  try {
-    const ids = moneyRows.value.map((r) => r.id).join(",");
-    await apiDownload(`/api/fueling/exceptions/packet.pdf?ids=${ids}`, `fuel-dispute-packet-${f.from.value}.pdf`);
-  } catch (e) {
-    toast.error("Could not build the packet", e instanceof Error ? e.message : undefined);
-  } finally {
-    packetBusy.value = false;
-  }
-}
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every finding the fuel and safety checks made, how old it is, and what anybody did about it." />
+    <PageHeader description="Card fraud, short fills and billing findings from the fuel checks: how old each is, who has it, and what was done." />
 
     <!-- Identified, claimed and recovered are three different claims. The gap between the first and
          the last is the only measure of whether this product is worth its subscription. -->
@@ -345,7 +270,7 @@ async function downloadPacket() {
       <StatCard v-for="t in tiles" :key="t.label" :label="t.label" :value="t.value" :sub="t.sub" :value-tone="t.tone" />
     </div>
 
-    <FilterBar :count="total" count-label="findings">
+    <FilterBar :count="total" count-label="problems">
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />
@@ -361,21 +286,21 @@ async function downloadPacket() {
         />
       </template>
       <template #actions>
-        <ExportButton
-          :href="exportTarget.href"
-          :filename="exportTarget.filename"
-          :scope="exportTarget.scope"
-          :disabled="!moneyRows.length"
+        <MoneyExportActions
+          :states="states"
+          :kinds="kinds"
+          :vehicle-ids="f.vehicleIds.value"
+          :assigned-to="assignedTo"
+          :from="f.from.value"
+          :to="f.to.value"
+          :money-ids="moneyIds"
         />
-        <BaseButton variant="secondary" :disabled="!moneyRows.length || packetBusy" @click="downloadPacket">
-          {{ packetBusy ? "Building…" : "Dispute packet" }}
-        </BaseButton>
       </template>
     </FilterBar>
 
     <!-- A queue that is missing rows and does not say so is worse than one that refuses to load. -->
     <p v-if="truncated" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-700 ring-1 ring-warning-100">
-      There are more findings than this page can hold at once. Narrow the window or the trucks to be sure you are
+      There are more problems than this page can hold at once. Narrow the window or the trucks to be sure you are
       seeing all of them.
     </p>
 
@@ -409,7 +334,7 @@ async function downloadPacket() {
     </div>
 
     <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the ledger: {{ error instanceof Error ? error.message : "unknown error" }}
+      Couldn't load fuel problems: {{ error instanceof Error ? error.message : "unknown error" }}
     </p>
 
     <BaseCard v-else padding="none">
@@ -443,12 +368,12 @@ async function downloadPacket() {
       </DataTable>
     </BaseCard>
 
-    <ExceptionSlideOver :id="selected" @close="selected = null" />
-    <SlideOver :open="!!caseId" title="Possible theft" @close="caseId = null">
-      <AnomalyDetail v-if="openCase" :anomaly="openCase" :vehicle-unit="unitOfRow(caseId)" @changed="closeChanged" />
-    </SlideOver>
-    <SlideOver :open="!!incidentId" title="Card used away from its truck" @close="incidentId = null">
-      <IncidentDetail v-if="incidentId" :id="incidentId" @changed="closeChanged" />
-    </SlideOver>
+    <ExceptionSlideOver :id="drawer.findingId.value" @close="drawer.close" />
+    <CaseDrawers
+      :case-id="drawer.caseId.value"
+      :incident-id="drawer.incidentId.value"
+      :unit-of="unitOfRow"
+      @close="drawer.close"
+    />
   </div>
 </template>

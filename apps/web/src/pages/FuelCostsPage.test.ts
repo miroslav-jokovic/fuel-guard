@@ -259,8 +259,8 @@ describe("FuelCostsPage — where the rest went", () => {
     expect(w.text()).toContain("Paid above Pilot's quote");
     expect(w.text()).toContain("$62");
     // And the row opens the inbox on those same days and trucks, not on its own defaults.
-    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/findings");
-    expect(to).toEqual({ path: "/findings", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
+    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/fuel-problems");
+    expect(to).toEqual({ path: "/fuel-problems", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
   });
 
   it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {

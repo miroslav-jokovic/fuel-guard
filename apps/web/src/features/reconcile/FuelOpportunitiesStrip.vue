@@ -39,7 +39,7 @@ const props = defineProps<{
 }>();
 
 const linkFor = (kind: string) => ({
-  path: "/findings",
+  path: "/fuel-problems",
   query: { kind, from: props.from, to: props.to, ...(props.vehicleIds.length ? { trucks: props.vehicleIds.join(",") } : {}) },
 });
 const dollars = (o: FuelOpportunity) => (o.withAmount === 0 ? "no amount" : usd(o.amount));
