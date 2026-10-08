@@ -40,7 +40,7 @@ vi.mock("./fleetWidgetData", async (orig) => ({
 }));
 vi.mock("@/composables/useFindingsSummary", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  useFindingsSummaryQuery: () => ({ data: computed(() => ({ open: 4, recoveredThisQuarter: null, quarterFrom: "2026-07-01" })) }),
+  useFindingsSummaryQuery: () => ({ data: computed(() => ({ open: 4, recoveredThisQuarter: null, quarterFrom: "2026-07-01", oldestOpenOn: "2026-08-01" })) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: ref([{ id: "v1", status: "active", tank_capacity_gal: 0, baseline_mpg: null }]) }),
@@ -81,7 +81,8 @@ describe("the attention rail", () => {
   it("links every row to its page for the admin", () => {
     const h = hrefs(mount(AttentionWidget, { props: { range }, global }));
     expect(h).toContain("/anomalies");
-    expect(h).toContain("/fuel-problems");
+    // Q-F13 (a): from the oldest item the row counts, so the page lists what was counted.
+    expect(h).toContain("/fuel-problems?from=2026-08-01");
     expect(h).toContain("/idling");
     expect(h).toContain("/fuel-log?tab=declines");
   });
