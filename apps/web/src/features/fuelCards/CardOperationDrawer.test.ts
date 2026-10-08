@@ -793,6 +793,28 @@ describe("re-homed from the drawer this replaced", () => {
   });
 });
 
+describe("a 409 keeps what the operator typed that the card did not seed (2026-10-08)", () => {
+  it("re-sends the grant's own inputs after the card's prompts moved under it", async () => {
+    // ••••7962: a grant refused card_state_changed lost its count, scope and products to the reseed,
+    // and the operator — told only "review and try again" — did not. No card field seeds those.
+    const live = { status: "Active", infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null }] };
+    mutations.grant.mutateAsync
+      .mockRejectedValueOnce(new FakeApiError("moved", "card_state_changed", 409, { currentVersion: "f".repeat(32), card: live }))
+      .mockResolvedValueOnce({ status: "succeeded", mutationId: "m2" });
+
+    const wrapper = render("grant");
+    await setDraft(wrapper, { uses: 2 });
+    await button(wrapper, "Grant exception").trigger("click");
+    await flushPromises();
+    await button(wrapper, "Grant exception").trigger("click");
+    await flushPromises();
+
+    const second = mutations.grant.mutateAsync.mock.calls[1]![0] as { expectedVersion: string; body: { uses: number } };
+    expect(second.expectedVersion).toBe("f".repeat(32));
+    expect(JSON.stringify(second)).toContain('"uses":2');
+  });
+});
+
 describe("the operation catalogue decides what is worth offering", () => {
   /**
    * Phase 6.5 replaced the Lock / Deactivate / Unlock trio with ONE control over the three writable
