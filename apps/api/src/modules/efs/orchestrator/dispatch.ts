@@ -16,6 +16,7 @@ import {
 import { sleepWithAbort } from "../services/efsCardWriteDeadline.js";
 import type { Landing, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
+import { movedPaths } from "./movedFields.js";
 import { isSequenced, stepsOf } from "./steps.js";
 import { signalEchoUnfaithful } from "../../../lib/cardControlSignals.js";
 import type {
@@ -364,9 +365,13 @@ async function refuseMovedCard<TBody>(
   landedSteps: number,
   recheck: Exclude<Recheck, { kind: "unmoved" }>,
 ): Promise<CardMutationOutcome> {
+  // Which fields moved, by path (2026-10-08) — both documents are in hand here, so no read is
+  // needed. Written into the ledger's fault message, the one place this refusal is recorded.
+  const moved = recheck.kind === "moved" ? safeMovedPaths(plan.before.redactedXml, recheck.current.redactedXml) : null;
   const error = recheck.kind === "moved"
     ? new EfsSoapError(
-      "The card changed in EFS after it was checked and before the change was sent. Nothing was sent.",
+      "The card changed in EFS after it was checked and before the change was sent. Nothing was sent."
+        + (moved && moved.length > 0 ? ` Fields that moved: ${moved.join(", ")}.` : ""),
       "card_moved",
       { currentVersion: recheck.current.version },
     )
@@ -386,6 +391,11 @@ async function refuseMovedCard<TBody>(
     "This card changed in EFS since the screen was drawn.",
     "card_state_changed",
     409,
-    { currentVersion: current.version, card: current.card, mutationId: plan.mutationId },
+    { currentVersion: current.version, card: current.card, mutationId: plan.mutationId, movedFields: moved },
   );
+}
+
+/** `movedPaths`, never throwing: it decorates a refusal and must not replace it with a 500. */
+function safeMovedPaths(planned: string, current: string): string[] | null {
+  try { return movedPaths(planned, current); } catch { return null; }
 }
