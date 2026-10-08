@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseCardDocument } from "../lib/efsCardXml.js";
+import { parseCardDocument, redactCardXml } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
@@ -314,6 +314,52 @@ describe("a mutation that does not land", () => {
     expect(outcome.status).toBe("sent");
     expect(settled(rec)).toMatchObject({ status: "sent" });
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.mutation_unverified");
+  });
+});
+
+describe("a card McLeod re-dispatched since the screen was drawn (2026-10-08)", () => {
+  /**
+   * ••••7962: McLeod wrote the truck's new order onto the card's TRIP prompt between the nightly sweep
+   * and a grant, and the grant was refused over a field it neither reads nor writes. The screen's
+   * version is the SWEEP's; the mirror still holds that document, so the move can be named.
+   */
+  const SCREEN = CARD_ACTIVE;
+  const DISPATCHED = CARD_ACTIVE.replace("<reportValue></reportValue>", "<reportValue>0136311</reportValue>");
+  const mirrorOf = (xml: string) => ({
+    efs_cards: { data: { id: CARD_ID, card_version: versionOf(xml), last_response_xml_redacted: redactCardXml(xml) }, error: null },
+  });
+  const writes = (bodies: string[]) => bodies.filter((body) => /setCard/i.test(body));
+
+  it("goes ahead against the fresh card when only the prompts moved, and says so on the audit row", async () => {
+    const rec = recorder(mirrorOf(SCREEN));
+    const s = stub(loginOk, DISPATCHED, DISPATCHED, soap(""), DISPATCHED.replace("<status>Active</status>", "<status>Hold</status>"));
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(SCREEN)));
+
+    expect(outcome.status).toBe("succeeded");
+    // The write carries McLeod's NEW trip number: the echo is built from the fresh read, never the screen.
+    expect(writes(s.bodies)[0]).toContain("0136311");
+    const locked = rec.writtenRows("audit_logs").find((r) => r.action === "card.locked");
+    expect(locked?.meta).toMatchObject({ rebasedOver: [expect.stringMatching(/^\/infos/)] });
+  });
+
+  it("still refuses when anything outside the prompts moved too", async () => {
+    const rec = recorder(mirrorOf(SCREEN));
+    const moved = DISPATCHED.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
+    const s = stub(loginOk, moved);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(SCREEN))).catch((e) => e);
+
+    expect(error.code).toBe("card_state_changed");
+    expect(writes(s.bodies)).toEqual([]);
+  });
+
+  it("still refuses when the mirror no longer holds the document the screen was drawn from", async () => {
+    // Without it nobody can say what the operator saw, so nobody can say only the prompts moved.
+    const rec = recorder(mirrorOf(DISPATCHED));
+    const s = stub(loginOk, DISPATCHED);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(SCREEN))).catch((e) => e);
+
+    expect(error.code).toBe("card_state_changed");
+    expect(writes(s.bodies)).toEqual([]);
   });
 });
 

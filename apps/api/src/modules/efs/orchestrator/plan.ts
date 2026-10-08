@@ -1,7 +1,7 @@
 import { ActionRefusalError, CardControlError } from "../services/efsCardControlErrors.js";
 import { cardOpOptions } from "../services/efsCardOperationOptions.js";
 import { updateMirror } from "../services/efsCardReconcile.js";
-import { movedFieldsSinceMirror } from "./movedFields.js";
+import { type MovedFields, movedFieldsSinceMirror } from "./movedFields.js";
 import type { PlanCtx, ReadCtx, Snapshot } from "../types.js";
 import type { LedgerAdapter } from "./ledger.js";
 import { resolveOrgEditableInfoIds } from "./editableInfoIds.js";
@@ -46,7 +46,7 @@ export async function planCardMutation<TBody>(
   const read: ReadCtx = { env: ctx.env, creds: ctx.creds, cardNumber: ctx.cardNumber, opts: cardOpOptions(ctx) };
   const before = await capability.verify.snapshot(read);
 
-  const doc = await assertUnmoved(ctx, capability, before);
+  const { doc, rebasedOver } = await assertUnmoved(ctx, capability, before);
 
   // Step 9.1: resolved ONCE per request and handed to every hook that needs it, so step 0 and a
   // later step of a sequence cannot build edits against two different editable sets.
@@ -86,7 +86,11 @@ export async function planCardMutation<TBody>(
     beforeSnapshot: before,
     planCtx,
     edits,
-    auditMeta: capability.governance.auditMeta?.(before, capability.body, planCtx) ?? {},
+    auditMeta: {
+      ...(capability.governance.auditMeta?.(before, capability.body, planCtx) ?? {}),
+      // The screen's version was older, and only these parts had moved (`rebasable`).
+      ...(rebasedOver ? { rebasedOver } : {}),
+    },
   };
 }
 
@@ -120,6 +124,12 @@ async function assertUnmoved<TBody>(
     // available, since the guide offers no ETag and no row version.
     // BEFORE `updateMirror`, which overwrites the only copy of what the screen was drawn from.
     const moved = await movedFieldsSinceMirror(ctx, doc);
+    if (rebasable(moved, capability.rebasesOver ?? [])) {
+      // Proceed against the FRESH document — see `CapabilityBehaviour.rebasesOver`. Recorded on the
+      // mutation's audit row by `planCardMutation`, so a rebase is never invisible.
+      await updateMirror(ctx, doc);
+      return { doc, rebasedOver: moved.paths };
+    }
     await updateMirror(ctx, doc);
     throw new CardControlError(
       "This card changed in EFS since the screen was drawn.",
@@ -128,5 +138,18 @@ async function assertUnmoved<TBody>(
       { currentVersion: doc.version, card: doc.card, movedFields: moved.paths, mirrorWasExpected: moved.mirrorWasExpected },
     );
   }
-  return doc;
+  return { doc, rebasedOver: null };
+}
+
+/**
+ * May a plan-time version mismatch proceed? Only when ALL of these hold — each one fails closed:
+ *  - the mirror held exactly the version the screen sent, so we KNOW what the operator saw;
+ *  - the moved paths could be computed, and at least one moved (no paths = cannot explain = refuse);
+ *  - every moved path lies inside a part this capability declared it does not decide on.
+ */
+export function rebasable(moved: MovedFields, rebasesOver: readonly string[]): moved is MovedFields & { paths: string[] } {
+  if (rebasesOver.length === 0 || !moved.mirrorWasExpected || moved.paths === null || moved.paths.length === 0) {
+    return false;
+  }
+  return moved.paths.every((path) => rebasesOver.some((root) => path === `/${root}` || path.startsWith(`/${root}/`)));
 }

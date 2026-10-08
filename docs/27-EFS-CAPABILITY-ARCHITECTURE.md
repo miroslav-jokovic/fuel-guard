@@ -534,28 +534,23 @@ Stated plainly, because an architecture that claims completeness is lying.
 - **The echo guard's `replaceAll` blind spot** is fixed by an assertion (see `docs/24` F0.1b), not by this architecture. Every `echo` capability using `replaceAll` depends on that fix landing first.
 - **The last instant before an echo write.** `setCardV2` sends the whole document back, so an edit made in the WEX portal after we read the card is overwritten by our older copy. Since 2026-09-22 each `echo` step reads the card again immediately before its write, and refuses when the version moved (`recheckBeforeWrite`, `orchestrator/dispatch.ts`). Step 0 gets `409 card_state_changed` with nothing sent; a later step gets `partial`. That shrinks the window from "plan's read plus several database round trips" to "serialise the request plus one pacing slot", but it cannot close it. EFS has no compare-and-set: `setCardV2` takes only `clientId` and the card document, with no version or ETag, and its response has no parts (guide p136–137; `CardManagementEP_setCardv2` in `docs/efs/CardManagementWS.wsdl`). A portal edit landing inside that last interval is still overwritten. The verify re-read then records it as `drift_detected`, so it is visible, not silent. Closing it needs a vendor-side conditional write, so this is a question for WEX, not something to build.
 
-- **A card whose version moves without anyone changing it (OPEN, 2026-10-08).** A grant on ••••7962 was
-  refused `card_state_changed` at 14:59 UTC. Nothing visible had changed since the nightly sweep: no
-  fill, no status change, no override. The old document was overwritten by the refusal, so the cause
-  could not be read. One candidate stands out: the `TRIP` and `TRLR` prompts are `REPORT_ONLY` records
-  whose `reportValue` is different on almost every card (162 distinct TRIP values on 162 cards, 159
-  TRLR on 162). Both are inside the version hash. If something outside this product rewrites them
-  (a dispatch system assigning a trip, for example), every such change looks like "the card changed".
-  Evidence is being gathered: `card.action_refused` with `blockedBy: card_moved` now names the moved
-  paths, and a snapshot of every card's stored document was taken at 16:49 UTC to compare against the
-  next sweep.
-  - ⚠ **Dropping those fields from the version hash is NOT a fix, and would be a data-loss bug.** The
-    write echoes the document read at PLAN time (`dispatch.ts`), and `recheckBeforeWrite` notices a
-    change only through the version. A trip number changed between plan and write would then pass the
-    re-read unnoticed, and our echo would put the OLD trip number back.
-  - Candidates, once the evidence names the field: **(a)** leave it as it is. Since #1359 a refused grant
-    keeps the operator's entries, so the cost is one extra click. **(b)** A server-side rebase: on a
-    plan-time version mismatch, continue against the FRESH document when none of the moved paths is one
-    the operator's decision rests on (for a grant: `status`, `override`, the scope pair). The edits are
-    built from the fresh read either way, so nothing stale is echoed. **(c)** Ask WEX whether
-    `setCardv2` can omit `infos`. That would remove the echo risk for every capability that does not
-    edit prompts. **Recommendation: (b)**, only after the sweep comparison confirms which field moves,
-    and with "decision fields" declared per capability contract rather than listed here.
+- **A card whose version moves without anyone changing it — RESOLVED 2026-10-08 (candidate b).** A
+  grant on ••••7962 was refused `card_state_changed` at 14:59 UTC with no visible change. Cause:
+  **McLeod writes each truck's current order and trailer onto its card** as the REPORT_ONLY prompts
+  TRIP and TRLR. ••••7962's own fills in `efs_transactions` carry TRIP 0136174 on 10-07 and 0136311 on
+  10-08 at 15:05, six minutes after the refusal. The values have McLeod's order-number format
+  (`mcleod_movements.order_ids`), and 162 of 162 active cards carry a distinct one. So every dispatch
+  moves the card's version.
+  - Fixed by `CapabilityBehaviour.rebasesOver`. At PLAN time, a capability that decides nothing about
+    prompts (lock, unlock, deactivate, grant, clear) proceeds against the fresh card when the mirror
+    proves what the screen showed and every moved path is under `/infos`. The mutation's audit row
+    records `rebasedOver`. `prompts_set` never declares it.
+  - ⚠ **Not done, deliberately:** dropping TRIP/TRLR from the version hash. The write echoes the PLAN-time
+    document and `recheckBeforeWrite` compares versions only, so a dispatch landing in the second between
+    plan and write would be reverted by our echo. That re-read stays exact; the residual cost is a rare
+    409 on that one second, which the drawer survives with the operator's entries intact.
+  - Open, for WEX: whether `setCardv2` can omit `infos`. A yes would remove the echo risk above for
+    every capability that does not edit prompts.
 
 ---
 

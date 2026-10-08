@@ -43,6 +43,8 @@ export const FRAUD_STEP_UP = CARD_UNLOCK_STEP_UP;
  */
 export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
   target: { kind: "card" },
+  /** McLeod rewrites TRIP/TRLR on every dispatch; this action decides nothing about prompts (`rebasesOver`). */
+  rebasesOver: ["infos"],
 
   mutation: {
     kind: "echo",
