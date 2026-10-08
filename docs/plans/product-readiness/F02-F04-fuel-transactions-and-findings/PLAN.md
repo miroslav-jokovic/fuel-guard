@@ -273,6 +273,20 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 - **7b** Code: scoring raises no case for a fill before the epoch; the browser's disposition
   contract and labels learn `retired_reset_2026_10` (shown, never offered); the Alerts page reads
   from the epoch.
+  - 7a merged (#1352, a25677b); `migrate-staging` applied 0439; staging serves it.
+  - Built: ONE rule in `packages/shared/src/detectionEpoch.ts`: a fill before the start date raises
+    no case and shows no case, except a case someone is investigating. Five places read it, none
+    restates it: scoring (no case, no flag, the measured verdict still stored), the nightly flag
+    reconcile (no red marker in the Fuel Log for a fill whose case the page no longer lists), and the
+    three browser lists of cases (Alerts page, driver page, vehicle page), through
+    `features/anomalies/useDetectionEpoch.ts`. The Alerts page's default view ("All (active)") shows
+    closed cases too, which is why it must read the date and not only rely on the retire.
+  - The disposition is labelled "Closed at the reset"; it is not in `ANOMALY_DISPOSITIONS`, so no
+    reviewer is offered it and the transition schema refuses it.
+  - Not covered, on purpose: the Declines tab (decline suspicion is re-scored with chunk 6) and card
+    fraud incidents (CF4 reads the epoch when it delivers).
+  - Fourteen mutants, each red. The driver and vehicle pages use the tested helper but have no test
+    of their own wiring.
 - **7c** The act: a migration that calls `reset_fill_detection` for Silvicom with the owner as actor
   (the 0359/0400 pattern: an owner-approved release runs it, and it writes its own audit row). Its own
   release, after 7b is served on production.
@@ -419,3 +433,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-08: Owner ruled Q-F9 (a) (chunk 7 before 6) and Q-F10 (a) (`tank_chronic_short` stays a
   Review). Chunk 7 split into 7a/7b/7c after finding that a retired fill would be re-opened by the next
   boot rebuild. 7a built: migration 0439 and its matrix.
+- 2026-10-08: 7a merged (#1352, a25677b); staging serves schema 0439. 7b built: scoring, the flag
+  reconcile and the three case lists read the start date through one shared rule.

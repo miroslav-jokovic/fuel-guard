@@ -224,4 +224,45 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
   it("a fill Samsara placed at the station is not", async () => {
     expect(await fraudWrites({ ...awayFill, samsara_location_matched: true })()).toHaveLength(0);
   });
+
+  // D-CF9 (0439): a fill before the org's detection start date raises no case and is not flagged; the
+  // engine's measured verdict is still stored. Without this the boot rebuild re-opens every case the
+  // reset closed (0158: a closed case does not block a new one).
+  const overfillAdmin = (epoch: string | null) =>
+    makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [{ ...txnRow, gallons: 300 }];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      if (q.table === "organizations" && q.eq.id === "org1" && q.select.includes("detection_epoch")) return [{ detection_epoch: epoch }];
+      return [];
+    });
+  const persisted = (rpcCalls: Array<{ fn: string; args: Record<string, unknown> }>) =>
+    rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2")!.args;
+
+  it("a fill before the detection start date raises no case and is not flagged, but keeps its measured verdict", async () => {
+    const { admin, rpcCalls } = overfillAdmin("2026-06-15T14:00:00.001Z"); // the fill is 1 ms before
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+    const args = persisted(rpcCalls);
+    expect(args.p_case).toBeNull();
+    const outcome = args.p_outcome as Record<string, unknown>;
+    expect(outcome.has_anomaly).toBe(false);
+    expect(outcome.max_severity).toBeNull();
+    expect(outcome.case_level).toBe("alert");
+  });
+
+  it("a fill at the start date, or an org never reset, raises its case as before", async () => {
+    for (const epoch of ["2026-06-15T14:00:00.000Z", null]) {
+      const { admin, rpcCalls } = overfillAdmin(epoch);
+      await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+      expect((persisted(rpcCalls).p_case as Record<string, unknown>).rule_id).toBe("theft_case");
+      expect((persisted(rpcCalls).p_outcome as Record<string, unknown>).has_anomaly).toBe(true);
+    }
+  });
+
+  it("a bulk run's hoisted start date is used instead of a read per fill", async () => {
+    const { admin, rpcCalls } = overfillAdmin(null);
+    await scoreTransaction(admin, env, "org1", "t1", {
+      skipRecon: true, skipLearn: true, ctx: { detectionEpoch: "2026-10-08T12:00:00Z" },
+    });
+    expect(persisted(rpcCalls).p_case).toBeNull();
+  });
 });

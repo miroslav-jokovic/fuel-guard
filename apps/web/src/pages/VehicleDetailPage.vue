@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { afterReset, useDetectionEpoch } from "@/features/anomalies/useDetectionEpoch";
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
@@ -50,15 +51,20 @@ const { data: txns } = useQuery({
   },
 });
 
+// D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
+const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
 const { data: anomalies } = useQuery({
-  queryKey: ["vehicle_anomalies", id],
+  queryKey: ["vehicle_anomalies", id, detectionEpoch],
+  enabled: epochReady,
   queryFn: async (): Promise<Anomaly[]> => {
-    const { data } = await supabase
-      .from("anomalies")
-      .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at")
-      .eq("vehicle_id", id.value)
-      .neq("status", "superseded")
-      .order("created_at", { ascending: false });
+    const { data } = await afterReset(
+      supabase
+        .from("anomalies")
+        .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at, fueled_at")
+        .eq("vehicle_id", id.value)
+        .neq("status", "superseded"),
+      detectionEpoch.value,
+    ).order("created_at", { ascending: false });
     return (data ?? []) as Anomaly[];
   },
 });

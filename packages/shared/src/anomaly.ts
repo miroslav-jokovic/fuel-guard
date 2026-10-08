@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ANOMALY_DISPOSITIONS, type AnomalyDisposition, type AnomalySeverity, type AnomalyStatus } from "./constants.js";
+import { ANOMALY_DISPOSITIONS, type CaseDisposition, type AnomalySeverity, type AnomalyStatus } from "./constants.js";
 import { RULE_IDS } from "./anomalyRules/index.js";
 
 /** An anomaly row as the web reads it. */
@@ -19,7 +19,7 @@ export interface Anomaly {
   resolved_at: string | null;
   resolution_note: string | null;
   /** Ground-truth outcome recorded at close (null until disposed). Drives the accuracy metrics. */
-  disposition?: AnomalyDisposition | null;
+  disposition?: CaseDisposition | null;
   disposition_by?: string | null;
   disposition_at?: string | null;
   version: number;

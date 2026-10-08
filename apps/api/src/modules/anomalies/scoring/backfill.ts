@@ -5,7 +5,7 @@ import { attributeDrivers } from "../../fuel/index.js";
 import { learnStationGeocodes } from "../../fuel/index.js";
 import { loadSamsaraToken } from "../../samsara/lib/samsaraToken.js";
 import { makeSamsaraFetcher } from "../../samsara/lib/samsara.js";
-import { collectTxnIds, loadThresholds, loadOperatingHours } from "./loaders.js";
+import { collectTxnIds, loadThresholds, loadOperatingHours, loadDetectionEpoch } from "./loaders.js";
 import type { BackfillOpts, ScoreOpts } from "./loaders.js";
 import { scoreTransaction, learnVehicleValues } from "./scoreTransaction.js";
 import { reconcileCardMultiForOrg } from "./cardMultiReconcile.js";
@@ -208,7 +208,11 @@ export async function backfillOrg(
     console.error("[backfill] station geocode learning failed:", e instanceof Error ? e.message : e);
   }
   // F2: load per-org context ONCE, not per fill.
-  const ctxBase = { thresholds: await loadThresholds(admin, orgId), operatingHours: await loadOperatingHours(admin, orgId) };
+  const ctxBase = {
+    thresholds: await loadThresholds(admin, orgId),
+    operatingHours: await loadOperatingHours(admin, orgId),
+    detectionEpoch: await loadDetectionEpoch(admin, orgId),
+  };
 
   // Rebuild path (skipRecon): reuse stored Samsara values, no live fetch — simple sequential re-score.
   // A `reconClaim` run is a COLLECTION pass by definition, so it can never take this branch: the whole
