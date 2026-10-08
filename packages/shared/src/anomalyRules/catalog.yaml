@@ -17,6 +17,17 @@
 #   suppressed true = product decision to never raise this as an anomaly (facts stay on the txn).
 #   label      human-readable label shown wherever the raw key would appear.
 #   note       optional rationale (kept out of the generated code; documentation for maintainers).
+#
+# CF5 (2026-10-08, D-CF3/D-CF4, docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md): on an APPROVED fill every
+# location, volume, consumption, odometer, behaviour and reefer rule is a NOTE — weight 0. EFS already
+# authorized the fill against its own rules, and D-CF3 is "EFS's own rules are not duplicated".
+# A note still fires and is stored in fuel_transactions.case_signals_unscored (Q-FUI17), so the
+# Fills page shows it; it never opens a case, notifies, or counts toward a truck's or driver's risk. Two
+# rules stay Reviews: tank_fill_short and tank_chronic_short (Q-F10 (a)), the billed-vs-measured tank
+# rise that EFS cannot see. Both are on the volume axis, so together they score 65 — a Review, never an
+# alert, and only an alert is high/critical, which is what the fill email and the bell send. A card used
+# where its truck is not is a card-fraud incident (D-CF1, CF2), raised outside this catalog.
+# Restoring a rule's authority to accuse is its one number; its body and tests are unchanged.
 # ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 rules:
@@ -31,32 +42,33 @@ rules:
   - id: odometer_regression
     tier: odometer_integrity
     axis: odometer
-    weight: 55
+    weight: 0
     label: Odometer Regression
-    note: DELIBERATE (WP2) — 55 sits just below the lone-review threshold (60), so a lone regression (usually an entry typo) never raises a case; it stays visible via fuel_transactions.case_signals ("why clear"). WP4 — tolerance (odometerToleranceMiles) absorbs entry noise, and OBD arbitration reroutes explained regressions (this entry matches OBD → prev was wrong → silent; this entry contradicts OBD → mismatch/entry-suspect classify it and the redundant regression is dropped). Revisit weight against WP9 disposition data.
+    note: NOTE SINCE 2026-10-08, was 55 — CF5. D-CF4: the odometer is data quality, never fraud. Before CF5: DELIBERATE (WP2) — 55 sits just below the lone-review threshold (60), so a lone regression (usually an entry typo) never raises a case; it stays visible via fuel_transactions.case_signals ("why clear"). WP4 — tolerance (odometerToleranceMiles) absorbs entry noise, and OBD arbitration reroutes explained regressions (this entry matches OBD → prev was wrong → silent; this entry contradicts OBD → mismatch/entry-suspect classify it and the redundant regression is dropped). Revisit weight against WP9 disposition data.
   - id: odometer_stale
     tier: odometer_integrity
     axis: odometer
-    weight: 25
+    weight: 0
     label: Stale Odometer
+    note: NOTE SINCE 2026-10-08, was 25 — CF5. D-CF4: the odometer is data quality, never fraud.
   - id: odometer_implausible_jump
     tier: odometer_integrity
     axis: odometer
-    weight: 35
+    weight: 0
     label: Implausible Odometer Jump
-    note: Instant-precision only (uses elapsed hours). WP4 — ENTERED-basis only; an OBD miles basis means the distance was really driven, so it never fires on telematics-verified spans.
+    note: NOTE SINCE 2026-10-08, was 35 — CF5. D-CF4: the odometer is data quality, never fraud. Before CF5: Instant-precision only (uses elapsed hours). WP4 — ENTERED-basis only; an OBD miles basis means the distance was really driven, so it never fires on telematics-verified spans.
   - id: odometer_daily_cap
     tier: odometer_integrity
     axis: odometer
-    weight: 30
+    weight: 0
     label: Daily Mileage Cap Exceeded
-    note: Date-precision (EFS) fallback (miles/day cap). WP4 — ENTERED-basis only (OBD-verified team ops legitimately exceed 1,000 mi/day and never flag); non-telematics team fleets should tune maxDailyMiles in settings.
+    note: NOTE SINCE 2026-10-08, was 30 — CF5. D-CF4: the odometer is data quality, never fraud. Before CF5: Date-precision (EFS) fallback (miles/day cap). WP4 — ENTERED-basis only (OBD-verified team ops legitimately exceed 1,000 mi/day and never flag); non-telematics team fleets should tune maxDailyMiles in settings.
   - id: odometer_mismatch
     tier: odometer_integrity
     axis: odometer
-    weight: 45
+    weight: 0
     label: Odometer / Location Mismatch
-    note: Cross-source ±tolerance reconciliation (the driver-accuracy check).
+    note: NOTE SINCE 2026-10-08, was 45 — CF5. D-CF4: the odometer is data quality, never fraud (the flat-mile threshold, Q-CF2, moved to CF6 with the notes on the Fills page). Before CF5: Cross-source ±tolerance reconciliation (the driver-accuracy check).
   - id: odometer_entry_suspect
     tier: odometer_integrity
     axis: odometer
@@ -66,35 +78,35 @@ rules:
   - id: expected_odometer_band
     tier: odometer_integrity
     axis: consumption
-    weight: 40
+    weight: 0
     label: Outside Expected Odometer Band
-    note: Single-source — miles vs fuel-implied miles (axis is consumption, not odometer).
+    note: NOTE SINCE 2026-10-08, was 40 — CF5. Consumption rule; D-CF3. Before CF5: Single-source — miles vs fuel-implied miles (axis is consumption, not odometer).
 
   # ── Tier 2 — volume vs capacity ──────────────────────────────────────────────────────────────────
   - id: exceeds_tank_capacity
     tier: volume_capacity
     axis: volume
-    weight: 85
+    weight: 0
     label: Exceeds Tank Capacity
-    note: WP-CAP — capacity now comes from resolveCapacity (sensor-measured physics > entered > billed-history) with a confidence tier; verified capacity fires at the tight org tolerance, an unverified entered number needs 15% overage (the 5–15% band goes to exceeds_capacity_unverified). A fill whose own raw sensor rise proves the fuel went in suppresses to record-fix instead of alerting. Still DEAD when no capacity source exists (capacityHealth surfaces the gap); a sensor-measured capacity now REVIVES detection on trucks with no entered capacity.
+    note: NOTE SINCE 2026-10-08, was 85 — CF5. D-CF3: a volume rule; EFS authorized the fill. Only billed vs measured rise (tank_fill_short) stays a Review. Before CF5: WP-CAP — capacity now comes from resolveCapacity (sensor-measured physics > entered > billed-history) with a confidence tier; verified capacity fires at the tight org tolerance, an unverified entered number needs 15% overage (the 5–15% band goes to exceeds_capacity_unverified). A fill whose own raw sensor rise proves the fuel went in suppresses to record-fix instead of alerting. Still DEAD when no capacity source exists (capacityHealth surfaces the gap); a sensor-measured capacity now REVIVES detection on trucks with no entered capacity.
   - id: exceeds_capacity_unverified
     tier: volume_capacity
     axis: volume
-    weight: 60
+    weight: 0
     label: Over Entered Capacity (Unverified)
-    note: WP-CAP — review-grade companion to exceeds_tank_capacity for trucks WITHOUT a sensor-verified capacity; fires only in the configured-tolerance…15% overage band against the entered/billed-history capacity (weight 60 = lone review, never an alert-alone critical). Disappears once the sensor verifies capacity — the main rule then covers the band at the tight tolerance.
+    note: NOTE SINCE 2026-10-08, was 60 — CF5. D-CF3: a volume rule; EFS authorized the fill. Before CF5: WP-CAP — review-grade companion to exceeds_tank_capacity for trucks WITHOUT a sensor-verified capacity; fires only in the configured-tolerance…15% overage band against the entered/billed-history capacity (weight 60 = lone review, never an alert-alone critical). Disappears once the sensor verifies capacity — the main rule then covers the band at the tight tolerance.
   - id: tank_space_exceeded
     tier: volume_capacity
     axis: volume
-    weight: 90
+    weight: 0
     label: More Fuel Than Tank Could Hold
-    note: Billed gallons > empty space in the tank before fueling (can't fit in THIS truck). WP-CAP — free space is computed against the RESOLVED capacity (sensor-measured when available), so a mistyped entered capacity no longer produces false criticals here.
+    note: NOTE SINCE 2026-10-08, was 90 — CF5. D-CF3 names it: it reads ONE pre-fill tank sample (CARD-FRAUD-ALERTS-PLAN §1), and it carried 6 of the 10 alerts in the 60 days to 2026-10-08. Before CF5: Billed gallons > empty space in the tank before fueling (can't fit in THIS truck). WP-CAP — free space is computed against the RESOLVED capacity (sensor-measured when available), so a mistyped entered capacity no longer produces false criticals here.
   - id: implausible_topoff
     tier: volume_capacity
     axis: consumption
-    weight: 50
+    weight: 0
     label: Implausible Top-Off
-    note: Same gallons-vs-miles inequality as mpg_deviation — shares the consumption axis (P-3).
+    note: NOTE SINCE 2026-10-08, was 50 — CF5. Consumption rule; D-CF3. Before CF5: Same gallons-vs-miles inequality as mpg_deviation — shares the consumption axis (P-3).
   - id: cumulative_overfuel
     tier: volume_capacity
     axis: consumption
@@ -106,35 +118,35 @@ rules:
   - id: mpg_deviation
     tier: efficiency
     axis: consumption
-    weight: 30
+    weight: 0
     label: MPG Deviation
-    note: WP6 — cold-weather derate runs off the fill's REAL ambient temperature when backfilled (≤20°F +10, ≤32°F +5), max'd with the calendar fallback (only ever widens). Baseline excludes theft-contaminated fills (volume-axis signals / alert cases) so sustained theft can't drag the baseline down and self-normalize; a lone consumption-axis deviation still trains it (legit efficiency change must move the median).
+    note: NOTE SINCE 2026-10-08, was 30 — CF5. Consumption rule; D-CF3. Its baseline still skips volume-axis fills (both signal lists), but no longer "alert cases": none exist after CF5. Before CF5: WP6 — cold-weather derate runs off the fill's REAL ambient temperature when backfilled (≤20°F +10, ≤32°F +5), max'd with the calendar fallback (only ever widens). Baseline excludes theft-contaminated fills (volume-axis signals / alert cases) so sustained theft can't drag the baseline down and self-normalize; a lone consumption-axis deviation still trains it (legit efficiency change must move the median).
   - id: mpg_sustained_decline
     tier: efficiency
     axis: consumption
-    weight: 20
+    weight: 0
     label: Sustained MPG Decline
-    note: WP6 — same temperature-aware derate as mpg_deviation.
+    note: NOTE SINCE 2026-10-08, was 20 — CF5. Consumption rule; D-CF3. Before CF5: WP6 — same temperature-aware derate as mpg_deviation.
 
   # ── Tier 4 — behavioral ──────────────────────────────────────────────────────────────────────────
   - id: rapid_repeat_fueling
     tier: behavioral
     axis: behavior
-    weight: 40
+    weight: 0
     label: Rapid Repeat Fueling
-    note: Instant-precision only. WP7 — same-STATION pairs are exempt (a pump pre-auth split purchase / pull-forward top-off is two swipes at one site, not a theft interval; volume stays covered by cumulative_overfuel + tank rules); different-site pairs fire with combined gallons in evidence. Unknown location never exempts. WP-BEH — same-site is judged by real pin DISTANCE (≤1 mi) when both fills carry coordinates; strings only as fallback (string matching wrongly exempted two different truck stops in one city and wrongly split one station's name variants).
+    note: NOTE SINCE 2026-10-08, was 40 — CF5. Behaviour rule; D-CF3. Before CF5: Instant-precision only. WP7 — same-STATION pairs are exempt (a pump pre-auth split purchase / pull-forward top-off is two swipes at one site, not a theft interval; volume stays covered by cumulative_overfuel + tank rules); different-site pairs fire with combined gallons in evidence. Unknown location never exempts. WP-BEH — same-site is judged by real pin DISTANCE (≤1 mi) when both fills carry coordinates; strings only as fallback (string matching wrongly exempted two different truck stops in one city and wrongly split one station's name variants).
   - id: impossible_travel
     tier: behavioral
     axis: location
-    weight: 70
+    weight: 0
     label: Impossible Travel Between Fills
-    note: WP-BEH — two fills whose station pins are ≥60 mi apart with an implied speed over maxPlausibleMph (both instants reliable, gap ≤24h). Near-proof of card sharing/cloning — one fill was made without the truck. Review-alone (70); alerts with one corroborating axis. Supersedes rapid_repeat_fueling for the same pair.
+    note: NOTE SINCE 2026-10-08, was 70 — CF5. Location rule; D-CF3. A card used where its truck is not is a card-fraud incident now (D-CF1, CF2), not a fill case. Before CF5: WP-BEH — two fills whose station pins are ≥60 mi apart with an implied speed over maxPlausibleMph (both instants reliable, gap ≤24h). Near-proof of card sharing/cloning — one fill was made without the truck. Review-alone (70); alerts with one corroborating axis. Supersedes rapid_repeat_fueling for the same pair.
   - id: off_hours_fueling
     tier: behavioral
     axis: behavior
-    weight: 20
+    weight: 0
     label: Off-Hours Fueling
-    note: Instant-precision only. WP7 — judged in the STATION state's timezone (where the truck is), org tz fallback; an org that never configured hours gets the 24/7 sentinel (rule OFF) instead of a silently assumed 05:00–20:00 schedule.
+    note: NOTE SINCE 2026-10-08, was 20 — CF5. Behaviour rule; D-CF3. Before CF5: Instant-precision only. WP7 — judged in the STATION state's timezone (where the truck is), org tz fallback; an org that never configured hours gets the 24/7 sentinel (rule OFF) instead of a silently assumed 05:00–20:00 schedule.
   - id: unattributed_transaction
     tier: behavioral
     axis: behavior
@@ -145,27 +157,27 @@ rules:
   - id: cost_outlier
     tier: behavioral
     axis: behavior
-    weight: 15
+    weight: 0
     label: Cost Outlier
-    note: WP7 — no longer dead-by-default. Org static bounds (when set) fire as before; otherwise a diesel tractor fill ≥35% over the regional (state, ±3-day) POSTED-diesel median from the global price layer fires on real market data. Above-market only (receipt inflation / collusion direction); needs ≥5 station samples, cash quotes never blended. Station-EXACT posted-price comparison deferred to a station-identity workpackage.
+    note: NOTE SINCE 2026-10-08, was 15 — CF5. Behaviour rule; D-CF3. Before CF5: WP7 — no longer dead-by-default. Org static bounds (when set) fire as before; otherwise a diesel tractor fill ≥35% over the regional (state, ±3-day) POSTED-diesel median from the global price layer fires on real market data. Above-market only (receipt inflation / collusion direction); needs ≥5 station samples, cash quotes never blended. Station-EXACT posted-price comparison deferred to a station-identity workpackage.
   - id: cost_line_mismatch
     tier: behavioral
     axis: behavior
-    weight: 10
+    weight: 0
     label: Line Math Mismatch
-    note: WP-BEH (weight corrected in the WP-BEH audit) — total_cost ≠ gallons × price/gal beyond max($5, 2%) — an import defect or a tampered receipt; either way the row's money math can't be trusted. Weight 10 (far below the lone-review threshold) so it NEVER raises a case alone but persists in the case_signals "why" surface — a suppressed weight-0 rule would have been filtered out before persistence and visible nowhere.
+    note: NOTE SINCE 2026-10-08, was 10 — CF5. Behaviour rule; D-CF3. It never raised a case alone anyway; it is now a note like the rest. Before CF5: WP-BEH (weight corrected in the WP-BEH audit) — total_cost ≠ gallons × price/gal beyond max($5, 2%) — an import defect or a tampered receipt; either way the row's money math can't be trusted. Weight 10 (far below the lone-review threshold) so it NEVER raises a case alone but persists in the case_signals "why" surface — a suppressed weight-0 rule would have been filtered out before persistence and visible nowhere.
   - id: card_multi_vehicle
     tier: behavioral
     axis: behavior
-    weight: 60
+    weight: 0
     label: Card Used on Multiple Vehicles
-    note: WP3/WP3b — counted by true CARD identity (full/masked refs + control-id disambiguation, sameCardFill), never by driver. WP3b after 169 false alarms — a LEARNED assignment is computed AS OF THE FILL (dominant vehicle over the prior 60d) and is EVIDENCE-ONLY, never firing alone (era changes / slip-seat secondaries are not misuse); only a MANUAL fuel_cards assignment (human ground truth, recent-era fills) fires on a single mismatch. Classic ≥2-trucks-in-window split-use unchanged; Samsara driver-assignment reconcile still auto-clears one-driver-moved-trucks.
+    note: NOTE SINCE 2026-10-08, was 60 — CF5. Behaviour rule; D-CF3, and D-CF7: a driver changing trucks is never an alert. It carried 12 of the 18 reviews in the 60 days to 2026-10-08. Before CF5: WP3/WP3b — counted by true CARD identity (full/masked refs + control-id disambiguation, sameCardFill), never by driver. WP3b after 169 false alarms — a LEARNED assignment is computed AS OF THE FILL (dominant vehicle over the prior 60d) and is EVIDENCE-ONLY, never firing alone (era changes / slip-seat secondaries are not misuse); only a MANUAL fuel_cards assignment (human ground truth, recent-era fills) fires on a single mismatch. Classic ≥2-trucks-in-window split-use unchanged; Samsara driver-assignment reconcile still auto-clears one-driver-moved-trucks.
   - id: location_mismatch
     tier: behavioral
     axis: location
-    weight: 50
+    weight: 0
     label: Location Mismatch
-    note: Corroboration-only — telematics location is the least-reliable signal (weight below the lone-review threshold); never raises a case alone but reinforces a volume/consumption signal. WP-BEH — now DISTANCE-tiered on top of the state comparison; >25 mi truck-vs-station at a reliable instant fires (>100 mi = high severity), so a card used far away IN the same state is no longer invisible. Suspect station pins (systematic-offset learner) and unreliable instants never fire.
+    note: NOTE SINCE 2026-10-08, was 50 — CF5. Location rule; D-CF3. A card used where its truck is not is a card-fraud incident now (D-CF1, CF2). Before CF5: Corroboration-only — telematics location is the least-reliable signal (weight below the lone-review threshold); never raises a case alone but reinforces a volume/consumption signal. WP-BEH — now DISTANCE-tiered on top of the state comparison; >25 mi truck-vs-station at a reliable instant fires (>100 mi = high severity), so a card used far away IN the same state is no longer invisible. Suspect station pins (systematic-offset learner) and unreliable instants never fire.
   - id: tank_fill_short
     tier: behavioral
     axis: volume
@@ -181,27 +193,27 @@ rules:
   - id: fuel_while_driver_home
     tier: behavioral
     axis: behavior
-    weight: 50
+    weight: 0
     label: Fueled While Driver Home
-    note: Corroboration-only (weight below the lone-review threshold — never raises a case alone). WP-BEH — two independent sources feed it, TMS home-time (opt-in, ±1-day buffer) and the driver's own ELD logbook (fill deep inside an extended off-duty/sleeper block, buffered from duty transitions so shift-start fueling never flags). Reinforces a volume/consumption signal — a card fueling while its driver demonstrably isn't working.
+    note: NOTE SINCE 2026-10-08, was 50 — CF5. Behaviour rule; D-CF3. Before CF5: Corroboration-only (weight below the lone-review threshold — never raises a case alone). WP-BEH — two independent sources feed it, TMS home-time (opt-in, ±1-day buffer) and the driver's own ELD logbook (fill deep inside an extended off-duty/sleeper block, buffered from duty transitions so shift-start fueling never flags). Reinforces a volume/consumption signal — a card fueling while its driver demonstrably isn't working.
 
   # ── Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only) ─────────────
   - id: reefer_exceeds_capacity
     tier: reefer
     axis: reefer
-    weight: 90
+    weight: 0
     label: Reefer Fill Exceeds Tank
-    note: One ULSR purchase > reefer tank capacity — can't fit in the reefer.
+    note: NOTE SINCE 2026-10-08, was 90 — CF5. Reefer rule; Q-F10 ruled the reefer rules notes too. Before CF5: One ULSR purchase > reefer tank capacity — can't fit in the reefer.
   - id: reefer_overfuel_rate
     tier: reefer
     axis: reefer
-    weight: 75
+    weight: 0
     label: Reefer Over-Fueling
-    note: Rolling-window reefer gallons > a reefer could burn + a tank.
+    note: NOTE SINCE 2026-10-08, was 75 — CF5. Reefer rule; Q-F10 ruled the reefer rules notes too. Before CF5: Rolling-window reefer gallons > a reefer could burn + a tank.
   - id: reefer_fuel_diversion
     tier: reefer
     axis: reefer
     weight: 60
     suppressed: true
     label: Reefer Fueled with ULSD
-    note: Reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD. TEMPORARILY SUPPRESSED (product decision, 2026-08) — in production it mass-fired (1,301 open cases) because reefer usage/pairing data isn't reliable enough to infer "this truck should have bought ULSR"; per-truck reefer fuel attribution can't back the accusation. RE-ENABLE when McLeod lands - its temperature-controlled-load feed (reeferLoadInWindow gate, already wired) gives the precise reefer-was-running truth this rule needs. Flip `suppressed` off + rebuild; rule body + tests stay maintained.
+    note: Reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD. TEMPORARILY SUPPRESSED (product decision, 2026-08) — in production it mass-fired (1,301 open cases) because reefer usage/pairing data isn't reliable enough to infer "this truck should have bought ULSR"; per-truck reefer fuel attribution can't back the accusation. RE-ENABLE when McLeod lands - its temperature-controlled-load feed (reeferLoadInWindow gate, already wired) gives the precise reefer-was-running truth this rule needs. Flip `suppressed` off + rebuild; rule body + tests stay maintained. ⚠ CF5 (2026-10-08) left its weight at 60 because a suppressed rule never reaches the correlation. Re-enabled at 60 it would be a Review alone and, beside tank_fill_short, an alert — against Q-F10 (reefer rules are notes); set it to 0 in the same change.

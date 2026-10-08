@@ -140,7 +140,7 @@ email_enabled, sms_phone, sms_verified_at, sms_enabled), with RLS enabled and wr
 
 **CF5 — approved-fill rules become notes (D-CF3, D-CF4).** Weight changes in `catalog.yaml`
 (`pnpm gen:rules`; `RULESET_HASH` changes, and a `SCORING_VERSION` bump re-scores history under it).
-- **Odometer rule** to the Q-CF2 threshold.
+- **Odometer rule** to the Q-CF2 threshold. Moved to CF6 (F02 plan, Q-F10 ruling, 2026-10-08).
 - **Old fill alerts stop.** Email (`notifyForTransaction`) and `fuel_alert` notifications stop for
   everything but `tank_fill_short` reviews.
 - **The Detection metrics page** keeps measuring precision, now over incidents and the one review rule.

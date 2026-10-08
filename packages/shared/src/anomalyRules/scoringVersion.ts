@@ -40,5 +40,17 @@
  * ⚠ It restarts the version-2 sweep, which was 36% converged. That is the cost of two derivation
  * changes a day apart and it is accepted rather than worked around: a partially-converged fleet
  * judged by two different rulesets is worse than one that takes another eight nights to agree.
+ *
+ * **4 (2026-10-08)** — CF5 (D-CF3/D-CF4): every approved-fill rule but `tank_fill_short` and
+ * `tank_chronic_short` reweighted to 0, so it is a note and never a case. Over the 60 days to
+ * 2026-10-08 the engine raised 10 alerts and 18 reviews; under these weights the same fired signals
+ * make 0 alerts and 6 reviews, every one carrying `tank_fill_short`. The 180-day boot rebuild re-scores
+ * 11,533 of production's 18,062 fills 45 s after the deploy; this bump re-scores the other 6,529 over
+ * about four nights.
+ *
+ * It ships AFTER the reset (Q-F9 (a); 0441, released 2026-10-08 15:28 UTC), so it closes nothing old:
+ * every case before the start date is already closed, and re-scoring touches only OPEN cases — one that
+ * still has a tank signal is lowered to a review, any other is superseded. Measured at 15:46 UTC that
+ * day: 0 cases opened since the reset.
  */
-export const SCORING_VERSION = 3;
+export const SCORING_VERSION = 4;

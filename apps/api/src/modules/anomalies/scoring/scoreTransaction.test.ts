@@ -125,6 +125,14 @@ const vehicleRow = {
   odometer_offset_source: "auto",
 };
 
+/**
+ * A fill whose tank rose 50 gal less than the 100 billed, on a truck whose sensor is learned reliable:
+ * `tank_fill_short`, the one approved-fill rule that still raises a case (a Review) since CF5. Before
+ * CF5 these tests used a 300 gal overfill, which is now a note and raises nothing.
+ */
+const shortFill = { ...txnRow, samsara_tank_short_gal: 50, samsara_tank_observed_gal: 50, samsara_recon_at: "2026-06-15T15:00:00.000Z" };
+const reliableVehicle = { ...vehicleRow, tank_sensor_reliable: true };
+
 /** The existing-anomalies read is the only anomalies select that carries "source" in its column list. */
 
 describe("scoreTransaction — characterization (skipRecon rebuild path)", () => {
@@ -148,10 +156,9 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     expect(writes).toHaveLength(0);
   });
 
-  it("fires a theft case + flags the transaction when the fill exceeds tank capacity", async () => {
-    // 300 gal into a 150 gal tank (limit 157.5 at the 5% default tolerance) → exceeds_tank_capacity, an
-    // overwhelming lone volume signal → an 'alert' case. No other rule can fire: the window/prev queries
-    // return no rows, so consumption/odometer signals stay silent.
+  it("CF5: a fill over the tank's capacity is a note — no case, not flagged, the rule kept on the fill", async () => {
+    // 300 gal into a 150 gal tank (limit 157.5 at the 5% default tolerance) → exceeds_tank_capacity, which
+    // was an alert on its own until CF5. No other rule can fire: the window/prev queries return no rows.
     const overfill = { ...txnRow, gallons: 300 };
     const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
@@ -162,10 +169,28 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
 
     const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
+    expect(rpc!.args.p_case).toBeNull();
+    const outcome = rpc!.args.p_outcome as Record<string, unknown>;
+    expect(outcome.has_anomaly).toBe(false);
+    expect(outcome.case_level).toBe("clear");
+    expect((outcome.case_signals_unscored as { ruleId: string }[]).map((x) => x.ruleId)).toContain("exceeds_tank_capacity");
+  });
+
+  it("a tank that rose less than billed raises a review case and flags the fill (medium: no email, no bell)", async () => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [shortFill];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [reliableVehicle];
+      return [];
+    });
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
+    expect(rpc).toBeTruthy();
     expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
-    expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("critical");
+    expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("medium");
     expect((rpc!.args.p_outcome as Record<string, unknown>).has_anomaly).toBe(true);
-    expect((rpc!.args.p_outcome as Record<string, unknown>).max_severity).toBe("critical");
+    expect((rpc!.args.p_outcome as Record<string, unknown>).case_level).toBe("review");
+    expect((rpc!.args.p_outcome as Record<string, unknown>).max_severity).toBe("medium");
   });
 
   it("sends a clean outcome to the atomic RPC so stale cases can be superseded in the database transaction", async () => {
@@ -183,10 +208,9 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
   });
 
   it("sends a re-fired case to the atomic RPC with an idempotency identity", async () => {
-    const overfill = { ...txnRow, gallons: 300 };
     const { admin, rpcCalls } = makeAdmin((q) => {
-      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
-      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [shortFill];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [reliableVehicle];
       return [];
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
@@ -228,10 +252,10 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
   // D-CF9 (0439): a fill before the org's detection start date raises no case and is not flagged; the
   // engine's measured verdict is still stored. Without this the boot rebuild re-opens every case the
   // reset closed (0158: a closed case does not block a new one).
-  const overfillAdmin = (epoch: string | null) =>
+  const shortFillAdmin = (epoch: string | null) =>
     makeAdmin((q) => {
-      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [{ ...txnRow, gallons: 300 }];
-      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [shortFill];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [reliableVehicle];
       if (q.table === "organizations" && q.eq.id === "org1" && q.select.includes("detection_epoch")) return [{ detection_epoch: epoch }];
       return [];
     });
@@ -239,19 +263,19 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2")!.args;
 
   it("a fill before the detection start date raises no case and is not flagged, but keeps its measured verdict", async () => {
-    const { admin, rpcCalls } = overfillAdmin("2026-06-15T14:00:00.001Z"); // the fill is 1 ms before
+    const { admin, rpcCalls } = shortFillAdmin("2026-06-15T14:00:00.001Z"); // the fill is 1 ms before
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
     const args = persisted(rpcCalls);
     expect(args.p_case).toBeNull();
     const outcome = args.p_outcome as Record<string, unknown>;
     expect(outcome.has_anomaly).toBe(false);
     expect(outcome.max_severity).toBeNull();
-    expect(outcome.case_level).toBe("alert");
+    expect(outcome.case_level).toBe("review");
   });
 
   it("a fill at the start date, or an org never reset, raises its case as before", async () => {
     for (const epoch of ["2026-06-15T14:00:00.000Z", null]) {
-      const { admin, rpcCalls } = overfillAdmin(epoch);
+      const { admin, rpcCalls } = shortFillAdmin(epoch);
       await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
       expect((persisted(rpcCalls).p_case as Record<string, unknown>).rule_id).toBe("theft_case");
       expect((persisted(rpcCalls).p_outcome as Record<string, unknown>).has_anomaly).toBe(true);
@@ -259,7 +283,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
   });
 
   it("a bulk run's hoisted start date is used instead of a read per fill", async () => {
-    const { admin, rpcCalls } = overfillAdmin(null);
+    const { admin, rpcCalls } = shortFillAdmin(null);
     await scoreTransaction(admin, env, "org1", "t1", {
       skipRecon: true, skipLearn: true, ctx: { detectionEpoch: "2026-10-08T12:00:00Z" },
     });

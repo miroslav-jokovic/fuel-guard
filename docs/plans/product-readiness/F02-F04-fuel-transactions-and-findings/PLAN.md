@@ -3,8 +3,8 @@
 **Status:** BUILDING. Step 1 (X1) is DONE on staging (#1328, #1330). Chunk 2a (Hazmat, Messages)
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
 3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
-scorers write incidents) is merged (#1350). Chunk 7 now comes before chunk 6 (Q-F9 (a)); 7a (migration
-0439) is built.
+scorers write incidents) is merged (#1350). Chunk 7 (the reset) is complete: merged (#1352, #1353,
+#1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunk 6 is built.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -251,9 +251,40 @@ Rebuilds and re-scoring keep any case a person has touched, and its `anomaly_tra
 
 ### Chunk 6 — approved-fill rules become notes (CF5, D-CF3/D-CF4)
 `catalog.yaml` weights, `pnpm gen:rules`, and a `SCORING_VERSION` bump. Only `tank_fill_short`
-stays a Review.
+stays a Review (and `tank_chronic_short`, Q-F10 (a)).
 - **Accept:** re-scoring 60 days in a test raises 0 alerts from `tank_space_exceeded`,
   `odometer_mismatch` or `card_multi_vehicle`.
+- Built: 22 rules go to weight 0, each with a dated note; the reasoning is said once, in the
+  catalog's header. `SCORING_VERSION` 3 → 4. Rules already at 0 or suppressed are unchanged;
+  `reefer_fuel_diversion` stays suppressed at 60, and its note says to set it to 0 if it is re-enabled.
+- The two review rules are both on the volume axis, so every rule firing at once scores 65: a Review,
+  never an alert. Only an alert is high or critical, and the fill email (`notifyForTransaction`) and
+  the bell (`fuel_alert`) both ask for high/critical, so both stop with no other code change (checked
+  in code).
+- Test `approvedFillNotes.test.ts` replays production's 60 days to 10-08 (672 fills with something
+  fired: 10 alerts, 18 reviews). Under CF5 they give 0 alerts and 6 reviews, all with `tank_fill_short`.
+  How weights combine is pinned on fixed test weights in `correlationMechanics.test.ts`, because no
+  catalog pair reaches an alert any more.
+- **Found while checking readers:** the previous fill (it sets each fill's stored miles and MPG,
+  which Fleet MPG adds up) skipped a fill with a flagged odometer by reading `case_signals` only.
+  With the odometer rules at 0 that flag moves to `case_signals_unscored`, and the re-score would have
+  changed miles and MPG across history. It now reads both lists, as the MPG baseline already did
+  (0323).
+- **What changes for a user:**
+  - Alerts page: no new fill alerts. The only new fill cases are short-tank Reviews.
+  - Email and bell: no fill messages.
+  - Fills page: more fills show the "why" marker. A fill that used to be flagged now shows its notes
+    there (CF6 makes them readable).
+  - Case drawer risk context (`entityRisk.ts`): near-miss fills and recurring signals now count only
+    the two tank rules. The pattern sweep runs only on an alert, so it stops.
+  - Detection metrics: past reviewed cases are unchanged; new ones are only tank Reviews.
+  - MPG baseline: fills that were alerts from non-volume rules now train it. Only notes use it.
+- **Measured before building (read-only, 10-08 15:46 UTC):** 0 cases opened since the reset, 2 fills
+  since. Re-scoring touches only OPEN cases: an open case that still has a tank signal is lowered to a
+  review, any other is superseded. Re-measure before the release.
+- **Not in chunk 6:** decline suspicion (the Declines tab). It has its own weights (`declined.ts`), not
+  `catalog.yaml`, and `SCORING_VERSION` does not re-score declines. Reshaping it to D-CF1/D-CF6 has no
+  chunk yet.
 
 ### Chunk 7 — the reset (CF0, D-CF9), one audited act — ships BEFORE chunk 6 (Q-F9 (a))
 Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
@@ -283,8 +314,8 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
     closed cases too, which is why it must read the date and not only rely on the retire.
   - The disposition is labelled "Closed at the reset"; it is not in `ANOMALY_DISPOSITIONS`, so no
     reviewer is offered it and the transition schema refuses it.
-  - Not covered, on purpose: the Declines tab (decline suspicion is re-scored with chunk 6) and card
-    fraud incidents (CF4 reads the epoch when it delivers).
+  - Not covered, on purpose: the Declines tab and card fraud incidents (CF4 reads the epoch when it
+    delivers). Correction (chunk 6, 10-08): chunk 6 does not re-score decline suspicion; see chunk 6.
   - Fourteen mutants, each red. The driver and vehicle pages use the tested helper but have no test
     of their own wiring.
 - **7c** The act: a migration that calls `reset_fill_detection` for Silvicom with the owner as actor
@@ -444,3 +475,9 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   reconcile and the three case lists read the start date through one shared rule.
 - 2026-10-08: 7b merged (#1353, c5abeae); staging serves it. 7c built (migration 0441); its PR waits
   for a release carrying 7b. Chunk 6 follows the release that carries 7c.
+- 2026-10-08: 7c merged (#1355, 5a1c1ba) and released in v2026.10.08.1. The reset ran at 15:28:02 UTC:
+  82 alerts retired, 0 kept, 82 history rows, one audit row naming the owner; 2,041 earlier review
+  decisions untouched. Production has 0 open fill alerts. Chunk 7 is complete.
+- 2026-10-08: Chunk 6 built: 22 rules become notes, `SCORING_VERSION` 4. The 60-day replay gives 0
+  alerts and 6 reviews. The previous-fill choice now reads both signal lists, so the re-score does not
+  change stored miles and MPG. Decline suspicion is not part of chunk 6.
