@@ -23,7 +23,7 @@ import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKin
  * kind → section, which is one fact C7a will consume and which two rulings needed first. And it is
  * not a lifecycle: no default assignee is invented here. Q-FUI15 ruled **unassigned by default**; Q-F1
  * (2026-10-06) replaced that for the fuel queue with a named owner, and the default lives in the
- * database (0442: `organizations.fuel_queue_owner`, assigned by trigger on insert), not here. Whoever
+ * database (migration 0442: the org's fuel queue owner, assigned by trigger on insert), not here. Whoever
  * sets that owner must check `rolesAssignableIn` for every section below, as `findingsAssign.ts` does.
  *
  * ⚠ TODAY THIS CHANGES NO GATE. `fuel_exceptions` can only hold the eight kinds below, every one of
