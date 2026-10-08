@@ -473,6 +473,15 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 - **9a** A monthly buying-habits table in Fuel Costs, per driver and truck.
   - Accept: September's total equals the sum of those `fuel_exceptions.amount` values, to the
     cent.
+  - Built: a **Buying habits** table on Fuel Costs, under the days table, in the page's dates and trucks
+    (whole months: a window opening on the 12th keeps its first month). One row per truck per month: the
+    drivers who fuelled it, avoided state, out of network, avoided brand, total; the window's total above
+    it. A driver has no amount of their own, because `policyFindings` files the premium per truck
+    (Q-FUI3) and the drivers ride in `evidence.drivers`. 23 truck-months name no driver ("Not on the fills").
+  - Counts every status except `resolved_by_reingest` (the detector withdrawing a finding). Kinds are
+    `POLICY_EXCEPTION_KINDS`, the producer's own list. `GET /api/fueling/buying-habits`, fuel view.
+  - Accept met on production, 2026-10-08: September is $8,095.80 in the database and in the table
+    (58 findings, 46 truck-months).
 - **9b** The three habit kinds leave the queue. The tiles become **Can be disputed / Disputed /
   Credited back**.
   - Accept: the tile total equals the sum of the disputable rows.
@@ -626,3 +635,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
 - 2026-10-08: 8c4 merged (#1371, c3c334e) and released (v2026.10.08.4). Owner ruled Q-F13 (a) and that
   clicks count from the row. Built: the Dashboard's door carries `?from=` the oldest open item, and the
   money drawer's moves are buttons (close in 2 clicks). The page's end-of-day cut is recorded for chunk 10.
+- 2026-10-08: #1373 merged (63d50f4): Q-F13 (a) and the money drawer's buttons. 9a built: the buying-habits
+  table on Fuel Costs; September $8,095.80 matches the database to the cent.

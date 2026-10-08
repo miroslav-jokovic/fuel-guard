@@ -13,6 +13,8 @@ import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import FuelCostDaysTable from "@/features/reconcile/FuelCostDaysTable.vue";
 import FuelOpportunitiesStrip from "@/features/reconcile/FuelOpportunitiesStrip.vue";
 import { useFuelOpportunitiesQuery } from "@/features/reconcile/useFuelOpportunities";
+import BuyingHabitsTable from "@/features/reconcile/BuyingHabitsTable.vue";
+import { useBuyingHabitsQuery } from "@/features/reconcile/useBuyingHabits";
 import { fuelReportQuery, useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
@@ -55,6 +57,8 @@ const { data: report, isLoading, isError, error, isFetching } = useFuelReportQue
 /** How current the daily fuel roll-up is — MPG's gallons come from it (`fleetMpg.ts`). */
 /** The open findings waiting for review in these dates and trucks — the strip under the cards (FS-STRIP). */
 const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
+// Chunk 9a (Q-F2): the policy premiums as a monthly table, in the same window and trucks.
+const habits = useBuyingHabitsQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
 
 const freshness = useSpendFreshnessQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
 
@@ -219,6 +223,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         :loading="isFetching"
         :filename="`fuel-costs-${f.from.value}-to-${f.to.value}`"
       />
+
+      <BuyingHabitsTable :table="habits.data.value" :loading="habits.isFetching.value" :error="habits.isError.value" />
 
       <p class="text-sm text-ink-muted">
         Fuel carried out of a dearer state, and the fuel targets graded:

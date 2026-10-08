@@ -4,6 +4,7 @@ import { asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readFuelOpportunities } from "../findingsOpportunities.js";
+import { readBuyingHabits } from "../buyingHabitsRead.js";
 import { idsFrom, ymd } from "./exceptions.js";
 
 /**
@@ -27,6 +28,25 @@ export function registerOpportunityRoutes(router: Router): void {
         vehicleIds: idsFrom(req.query.vehicles),
       });
       res.json({ ok: true, rows });
+    }),
+  );
+
+  /**
+   * Buying habits, as a monthly table per truck (chunk 9a, Q-F2): the policy premiums nobody can dispute,
+   * moved out of the queue into Fuel Costs. Same gate as the strip beside it on that page.
+   */
+  router.get(
+    "/buying-habits",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const table = await readBuyingHabits(admin, req.auth!.orgId!, {
+        from: ymd(req.query.from),
+        to: ymd(req.query.to),
+        vehicleIds: idsFrom(req.query.vehicles),
+      });
+      res.json({ ok: true, ...table });
     }),
   );
 }
