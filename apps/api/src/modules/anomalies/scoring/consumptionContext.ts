@@ -157,8 +157,15 @@ export async function loadConsumptionContext(
       badIds = new Set((anoms ?? []).map((a) => a.transaction_id as string));
     }
     // Previous fill = the most recent fill whose odometer is NOT already flagged as anomalous.
+    // ⚠ BOTH lists, for the reason given at `recentRows` below. CF5 (2026-10-08) took every odometer
+    // rule to weight 0, which moves it from `case_signals` to `case_signals_unscored`; reading the first
+    // alone would let a fill with a bad odometer become the "previous fill" again, and every fill's
+    // stored `miles_since_last` and MPG — the numbers Fleet MPG adds up — would change on re-score
+    // because of a weight nobody meant to touch them.
     const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
-    const odoBad = (x: FtxnRow) => badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
+    const odoBad = (x: FtxnRow) =>
+      badIds.has(x.id)
+      || [...(x.case_signals ?? []), ...(x.case_signals_unscored ?? [])].some((sg) => ODO_SIGNALS.has(sg.ruleId));
     // A logbook-contradicted fill carries another truck's gallons/odometer and cannot train this context.
     const attrBad = (x: FtxnRow) => x.attribution_verdict === "suspect";
     const prevRow = rows.find((x) => !odoBad(x) && !attrBad(x)) ?? null;
