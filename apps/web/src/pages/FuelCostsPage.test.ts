@@ -76,6 +76,9 @@ vi.mock("@/composables/useVehicles", () => ({
 }));
 /** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
 const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+vi.mock("@/features/reconcile/useBuyingHabits", () => ({
+  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(false) }),
+}));
 vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
   useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
     strip.params = params;
