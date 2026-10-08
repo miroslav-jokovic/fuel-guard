@@ -45,6 +45,7 @@ const suggestions = computed(() => suggestionsFor(route.matched.at(-1)?.path ?? 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
 const shortcut = isMac ? "⌘K" : "Ctrl K";
 
+const panel = ref<HTMLElement | null>(null);
 const launcher = ref<HTMLButtonElement | null>(null);
 const thread = ref<InstanceType<typeof AssistantThread> | null>(null);
 
@@ -72,12 +73,12 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
  * Escape page-wide: a `SlideOver` or `BaseModal` the page opened owns that key (HeadlessUI picks
  * Escape's owner from the DOM tree, and two owners close both at once).
  */
-function onPanelKeydown(e: KeyboardEvent) {
+useEventListener(panel, "keydown", (e: KeyboardEvent) => {
   if (e.key === "Escape") {
     e.stopPropagation();
     hide();
   }
-}
+});
 
 /** Leaving for `/ask` hands the conversation to the page; the store keeps it, the dock just closes. */
 watch(onAskPage, (on) => {
@@ -123,11 +124,11 @@ function expand() {
       <section
         v-if="store.open"
         id="assistant-dock"
+        ref="panel"
         role="dialog"
         aria-modal="false"
         aria-labelledby="assistant-dock-title"
         class="fixed right-6 bottom-6 z-chrome flex h-[min(40rem,calc(100dvh-7rem))] w-[min(26rem,calc(100vw-3rem))] origin-bottom-right flex-col overflow-hidden rounded-dialog bg-surface shadow-dialog ring-1 ring-edge-subtle max-sm:inset-x-2 max-sm:top-20 max-sm:bottom-2 max-sm:h-auto max-sm:w-auto"
-        @keydown="onPanelKeydown"
       >
         <header class="flex items-center gap-3 border-b border-edge-subtle px-4 py-3">
           <AssistantMark size="md" />
