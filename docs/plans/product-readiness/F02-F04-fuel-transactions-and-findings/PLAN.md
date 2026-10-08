@@ -365,6 +365,14 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
   - Matrix `fuel-queue-owner.test.mjs` (40 checks), including the real ingest
     (`sync_fuel_exceptions`).
 - **8b** Set it to Miroslav, and assign the open items to him (an audited act).
+  - 8a merged (#1360, f4b756c).
+  - Built: migration 0443 calls `set_fuel_queue_owner` once for Silvicom, with Miroslav as actor and
+    owner (an admin, so he can close every fuel item). It skips cleanly where Silvicom or his
+    membership is missing, or where an owner is already set. No code has to be served first, so 8a
+    and 8b can ship in one release; the release applies 0442 before 0443.
+  - Expected on production (read-only, 10-08): 157 findings assigned to him, 0 cases, 0 incidents.
+    Re-measure before the release.
+  - Matrix `fuel-queue-owner-run.test.mjs` (13 checks); five mutants, each red.
 - **8c** One page, **"Fuel problems"**, under FUEL. It lists card-fraud incidents,
   `tank_fill_short` reviews and disputable money findings. Every row opens its own drawer on
   that page, so the theft-case click that does nothing for a dispatcher goes away. The old paths
@@ -519,3 +527,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   Chunk 6's version bump records them as the sweep passes.
 - 2026-10-08: Chunk 8a built: migration 0442 (the fuel queue owner, the assigning trigger, and the act
   8b runs). Buying-habit findings get the owner too, until chunk 9.
+- 2026-10-08: Chunk 8a merged (#1360, f4b756c). 8b built: migration 0443 sets Silvicom's fuel queue
+  owner to Miroslav and gives him the open items, in one audited act.
