@@ -16,7 +16,7 @@ emergency path is the same steps, same day, no shortcuts. Nothing here is hand-e
   eCFR corrections). Because eCFR and GovInfo share the OFR origin, the automated diff cannot catch a
   *shared source-data* error, so a **human attestation** of the reconciled report (+ a PDF spot-check) is
   retained as the independence backstop - reduced from transcribing every in-scope row to signing off a
-  machine-generated report. *(D5 v7 BUILT 2026-07-30: the GovInfo-format parsers (`parseHmtGovInfo`/`parsePlacardsGovInfo`/`parseSegregationGovInfo`, sharing `hmtAssemble.ts` with eCFR) + the automated cross-check `import/govinfoCrossCheck.ts` are built and pass CLEAN on all three tables; the remaining step to mint a non-provisional dataset is wiring `crossCheckAll()` into `buildDataset.ts`'s gate + attesting the clean report.)*
+  machine-generated report. *(D5 v7 BUILT 2026-07-30: the GovInfo-format parsers (`parseHmtGovInfo`/`parsePlacardsGovInfo`/`parseSegregationGovInfo`, sharing `hmtAssemble.ts` with eCFR) + the automated cross-check `import/govinfoCrossCheck.ts` are built and pass CLEAN on all three tables; `buildDataset.ts` runs `crossCheckAll()` as its provisional gate on every cut (wired with 2026.07.1), so the one remaining step to mint a non-provisional dataset is a named human attesting the clean report — step 5's `--attested-by`.)*
 
 **Prerequisites (run locally — the sandbox/CI cannot reach the gov APIs):** Node 22+, `pnpm install`,
 and `GOVINFO_API_KEY` in the environment for the Source-B PDF.
@@ -49,8 +49,11 @@ Run everything from `packages/hazmat-data/`.
      written to the dataset.
    - *D5 v7 (BUILT 2026-07-30):* the GovInfo-format parsers + the automated eCFR<->GovInfo cross-check
      (`import/govinfoCrossCheck.ts`) are built and pass CLEAN (HMT 2,479/2,479, placards 23/23, segregation
-     173/173). To mint a non-provisional dataset, wire `crossCheckAll()` into `buildDataset.ts`'s provisional
-     gate and attest the clean report. (`handVerifiedRows.ts` remains an optional PDF spot-check anchor.)
+     173/173). `buildDataset.ts` re-runs `crossCheckAll()` as its provisional gate on every cut (step 5), so
+     minting a non-provisional dataset needs only a named attestation of the clean report. The gate is
+     strict: ANY full-table HMT disagreement (`hmt.full.disagree > 0`) makes it NOT CLEAN — an amendment the
+     GovInfo edition predates cannot be "explained" past it; that needs the next GovInfo edition.
+     (`handVerifiedRows.ts` remains an optional PDF spot-check anchor.)
 
 **4. Second-source diff — the release gate.**
    - `npx tsx import/diff.ts` compares Source A vs Source B on `prefix+number+name` and prints a
