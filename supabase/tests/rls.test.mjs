@@ -2294,6 +2294,17 @@ async function main() {
         `values ('${org}', gen_random_uuid()::text, 'rls', 'rls', now(), now(), 'alert', 1, '[{}]', '[{}]') returning id) ` +
         `insert into card_fraud_incident_attempts (source, source_id, org_id, incident_id, attempted_at) ` +
         `select 'decline', gen_random_uuid(), '${org}', id, now() from i`,
+      // 0449: `document_page_classes_provenance` ties `model`, `prompt_version` and `actor` to `set_by`
+      // (a classifier names its model and no person) — a cross-column rule the column-by-column seeder
+      // cannot satisfy, since it leaves the nullable three empty. A classifier verdict on a page whose
+      // source is built inline, as 0449's composite (page_id, org_id) FK needs one of this org.
+      document_page_classes: (org) =>
+        `with s as (insert into document_sources (org_id, origin, storage_path, sha256, mime, byte_size, page_count) ` +
+        `values ('${org}', 'upload', 'rls', md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text), 'image/png', 1, 1) returning id), ` +
+        `p as (insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version) ` +
+        `select '${org}', id, 1, 'o', repeat('a', 64), 'w', 1, 1, 'n1' from s returning id) ` +
+        `insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) ` +
+        `select '${org}', id, 'bol', 'classifier', 'rls', 'rls' from p`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

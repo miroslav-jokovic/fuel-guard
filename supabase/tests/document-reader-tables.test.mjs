@@ -1,4 +1,5 @@
-// FuelGuard — the document reader's tables (migration 0448, DOCUMENT-READER-PLAN.md Step 1.2).
+// FuelGuard — the document reader's tables (migrations 0448 and 0449, DOCUMENT-READER-PLAN.md Step 1.2 and
+// Q-DR12).
 //
 // Five properties that would each fail quietly, because nothing in the product reads these tables yet:
 //
@@ -14,6 +15,9 @@
 //      match across carriers is refused.
 //   4. DEDUPE WITHIN THE ORG (D-DR12): the same bytes twice in one org conflict; in two orgs they do not.
 //   5. NO CLIENT PATH: RLS on, no policies, the RPC not executable by a browser session.
+//   6. A PAGE'S CLASS IS A LEDGER (0449, Q-DR12): every verdict — the classifier's and each person's
+//      override — is a new append-only row in document_page_classes; the newest per page wins; a
+//      classifier verdict names its model and prompt and no person, a person's names the person.
 //
 // Run:  node supabase/tests/document-reader-tables.test.mjs   (after `pnpm --filter @silvicom/shared build:rn`)
 import { PGlite } from "@electric-sql/pglite";
@@ -83,6 +87,7 @@ await db.exec(
     "alter default privileges in schema storage grant all on tables to anon, authenticated, service_role;",
 );
 ok("0448 present", MIGRATIONS.some((f) => f.startsWith("0448_document_reader_tables")));
+ok("0449 present", MIGRATIONS.some((f) => f.startsWith("0449_document_page_classes")));
 for (const f of MIGRATIONS)
   await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
@@ -97,8 +102,8 @@ const checkLiterals = async (table, conname) => {
 };
 const VOCABULARIES = [
   ["document_sources", "document_sources_origin_check", "DOCUMENT_ORIGINS", DOCUMENT_ORIGINS],
-  ["document_pages", "document_pages_page_class_check", "PAGE_CLASSES", PAGE_CLASSES],
-  ["document_pages", "document_pages_page_class_set_by_check", "PAGE_CLASS_SETTERS", PAGE_CLASS_SETTERS],
+  ["document_page_classes", "document_page_classes_page_class_check", "PAGE_CLASSES", PAGE_CLASSES],
+  ["document_page_classes", "document_page_classes_set_by_check", "PAGE_CLASS_SETTERS", PAGE_CLASS_SETTERS],
   ["document_reads", "document_reads_status_check", "READ_STATUSES", READ_STATUSES],
   ["document_reads", "document_reads_failure_code_check", "READ_FAILURE_CODES", READ_FAILURE_CODES],
   ["document_reads", "document_reads_profile_check", "DOCUMENT_PROFILE_IDS", DOCUMENT_PROFILE_IDS],
@@ -189,31 +194,86 @@ ok("deleting the matched driver keeps the document and clears the match (on dele
   && (await one(`select matched_driver_id from document_sources where id = $1`, [S1]))?.matched_driver_id === null);
 
 // ── 2. pages ──────────────────────────────────────────────────────────────────────────────────────
-const insertPage = (org, source, n, cls = "bol", setBy = "classifier") => db.query(
-  `insert into document_pages (org_id, source_id, page_number, page_class, page_class_set_by, original_path,
+const insertPage = (org, source, n) => db.query(
+  `insert into document_pages (org_id, source_id, page_number, original_path,
      original_sha256, working_path, width, height, normaliser_version)
-   values ($1, $2, $3, $4, $5, 'o', $6, 'w', 2550, 3300, 'n1') returning id`,
-  [org, source, n, cls, setBy, sha("e")],
+   values ($1, $2, $3, 'o', $4, 'w', 2550, 3300, 'n1') returning id`,
+  [org, source, n, sha("e")],
 );
 const P1 = (await insertPage(ORG, S1, 1)).rows[0].id;
 ok("a canonical page is recorded", !!P1);
-ok("a page class outside PAGE_CLASSES is refused", (await sqlstate(
-  `insert into document_pages (org_id, source_id, page_number, page_class, page_class_set_by, original_path, original_sha256, working_path, width, height, normaliser_version)
-   values ($1, $2, 2, 'invoice', 'classifier', 'o', $3, 'w', 1, 1, 'n1')`, [ORG, S1, sha("e")])) === "23514");
-ok("a class setter outside PAGE_CLASS_SETTERS is refused", (await sqlstate(
-  `insert into document_pages (org_id, source_id, page_number, page_class, page_class_set_by, original_path, original_sha256, working_path, width, height, normaliser_version)
-   values ($1, $2, 2, 'bol', 'driver', 'o', $3, 'w', 1, 1, 'n1')`, [ORG, S1, sha("e")])) === "23514");
-ok("a class without who set it is refused", (await sqlstate(
-  `insert into document_pages (org_id, source_id, page_number, page_class, original_path, original_sha256, working_path, width, height, normaliser_version)
-   values ($1, $2, 2, 'bol', 'o', $3, 'w', 1, 1, 'n1')`, [ORG, S1, sha("e")])) === "23514");
+const pageCols = (await db.query(
+  `select attname from pg_attribute where attrelid = 'public.document_pages'::regclass and attnum > 0 and not attisdropped`,
+)).rows.map((r) => r.attname);
+ok("a page carries no class columns of its own (0449: the class is document_page_classes)",
+  !pageCols.includes("page_class") && !pageCols.includes("page_class_set_by"), pageCols.join(","));
 ok("a page of another carrier's source is refused", (await sqlstate(
   `insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version)
    values ($1, $2, 1, 'o', $3, 'w', 1, 1, 'n1')`, [ORG, SX, sha("e")])) === "23503");
 ok("a page number twice for one source is refused", (await sqlstate(
   `insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version)
    values ($1, $2, 1, 'o', $3, 'w', 1, 1, 'n1')`, [ORG, S1, sha("e")])) === "23505");
-ok("a page's class cannot be overwritten (UPDATE)",
-  (await sqlstate(`update document_pages set page_class = 'other' where id = $1`, [P1])) === "DO010");
+ok("a page cannot be overwritten (UPDATE)",
+  (await sqlstate(`update document_pages set working_path = 'w2' where id = $1`, [P1])) === "DO010");
+
+// ── 2b. a page's class: one append-only ledger, newest wins (0449) ──────────────────────────────────
+const classify = (org, page, cls, setBy = "classifier", extra = {}) => {
+  const person = setBy !== "classifier";
+  const v = { actor: person ? USER : null, model: person ? null : "claude-cheap", prompt: person ? null : "pc-1", id: null, ...extra };
+  return db.query(
+    `insert into document_page_classes (id, org_id, page_id, page_class, set_by, actor, model, prompt_version)
+     values (coalesce($8::uuid, gen_random_uuid()), $1, $2, $3, $4, $5, $6, $7) returning id`,
+    [org, page, cls, setBy, v.actor, v.model, v.prompt, v.id]);
+};
+const current = async (org, pages = null) =>
+  (await db.query(`select page_id, page_class, set_by from document_page_current_class($1, $2::uuid[])`, [org, pages])).rows;
+const P2 = (await insertPage(ORG, S1, 2)).rows[0].id;
+ok("a page with no verdict has no current class", (await current(ORG)).length === 0);
+const C1 = (await classify(ORG, P1, "other")).rows[0]?.id;
+ok("a classifier verdict with its model and prompt is recorded", !!C1);
+ok("the classifier's verdict is the current class while it is the only one",
+  JSON.stringify(await current(ORG, [P1])) === JSON.stringify([{ page_id: P1, page_class: "other", set_by: "classifier" }]));
+ok("a classifier verdict without its model is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, prompt_version) values ($1, $2, 'bol', 'classifier', 'pc-1')`, [ORG, P1])) === "23514");
+ok("a classifier verdict without its prompt version is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, model) values ($1, $2, 'bol', 'classifier', 'claude-cheap')`, [ORG, P1])) === "23514");
+ok("a classifier verdict that names a person is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor, model, prompt_version) values ($1, $2, 'bol', 'classifier', $3, 'm', 'p')`, [ORG, P1, USER])) === "23514");
+ok("a person's override without the person is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by) values ($1, $2, 'bol', 'reviewer')`, [ORG, P1])) === "23514");
+ok("a person's override that names a model is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor, model) values ($1, $2, 'bol', 'reviewer', $3, 'm')`, [ORG, P1, USER])) === "23514");
+ok("a page class outside PAGE_CLASSES is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) values ($1, $2, 'invoice', 'classifier', 'm', 'p')`, [ORG, P1])) === "23514");
+ok("a class setter outside PAGE_CLASS_SETTERS is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor) values ($1, $2, 'bol', 'driver', $3)`, [ORG, P1, USER])) === "23514");
+const PX = (await insertPage(OTHER, SX, 1)).rows[0].id;
+ok("a verdict on another carrier's page is refused",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) values ($1, $2, 'bol', 'classifier', 'm', 'p')`, [ORG, PX])) === "23503");
+await classify(OTHER, PX, "securement");
+await classify(ORG, P2, "placard");
+// Classifier then override inside ONE transaction: their created_at ties (`now()`), their seq must not.
+// The ids are chosen so the LATER row has the SMALLER id — a fold that fell back to (created_at, id) would
+// pick the classifier every time, not half the time.
+await db.exec("begin");
+const C2 = (await classify(ORG, P1, "bol", "classifier", { prompt: "pc-2", id: "ffffffff-ffff-4fff-bfff-ffffffffffff" })).rows[0].id;
+const C3 = (await classify(ORG, P1, "delivery_copy", "reviewer", { id: "00000000-0000-4000-8000-000000000001" })).rows[0].id;
+await db.exec("commit");
+ok("two verdicts written in one transaction are ordered as written, not tied (seq)",
+  (await one(`select (select seq from document_page_classes where id = $2)
+                   > (select seq from document_page_classes where id = $1) as later`, [C2, C3]))?.later === true);
+ok("a dispatcher's override is the current class as the newest row, even in the classifier's transaction",
+  JSON.stringify((await current(ORG, [P1]))) === JSON.stringify([{ page_id: P1, page_class: "delivery_copy", set_by: "reviewer" }]));
+ok("every earlier verdict is kept (who-said-what)",
+  Number((await one(`select count(*) n from document_page_classes where page_id = $1`, [P1])).n) === 3);
+ok("the fold answers per page: another page keeps its own verdict",
+  (await current(ORG)).find((r) => r.page_id === P2)?.page_class === "placard" && (await current(ORG)).length === 2);
+ok("the fold sees one org only: the other carrier's verdict is not this org's, nor this org's its",
+  !(await current(ORG)).some((r) => r.page_id === PX)
+  && JSON.stringify(await current(OTHER)) === JSON.stringify([{ page_id: PX, page_class: "securement", set_by: "classifier" }]));
+ok("a verdict cannot be rewritten (UPDATE)",
+  (await sqlstate(`update document_page_classes set page_class = 'bol' where id = $1`, [C3])) === "DO010");
+ok("a verdict cannot be deleted", (await sqlstate(`delete from document_page_classes where id = $1`, [C1])) === "DO010");
 ok("a page cannot be deleted", (await sqlstate(`delete from document_pages where id = $1`, [P1])) === "DO010");
 
 // ── 3. reads: one door, one direction ───────────────────────────────────────────────────────────────
@@ -301,7 +361,7 @@ async function asClient(org, sql, params = []) {
     await db.exec("rollback");
   }
 }
-for (const t of ["document_sources", "document_pages", "document_reads", "document_read_reviews"]) {
+for (const t of ["document_sources", "document_pages", "document_page_classes", "document_reads", "document_read_reviews"]) {
   const r = await asClient(ORG, `select count(*)::int n from ${t}`);
   ok(`an admin's browser session reads nothing from ${t} (no client policy)`, r.error === null && r.rows[0].n === 0, JSON.stringify(r));
 }
@@ -311,6 +371,8 @@ const ins = await asClient(ORG,
 ok("a browser session cannot insert a source", ins.error === "42501", JSON.stringify(ins));
 const rpc = await asClient(ORG, `select document_read_transition($1, $2, 'reading')`, [ORG, await newRead()]);
 ok("a browser session cannot execute document_read_transition", rpc.error === "42501", JSON.stringify(rpc));
+const fold = await asClient(ORG, `select * from document_page_current_class($1)`, [ORG]);
+ok("a browser session cannot execute document_page_current_class", fold.error === "42501", JSON.stringify(fold));
 
 await db.close();
 

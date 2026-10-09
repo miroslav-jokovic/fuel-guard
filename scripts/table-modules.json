@@ -233,6 +233,17 @@
         "why": "budget derived from DOCUMENT-READER-PLAN §0.1 (measured 2026-10-08): 2,135 BOL-type and 311 delivery photos in 30 days through Samsara, ~82 pages a day, before SMS and email; x5 headroom. One canonical page per photo or PDF page (0448). Append-only evidence beside its source; no rule."
       }
     },
+    "document_page_classes": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 800,
+        "why": "one classifier verdict per page (document_pages' 400 a day, the same x5 headroom on DOCUMENT-READER-PLAN §0.1's ~82 pages) plus a re-classification on a prompt change and each dispatcher override; x2 on the page budget. Append-only labels, newest per page wins, RETENTION_FORBIDDEN (0449, Q-DR12)."
+      }
+    },
     "document_read_reviews": {
       "module": "document-reading",
       "layer": "core",
