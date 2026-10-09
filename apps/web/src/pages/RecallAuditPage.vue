@@ -54,41 +54,41 @@ function loadNewBatch() {
 <template>
   <div class="space-y-6">
     <PageHeader>
-      Precision measures the cases we raise; recall measures the theft we <em>miss</em>. Since misses are
-      invisible by definition, we sample a random batch of fills the engine <strong>cleared</strong> (and
-      that telematics could actually see) and you judge each one. A "missed" verdict is a false negative —
-      those measure recall. Judge a batch, then load another; the more you review, the tighter the estimate.
+      This page measures how much the system <em>misses</em>. It shows you a random batch of fills it did
+      <strong>not</strong> flag, where Samsara could see the truck, and you mark each one Clean or Missed.
+      Each Missed is a problem the system should have caught. The more fills you check, the closer the
+      estimate gets.
     </PageHeader>
 
     <!-- Measured recall -->
     <BaseCard>
-      <h2 class="text-sm font-semibold text-ink">Estimated recall <span class="font-normal text-ink-tertiary">(all-time, from your audits)</span></h2>
+      <h2 class="text-sm font-semibold text-ink">Share of problems caught <span class="font-normal text-ink-tertiary">(all time, from your checks)</span></h2>
       <template v-if="metrics && metrics.audited > 0">
         <div class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Estimated recall</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Caught</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.estimatedRecall) }}</dd>
             <dd class="mt-0.5 text-xs text-ink-tertiary">range {{ pct(metrics.recallLow) }}–{{ pct(metrics.recallHigh) }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Sampled miss rate</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Missed in your checks</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.missRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">95% CI {{ pct(metrics.missRateCiLow) }}–{{ pct(metrics.missRateCiHigh) }}</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">likely between {{ pct(metrics.missRateCiLow) }} and {{ pct(metrics.missRateCiHigh) }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Audited</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Fills checked</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.audited.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.missed }} missed found</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.missed }} marked Missed</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Est. missed in pool</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Likely missed overall</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.estimatedMisses?.toLocaleString() ?? "—" }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">of {{ metrics.coveredClears.toLocaleString() }} covered clears</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">of {{ metrics.coveredClears.toLocaleString() }} unflagged fills Samsara could see</dd>
           </div>
         </div>
-        <p class="mt-3 text-xs text-ink-tertiary">Extrapolated from the sample — it's an estimate, and it tightens as you audit more. Sampling is drawn only from telematics-covered fills, so a miss is a real miss, not a blind spot.</p>
+        <p class="mt-3 text-xs text-ink-tertiary">These figures are estimates from the fills you checked, and they get closer as you check more. Only fills Samsara could see are shown, so a Missed is a real miss and not a gap in the data.</p>
       </template>
-      <p v-else class="mt-3 text-sm text-ink-muted">No audits yet — judge the batch below and your measured recall appears here.</p>
+      <p v-else class="mt-3 text-sm text-ink-muted">No fills checked yet. Mark the batch below, and the figures appear here.</p>
     </BaseCard>
 
     <!-- Review batch -->
@@ -100,10 +100,10 @@ function loadNewBatch() {
     </div>
 
     <TableSkeleton v-if="isLoading" :cols="1" />
-    <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load sample'" :retrying="isFetching" @retry="refetch" />
+    <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Could not load the batch'" :retrying="isFetching" @retry="refetch" />
     <BaseCard v-else-if="pending.length === 0" padding="none">
       <div class="px-6 py-10 text-center text-sm text-ink-muted">
-        Batch complete. <BaseButton class="font-medium text-link hover:text-link-hover" @click="loadNewBatch">Load another batch</BaseButton> to keep sharpening the estimate.
+        Batch complete. <BaseButton class="font-medium text-link hover:text-link-hover" @click="loadNewBatch">Load another batch</BaseButton> to make the estimate more exact.
       </div>
     </BaseCard>
 
@@ -136,7 +136,7 @@ function loadNewBatch() {
             <BaseButton
               variant="danger"
               :disabled="record.isPending.value"
-              title="This should have been flagged — a missed detection"
+              title="This should have been flagged"
               @click="judge(f, 'missed')"
             >
               Missed

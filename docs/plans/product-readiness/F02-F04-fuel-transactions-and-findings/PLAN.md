@@ -835,3 +835,31 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     and the three captions. Proved by seven mutants: old captions, the raw text back in the cell,
     the hover dropped, the drawer line dropped, proximity not read first, ids not stripped, and a
     value shown against two prompts. The last one first survived; a case for it was added.
+- 2026-10-09: 14b merged (#1403, 7d1e657). 14c built: Alerts, Findings, and the three detection tools
+  in Settings (W4, W6, and W2's last three lines).
+  - W4, Alerts: the header says "Fuel-card fills that look wrong…" instead of "anomaly detection". The
+    hand-built pair of buttons is now `AppTabs`, a real tablist, with `reefer=1` still the URL's one
+    record of the view. "Rebuild / Re-sync →" is "Data & sync →", naming the screen it opens. The
+    reefer explanation says "truck diesel" and "reefer fuel", not ULSD/ULSR.
+  - W6, Findings: the export's scope line prints MM/DD/YYYY, as the picker beside it does. The file
+    name keeps ISO, because a file name sorts.
+  - W2, Recall audit: "precision", "recall", "false negative" and "95% CI" are gone. The page says it
+    measures what the system misses, and the range reads "likely between … and …".
+  - W2, Detection coverage: "blind", "telematics", "corroborate", "judgeable" and "unidentifiable" become
+    "not matched", "Samsara", "checked", "could be checked" and "could not be tied to one card".
+  - W2, Anomaly thresholds: "Tune the anomaly engine" becomes "Set the limits that decide when a fill is
+    flagged". The AI checkbox is "Ask AI for a second opinion on flagged fills".
+  - The three Settings cards for those tools lost "anomaly engine" and "detection engine".
+  - Not changed: the catalogue labels "Recall audit", "Detection coverage" and "Anomaly thresholds".
+    Each is a screen's name in the sidebar preview and in every stored grant's audit trail. Renaming
+    them is its own decision, recorded here, not taken.
+  - Tests: `detectionToolsWording.test.ts` renders the three pages, Coverage with a real
+    `computeDetectionCoverage` summary so its tiles and table render, and holds them and their cards
+    to one word list. `MoneyExportActions.test.ts` is new and pins the scope line and the ISO file
+    name. `anomaliesFiltersInUrl.test.ts` pins the header and the tablist with its selected tab.
+  - Proved by seven mutants: each of the four old pages, the ISO scope line, the old coverage card, and
+    plain buttons in place of the tabs. Each turned the tests red. A first run of the mutants used a
+    file list zsh did not split, so it took no backups and overwrote the uncommitted edits. They were
+    re-applied from one saved script and committed before the mutants ran again, so each restore was a
+    `git checkout`.
+  - **Chunk 14 is complete** once this merges. Next: chunk 15.

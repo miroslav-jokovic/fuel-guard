@@ -57,13 +57,13 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.settings.efs", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", block: "config" },
   { key: "admin.settings.fleetpal", icon: ConnectIcon, desc: "The FleetPal API key, the hourly repair-record sweep, and what each collection last brought in.", block: "config" },
   { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", block: "config" },
-  { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", block: "config" },
+  { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "The limits that decide when a fill is flagged, and the AI second opinion.", block: "config" },
   { key: "admin.settings.driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", block: "config" },
   { key: "admin.settings.fuel-planning", icon: MapIcon, desc: "The tank rules, the stations the planner may use, emergencies, prices, and the default load and truck.", block: "config" },
   { key: "admin.settings.audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", block: "config" },
   // Reporting & detection-health surfaces — moved off the daily sidebar into Settings.
   { key: "admin.reports", icon: ReportChartIcon, desc: "Fuel spend, MPG, and anomaly summaries to review or export.", block: "reports" },
-  { key: "admin.coverage", icon: RadarIcon, desc: "Which trucks and rules the anomaly engine can score today.", block: "reports" },
+  { key: "admin.coverage", icon: RadarIcon, desc: "How many fills could be checked against Samsara, truck by truck.", block: "reports" },
   { key: "admin.reefer-coverage", icon: ReeferTruckIcon, desc: "Which trucks have reefer-fueling detection enabled.", block: "reports" },
-  { key: "admin.recall-audit", icon: ClipboardDocumentCheckIcon, desc: "Sampled review of how much the detection engine catches.", block: "reports" },
+  { key: "admin.recall-audit", icon: ClipboardDocumentCheckIcon, desc: "Check a sample of unflagged fills to measure what the system misses.", block: "reports" },
 ];
