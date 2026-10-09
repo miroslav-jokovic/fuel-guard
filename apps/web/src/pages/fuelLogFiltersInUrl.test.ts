@@ -114,9 +114,6 @@ beforeEach(() => {
   seen.fuel = seen.txn = seen.declined = null;
 });
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("the Fuel Log's filters round-trip through the query string", () => {
   it("puts a facet chosen on the Fills tab into the URL, and the query", async () => {
     const { w, query } = await mountAt("/fuel-log");

@@ -9,8 +9,14 @@
  * what a day is. The section is now organised by the question: the enriched record, what was refused,
  * and the raw lines behind both, under one window and one truck filter.
  *
- * Fuel Log keeps the name because it is the enriched record and the write surface; the other two are
- * views of its inputs.
+ * Fuel Log keeps the name because it is the enriched record; the other two are views of its inputs.
+ *
+ * ── NO "LOG FILL-UP" (Q-F6, F02-F04 chunk 12a) ──────────────────────────────────────────────────
+ * The page used to offer one: a drawer that inserted a fill from the browser straight into
+ * `fuel_transactions`, with no audit row. It was used 0 times — all 18,517 fills on production came from
+ * the fuel card (re-measured 2026-10-09) — and cash fuel is keyed in McLeod's fuel-tax receipts, which
+ * reach IFTA from there (IP6, 0434). A second door for the same receipt is a second source of truth.
+ * The owner ruled it removed on 2026-10-07; 12b drops the browser's write policies on the table.
  *
  * ── WHY THE SHELL OWNS SO LITTLE ────────────────────────────────────────────────────────────────
  * Each tab renders its own filter bar, because the count in that bar must be the count of what THAT
@@ -20,7 +26,7 @@
  *
  * What the shell does own is what is genuinely one thing across the three: the window and the truck
  * (`useFuelLogFilters`, called ONCE here and passed down — see its header for why not once per tab),
- * and logging a fill-up, which is an act on the fuel log rather than on one of its views.
+ * and the EFS backfill, which is an act on the fuel log rather than on one of its views.
  *
  * ── THE GATE, WHICH IS NOT COSMETIC ─────────────────────────────────────────────────────────────
  * ⚠ `/fuel-log` was catalogued `always` and the two pages absorbed here were `section("fuel")`.
@@ -44,21 +50,15 @@
  */
 import { computed, ref } from "vue";
 import { AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
-import { ArrowUpTrayIcon, PlusIcon } from "@silvicom/ui/icons";
+import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import type { FillUpInput } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import SlideOver from "@/components/SlideOver.vue";
-import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import EfsImportDrawer from "@/features/import/EfsImportDrawer.vue";
 import FillsTab from "@/features/fuel/FillsTab.vue";
 import DeclinesTab from "@/features/fuel/DeclinesTab.vue";
 import SourceRecordsTab from "@/features/fuel/SourceRecordsTab.vue";
 import { useFuelLogFilters, DEFAULT_FUEL_LOG_TAB, type FuelLogTab } from "@/features/fuel/useFuelLogFilters";
-import { useCreateFillUp } from "@/features/fuel/useCreateFillUp";
-import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
 
 const session = useSessionStore();
 const shared = useFuelLogFilters();
@@ -96,24 +96,7 @@ const tab = computed<FuelLogTab>({
   set: (v) => (shared.tab.value = v),
 });
 
-// ── Log fill-up ───────────────────────────────────────────────────────────────────────────────────
-// On the shell rather than the Fills tab: a primary action that appeared and disappeared as a reader
-// moved between a fill and the decline beside it would read as the page losing a capability.
-const { data: vehicles } = useVehiclesQuery();
-const toast = useToastStore();
-const drawerOpen = ref(false);
 const importOpen = ref(false);
-const createFillUp = useCreateFillUp();
-
-async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
-  try {
-    await createFillUp.mutateAsync(payload);
-    drawerOpen.value = false;
-    toast.success("Fill-up logged");
-  } catch (e) {
-    toast.error("Could not save fill-up", e instanceof Error ? e.message : undefined);
-  }
-}
 </script>
 
 <template>
@@ -124,9 +107,6 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
              the exception path — every fill in production arrived through the feed, not this. -->
         <BaseButton v-if="canBackfill" variant="secondary" @click="importOpen = true">
           <AppIcon :icon="ArrowUpTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Backfill EFS reports
-        </BaseButton>
-        <BaseButton variant="primary" @click="drawerOpen = true">
-          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
         </BaseButton>
       </template>
     </PageHeader>
@@ -151,14 +131,5 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
     <!-- `v-if` on the gate as well as on the button: the drawer holds a write mutation, and a
          component nobody may use should not be instantiated to sit closed behind a hidden button. -->
     <EfsImportDrawer v-if="canBackfill" :open="importOpen" @close="importOpen = false" />
-
-    <SlideOver :open="drawerOpen" title="Log fill-up" @close="drawerOpen = false">
-      <FillUpForm
-        :vehicles="vehicles ?? []"
-        :submitting="createFillUp.isPending.value"
-        @submit="onSubmit"
-        @cancel="drawerOpen = false"
-      />
-    </SlideOver>
   </div>
 </template>

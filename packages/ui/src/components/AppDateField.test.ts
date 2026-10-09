@@ -106,7 +106,7 @@ describe("who owns the popup state", () => {
 });
 
 describe("the date-and-time shape of the same control", () => {
-  it("reads the wire format `datetime-local` used, so FillUpForm and the hazmat card are untouched", async () => {
+  it("reads the wire format `datetime-local` used, so the hazmat card is untouched", async () => {
     const w = mount(AppDateTimeField, { props: { modelValue: "2026-06-16T14:30" } });
     await flush();
     expect(shown(w)).toBe("06/16/2026 14:30");

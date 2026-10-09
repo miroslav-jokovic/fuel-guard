@@ -740,3 +740,17 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     cached printed that answer. Both fixed.
   - Accept: tests render a failed totals query as "—" and "Not available" on both pages. The changes are
     proved by six mutants. **Chunk 11 is complete.**
+- 2026-10-09: 11c merged (#1386, 196a07b). 12a built. Re-measured first, read-only: all 18,517 fills on
+  production are `source = 'fuel_card'`, and none was entered by hand.
+  - Removed: the "Log fill-up" button and its drawer on the Fuel Log, `FillUpForm.vue` with its test,
+    `useCreateFillUp.ts`, and `imageCompress.ts`, which only that hook used.
+  - `table-writers.json` loses the `apps/web` entry under `fuel_transactions`, and
+    `check-table-modules.mjs` loses its grandfathered line. No web code writes the table now.
+  - Kept on purpose, recorded rather than removed here:
+    - `fillUpInputSchema` and `computeFillUpWarnings` in `@silvicom/shared` (the driver app's smoke test
+      imports the schema).
+    - The API's `POST /api/transactions/:id/score` route (service role).
+    - The columns only the form wrote (`payment_method`, `receipt_path`, `entered_by`). A column drop
+      is its own two-merge step if ever wanted.
+  - Test: "offers no Log fill-up beside it, even to the admin" in `importRetired.test.ts`. Proved by
+    restoring the old page.

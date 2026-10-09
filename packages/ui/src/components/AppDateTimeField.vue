@@ -3,7 +3,7 @@ import DatePickerBase from "./DatePickerBase.vue";
 
 /**
  * A date and a time, on the wire as `yyyy-MM-dd'T'HH:mm` — the same string `<input
- * type="datetime-local">` produced, so `FillUpForm` and `LoadDeclarationCard` are untouched.
+ * type="datetime-local">` produced, so `LoadDeclarationCard` is untouched (`FillUpForm`, its other caller, was removed in F02-F04 chunk 12a).
  *
  * It moved with `AppDateField` rather than after it on purpose: leaving one of the two on a native
  * control would have put a browser-drawn field beside a tokened one, which is the exact complaint
