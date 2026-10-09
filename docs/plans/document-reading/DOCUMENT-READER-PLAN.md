@@ -609,6 +609,25 @@ with a folder rule, read by the existing Entra app registration given access to 
 (`Mail.ReadWrite`, same as EFS). Owner action in Microsoft 365, ~10 minutes; no code waits on it until
 Step 3.6.
 
+**Q-DR11 — The whole ShippingDocument cannot be one strict structured output.** Measured 2026-10-09
+(live, Sonnet 4.6, Sonnet 5.5 and Haiku 5.5 alike): the API refuses the generated schema with 400 —
+"too many parameters with union types (37 … limit: 16)". Nested nullable fields count; the limit is the
+API's, not a model's. D-DR8's "one call, schema generated from the profile" therefore cannot hold for
+this profile as written. *Candidates:* (a) reshape the contract so "not printed" needs fewer nullable
+fields (e.g. empty string for strings) — a wire format that differs from the stored one, so every reader
+must translate, and numbers still need null; (b) **read per section**: one request per top-level group
+whose generated schema stays under 16 unions — measured on a synthetic BOL: identity + parties 14,
+freight + references + execution 8, hazmat 15; all three returned correct, schema-valid answers in
+7.8–9.2 s each, and they run in parallel, so latency stays one call's; the cost is the page image sent
+three times per pass (~2.8 k input tokens each — the second call did not read the first's cache, so the
+output schema is part of the cached prefix), roughly ×3 input tokens; (c) drop strict structured output
+and rely on Zod on receipt — gives up the grammar guarantee D-DR8 exists for. *Recommendation:* (b),
+with the sections derived from the profile (a profile declares its section keys; a test asserts each
+section's generated schema is under the limit, so a field added later that breaks the limit fails CI,
+not production). Hazmat lines are 12 unions on their own, so a hazmat section has 4 to spare.
+*Until answered:* Step 1.4's adapter is generic and merges; it passes the API's 400 back as a
+configuration error. No profile read runs before 1.6, so nothing waits on this but 1.6.
+
 ---
 
 ## 10. Progress log
@@ -674,3 +693,13 @@ Append dated lines at the end; never edit a row above.
   the baseline: whether a typed read failure scores as all-not-read (recommended yes, once Step 1.4's
   failures are written to the run file), and an accuracy column over labelled values only, since
   agreement on blanks inflates today's (`labelPresent` shows how much).
+- **2026-10-09 (Step 1.4)** — `apps/api/src/modules/document-reading/model/readPages.ts` sends the page
+  images with `output_config.format` = a JSON schema generated from the profile's Zod schema; a pure
+  transform (`wireSchema.ts`) drops only `$schema` and Zod's safe-integer bounds and refuses any other
+  unsupported keyword. No sampling or thinking parameters. Refusal, `max_tokens` and schema failures are
+  typed results carrying usage; 429, 5xx, 529 and timeouts rethrow as `TransientModelError` for the
+  queue; 400/401/404 pass through. `max_tokens` 16,000: a 12-line worst case, 8,509 chars ÷ 2.5 per
+  token × 2 headroom + 8,000 thinking allowance, under the SDK's non-streaming ceiling. Models from
+  `DOC_READ_MODEL_A/_B`, falling back to the hazmat pins (defaults unchanged). SDK 0.107.0, no upgrade.
+  42 tests, 15 mutants killed. **The live call found Q-DR11**: the full profile schema is refused (37
+  unions, limit 16); per-section reads of a synthetic BOL all succeeded.
