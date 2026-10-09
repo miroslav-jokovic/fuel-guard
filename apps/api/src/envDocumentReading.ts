@@ -16,6 +16,11 @@ export const documentReadingEnvFields = {
   // Pass A = a Sonnet-class vision model; Pass B = a Haiku-class model (independent-prompt cross-read).
   HAZMAT_MODEL_A: z.string().default("claude-sonnet-4-6"),
   HAZMAT_MODEL_B: z.string().default("claude-haiku-4-5"),
+  // The reader's own pins (D-DR8, Step 1.4). Unset by default, so each falls back to the hazmat pin
+  // above — the hazmat names are aliases until retired, and a deployment that sets neither reads with
+  // exactly the models it reads with today. Resolved in `modules/document-reading/model/models.ts`.
+  DOC_READ_MODEL_A: z.string().min(1).optional(),
+  DOC_READ_MODEL_B: z.string().min(1).optional(),
 
   // Driver documents (0445, Step 0.1): BOL photos, delivery copies and call forms drivers submit in
   // Samsara's app. Fifteen minutes, because a dispatcher reading a BOL into the hazmat calculator is

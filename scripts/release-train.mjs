@@ -77,7 +77,7 @@ export const AREAS = [
   { id: "maintenance", title: "Maintenance and inventory",
     api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
-    api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance"],
+    api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance", "document-reading"],
     web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal"],
     packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards"],
     plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
