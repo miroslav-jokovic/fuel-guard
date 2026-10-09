@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The Fuel Log's `Declines` tab — declined fuel-card attempts from the EFS Reject reports
+ * The Fuel Log's `Declines` tab — declined fuel-card attempts, from the EFS reject feed
  * (FUEL-C2, D-FUI1).
  *
  * ── WHY IT IS A TAB OF THE FUEL LOG AND NOT A PAGE ──────────────────────────────────────────────
@@ -17,7 +17,7 @@
  */
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
-import type { DeclinedTransactionRow } from "@silvicom/shared";
+import { plainDeclineReason, type DeclinedTransactionRow } from "@silvicom/shared";
 import { rejectDateTime, stationLocalNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -135,7 +135,7 @@ const withAll = (label: string, vals: string[] = []) => [
   ...vals.map((v) => ({ value: v, label: v })),
 ];
 const errorOptions = computed(() => [
-  { value: "", label: "All error codes" },
+  { value: "", label: "All reasons" },
   ...(facets.value?.rejErrorCodes ?? []).map((e) => ({ value: e.code, label: e.label })),
 ]);
 const stateOptions = computed(() => withAll("All states", facets.value?.rejStates));
@@ -201,7 +201,7 @@ const fmt = (iso: string | null, _state: string | null) => rejectDateTime(iso);
 // exactly the case where the card may not be with its assigned driver, and that gap is the fraud
 // signal this tab exists to surface. An unmarked name would read as evidence of presence.
 const DRIVER_SOURCE_NOTE: Record<string, string> = {
-  efs_report: "As printed on the uploaded EFS reject report.",
+  efs_report: "As EFS reported it.",
   card_mirror: "The driver this card is assigned to in EFS. NOT proof this person was at the pump.",
   posted_history: "Derived from approved fills on this same card. NOT proof this person was at the pump.",
 };
@@ -216,9 +216,9 @@ async function rescore() {
   rescoring.value = true;
   const res = await apiFetch("/api/transactions/rescore-declined", { method: "POST" });
   rescoring.value = false;
-  if (res.ok) toast.success("Rescoring started", "Checking each declined attempt against Samsara — refresh in a minute.");
-  else if (res.status === 409) toast.info("Already running", "A rescore is already in progress — refresh in a moment.");
-  else toast.error("Could not start rescore", res.error?.message);
+  if (res.ok) toast.success("Recheck started", "Each declined attempt is checked again. Refresh in a minute.");
+  else if (res.status === 409) toast.info("Already running", "A recheck is already running. Refresh in a moment.");
+  else toast.error("Could not start the recheck", res.error?.message);
 }
 
 const columns: DataTableColumn[] = [
@@ -236,8 +236,8 @@ const columns: DataTableColumn[] = [
   { key: "location_text", label: "Location", width: "xl", cellClass: "text-ink-secondary" },
   { key: "city", label: "City", width: "md", cellClass: "text-ink-secondary" },
   { key: "state", label: "State", sortable: true, width: "xs", cellClass: "text-ink-secondary" },
-  { key: "error_code", label: "Error", sortable: true, width: "sm" },
-  { key: "error_description", label: "Description", width: "xl", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "error_code", label: "Code", sortable: true, width: "sm" },
+  { key: "error_description", label: "Reason", width: "xl", cellClass: "max-w-md truncate text-ink-secondary" },
   { key: "policy_name", label: "Policy", width: "md", cellClass: "text-ink-secondary" },
 ];
 </script>
@@ -256,7 +256,7 @@ const columns: DataTableColumn[] = [
 
     <FilterBar
       v-model:search="search"
-      search-placeholder="Search unit, driver, location, error…"
+      search-placeholder="Search unit, driver, location, reason…"
       :count="total"
       count-label="declines"
       :chips="chips"
@@ -267,7 +267,7 @@ const columns: DataTableColumn[] = [
       <template #filters>
         <FilterSelect v-model="suspicion" label="Risk" :options="suspicionOptions" />
         <FilterSelect v-model="unit" label="Unit" :options="unitOptions" multiple />
-        <FilterSelect v-model="errorCode" label="Error" :options="errorOptions" />
+        <FilterSelect v-model="errorCode" label="Reason" :options="errorOptions" />
         <DateRangeFilter :from="shared.from.value" :to="shared.to.value" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
@@ -279,7 +279,7 @@ const columns: DataTableColumn[] = [
         <BaseButton
           size="sm"
           variant="secondary"
-          title="Card → truck assignments learned from fill history (what the decline scorer checks pump units against)"
+          title="Which truck each card belongs to, learned from its fills"
           @click="cardsOpen = true"
         >
           Cards{{ cardList.length ? ` (${cardList.length})` : "" }}
@@ -288,10 +288,10 @@ const columns: DataTableColumn[] = [
           v-if="session.can('fuel')"
           size="sm"
           :disabled="rescoring"
-          title="Check each declined attempt against Samsara + card patterns"
+          title="Check each declined attempt again against the truck's location and the card's history"
           @click="rescore"
         >
-          {{ rescoring ? "Rescoring…" : "Rescore" }}
+          {{ rescoring ? "Rechecking…" : "Recheck" }}
         </BaseButton>
         <ExportButton
           :href="exportTarget.href"
@@ -311,7 +311,7 @@ const columns: DataTableColumn[] = [
       :rows="rows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load rejections') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load declines') : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column
@@ -339,8 +339,9 @@ const columns: DataTableColumn[] = [
       <template #cell-error_code="{ row }">
         <span :class="[BADGE_BASE, toneClass('danger')]">{{ row.error_code }}</span>
       </template>
+      <!-- W7 (chunk 14b): the reason in plain words, EFS's own trace one hover away. -->
       <template #cell-error_description="{ row }">
-        <span :title="row.error_description ?? ''">{{ row.error_description }}</span>
+        <span :title="row.error_description ?? ''">{{ plainDeclineReason(row.error_code, row.error_description) }}</span>
       </template>
       <template #cell-policy_name="{ row }">{{ row.policy_name?.trim() }}</template>
       <template #footer>
@@ -358,12 +359,12 @@ const columns: DataTableColumn[] = [
     <SlideOver :open="cardsOpen" title="Card assignments" @close="cardsOpen = false">
       <div class="space-y-3 text-sm">
         <p class="text-xs text-ink-muted">
-          The card → truck assignments the decline scorer checks pump units against. Learned automatically
-          from attributed fill history (≥5 fills with a ≥70% majority on one truck); a card that floats
-          between trucks gets no assignment. Manual assignments are never overwritten.
+          The truck each card belongs to. A declined attempt is compared with it. A card is assigned when
+          at least 5 of its fills, and 70% or more of them, were on one truck. A card that moves between
+          trucks gets none. An assignment set by hand is never changed.
         </p>
         <p v-if="!cardList.length" class="text-ink-tertiary">
-          No assignments learned yet — they appear after enough attributed fill history (or a Rescore).
+          No card has a truck yet. Assignments appear when a card has enough fills, or after Recheck.
         </p>
         <AppTable v-else class="w-full text-left text-sm">
           <thead>
@@ -408,8 +409,9 @@ const columns: DataTableColumn[] = [
         <div class="rounded-control bg-danger-50 p-3 ring-1 ring-danger-100">
           <div class="flex items-center gap-2">
             <span :class="[BADGE_BASE, toneClass('danger')]">{{ selectedRow.error_code }}</span>
-            <span class="font-medium text-danger-800">{{ selectedRow.error_description }}</span>
+            <span class="font-medium text-danger-800">{{ plainDeclineReason(selectedRow.error_code, selectedRow.error_description) }}</span>
           </div>
+          <p v-if="selectedRow.error_description" class="mt-1 font-mono text-xs text-danger-700">EFS: {{ selectedRow.error_description }}</p>
           <p v-if="selectedRow.policy_name" class="mt-1 text-xs text-danger-700">Policy: {{ selectedRow.policy_name.trim() }}</p>
         </div>
 
@@ -431,7 +433,7 @@ const columns: DataTableColumn[] = [
               {{ driverNote(selectedRow) }}
             </dd>
             <dd v-else-if="!selectedRow.driver_name" class="mt-0.5 text-xs text-ink-tertiary">
-              The EFS reject feed does not report a driver, and this card could not be matched to one.
+              EFS does not say who used the card for a declined attempt, and this card could not be matched to a driver.
             </dd>
           </div>
           <div><dt class="text-xs text-ink-tertiary">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
@@ -439,7 +441,7 @@ const columns: DataTableColumn[] = [
           <div><dt class="text-xs text-ink-tertiary">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-tertiary">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-tertiary">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Import id</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Import ID</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
         </dl>
       </div>
     </SlideOver>
