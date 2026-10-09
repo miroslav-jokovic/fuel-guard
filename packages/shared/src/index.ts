@@ -12,6 +12,7 @@ export * from "./hazmatReview.js";
 export * from "./hazmatPackaging.js";
 export * from "./shippingDocumentContract.js";
 export * from "./fieldEvidenceContract.js";
+export * from "./bolFindingCatalogue.js";
 export * from "./documentReadingContract.js";
 export * from "./documentFieldMatch.js";
 export * from "./documentScoring.js";
