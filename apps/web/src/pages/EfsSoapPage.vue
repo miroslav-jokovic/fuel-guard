@@ -106,8 +106,8 @@ const overallState = computed<"loading" | "not_configured" | "disabled" | "enabl
 function validate(): boolean {
   const errs: Record<string, string> = {};
   const endpoint = form.endpointUrl.trim();
-  if (!endpoint) errs.endpointUrl = "Endpoint URL is required";
-  else if (!/^https?:\/\//i.test(endpoint)) errs.endpointUrl = "Must be an http(s) URL";
+  if (!endpoint) errs.endpointUrl = "Web service address is required";
+  else if (!/^https?:\/\//i.test(endpoint)) errs.endpointUrl = "Must start with https://";
   // WEX hands out the WSDL URL — `…/CardManagementWS?wsdl` — because that is what you open in a
   // browser to read the contract. It is NOT the endpoint. The value saved here is used verbatim as
   // the POST target for every SOAP call (checkOutboundUrl normalises through `new URL().toString()`,
@@ -115,10 +115,10 @@ function validate(): boolean {
   // document and get back XML that is not a response. It fails on the first call as a parse error,
   // which reads as "the vendor is broken" rather than "we typed the wrong URL".
   else if (/[?&]wsdl\b/i.test(endpoint)) {
-    errs.endpointUrl = `Remove the "?wsdl" — that is the contract document, not the endpoint. Use ${endpoint.split("?")[0]}`;
+    errs.endpointUrl = `Remove "?wsdl" from the end. That address describes the service; it is not the service. Use ${endpoint.split("?")[0]}`;
   }
-  if (!form.soapUsername.trim()) errs.soapUsername = "SOAP username is required";
-  if (!form.soapPassword.trim()) errs.soapPassword = "SOAP password is required";
+  if (!form.soapUsername.trim()) errs.soapUsername = "Username is required";
+  if (!form.soapPassword.trim()) errs.soapPassword = "Password is required";
   fieldErr.value = errs;
   return Object.keys(errs).length === 0;
 }
@@ -133,17 +133,17 @@ async function onSaveAndEnable() {
       soapPassword: form.soapPassword,
       accountId: form.accountId.trim() || null,
     });
-    toast.success("EFS SOAP credentials saved", "Polling is enabled.");
+    toast.success("EFS sign-in saved", "Collection is switched on.");
     form.soapPassword = ""; // clear the field so it isn't left in the DOM
   } catch (e) {
     if (holdForStepUp(e, onSaveAndEnable)) return;
-    toast.error("Could not save credentials", e instanceof Error ? e.message : undefined);
+    toast.error("Could not save the sign-in", e instanceof Error ? e.message : undefined);
   }
 }
 
 async function onDisable() {
   const ok = window.confirm(
-    "Disable the EFS SOAP polling and wipe the stored password? You will need to re-enter the password to re-enable.",
+    "Stop collecting from EFS and delete the saved password? To switch it on again, you will need to type the password again.",
   );
   if (!ok) return;
   await disableConfirmed();
@@ -153,7 +153,7 @@ async function onDisable() {
 async function disableConfirmed() {
   try {
     await disable.mutateAsync();
-    toast.info("EFS SOAP disabled", "Polling stopped and the stored password was cleared.");
+    toast.info("EFS connection switched off", "Collection stopped and the saved password was deleted.");
   } catch (e) {
     if (holdForStepUp(e, disableConfirmed)) return;
     toast.error("Could not disable", e instanceof Error ? e.message : undefined);
@@ -167,9 +167,9 @@ async function onTestConnection() {
     testResult.value = result;
     lastTestAt.value = new Date().toISOString();
     if (result.kind === "success") {
-      toast.success("Connected", `Roundtrip ${result.roundtripMs} ms`);
+      toast.success("Connected", `EFS answered in ${result.roundtripMs} ms.`);
     } else if (result.kind === "not_implemented") {
-      toast.info("Waiting on EFS WSDL", "Client is ready; endpoint operations are stubbed until data release.");
+      toast.info("EFS is not ready yet", "The sign-in works, but EFS has not opened this service for your account.");
     }
   } catch (e) {
     testResult.value = { kind: "failure", message: e instanceof Error ? e.message : "Test failed" };
@@ -180,15 +180,15 @@ async function onTestConnection() {
 
 /** Freshness label for a per-feed status card. */
 function feedFreshness(f: EfsSoapFeedStatus): { label: string; warn: boolean } {
-  if (!f.lastPolledAt) return { label: "Never polled yet.", warn: false };
+  if (!f.lastPolledAt) return { label: "Not checked yet.", warn: false };
   const mins = Math.round((Date.now() - new Date(f.lastPolledAt).getTime()) / 60_000);
   const ago = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
-  if (f.lastError) return { label: `Last poll ${ago} — error: ${f.lastError.slice(0, 200)}`, warn: true };
+  if (f.lastError) return { label: `Last checked ${ago}. Error: ${f.lastError.slice(0, 200)}`, warn: true };
   const success = f.lastSuccessAt
     ? ` (last success ${Math.round((Date.now() - new Date(f.lastSuccessAt).getTime()) / 60_000)} min ago)`
     : "";
   const pending = f.processingPending
-    ? ` ${f.processingPending} batch${f.processingPending === 1 ? "" : "es"} awaiting scoring/alerts.`
+    ? ` ${f.processingPending} batch${f.processingPending === 1 ? "" : "es"} waiting to be checked for alerts.`
     : "";
   // An abandoned batch (migration 0354) has stopped retrying and needs a person. It is stated in its
   // own clause, ahead of the error text, because "0 batches awaiting" with no other change is
@@ -199,7 +199,7 @@ function feedFreshness(f: EfsSoapFeedStatus): { label: string; warn: boolean } {
     : "";
   const processingError = f.processingLastError ? ` Processing error: ${f.processingLastError.slice(0, 160)}` : "";
   return {
-    label: `Last polled ${ago}${success}.${pending}${abandoned}${processingError}`,
+    label: `Last checked ${ago}${success}.${pending}${abandoned}${processingError}`,
     warn: Boolean(f.processingLastError) || Boolean(f.processingAbandoned),
   };
 }
@@ -222,10 +222,8 @@ const testChipClass = computed(() => {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <PageHeader>
-      EFS SOAP integration — the direct webservice link that delivers posted transactions and
-      rejected authorization attempts into Silvicom 360. One credential set covers both feeds. See
-      <code class="rounded-control bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
-      for the full plan and the list of items still awaiting EFS's data release.
+      The direct connection to EFS. It brings in your completed fuel purchases and the card
+      attempts EFS declined. One sign-in covers both.
     </PageHeader>
 
     <!-- ── Loading ────────────────────────────────────────────────────────────── -->
@@ -240,8 +238,8 @@ const testChipClass = computed(() => {
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-ink">Enabled</h3>
               <p class="mt-1 text-sm text-ink-muted">
-                Polling both feeds. Environment: <span class="font-medium text-ink">{{ status.data.value?.environment }}</span> ·
-                Endpoint: <span class="break-all font-mono text-xs text-ink">{{ status.data.value?.endpointUrl }}</span>
+                Collecting both feeds. Environment: <span class="font-medium text-ink">{{ status.data.value?.environment }}</span> ·
+                Address: <span class="break-all font-mono text-xs text-ink">{{ status.data.value?.endpointUrl }}</span>
                 <span v-if="status.data.value?.accountId"> · Account: {{ status.data.value.accountId }}</span>
               </p>
             </div>
@@ -249,11 +247,11 @@ const testChipClass = computed(() => {
           <template v-else-if="overallState === 'disabled'">
             <AppIcon :icon="ExclamationTriangleIcon" class="size-6 shrink-0 text-caution-500" />
             <div class="min-w-0">
-              <h3 class="text-sm font-semibold text-ink">Configured but not enabled</h3>
+              <h3 class="text-sm font-semibold text-ink">Saved but switched off</h3>
               <p class="mt-1 text-sm text-ink-muted">
-                Credentials are stored, but polling is off. Either the org's <code class="text-xs">enabled</code>
-                flag is false OR the platform kill switch <code class="text-xs">EFS_SOAP_ENABLED</code> is not
-                set to <code class="text-xs">true</code> in the deploy env. Both must be on for polling to run.
+                The sign-in is saved, but nothing is being collected. Collection needs two switches: this
+                company's, set with Save &amp; enable below, and Silvicom's own. If you have switched it on
+                here and this still shows, contact Silvicom support.
               </p>
             </div>
           </template>
@@ -262,8 +260,8 @@ const testChipClass = computed(() => {
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-ink">Not configured</h3>
               <p class="mt-1 text-sm text-ink-muted">
-                Enter the SOAP endpoint URL, username, and password provided by EFS at data release,
-                then click <em>Save &amp; enable</em>. Nothing is stored — and no calls are made — until you do.
+                Enter the web service address, username and password that EFS gave you, then click
+                <em>Save &amp; enable</em>. Nothing is saved, and EFS is not contacted, until you do.
               </p>
             </div>
           </template>
@@ -277,12 +275,11 @@ const testChipClass = computed(() => {
       <!-- ── Credentials form ─────────────────────────────────────────────────── -->
       <BaseCard v-else as="section">
         <h3 class="text-base font-semibold text-ink">
-          {{ isConfigured ? "Rotate credentials" : "Enter credentials" }}
+          {{ isConfigured ? "Change the sign-in" : "Enter the sign-in" }}
         </h3>
         <p class="mt-1 text-xs text-ink-muted">
-          The password is stored encrypted at rest (service-role only) and is NEVER returned to the
-          browser. To keep the existing password unchanged when rotating other fields, you must
-          still re-enter it — an empty password field is treated as an invalid input.
+          The password is encrypted when it is saved, and it is never shown again. To change any
+          other field, type the password again too.
         </p>
 
         <div class="mt-4 space-y-4">
@@ -299,8 +296,8 @@ const testChipClass = computed(() => {
           -->
           <FormField
             v-slot="{ id }"
-            label="SOAP endpoint URL"
-            hint="The service address, not the ?wsdl document WEX links in their email."
+            label="Web service address"
+            hint="The address EFS gave you, without ?wsdl at the end."
             :error="fieldErr.endpointUrl"
           >
             <BaseInput
@@ -313,7 +310,7 @@ const testChipClass = computed(() => {
             />
           </FormField>
 
-          <FormField v-slot="{ id }" label="SOAP username" :error="fieldErr.soapUsername">
+          <FormField v-slot="{ id }" label="Username" :error="fieldErr.soapUsername">
             <BaseInput
               :id="id"
               v-model="form.soapUsername"
@@ -325,8 +322,8 @@ const testChipClass = computed(() => {
 
           <FormField
             v-slot="{ id }"
-            label="SOAP password"
-            hint="Never displayed after saving. Re-enter to rotate."
+            label="Password"
+            hint="Never shown after saving. Type a new one to change it."
             :error="fieldErr.soapPassword"
           >
             <BaseInput
@@ -341,7 +338,7 @@ const testChipClass = computed(() => {
           <FormField
             v-slot="{ id }"
             label="EFS account ID (optional)"
-            hint="Silvicom's EFS account number, if EFS scopes calls by it."
+            hint="Your EFS account number. Needed only if EFS asked for it."
           >
             <BaseInput :id="id" v-model="form.accountId" autocomplete="off" spellcheck="false" />
           </FormField>
@@ -354,14 +351,14 @@ const testChipClass = computed(() => {
             :disabled="disable.isPending.value"
             @click="onDisable"
           >
-            {{ disable.isPending.value ? "Disabling…" : "Disable &amp; wipe password" }}
+            {{ disable.isPending.value ? "Disabling…" : "Switch off and delete password" }}
           </BaseButton>
           <BaseButton
             variant="primary"
             :disabled="enable.isPending.value"
             @click="onSaveAndEnable"
           >
-            {{ enable.isPending.value ? "Saving…" : isConfigured ? "Save &amp; enable" : "Save &amp; enable" }}
+            {{ enable.isPending.value ? "Saving…" : "Save &amp; enable" }}
           </BaseButton>
         </div>
       </BaseCard>
@@ -378,8 +375,8 @@ const testChipClass = computed(() => {
           <div class="min-w-0">
             <h3 class="text-base font-semibold text-ink">Test connection</h3>
             <p class="mt-1 text-xs text-ink-muted">
-              Fires ONE SOAP probe against EFS with the stored credentials. Roundtrip time is
-              reported. Useful right after Save, and right after EFS confirms IP allowlisting.
+              Sends one request to EFS with the saved sign-in and shows how long EFS took to answer.
+              Use it after saving, and after EFS confirms that our address is allowed.
             </p>
           </div>
           <BaseButton
@@ -393,12 +390,11 @@ const testChipClass = computed(() => {
 
         <div v-if="testResult" class="mt-3 rounded-control bg-surface-subtle p-3 text-xs" :class="testChipClass">
           <template v-if="testResult.kind === 'success'">
-            ✓ Connected — roundtrip {{ testResult.roundtripMs }} ms
+            ✓ Connected. EFS answered in {{ testResult.roundtripMs }} ms.
           </template>
           <template v-else-if="testResult.kind === 'not_implemented'">
-            ⏳ Waiting on EFS WSDL — the SOAP client is deployed and the credentials round-trip
-            correctly, but the specific EFS operations are stubbed until we receive the WSDL from
-            EFS's data release. This is the expected pre-launch state.
+            ⏳ EFS is not ready yet. The sign-in works, but EFS has not opened this service for your
+            account.
           </template>
           <template v-else>
             ✗ {{ testResult.message }}
@@ -412,11 +408,11 @@ const testChipClass = computed(() => {
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div>
             <JobActionCard
-              title="Rejected feed"
+              title="Declined card attempts"
               kind="efs_soap_rejected"
               endpoint="/api/integrations/efs-soap/sync-now/rejected"
               action-label="Sync now"
-              description="Rejected authorization attempts (INACTIVE CARD, INVALID TRUCKSTOP, LIMIT EXCEEDED, etc.) — the fraud signal. Polled every EFS_SOAP_REJECTED_POLL_MINUTES (default 5 min)."
+              description="Card attempts EFS declined, for example an inactive card, an unknown truck stop or a limit reached. These are the main sign of card misuse. Checked every few minutes."
             />
             <p
               v-if="rejectedFreshness"
@@ -428,11 +424,11 @@ const testChipClass = computed(() => {
           </div>
           <div>
             <JobActionCard
-              title="Posted feed"
+              title="Completed fuel purchases"
               kind="efs_soap_posted"
               endpoint="/api/integrations/efs-soap/sync-now/posted"
               action-label="Sync now"
-              description="Posted (completed + billed) fuel transactions. Polled every EFS_SOAP_POSTED_POLL_MINUTES (default 15 min). Also used for the initial 90-day backfill on first enable."
+              description="Fuel purchases EFS has completed and billed. Checked every few minutes. The first time it is switched on, it also brings in the last 90 days."
             />
             <p
               v-if="postedFreshness"

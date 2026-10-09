@@ -789,3 +789,23 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     role, one for the fleet manager), Card control made grantable, Anomaly thresholds made admin-only
     (that one first survived, because the grant case filtered its keys on the gate; the keys are now
     written out), and a key renamed.
+- 2026-10-09: 13 merged (#1390, df3d2cf). **Chunk 13 is complete.** 14a built: the EFS integration and
+  Card control pages rewritten for an office reader (W2).
+  - EFS integration: the repo path, both environment-variable names and the kill switch are gone. The
+    feeds are named by what they hold ("Declined card attempts", "Completed fuel purchases"). "SOAP",
+    "credentials", "poll" and "roundtrip" become "web service address", "sign-in", "checked" and
+    "EFS answered in … ms", in the page, the confirmation dialog and the toasts.
+  - The poll interval is no longer printed. It was the environment default, which a deploy can change,
+    and the status API does not report it. "Checked every few minutes" plus each feed's own "Last
+    checked … ago" line say what is true without copying a value.
+  - Card control: no "QA endpoint", "no-op", "echo" or `setCardV2`. The write-access badge reads
+    "not checked yet" / "confirmed" / "refused" instead of the contract's raw `unknown` / `denied`.
+  - Not changed, on purpose: the text the write check's API returns (verdict, step names, field paths)
+    is a diagnostic shown after a run, so it stays as it is. The client certificate card keeps
+    "fingerprint" and "TLS", which are the words EFS itself uses for that step.
+  - Left for 14c: W2's other three lines (Recall audit, Detection coverage, Anomaly thresholds). These
+    screens are admin-only since chunk 13, but the wording is still the audit's finding.
+  - Test: `efsSettingsWording.test.ts` renders every state of both pages and checks all readable text,
+    the dialog and the toasts against one list of engineering words. Proved by six mutants: each old
+    page restored whole, an environment variable put back in a feed card, the raw badge code, the old
+    confirmation text, and the `setCardV2` hint. Each turned the test red.
