@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The Fuel Log's `Source records` tab — every line from the uploaded EFS Transaction reports,
+ * The Fuel Log's `Source records` tab — every line of the EFS transaction feed,
  * exactly as received (FUEL-C2, D-FUI1/D-FUI2).
  *
  * ── WHAT THIS IS AND WHY IT SURVIVED THE MERGE ──────────────────────────────────────────────────

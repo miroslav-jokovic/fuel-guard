@@ -809,3 +809,29 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     the dialog and the toasts against one list of engineering words. Proved by six mutants: each old
     page restored whole, an environment variable put back in a feed card, the raw badge code, the old
     confirmation text, and the `setCardV2` hint. Each turned the test red.
+- 2026-10-09: 14a merged (#1398, 31e55df). 14b built: the Fuel Log tabs and the Declines tab (W3, W7).
+  - W3: the tab captions no longer say "from your uploaded EFS … reports". Both feeds are fetched from
+    EFS every few minutes. The Fills caption loses "anomaly status".
+  - W7: a decline reads as a reason. `plainDeclineReason` in `@silvicom/shared` (`declineReason.ts`,
+    beside the scoring taxonomy) turns EFS's trace into one sentence: "Limit reached: cash advance",
+    "Truck stop not allowed for this card", "Wrong unit number entered at the pump: 779".
+    - It was written against production, read-only: 90 days, 60 distinct texts, every one starting
+      with a headline the function knows. An unknown headline is shown as EFS wrote it, in sentence
+      case, never guessed.
+    - Proximity is read first, as the scorer reads it: EFS files its geofence verdict under the
+      same INVALID TRUCKSTOP headline as a benign out-of-network stop.
+  - The table's "Error" / "Description" columns are now "Code" / "Reason". EFS's text is in the
+    Reason cell's hover, and under the reason in the decline drawer ("EFS: …"), for a reader with no
+    hover.
+  - The Reason menu (was Error) reads the same function, from the headline only. One code covers
+    several traces (19 is both scales and cash advance), so the detail would misname some rows. The
+    menu's own `readableReason` is gone: one reader of EFS's text, not two.
+  - The cards and rescore tools say what they do: "Recheck", the card assignment rule in numbers, no
+    "decline scorer".
+  - Not in 14b: W7's second half (showing card-fraud D-CF5/D-CF6 notes on a decline) is a feature,
+    not wording. W5 (the Fills status cell) is a layout change. Neither has a chunk yet.
+  - Tests: `declineReason.test.ts` pins all 18 texts measured on production, plus the unknown, empty,
+    id-only and two-prompt cases. `FuelLogTabs.test.ts` pins the reason cell, its hover, the drawer
+    and the three captions. Proved by seven mutants: old captions, the raw text back in the cell,
+    the hover dropped, the drawer line dropped, proximity not read first, ids not stripped, and a
+    value shown against two prompts. The last one first survived; a case for it was added.

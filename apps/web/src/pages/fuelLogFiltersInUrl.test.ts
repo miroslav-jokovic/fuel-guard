@@ -134,7 +134,7 @@ describe("the Fuel Log's filters round-trip through the query string", () => {
   it("puts each raw-feed tab's own facets in the URL under its own names", async () => {
     const dec = await mountAt("/fuel-log?tab=declines");
     await pick(dec.w, "Risk", "alert");
-    await pick(dec.w, "Error", "51");
+    await pick(dec.w, "Reason", "51");
     expect(dec.query()).toMatchObject({ risk: "alert", error: "51" });
     expect(seen.declined?.value.suspicion).toBe("alert");
     expect(seen.declined?.value.errorCode).toBe("51");

@@ -69,9 +69,10 @@ const canSeeFeeds = computed(() => session.canView("fuel"));
 const canBackfill = computed(() => session.can("fuel"));
 
 const TAB_DESCRIPTIONS: Record<FuelLogTab, string> = {
-  fills: "Every recorded fill-up with computed MPG and anomaly status.",
-  declines: "Declined fuel-card attempts from your uploaded EFS Reject reports (a fraud/control signal).",
-  source: "Every line from your uploaded EFS Transaction reports, exactly as received.",
+  // W3 (chunk 14b): nobody uploads these any more — the EFS poller fetches both feeds every few minutes.
+  fills: "Every fill-up, with its MPG and whether it was flagged.",
+  declines: "Card attempts EFS declined, brought in from EFS every few minutes. A decline can be a sign of card misuse.",
+  source: "Every line EFS sent for your completed fuel purchases, exactly as received.",
 };
 
 const tabs = computed<TabItem[]>(() => [
