@@ -88,7 +88,7 @@ vi.mock("@/composables/useFuelLog", () => ({
     seen.fuel = f;
     return listOf({ id: "f1", vehicle_id: "v-654", driver_id: null, fueled_at: "2026-08-15T14:00:00Z", gallons: 100, has_anomaly: false, case_level: "clear", case_score: 0, case_signals: [], case_gates: null });
   },
-  useFuelRangeTotals: () => ({ data: ref(null) }),
+  useFuelRangeTotals: () => ({ data: ref(null), isError: ref(false), isPlaceholderData: ref(false) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({

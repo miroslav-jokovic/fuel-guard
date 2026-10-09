@@ -20,8 +20,8 @@ const listed = { value: [] as Record<string, unknown>[], total: 0 };
 const truncated = { value: false };
 const seen = { listQuery: null as Record<string, unknown> | null, totalsWindow: null as Record<string, unknown> | null };
 
-const asQuery = <T,>(get: () => T) => ({
-  data: computed(get), isLoading: ref(false), isError: ref(false), error: ref(null),
+const asQuery = <T,>(get: () => T, isError = ref(false)) => ({
+  data: computed(get), isLoading: ref(false), isError, error: ref(null), isPlaceholderData: ref(false),
 });
 
 vi.mock("@/features/reconcile/useFindings", () => ({
@@ -35,10 +35,12 @@ const TOTALS = {
   canDispute: { count: 14, claims: 4, amount: 56.34 }, disputed: { count: 1, amount: 500 }, creditedBack: { count: 1, amount: 275.1 },
 };
 const totalsShown = { value: TOTALS as typeof TOTALS | null };
+/** 11c: the totals request failed. Its last answer may still be cached; the tiles must not show it. */
+const totalsFailed = ref(false);
 vi.mock("@/features/reconcile/useExceptions", () => ({
   useExceptionTotalsQuery: (w: { value: Record<string, unknown> }) => {
     seen.totalsWindow = w.value;
-    return asQuery(() => totalsShown.value);
+    return asQuery(() => totalsShown.value, totalsFailed);
   },
   useExceptionQuery: () => asQuery(() => null),
   useMoveException: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
@@ -190,14 +192,29 @@ describe("Fuel problems", () => {
     expect(t).not.toContain("NaN");
   });
 
-  it("shows a dash, never $0, while the figures have not answered", async () => {
+  it("shows a dash and Not available, never $0, while the figures have not answered", async () => {
     totalsShown.value = null;
     try {
       const t = (await mountPage()).w.text();
       expect(t).not.toContain("$0");
       expect(t).toContain("—");
+      expect(t).toContain("Not available");
     } finally {
       totalsShown.value = TOTALS;
+    }
+  });
+
+  // 11c's accept line. The failed request's cached answer is still in `data` — vue-query keeps it — so a
+  // page that read `data` alone would print last window's dollars under an error.
+  it("shows a dash and Not available when the totals request fails, even with an old answer cached", async () => {
+    totalsFailed.value = true;
+    try {
+      const t = (await mountPage()).w.text();
+      expect(t).not.toContain("$56.34");
+      expect(t).not.toContain("$0");
+      expect(t.match(/Not available/g)?.length).toBe(3);
+    } finally {
+      totalsFailed.value = false;
     }
   });
 

@@ -725,3 +725,18 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     differ on purpose (locale, and "-" for a missing figure); not consolidated here.
   - To make room, the four "why" helpers moved unchanged from `FillsTab.vue` to `fillWhy.ts`.
     `FillsTab.vue` is 470 lines.
+- 2026-10-09: 11b merged (#1385, 257b700). 11c built:
+  - `lib/tileFigure.ts` holds the rule and its two strings: a tile shows "—" and "Not available" unless its
+    query holds its own answer for the current filters. Loading, failed, and the previous window's answer
+    that `keepPreviousData` keeps on screen all count as no answer, so a total never sits under a filter
+    bar naming a different window.
+  - Fuel Log, Fills tab. The tiles were gated on the LIST query, so a failed totals query printed 0 on
+    Total miles, Flagged, Clear and Gallons. They now read their own query. Total fill-ups stays the
+    list's count. Avg MPG reads its own query too: "Not available" when it was asked and has no answer,
+    and its explanation unchanged when no closed window was asked. The "Open cases" link appears only
+    over a real count.
+  - Fuel problems (AUDIT.md's `FuelExceptionsPage.vue`). The three tiles already showed "—" (9b), but
+    their sub-lines named what the figure would be, and a failed request whose earlier answer was still
+    cached printed that answer. Both fixed.
+  - Accept: tests render a failed totals query as "—" and "Not available" on both pages. The changes are
+    proved by six mutants. **Chunk 11 is complete.**
