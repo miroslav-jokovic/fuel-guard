@@ -881,3 +881,9 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
       can move a case. Both lists come from `rolesThatManage("safety")`, not a hand-written list.
     - The accepted move calls `transition_anomaly` with the caller's org, actor and expected version,
       and writes one `anomaly.status_changed` audit row with org, actor, from and to.
+    - Proved by seven mutants, each run against the committed test and restored with `git checkout`:
+      the org filter dropped from the case read (the accept criterion), the version check dropped,
+      the gate widened to `safety: view`, the audit write skipped, the RPC handed the case id as its
+      org, an RPC conflict mapped to 422, and the audit's `from` written as the target. Each turned
+      the test red.
+    - **Chunk 15 is complete** once this merges. Next: chunk 16.
