@@ -25,8 +25,6 @@
  * Intervals are half-open on the left — (previous fill's day, this fill's day] — so every day belongs
  * to exactly one interval and no mile is counted twice.
  */
-import { stateTimeZone } from "../efsImport/dateTime.js";
-
 /**
  * The longest interval between two fills we will believe. A Class-8 tractor at 6 MPG would need 417
  * gallons to cover it, which is more than any legal tank configuration holds — so beyond this the
@@ -42,9 +40,15 @@ export type SpendRollupTank = "tractor" | "reefer";
 /** A recorded fill, projected to what the rollup needs. */
 export interface SpendFill {
   vehicleId: string | null;
-  /** ISO instant. The business date is derived from it and the station's state. */
+  /** ISO instant. Orders a truck's fills; the day comes from `businessDate`, never from this. */
   fueledAt: string;
-  state: string | null;
+  /**
+   * `fuel_transactions.business_date` as stored — the day EFS prints, on EFS's Central clock (0287's
+   * trigger, Q-F5 / 0444). READ, not re-derived: this file used to work the day out again from
+   * `fueledAt` and the station's state, a second copy of the rule that kept the station's day after the
+   * database moved to EFS's, and would have filed 42 fills on a different day than the Fuel Log.
+   */
+  businessDate: string | null;
   tank: SpendRollupTank;
   gallons: number;
   totalCost: number | null;
@@ -110,22 +114,6 @@ export interface DeriveResult {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
-/**
- * Station-local business date for a fill. The vendor prints its transaction date in station-local time,
- * so a fill just before midnight in Nevada belongs to that day and not to the UTC day after it —
- * a distinction that moves roughly one fill in twenty across a date boundary.
- */
-export function businessDate(fueledAt: string, state: string | null): string | null {
-  const d = new Date(fueledAt);
-  if (Number.isNaN(d.getTime())) return null;
-  const tz = stateTimeZone(state) ?? "UTC";
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  } catch {
-    return d.toISOString().slice(0, 10);
-  }
-}
-
 const addDays = (ymd: string, n: number): string => {
   const d = new Date(`${ymd}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -172,7 +160,7 @@ export function deriveFuelSpendRollup(input: DeriveInput): DeriveResult {
   let unattributedFills = 0;
   const byVehicle = new Map<string, { day: string; fill: SpendFill }[]>();
   for (const f of input.fills) {
-    const day = businessDate(f.fueledAt, f.state);
+    const day = f.businessDate;
     if (!day) continue;
     if (!f.vehicleId) unattributedFills++;
     if (day >= input.from && day <= input.to) {
