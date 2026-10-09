@@ -200,5 +200,10 @@ describe("LiveMapVehicleFacts — the route toggle (D-TC7)", () => {
     expect(w.text()).toContain("No fuel stop needed to reach the delivery.");
     await w.get('[aria-label="Hide route"]').trigger("click");
     expect(w.emitted("toggleRoute")).toHaveLength(1);
+    // ...and the words under the summary do the same, for a reader who does not read the tint as "on".
+    const words = w.findAll("button").find((b) => b.text() === "Hide route")!;
+    await words.trigger("click");
+    expect(w.emitted("toggleRoute")).toHaveLength(2);
+    expect(mountCard({ route: off }).findAll("button").some((b) => b.text() === "Hide route")).toBe(false);
   });
 });

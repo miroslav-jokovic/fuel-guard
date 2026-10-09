@@ -181,6 +181,8 @@ function toLiveStop(s: StopRow): LiveLoadStop {
 export interface LoadRouteStop {
   seq: number;
   kind: string | null;
+  /** McLeod's place name first, then ours — the board's order (`toLiveStop`). */
+  name: string | null;
   lat: number;
   lng: number;
 }
@@ -211,15 +213,15 @@ export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loa
   if (!load) return null;
   const { data: stops, error: sErr } = await admin
     .from("load_stops")
-    .select("seq, kind, lat, lon")
+    .select("seq, kind, name, location_name, lat, lon")
     .eq("org_id", orgId)
     .eq("load_id", loadId)
     .order("seq", { ascending: true });
   if (sErr) throw new Error(sErr.message);
-  const rows = (stops ?? []) as { seq: number | null; kind: string | null; lat: number | string | null; lon: number | string | null }[];
+  const rows = (stops ?? []) as { seq: number | null; kind: string | null; name: string | null; location_name: string | null; lat: number | string | null; lon: number | string | null }[];
   const located = rows
     .filter((s) => s.seq != null && s.lat != null && s.lon != null)
-    .map((s) => ({ seq: s.seq!, kind: s.kind, lat: Number(s.lat), lng: Number(s.lon) }))
+    .map((s) => ({ seq: s.seq!, kind: s.kind, name: s.location_name ?? s.name, lat: Number(s.lat), lng: Number(s.lon) }))
     .sort((a, b) => a.seq - b.seq);
   const l = load as { id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null };
   return { id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length };

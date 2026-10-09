@@ -5,7 +5,7 @@ import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
-import { AppIconButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIconButton } from "@silvicom/ui";
 import { RouteIcon, UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
 
@@ -218,6 +218,9 @@ const ends = computed(() => {
         <p class="text-ink">{{ routeText.summary }}</p>
         <p v-for="note in routeText.notes" :key="note" class="text-ink-muted">{{ note }}</p>
       </template>
+      <!-- The words as well as the pressed icon (owner, 2026-10-09: "I don't see a closing button"):
+           a tinted icon reads as state to some and as nothing to others. Same toggle, same emit. -->
+      <BaseButton variant="link" size="sm" @click="emit('toggleRoute')">Hide route</BaseButton>
     </div>
   </div>
 </template>

@@ -217,6 +217,15 @@ export interface LiveMapRouteFuelStop {
   milesAhead: number;
 }
 
+/** One end of a load's route: where its first or last stop is, and what McLeod calls the place. */
+export interface LiveMapRouteEnd {
+  lat: number;
+  lng: number;
+  name: string | null;
+  /** `pickup` or `dropoff`, as the stop records it. */
+  kind: string | null;
+}
+
 /**
  * `GET /api/livemap/loads/:id/route` (D-TC3, D-TC6): the load's route pickup → delivery, split where the
  * truck stands on it, and the fuel stops the planner places on the part ahead. No prices: the map is
@@ -236,6 +245,13 @@ export interface LiveMapLoadRoute {
   coveredMiles: number;
   offRouteMiles: number | null;
   fuelStops: LiveMapRouteFuelStop[];
+  /**
+   * The route's two ends as McLeod locates them — the first and last stop by sequence, not the line's
+   * snapped ends — for the start and end pins (2026-10-09, the owner's "pins like Google Maps").
+   * Optional: an api from before them sends neither, and the map draws the line without pins.
+   */
+  start?: LiveMapRouteEnd;
+  end?: LiveMapRouteEnd;
   /** Why there are no fuel stops, or what the planner had to do — one sentence, or null. */
   fuelNote: string | null;
   /** A hazmat-marked load routed WITHOUT hazmat restrictions: no cleared record supplies its classes yet. */
