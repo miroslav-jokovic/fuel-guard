@@ -503,6 +503,13 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
   clock, not as the org's). Backfill the 42 moved fills and rebuild the spend days they touch.
   - Accept: a matrix pins a Nevada fill at 22:12 local on 09-30 to 10-01. In production, every
     fill's `business_date` equals its EFS `tran_date`.
+  - Built as migration 0444. Two findings while building it:
+    - 129 fills move, not 42. The 42 counted 08-01 → 10-05. The rest are older history, 01-04 → 10-07
+      (re-measured 2026-10-08).
+    - The spend days were worked out in TypeScript (`rollupDerive.ts`), with a second copy of the
+      station rule. The rollup now reads the stored `business_date`. A migration cannot run that code,
+      so after the release: `POST /api/fuel/spend-rollup` for 2026-02-04 (the table's first day) →
+      today.
 - **10b** The Fuel Log's "When" shows office time, with the station's time in the hover. The
   footnotes "the day of the fill at the station" and "Central time" become one sentence on every
   tab.
@@ -651,6 +658,12 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   table on Fuel Costs; September $8,095.80 matches the database to the cent.
 - 2026-10-08: 9a merged (#1374, 26cb87f). 9b built: the buying habits leave the queue; the tiles become
   Can be disputed / Disputed / Credited back, adding only claimable money. Production: $56.34 to claim, 14 open.
-- 2026-10-08: 10a opened as #1377 (HOLD until the release carrying #1373/#1374/#1376). 10c built: the Fuel
-  problems page filters fill cases and card-fraud incidents on the carrier's day at both ends, and the
-  Dashboard's oldest-open date is a carrier day. No migration, so it does not depend on 10a.
+- 2026-10-08: 9b merged (#1376, 4e84b7f). 10a built: migration 0444 dates fills on EFS's Central clock
+  (`efs_clock_tz()`). The backfill moves 129 fills on production and leaves `updated_at` and the
+  satellites untouched. The spend rollup now reads the stored day. Still owed after its release: the
+  spend-days rebuild (see 10a) and the re-measure against `tran_date`. 10a waits for the release that
+  carries #1373/#1374/#1376.
+- 2026-10-08: #1373, #1374 and #1376 released (v2026.10.08.5, 4e84b7f). 10a merged (#1377, 134681d); 0444
+  goes to production in the next release. 10c built: the Fuel problems page filters fill cases and
+  card-fraud incidents on the carrier's day at both ends, and the Dashboard's oldest-open date is a
+  carrier day. No migration, so it does not depend on 10a.
