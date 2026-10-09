@@ -4,8 +4,9 @@
  * `PAPER_RULE_IDS`), so the review panel, the driver app and any later assistant say the same thing.
  *
  * Each entry: `sentence(ctx)` — one plain sentence for the result in hand, built only from the facts the
- * engine returned; `cite` — the CFR section, as docs/17 Appendix A and plan §5.1 state it; `actor` — who
- * has to act when the rule fails; `howToFix` — what that person does.
+ * engine returned; `cite` — the CFR paragraph as eCFR numbers it (checked against its text of 2026-10-09,
+ * owner ruling Q-DR15); `actor` — who has to act when the rule fails; `howToFix` — what that person does,
+ * in the regulation's terms and never claiming a check the engine did not make.
  *
  * WHY THE CONTEXT TYPE IS RESTATED HERE. `@silvicom/shared` ships to React Native and has no dependency
  * on the engine, so `BolFindingContext` is a structural mirror of the engine's `PaperRuleResult`. The
@@ -43,6 +44,15 @@ function joinWords(words: string[]): string {
 }
 const pages = (v: BolFactValue | undefined): string => (Array.isArray(v) && v.length > 1 ? `pages ${s(v)}` : `page ${s(v)}`);
 const pgText = (v: BolFactValue | undefined): string => (Array.isArray(v) ? `one of PG ${joinWords(v.map(String))}` : v == null ? "no packing group" : `PG ${s(v)}`);
+/** §172.604(d)'s exception codes (paperErPhone.ts) in a dispatcher's words. */
+const EXCEPTION_WORDS: Record<string, string> = {
+  d1_limited_quantity: "shipped as a limited quantity",
+  d1_excepted_quantity: "shipped as an excepted quantity",
+  d2_named_material: "a material the rule names as needing no number",
+  d3_fumigated_unit: "fumigated lading in a unit marked FUMIGANT",
+};
+const exceptionText = (v: BolFactValue | undefined): string =>
+  (Array.isArray(v) ? v : [v]).map((x) => EXCEPTION_WORDS[String(x)] ?? String(x)).join(" or ");
 
 /**
  * The three reasons any rule can share. They say why the audit stopped short, and name what would let it
@@ -65,19 +75,30 @@ export const BOL_FINDING_CATALOGUE = {
   paper_sequence: {
     cite: "49 CFR 172.202(a), (b)",
     actor: "driver_must_not_accept",
-    howToFix: "Ask the shipper for a corrected BOL whose description reads UN number, proper shipping name, hazard class, packing group — in that order.",
+    howToFix: "Ask the shipper for a corrected BOL whose hazmat description gives the UN or NA number, proper shipping name, hazard class and packing group one after another, with nothing else printed between them.",
     sentence(ctx) {
       const c = common(ctx, "the basic description");
       if (c) return c;
-      if (ctx.outcome === "fail") {
-        const missing = Array.isArray(ctx.facts.missing) ? ctx.facts.missing.map((m) => PART[String(m)] ?? String(m)) : [];
-        return `${line(ctx)} on the BOL is missing ${joinWords(missing)} from its hazmat description.`;
+      switch (ctx.reason) {
+        case "elements_missing": {
+          const missing = Array.isArray(ctx.facts.missing) ? ctx.facts.missing.map((m) => PART[String(m)] ?? String(m)) : [];
+          return `${line(ctx)} on the BOL is missing ${joinWords(missing)} from its hazmat description.`;
+        }
+        case "in_sequence":
+          return `${line(ctx)}'s description reads in the required order: ${s(ctx.facts.printed)}.`;
+        case "out_of_order":
+          return `${line(ctx)}'s description reads "${s(ctx.facts.descriptionText)}" — the number, shipping name, class and packing group must come in that order.`;
+        case "interspersed":
+          return `${line(ctx)}'s description has "${s(ctx.facts.interspersed)}" in the middle of it; nothing else may stand between the number, shipping name, class and packing group.`;
+        case "description_text_unmatched":
+          return `Can't check the order of ${line(ctx)}'s description: the parts the reader recorded don't all appear in the printed text "${s(ctx.facts.descriptionText)}".`;
+        default:
+          return `${line(ctx)} prints all four parts (${s(ctx.facts.printed)}); check by eye that they read in that order with nothing between them — the reader does not record it.`;
       }
-      return `${line(ctx)} prints all four parts (${s(ctx.facts.printed)}); check by eye that they read in that order — the reader does not record it.`;
     },
   },
   paper_psn_matches_hmt: {
-    cite: "49 CFR 172.202(a)(1)",
+    cite: "49 CFR 172.202(a)(2)",
     actor: "shipper_must_correct",
     howToFix: "The shipper reprints the description with the proper shipping name exactly as the Hazardous Materials Table gives it.",
     sentence(ctx) {
@@ -91,7 +112,7 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_class_pg_match: {
-    cite: "49 CFR 172.202(a)(2)-(4)",
+    cite: "49 CFR 172.202(a)(3)-(4)",
     actor: "driver_must_not_accept",
     howToFix: "Ask the shipper for a corrected BOL with the hazard class and packing group the Hazardous Materials Table gives for this entry.",
     sentence(ctx) {
@@ -110,13 +131,30 @@ export const BOL_FINDING_CATALOGUE = {
   paper_technical_name: {
     cite: "49 CFR 172.203(k)",
     actor: "shipper_must_correct",
-    howToFix: "The shipper adds the technical name of the hazardous component in parentheses after the shipping name.",
+    howToFix: "The shipper adds the technical name of the hazardous component in parentheses after the shipping name — the two that contribute most to the hazard, for a mixture of two or more hazardous materials.",
     sentence(ctx) {
       const c = common(ctx, "the technical name");
       if (c) return c;
-      if (ctx.outcome === "fail") return `${line(ctx)} is an n.o.s. entry ("${s(ctx.facts.requiredPsn)}") and the BOL doesn't name what is actually in it.`;
-      if (ctx.reason === "printed") return `${line(ctx)} names its contents (${s(ctx.facts.technicalName)}), as an n.o.s. entry must.`;
-      return `${line(ctx)} needs no technical name.`;
+      switch (ctx.reason) {
+        case "missing":
+          return `${line(ctx)} is an n.o.s. entry ("${s(ctx.facts.requiredPsn)}") and the BOL doesn't name what is actually in it.`;
+        case "printed":
+          return `${line(ctx)} names its contents (${s(ctx.facts.technicalName)}), as an n.o.s. entry must.`;
+        case "needs_two_components":
+          return `${line(ctx)} is a mixture of two or more hazardous materials and the BOL names only one (${s(ctx.facts.technicalName)}); the two that contribute most to the hazard must be named.`;
+        case "mixture_unknown":
+          return `${line(ctx)} names one component (${s(ctx.facts.technicalName)}); if it is a mixture of two or more hazardous materials, two must be named — check the safety data sheet.`;
+        case "excepted_k2i_waste_code":
+          return `${line(ctx)} is hazardous waste with its EPA waste number printed, which takes the place of a technical name.`;
+        case "excepted_k2i_hazardous_substance_named":
+          return `${line(ctx)} is hazardous waste and names its hazardous substance (${s(ctx.facts.technicalName)}).`;
+        case "excepted_k2ii_sample":
+          return `${line(ctx)} is a sample whose class is still to be determined by testing, so no technical name is required.`;
+        case "k2_group_named":
+          return `${line(ctx)}'s shipping name ("${s(ctx.facts.requiredPsn)}") already names a chemical group; whether it still needs a technical name depends on what makes it hazardous — check the safety data sheet.`;
+        default:
+          return `${line(ctx)} needs no technical name.`;
+      }
     },
   },
   paper_rq: {
@@ -150,7 +188,7 @@ export const BOL_FINDING_CATALOGUE = {
   paper_lq: {
     cite: "49 CFR 172.203(b)",
     actor: "shipper_must_correct",
-    howToFix: "The shipper adds \"Limited Quantity\" (or \"Ltd Qty\") to the description — or removes it if the material may not ship as one.",
+    howToFix: "The shipper adds \"Limited Quantity\" (or \"Ltd Qty\") after the description — or removes it if the material may not ship as one.",
     sentence(ctx) {
       const c = common(ctx, "the Limited Quantity marking");
       if (c) return c;
@@ -159,6 +197,10 @@ export const BOL_FINDING_CATALOGUE = {
           return `${line(ctx)} is booked as a Limited Quantity, but the BOL doesn't say "Limited Quantity" or "Ltd Qty".`;
         case "not_authorised":
           return `The BOL marks ${line(ctx)} as a Limited Quantity, but the table allows no Limited Quantity for ${s(ctx.facts.requiredPsn)}.`;
+        case "lq_not_following":
+          return `${line(ctx)}'s "Limited Quantity" words are printed ahead of its description; they must follow it.`;
+        case "lq_outside_description":
+          return `${line(ctx)} is marked Limited Quantity somewhere on the line, but not in its description — check the words follow the description.`;
         case "authorised":
           return `${line(ctx)} is marked Limited Quantity, which the table allows (49 CFR 173.${s(ctx.facts.exceptionsRef)}).`;
         default:
@@ -180,6 +222,18 @@ export const BOL_FINDING_CATALOGUE = {
           return `${line(ctx)} is marked Marine Pollutant.`;
         case "not_required_non_bulk_highway":
           return `${line(ctx)} is a marine pollutant, but in non-bulk packages moving only by road the words are not required.`;
+        case "excepted_oil_130_11":
+          return `${line(ctx)} is a marine pollutant, but on a move with no vessel leg the description naming it as an oil is enough.`;
+        case "oil_exception_may_apply":
+          return `${line(ctx)} is a marine pollutant described as an oil; that excuses the "Marine Pollutant" words only for oil covered by 49 CFR part 130 on a move with no vessel leg — confirm both.`;
+        case "excepted_small_package_171_4_c2":
+          return `${line(ctx)} is a marine pollutant, but at ${s(ctx.facts.perPackage)} ${s(ctx.facts.unit)} per package it is small enough to be exempt (49 CFR 171.4(c)(2)).`;
+        case "package_quantity_unknown":
+          return `${line(ctx)} is a marine pollutant; packages of 5 L or 5 kg or less are exempt, and the BOL doesn't show how much is in each package.`;
+        case "physical_state_unknown":
+          return `${line(ctx)} is a marine pollutant in small packages; whether they are exempt depends on whether it is a liquid (5 L) or a solid (5 kg), which isn't known.`;
+        case "hazardous_substance_may_apply":
+          return `${line(ctx)} is a marine pollutant in small packages, which are exempt unless it is also a hazardous substance or hazardous waste — check whether it is.`;
         case "applicability_unknown":
           return `${line(ctx)} is a marine pollutant; whether the BOL must say so depends on bulk packaging or a vessel leg, and neither is known.`;
         default:
@@ -190,7 +244,7 @@ export const BOL_FINDING_CATALOGUE = {
   paper_quantity_present: {
     cite: "49 CFR 172.202(a)(5)",
     actor: "shipper_must_correct",
-    howToFix: "The shipper writes the total quantity with its unit (gallons, pounds, …) on the line, or \"1 cargo tank\" for a bulk load.",
+    howToFix: "The shipper writes the total quantity with its unit (gallons, pounds, …) on the line — or, for bulk packages or cylinders, how many (\"1 cargo tank\", \"2 IBCs\", \"10 cylinders\").",
     sentence(ctx) {
       const c = common(ctx, "the quantity");
       if (c) return c;
@@ -199,8 +253,10 @@ export const BOL_FINDING_CATALOGUE = {
           return `${line(ctx)} shows ${s(ctx.facts.value)} with no unit — gallons, pounds or another unit has to be printed.`;
         case "missing":
           return `${line(ctx)} shows no total quantity.`;
-        case "bulk_cargo_tank":
+        case "bulk_package_count":
           return `${line(ctx)} gives its quantity as "${s(ctx.facts.packaging)}", which a bulk load may.`;
+        case "cylinder_count":
+          return `${line(ctx)} gives its quantity as "${s(ctx.facts.packaging)}", which cylinders may.`;
         case "residue":
           return `${line(ctx)} is a residue line and needs no quantity.`;
         default:
@@ -208,33 +264,67 @@ export const BOL_FINDING_CATALOGUE = {
       }
     },
   },
+  paper_package_count: {
+    cite: "49 CFR 172.202(a)(7)",
+    actor: "shipper_must_correct",
+    howToFix: "The shipper writes how many packages and what kind they are on the line (\"12 drums\", \"1 cargo tank\").",
+    sentence(ctx) {
+      const c = common(ctx, "the number and type of packages");
+      if (c) return c;
+      switch (ctx.reason) {
+        case "count_missing":
+          return `${line(ctx)} says "${s(ctx.facts.packaging)}" but not how many.`;
+        case "type_missing":
+          return `${line(ctx)} shows ${s(ctx.facts.packageCount)} packages but not what kind (drums, cases, cylinders, …).`;
+        case "missing":
+          return `${line(ctx)} shows neither the number nor the type of packages.`;
+        default:
+          return `${line(ctx)} shows its number and type of packages (${s(ctx.facts.packaging)}).`;
+      }
+    },
+  },
   paper_hm_column: {
     cite: "49 CFR 172.201(a)(1)",
     actor: "information_only",
-    howToFix: "If other freight shares the paper, the hazmat lines must be listed first, in a contrasting colour, or marked \"X\" in the HM column.",
+    howToFix: "If other freight shares the paper, the hazmat lines must be listed first, in a contrasting colour, or marked \"X\" in a column headed \"HM\".",
     sentence(ctx) {
       const c = common(ctx, "the HM column");
       if (c) return c;
       if (ctx.reason === "marked") return `${line(ctx)} is marked "${s(ctx.facts.mark)}" in the HM column.`;
       if (ctx.reason === "not_mixed") return `The paper carries only hazmat, so ${line(ctx)} needs no HM-column mark.`;
+      if (ctx.reason === "listed_first") return `${line(ctx)} is listed ahead of the other freight on the paper, which identifies it as hazmat.`;
       return `${line(ctx)} has no HM-column mark; if other freight is on this paper, check the hazmat lines are listed first or in a contrasting colour.`;
     },
   },
   paper_er_phone: {
     cite: "49 CFR 172.604",
     actor: "driver_must_not_accept",
-    howToFix: "Ask the shipper to print a monitored 24-hour emergency number, with area code, on the BOL.",
+    howToFix: "Ask the shipper to print an emergency response telephone number on the BOL — in digits, with the area code (or \"+\" and the country code for a number outside the US), monitored at all times the hazardous material is in transportation.",
     sentence(ctx) {
-      if (ctx.reason === "field_unconfirmed") return `Can't check the emergency phone yet: the reader isn't sure of it — confirm it against the paper first.`;
+      const shown = s(ctx.facts.printed);
       switch (ctx.reason) {
+        case "field_unconfirmed":
+          return "Can't check the emergency phone yet: the reader isn't sure of it — confirm it against the paper first.";
         case "missing":
-          return "The BOL has no 24-hour emergency phone number.";
+          return "The BOL has no emergency response telephone number.";
+        case "excepted_172_604_d":
+          return `Every hazmat line on this BOL is ${exceptionText(ctx.facts.exceptions)}, so no emergency response telephone number is required (49 CFR 172.604(d)).`;
+        case "exception_may_apply":
+          return `Can't tell whether this BOL needs an emergency response telephone number: ${s(ctx.facts.unknownLines)} may be one of the materials 49 CFR 172.604(d) excepts — confirm the line first.`;
         case "not_a_number":
-          return `The emergency contact reads "${s(ctx.facts.printed)}" — a phone number with area code is required, not words.`;
+          return `The emergency contact reads "${shown}" — a phone number with area code is required, not words.`;
+        case "not_numeric":
+          return `The emergency number "${shown}" is spelled in letters; it has to be printed as digits.`;
         case "too_short":
-          return `The emergency number "${s(ctx.facts.printed)}" has no area code.`;
+          return `The emergency number "${shown}" has no area code.`;
+        case "words_beside_number":
+          return `The emergency number reads "${shown}" — check that the words are a name beside the number, not a call-back instruction; a number that needs a call back does not count.`;
+        case "number_shape_unrecognised":
+          return `The emergency number "${shown}" isn't a US number with an area code or an international number with its "+" and country code — check it by eye.`;
+        case "international":
+          return `The emergency number ${shown} is an international number with its country code.`;
         default:
-          return `The emergency number ${s(ctx.facts.printed)} is printed.`;
+          return `The emergency number ${shown} is printed with its area code.`;
       }
     },
   },
@@ -249,11 +339,11 @@ export const BOL_FINDING_CATALOGUE = {
         case "present":
           return "The shipper's certification is on the BOL.";
         case "exempt":
-          return "The shipper's certification is not on the BOL, and this load doesn't need one (carrier-supplied tank or own product).";
+          return "The shipper's certification is not on the BOL, and this load doesn't need one: it is not hazardous waste and moves in a cargo tank the carrier supplied, or with the shipper as a private carrier without being reshipped or transferred.";
         case "missing":
           return "The shipper's certification is not on the BOL.";
         case "exception_may_apply":
-          return "The shipper's certification is not on the BOL; that is fine only for a carrier-supplied cargo tank or a private carrier's own product.";
+          return "The shipper's certification is not on the BOL; that is fine only in a cargo tank the carrier supplied, or when the shipper hauls it as a private carrier and it won't be reshipped or transferred — and never for hazardous waste.";
         default:
           return "The reader couldn't see whether the shipper's certification is on the BOL.";
       }
@@ -262,19 +352,32 @@ export const BOL_FINDING_CATALOGUE = {
   paper_page_complete: {
     cite: "49 CFR 172.201(c)",
     actor: "driver_must_not_accept",
-    howToFix: "Get every page of the BOL from the shipper before leaving.",
+    howToFix: "Get every page of the BOL from the shipper before leaving; a BOL of more than one page must number each page and give the total on page 1 (\"Page 1 of 4\").",
     sentence(ctx) {
+      const many = Array.isArray(ctx.facts.missingPages) && ctx.facts.missingPages.length > 1;
       switch (ctx.reason) {
         case "field_unconfirmed":
           return "Can't check the page count yet: the reader isn't sure of the \"page n of m\" marker — confirm it against the paper first.";
         case "pages_missing":
-          return `The BOL has ${s(ctx.facts.of)} pages and ${pages(ctx.facts.missingPages)} ${Array.isArray(ctx.facts.missingPages) && ctx.facts.missingPages.length > 1 ? "are" : "is"} missing.`;
+          return `The BOL has ${s(ctx.facts.of)} pages and ${pages(ctx.facts.missingPages)} ${many ? "are" : "is"} missing.`;
         case "pages_not_counted":
           return `The BOL says it has ${s(ctx.facts.of)} pages; check that all of them are here.`;
         case "all_pages":
           return `All ${s(ctx.facts.of)} pages of the BOL are here.`;
-        default:
+        case "single_page":
           return "The BOL is a single page.";
+        case "page_count_unknown":
+          return "The BOL prints no page count, and how many pages it has wasn't recorded — if it runs past one page, each page must be numbered and page 1 must give the total.";
+        case "multi_page_unnumbered":
+          return `The BOL runs to ${s(ctx.facts.pages)} pages but doesn't give the total on page 1 ("Page 1 of ${s(ctx.facts.pages)}").`;
+        case "page_not_numbered":
+          return `The BOL has ${s(ctx.facts.of)} pages and ${s(ctx.facts.unnumberedImages)} of the pages photographed carries no page number.`;
+        case "total_not_on_first_page":
+          return `The BOL has ${s(ctx.facts.of)} pages, but page 1 doesn't say so — the total has to be on the first page.`;
+        case "numbering_inconsistent":
+          return `The BOL says it has ${s(ctx.facts.of)} pages but ${pages(ctx.facts.pagesBeyond)} ${Array.isArray(ctx.facts.pagesBeyond) && ctx.facts.pagesBeyond.length > 1 ? "are" : "is"} also here — the numbering doesn't add up.`;
+        default:
+          return "The reader couldn't tell how many pages the BOL has.";
       }
     },
   },

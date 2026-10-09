@@ -18,8 +18,9 @@
  * the Appendix B marine-pollutant list — is read from the dataset version the caller passes, never
  * restated here. When the dataset does not carry what a rule needs, the rule answers `cannot_tell` with
  * `requirement_not_in_dataset` rather than falling back on a constant. What the rules DO state are the
- * paper-format requirements that have no table behind them (a basic description has an id, a 24-hour
- * number has an area code) — the same elements `validateBol` has always listed.
+ * paper-format requirements that have no table behind them (a basic description has an id, an emergency
+ * number includes its area code) — and since the 2026-10-09 audit against eCFR (owner ruling Q-DR15) each
+ * of those states the regulation's own words, with its exceptions, quoted in the rule that applies it.
  */
 
 export const PAPER_RULE_IDS = [
@@ -31,6 +32,7 @@ export const PAPER_RULE_IDS = [
   "paper_lq",
   "paper_marine_pollutant",
   "paper_quantity_present",
+  "paper_package_count",
   "paper_hm_column",
   "paper_er_phone",
   "paper_certification",
@@ -60,9 +62,25 @@ export interface PrintedPaperLine {
   readonly packaging: string | null;
   readonly hmColumnMark: "X" | "RQ" | null;
   readonly marks: readonly string[];
+  /**
+   * The line's printed description as one string, in reading order ("RQ, UN1203, Gasoline, 3, II, Ltd
+   * Qty"). The reader's contract does not carry it yet (Q-DR13); until it does, the rules that need the
+   * printed ORDER — §172.202(b)'s sequence, §172.203(b)'s "following the basic description" — say they
+   * did not verify it rather than guess.
+   */
+  readonly descriptionText?: string | null;
 }
 export interface PrintedPaper {
-  readonly identity: { readonly pageOf: { readonly page: number | null; readonly of: number | null } | null };
+  readonly identity: {
+    readonly pageOf: { readonly page: number | null; readonly of: number | null } | null;
+    /**
+     * The page marker printed on each image, one entry per image in capture order ("Page 1 of 2", "2",
+     * "" for an image that prints none) — what §172.201(c)'s "each page is consecutively numbered" is
+     * checked against. Named as the reader's contract will name it (`identity.printedPageNumbers`), so
+     * the seam test binds the two the day the contract gains it.
+     */
+    readonly printedPageNumbers?: readonly string[] | null;
+  };
   readonly hazmat: {
     readonly lines: readonly PrintedPaperLine[];
     readonly emergencyPhone: string | null;
@@ -100,6 +118,17 @@ export interface ResolvedPaperLine {
   readonly packagingKind?: "bulk" | "non_bulk" | null;
   /** The offeror's Limited Quantity claim from outside the paper (order, calculator); null = none known. */
   readonly claimedLimitedQuantity?: boolean | null;
+  /** The offeror's Excepted Quantity claim (§173.4a) from outside the paper — §172.604(d)(1). */
+  readonly claimedExceptedQuantity?: boolean | null;
+  /**
+   * How many HAZARDOUS materials the mixture or solution holds, from the SDS or the offeror — §172.203(k)(1)
+   * asks for two names only of "a mixture or solution of two or more hazardous materials". null = unknown.
+   */
+  readonly hazardousComponents?: number | null;
+  /** The material is oil subject to 49 CFR part 130 (§130.2) — §172.203(l)(3)'s exception. null = unknown. */
+  readonly subjectToPart130?: boolean | null;
+  /** Liquid or solid, from the SDS — §171.4(c)(2)'s 5 L / 5 kg turns on it. null = derive from the row. */
+  readonly physicalState?: "liquid" | "solid" | "gas" | null;
 }
 
 export interface ResolvedPaper {
@@ -111,10 +140,23 @@ export interface ResolvedPaper {
   readonly vesselLeg?: boolean | null;
   /** Non-hazardous items share this paper (§172.201(a)(1)); null = not known. */
   readonly mixedPaper?: boolean | null;
-  /** A §172.204(b) exception applies (carrier-supplied cargo tank, private carrier's own product). */
+  /**
+   * A §172.204(b)(1) exception applies. Derive it with `certificationExemptionFrom` (certificationExemption.ts),
+   * never by hand: true only for a carrier-supplied cargo tank, or a private carrier once "not reshipped or
+   * transferred" and "not a hazardous waste" are both confirmed (owner ruling Q-DR16).
+   */
   readonly certificationExempt?: boolean | null;
   /** Every page number the reader saw across the document's images; null = not counted. */
   readonly pagesPresent?: readonly number[] | null;
+  /** How many images of the paper's pages the reader was given; null = not counted. */
+  readonly imageCount?: number | null;
+  /** On a mixed paper, the hazmat entries are listed before every other item — §172.201(a)(1)(i). */
+  readonly hazmatEntriesFirst?: boolean | null;
+  /**
+   * The vehicle or container holds fumigated lading, displays the FUMIGANT marking, and carries no other
+   * hazardous material — §172.604(d)(3). null = not known.
+   */
+  readonly fumigatedUnitNoOtherHazmat?: boolean | null;
 }
 
 // ── output ──────────────────────────────────────────────────────────────────────────────────────────

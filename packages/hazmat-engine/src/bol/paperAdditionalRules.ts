@@ -1,18 +1,19 @@
 /**
- * The §172.203 additional-entry rules of the printed-paper audit: RQ, Limited Quantity, Marine Pollutant.
- * Each requirement is read from the dataset on the run — Appendix A (`hazSubstances`, RQ in lb and kg),
- * HMT column 8A (`exceptionsRef`), Appendix B (`marinePollutants`) and the SP 441 identity route — and a
- * dataset that does not carry the table answers `requirement_not_in_dataset`, never a guess.
+ * The §172.203 additional-entry rules of the printed-paper audit: RQ and Limited Quantity (Marine
+ * Pollutant, with its exceptions, is paperMarinePollutant.ts). Each requirement is read from the dataset on
+ * the run — Appendix A (`hazSubstances`, RQ in lb and kg), HMT column 8A (`exceptionsRef`) — and a dataset
+ * that does not carry the table answers `requirement_not_in_dataset`, never a guess.
  */
-import { classifyMarinePollutantEntry } from "../placards/marinePollutant.js";
 import type { PaperRuleResult } from "./paperTypes.js";
+import { layoutDescription } from "./paperDescriptionText.js";
 import {
+  LQ_RX,
+  blank,
   declaresLimitedQuantity,
   entryNames,
   gated,
   lineLabel,
   make,
-  printsMarinePollutant,
   printsRq,
   rowOf,
   technicalComponents,
@@ -77,17 +78,34 @@ export function paperRq(ctx: LineCtx): PaperRuleResult {
 }
 
 /**
- * paper_lq — §172.203(b): a Limited Quantity line says so ("Limited Quantity" / "Ltd Qty"), and the words
- * are only good where the HMT authorises an exception at all — column 8A names a §173 section (the same
- * column `verifyLqClaim` reads before it lets LQ lift a placard). The per-package caps stay with the
- * placard path; this rule speaks only to the paper.
+ * Where the Limited Quantity words stand in the printed description: §172.203(b) wants them "following the
+ * basic description". null when there is no description text, or its basic description cannot be laid out
+ * — the position is then simply not verified.
+ */
+function lqPosition(line: LineCtx["printed"]): "following" | "before" | "outside" | null {
+  if (blank(line.descriptionText)) return null;
+  const layout = layoutDescription(line);
+  if (layout.kind !== "in_sequence") return null;
+  const at = [...line.descriptionText!.matchAll(new RegExp(LQ_RX.source, "gi"))].map((m) => m.index);
+  if (at.length === 0) return "outside";
+  return at.some((i) => i >= layout.end) ? "following" : "before";
+}
+
+/**
+ * paper_lq — §172.203(b): "the description for a material offered for transportation as "limited
+ * quantity," as authorized by this subchapter, must include the words "Limited Quantity" or "Ltd Qty"
+ * following the basic description." The words must be there; they are only good where the HMT authorises
+ * an exception at all — column 8A names a §173 section (the same column `verifyLqClaim` reads before it
+ * lets LQ lift a placard); and, when the printed description is supplied, they must stand after it. With
+ * only the reader's separate fields the words are accepted from the marks and `positionVerified` says the
+ * position was not checked. The per-package caps stay with the placard path.
  */
 export function paperLq(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_lq", ctx.index);
-  const g = gated(ctx, r, ["marks", "psn", "packaging"]);
+  const g = gated(ctx, r, ["marks", "psn", "packaging", "descriptionText"]);
   if (g) return g;
   const label = lineLabel(ctx);
-  if (!declaresLimitedQuantity(ctx.printed)) {
+  if (!declaresLimitedQuantity(ctx.printed) && !LQ_RX.test(ctx.printed.descriptionText ?? "")) {
     return ctx.resolved.claimedLimitedQuantity === true
       ? r("fail", "claimed_not_printed", { lineLabel: label })
       : r("pass", "not_claimed", { lineLabel: label });
@@ -99,36 +117,10 @@ export function paperLq(ctx: LineCtx): PaperRuleResult {
     return r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "HMT column 8A (exceptions)" });
   }
   if (pgRow.exceptionsRef == null) return r("fail", "not_authorised", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
-  return r("pass", "authorised", { lineLabel: label, exceptionsRef: pgRow.exceptionsRef });
+  const position = lqPosition(ctx.printed);
+  const facts = { lineLabel: label, exceptionsRef: pgRow.exceptionsRef };
+  if (position === "before") return r("fail", "lq_not_following", facts);
+  if (position === "outside") return r("cannot_tell", "lq_outside_description", facts);
+  return r("pass", "authorised", { ...facts, positionVerified: position === "following" });
 }
 
-/**
- * paper_marine_pollutant — §172.203(l): "Marine Pollutant" when the material is one AND the requirement
- * reaches this move. Listed = Appendix B by name (the row's, or a component in the technical name) or the
- * SP 441 route (`classifyMarinePollutantEntry`, the one definition the placard rule uses). Reach =
- * §171.4(c)(1): marine-pollutant requirements do not apply to NON-BULK packages moving only by highway,
- * so bulk, or any vessel leg, needs the words.
- */
-export function paperMarinePollutant(ctx: LineCtx): PaperRuleResult {
-  const r = make("paper_marine_pollutant", ctx.index);
-  const g = gated(ctx, r, ["marks", "psn", "technicalName"]);
-  if (g) return g;
-  const label = lineLabel(ctx);
-  const row = rowOf(ctx);
-  if (!row) return r("cannot_tell", "line_unresolved", { lineLabel: label });
-  if (printsMarinePollutant(ctx.printed)) return r("pass", "printed", { lineLabel: label });
-  const list = ctx.ds.marinePollutants;
-  const byComponent = list.some((m) => technicalComponents(ctx.printed).includes(m.nameNormalized));
-  const listed = classifyMarinePollutantEntry(row.entry, list).listed || byComponent;
-  if (!listed) {
-    return list.length === 0
-      ? r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "Appendix B to §172.101" })
-      : r("pass", "not_listed", { lineLabel: label });
-  }
-  const kind = ctx.resolved.packagingKind ?? null;
-  const vessel = ctx.paper.vesselLeg ?? null;
-  const facts = { lineLabel: label, requiredPsn: row.entry.psnPrinted, packagingKind: kind, vesselLeg: vessel };
-  if (kind === "bulk" || vessel === true) return r("fail", "required_not_printed", facts);
-  if (kind === "non_bulk" && vessel === false) return r("pass", "not_required_non_bulk_highway", facts);
-  return r("cannot_tell", "applicability_unknown", facts);
-}
