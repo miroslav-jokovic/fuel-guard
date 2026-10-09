@@ -1883,6 +1883,17 @@
         "why": "raw fetch envelopes for the IFTA report."
       }
     },
+    "samsara_documents": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "driver documents staged from Samsara (0445): ~126/day measured 2026-10-08 across all types; refreshed in place by document id. Kept: the reader's intake and the corpus read from it."
+      }
+    },
     "samsara_ifta_jurisdiction_miles": {
       "module": "samsara",
       "layer": "raw",

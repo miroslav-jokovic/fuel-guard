@@ -452,6 +452,9 @@
   "samsara_ifta_fetches": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],
+  "samsara_documents": [
+    "apps/api/src/modules/samsara/samsaraDocumentsSync.ts"
+  ],
   "samsara_ifta_jurisdiction_miles": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
   ],

@@ -142,3 +142,5 @@ export type {
   SamsaraFeedAlertDecision,
   SamsaraFeedAlertPlan,
 } from "./feedAlerts.js";
+export { parseSamsaraDocument, SAMSARA_LOAD_REF_LABEL } from "./documents.js";
+export type { SamsaraDocumentRow, SamsaraDocumentField } from "./documents.js";
