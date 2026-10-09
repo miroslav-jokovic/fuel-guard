@@ -145,6 +145,9 @@ remaining phases in order with this feature's other fixes.
     there are 0 open fill cases and 0 incidents, so nothing differs. The fix is to bound both ends of
     the page's window on the carrier's day (`a calendar day is not an instant`), as Q-FUI13 already
     asks for the start; recommended inside chunk 10, which moves fills onto one day.
+  - Built in chunk 10 (10c): both ends of the window are on the carrier's day (`organizations.operating_hours`
+    zone, read with the start date in one row), and `oldestOpenOn` is a case's carrier day, so the
+    link's `?from=` still starts at or before the oldest item.
 
 ---
 
@@ -648,3 +651,6 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   table on Fuel Costs; September $8,095.80 matches the database to the cent.
 - 2026-10-08: 9a merged (#1374, 26cb87f). 9b built: the buying habits leave the queue; the tiles become
   Can be disputed / Disputed / Credited back, adding only claimable money. Production: $56.34 to claim, 14 open.
+- 2026-10-08: 10a opened as #1377 (HOLD until the release carrying #1373/#1374/#1376). 10c built: the Fuel
+  problems page filters fill cases and card-fraud incidents on the carrier's day at both ends, and the
+  Dashboard's oldest-open date is a carrier day. No migration, so it does not depend on 10a.

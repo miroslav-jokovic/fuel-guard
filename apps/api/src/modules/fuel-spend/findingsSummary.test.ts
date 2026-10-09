@@ -205,6 +205,18 @@ describe("the oldest open item the count covers", () => {
     expect((await readFindingsSummary(rec.client, ORG, "accountant", NOW)).oldestOpenOn).toBe("2026-08-01");
   });
 
+  // Chunk 10: the door's `?from=` must start the page at or before the row it was read from. 01:00Z on
+  // 10-06 is 20:00 on 10-05 in Chicago, and the page now starts 10-06 at 05:00Z — so the day must be 10-05.
+  it("is a case's day on the carrier's clock, not its UTC day, so the link's page still lists it", async () => {
+    const rec = dated({ anomaly: "2026-10-06T01:00:00+00:00", incident: "2026-10-07T01:00:00+00:00" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-10-05");
+  });
+
+  it("keeps the ledger's stored date as it is, because it is already a day", async () => {
+    const rec = dated({ exception: "2026-10-06" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-10-06");
+  });
+
   it("is null when nothing is open", async () => {
     expect((await readFindingsSummary(dated({}).client, ORG, "admin", NOW)).oldestOpenOn).toBeNull();
   });
