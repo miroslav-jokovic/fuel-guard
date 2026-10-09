@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { IN_LIST_CHUNK } from "../../lib/paging.js";
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-09-15T18:00:00.000Z");
@@ -107,6 +108,61 @@ describe("the live map board", () => {
     expect(b.vehicles[0]!.load).toMatchObject({ id: "load-1", ref: "L-4417", status: "in_transit" });
     // The next stop is the first one NOT already worked — a completed pickup is behind the truck.
     expect(b.vehicles[0]!.load!.nextStop).toMatchObject({ seq: 2, kind: "dropoff", city: "Green Bay" });
+  });
+
+  /**
+   * The load's two ends on the truck card (TRUCK-CARD-ROUTE-PLAN D-TC2): the first pickup and the last
+   * delivery by `seq`, whatever order the rows arrive in — the Loads board's `boardStops`, so the two
+   * surfaces cannot name a different pickup — with McLeod's place name and the street address.
+   */
+  it("names the load's first pickup and last delivery by sequence, with addresses", async () => {
+    const stop = (seq: number, kind: string, location_name: string, address_line: string) => ({
+      load_id: "load-1", seq, kind, name: `ours-${seq}`, location_name, address_line, city: "City", state: "WI",
+      postal_code: `5430${seq}`, appointment_start: null, appointment_end: null, status: "pending", external_status: "A",
+    });
+    const stops = [
+      stop(4, "dropoff", "Final DC", "4 Last Rd"),
+      stop(2, "pickup", "Second shipper", "2 Mid St"),
+      stop(1, "pickup", "First shipper", "1 Main St"),
+      stop(3, "dropoff", "Interim DC", "3 Mid Ave"),
+    ];
+    for (const order of [stops, [...stops].reverse()]) {
+      const b = await board(recorder({
+        loads: [{ id: "load-1", vehicle_id: "veh-1", ref: "L-1", status: "in_transit" }],
+        stops: order,
+      }));
+      const load = b.vehicles[0]!.load!;
+      expect(load.pickup).toMatchObject({ seq: 1, name: "First shipper", addressLine: "1 Main St", postalCode: "54301" });
+      expect(load.delivery).toMatchObject({ seq: 4, name: "Final DC", addressLine: "4 Last Rd", postalCode: "54304" });
+      expect(load.extraStops).toBe(2);
+    }
+  });
+
+  it("reads stops for many loads in chunks of ids, each truck keeping its own pickup", async () => {
+    const n = 2 * IN_LIST_CHUNK + 3;
+    const ids = Array.from({ length: n }, (_, i) => i);
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicle_positions: { data: ids.map((i) => position({ vehicle_id: `veh-${i}` })) },
+        vehicles: { data: ids.map((i) => vehicle({ id: `veh-${i}`, unit_number: String(1000 + i), assigned_driver_id: null })) },
+        drivers: { data: [] },
+        loads: { data: ids.map((i) => ({ id: `load-${i}`, vehicle_id: `veh-${i}`, ref: `L-${i}`, status: "in_transit" })) },
+        // A function of the query: the recorder applies no filters, so a flat list would hand every
+        // chunk every stop and hide a chunk that lost its ids.
+        load_stops: (q: RecordedQuery) =>
+          (q.filters().find((f) => f.col === "load_id")!.val as string[]).map((loadId) => ({
+            load_id: loadId, seq: 1, kind: "pickup", name: `pickup of ${loadId}`, location_name: null, address_line: null,
+            city: null, state: null, postal_code: null, appointment_start: null, appointment_end: null, status: "pending",
+          })),
+      },
+    });
+    const b = await board(rec);
+    expectOrgScoped(rec, ORG);
+    const reads = rec.forTable("load_stops");
+    expect(reads).toHaveLength(3);
+    for (const q of reads) expect((q.filters().find((f) => f.col === "load_id")!.val as string[]).length).toBeLessThanOrEqual(IN_LIST_CHUNK);
+    expect(b.vehicles).toHaveLength(n);
+    for (const v of b.vehicles) expect(v.load!.pickup!.name).toBe(`pickup of ${v.load!.id}`);
   });
 
   it("reports no next stop when every stop is behind the truck", async () => {

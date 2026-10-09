@@ -13,7 +13,7 @@
  * one response (`fuelMetric`), so nothing here reads a clock.
  */
 import { secondsSince } from "@silvicom/shared";
-import type { LiveMapBoard, LiveMapScope, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 
 /**
  * A fix's age in words (D-LM10 — shown per truck, never hidden behind the marker).
@@ -229,4 +229,15 @@ export function engineWords(state: LiveMapVehicle["engineState"] | undefined): s
   if (state === "On" || state === "Idle") return "Running";
   if (state === "Off") return "Off";
   return null;
+}
+
+/**
+ * A stop's address on one line (TRUCK-CARD-ROUTE-PLAN D-TC2): street, then "City, ST 54301". Each part
+ * is left out when McLeod has none rather than printed as a gap; null when there is nothing at all, so
+ * the card shows the place name alone instead of an empty line.
+ */
+export function stopAddress(stop: Pick<LiveMapStop, "addressLine" | "city" | "state" | "postalCode">): string | null {
+  const region = [stop.state, stop.postalCode].filter(Boolean).join(" ");
+  const place = [stop.city, region].filter(Boolean).join(", ");
+  return [stop.addressLine, place].filter(Boolean).join(", ") || null;
 }

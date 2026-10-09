@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
-import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
 
 // SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
@@ -73,6 +73,43 @@ describe("LiveMapVehicleFacts — the load line", () => {
       nextStop: { seq: 2, kind: "dropoff", name: "Consignee", city: "Green Bay", state: "WI", appointmentStart: null, appointmentEnd: null, status: "pending" },
     });
     expect(w.text().replace(/\s+/g, " ")).toContain("Next stop: Consignee — Green Bay, WI");
+  });
+});
+
+describe("LiveMapVehicleFacts — the load's two ends (D-TC2)", () => {
+  const stop = (seq: number, kind: string, name: string, extra: Partial<LiveMapStop> = {}): LiveMapStop => ({
+    seq, kind, name, city: "Green Bay", state: "WI", appointmentStart: null, appointmentEnd: null, status: "pending",
+    addressLine: `${seq} Main St`, postalCode: "54301", ...extra,
+  });
+  const load = (o: Partial<NonNullable<LiveMapVehicle["load"]>>): LiveMapVehicle["load"] => ({
+    id: "l1", ref: "0005", status: "in_transit", source: "tms", externalStatus: "P", nextStop: null, ...o,
+  });
+  const text = (w: ReturnType<typeof facts>) => w.text().replace(/\s+/g, " ");
+  /** Each end as [label, name, address?] — read per row, since adjacent elements join with no space. */
+  const ends = (w: ReturnType<typeof facts>) =>
+    w.findAll("dl.space-y-2 > div").map((row) => [row.get("dt").text(), ...row.findAll("dd").map((d) => d.text())]);
+
+  it("shows the pickup and the delivery, each with its address", () => {
+    const w = facts(load({ pickup: stop(1, "pickup", "Shipper Co"), delivery: stop(2, "dropoff", "Consignee DC"), extraStops: 0 }));
+    expect(ends(w)).toEqual([
+      ["Pickup", "Shipper Co", "1 Main St, Green Bay, WI 54301"],
+      ["Delivery", "Consignee DC", "2 Main St, Green Bay, WI 54301"],
+    ]);
+  });
+
+  it("drops the next-stop line when the two ends already say it, and keeps it when stops lie between", () => {
+    const next = stop(2, "dropoff", "Consignee DC");
+    const plain = text(facts(load({ pickup: stop(1, "pickup", "A"), delivery: next, nextStop: next, extraStops: 0 })));
+    expect(plain).not.toContain("Next stop");
+    const multi = text(facts(load({ pickup: stop(1, "pickup", "A"), delivery: stop(4, "dropoff", "D"), nextStop: stop(2, "dropoff", "B"), extraStops: 2 })));
+    expect(multi).toContain("+2 more stops");
+    expect(multi).toContain("Next stop: B");
+  });
+
+  it("shows the place name alone when McLeod has no address for it", () => {
+    const bare = stop(1, "pickup", "Yard", { addressLine: null, city: null, state: null, postalCode: null });
+    const w = facts(load({ pickup: bare, delivery: null, extraStops: 0 }));
+    expect(ends(w)).toEqual([["Pickup", "Yard"]]);
   });
 });
 

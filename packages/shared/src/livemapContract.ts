@@ -73,6 +73,12 @@ export interface LiveMapStop {
   appointmentStart: string | null;
   appointmentEnd: string | null;
   status: string | null;
+  /**
+   * Street and postal code (TRUCK-CARD-ROUTE-PLAN D-TC2), so the card can show the load's two ends as
+   * addresses. Optional for the same reason as `source` below: the web and api deploy separately.
+   */
+  addressLine?: string | null;
+  postalCode?: string | null;
 }
 
 export interface LiveMapLoad {
@@ -93,6 +99,15 @@ export interface LiveMapLoad {
    * departed in McLeod. Null when every stop is behind it or none was recorded.
    */
   nextStop: LiveMapStop | null;
+  /**
+   * The load's two ends (D-TC2): the first pickup and the last delivery by McLeod's sequence, chosen by
+   * `boardStops` — the Loads board's own rule, so the two surfaces cannot name a different pickup.
+   * `extraStops` counts the stops between and beside them. Optional: an api from before 2026-10-09
+   * sends none, and the card then shows the next stop alone, as it did.
+   */
+  pickup?: LiveMapStop | null;
+  delivery?: LiveMapStop | null;
+  extraStops?: number;
 }
 
 export interface LiveMapVehicle {
