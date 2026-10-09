@@ -14,8 +14,11 @@
 //   1. THE TILES AND THE LIST MUST COUNT THE SAME SET. Non-canonical rows are excluded here because
 //      they are excluded there; a tile counting rows the table beneath it does not show is the exact
 //      disagreement FUEL-T3a exists to end.
-//   2. `flagged + clear = fills`, BY CONSTRUCTION. A null `has_anomaly` is not flagged. If these ever
-//      stop summing to the total, two tiles disagree about one window and neither says which is right.
+//   2. FLAGGED IS AN OPEN CASE, CLEAR IS NO FLAG (migration 0446, AUDIT.md N5). `flagged` used to be
+//      `has_anomaly`, which the flag reconcile keeps true for a fill whose case was DISMISSED, so the
+//      tile said "need review" over an empty work queue (138 of 138 on production, 2026-10-09). Which
+//      statuses count is derived from `anomalyStatusesIn("open")` below, for every status there is —
+//      the SQL holds a copy, and this is the gate on it. `clear` is unchanged: the fills with no flag.
 //   3. `has_cost` IS NOT `spend > 0`. "No fill carried a cost" and "the costs sum to zero" are
 //      different facts and the tile renders them differently — "—" against "$0".
 //   4. ORG SCOPE, and it must hold with `p_org` OMITTED, because that is the call a browser makes
@@ -32,6 +35,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { ANOMALY_STATUSES, anomalyStatusesIn } from "../../packages/shared/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
@@ -92,7 +96,7 @@ const VEH2 = (await one(
 // same way the browser's loop did — which is what makes this a PARITY assertion and not a restatement
 // of the SQL in a different syntax.
 const N = 2400;
-const expected = { fills: 0, gallons: 0, spend: 0, flagged: 0, clear: 0 };
+const expected = { fills: 0, gallons: 0, spend: 0, marked: 0, clear: 0 };
 const values = [];
 for (let i = 0; i < N; i++) {
   const gallons = 10 + (i % 90);            // 10..99
@@ -103,9 +107,9 @@ for (let i = 0; i < N; i++) {
   expected.fills++;
   expected.gallons += gallons;
   if (cost !== null) expected.spend += cost * gallons;
-  if (flagged) expected.flagged++;
+  if (flagged) expected.marked++;
 }
-expected.clear = expected.fills - expected.flagged;
+expected.clear = expected.fills - expected.marked;
 
 for (let i = 0; i < values.length; i += 400) {
   await db.exec(
@@ -126,7 +130,11 @@ ok(
 );
 ok("gallons match the row-by-row accumulation exactly", Number(total.gallons) === expected.gallons, `${total.gallons} vs ${expected.gallons}`);
 ok("spend matches, with the cost-less fills contributing nothing rather than zero-filling", Number(total.spend) === expected.spend, `${total.spend} vs ${expected.spend}`);
-ok("flagged matches", Number(total.flagged) === expected.flagged, `${total.flagged} vs ${expected.flagged}`);
+// ⚠ Every `has_anomaly = true` row in this fixture has NO case behind it, which is the shape of the 138
+// on production: a flag the reconcile keeps, over cases that are all closed. None of them is waiting
+// for anybody, so none of them is flagged (0446). Before 0446 this line read `flagged = marked`.
+ok("a has_anomaly flag with no open case behind it is not counted as flagged",
+  expected.marked > 0 && Number(total.flagged) === 0, `${total.flagged} of ${expected.marked} marked`);
 // Every fixture row names one of the two trucks, so this is the shape the line renders as "All N
 // fill-ups ... name a truck". Asserted before any unattributed row exists, so the two counts moving
 // apart later is a change this file can see rather than a difference it started with.
@@ -136,10 +144,13 @@ ok(
   `${total.fills_with_vehicle} vs ${expected.fills}`,
 );
 
-// ── 2. flagged + clear = fills, by construction ─────────────────────────────────────────────────
+// ── 2. clear is the fills with no flag ──────────────────────────────────────────────────────────
+// No longer the complement of `flagged` (0446): the difference is the fills whose every case is
+// closed, which are neither waiting for review nor clear.
 ok(
-  "clear is the complement of flagged, so the two tiles can never disagree about one window",
-  Number(total.clear) === expected.clear && Number(total.flagged) + Number(total.clear) === Number(total.fills),
+  "clear counts the fills with no flag, so a marked fill with only closed cases is in neither tile",
+  Number(total.clear) === expected.clear && Number(total.clear) + expected.marked === Number(total.fills),
+  `${total.clear} vs ${expected.clear}`,
 );
 // ⚠ `has_anomaly` is NOT NULL in the schema, so the `coalesce(has_anomaly, false)` in 0289 can never
 // actually fire. It is kept as a statement of intent — an unflagged fill is clear — and the case is
@@ -152,7 +163,7 @@ await db.query(
 const withNull = await call();
 ok(
   "an unflagged fill lands in clear and never in flagged",
-  Number(withNull.flagged) === expected.flagged && Number(withNull.clear) === expected.clear + 1,
+  Number(withNull.flagged) === Number(total.flagged) && Number(withNull.clear) === expected.clear + 1,
 );
 // That row carries no `vehicle_id`. It is exactly the case FUEL-T5 exists for: it counts toward
 // gallons and spend and toward the denominator, and toward nothing per-truck. If the two counts move
@@ -164,17 +175,17 @@ ok(
   `${withNull.fills}/${withNull.fills_with_vehicle} vs ${total.fills}/${total.fills_with_vehicle}`,
 );
 // A ZERO-GALLON unflagged fill. Without it, `clear` counted by any incidental extra condition — say
-// `gallons > 0` — is indistinguishable from the true complement, because every other fixture row has
-// gallons. This is the row that makes `flagged + clear = fills` an assertion rather than a coincidence.
+// `gallons > 0` — is indistinguishable from "no flag", because every other fixture row has gallons.
+// This is the row that makes `clear + marked = fills` an assertion rather than a coincidence.
 await db.query(
   `insert into fuel_transactions (org_id, fueled_at, business_date, state, gallons, has_anomaly, is_canonical)
    values ($1,'2026-02-04T12:00:00Z','2026-02-04','TX',0,false,true)`, [ORG]);
 const withZero = await call();
 ok(
-  "the identity holds for a zero-gallon fill too — clear is the COMPLEMENT, not a count with its own conditions",
-  Number(withZero.flagged) + Number(withZero.clear) === Number(withZero.fills) &&
+  "a zero-gallon unflagged fill is clear too — clear is 'no flag', not a count with its own conditions",
+  Number(withZero.clear) + expected.marked === Number(withZero.fills) &&
     Number(withZero.clear) === Number(withNull.clear) + 1,
-  `${withZero.flagged}+${withZero.clear} vs ${withZero.fills}`,
+  `${withZero.clear}+${expected.marked} vs ${withZero.fills}`,
 );
 
 // ── 3. the tiles count what the list shows ──────────────────────────────────────────────────────
@@ -294,6 +305,95 @@ const wildcard = await one(
 ok("a literal % matches nothing rather than everything — it is escaped, not stripped",
   Number(wildcard.fills) === 0, `${wildcard.fills}`);
 
+// ── 5c. flagged is a fill with an OPEN case (0446, AUDIT.md N5) ──────────────────────────────────
+// Its own org, so nothing above moves and the counts here are only these fills. One fill per anomaly
+// status, each marked `has_anomaly` the way the reconcile leaves it for any non-superseded case.
+const CASES = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Cases') returning id`)).id;
+const caseFill = async (day, marked = true) =>
+  (await one(
+    `insert into fuel_transactions (org_id, fueled_at, business_date, state, gallons, has_anomaly, is_canonical)
+     values ($1, $2, $3, 'TX', 50, $4, true) returning id`, [CASES, `${day}T15:00:00Z`, day, marked])).id;
+const caseFor = (txn, status, day) =>
+  db.query(
+    `insert into anomalies (org_id, transaction_id, rule_id, severity, status, message, source, fueled_at)
+     values ($1, $2, 'theft_case', 'high', $3::anomaly_status, 'seeded', 'rules', $4)`,
+    [CASES, txn, status, `${day}T15:00:00Z`]);
+const casesCall = async (args = "") =>
+  one(`select * from fuel_range_totals(p_from => '2026-01-01', p_to => '2026-12-31'${args}, p_org => $1)`, [CASES]);
+
+// The expectation is DERIVED, never listed: the statuses the Alerts work queue calls open. A status
+// added to `ANOMALY_STATUSES` and mapped onto `open` makes this number move and the SQL not, and this
+// file fails until 0446's copy is widened.
+const OPEN = new Set(anomalyStatusesIn("open"));
+const byStatus = {};
+for (const [i, status] of ANOMALY_STATUSES.entries()) {
+  const day = `2026-05-${String(10 + i).padStart(2, "0")}`;
+  await caseFor(await caseFill(day), status, day);
+  byStatus[status] = day;
+}
+const expectedOpen = ANOMALY_STATUSES.filter((s) => OPEN.has(s)).length;
+const perStatus = await casesCall();
+ok(
+  "flagged counts exactly the fills whose case is in queue state open, derived from anomalyStatusesIn",
+  expectedOpen > 0 && Number(perStatus.flagged) === expectedOpen,
+  `${perStatus.flagged} vs ${expectedOpen} (${[...OPEN].join(",")})`,
+);
+// Each status alone, so a wrong count cannot hide behind a right total (one extra status in, one
+// open one out). The day IS the fill, because each status got its own.
+for (const status of ANOMALY_STATUSES) {
+  const day = byStatus[status];
+  const alone = await one(
+    `select * from fuel_range_totals(p_from => $2::date, p_to => $2::date, p_org => $1)`, [CASES, day]);
+  ok(
+    `a fill whose only case is ${status} is ${OPEN.has(status) ? "" : "not "}flagged`,
+    Number(alone.flagged) === (OPEN.has(status) ? 1 : 0) && Number(alone.fills) === 1,
+    `${alone.flagged}`,
+  );
+}
+// The accept line of chunk 11a, by name.
+const dismissedDay = byStatus.dismissed;
+const dismissed = await one(
+  `select * from fuel_range_totals(p_from => $2::date, p_to => $2::date, p_org => $1)`, [CASES, dismissedDay]);
+ok("a fill whose case was dismissed is not counted, though its has_anomaly is still true",
+  Number(dismissed.flagged) === 0 && Number(dismissed.clear) === 0 && Number(dismissed.fills) === 1);
+
+// Two open cases on one fill are ONE flagged fill: the tile counts fills, as every tile here does.
+const twice = await caseFill("2026-06-01");
+await caseFor(twice, "open", "2026-06-01");
+await db.query(
+  `insert into anomalies (org_id, transaction_id, rule_id, severity, status, message, source, fueled_at)
+   values ($1, $2, 'odometer_regression', 'low', 'open', 'seeded', 'rules', '2026-06-01T15:00:00Z')`, [CASES, twice]);
+const afterTwice = await casesCall();
+ok("a fill with two open cases is counted once",
+  Number(afterTwice.flagged) === Number(perStatus.flagged) + 1, `${afterTwice.flagged} vs ${Number(perStatus.flagged) + 1}`);
+
+// An open case on a fill the reconcile has NOT marked yet is still waiting for somebody. The tile reads
+// the case, not the marker, so the order the two writers ran in cannot change the count.
+const unmarked = await caseFill("2026-06-02", false);
+await caseFor(unmarked, "open", "2026-06-02");
+const afterUnmarked = await casesCall();
+ok("an open case counts even before the reconcile has marked its fill",
+  Number(afterUnmarked.flagged) === Number(afterTwice.flagged) + 1);
+
+// A case in another org on a fill of this one cannot exist (the FK is the fill's, the org is the
+// fill's), so the scope that matters is the filters: a truck filter that excludes the fill excludes its case.
+const veh = (await one(
+  `insert into vehicles (org_id, unit_number, status, tank_capacity_gal) values ($1,'801','active',150) returning id`, [CASES])).id;
+const scoped = await casesCall(`, p_vehicles => array['${veh}']::uuid[]`);
+ok("a truck filter that matches none of these fills counts none of their open cases",
+  Number(scoped.flagged) === 0 && Number(scoped.fills) === 0);
+
+// D-CF9 (0439): an open case BEFORE the detection start date is not shown on the Alerts page, so it is
+// not counted here. Set the epoch after every fill so far, then add one open case after it.
+await db.query(`update organizations set detection_epoch = '2026-07-01T00:00:00Z' where id = $1`, [CASES]);
+const afterEpochSet = await casesCall();
+ok("after the detection start date is set, an open case before it is no longer counted",
+  Number(afterEpochSet.flagged) === 0, `${afterEpochSet.flagged}`);
+const late = await caseFill("2026-07-02");
+await caseFor(late, "open", "2026-07-02");
+const afterLate = await casesCall();
+ok("...and an open case after it is", Number(afterLate.flagged) === 1, `${afterLate.flagged}`);
+
 // ── 6. org scope, and it must hold on the call a browser actually makes ─────────────────────────
 // Captured HERE rather than reused from an earlier assertion: rows have been added since, and a
 // baseline that has drifted turns a scope test into an arithmetic test.
@@ -326,6 +426,25 @@ ok("the attributed count reaches the browser's call, and is a strict subset once
   Number(asBrowser.fills_with_vehicle) === Number(mineBefore.fills_with_vehicle) &&
     Number(asBrowser.fills_with_vehicle) < Number(asBrowser.fills),
   `${asBrowser?.fills_with_vehicle} vs ${mineBefore.fills_with_vehicle} of ${asBrowser?.fills}`);
+
+// ── 7. the open-case count on the browser's call ─────────────────────────────────────────────────
+// Last, because a rolled-back `set_config` leaves `request.jwt.claims` as '' for the rest of the
+// session, and every call after it would trip `auth_org_id()` on that empty string.
+// The browser's call, as a role that reads fuel and not safety. SECURITY INVOKER means the caller's
+// own token reads `anomalies` too; if their policy refused them, this would read 0 and look like
+// good news.
+const ACCT = (await one(`insert into auth.users (email) values ('books@silvicom.test') returning id`)).id;
+await db.exec("begin");
+await db.exec("set local role authenticated");
+await db.query("select set_config('request.jwt.claims', $1, true)", [
+  JSON.stringify({ sub: ACCT, org_id: CASES, user_role: "accountant", role: "authenticated" }),
+]);
+const asAccountant = (await db.query(
+  `select * from fuel_range_totals(p_from => '2026-01-01', p_to => '2026-12-31')`)).rows[0];
+await db.exec("rollback");
+ok("an accountant (fuel, not safety) gets the same flagged count through the browser's call",
+  Number(asAccountant?.flagged) === 1 && Number(asAccountant?.fills) === Number(afterLate.fills),
+  `${asAccountant?.flagged}/${asAccountant?.fills}`);
 
 await db.close();
 

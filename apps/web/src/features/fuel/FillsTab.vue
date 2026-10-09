@@ -43,6 +43,8 @@ import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
+import { flaggedCasesLink } from "./flaggedCasesLink";
+import DoorLink from "@/components/ui/DoorLink.vue";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -245,7 +247,12 @@ const rowClass = (row: FuelTransaction) => (alertsOpen.value && row.has_anomaly 
 
 // Summary stats reflect the WHOLE filtered range (not just this page) — sourced from useFuelRangeTotals
 // so applying a filter updates every tile, not only the rows currently visible.
+// Fills with an OPEN case (migration 0446, N5) — no longer every fill whose row is marked, which kept
+// counting fills whose case had been dismissed. Its link opens those cases; `DoorLink` hides it from a
+// reader the Alerts page does not open for, and `flaggedCasesLink` withholds it under a filter that page
+// cannot apply.
 const flaggedCount = computed(() => rangeTotals.value?.flagged ?? 0);
+const flaggedLink = computed(() => (flaggedCount.value ? flaggedCasesLink(filters.value) : null));
 const clearCount   = computed(() => rangeTotals.value?.clear ?? 0);
 const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
 const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
@@ -391,8 +398,9 @@ const columns: DataTableColumn[] = [
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
           <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ flaggedCount }}</dd>
           <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
-            {{ flaggedCount ? 'anomalies need review' : 'none in selected range' }}
+            {{ flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
           </dd>
+          <dd v-if="flaggedLink" class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
