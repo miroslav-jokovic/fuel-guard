@@ -25,6 +25,8 @@ import { parseSegregationGrid } from "./parseSegregation.js";
 import { parseSegregationGridGovInfo } from "./parseSegregationGovInfo.js";
 import { compareEntry, rowKey, IN_SCOPE_ENTRIES, transcribedRowSchema, type FieldDiff, type TranscribedRow } from "./diff.js";
 import type { HmtEntry, PlacardSpec, SegregationCell } from "../src/schema.js";
+import { groupFlagDiffs } from "./namesChemicalGroup.js";
+import { crossCheckCerclaDefault, formatCerclaCrossCheck, type CerclaCrossCheck } from "./cerclaCrossCheck.js";
 
 /** Map a parsed GovInfo `HmtEntry` into the Source-B transcription shape so `compareEntry` can consume it. */
 export function govInfoEntryToSourceB(e: HmtEntry, sourceRef: string): TranscribedRow {
@@ -106,6 +108,10 @@ export function crossCheckHmt(ecfrXml: string, govinfoXml: string, sourceRef: st
         const ea = as[i] as HmtEntry;
         const eb = bs[i] as HmtEntry;
         const ds = compareEntry(ea, govInfoEntryToSourceB(eb, sourceRef));
+        // Q-DR17: the derived §172.203(k)(2) flag, from each source's own text. It can only move with a
+        // name, which compareEntry already compares — so this is the derivation's own two-source check,
+        // not a new fact; a difference here with no name difference beside it would be a rule bug.
+        ds.push(...groupFlagDiffs(ea, eb));
         for (const d of ds) fieldDiffs.push(as.length > 1 ? { ...d, field: `[${i}] ${d.field}` } : d);
       }
       if (fieldDiffs.length === 0) matched++;
@@ -216,6 +222,8 @@ export interface TriangulationResult {
   hmt: CrossCheckReport;
   placards: SetDiff;
   segregation: SetDiff;
+  /** 40 CFR 302.4 eCFR↔GovInfo — present only on a cut whose `hazSubstances` come from Table 302.4. */
+  cercla?: CerclaCrossCheck;
   allClean: boolean;
 }
 
@@ -299,8 +307,11 @@ export function crossCheckDefault(): CrossCheckReport {
   return crossCheckHmt(ecfr, gov, readProvenanceRef());
 }
 
-/** Run the triangulation over all three verified tables (HMT, §172.504 placards, §177.848 segregation). */
-export function crossCheckAll(): TriangulationResult {
+/**
+ * Run the triangulation over the verified tables (HMT, §172.504 placards, §177.848 segregation) and, with
+ * `{ cercla: true }` — a cut that reads `hazSubstances` from 40 CFR 302.4 — Table 302.4 as a fourth.
+ */
+export function crossCheckAll(opts: { cercla?: boolean } = {}): TriangulationResult {
   const hmt = crossCheckDefault();
   const pA = readFixture("section-172-504.xml"), pB = readFixture("govinfo/placardTables-172-504.xml");
   const sA = readFixture("section-177-848.xml"), sB = readFixture("govinfo/segregation-177-848.xml");
@@ -308,7 +319,14 @@ export function crossCheckAll(): TriangulationResult {
   if (!sA || !sB) throw new Error("crossCheck: missing §177.848 segregation fixture(s).");
   const placards = crossCheckPlacards(pA, pB);
   const segregation = crossCheckSegregation(sA, sB);
-  return { hmt, placards, segregation, allClean: hmt.inScope.clean && hmt.full.disagree === 0 && placards.clean && segregation.clean };
+  const cercla = opts.cercla ? crossCheckCerclaDefault() : undefined;
+  const parts = { hmt, placards, segregation, ...(cercla ? { cercla } : {}) };
+  return { ...parts, allClean: triangulationVerdict(parts) };
+}
+
+/** ALL CLEAN = the fuel gate, zero full-table HMT disagreements, both set tables, and 302.4 when it ran. */
+export function triangulationVerdict(t: Omit<TriangulationResult, "allClean">): boolean {
+  return t.hmt.inScope.clean && t.hmt.full.disagree === 0 && t.placards.clean && t.segregation.clean && (t.cercla?.clean ?? true);
 }
 
 export function formatTriangulation(t: TriangulationResult): string {
@@ -323,6 +341,7 @@ export function formatTriangulation(t: TriangulationResult): string {
   L.push(setLine("§177.848(d) segregation grid", t.segregation));
   for (const d of t.segregation.valueDiffs.slice(0, 20)) L.push(`- ${d.key} \`${d.field}\`: eCFR=${fmt(d.sourceA)} GovInfo=${fmt(d.sourceB)}`);
   L.push("");
+  if (t.cercla) L.push(formatCerclaCrossCheck(t.cercla), "");
   L.push(`# TRIANGULATION VERDICT: ${t.allClean ? "ALL CLEAN ✓ — eCFR and the official GovInfo edition agree" : "NOT CLEAN ✗ — reconcile before release"}`);
   return L.join("\n");
 }

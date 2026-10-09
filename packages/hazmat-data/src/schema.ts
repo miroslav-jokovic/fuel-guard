@@ -58,6 +58,12 @@ export const hmtEntrySchema = z.object({
   idPrefix: idPrefixSchema,
   idNumber: z.string(),
   pgRows: z.array(pgRowSchema).min(1),
+  /** §172.203(k)(2)(iii)/(iv) (Q-DR17): whether a "G" or n.o.s. entry's own name already names a chemical
+   *  element or group — derived in the importer (`import/namesChemicalGroup.ts`), never printed in the HMT.
+   *  false = the name names none, so a missing technical name cannot be excused by (iii)/(iv); true = it
+   *  may be. Absent on entries outside that scope and on every dataset cut before the field existed —
+   *  OPTIONAL (not defaulted) for the same checksum reason as `exceptionsRef`. */
+  namesChemicalGroup: z.boolean().optional(),
 });
 export type HmtEntry = z.infer<typeof hmtEntrySchema>;
 

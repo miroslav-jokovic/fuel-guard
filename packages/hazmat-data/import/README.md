@@ -85,6 +85,22 @@ typecheck:import` (uses `import/tsconfig.json`).
   embedded-RQ recovery) and `parseMarinePollutants` (App. B, PP→severe), selected by header from the
   §172.101 XML.
 
+- **`hazSubstancesSource.ts`** — which list a cut reads `hazSubstances` from, by the dataset's effective
+  date: §172.101 Appendix A before **2026-12-02**, 40 CFR 302.4 Table 302.4 from then (91 FR 49305, FR doc
+  2026-15809, makes Appendix A a pointer to 302.4). `buildDataset.ts` calls it; a cut with no date is refused.
+- **`captureCercla.ts`** — captures 40 CFR 302.4 from the eCFR (Title 40, pinned to its own
+  `up_to_date_as_of`) and from the GovInfo annual edition (`CFR-YYYY-title40-vol30`, July-1 revision, public
+  `www.govinfo.gov/content/pkg/…` path — **no api key**) into `fixtures/section-40-302-4.xml` and
+  `fixtures/govinfo/cercla-302-4.xml`. Touches nothing else, so the Title 49 captures stay reproducible.
+- **`parseCercla.ts`** — Table 302.4 → `HazSubstance[]` (with CAS) from either rendering, plus the rows that
+  print no lb+kg RQ (`**`, `§`, `(##)`, a heading) with their reason; an unknown RQ cell throws.
+- **`cerclaCrossCheck.ts`** — the 302.4 two-source check (eCFR vs GovInfo, multiset over every field);
+  `crossCheckAll({ cercla: true })` adds it to the gate on a 302.4 cut.
+- **`hazSubstancesDiff.ts`** — read-only report of Appendix A vs Table 302.4 (`npx tsx import/hazSubstancesDiff.ts`).
+- **`namesChemicalGroup.ts`** — derives the per-entry `namesChemicalGroup` flag (§172.203(k)(2)(iii)/(iv),
+  Q-DR17) from each G / n.o.s. entry's own name; applied by `buildDataset.ts` from version 2026.09.0 on and
+  compared eCFR↔GovInfo inside the HMT triangulation.
+
 ## Data sources (D5 v5 — all official, all free)
 
 - **eCFR** (`ecfr*.ts`) — Source A, the authoritative machine-readable current text (parser input).

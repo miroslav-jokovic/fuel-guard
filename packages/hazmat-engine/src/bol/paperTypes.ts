@@ -192,6 +192,9 @@ export interface PaperDsEntry {
   idNumber: string;
   /** `exceptionsRef` is column 8A — ABSENT (not null) on datasets cut before 2026.08.0. */
   pgRows: Array<{ pg: "I" | "II" | "III" | null; exceptionsRef?: string | null }>;
+  /** §172.203(k)(2)(iii)/(iv): the n.o.s. name already names a chemical element or group — ABSENT on
+   *  datasets cut before 2026.09.0 and on entries that are neither G nor n.o.s. */
+  namesChemicalGroup?: boolean;
 }
 export interface PaperDsView {
   entries: PaperDsEntry[];

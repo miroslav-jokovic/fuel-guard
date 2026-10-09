@@ -93,6 +93,11 @@ describe("paper_technical_name — §172.203(k)(1)–(2)", () => {
   it("still fails a hazard-named n.o.s. entry (\"Flammable liquids, n.o.s.\") with no technical name — it names no chemical group", () => {
     expect(result({ lines: [[fl(), flRes()]] }, "paper_technical_name").outcome).toBe("fail");
   });
+  it("reads the row's namesChemicalGroup flag, not the name: the same row flagged true cannot tell", () => {
+    const flagged = { ...DS, entries: DS.entries.map((e) => (e.entryId === "UN1993-flammable-liquids-n-o-s" ? { ...e, namesChemicalGroup: true } : e)) };
+    const r = result({ lines: [[fl(), flRes()]], resolved: { dataset: flagged } }, "paper_technical_name");
+    expect([r.outcome, r.reason]).toEqual(["cannot_tell", "k2_group_named"]);
+  });
 });
 
 describe("paper_marine_pollutant — §172.203(l)(3) and §171.4(c)(2)", () => {
