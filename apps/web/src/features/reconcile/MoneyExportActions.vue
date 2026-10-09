@@ -6,6 +6,7 @@ import {
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
 import ExportButton from "@/components/ExportButton.vue";
+import { formatDate } from "@/lib/format";
 import { exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
 import { apiDownload } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -67,7 +68,8 @@ const exportTarget = computed(() => {
   return {
     href: `/api/fueling/exceptions/export.csv?${exceptionExportQuery(ledgerQuery.value)}`,
     filename: `fuel-findings-${props.from}-to-${props.to}.csv`,
-    scope: `${props.from} → ${props.to} · ${n === 0 ? "all trucks" : `${n} truck${n === 1 ? "" : "s"}`} · money findings only`,
+    // W6 (chunk 14c): the dates as the picker beside it shows them (D-DS18), not as the query holds them.
+    scope: `${formatDate(props.from)} – ${formatDate(props.to)} · ${n === 0 ? "all trucks" : `${n} truck${n === 1 ? "" : "s"}`} · money findings only`,
   };
 });
 
