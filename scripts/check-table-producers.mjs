@@ -63,6 +63,14 @@ const WAIVERS = new Map([
   // writes it behind PUT /api/recruitment/settings. Pinned for the schema-only S1 (0379) only.
   // application_packet_countersignatures (0387, HANDBOOK-SIGNING-PLAN.md QH0) never needed an entry:
   // the migration's own `purge_applicant` deletes from it, which this gate counts as a reference.
+  //
+  // DOCUMENT-READER-PLAN.md Step 1.2 (0448) ships the reader's tables schema-only, ahead of the module
+  // that writes them; `document_reads` needs no entry because 0448's own `document_read_transition`
+  // updates it. Each leaves in the merge that ships its writer: the intake (Step 1.6 routes, 3.2 Samsara
+  // copy) for sources, the normalisation stage (Step 1.3) for pages, the review route (Step 1.6) for reviews.
+  ["document_sources", "DOCUMENT-READER-PLAN.md Step 1.6/3.2 — intake writes it (schema-only Step 1.2, 0448)"],
+  ["document_pages", "DOCUMENT-READER-PLAN.md Step 1.3 — the normalisation stage writes it (schema-only Step 1.2, 0448)"],
+  ["document_read_reviews", "DOCUMENT-READER-PLAN.md Step 1.6 — POST /api/documents/reads/:id/reviews writes it (schema-only Step 1.2, 0448)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

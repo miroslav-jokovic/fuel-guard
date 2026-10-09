@@ -628,6 +628,14 @@ not production). Hazmat lines are 12 unions on their own, so a hazmat section ha
 *Until answered:* Step 1.4's adapter is generic and merges; it passes the API's 400 back as a
 configuration error. No profile read runs before 1.6, so nothing waits on this but 1.6.
 
+**Q-DR12 — Where does a dispatcher's page-class override live?** D-DR11 makes an override a label, but
+`document_pages` is append-only (migration 0448), so its class cannot be updated. *Candidates:* (a) an
+append-only `document_page_labels` table, latest row per page wins, the classifier's verdict stays on
+the page; (b) one guarded UPDATE of the two class columns; (c) a review row with field path
+`pages[n].class`. *Recommendation:* (a) — the override is evidence of the same kind as a field review,
+keeps who-said-what, and lets the classifier be scored against it. *Until answered:* nothing waits but
+the override control in Step 3.4.
+
 ---
 
 ## 10. Progress log
@@ -703,3 +711,15 @@ Append dated lines at the end; never edit a row above.
   `DOC_READ_MODEL_A/_B`, falling back to the hazmat pins (defaults unchanged). SDK 0.107.0, no upgrade.
   42 tests, 15 mutants killed. **The live call found Q-DR11**: the full profile schema is refused (37
   unions, limit 16); per-section reads of a synthetic BOL all succeeded.
+- **2026-10-09 (Step 1.2)** — Migration 0448 adds `document_sources`, `document_pages`,
+  `document_reads`, `document_read_reviews` and the private `document-intake` bucket (25 MB =
+  `INTAKE_LIMITS.maxBytes`). RLS on, no client policies. Sources, pages and reviews are append-only by
+  trigger, for the service role too; only a source's `matched_driver_id` may move (roster merge and its
+  set-null, listed in `DRIVER_REASSIGNMENTS`). A read is inserted `queued` and moved only by
+  `document_read_transition` (queued→reading→done|failed; failed carries a `READ_FAILURES` code;
+  terminal is terminal; reading→reading is a no-op so a queue retry can re-claim). Dedupe is
+  `unique (org_id, sha256)`. `document_pages.normaliser_version` added beyond §2's table because the
+  §4.6 cache key needs it. The `document-reader-tables` matrix (59 checks) reads every CHECK back from
+  the catalog and holds it equal to its contract array; five mutants killed. Sources and reviews are in
+  `RETENTION_FORBIDDEN`; ARCHITECTURE.md has the `document-reading` row. Opened Q-DR12 (page-class
+  override).

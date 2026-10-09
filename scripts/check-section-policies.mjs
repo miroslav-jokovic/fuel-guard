@@ -79,6 +79,10 @@ const MODULE_SECTIONS = {
   "driver-app": null,
   recruiting: "recruitment",
   hazmat: "hazmat",
+  // A core-store module (D-DR1, 0448): deny-all to every client, read only through its API, whose
+  // permission is the CONSUMER's section (the calculator asks hazmat ≥ manage), never its own. A
+  // role-named policy on its tables would be a door that bypasses the consumer's gate.
+  "document-reading": null,
 };
 
 /**

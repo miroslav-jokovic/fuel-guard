@@ -479,7 +479,7 @@ export const RETENTION_FORBIDDEN = [
    * So a retention rule on this table would be a storage deletion on a one-day delay — the same
    * composition `application_captures` above relies on deliberately, running here against evidence.
    */
-  "hazmat_documents",
+  "hazmat_documents", "document_sources", "document_read_reviews", // + the reader's bytes and labels: the same papers (0448, D-DR9)
   /**
    * The driver's account-closure request (0330, D-PR8).
    *

@@ -65,7 +65,7 @@
         "retention_days": 90,
         "partition": null,
         "budget_rows_per_day": 100,
-        "why": "D-APP2 \u2014 a half-typed \u00a7391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
+        "why": "D-APP2 \u2014 a half-typed §391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
       }
     },
     "application_edits": {
@@ -220,6 +220,50 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "document_pages": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "budget derived from DOCUMENT-READER-PLAN §0.1 (measured 2026-10-08): 2,135 BOL-type and 311 delivery photos in 30 days through Samsara, ~82 pages a day, before SMS and email; x5 headroom. One canonical page per photo or PDF page (0448). Append-only evidence beside its source; no rule."
+      }
+    },
+    "document_read_reviews": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 2000,
+        "why": "one row per field per Calculate press (plan §6, at most 500 per batch); the hazmat calculator is the only consumer, a few dozen loads a day at ~40 fields each. Append-only labels, RETENTION_FORBIDDEN (0448, D-DR5)."
+      }
+    },
+    "document_reads": {
+      "module": "document-reading",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "one read per source per profile plus re-reads after a version change; sources are budgeted at 100 a day (0448). No rule yet: a read is the evidence a review cites, and the cache key (§4.6) reuses finished ones."
+      }
+    },
+    "document_sources": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "budget derived from DOCUMENT-READER-PLAN §0.1 (measured 2026-10-08): 492 BOL and 160 delivery submissions in 30 days through Samsara, ~22 a day, before SMS and email intake; x4 headroom. Evidence, append-only, RETENTION_FORBIDDEN (0448, D-DR9: §172.201(e), §177.817(f))."
       }
     },
     "documents": {
@@ -1066,7 +1110,7 @@
         "retention_days": 400,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day \u2014 ~2,000 duty transitions plus ~1,100 daily-boundary logs \u2014 which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400\u2192120 leg; see the plan's \u00a78)."
+        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day \u2014 ~2,000 duty transitions plus ~1,100 daily-boundary logs \u2014 which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400\u2192120 leg; see the plan's §8)."
       }
     },
     "idle_events": {
@@ -2144,7 +2188,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "evidence \u2014 \u00a7396.17 inspection line items, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+        "why": "evidence \u2014 §396.17 inspection line items, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
     "vehicle_inspections": {
