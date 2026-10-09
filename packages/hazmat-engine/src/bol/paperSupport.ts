@@ -36,6 +36,9 @@ export interface LineCtx {
 
 export const blank = (s: string | null | undefined): boolean => s == null || s.trim() === "";
 export const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
+/** Every free-text place a shipper prints a word on the line: marks, name, technical name, description. */
+export const lineTexts = (line: PrintedPaperLine): string[] =>
+  [...line.marks, line.psn ?? "", line.technicalName ?? "", line.descriptionText ?? ""].filter((t) => t.trim() !== "");
 
 export function make(ruleId: PaperRuleId, lineIndex: number | null) {
   return (outcome: PaperRuleResult["outcome"], reason: string, facts: PaperFacts = {}): PaperRuleResult => ({
@@ -105,14 +108,17 @@ export function requiredPgs(row: Row): Array<"I" | "II" | "III" | null> {
   return row.pg !== undefined ? [row.pg] : row.entry.pgRows.map((r) => r.pg);
 }
 
-/** "3", or "3 (6.1)" with subsidiaries — §172.202(a)(2)'s form, from the row. */
+/**
+ * "3", or "3 (6.1)" with subsidiaries — §172.202(a)(3)'s form ("the subsidiary hazard class(es) … must be
+ * entered in parentheses immediately following the primary hazard class"), from the row.
+ */
 export function formatClass(entry: PaperDsEntry): string {
   const subs = entry.subsidiaryClasses ?? [];
   return `${entry.hazardClass ?? ""}${subs.length ? ` (${subs.join(", ")})` : ""}`.trim();
 }
 
 /**
- * docs/17 Appendix A.2: the hazard class "may be omitted only for 'Combustible liquid, n.o.s.' PSN".
+ * §172.202(a)(3)(ii): "The hazard class need not be included for the entry "Combustible liquid, n.o.s."".
  * The regulation names the entry, so the test is on the row's printed PSN.
  */
 export function classMayBeOmitted(entry: PaperDsEntry): boolean {
@@ -124,6 +130,18 @@ export function technicalNameText(line: PrintedPaperLine): string | null {
   if (!blank(line.technicalName)) return line.technicalName!.trim();
   const m = /\(([^)]+)\)\s*$/.exec(line.psn ?? "");
   return m ? m[1]!.trim() : null;
+}
+
+/**
+ * How many components the printed technical name names — §172.203(k)(1)'s "at least two components".
+ * "contains Toluene and Xylene" is two; a leading "contains"/"containing" is §172.203(k)'s permitted
+ * modifier, not a name.
+ */
+export function namedComponentCount(line: PrintedPaperLine): number {
+  const text = technicalNameText(line);
+  if (!text) return 0;
+  const parts = text.replace(/^\s*(contains|containing)\b/i, "").split(/,|\band\b/i).map(norm).filter(Boolean);
+  return new Set(parts).size;
 }
 
 /** The technical name split into the components a lookup table could list ("toluene, xylene"). */
@@ -143,7 +161,7 @@ export function entryNames(entry: PaperDsEntry): string[] {
  * §172.203(b)'s notation. ONE definition: the hazmat extractor's `lineDeclaresLq` (apps/api bolFields.ts)
  * calls this, so the paper audit and the placard path can never disagree on whether a line says LQ.
  */
-const LQ_RX = /\b(limited\s+quantity|ltd\.?\s*qty\.?)\b/i;
+export const LQ_RX = /\b(limited\s+quantity|ltd\.?\s*qty\.?)\b/i;
 export function declaresLimitedQuantity(line: {
   readonly marks?: readonly string[] | null;
   readonly psn: string | null;

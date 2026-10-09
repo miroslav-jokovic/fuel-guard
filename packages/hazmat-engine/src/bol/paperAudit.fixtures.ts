@@ -25,6 +25,11 @@ export const DS = {
     { entryId: "UN1114-benzene", symbols: [], psnPrinted: "Benzene", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1114", pgRows: [{ pg: "II", exceptionsRef: "150" }] },
     { entryId: "UN1541-acetone-cyanohydrin-stabilized", symbols: [], psnPrinted: "Acetone cyanohydrin, stabilized", psnAlternates: [], hazardClass: "6.1", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1541", pgRows: [{ pg: "I", exceptionsRef: null }] },
     { entryId: "UN3082-environmentally-hazardous-substance-liquid-n-o-s", symbols: ["G"], psnPrinted: "Environmentally hazardous substance, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }] },
+    { entryId: "UN3171-battery-powered-vehicle", symbols: [], psnPrinted: "Battery-powered vehicle", psnAlternates: ["Battery-powered equipment"], hazardClass: "9", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3171", pgRows: [{ pg: null, exceptionsRef: "220" }] },
+    { entryId: "UN3497-krill-meal", symbols: [], psnPrinted: "Krill meal", psnAlternates: [], hazardClass: "4.2", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3497", pgRows: [{ pg: "II", exceptionsRef: null }, { pg: "III", exceptionsRef: null }] },
+    { entryId: "NA3082-hazardous-waste-liquid-n-o-s", symbols: ["G"], psnPrinted: "Hazardous waste, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "NA", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }] },
+    { entryId: "UN2734-amine-liquid-corrosive-flammable-n-o-s", symbols: ["G"], psnPrinted: "Amine, liquid, corrosive, flammable, n.o.s.", psnAlternates: ["Polyamines, liquid, corrosive, flammable, n.o.s."], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2734", pgRows: [{ pg: "I", exceptionsRef: null }, { pg: "II", exceptionsRef: "154" }] },
+    { entryId: "NA1993-diesel-fuel", symbols: ["D"], psnPrinted: "Diesel fuel", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "NA", idNumber: "1993", pgRows: [{ pg: "III", exceptionsRef: "150" }] },
     { entryId: "UN2794-batteries-wet-filled-with-acid", symbols: [], psnPrinted: "Batteries, wet, filled with acid", psnAlternates: [], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2794", pgRows: [{ pg: null, exceptionsRef: "159" }] },
   ],
   hazSubstances: [
@@ -82,14 +87,20 @@ export const GASOLINE = (): [PrintedPaperLine, ResolvedPaperLine] => [pline(), r
 
 export interface Case {
   lines: Array<[PrintedPaperLine, ResolvedPaperLine]>;
-  paper?: Partial<PrintedPaper["hazmat"]> & { pageOf?: PrintedPaper["identity"]["pageOf"] };
+  paper?: Partial<PrintedPaper["hazmat"]> & {
+    pageOf?: PrintedPaper["identity"]["pageOf"];
+    printedPageNumbers?: PrintedPaper["identity"]["printedPageNumbers"];
+  };
   resolved?: Partial<Omit<ResolvedPaper, "lines">>;
   fieldStates?: PaperFieldStates;
 }
 
 export function run(c: Case): readonly PaperRuleResult[] {
   const printed: PrintedPaper = {
-    identity: { pageOf: c.paper?.pageOf ?? null },
+    identity: {
+      pageOf: c.paper?.pageOf ?? null,
+      ...(c.paper && "printedPageNumbers" in c.paper ? { printedPageNumbers: c.paper.printedPageNumbers } : {}),
+    },
     hazmat: {
       lines: c.lines.map(([p]) => p),
       emergencyPhone: c.paper && "emergencyPhone" in c.paper ? (c.paper.emergencyPhone ?? null) : "800-555-0142",

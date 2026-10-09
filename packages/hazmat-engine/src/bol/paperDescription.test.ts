@@ -6,7 +6,7 @@ import { DS, GASOLINE, failed, ok, pline, result, rline, run } from "./paperAudi
  * quantity, HM column. One test per rule per outcome; each `cannot_tell` is a different reason.
  */
 
-describe("paper_sequence — §172.202(a) id, PSN, class, PG all printed", () => {
+describe("paper_sequence — §172.202(a)(1)–(4) id, PSN, class, PG all printed", () => {
   it("passes a complete gasoline description, saying the order was not verified", () => {
     const r = result({ lines: [GASOLINE()] }, "paper_sequence");
     expect(r.outcome).toBe("pass");
@@ -52,7 +52,7 @@ describe("paper_sequence — §172.202(a) id, PSN, class, PG all printed", () =>
   });
 });
 
-describe("paper_psn_matches_hmt — the printed PSN is the row's (§172.202(a)(1))", () => {
+describe("paper_psn_matches_hmt — the printed PSN is the row's (§172.202(a)(2) \"The proper shipping name prescribed for the material in Column (2)\")", () => {
   it("passes when the resolver matched the printed name under the dataset normaliser", () => {
     const r = result({ lines: [GASOLINE()] }, "paper_psn_matches_hmt");
     expect(r.outcome).toBe("pass");
@@ -78,7 +78,7 @@ describe("paper_psn_matches_hmt — the printed PSN is the row's (§172.202(a)(1
   });
 });
 
-describe("paper_class_pg_match — class, subsidiary and PG equal the row's (§172.202(a)(2)–(4))", () => {
+describe("paper_class_pg_match — class, subsidiary and PG equal the row's (§172.202(a)(3) \"The hazard class or division number\", (a)(4) \"The packing group in Roman numerals\")", () => {
   it("passes gasoline 3 / II", () => {
     const r = result({ lines: [GASOLINE()] }, "paper_class_pg_match");
     expect(r.outcome).toBe("pass");
@@ -121,12 +121,14 @@ describe("paper_class_pg_match — class, subsidiary and PG equal the row's (§1
 describe("paper_technical_name — G entries show a technical name (§172.203(k))", () => {
   const fl = (over = {}) => pline({ idText: "UN1993", psn: "Flammable liquids, n.o.s.", pg: "II", ...over });
   const flRes = rline(ok("UN1993-flammable-liquids-n-o-s", "II"));
+  // One hazardous component, as the SDS would say: §172.203(k)(1)'s two-name rule then does not reach it.
+  const single = rline(ok("UN1993-flammable-liquids-n-o-s", "II"), { hazardousComponents: 1 });
 
   it("passes a G entry with the technical name printed separately", () => {
-    expect(result({ lines: [[fl({ technicalName: "toluene" }), flRes]] }, "paper_technical_name").outcome).toBe("pass");
+    expect(result({ lines: [[fl({ technicalName: "toluene" }), single]] }, "paper_technical_name").outcome).toBe("pass");
   });
   it("passes a G entry whose PSN carries the name in parentheses", () => {
-    expect(result({ lines: [[fl({ psn: "Flammable liquids, n.o.s. (toluene)" }), flRes]] }, "paper_technical_name").reason).toBe("printed");
+    expect(result({ lines: [[fl({ psn: "Flammable liquids, n.o.s. (toluene)" }), single]] }, "paper_technical_name").reason).toBe("printed");
   });
   it("passes an entry without the G symbol — nothing is owed", () => {
     expect(result({ lines: [GASOLINE()] }, "paper_technical_name").reason).toBe("not_required");
@@ -147,18 +149,18 @@ describe("paper_quantity_present — total quantity with its unit (§172.202(a)(
   it("passes 8000 gal", () => {
     expect(result({ lines: [GASOLINE()] }, "paper_quantity_present").reason).toBe("printed");
   });
-  it("passes \"1 cargo tank\" with no number, the bulk form (a)(5)(i) allows", () => {
+  it("passes \"1 cargo tank\" with no number — (a)(5)(iii)(A) \"Bulk packages, provided some indication of the total quantity is shown\"", () => {
     const r = result({ lines: [[pline({ quantity: { value: null, unit: null } }), rline(ok("UN1203-gasoline", "II"))]] }, "paper_quantity_present");
     expect(r.outcome).toBe("pass");
-    expect(r.reason).toBe("bulk_cargo_tank");
+    expect(r.reason).toBe("bulk_package_count");
   });
   it("fails a number with no unit", () => {
-    const r = result({ lines: [[pline({ quantity: { value: 2, unit: null }, packaging: "pallets" }), rline(null)]] }, "paper_quantity_present");
+    const r = result({ lines: [[pline({ quantity: { value: 2, unit: null }, packaging: "pallets" }), rline(null, { packagingKind: "non_bulk" })]] }, "paper_quantity_present");
     expect(r.outcome).toBe("fail");
     expect(r.reason).toBe("unit_missing");
   });
   it("fails a line with no quantity at all", () => {
-    expect(result({ lines: [[pline({ quantity: { value: null, unit: null }, packaging: "drums", packageCount: 4 }), rline(null)]] }, "paper_quantity_present").reason).toBe("missing");
+    expect(result({ lines: [[pline({ quantity: { value: null, unit: null }, packaging: "drums", packageCount: 4 }), rline(null, { packagingKind: "non_bulk" })]] }, "paper_quantity_present").reason).toBe("missing");
   });
   it("cannot tell when the quantity is Not read", () => {
     const r = result({ lines: [GASOLINE()], fieldStates: { "hazmat.lines[0].quantity.value": "not_read" } }, "paper_quantity_present");
@@ -187,7 +189,7 @@ describe("paper_hm_column — hazmat identified on a mixed paper (§172.201(a)(1
 describe("auditPrintedPaper — shape", () => {
   it("answers every line rule once per line and every document rule once", () => {
     const rs = run({ lines: [GASOLINE(), GASOLINE()] });
-    expect(rs.filter((r) => r.lineIndex === 1)).toHaveLength(9);
+    expect(rs.filter((r) => r.lineIndex === 1)).toHaveLength(10);
     expect(rs.filter((r) => r.lineIndex === null)).toHaveLength(3);
   });
   it("returns nothing for a paper with no hazmat lines", () => {
