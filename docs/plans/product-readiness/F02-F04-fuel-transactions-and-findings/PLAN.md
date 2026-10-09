@@ -7,8 +7,8 @@ scorers write incidents) is merged (#1350). Chunk 7 (the reset) is complete: mer
 #1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunks 6, 8, 9 and 10 are merged
 and released (v2026.10.09 the last). Chunks 11 (#1384–#1386, migration 0446), 12 (#1387, #1388,
 migration 0447) and 13 are released (v2026.10.09.1); chunk 13 needed no product change, the five
-tools were already admin-only (see its entry). Chunk 14 (#1398, #1403, #1408) is merged and waits
-for a release. Next: chunk 15.
+tools were already admin-only (see its entry). Chunks 14 (#1398, #1403, #1408) and 15 (#1412) are
+merged and wait for a release. Chunk 16's runbook line is written; its tie-out waits on Q-F14.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -152,6 +152,24 @@ remaining phases in order with this feature's other fixes.
   - Built in chunk 10 (10c): both ends of the window are on the carrier's day (`organizations.operating_hours`
     zone, read with the start date in one row), and `oldestOpenOn` is a case's carrier day, so the
     link's `?from=` still starts at or before the oldest item.
+
+- **Q-F14. Chunk 16 cannot meet its accept line yet. OPEN (asked 2026-10-09).** "Tie September,
+  explain any gap over $50" is blocked twice, and neither block can be fixed in this plan:
+  - McLeod has not posted September. F14's sweep ran at 18:59 UTC on 10-09 and found only recurring
+    journals (`RJ`, 8 rows) for September: no FUEL, AP or BILL. Its accounting close is McLeod's,
+    not ours.
+  - The month that can be tied (August) agrees in total but not line by line. McLeod's whole FUEL
+    module against every EFS card line: August −$152.25, July +$482.50 (0.01% and 0.04%). No single
+    edge-day fill matches either amount. Explaining the remainder line by line needs McLeod's own
+    `fuel_detail` with its posting dates, which F12b stages, not this plan.
+  - **(a) Recommended: close chunk 16 on August.** Its whole-module gap and per-account split are in
+    the Log (2026-10-09). The remaining $152.25 is named as the tie-out's one unproven term, as
+    `fuelTieOut.ts` already says it is until F12b. September becomes one Log line when McLeod posts
+    it, not a chunk that holds the task walk.
+  - (b) Hold chunk 16 until McLeod posts September and F12b stages `fuel_detail`. That honours the
+    accept line exactly, but it holds the definition of done on two things outside this plan.
+  - (c) Re-word the accept as a share (for example, under 0.1% of the month). Not recommended: it
+    would pass July's $482.50 without anybody saying what that money is.
 
 ---
 
@@ -887,3 +905,25 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
       org, an RPC conflict mapped to 422, and the audit's `from` written as the target. Each turned
       the test red.
     - **Chunk 15 is complete** once this merges. Next: chunk 16.
+- 2026-10-09: 15 merged (#1412, 7ae09ca). Chunk 15 is complete. Chunk 16 started; its accept line is
+  blocked and asked as Q-F14.
+  - F14's sweep refreshed `mcleod_gl_totals` at 18:59 UTC: July and August are re-swept. September
+    holds only recurring journals (`RJ`), so McLeod has not posted it and it cannot be tied.
+  - August tied instead, read-only on production with `getFuelTieOut` (the D-FIN12 tie-out the
+    coverage report uses; the end date is the next month's first day, because the EFS read is
+    `tran_date < end`):
+    - Whole FUEL module: McLeod $1,255,635.13 (it debits the products and Fuel Advance, and
+      credits Fuel Payable by the same amount) against $1,255,787.38 of EFS card lines. Gap
+      −$152.25. July, as a control: $1,082,023.71 against $1,081,541.21, gap +$482.50.
+    - Per account, August (McLeod − EFS): tractor diesel −$18,595.34 and Fuel Advance +$18,820.93,
+      which net to +$225.59. McLeod books about $18.8k more as owner-operator fuel than the 16
+      units our settlement sweep names, so the gap is which trucks count as owner-operator, not
+      missing money. Scales +$1,087.82, DEF −$197.09, Reefer −$44.20, Oil +$12.01, Accessorial
+      Income +$1.25, and $1,237.63 of EFS lines no rule maps (DSL1 $772.63, ANFR, WWFL, STAX, ADD).
+      These move money between accounts; only the −$152.25 total is a real difference.
+    - Not posting lag: moving the EFS window one day earlier makes tractor diesel −$35,726.68, not
+      smaller. No single fill on 06-30, 07-01, 07-31, 08-01, 08-31 or 09-01 is $152.25 or $482.50.
+  - Runbook: `docs/DEPLOYMENT.md` § "EFS feed older than 2 hours" says who `financialFreshness`
+    tells and what to check. Measured for it: 60 successful `efs_soap_posted` runs per org in the
+    last hour, so the poll runs every minute and the alarm fires after 60 minutes. It checks every 6
+    hours. The same file's drain section already said "about once a minute".
