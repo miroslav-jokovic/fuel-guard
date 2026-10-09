@@ -57,3 +57,48 @@ describe("Tier C starts hidden for every role but the admin (Q-PR2)", () => {
     expect(surfaceAllowed(surface("dispatch.loads.detail"), "dispatcher", null, null)).toBe(true);
   });
 });
+
+/**
+ * The unused fuel tools (Q-F4, owner's ruling 2026-10-06: hidden for every role but admin, nothing
+ * retired; F02-F04 PLAN.md chunk 13).
+ *
+ * Nothing in the catalogue changed for this ruling: Q-SET2 had already started every Settings screen
+ * off a week earlier, and `settingsSurfaces.test.ts` iterates that directory. That is exactly why the
+ * five are written out here. If Q-SET2 is relaxed later — say the reports block is opened to the
+ * fleet manager again — that test is edited on purpose, and without this block Q-F4 would go with it
+ * silently. Production stored no answer for any of the five keys when this was written (2026-10-09).
+ */
+const UNUSED_TOOLS = [
+  "admin.recall-audit",
+  "admin.settings.card-control",
+  "admin.settings.thresholds",
+  "admin.coverage",
+  "admin.reefer-coverage",
+] as const;
+
+describe("the unused fuel tools start hidden for every role but the admin (Q-F4)", () => {
+  it("names real screens, so the cases below are not vacuous", () => {
+    for (const key of UNUSED_TOOLS) expect(SURFACES.map((s) => s.key)).toContain(key);
+  });
+
+  for (const key of UNUSED_TOOLS) {
+    it(`${key} is closed to every editable role as shipped, and opens for the admin`, () => {
+      for (const role of EDITABLE_ROLES) expect(surfaceAllowed(surface(key), role, null, null), role).toBe(false);
+      expect(surfaceAllowed(surface(key), "admin", null, null)).toBe(true);
+    });
+  }
+
+  it("an admin's grant brings a tool back for a role whose section reaches it", () => {
+    // Written out, not filtered on `gate.kind`: a filter would quietly drop a tool that became
+    // admin-locked, which is the retirement the ruling forbids. `admin.settings.thresholds` asks
+    // `settings: manage`, which the fleet manager holds as shipped.
+    for (const key of UNUSED_TOOLS.filter((k) => k !== "admin.settings.card-control")) {
+      expect(surfaceAllowed(surface(key), "fleet_manager", null, { [key]: true }), key).toBe(true);
+    }
+  });
+
+  it("Card control stays the admin's even when a role is granted it (Q-SET1)", () => {
+    const key = "admin.settings.card-control";
+    expect(surfaceAllowed(surface(key), "fleet_manager", null, { [key]: true })).toBe(false);
+  });
+});
