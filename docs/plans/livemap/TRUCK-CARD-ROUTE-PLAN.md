@@ -164,3 +164,18 @@ setting.
 - **2026-10-09, later** — The owner asked for one standard truck size in every route; it was already
   the org setting the planner reads (§0), so nothing was copied onto vehicles. The owner accepted the
   recommendations: **Q-TC1 (a), Q-TC2 (a), Q-TC3 1 mile** — they are rulings now. TC1 built.
+- **2026-10-09, evening — TC3 built.** As planned, with three things the build settled:
+  - **Where it lives.** `GET /api/livemap/loads/:id/route`, beside the board in `livemap` (same gate,
+    `dispatch` view + the module), not under `/api/dispatch`: the map module already composes `loads`
+    and `samsara`, and `routing` importing `samsara/index` would close a module cycle. `loads` gained
+    `readLoadForRoute`; `routing` gained `loadPlanningTruck`, `solveOnRoute` and `readStationAddresses`;
+    the planner's stop view gained `stationId` (the only change to the Fuel planning page's answer —
+    pinned by the new characterisation test, which was written and green BEFORE the split).
+  - **Q-TC2 is half-built, on purpose.** Production has no `hazmat_loads` row and no hazmat-marked load
+    on a truck; reading classes out of `declared_lines` is real work for zero rows today. A hazmat-marked
+    load is routed WITHOUT restrictions and the card says so (`hazmatNotApplied`). **TC4** owes the
+    class reader, the day the first hazmat record is cleared.
+  - **Rehearsed read-only on production** (HERE called directly, no cache row written), six live loads:
+    routes of 255–1,077 mi at the fleet standard; 4 of 6 trucks on their route (0–0.8 mi off), 2 off
+    by 1.0 and 1.7 mi with 0 mi covered — at or near the pickup, Q-TC1's case; fuel planned on 5, one
+    stop on 2 of them; one truck had no Samsara fuel sample in the last 3 h, so no fuel stops, said so.

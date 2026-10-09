@@ -82,6 +82,18 @@ vi.mock("./useLiveMapBoard", () => ({
   useLiveMapBoard: () => board,
 }));
 
+/** The route query, faked like the board: it records which load it was asked for (D-TC7). */
+const routeAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null }));
+vi.mock("./useLoadRoute", async () => {
+  const { ref } = await import("vue");
+  return {
+    useLoadRoute: (loadId: { value: string | null }) => {
+      routeAsked.loadId = loadId;
+      return { data: ref(null), error: ref(null), isFetching: ref(false) };
+    },
+  };
+});
+
 const stub = { template: "<div />" };
 
 /**
@@ -363,5 +375,39 @@ describe("LiveMapWorkspace (DR5)", () => {
     await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[aria-label="Unit 47"]').exists()).toBe(true);
+  });
+  /**
+   * D-TC7: the route toggle. One route at a time, asked for only when turned on, and cleared whenever
+   * the selection moves — a line left under a truck the card no longer describes is unaccountable.
+   */
+  it("asks for the selected load's route only when its toggle is on, and drops it when the selection moves", async () => {
+    board.data.value = {
+      ...BOARD,
+      vehicles: [{ ...BOARD.vehicles[0]!, load: { id: "load-1", ref: "0001", status: "in_transit", nextStop: null } }],
+    };
+    try {
+      const wrapper = await mountWorkspace();
+      const canvas = wrapper.findComponent({ name: "LiveMapCanvas" });
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      expect(routeAsked.loadId?.value).toBeNull();
+
+      const toggle = () => wrapper.find('[aria-label="Show route"], [aria-label="Hide route"]');
+      expect(toggle().attributes("aria-pressed")).toBe("false");
+      await toggle().trigger("click");
+      expect(routeAsked.loadId?.value).toBe("load-1");
+      expect(toggle().attributes("aria-label")).toBe("Hide route");
+      expect(toggle().attributes("aria-pressed")).toBe("true");
+
+      await toggle().trigger("click");
+      expect(routeAsked.loadId?.value).toBeNull();
+
+      await toggle().trigger("click");
+      await canvas.vm.$emit("select", null);
+      await wrapper.vm.$nextTick();
+      expect(routeAsked.loadId?.value).toBeNull();
+    } finally {
+      board.data.value = BOARD;
+    }
   });
 });

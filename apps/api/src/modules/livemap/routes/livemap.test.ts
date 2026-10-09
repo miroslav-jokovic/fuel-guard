@@ -130,3 +130,35 @@ describe("GET /api/livemap/positions", () => {
     expect(rec.writtenRows("audit_logs")).toHaveLength(0);
   });
 });
+
+/**
+ * `GET /api/livemap/loads/:id/route` (TRUCK-CARD-ROUTE-PLAN TC3, D-TC5): the board's gate, unchanged —
+ * whoever may see the map may draw a route on it. The route's assembly is `liveMapLoadRoute.test.ts`;
+ * here only who is answered, and that a malformed id never reaches Postgres.
+ */
+describe("GET /api/livemap/loads/:id/route", () => {
+  const LOAD = "11111111-2222-4333-8444-000000000001";
+  async function route(role: string, id = LOAD) {
+    rec = createSupabaseRecorder({ tables: { loads: { data: [] } }, rpc: { org_module_enabled: true } });
+    holder.client = rec.client;
+    const res = await fetch(`${baseUrl}/api/livemap/loads/${id}/route`, { headers: { Authorization: `Bearer ${role}` } });
+    return { status: res.status, body: (await res.json()) as { error?: { code: string } } };
+  }
+
+  it("answers a role with dispatch:view, an auditor included (404 here only because the load is absent)", async () => {
+    for (const role of ["dispatcher", "auditor", "admin"]) expect((await route(role)).status, role).toBe(404);
+  });
+
+  it("refuses a role without dispatch:view before reading anything", async () => {
+    const { status, body } = await route("safety_manager");
+    expect(status).toBe(403);
+    expect(body.error?.code).toBe("forbidden");
+    expect(rec.forTable("loads")).toHaveLength(0);
+  });
+
+  it("answers a malformed id with a 404 and never asks the database", async () => {
+    const { status } = await route("dispatcher", "not-a-uuid");
+    expect(status).toBe(404);
+    expect(rec.forTable("loads")).toHaveLength(0);
+  });
+});

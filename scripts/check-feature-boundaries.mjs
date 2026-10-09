@@ -152,6 +152,11 @@ const API_ALLOW = new Set([
   "livemap -> samsara",
   "livemap -> roster",
   "livemap -> loads",
+  // A load's route on the map (TRUCK-CARD-ROUTE-PLAN TC3, 2026-10-09): HERE's truck route, its
+  // cache and the fuel solver are `routing`'s, and the map draws what they answer. The edge runs
+  // this way and not routing -> livemap, and the endpoint lives here rather than in routing, because
+  // `routing -> samsara/index` would close a module cycle (`samsara -> routing` exists, below).
+  "livemap -> routing",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of

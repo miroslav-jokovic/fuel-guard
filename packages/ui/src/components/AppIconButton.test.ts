@@ -32,4 +32,10 @@ describe("AppIconButton", () => {
     expect(w.find("a").exists()).toBe(false);
     expect(w.find("button").attributes("disabled")).toBeDefined();
   });
+
+  it("says a toggle's state as aria-pressed only when it is one (D-TC7)", () => {
+    expect(mountWith({ pressed: true }).find("button").attributes("aria-pressed")).toBe("true");
+    expect(mountWith({ pressed: false }).find("button").attributes("aria-pressed")).toBe("false");
+    expect(mountWith({}).find("button").attributes("aria-pressed")).toBeUndefined();
+  });
 });

@@ -14,7 +14,7 @@ import {
 import { stopView, pointAtMile, type PlanStopView, type StationRow } from "./planStopView.js";
 export type { PlanStopView } from "./planStopView.js";
 import type { Env } from "../../env.js";
-import { getOrComputeRoute } from "./routeGeometry.js";
+import { getOrComputeRoute, type RouteGeometry } from "./routeGeometry.js";
 import { breakFuelAdvice } from "@silvicom/shared";
 import { NoHereKeyError } from "../../lib/here.js";
 import { geocodeAddress } from "./geocode.js";
@@ -117,17 +117,9 @@ async function resolvePoint(env: Env, p: PlanPoint): Promise<LatLng | null> {
 }
 
 export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: string, req: PlanRequest): Promise<PlanResult> {
-  const { data: settingsRow } = await admin.from("route_fuel_settings").select("*").eq("org_id", orgId).maybeSingle();
-  const cfg = resolveRouteFuelConfig(settingsRow);
-
-  const { data: veh } = await admin
-    .from("vehicles")
-    .select("id, samsara_vehicle_id, tank_capacity_gal, observed_max_fill_gal, baseline_mpg, height_in, length_in, width_in, axle_count")
-    .eq("id", req.vehicleId).eq("org_id", orgId).maybeSingle();
-  if (!veh) return { status: "error", message: "Vehicle not found" };
-
-  const { data: reeferTrailers } = await admin.from("trailers").select("id").eq("org_id", orgId).eq("assigned_vehicle_id", req.vehicleId).eq("is_reefer", true).limit(1);
-  const isReefer = ((reeferTrailers ?? []) as unknown[]).length > 0 || req.equipmentType === "reefer";
+  const truck = await loadPlanningTruck(admin, orgId, req.vehicleId, req.equipmentType ?? null);
+  if (!truck) return { status: "error", message: "Vehicle not found" };
+  const { veh, cfg } = truck;
 
   const origin = await resolvePoint(env, req.origin);
   const destination = await resolvePoint(env, req.destination);
@@ -147,6 +139,61 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     if (e instanceof NoHereKeyError) return { status: "routing_unavailable", message: "Route planning needs a HERE routing key — configure HERE_API_KEY to enable it.", origin, destination };
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
+  return solveOnRoute(admin, env, orgId, {
+    ...truck, route, origin, destination,
+    loadGrossLb: req.loadGrossLb ?? null, manualFuelPct: req.manualFuelPct ?? null, manualHos: req.manualHos ?? null,
+  });
+}
+
+/** The vehicle row the planner reads: identity, tank, MPG, and the per-truck exceptions to the fleet's size. */
+export type PlanningVehicle = VehState & { id: string; height_in: number | null; length_in: number | null; width_in: number | null; axle_count: number | null };
+
+/**
+ * The org's planning settings, the truck, and whether it pulls a reefer — everything both callers need
+ * before there is a line (TRUCK-CARD-ROUTE-PLAN D-TC6). Null when the truck is not this org's.
+ */
+export async function loadPlanningTruck(
+  admin: SupabaseClient, orgId: string, vehicleId: string, equipmentType: string | null,
+): Promise<{ cfg: ReturnType<typeof resolveRouteFuelConfig>; veh: PlanningVehicle; isReefer: boolean } | null> {
+  const { data: settingsRow } = await admin.from("route_fuel_settings").select("*").eq("org_id", orgId).maybeSingle();
+  const cfg = resolveRouteFuelConfig(settingsRow);
+
+  const { data: veh } = await admin
+    .from("vehicles")
+    .select("id, samsara_vehicle_id, tank_capacity_gal, observed_max_fill_gal, baseline_mpg, height_in, length_in, width_in, axle_count")
+    .eq("id", vehicleId).eq("org_id", orgId).maybeSingle();
+  if (!veh) return null;
+
+  const { data: reeferTrailers } = await admin.from("trailers").select("id").eq("org_id", orgId).eq("assigned_vehicle_id", vehicleId).eq("is_reefer", true).limit(1);
+  const isReefer = ((reeferTrailers ?? []) as unknown[]).length > 0 || equipmentType === "reefer";
+  return { cfg, veh: veh as PlanningVehicle, isReefer };
+}
+
+/** A line to plan on, in the shape `getOrComputeRoute` returns; `steps` may be empty for a slice of one. */
+export type PlanningLine = Pick<RouteGeometry, "polyline" | "distanceMeters" | "durationSeconds" | "steps">;
+
+export interface SolveOnRouteInput {
+  cfg: ReturnType<typeof resolveRouteFuelConfig>;
+  veh: PlanningVehicle;
+  isReefer: boolean;
+  /** The line the truck will drive from `origin`: a whole HERE route, or the part of one still ahead. */
+  route: PlanningLine;
+  origin: LatLng;
+  destination: LatLng;
+  loadGrossLb: number | null;
+  manualFuelPct: number | null;
+  manualHos: PlanRequest["manualHos"];
+}
+
+/**
+ * Plan fuel stops ON a given line (D-TC6): live fuel and HOS, the corridor's stations and prices, the
+ * solver. Split out of `planFuelRoute` 2026-10-09 so the live map can plan on the remaining slice of a
+ * load's cached route — the same solver, so the map's fuel stops lie on the line it draws. The Fuel
+ * planning page's answer is pinned unchanged by "plans fuel stops on a fixed line from a manual fuel
+ * level, every read scoped to the org" (fuelPlanning.test.ts).
+ */
+export async function solveOnRoute(admin: SupabaseClient, env: Env, orgId: string, input: SolveOnRouteInput): Promise<PlanResult> {
+  const { cfg, veh, isReefer, route, origin, destination } = input;
   const distanceMiles = milesFromMeters(route.distanceMeters);
   // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
   // bleed into every mile/break estimate downstream. ONE speed (D-FP8): the truck state's "Reachable now" and
@@ -158,7 +205,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const directions = route.steps.map((st) => ({ instruction: stripStepDistance(st.instruction), miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
-  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
+  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, input.loadGrossLb, avgSpeedMph);
   let truck: TruckFuelState;
   let hos: HosClocks;
   let manualFuelUsed = false;
@@ -166,9 +213,9 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     // Live telematics with a real fuel reading — always preferred.
     truck = tele.state;
     hos = tele.hos;
-  } else if (req.manualFuelPct != null) {
+  } else if (input.manualFuelPct != null) {
     // Fallback: dispatcher-entered fuel level (uses live HOS when present, else typed / none).
-    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null, avgSpeedMph);
+    const m = buildManualTruckState(veh, input.manualFuelPct, input.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, input.loadGrossLb, avgSpeedMph);
     truck = m.state;
     hos = m.hos;
     manualFuelUsed = true;

@@ -176,3 +176,51 @@ function toLiveStop(s: StopRow): LiveLoadStop {
     postalCode: s.postal_code,
   };
 }
+
+/** A stop a route can be drawn through: sequenced and located (TRUCK-CARD-ROUTE-PLAN TC3). */
+export interface LoadRouteStop {
+  seq: number;
+  kind: string | null;
+  lat: number;
+  lng: number;
+}
+
+export interface LoadForRoute {
+  id: string;
+  ref: string | null;
+  vehicleId: string | null;
+  hazmat: boolean;
+  /** In McLeod's sequence. A stop without coordinates is dropped and counted in `unlocatedStops`. */
+  stops: LoadRouteStop[];
+  unlocatedStops: number;
+}
+
+/**
+ * One load and its stops, for drawing its route (D-TC3). Org-scoped twice like every read here: the
+ * load by `org_id`, and its stops by `org_id` as well as the load's id. Null when the load is not this
+ * org's. Measured 2026-10-09: 249 of 249 on-truck stops carry coordinates.
+ */
+export async function readLoadForRoute(admin: SupabaseClient, orgId: string, loadId: string): Promise<LoadForRoute | null> {
+  const { data: load, error } = await admin
+    .from("loads")
+    .select("id, ref, vehicle_id, hazmat")
+    .eq("org_id", orgId)
+    .eq("id", loadId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!load) return null;
+  const { data: stops, error: sErr } = await admin
+    .from("load_stops")
+    .select("seq, kind, lat, lon")
+    .eq("org_id", orgId)
+    .eq("load_id", loadId)
+    .order("seq", { ascending: true });
+  if (sErr) throw new Error(sErr.message);
+  const rows = (stops ?? []) as { seq: number | null; kind: string | null; lat: number | string | null; lon: number | string | null }[];
+  const located = rows
+    .filter((s) => s.seq != null && s.lat != null && s.lon != null)
+    .map((s) => ({ seq: s.seq!, kind: s.kind, lat: Number(s.lat), lng: Number(s.lon) }))
+    .sort((a, b) => a.seq - b.seq);
+  const l = load as { id: string; ref: string | null; vehicle_id: string | null; hazmat: boolean | null };
+  return { id: l.id, ref: l.ref, vehicleId: l.vehicle_id, hazmat: Boolean(l.hazmat), stops: located, unlocatedStops: rows.length - located.length };
+}

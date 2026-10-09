@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapLoadRoute, LiveMapVehicle } from "@silvicom/shared";
 import {
   boardSummarySentence,
   engineOnBoundSentence,
@@ -8,6 +8,7 @@ import {
   fuelMetric,
   offlineBoundSentence,
   rowMetric,
+  routeWords,
   stopAddress,
 } from "./liveMapWords";
 
@@ -267,5 +268,28 @@ describe("stopAddress", () => {
   it("is null when there is no address at all, so the card shows the place name alone", () => {
     expect(stopAddress({ addressLine: null, city: null, state: null, postalCode: null })).toBeNull();
     expect(stopAddress({ addressLine: "", city: undefined as never, state: null })).toBeNull();
+  });
+});
+
+describe("routeWords (TRUCK-CARD-ROUTE-PLAN D-TC3)", () => {
+  const route = (o: Partial<LiveMapLoadRoute> = {}): LiveMapLoadRoute => ({
+    loadId: "l1", covered: [], ahead: [], distanceMiles: 1234.4, durationHours: 21.6, truckOnRoute: true,
+    coveredMiles: 300, offRouteMiles: 0.1, fuelStops: [], fuelNote: null, hazmatNotApplied: false, ...o,
+  });
+
+  it("sums the route up on one line, and says nothing more in the ordinary case", () => {
+    expect(routeWords(route())).toEqual({ summary: "1,234 mi · about 22 h driving · 0 fuel stops", notes: [] });
+    expect(routeWords(route({ durationHours: 6.25 })).summary).toContain("about 6.3 h driving");
+  });
+
+  it("says when the truck is off the route, has no position, or carries hazmat, and passes the fuel note on", () => {
+    expect(routeWords(route({ truckOnRoute: false, offRouteMiles: 42.4 })).notes).toEqual([
+      "Truck is 42 mi off this route; fuel stops are planned from the pickup.",
+    ]);
+    expect(routeWords(route({ truckOnRoute: false, offRouteMiles: null })).notes[0]).toMatch(/^No position for this truck/);
+    expect(routeWords(route({ hazmatNotApplied: true, fuelNote: "No fuel stop needed to reach the delivery." })).notes).toEqual([
+      "Hazmat load: this route does not yet avoid hazmat-restricted roads.",
+      "No fuel stop needed to reach the delivery.",
+    ]);
   });
 });

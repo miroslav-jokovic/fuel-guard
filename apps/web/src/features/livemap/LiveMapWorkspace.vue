@@ -8,6 +8,7 @@ import { boardSummarySentence } from "./liveMapWords";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
+import { useLoadRoute } from "./useLoadRoute";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 
@@ -75,6 +76,27 @@ const {
 const pollSeconds = Math.round(LIVE_MAP_POLL_MS / 1000);
 
 const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
+
+/**
+ * The load whose route is drawn (TRUCK-CARD-ROUTE-PLAN D-TC7): one at a time, on from the card's
+ * toggle, off from it again, and off whenever the selection moves — a route left drawn under a truck
+ * the card no longer describes would be a line nobody can account for.
+ */
+const routeLoadId = ref<string | null>(null);
+const routeQuery = useLoadRoute(routeLoadId);
+watch(selectedId, () => {
+  routeLoadId.value = null;
+});
+function toggleRoute(): void {
+  const loadId = selected.value?.load?.id ?? null;
+  routeLoadId.value = routeLoadId.value === loadId ? null : loadId;
+}
+const routeCard = computed(() => ({
+  shown: routeLoadId.value != null && routeLoadId.value === selected.value?.load?.id,
+  pending: routeQuery.isFetching.value && !routeQuery.data.value,
+  error: routeQuery.error.value?.message ?? null,
+  data: routeQuery.data.value ?? null,
+}));
 
 /**
  * The truck card's own element, handed to the canvas so its marker popover can show it (D-LM28).
@@ -183,6 +205,7 @@ watch(railVisible, async () => {
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
         :card-el="cardEl"
+        :route="routeCard.shown ? routeCard.data : null"
         @select="selectedId = $event"
         @viewport="onViewport"
       />
@@ -306,7 +329,13 @@ watch(railVisible, async () => {
           </div>
           <!-- `board.data.value` is non-null here: `selected` resolves against the board, so there is
                no card without one. -->
-          <LiveMapVehicleFacts :vehicle="selected" :board="board.data.value!" density="compact" />
+          <LiveMapVehicleFacts
+            :vehicle="selected"
+            :board="board.data.value!"
+            density="compact"
+            :route="routeCard"
+            @toggle-route="toggleRoute"
+          />
         </template>
       </div>
     </div>
