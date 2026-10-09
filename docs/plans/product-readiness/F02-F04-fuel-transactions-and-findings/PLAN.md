@@ -145,6 +145,9 @@ remaining phases in order with this feature's other fixes.
     there are 0 open fill cases and 0 incidents, so nothing differs. The fix is to bound both ends of
     the page's window on the carrier's day (`a calendar day is not an instant`), as Q-FUI13 already
     asks for the start; recommended inside chunk 10, which moves fills onto one day.
+  - Built in chunk 10 (10c): both ends of the window are on the carrier's day (`organizations.operating_hours`
+    zone, read with the start date in one row), and `oldestOpenOn` is a case's carrier day, so the
+    link's `?from=` still starts at or before the oldest item.
 
 ---
 
@@ -660,3 +663,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   satellites untouched. The spend rollup now reads the stored day. Still owed after its release: the
   spend-days rebuild (see 10a) and the re-measure against `tran_date`. 10a waits for the release that
   carries #1373/#1374/#1376.
+- 2026-10-08: #1373, #1374 and #1376 released (v2026.10.08.5, 4e84b7f). 10a merged (#1377, 134681d); 0444
+  goes to production in the next release. 10c built: the Fuel problems page filters fill cases and
+  card-fraud incidents on the carrier's day at both ends, and the Dashboard's oldest-open date is a
+  carrier day. No migration, so it does not depend on 10a.

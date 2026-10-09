@@ -6,12 +6,15 @@ import {
   anomalyStatusesIn,
   byOccurredDesc,
   canViewSection,
+  dayRangeInstants,
   detectionEpochOrFilter,
   exceptionStatusesIn,
   findingFromAnomaly,
   findingFromException,
   findingFromIncident,
   incidentStatusesIn,
+  organizationTimezone,
+  todayInZone,
   type AppSection,
   type FindingQueueState,
   type FindingKind,
@@ -115,17 +118,17 @@ export async function readFindings(
   const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => (QUEUE_EXCEPTION_KINDS as readonly string[]).includes(k));
   const wantsExceptions = !f.kinds?.length || exceptionKinds.length > 0;
   const readsCases = (wantsAnomalies && sections.has("safety")) || (wantsIncidents && sections.has("fuel"));
-  const epoch = readsCases ? await detectionEpochOf(admin, orgId) : null;
+  const { epoch, zone } = readsCases ? await orgClockOf(admin, orgId) : NO_CLOCK;
 
   const [anomalies, exceptions, incidents] = await Promise.all([
     wantsAnomalies && sections.has("safety") && anomalyStatuses.length
-      ? readAnomalies(admin, orgId, anomalyStatuses, f, fleet, epoch)
+      ? readAnomalies(admin, orgId, anomalyStatuses, f, fleet, epoch, zone)
       : Promise.resolve([]),
     wantsExceptions && sections.has("fuel") && exceptionStatuses.length
       ? readExceptions(admin, orgId, exceptionStatuses, f, fleet, exceptionKinds)
       : Promise.resolve([]),
     wantsIncidents && sections.has("fuel") && incidentStatuses.length
-      ? readIncidents(admin, orgId, incidentStatuses, f, fleet, epoch)
+      ? readIncidents(admin, orgId, incidentStatuses, f, fleet, epoch, zone)
       : Promise.resolve([]),
   ]);
 
@@ -140,16 +143,45 @@ export async function readFindings(
 }
 
 /**
- * The org's detection start date (D-CF9, 0439), or null. The inbox applies the one shared rule
+ * The org's detection start date (D-CF9, 0439), or null, and the org's clock — read together, in one row.
+ *
+ * The clock is what a picked day means for the two sources dated by an INSTANT (a fill case's
+ * `fueled_at`, an incident's `opened_at`). Until chunk 10 their window ended at `${to}T23:59:59.999Z`,
+ * the end of the UTC day: a case opened after 19:00 Central was counted on the Dashboard and missing
+ * from the page it links to until the next morning, and `from` began at UTC midnight, five hours early
+ * (memory a-calendar-day-is-not-an-instant; Q-F13). The ledger's `occurred_on` is a date and needs none.
+ *
+ * The inbox applies the one shared rule
  * (`detectionEpoch.ts`) to both case sources: a case before the start date is not listed unless a person
  * is investigating it. For a fill case that only matters in the closed view, because the reset closed
  * every earlier open one; for a card-fraud incident it is the rule that keeps the history CF2 records as
  * the nightly sweep re-scores old fills (#1358) out of today's queue — 5c said "the epoch decides what is
  * shown and told", and this is the shown half.
  */
-async function detectionEpochOf(admin: SupabaseClient, orgId: string): Promise<string | null> {
-  const { data } = await admin.from("organizations").select("detection_epoch").eq("id", orgId).maybeSingle();
-  return ((data as { detection_epoch?: string | null } | null)?.detection_epoch) ?? null;
+async function orgClockOf(admin: SupabaseClient, orgId: string): Promise<OrgClock> {
+  const { data } = await admin.from("organizations").select("detection_epoch, operating_hours").eq("id", orgId).maybeSingle();
+  const row = data as { detection_epoch?: string | null; operating_hours?: object | null } | null;
+  return { epoch: row?.detection_epoch ?? null, zone: organizationTimezone(row?.operating_hours) };
+}
+
+interface OrgClock {
+  epoch: string | null;
+  zone: string;
+}
+
+/** For a caller who reads neither case source: nothing is filtered on an instant, so no zone is used. */
+const NO_CLOCK: OrgClock = { epoch: null, zone: organizationTimezone(null) };
+
+/**
+ * A picked day range as the half-open instant window a `timestamptz` column needs, on the carrier's day:
+ * from the first instant of `from` to before the first instant of the day after `to`. Either end may be
+ * absent.
+ */
+function instantWindow(f: FindingsFilters, zone: string): { start: string | null; endExclusive: string | null } {
+  return {
+    start: f.from ? dayRangeInstants(f.from, f.from, zone).start : null,
+    endExclusive: f.to ? dayRangeInstants(f.to, f.to, zone).endExclusive : null,
+  };
 }
 
 /**
@@ -183,6 +215,7 @@ async function readAnomalies(
   f: FindingsFilters,
   fleet: { ids: string[]; unitOf: Map<string, string> } | null,
   epoch: string | null,
+  zone: string,
 ): Promise<FindingRow[]> {
   // A truck filter that matched no vehicle of this org must return nothing, not everything.
   if (fleet && fleet.ids.length === 0) return [];
@@ -196,8 +229,9 @@ async function readAnomalies(
   if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
   // ⚠ `fueled_at` and not a business date — Q-FUI13 (b). Filtering the two sources on dates that mean
   // slightly different things is a known and recorded inconsistency, not one introduced here.
-  if (f.from) q = q.gte("fueled_at", f.from);
-  if (f.to) q = q.lte("fueled_at", `${f.to}T23:59:59.999Z`);
+  const w = instantWindow(f, zone);
+  if (w.start) q = q.gte("fueled_at", w.start);
+  if (w.endExclusive) q = q.lt("fueled_at", w.endExclusive);
   const afterReset = detectionEpochOrFilter(epoch);
   if (afterReset) q = q.or(afterReset);
   const { data } = await q.order("fueled_at", { ascending: false }).limit(READ_CAP);
@@ -242,6 +276,7 @@ async function readIncidents(
   f: FindingsFilters,
   fleet: { ids: string[]; unitOf: Map<string, string> } | null,
   epoch: string | null,
+  zone: string,
 ): Promise<FindingRow[]> {
   if (fleet && fleet.ids.length === 0) return [];
   let q = admin
@@ -251,8 +286,9 @@ async function readIncidents(
     .in("status", statuses);
   if (fleet) q = q.in("vehicle_id", fleet.ids);
   if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
-  if (f.from) q = q.gte("opened_at", f.from);
-  if (f.to) q = q.lte("opened_at", `${f.to}T23:59:59.999Z`);
+  const w = instantWindow(f, zone);
+  if (w.start) q = q.gte("opened_at", w.start);
+  if (w.endExclusive) q = q.lt("opened_at", w.endExclusive);
   const afterReset = detectionEpochOrFilter(epoch, "opened_at");
   if (afterReset) q = q.or(afterReset);
   const { data } = await q.order("opened_at", { ascending: false }).limit(READ_CAP);
@@ -339,7 +375,7 @@ export async function readFindingsSummary(
    * Pinned by "asks every table the same question as the queue, for every role" in findingsSummary.test.ts.
    */
   const readsCases = sections.has("fuel") || sections.has("safety");
-  const epoch = readsCases ? await detectionEpochOf(admin, orgId) : null;
+  const { epoch, zone } = readsCases ? await orgClockOf(admin, orgId) : NO_CLOCK;
 
   const [anomalies, exceptions, credited, incidents] = await Promise.all([
     sections.has("safety")
@@ -347,6 +383,7 @@ export async function readFindingsSummary(
           admin.from("anomalies").select("fueled_at", { count: "exact" }).eq("org_id", orgId).in("status", anomalyOpen),
           detectionEpochOrFilter(epoch),
           "fueled_at",
+          zone,
         )
       : Promise.resolve({ count: null }),
     sections.has("fuel")
@@ -359,6 +396,7 @@ export async function readFindingsSummary(
             .in("kind", [...QUEUE_EXCEPTION_KINDS]),
           null,
           "occurred_on",
+          null,
         )
       : Promise.resolve({ count: null }),
     sections.has("fuel")
@@ -374,6 +412,7 @@ export async function readFindingsSummary(
           admin.from("card_fraud_incidents").select("opened_at", { count: "exact" }).eq("org_id", orgId).in("status", incidentOpen),
           detectionEpochOrFilter(epoch, "opened_at"),
           "opened_at",
+          zone,
         )
       : Promise.resolve({ count: null }),
   ]);
@@ -396,13 +435,16 @@ export async function readFindingsSummary(
 /**
  * An open count on the start-date rule, and the date of the oldest row it counts, in ONE read: ordered by
  * the source's date, one row returned, and PostgREST's exact count is over the whole match, not the page.
- * The date is the UTC day, which is the day the queue's own date filter compares on. The table stays a
+ * The date is the day the queue's own date filter compares on: for an instant column, its day on the
+ * carrier's clock (`zone`), so `?from=` that day starts the page at or before this row (chunk 10); for a
+ * date column (`zone` null), the stored date. The table stays a
  * literal at the caller (`lint:boundaries`' table access).
  */
 async function countFromEpoch<Q extends { or: (filter: string) => Q; order: (col: string, o: { ascending: boolean }) => Q; limit: (n: number) => Q }>(
   q: Q,
   afterReset: string | null,
   dateColumn: string,
+  zone: string | null,
 ): Promise<{ count: number | null; oldestOn: string | null }> {
   const scoped = afterReset ? q.or(afterReset) : q;
   const r = (await scoped.order(dateColumn, { ascending: true }).limit(1)) as unknown as {
@@ -410,5 +452,6 @@ async function countFromEpoch<Q extends { or: (filter: string) => Q; order: (col
     data: Record<string, unknown>[] | null;
   };
   const first = r.data?.[0]?.[dateColumn];
-  return { count: r.count ?? null, oldestOn: typeof first === "string" ? first.slice(0, 10) : null };
+  if (typeof first !== "string") return { count: r.count ?? null, oldestOn: null };
+  return { count: r.count ?? null, oldestOn: zone ? todayInZone(new Date(first), zone) : first.slice(0, 10) };
 }

@@ -20,14 +20,14 @@ const EXCEPTIONS = [
   { id: "e-1", kind: "off_network_premium", status: "open", occurred_on: "2026-09-04", amount: "120.50", credited_amount: null, unit_number: "701", assigned_to: null, first_seen_at: "2026-09-04T00:00:00Z" },
 ];
 
-const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[]; incidents?: unknown[]; epoch?: string | null } = {}) =>
+const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[]; incidents?: unknown[]; epoch?: string | null; tz?: string } = {}) =>
   createSupabaseRecorder({
     tables: {
       anomalies: o.anomalies ?? ANOMALIES,
       fuel_exceptions: o.exceptions ?? EXCEPTIONS,
       vehicles: o.vehicles ?? [{ id: V1, unit_number: "701" }],
       card_fraud_incidents: o.incidents ?? [],
-      organizations: [{ detection_epoch: o.epoch ?? null }],
+      organizations: [{ detection_epoch: o.epoch ?? null, operating_hours: o.tz ? { tz: o.tz } : null }],
     },
   });
 
@@ -222,5 +222,39 @@ describe("card-fraud incidents", () => {
     const f = rec.forTable("card_fraud_incidents")[0]!.filters().find((x) => x.col === "vehicle_id");
     expect(f?.val).toEqual([V1]);
     expect(page.rows.find((r) => r.id === "i-1")?.unitNumber).toBe("701");
+  });
+});
+
+/**
+ * Chunk 10 (Q-F13): the two sources dated by an instant are filtered on the carrier's day. Until then the
+ * window ended at the end of the UTC day, so a case opened after 19:00 Central was on the Dashboard and
+ * missing from this page, and it began at UTC midnight, five hours before the carrier's day did.
+ */
+describe("the date window on the carrier's day", () => {
+  const bounds = (rec: ReturnType<typeof seed>, table: string, col: string) =>
+    rec.forTable(table)[0]!.ops
+      .filter((o) => ["gte", "lt", "lte"].includes(o.method) && o.args[0] === col)
+      .map((o) => [o.method, o.args[1]]);
+
+  it("starts at the carrier's midnight and stops before the next one, for fill cases and incidents", async () => {
+    const rec = seed();
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    // Chicago is on CDT (UTC−5) in October.
+    const want = [["gte", "2026-10-01T05:00:00.000Z"], ["lt", "2026-10-09T05:00:00.000Z"]];
+    expect(bounds(rec, "anomalies", "fueled_at")).toEqual(want);
+    expect(bounds(rec, "card_fraud_incidents", "opened_at")).toEqual(want);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("follows the carrier's own zone, not a fixed one", async () => {
+    const rec = seed({ tz: "America/Denver" });
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    expect(bounds(rec, "anomalies", "fueled_at")).toEqual([["gte", "2026-10-01T06:00:00.000Z"], ["lt", "2026-10-09T06:00:00.000Z"]]);
+  });
+
+  it("leaves the ledger's dates as dates", async () => {
+    const rec = seed();
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    expect(bounds(rec, "fuel_exceptions", "occurred_on")).toEqual([["gte", "2026-10-01"], ["lte", "2026-10-08"]]);
   });
 });
