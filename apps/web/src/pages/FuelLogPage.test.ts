@@ -36,6 +36,23 @@ const rows = [
     case_signals: [],
     case_gates: null,
   },
+  // Chunk 10b (Q-F5): a Nevada fill at 22:12 PDT on 09-30, which EFS prints on 10-01 (00:12 Central).
+  {
+    id: "f2",
+    vehicle_id: "v1",
+    driver_id: "d1",
+    fueled_at: "2026-10-01T05:12:00Z",
+    business_date: "2026-10-01",
+    state: "NV",
+    gallons: 150,
+    total_cost: 540,
+    odometer: 101_000,
+    has_anomaly: false,
+    case_level: "clear",
+    case_score: 0,
+    case_signals: [],
+    case_gates: null,
+  },
 ];
 
 vi.mock("@/composables/useFuelLog", async (orig) => {
@@ -108,6 +125,7 @@ vi.mock("@vueuse/core", async (orig) => {
 });
 
 import FuelLogPage from "./FuelLogPage.vue";
+import { FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 
 async function mountPage() {
   const router = createRouter({
@@ -144,5 +162,33 @@ describe("FuelLogPage — the Trailer column is gone, and stays gone (D-FUI14)",
     trailersQuery.mockClear();
     await mountPage();
     expect(trailersQuery).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Chunk 10b (Q-F5): "When" reads EFS's Central clock, the clock 0444 stores `business_date` on, so the
+ * date a person reads is the day the filter and the totals file the fill under. The station's own clock
+ * is the hover (F-H2).
+ */
+describe("FuelLogPage — a fill's time is EFS's Central time, with the station's in the hover", () => {
+  const nevadaCell = async () => {
+    const w = await mountPage();
+    return w.findAll("td span[title]").find((s) => (s.attributes("title") ?? "").startsWith("At the station"));
+  };
+
+  it("shows a Nevada fill at 22:12 local on 09-30 as Oct 1, 00:12 CT — the day EFS prints", async () => {
+    const cell = await nevadaCell();
+    expect(cell?.text()).toContain("Oct 1, 2026");
+    expect(cell?.text()).toContain("00:12 CT");
+  });
+
+  it("keeps the station's own clock in the hover", async () => {
+    const title = (await nevadaCell())?.attributes("title") ?? "";
+    expect(title).toContain("Sep 30, 2026");
+    expect(title).toContain("22:12 PDT");
+  });
+
+  it("says which clock it is in the one shared sentence", async () => {
+    expect((await mountPage()).text()).toContain(FUEL_LOG_DATES_NOTE);
   });
 });

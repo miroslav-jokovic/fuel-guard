@@ -13,9 +13,18 @@ import { str, num, efsInstant, rejectDateToIso } from "./dateTime.js";
  * Transactions are different — those carry a POS time that belongs to the station — so this applies
  * to the decline path only. An explicit ISO offset on the value still wins over this default.
  */
+/**
+ * EFS's clock. "All our servers are central time" (guide p. 10), so the day EFS prints for ANY line —
+ * a fill or a reject — is its Central day (Q-F5, measured 4,601 of 4,601 fills). The database names the
+ * same zone `efs_clock_tz()` (0444), which stores each fill's `business_date` on it. EFS's clock, not
+ * the carrier's: never an org setting.
+ */
+export const EFS_CLOCK_TZ = "America/Chicago";
+
 /** EFS documents reject timestamps in Central Time regardless of station ("The reject date/time,
- *  Central Time zone") — exported so the UI can render declines in the SAME zone the report prints. */
-export const EFS_REJECT_TZ = "America/Chicago";
+ *  Central Time zone") — exported so the UI can render declines in the SAME zone the report prints.
+ *  The same clock as every other EFS line, so it is that constant, not a second copy of it. */
+export const EFS_REJECT_TZ = EFS_CLOCK_TZ;
 import { pick } from "./parse.js";
 import { matchStationBrand } from "../smartFueling/brands.js";
 

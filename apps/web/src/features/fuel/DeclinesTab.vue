@@ -18,7 +18,7 @@
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, useEfsRowCoverage, EFS_PAGE_SIZE, type EfsFilters } from "./useEfsData";
 import type { DeclinedTransactionRow } from "@silvicom/shared";
-import { rejectDateTime, stationLocalNote } from "@/lib/stationTime";
+import { rejectDateTime, stationLocalNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -302,10 +302,9 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
-    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
-         the section had four answers to “what is a day” and no surface admitted to having one. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the decline day in Central time, which is how EFS records a reject whatever the
-        station’s own zone is.</p>
+    <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
+         tabs mean EFS's Central day, so they say it in the one shared sentence. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <DataTable
       :columns="columns"

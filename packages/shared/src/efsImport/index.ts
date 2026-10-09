@@ -7,5 +7,5 @@ export { fuelTypeFromText, detectReportKind, buildFuelExternalRef, normalizeTran
 export { nonUsdGallonsReason } from "./currency.js";
 export { deriveFuelEventsFromEfsStore } from "./derive.js";
 export type { EfsTransactionLine, EfsTransactionRow, DeclinedTransactionRow, ReconciledFuelLine, EfsStoreLine, DerivedFuelEvents } from "./parse.js";
-export { EFS_REJECT_TZ, parseStationIdentity, unitMatchKeys, driverMatchKey, driversToProvision, reconcileFuelLines, normalizeRejectRows, learnEfsDriverIds, attributeDeclinedRow, planDriverMerges } from "./reconcile.js";
+export { EFS_CLOCK_TZ, EFS_REJECT_TZ, parseStationIdentity, unitMatchKeys, driverMatchKey, driversToProvision, reconcileFuelLines, normalizeRejectRows, learnEfsDriverIds, attributeDeclinedRow, planDriverMerges } from "./reconcile.js";
 export type { StationIdentity, DeclineAttribution, ReconcileDriver, DriverMergePlan } from "./reconcile.js";
