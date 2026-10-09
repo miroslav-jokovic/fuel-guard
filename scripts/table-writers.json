@@ -97,6 +97,9 @@
   "driver_time_off": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
+  "driver_hos_clocks": [
+    "apps/api/src/modules/samsara/hosClocksFeed.ts"
+  ],
   "driver_vehicle_assignments": [
     "apps/api/src/modules/idle/idleSync.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts"
@@ -490,6 +493,9 @@
   "tms_dispatchers": [
     "apps/api/src/modules/mcleod/tmsDispatcherIngest.ts"
   ],
+  "tms_fleets": [
+    "apps/api/src/modules/mcleod/fleetCodes.ts"
+  ],
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
   ],
@@ -525,6 +531,7 @@
     "apps/api/src/modules/anomalies/scoring/persist.ts",
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
     "apps/api/src/modules/roster/equipmentInspection.ts",
+    "apps/api/src/modules/roster/vehicleFleetCodes.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",

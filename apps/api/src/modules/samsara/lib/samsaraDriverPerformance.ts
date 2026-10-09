@@ -1,6 +1,7 @@
 import type { Env } from "../../../env.js";
 import { samsaraFetch } from "./samsaraHttp.js";
 import { listAllPages } from "./samsaraPaging.js";
+import { parseHosClockReadings } from "@silvicom/shared";
 
 // ── Driver performance: Safety Scores + Driver Efficiency (docs/16-DRIVER-PERFORMANCE.md) ────
 const chunk = <T>(arr: T[], size: number): T[][] => {
@@ -103,23 +104,14 @@ export function makeSamsaraHosFetcher(env: Env, token: string) {
         timeUntilBreakMs: number | null;
       }
     >();
-    for (const r of rows as Array<{
-      currentVehicle?: { id?: string };
-      clocks?: {
-        drive?: { driveRemainingDurationMs?: number };
-        shift?: { shiftRemainingDurationMs?: number };
-        cycle?: { cycleRemainingDurationMs?: number };
-        break?: { timeUntilBreakDurationMs?: number };
-      };
-    }>) {
-      const vid = r.currentVehicle?.id;
-      if (!vid) continue;
-      const c = r.clocks ?? {};
-      out.set(String(vid), {
-        driveRemainingMs: c.drive?.driveRemainingDurationMs ?? null,
-        shiftRemainingMs: c.shift?.shiftRemainingDurationMs ?? null,
-        cycleRemainingMs: c.cycle?.cycleRemainingDurationMs ?? null,
-        timeUntilBreakMs: c.break?.timeUntilBreakDurationMs ?? null,
+    // One reading of Samsara's shape, shared with the duty-status sync and the board's clocks poll.
+    for (const r of parseHosClockReadings(rows)) {
+      if (!r.vehicleId) continue;
+      out.set(r.vehicleId, {
+        driveRemainingMs: r.driveRemainingMs,
+        shiftRemainingMs: r.shiftRemainingMs,
+        cycleRemainingMs: r.cycleRemainingMs,
+        timeUntilBreakMs: r.timeUntilBreakMs,
       });
     }
     return out;

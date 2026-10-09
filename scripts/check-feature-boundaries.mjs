@@ -124,6 +124,12 @@ const API_ALLOW = new Set([
   // construction: applyMirroredLoads only, through loads' index — the collector→core write D-ARC3
   // asks for, the same shape as "psp -> evidence" above.
   "mcleod -> loads",
+  // The truck's McLeod home fleet (DISPATCH-BOARD-PLAN.md DB1, 0450). `vehicles` belongs to roster
+  // (D-ARC3), and the fleet code arrives on mcleod's roster sweep — so mcleod reads it and writes it
+  // through roster's interface, the same collector→core shape as "mcleod -> loads" above. Narrow by
+  // construction: recordVehicleFleetCodes only, through roster's index, which writes ONE column and
+  // only on change; mcleod keeps its own `tms_fleets` seed.
+  "mcleod -> roster",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:

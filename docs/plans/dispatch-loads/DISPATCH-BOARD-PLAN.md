@@ -337,3 +337,21 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - **Wave 3 — the board.** Board API + shared predicates and ETA; the page; the Loads scope (DB5b);
   the links card.
 
+
+**2026-10-09 — wave 1 merged** (migration 0450, schema only).
+
+**2026-10-09 — wave 2 built: the facts arrive.**
+- *Fleet code.* The agent reads `t.fleet_id` in identity mode and sends it as `fleet_code`, verbatim
+  (`null` = no fleet; absent = an older agent, which never clears a code). A dry run against live
+  `lme` the same day: 202 of 202 roster trucks carry one. The ingest records it for every PLACED
+  truck, office-owned or not (the fuel-tax rule, 0433), writes only on change, and seeds every code
+  into `tms_fleets` without naming its dispatcher. `vehicles` is roster's, so the write is roster's
+  `recordVehicleFleetCodes`, reached over a new `mcleod -> roster` edge; mcleod keeps the seed.
+- ⚠ **New SQL for Alex.** `SILVICOM-READ-ROUTINE.sql` gains one column (`t.fleet_id`) on the
+  tractor statement. The VM runs the package Alex reviewed; it must not run this one until he has
+  seen the diff — bundle it with the `fuel_tax_excluded` refresh already owed. Until then the API
+  simply receives no `fleet_code` and changes nothing (absent ≠ null).
+- *HOS clocks.* `syncHosClocks` polls `/fleet/hos/clocks` every `SAMSARA_HOS_CLOCKS_SYNC_MINUTES`
+  (default 5) into `driver_hos_clocks`, replacing the set on each poll; no jobs-ledger row (the
+  positions tier's reasoning), no per-row work beyond one parse (the 2026-10-06 freeze). One parser
+  of Samsara's clocks payload now serves all three readers (`parseHosClockReadings`).

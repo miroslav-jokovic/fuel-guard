@@ -402,20 +402,56 @@ export interface HosCurrentStatus {
  * page / Assignments board don't need the historical logs for "who is on duty right now".
  */
 export function parseHosClocks(data: unknown[]): HosCurrentStatus[] {
-  const out: HosCurrentStatus[] = [];
+  return parseHosClockReadings(data).map(({ driverId, status, vehicleId, vehicleName }) => ({
+    driverId,
+    status,
+    vehicleId,
+    vehicleName,
+  }));
+}
+
+/** One driver's row of GET /fleet/hos/clocks: duty status, current truck, and the four clocks left. */
+export interface HosClockReading extends HosCurrentStatus {
+  /** Milliseconds left, verbatim; null = Samsara sent no such clock (never zero by default). */
+  driveRemainingMs: number | null;
+  shiftRemainingMs: number | null;
+  cycleRemainingMs: number | null;
+  timeUntilBreakMs: number | null;
+}
+
+/**
+ * The same feed as `parseHosClocks`, keeping the clocks it drops. ONE reading of Samsara's shape for
+ * every consumer: the duty-status sync, fuel planning's live fetcher, and the dispatch board's clocks
+ * poll (DISPATCH-BOARD-PLAN DB3) — three parsers of one payload would drift the first time Samsara
+ * renames a field.
+ */
+export function parseHosClockReadings(data: unknown[]): HosClockReading[] {
+  const out: HosClockReading[] = [];
+  const ms = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   for (const raw of data) {
     const item = raw as {
       driver?: { id?: string | number };
       currentVehicle?: { id?: string | number; name?: string };
       currentDutyStatus?: { hosStatusType?: string };
+      clocks?: {
+        drive?: { driveRemainingDurationMs?: unknown };
+        shift?: { shiftRemainingDurationMs?: unknown };
+        cycle?: { cycleRemainingDurationMs?: unknown };
+        break?: { timeUntilBreakDurationMs?: unknown };
+      };
     };
     const driverId = item.driver?.id != null ? String(item.driver.id) : null;
     if (!driverId) continue;
+    const c = item.clocks ?? {};
     out.push({
       driverId,
       status: normalizeHosStatus(item.currentDutyStatus?.hosStatusType),
       vehicleId: item.currentVehicle?.id != null ? String(item.currentVehicle.id) : null,
       vehicleName: item.currentVehicle?.name ?? null,
+      driveRemainingMs: ms(c.drive?.driveRemainingDurationMs),
+      shiftRemainingMs: ms(c.shift?.shiftRemainingDurationMs),
+      cycleRemainingMs: ms(c.cycle?.cycleRemainingDurationMs),
+      timeUntilBreakMs: ms(c.break?.timeUntilBreakDurationMs),
     });
   }
   return out;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { efsEnvFields } from "./envEfs.js";
 import { documentReadingEnvFields } from "./envDocumentReading.js";
+import { dispatchBoardEnvFields } from "./envDispatchBoard.js";
 import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { checkPspEnv } from "./lib/pspEnv.js";
 
@@ -15,6 +16,7 @@ const EnvSchema = z.object({
   ...efsEnvFields,
   ...outboundEnvFields, // staging recipient guard (RELEASE-TRAIN-PLAN R4)
   ...documentReadingEnvFields, // the document reader's intake and models (DOCUMENT-READER-PLAN)
+  ...dispatchBoardEnvFields, // the dispatch board's HOS clocks poll (DISPATCH-BOARD-PLAN DB3)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   ALLOWED_ORIGINS: z
