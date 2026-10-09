@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useEventListener } from "@vueuse/core";
-import { AppIconButton } from "@silvicom/ui";
-import { ArrowsPointingOutIcon, PencilSquareIcon, XMarkIcon } from "@silvicom/ui/icons";
+import { useEventListener, useMediaQuery } from "@vueuse/core";
+import { AppIcon, AppIconButton } from "@silvicom/ui";
+import { ArrowsPointingOutIcon, PencilSquareIcon, SparklesIcon, XMarkIcon } from "@silvicom/ui/icons";
 import { useAssistantStore } from "@/stores/assistant";
 import AssistantMark from "./AssistantMark.vue";
 import AssistantThread from "./AssistantThread.vue";
 import { suggestionsFor } from "./suggestions";
 import { useAssistantAccess } from "./useAssistantAccess";
+import { useLauncherPosition } from "./useLauncherPosition";
 
 /**
  * The assistant on every page: a launcher bottom-right, opening a docked panel (F21 redesign).
@@ -27,6 +28,10 @@ import { useAssistantAccess } from "./useAssistantAccess";
  * Shown only where the person may reach `/ask` (`useAssistantAccess`), and not on `/ask` itself —
  * that page is the same thread at full width, and two copies of one conversation side by side
  * would be one too many.
+ *
+ * The launcher can be dragged anywhere on screen and stays where it was left (owner, 2026-10-09:
+ * it sat over data people needed to read) — `useLauncherPosition` owns that, and the dock opens
+ * from whichever corner the launcher is nearest, so it unfolds over the space the person cleared.
  */
 const route = useRoute();
 const router = useRouter();
@@ -48,6 +53,32 @@ const shortcut = isMac ? "⌘K" : "Ctrl K";
 const panel = ref<HTMLElement | null>(null);
 const launcher = ref<HTMLButtonElement | null>(null);
 const thread = ref<InstanceType<typeof AssistantThread> | null>(null);
+
+/** 52px, `size-13` — the drag clamp needs the number, the template the class; keep them together. */
+const LAUNCHER_SIZE = 52;
+const position = useLauncherPosition(launcher, LAUNCHER_SIZE);
+const launcherStyle = computed(() => ({ right: `${position.offset.value.right}px`, bottom: `${position.offset.value.bottom}px` }));
+
+/**
+ * The dock opens from the launcher's corner (`dockAnchor`). Each offset is capped so the dock's own
+ * size — the `w-[…]`/`h-[…]` below, restated here because CSS cannot read a sibling's class — still
+ * fits, or a launcher parked high on the left would push the dock off the bottom of the window.
+ * Below `sm` the dock is a full-width sheet and ignores all of this.
+ */
+const wide = useMediaQuery("(min-width: 640px)");
+const FIT_X = "calc(100vw - min(26rem, 100vw - 3rem) - 0.5rem)";
+const FIT_Y = "calc(100dvh - min(40rem, 100dvh - 7rem) - 0.5rem)";
+const dockStyle = computed(() => {
+  if (!wide.value) return undefined;
+  const { x, y, xPx, yPx } = position.anchor.value;
+  return { [x]: `min(${xPx}px, ${FIT_X})`, [y]: `min(${yPx}px, ${FIT_Y})`, transformOrigin: `${y} ${x}` };
+});
+
+/** A click that ends a drag is the drag's, not the button's. */
+function onLauncherClick() {
+  if (position.consumeClick()) return;
+  show();
+}
 
 function show() {
   store.open = true;
@@ -98,20 +129,38 @@ function expand() {
       leave-active-class="transition duration-150 ease-in"
       leave-to-class="translate-y-2 scale-95 opacity-0"
     >
+      <!--
+        The orb (owner, 2026-10-09: no label, no icon-in-a-box). The fill is the chip recipe from
+        `AppIconChip` — the brand pair, the 28%-white top edge, the brand glow, a white glyph at
+        stroke 2.2 — with the accent added as a middle stop. That crosses two hues, which the chip
+        refuses on purpose; here it is the assistant's own signature, and accent is the hue D-DS15
+        defined as brand's companion, so no new colour relationship is invented. The conic layer
+        turns only on hover or drag, and the app-wide reduced-motion rule stills it.
+      -->
       <button
         v-if="!store.open"
         ref="launcher"
         type="button"
-        class="group fixed right-6 bottom-6 z-chrome flex items-center gap-2.5 rounded-dialog bg-surface-inverse py-2 pr-3 pl-2 text-sm font-medium text-ink-inverse shadow-overlay ring-1 ring-ink-inverse/10 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-dialog focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring max-sm:right-4 max-sm:bottom-4"
+        class="assistant-orb group fixed z-chrome grid size-13 touch-none place-items-center rounded-full text-chip-glyph shadow-chip-brand select-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
+        :class="position.dragging.value ? 'is-dragging cursor-grabbing' : 'cursor-pointer'"
+        :style="launcherStyle"
         :aria-label="`Ask AI (${shortcut})`"
+        :title="`Ask AI (${shortcut}) — drag to move`"
         aria-haspopup="dialog"
         :aria-expanded="store.open"
         aria-controls="assistant-dock"
-        @click="show"
+        @click="onLauncherClick"
       >
-        <AssistantMark size="md" class="transition-transform duration-300 group-hover:rotate-12" />
-        <span>Ask AI</span>
-        <kbd class="hidden rounded-detail bg-ink-inverse/10 px-1.5 py-0.5 font-sans text-2xs text-ink-inverse/70 sm:inline">{{ shortcut }}</kbd>
+        <span aria-hidden="true" class="orb-halo absolute -inset-1.5 rounded-full bg-conic from-chip-brand-from via-accent-500 to-chip-brand-from opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-60" />
+        <span aria-hidden="true" class="absolute inset-0 overflow-hidden rounded-full">
+          <span class="orb-swirl absolute -inset-2 bg-conic from-chip-brand-from via-accent-600 to-chip-brand-from" />
+          <span class="orb-sheen absolute inset-0 rounded-full" />
+        </span>
+        <AppIcon
+          :icon="SparklesIcon"
+          :stroke-width="2.2"
+          class="relative size-6 transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-12"
+        />
       </button>
     </Transition>
 
@@ -128,7 +177,8 @@ function expand() {
         role="dialog"
         aria-modal="false"
         aria-labelledby="assistant-dock-title"
-        class="fixed right-6 bottom-6 z-chrome flex h-[min(40rem,calc(100dvh-7rem))] w-[min(26rem,calc(100vw-3rem))] origin-bottom-right flex-col overflow-hidden rounded-dialog bg-surface shadow-dialog ring-1 ring-edge-subtle max-sm:inset-x-2 max-sm:top-20 max-sm:bottom-2 max-sm:h-auto max-sm:w-auto"
+        :style="dockStyle"
+        class="fixed z-chrome flex h-[min(40rem,calc(100dvh-7rem))] w-[min(26rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-dialog bg-surface shadow-dialog ring-1 ring-edge-subtle max-sm:inset-x-2 max-sm:top-20 max-sm:bottom-2 max-sm:h-auto max-sm:w-auto"
       >
         <header class="flex items-center gap-3 border-b border-edge-subtle px-4 py-3">
           <AssistantMark size="md" />
@@ -145,3 +195,48 @@ function expand() {
     </Transition>
   </template>
 </template>
+
+<style scoped>
+/* The orb's motion and light, which no utility can say: a turning conic layer, and the sheen where
+   light catches the top of a solid object — `--chip-top-edge`, the same ingredient the chips use. */
+.orb-sheen {
+  background:
+    radial-gradient(circle at 32% 22%, var(--chip-top-edge), transparent 58%),
+    radial-gradient(circle at 50% 120%, color-mix(in oklab, var(--chip-brand-to) 70%, transparent), transparent 62%);
+  box-shadow: inset 0 1px 0 0 var(--chip-top-edge);
+}
+
+.orb-swirl,
+.orb-halo {
+  animation: orb-turn 6s linear infinite paused;
+}
+
+.assistant-orb:hover .orb-swirl,
+.assistant-orb:hover .orb-halo,
+.assistant-orb.is-dragging .orb-swirl,
+.assistant-orb.is-dragging .orb-halo {
+  animation-play-state: running;
+}
+
+.assistant-orb {
+  transition: transform 200ms ease-out;
+}
+.assistant-orb:hover {
+  transform: translateY(-2px);
+}
+.assistant-orb:active {
+  transform: scale(0.95);
+}
+.assistant-orb.is-dragging {
+  transform: scale(1.08);
+}
+.assistant-orb.is-dragging .orb-halo {
+  opacity: 0.6;
+}
+
+@keyframes orb-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+</style>
