@@ -609,32 +609,84 @@ with a folder rule, read by the existing Entra app registration given access to 
 (`Mail.ReadWrite`, same as EFS). Owner action in Microsoft 365, ~10 minutes; no code waits on it until
 Step 3.6.
 
-**Q-DR11 — The whole ShippingDocument cannot be one strict structured output.** Measured 2026-10-09
-(live, Sonnet 4.6, Sonnet 5.5 and Haiku 5.5 alike): the API refuses the generated schema with 400 —
-"too many parameters with union types (37 … limit: 16)". Nested nullable fields count; the limit is the
-API's, not a model's. D-DR8's "one call, schema generated from the profile" therefore cannot hold for
-this profile as written. *Candidates:* (a) reshape the contract so "not printed" needs fewer nullable
-fields (e.g. empty string for strings) — a wire format that differs from the stored one, so every reader
-must translate, and numbers still need null; (b) **read per section**: one request per top-level group
-whose generated schema stays under 16 unions — measured on a synthetic BOL: identity + parties 14,
-freight + references + execution 8, hazmat 15; all three returned correct, schema-valid answers in
-7.8–9.2 s each, and they run in parallel, so latency stays one call's; the cost is the page image sent
-three times per pass (~2.8 k input tokens each — the second call did not read the first's cache, so the
-output schema is part of the cached prefix), roughly ×3 input tokens; (c) drop strict structured output
-and rely on Zod on receipt — gives up the grammar guarantee D-DR8 exists for. *Recommendation:* (b),
-with the sections derived from the profile (a profile declares its section keys; a test asserts each
-section's generated schema is under the limit, so a field added later that breaks the limit fails CI,
-not production). Hazmat lines are 12 unions on their own, so a hazmat section has 4 to spare.
-*Until answered:* Step 1.4's adapter is generic and merges; it passes the API's 400 back as a
-configuration error. No profile read runs before 1.6, so nothing waits on this but 1.6.
+**Q-DR11 — ANSWERED 2026-10-09: read in sections, one strict request per section, in parallel.**
+*Measured* (live, 2026-10-09, synthetic BOLs; API docs "Schema complexity limits": per request, combined
+across every strict schema, 16 parameters with union types and 24 optional parameters, plus internal
+grammar-size limits; "Changing the `output_config.format` parameter will invalidate any prompt cache"):
 
-**Q-DR12 — Where does a dispatcher's page-class override live?** D-DR11 makes an override a label, but
-`document_pages` is append-only (migration 0448), so its class cannot be updated. *Candidates:* (a) an
-append-only `document_page_labels` table, latest row per page wins, the classifier's verdict stays on
-the page; (b) one guarded UPDATE of the two class columns; (c) a review row with field path
-`pages[n].class`. *Recommendation:* (a) — the override is evidence of the same kind as a field review,
-keeps who-said-what, and lets the classifier be scored against it. *Until answered:* nothing waits but
-the override control in Step 3.4.
+| Candidate | Live result |
+|---|---|
+| whole profile, every field nullable | 400 — "too many parameters with union types (37 … limit: 16)", on Sonnet 4.6, Sonnet 5.5, Haiku 5.5 |
+| whole profile, every field optional | 400 — "too many optional parameters (37 … limit: 24)" |
+| whole profile, 16 nullable + 21 optional | 400 — "The compiled grammar is too large" |
+| whole profile, no nulls (`""` / `0` as "not printed") | compiles; the model wrote `pieces: 0`, `perPackageWeightLb: 0`, an empty bill-to — a printed zero and "not printed" become one value |
+| **three sections in parallel** | accepted and schema-valid on Sonnet 4.6 (7.9 s wall, 8,840 input tokens) and Sonnet 5.5 (12.0 s, 11,677) |
+| whole profile, no strict format, Zod on receipt | 10/10 schema-valid (5 per model); 1× input tokens (4,808 on Sonnet 5.5) |
+
+*Why sections:* the no-null design loses "not printed", which D-DR4's *Not read* and §4.7 depend on;
+10/10 well-formed answers without the grammar bounds the shape-failure rate only below ≈ 30 % (rule
+of three), and each failure costs the dispatcher a retry. Sections remove that failure class; the price
+is the page image sent once per section (the cache cannot be shared across different output schemas):
+≈ 6,900 extra input tokens per page per pass A, ≈ $0.014 at §8's Sonnet 5.5 price — at most ≈ $29 a
+month even if all 2,135 BOL-type photos of §0.1 were read. *Rule:* a profile declares its sections as
+field groups (a section may split a top-level key); each section's schema is derived from the profile,
+never restated; a CI test holds every section strictly under 16 unions (whether exactly 16 is accepted
+is unverified). *Correction to the earlier text:* the hazmat group was already 15 (12 per line + 3
+header), not "4 to spare". Revisitable in Step 3.1 on the labelled corpus — the adapter serves both.
+
+**Q-DR12 — ANSWERED 2026-10-09: one append-only `document_page_classes` table for classifier verdicts
+and overrides; newest row per page wins.** Stronger than the question first put it: D-DR9 makes the page
+row exist before any read and the classifier (D-DR11) is itself a model read, so migration 0448's
+`page_class` on the append-only `document_pages` could never receive the classifier's verdict either.
+A review cannot hold it (`document_read_reviews.read_id` is NOT NULL; classification precedes any
+read). The table follows the `asset_movements` / `part_movements` ledger pattern; the two unused
+columns leave `document_pages` before 0448 reaches production.
+
+**Q-DR13 — ANSWERED 2026-10-09: four additions to the `shipping_document` profile (version 1.1.0).**
+Each is required by the current eCFR text (fetched 2026-10-09) for a paper rule to be checkable:
+
+| Field | Requirement it makes checkable |
+|---|---|
+| `descriptionText` per hazmat line | §172.202(b): "must be shown in sequence with no additional information interspersed" |
+| non-hazmat lines as a list (`otherLines`) | §172.201(a)(1) applies "When a hazardous material and a material not subject to the requirements of this subchapter are described on the same shipping paper"; measured: with no home for them, Sonnet 4.6 put a "Paper products" line into `hazmat.lines` |
+| `hazmat.emergencyContactText` | §172.604(b): the registrant's name or contract number "immediately before, after, above, or below the emergency response telephone number" |
+| `identity.printedPageNumbers` per image | §172.201(c): "each page is consecutively numbered and the first page bears a notation specifying the total number of pages" |
+
+*Correction to the earlier recommendation* (three nullable fields): it would have put the hazmat group
+at 18 unions. Lists are not unions, so the four fit three sections — identity + parties ≈ 14; freight +
+references + execution + other lines + hazmat header ≈ 12; hazmat lines ≈ 13 (computed; the CI test of
+Q-DR11 is the check).
+
+**Q-DR14 — ANSWERED 2026-10-09: release the dataset carrying HMT column 8A, through `RELEASING.md`.**
+*Measured:* 2026.08.0 is registered, triangulation "ALL CLEAN", provisional only because it is not
+attested; versus the released 2026.07.1 only the 3,001 `pgRows` changed (columns 8A `exceptionsRef`,
+8B `nonBulkPackagingRef`); every count and other table is identical. On release an authorised Limited
+Quantity line leaves placarding and gets the LQ mark (`resolve.ts`), where today it is refused and stays
+placarded; saved `hazmat_runs` keep their `dataset_version`. *Order:* (1) step 0's currency check — the
+sources are eCFR 2026-07-28 and Title 49 was amended since; if Parts 172/173 data changed, a fresh cut;
+(2) pin golden `_pkg-lq-refused-pre-8a.yaml` to 2026.07.1 (unpinned today, it fails on promotion);
+(3) a named person attests — the owner's act, never automated. `paper_lq` answers
+`requirement_not_in_dataset` until then. The §172.102 special-provisions parser stays its own item.
+
+**Q-DR15 — ANSWERED 2026-10-09: paper-format rules are code rules, and each matches the regulation's
+text.** Verified: the dataset carries no §172.604 / §172.204 / §172.201 data, and `referenceText.json` is
+empty and display-only by D12 (it never feeds the engine). The first build of the rules diverged from
+the text — the phone rule passed "CALL SHIPPER 800 555 1212" (digit count checked before letters), used a
+10-digit proxy for "numeric … including the area code", ignored §172.604(d)'s exceptions and said
+"24-hour" for "monitored at all times"; an unnumbered multi-page paper passed; PSN, class and PG were
+cited one paragraph off; bulk quantity accepted only cargo tanks; §172.203(k)(2)'s exceptions and the
+two-component rule were missing. Each is fixed test-first with the paragraph quoted before Step 4.1
+merges.
+
+**Q-DR16 — ANSWERED 2026-10-09: the audit's context comes from the caller, mapped as follows.**
+Certification exemption (§172.204(b)(1): "(i) In a cargo tank supplied by the carrier, or (ii) By the
+shipper as a private carrier except for a hazardous material that is to be reshipped or transferred",
+"Except for a hazardous waste") from `hazmat_loads.carrier_relationship`: `carrier_supplied_cargo_tank`
+→ exempt; `private_carrier` → cannot tell until "not reshipped, not waste" is confirmed (nothing records
+either today); `shipper_supplied_common_carrier` → not exempt; `unknown` → cannot tell. The calculator
+sends `unknown` today (`calcModel.ts`). Vessel leg from the calculator's `vesselLeg` (the saved-load
+path sends none → cannot tell). Mixed paper from Q-DR13's non-hazmat lines; pages present from Q-DR13's
+per-image page numbers (an image count alone supports only the weaker "count ≥ total").
 
 ---
 
@@ -723,3 +775,13 @@ Append dated lines at the end; never edit a row above.
   the catalog and holds it equal to its contract array; five mutants killed. Sources and reviews are in
   `RETENTION_FORBIDDEN`; ARCHITECTURE.md has the `document-reading` row. Opened Q-DR12 (page-class
   override).
+- **2026-10-09 (rulings)** — Owner asked for recommendations from research, not assumption; measured
+  and ruled Q-DR11–Q-DR16 and the two `doc:score` choices. Evidence: live API calls (six schema
+  designs), the API's documented limits, the eCFR as of 2026-10-07 (§§171.4, 172.201–.204, 172.604), the
+  dataset files and `RELEASING.md`, and the code. Three earlier recommendations changed: Q-DR12 (the
+  classifier's verdict needs the same home as an override), Q-DR13 (four fields, lists where possible,
+  after the union arithmetic showed the first proposal broke Q-DR11), and `doc:score`'s blank fields.
+  `doc:score`: a reader-caused failure scores every field not read (the old plan's yield is "fraction of
+  fields accepted without a human"); budget and integrity failures are excluded and counted apart;
+  beside today's accuracy, printed-value accuracy and an invented-value rate (measured once already:
+  Sonnet 4.6 invented `freight.pieces` = 31). Step 4.1 is held until its rules match the regulation.
