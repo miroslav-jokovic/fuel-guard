@@ -38,7 +38,7 @@ export function routeBounds(route: Pick<LiveMapLoadRoute, "covered" | "ahead" | 
   return [[w, s], [e, n]];
 }
 
-/** "Pilot #123 · Exit 10" then the street address, for the fuel stop's popup. Null parts are left out. */
+/** "Pilot Travel Center · Exit 10" then the street address, for the fuel stop's popup. Null parts are left out. */
 export function fuelStopLines(stop: LiveMapRouteFuelStop): { title: string; address: string | null } {
   const title = [stop.name ?? stop.brand ?? "Fuel stop", stop.exit ? `Exit ${stop.exit}` : null].filter(Boolean).join(" · ");
   const region = [stop.state, stop.zip].filter(Boolean).join(" ");

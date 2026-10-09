@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import type { Env } from "../../env.js";
+import { loadEnv } from "../../env.js";
 import { routeLengthMiles } from "@silvicom/shared";
 
 /**
@@ -35,7 +35,11 @@ const { readLoadRoute } = await import("./liveMapLoadRoute.js");
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const LOAD = "11111111-2222-4333-8444-000000000001";
 const NOW = new Date("2026-10-09T15:00:00.000Z");
-const env = { HERE_API_KEY: "test" } as unknown as Env;
+const env = loadEnv({
+  NODE_ENV: "test",
+  SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+  HERE_API_KEY: "test",
+} as NodeJS.ProcessEnv);
 
 const stations = Array.from({ length: 10 }, (_, i) => ({
   id: `st-${i}`, brand: i % 2 === 0 ? "pilot" : "loves", store_number: String(100 + i), name: `Stop ${i}`,

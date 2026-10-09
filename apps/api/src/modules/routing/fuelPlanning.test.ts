@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import type { Env } from "../../env.js";
+import { loadEnv } from "../../env.js";
 
 /**
  * The fuel planner's characterisation (TRUCK-CARD-ROUTE-PLAN TC3, D-TC6). Until 2026-10-09 the planning
@@ -56,7 +56,11 @@ function recorder() {
   });
 }
 
-const env = { HERE_API_KEY: "test" } as unknown as Env;
+const env = loadEnv({
+  NODE_ENV: "test",
+  SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+  HERE_API_KEY: "test",
+} as NodeJS.ProcessEnv);
 const request = {
   vehicleId: "veh-1",
   origin: { lat: 41.6, lng: -87.6 },
