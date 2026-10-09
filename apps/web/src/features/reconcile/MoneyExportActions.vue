@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import {
-  FUEL_EXCEPTION_KINDS, exceptionStatusesIn,
+  QUEUE_EXCEPTION_KINDS, exceptionStatusesIn,
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
 import ExportButton from "@/components/ExportButton.vue";
@@ -47,8 +47,12 @@ const toast = useToastStore();
 const ledgerQuery = computed<ExceptionQuery>(() => ({
   // Translated through C7a rather than restated: the axis maps back into each source's vocabulary.
   status: [...new Set(props.states.flatMap((st) => exceptionStatusesIn(st)))],
-  // Only the ledger's own kinds: a theft case or an incident has no row in the money ledger.
-  kind: props.kinds.filter((k): k is FuelExceptionKind => (FUEL_EXCEPTION_KINDS as readonly string[]).includes(k)),
+  // Only the queue's money kinds: a theft case or an incident has no row in the money ledger, and the
+  // buying habits left the queue (9b) — with no kind chosen the file names the queue's kinds, or the
+  // ledger route would hand back the habits too.
+  kind: ((ks) => (ks.length ? ks : [...QUEUE_EXCEPTION_KINDS]))(
+    props.kinds.filter((k): k is FuelExceptionKind => (QUEUE_EXCEPTION_KINDS as readonly string[]).includes(k)),
+  ),
   vehicleIds: props.vehicleIds,
   assignedTo: props.assignedTo,
   from: props.from,

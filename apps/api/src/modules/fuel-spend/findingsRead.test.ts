@@ -179,9 +179,21 @@ describe("card-fraud incidents", () => {
 
   it("are left out when the kind filter names other kinds only", async () => {
     const rec = seed({ incidents: [INCIDENT] });
-    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["off_network_premium"] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["contract_variance"] });
     expect(page.rows.map((r) => r.id)).toEqual(["e-1"]);
     expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  // Chunk 9b (Q-F2): the buying habits left the queue, so naming one in a filter is not a way back in.
+  it("never lists a buying habit, even when the filter names one", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["off_network_premium"] });
+    expect(page.rows).toEqual([]);
+    expect(rec.forTable("fuel_exceptions")).toHaveLength(0);
+    await readFindings(rec.client, ORG, "admin", {});
+    const kinds = rec.forTable("fuel_exceptions")[0]!.filters().find((f) => f.col === "kind")!.val as string[];
+    expect(kinds.filter((k) => k.endsWith("_premium"))).toEqual([]);
+    expect(kinds).toContain("contract_variance");
   });
 
   it("are asked only from the start date on, unless someone is investigating them", async () => {

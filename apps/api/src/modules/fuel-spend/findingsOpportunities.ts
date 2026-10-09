@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  QUEUE_EXCEPTION_KINDS,
   exceptionStatusesIn,
   summariseOpportunities,
   type FindingQueueState,
@@ -53,7 +54,9 @@ export async function readFuelOpportunities(
       .from("fuel_exceptions")
       .select("kind, amount, occurred_on")
       .eq("org_id", orgId)
-      .in("status", statuses);
+      .in("status", statuses)
+      // The queue's kinds only (9b): each row links to Fuel problems, which no longer lists buying habits.
+      .in("kind", [...QUEUE_EXCEPTION_KINDS]);
     if (fleet) q = q.in("unit_number", fleet.units);
     if (f.from) q = q.gte("occurred_on", f.from);
     if (f.to) q = q.lte("occurred_on", f.to);

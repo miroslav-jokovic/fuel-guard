@@ -2,6 +2,7 @@ import { type AppSection, rolesThatManage } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import { CASE_RULE_ID } from "./anomalyRules/cases.js";
 import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKind } from "./fuelSpend/exceptions.js";
+import { BUYING_HABIT_KINDS } from "./fuelSpend/buyingHabits.js";
 
 /**
  * Who may close a finding, and who may be assigned one (Q-FUI4 and Q-FUI15, both ruled 2026-09-06).
@@ -41,6 +42,18 @@ export const CARD_FRAUD_KIND = "card_fraud";
 /** Every kind the merged inbox holds: the ledger's eight, the anomaly feed's one, the incidents' one. */
 export const FINDING_KINDS = [...FUEL_EXCEPTION_KINDS, CASE_RULE_ID, CARD_FRAUD_KIND] as const;
 export type FindingKind = FuelExceptionKind | typeof CASE_RULE_ID | typeof CARD_FRAUD_KIND;
+
+/**
+ * The money kinds the fuel queue holds: every ledger kind except the buying habits (F02-F04 chunk 9b,
+ * Q-F2 ruled 2026-10-06). A habit is a premium nobody can dispute, so it is a report on Fuel Costs
+ * (`BUYING_HABIT_KINDS`, 9a) and not a task. Derived, so a new ledger kind joins the queue unless it is a
+ * habit — and a new habit leaves it the day the producer files it.
+ */
+export const QUEUE_EXCEPTION_KINDS: readonly FuelExceptionKind[] = FUEL_EXCEPTION_KINDS.filter(
+  (k) => !(BUYING_HABIT_KINDS as readonly string[]).includes(k),
+);
+/** Every kind Fuel problems lists: the queue's money kinds, the fill case, the card-fraud incident. */
+export const QUEUE_FINDING_KINDS: readonly FindingKind[] = [...QUEUE_EXCEPTION_KINDS, CASE_RULE_ID, CARD_FRAUD_KIND];
 
 /**
  * The section a finding belongs to — TOTAL over `FindingKind`, so a new kind cannot be added without

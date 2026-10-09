@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import {
-  FINDING_KINDS, FINDING_KIND_LABELS,
+  QUEUE_FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
   findingAgeDays,
   type FindingKind, type FindingQueueState, type FindingSource,
@@ -21,7 +21,7 @@ import { useFindingsQuery, type FindingsQuery } from "@/features/reconcile/useFi
 import {
   useAssigneesQuery, useAssignFindings, assigneeLabel, sectionsOf,
 } from "@/features/reconcile/useFindingAssignment";
-import { usd } from "@/features/reconcile/format";
+import { usd, usd2 } from "@/features/reconcile/format";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import { useQueryState } from "@/composables/useQueryState";
@@ -43,10 +43,10 @@ import { useProblemDrawer } from "./fuelProblems/useProblemDrawer";
  * never what it had recovered.
  *
  * ── THREE NUMBERS, NEVER ONE ─────────────────────────────────────────────────────────────────────
- * Identified, claimed and recovered are different figures and the gap between them is the point.
- * "We found $14,200" is a claim about the software; "we recovered $14,200" is a claim about the
- * business, and only the second one renews a contract. Beneath them the four KINDS of money stay
- * apart too — recoverable, owed, and unexplained must not be added (D-FX5).
+ * Can be disputed, disputed and credited back are different figures and the gap between them is the
+ * point: "we can claim $14,200" is a claim about the bills; "we got $14,200 back" is a claim about the
+ * business, and only the second one renews a contract. Beneath them the KINDS of money stay apart too —
+ * recoverable, owed, and unexplained must not be added (D-FX5; the tiles, 9b).
  *
  * ── THE WINDOW IS THE SAME WINDOW ────────────────────────────────────────────────────────────────
  * `useSpendFilters` owns the period here exactly as it does on the spend page, so a figure quoted off
@@ -95,7 +95,7 @@ const states = computed<FindingQueueState[]>({
 });
 const kinds = computed<FindingKind[]>({
   get: () => kindParam.value.split(",").filter((v): v is FindingKind =>
-    (FINDING_KINDS as readonly string[]).includes(v)),
+    (QUEUE_FINDING_KINDS as readonly string[]).includes(v)),
   set: (v) => (kindParam.value = v.length ? v.join(",") : ""),
 });
 
@@ -120,7 +120,8 @@ const findingStateTone = (state: string): string =>
   state === "closed" ? "neutral" : state === "working" ? "warning" : state === "investigating" ? "info" : "danger";
 
 const stateOptions = FINDING_QUEUE_STATES.map((v) => ({ value: v, label: FINDING_QUEUE_STATE_LABELS[v] }));
-const kindOptions = FINDING_KINDS.map((v) => ({ value: v, label: FINDING_KIND_LABELS[v] }));
+// The queue's kinds only (9b): the buying habits are on Fuel Costs, and a filter offering them would find nothing.
+const kindOptions = QUEUE_FINDING_KINDS.map((v) => ({ value: v, label: FINDING_KIND_LABELS[v] }));
 
 const query = computed<FindingsQuery>(() => ({
   states: states.value, kinds: kinds.value,
@@ -148,24 +149,32 @@ const window = computed(() => ({
 const { data: totals } = useExceptionTotalsQuery(window);
 
 /**
- * ⚠ THESE FOUR TILES COUNT MONEY FINDINGS ONLY, AND NOW SAY SO.
+ * ── THREE TILES, THE CLAIM FROM OPEN TO PAID (F02-F04 chunk 9b) ─────────────────────────────────
+ * Can be disputed / Disputed / Credited back, from `disputeTotals` in shared. They replaced Identified /
+ * Claimed / Recovered / Still open when the buying habits left the queue (Q-F2): what is left is billing
+ * work with Pilot. They count money findings only — a case or an incident closes with a verdict, never
+ * money (D-FUI7) — and "Can be disputed" adds only the money the fleet can claim (D-FX5), so its sub-line
+ * says how many items it counts and how many of them carry a claim.
  *
- * They read `exceptionTotals`, which reads `fuel_exceptions` — and that is CORRECT and must stay
- * correct: D-FUI7's whole point is that an anomaly closes with a disposition and never with money, so
- * a theft case has no amount to add and a confirmed one is a true finding that recovered nothing.
- *
- * What changed is the context. Before C7b the list beneath these tiles was the same population they
- * counted; now it holds theft cases too, and "Identified $11,368 · 77 findings" sitting above a list
- * of 158 rows reads as a total of what is on screen. It is not one. The sub-labels carry the scope so
- * the arithmetic a reader does in their head is the arithmetic the tiles actually did.
+ * A dash while the figures load or fail, never $0: a zero is a claim about the fleet.
  */
 const tiles = computed(() => {
   const t = totals.value;
+  const money = (n: number | undefined) => (n == null ? "—" : usd2(n));
+  const items = (n: number) => `${n} item${n === 1 ? "" : "s"}`;
   return [
-    { label: "Identified", value: usd(t?.identified ?? 0), sub: `${t?.lines ?? 0} money findings` },
-    { label: "Claimed", value: usd(t?.claimed ?? 0), sub: "taken to the vendor" },
-    { label: "Recovered", value: usd(t?.recovered ?? 0), sub: "credited back", tone: "text-success-700" },
-    { label: "Still open", value: String(t?.openLines ?? 0), sub: "money findings only" },
+    {
+      label: "Can be disputed",
+      value: money(t?.canDispute.amount),
+      sub: t ? `${items(t.canDispute.count)} open · ${t.canDispute.claims} with money to claim` : "money findings",
+    },
+    { label: "Disputed", value: money(t?.disputed.amount), sub: t ? `${items(t.disputed.count)} with Pilot` : "taken to the vendor" },
+    {
+      label: "Credited back",
+      value: money(t?.creditedBack.amount),
+      sub: t ? `${items(t.creditedBack.count)} credited` : "credited back",
+      tone: "text-success-700",
+    },
   ];
 });
 
@@ -264,9 +273,9 @@ const truckOptions = computed(() =>
   <div class="space-y-6">
     <PageHeader description="Card fraud, short fills and billing findings from the fuel checks: how old each is, who has it, and what was done." />
 
-    <!-- Identified, claimed and recovered are three different claims. The gap between the first and
-         the last is the only measure of whether this product is worth its subscription. -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <!-- Can be disputed, disputed and credited back are three different claims. The gap between the first
+         and the last is the only measure of whether this product is worth its subscription. -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <StatCard v-for="t in tiles" :key="t.label" :label="t.label" :value="t.value" :sub="t.sub" :value-tone="t.tone" />
     </div>
 
