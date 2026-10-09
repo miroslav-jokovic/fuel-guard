@@ -84,3 +84,24 @@ once enforced, and the grant/RLS hardening of 0411–0417.
   two migration jobs, because those are minutes a day and the office already hosts the McLeod agent.
 - **Q-DT3:** PITR. Off today with 8 daily backups, so up to 24 h of data loss on a restore. It is a
   paid add-on and needs a compute size it supports; it belongs to the Q3 RPO/RTO decision.
+
+## Status re-measured — 2026-10-05 (after the Micro → Small upgrade)
+
+| Setting          | Production now                                         | Source                                             |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| SSL enforcement  | **off** (`currentConfig.database: false`)              | `supabase ssl-enforcement get --experimental`      |
+| Network          | **open**: `0.0.0.0/0`, `::/0`                          | `supabase network-restrictions get --experimental` |
+| PITR             | **off** (`pitr_enabled: false`, `walg_enabled: true`)  | `supabase backups list`                            |
+| Physical backups | 9 daily, latest 2026-10-05 16:39 UTC, region us-west-2 | same                                               |
+
+**Q-DT1 is still blocked on access, not on a decision.** `supabase db query` reaches only the linked
+project, so measuring staging's `pg_postmaster_start_time()` before and after needs the staging link the
+session classifier refuses. The owner runs step 1 (commands above) or allows the link.
+
+**Q-DT3 changed by the upgrade.** PITR needs a compute size that supports it; production is now Small,
+which does. Recommendation: **enable 7-day PITR** — today a restore loses up to 24 h, and the finance
+books, fuel evidence and audit ledger are all `RETENTION_FORBIDDEN` (never re-creatable from a vendor).
+Cost is the dashboard's quoted price at enablement; this plan does not restate a number it cannot verify.
+
+**Q-DT2 recommendation unchanged** (self-hosted runner for the two migration jobs only). Prerequisite
+noted: the new platform-health monitor (#1312) deliberately stays on GitHub-hosted runners.
