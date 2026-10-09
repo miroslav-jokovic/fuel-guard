@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { LiveMapRouteFuelStop } from "@silvicom/shared";
-import { fuelStopLines, lineFeature, pinElement, routeBounds, syncRoute, type RouteMap } from "./liveMapRouteLayer";
+import { fuelStopLines, isMarkerClick, lineFeature, pinElement, routeBounds, syncRoute, type RouteMap } from "./liveMapRouteLayer";
 
 /** The pure parts of the route layer (TRUCK-CARD-ROUTE-PLAN D-TC3, D-TC4). Drawing itself is maplibre's. */
 describe("the route layer's geometry and words", () => {
@@ -66,5 +66,21 @@ describe("pinElement", () => {
     const end = pinElement({ lat: 42, lng: -87, name: null, kind: "dropoff" }, "end");
     expect(end.getAttribute("aria-label")).toBe("Delivery");
     expect(end.className).toContain("text-danger-600");
+  });
+});
+
+describe("isMarkerClick", () => {
+  it("knows a click on a fuel stop or a pin — the marker element or anything inside it — from a click on the map", () => {
+    const marker = document.createElement("div");
+    marker.className = "maplibregl-marker";
+    const pin = pinElement({ lat: 41, lng: -88, name: null, kind: "pickup" }, "start");
+    marker.append(pin);
+    document.body.append(marker);
+    expect(isMarkerClick(marker)).toBe(true);
+    expect(isMarkerClick(pin)).toBe(true);
+    expect(isMarkerClick(pin.querySelector("path"))).toBe(true);
+    expect(isMarkerClick(document.createElement("canvas"))).toBe(false);
+    expect(isMarkerClick(null)).toBe(false);
+    marker.remove();
   });
 });

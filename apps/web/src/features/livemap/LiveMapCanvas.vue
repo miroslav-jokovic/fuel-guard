@@ -7,7 +7,7 @@ import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
-import { showRoute, syncRoute } from "./liveMapRouteLayer";
+import { isMarkerClick, showRoute, syncRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
@@ -329,7 +329,9 @@ const { map } = useMapLibre({
     });
     // A click on empty water or road clears the selection — the same gesture a map user expects
     // from every other map they have used.
+    // ⚠ Not a click on a fuel stop or a route pin: maplibre opens their popups from this same event.
     instance.on("click", (event) => {
+      if (isMarkerClick(event.originalEvent.target)) return;
       const hit = instance.queryRenderedFeatures(event.point, { layers: [SYMBOL_LAYER] });
       if (hit.length === 0) emit("select", null);
     });

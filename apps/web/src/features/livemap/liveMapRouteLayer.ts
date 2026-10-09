@@ -184,3 +184,16 @@ function endPin(end: LiveMapRouteEnd, which: "start" | "end"): maplibregl.Marker
   const popup = new maplibregl.Popup({ offset: 30, closeButton: false, className: "map-panel" }).setDOMContent(body);
   return new maplibregl.Marker({ element: pinElement(end, which), anchor: "bottom" }).setLngLat([end.lng, end.lat]).setPopup(popup);
 }
+
+/**
+ * Was this map click on one of our DOM markers — a fuel stop or a pickup/delivery pin? (owner,
+ * 2026-10-09: "when we click on a fuel stop it closes the route").
+ *
+ * maplibre opens a marker's popup from the MAP's own `click` event (`Marker._onMapClick` checks the
+ * event's target), so a marker click IS a map click, and the canvas's "empty map clears the selection"
+ * handler fired on it too. Stopping the DOM event's propagation would also stop the popup opening, so
+ * the canvas asks this instead and leaves the click to the marker.
+ */
+export function isMarkerClick(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(".maplibregl-marker") != null;
+}

@@ -179,3 +179,15 @@ setting.
     routes of 255–1,077 mi at the fleet standard; 4 of 6 trucks on their route (0–0.8 mi off), 2 off
     by 1.0 and 1.7 mi with 0 mi covered — at or near the pickup, Q-TC1's case; fuel planned on 5, one
     stop on 2 of them; one truck had no Samsara fuel sample in the last 3 h, so no fuel stops, said so.
+- **2026-10-09, night — D-TC7 revised after the owner used it in production.** Clicking a fuel stop
+  closed the route: maplibre opens a marker's popup from the MAP's `click` event, so the canvas's
+  "empty map clears the selection" handler fired on every marker click, and the route followed the
+  selection. Two changes (owner: "find a reliable solution for closing routes"):
+  - the canvas ignores clicks on our markers (`isMarkerClick`); stopping propagation instead would
+    have stopped the popups opening;
+  - **the route no longer follows the selection.** It closes only from the card's route icon or
+    "Hide route", or from a new route bar on the map ("Route · Unit 47 · Load 0001 — Hide route"),
+    which stays while the route is drawn whether or not the card is open. Selecting a DIFFERENT
+    truck replaces it; closing the card or clicking empty map keeps it. The earlier rule "off
+    whenever the selection moves" is superseded: its reason — no line nobody can account for — is
+    now met by the bar naming the truck and load.
