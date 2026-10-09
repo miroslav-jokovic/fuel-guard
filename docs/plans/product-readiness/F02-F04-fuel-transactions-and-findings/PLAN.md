@@ -695,3 +695,23 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   $1,323,900.97, the $639.24 Nevada fill moved to October. Spend days total $8,656,213.71 for
   02-04 → 10-09, equal to the fills to the cent. **Chunk 10 is complete.**
 
+- 2026-10-09: 11a built. Re-measured on production first, read-only. The 10-08 detection reset (0441)
+  dismissed every open case, so 138 canonical fills are flagged and 0 have an open or investigating
+  case. The tile said 138 fills needed review over an empty work queue.
+  - Migration 0446 redefines `fuel_range_totals` (same signature, body only). `flagged` counts fills
+    with an OPEN case on or after the detection start date (D-CF9), read from `anomalies`. `clear` is
+    unchanged (fills with no flag), so `flagged + clear` no longer equals `fills`. The difference is the
+    fills whose cases are all closed.
+  - Open means queue state `open`, not `investigating`. It is the Alerts page's default work queue, and
+    the set the link opens. A case someone has taken is not waiting for review.
+  - SQL cannot import `anomalyStatusesIn("open")`, so 0446 holds a copy. `fuel-range-totals.test.mjs`
+    derives its expectation from the shared function for every status, so a status mapped onto `open`
+    later fails the matrix (proved by mutating the built map).
+  - The tile reads "fills with an open case" and links to `/anomalies?status=open` with the window and
+    the trucks (`flaggedCasesLink.ts`). No link under a driver, fuel-type or search filter, because the
+    Alerts page cannot narrow by those. Both production orgs are on Central: 0 fills fall on a different
+    day under the Fuel Log's `business_date` and the Alerts page's carrier day.
+  - The row marker is unchanged. A fill whose case was dismissed keeps its red marker and opens its
+    history, because that pointer is still true.
+  - `FillsTab.vue` is at 494 lines (budget 500). 11b adds a column there, so 11b must split the file
+    first.
