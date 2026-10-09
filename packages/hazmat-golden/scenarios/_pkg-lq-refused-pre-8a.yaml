@@ -1,13 +1,19 @@
-# HARNESS/ENGINEERING SCENARIO (H-LQ, D-H10) — the fail-closed path on the CURRENT live dataset.
+# HARNESS/ENGINEERING SCENARIO (H-LQ, D-H10) — the fail-closed path on a dataset WITHOUT column 8A.
+# Pinned to 2026.07.1 (Q-DR14 release prep, 2026-10-09): this scenario asserts the pre-8A REFUSAL,
+# which only exists on a dataset that predates column 8A. Unpinned it rode LATEST, so the day LATEST
+# moves to 2026.08.0 the same claim becomes verifiable, FLAMMABLE drops out and lq_claim_refused never
+# fires — the guard would fail for the right reason and then be "fixed" by deleting it. Pinned, it
+# keeps proving the fail-closed path for every hazmat_run saved against 2026.07.1, after promotion too.
 name: "LQ — the same claim on a pre-8A dataset is REFUSED: fully regulated + routed to a reviewer"
 docRef: "49 CFR 172.500(b)(2); 172.101 col. 8A (absent before dataset 2026.08.0 → the claim cannot be verified → fail-closed)"
 description: >
-  Identical load to the authorized scenario, but evaluated on the shipped LATEST dataset, which
+  Identical load to the authorized scenario, but evaluated on dataset 2026.07.1 (pinned), which
   predates column 8A. The engine cannot verify LQ authorization, so it refuses the claim: FLAMMABLE
   is still asserted (conservative), and a conditional routes the load to a reviewer. This scenario
   is the guard that an unverifiable LQ claim can never silently un-placard a load.
 verifiedBy: "Engineering (H-LQ) — eCFR-derived, pending SME validation (D-H10)"
 verifiedOn: "2026-08-08"
+datasetVersion: "2026.07.1"
 input:
   vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
   tankState: loaded
