@@ -5,9 +5,10 @@ is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340
 3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
 scorers write incidents) is merged (#1350). Chunk 7 (the reset) is complete: merged (#1352, #1353,
 #1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunks 6, 8, 9 and 10 are merged
-and released (v2026.10.09 the last). Chunks 11 (#1384–#1386, migration 0446) and 12 (#1387, #1388,
-migration 0447) are merged and on staging, waiting for a release. Chunk 13 needed no product change:
-the five tools were already admin-only (see its entry). Next: chunk 14.
+and released (v2026.10.09 the last). Chunks 11 (#1384–#1386, migration 0446), 12 (#1387, #1388,
+migration 0447) and 13 are released (v2026.10.09.1); chunk 13 needed no product change, the five
+tools were already admin-only (see its entry). Chunk 14 (#1398, #1403, #1408) is merged and waits
+for a release. Next: chunk 15.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -863,3 +864,26 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     re-applied from one saved script and committed before the mutants ran again, so each restore was a
     `git checkout`.
   - **Chunk 14 is complete** once this merges. Next: chunk 15.
+- 2026-10-09: 14c merged (#1408, c77f9d1). Chunk 14 is complete.
+  - Post-release checks for v2026.10.09.1 (production schema 0447), read-only on production:
+    - 0446: the Fuel Log "Flagged" tile reads 0 for both orgs (Silvicom 18,131 fills, 17,994 clear;
+      EFS QA 397, 397). 137 fills are marked, and 0 of them have an open or investigating case. The
+      handoff said 138; one marked fill has since lost its mark. Pass.
+    - 0447: `pg_policies` on `fuel_transactions` lists four SELECT policies (`ftxn_driver_select`,
+      `ftxn_section_read`, `ftxn_select`, `fuel_tx_driver_scope`) and nothing else. Pass.
+  - Chunk 15 built (A2): `anomalyTransition.test.ts` drives `POST /api/anomalies/:id/transition`
+    over HTTP. Its `anomalies` fixture applies the route's `id` and `org_id` filters, because the
+    recorder only records them.
+    - Another org's case answers 404, and neither the RPC nor the audit write runs.
+    - A stale version answers 409 `conflict` before the RPC runs. A version race the RPC loses is
+      also 409 `conflict`, with no audit row.
+    - Every role without `safety: manage` gets 403 before the case is read, and every role with it
+      can move a case. Both lists come from `rolesThatManage("safety")`, not a hand-written list.
+    - The accepted move calls `transition_anomaly` with the caller's org, actor and expected version,
+      and writes one `anomaly.status_changed` audit row with org, actor, from and to.
+    - Proved by seven mutants, each run against the committed test and restored with `git checkout`:
+      the org filter dropped from the case read (the accept criterion), the version check dropped,
+      the gate widened to `safety: view`, the audit write skipped, the RPC handed the case id as its
+      org, an RPC conflict mapped to 422, and the audit's `from` written as the target. Each turned
+      the test red.
+    - **Chunk 15 is complete** once this merges. Next: chunk 16.
