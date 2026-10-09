@@ -632,4 +632,19 @@ Append dated lines at the end; never edit a row above.
   Live read-only run over the last two days: 373 documents fetched, 0 refused, 164 photos, 328
   carrying a load number (35 BOL-type, 10 delivery copies, 328 call forms). Not yet wired into
   `samsaraFeedHealth` (its alarm would mail on a new feed before anyone has ruled its freshness bound).
+- **2026-10-08 (Step 0.2 tool)** — `pnpm --filter @silvicom/api doc:corpus -- --since … --until …
+  [--types …] [--max N]` copies Samsara documents into the gitignored
+  `packages/capture-engine/fixtures/real/private/documents/<id>/` (`pages/`, `meta.json` with each
+  page's SHA-256, an all-null `labels.json` for the two labellers). Read-only; writes no database.
+  First live pull, 3 documents (2 BOL-type, 1 delivery copy), measured three things the plan must
+  carry. **F-DR11 — Samsara serves every page as a 2000×1500 JPEG of 150–810 KB**: for a
+  Samsara-sourced document "the original" (D-DR13, recovery rung L1) is already Samsara's recompressed
+  derivative, so the ladder's headroom on these is 2000 px, not a phone's 4000+. **D-DR11 confirmed on
+  the first document:** 9 photos, page 1 a cargo photo of the trailer, the BOL on a later page.
+  **The first BOL read by eye is the paper audit's case:** the HM column is marked "X" on two lines of
+  lead-acid batteries (corrosive placards visible in the cargo photo) and the description is the
+  shipper's model text only — no UN number, proper shipping name, class or emergency phone. Under
+  §5.1 that is `paper_sequence` and `paper_er_phone` failing, and under §6 an unresolved line the
+  dispatcher must pick with the printed text beside the picker: both paths are needed from day one,
+  not as edge cases.
 

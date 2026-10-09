@@ -9,6 +9,7 @@
     "worker": "tsx src/worker.ts",
     "psp:uat": "tsx src/scripts/pspUatProbe.ts",
     "fleetpal:smoke": "tsx src/scripts/fleetpalSmoke.ts",
+    "doc:corpus": "tsx src/scripts/pullDocumentCorpus.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "serve:web-dist": "tsx src/scripts/serveWebDist.ts",
     "build": "tsc -p tsconfig.json --noEmit",
