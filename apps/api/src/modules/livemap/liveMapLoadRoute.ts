@@ -10,7 +10,7 @@ import {
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { NoHereKeyError } from "../../lib/here.js";
-import { readLoadForRoute } from "../loads/index.js";
+import { readLoadForRoute, type LoadForRoute } from "../loads/index.js";
 import { getOrComputeRoute, loadPlanningTruck, readStationAddresses, solveOnRoute, type PlanResult } from "../routing/index.js";
 import { readVehiclePositions } from "../samsara/index.js";
 
@@ -101,11 +101,15 @@ export async function readLoadRoute(admin: SupabaseClient, env: Env, orgId: stri
           zip: a?.zip ?? null, exit: s.exit, lat: s.stationLat!, lng: s.stationLng!, milesAhead: s.milesAhead,
         };
       }),
+      start: routeEnd(load.stops[0]!),
+      end: routeEnd(load.stops.at(-1)!),
       fuelNote: fuelNote(plan, fuel.length),
       hazmatNotApplied: load.hazmat,
     },
   };
 }
+
+const routeEnd = (s: LoadForRoute["stops"][number]) => ({ lat: s.lat, lng: s.lng, name: s.name, kind: s.kind });
 
 /**
  * The planner's answer in the map's words. Its own messages are written for the Fuel planning page,

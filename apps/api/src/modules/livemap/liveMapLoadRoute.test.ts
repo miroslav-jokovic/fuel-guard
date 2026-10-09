@@ -54,8 +54,8 @@ function recorder(o: { truckAt?: { lat: number; lng: number } | null; hazmat?: b
       load_stops: {
         data: o.stops ?? [
           // Out of sequence on purpose: the route goes by `seq`, not by row order.
-          { seq: 2, kind: "dropoff", lat: 41.6, lon: -87.6 + 29 * 0.47 },
-          { seq: 1, kind: "pickup", lat: 41.6, lon: -87.6 },
+          { seq: 2, kind: "dropoff", name: "ours-2", location_name: "Consignee DC", lat: 41.6, lon: -87.6 + 29 * 0.47 },
+          { seq: 1, kind: "pickup", name: "Shipper", location_name: null, lat: 41.6, lon: -87.6 },
         ],
       },
       route_fuel_settings: { data: [] },
@@ -112,6 +112,13 @@ describe("readLoadRoute", () => {
       expect(s).not.toHaveProperty("netPrice");
     }
     expect(r.hazmatNotApplied).toBe(false);
+  });
+
+  it("pins the first and last stop by sequence, named as the board names them (McLeod's place name first)", async () => {
+    const answer = await readLoadRoute(recorder().client, env, ORG, LOAD);
+    if (!answer.ok) throw new Error(answer.message);
+    expect(answer.route.start).toEqual({ lat: 41.6, lng: -87.6, name: "Shipper", kind: "pickup" });
+    expect(answer.route.end).toEqual({ lat: 41.6, lng: -87.6 + 29 * 0.47, name: "Consignee DC", kind: "dropoff" });
   });
 
   it("does not split a route the truck is off, and plans from the pickup", async () => {

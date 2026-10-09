@@ -7,7 +7,7 @@ import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
-import { clearRoute, routeBounds, showRoute } from "./liveMapRouteLayer";
+import { showRoute, syncRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
@@ -385,14 +385,11 @@ watch(isDark, () => {
   if (map.value && props.route) showRoute(map.value, props.route, SELECTED_LAYER);
 });
 
-// D-TC7: draw the route the card turned on and fit the camera to it; clear it the moment it goes.
+// D-TC7: draw the route the card turned on and fit to it; clear it the moment it goes. Waits only for
+// the map's own `load` (our layers exist) — never `isStyleLoaded()`, see `syncRoute`.
 watch(() => props.route, (route) => {
   const m = map.value;
-  if (!m?.isStyleLoaded()) return;
-  if (!route) return clearRoute(m);
-  showRoute(m, route, SELECTED_LAYER);
-  const bounds = routeBounds(route);
-  if (bounds) m.fitBounds(bounds, { padding: 72, duration: 600, maxZoom: 11 });
+  if (m?.getLayer(SELECTED_LAYER)) syncRoute(m, route, SELECTED_LAYER);
 });
 
 onBeforeUnmount(() => {
