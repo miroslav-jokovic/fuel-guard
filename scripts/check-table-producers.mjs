@@ -74,6 +74,12 @@ const WAIVERS = new Map([
   // verdicts, and the override control (Step 3.4) a person's. It leaves with the classifier.
   ["document_page_classes", "DOCUMENT-READER-PLAN.md Step 1.5 — the page classifier writes it (schema-only, 0449 Q-DR12)"],
   ["document_read_reviews", "DOCUMENT-READER-PLAN.md Step 1.6 — POST /api/documents/reads/:id/reviews writes it (schema-only Step 1.2, 0448)"],
+  //
+  // DISPATCH-BOARD-PLAN.md wave 1 (0450) ships the board's two tables schema-only, beside the
+  // `vehicles.mcleod_fleet_code` column whose writer may not share its merge. Both leave in wave 2:
+  // the roster sweep's fleet step writes `tms_fleets`, the HOS clocks poll writes `driver_hos_clocks`.
+  ["tms_fleets", "DISPATCH-BOARD-PLAN.md DB1/DB2 — the roster sweep's fleet step writes it (schema-only wave 1, 0450)"],
+  ["driver_hos_clocks", "DISPATCH-BOARD-PLAN.md DB3 — the HOS clocks poll writes it (schema-only wave 1, 0450)"],
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
