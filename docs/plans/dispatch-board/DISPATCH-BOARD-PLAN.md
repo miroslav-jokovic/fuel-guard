@@ -1,6 +1,6 @@
 # Dispatch board: the Assignments page becomes the board a dispatcher works from — plan
 
-**Status: ANALYSED, WAITING ON OWNER RULINGS (§6).** Written 2026-10-09 at the owner's request ("analyze our
+**Status: ANALYSED, WAITING ON OWNER RULINGS (§6).** Board vs Loads split added 2026-10-09 (§5.3). Written 2026-10-09 at the owner's request ("analyze our
 Assignment page and let's create a proper Dispatch board from this page, where a dispatcher sees all
 assignments but can also filter only his fleet"). Decision IDs `D-DB*`, open questions `Q-DB*`. This plan
 defers to `docs/plans/livemap/LIVE-MAP-PLAN.md` (`D-LM*`, the map and its scope), to
@@ -142,7 +142,8 @@ uncovered load (DB8), and the map is not duplicated — the drawer links to the 
 (D-DR24: one live map).
 
 Page: `/assignments` keeps its path; the sidebar label and title become **Dispatch board** (Q-DB5). Tabs
-(`AppTabs`): **Board** · **Uncovered loads** · **History** (the existing L5 tab, unchanged).
+(`AppTabs`): **Board** · **History** (the existing L5 tab, unchanged). There is deliberately no Uncovered
+tab here — the Loads page already owns that queue (§5.3).
 
 **Toolbar** (`DataWorkspace` + `FilterBar`, design contract §5.2b/§5.5):
 - `AppSegmentedControl`: **My fleet** · **All** (default My fleet when the user is linked, else All
@@ -173,8 +174,9 @@ Page: `/assignments` keeps its path; the sidebar label and title become **Dispat
 from TC3 *on demand* (one HERE call when opened, never per row), links to the load page, the truck,
 the driver, and the map with this truck selected.
 
-**Uncovered loads tab**: every `A` load with no truck (12 today), oldest pickup first, its pickup city
-and window — the board's counterpart, so loads that have no row are never invisible.
+**Uncovered loads are a link, not a tab**: the toolbar carries "12 uncovered loads in my fleet →", which
+opens Loads on its Uncovered queue in the same scope. A load with no truck has no row here and must never
+be invisible; it must not get a second list either.
 
 **Freshness**: header line "McLeod as of 19:49 · Samsara as of 19:50" in the existing pattern; the board
 polls at 60 s, positions come from the live map's cache rather than a second Samsara read.
@@ -194,6 +196,61 @@ Needs two links the office confirms once on Settings → Integrations → McLeod
 fleet code → McLeod dispatcher login (prefilled where the names match: 10 of 14 do), and McLeod login →
 Silvicom user. An unlinked user lands on All. A fleet manager / admin can pick any fleet.
 
+### 5.3 Board and Loads — one question each (D-DB5)
+
+The owner's condition (2026-10-09): *no duplicate of the Loads page — either two pages showing different
+data, or one page that shows everything with proper UX.*
+
+**The Loads page today** (`apps/web/src/pages/DispatchLoadsPage.vue`, LR7 — owner's column list of
+2026-09-23): row = one McLeod LOAD. Columns Load # (dispatcher beneath) · Status · Driver (truck/trailer
+beneath) · Pickup · Delivery (+N stops) · Type (Regular/Reefer/Hazmat) · Dispatch. Queues Active ·
+Uncovered · Delivered · All, plus an Exceptions feed (events, D-L2). Dispatcher + Type filters, search,
+20 per page, "McLeod as of". Row opens `/loads/:id` (stops, events, hazmat record, dispatch history).
+Measured: 482 McLeod loads stored (since 2026-09-17), 0 non-McLeod; **`load_dispatches` = 0 rows, ever** —
+the Send-to-driver action has never been used.
+
+**Where the two overlap, as originally drafted:**
+
+| Fact | Loads | Board (draft) | Verdict |
+|---|---|---|---|
+| Load in progress with its truck/driver | Active queue (row = load) | every truck row's Current load | **real overlap** — same 119 facts, keyed two ways |
+| Uncovered loads | Uncovered queue | Uncovered tab | **duplicate** — removed from the board above |
+| Delivered / history / search by order | yes | no | Loads only |
+| HOS, GPS, empties, next load, on-time | no | yes | board only |
+| Trucks with no load (80 today) | invisible | yes | board only |
+| Hazmat clearance, dispatch send, exceptions | yes | no | Loads only |
+
+**Two shapes considered:**
+
+- **One page, tabs per row unit** (Trucks · Loads · Uncovered · Delivered · Exceptions · History).
+  One sidebar entry, one scope control. Rejected as the recommendation: six tabs over two different row
+  units is the shape `CLAUDE.md`'s worked example warns about (the driver page that "grew six tabs"); a
+  dispatcher would still be switching between two tables, just inside one URL, and the deep link to one
+  load still has to be its own page.
+- **Two pages, each answering ONE question — recommended.**
+  - **Dispatch board = "what do my trucks need from me now?"** Row = truck. Live (60 s), exception-first,
+    starts on My fleet. No delivered loads, no history of orders, no hazmat paperwork.
+  - **Loads = "what is the state of this order?"** Row = load. The record: find an order by number,
+    customer, BOL, place; Upcoming / In transit / Delivered; hazmat clearance; send to driver;
+    exceptions; the load page. Not live-ops: no HOS, no GPS age, no empties.
+
+**What changes on Loads to make the split real (D-DB6, part of DB5):**
+
+1. **Same scope control** as the board (My fleet · All, Fleet, Dispatched by) — one component, one
+   scope definition in `packages/shared`, so "my fleet" can never mean two things on two pages. The
+   current Dispatcher filter becomes the Dispatched-by filter of that control.
+2. **Active is renamed by what it holds**: Upcoming (planned, incl. pre-assigned next loads) and In
+   transit, so an office reader searching for an order sees it in the order's own terms. The in-transit
+   list stays — answering a customer's "where is order 123?" is a load question — but its truck column
+   links to the truck's board row (`/assignments?truck=773`), never re-renders HOS or GPS.
+3. **The on-time verdict is one fact in two places**, computed once (`packages/shared`, D-DB4) and shown
+   as the same badge on the board row and the load row. That is one fact read twice, not a copy.
+4. **Board → Loads, Loads → Board, both ways in one click**: board's current/next load opens `/loads/:id`;
+   the load page's truck opens the board drawer for that truck.
+
+Sidebar after the change, Dispatch group: **Dispatch board** · Loads · Messages · Fuel planning · Truck
+stops — the same five entries, no new one.
+
 ## 6. Open questions — owner rulings needed before DB1
 
 - **Q-DB1 — Two axes (§3).** Import `tractor.fleet_id`, overruling the roster plan's do-not-import, and
@@ -210,6 +267,11 @@ Silvicom user. An unlinked user lands on All. A fleet manager / admin can pick a
   never disagree — one rule, read from one place.
 - **Q-DB7 — Ask two dispatchers** which McLeod Order Planning / Driver Manager columns they actually
   look at all day. The column list in §5 is our best reading of the research; theirs beats it.
+- **Q-DB8 — Two pages or one (§5.3).** *Recommend two pages, one question each*: Dispatch board (trucks,
+  now) and Loads (orders, the record), sharing one scope control and linking both ways.
+- **Q-DB9 — Send to driver.** `load_dispatches` has never been written (0 rows). Keep the Dispatch
+  column and action on Loads, or retire it until drivers use the app? Not a board question, but the
+  remodel should not polish a column nobody uses. *Recommend: ask the dispatchers with Q-DB7.*
 
 ## 7. Steps (one PR each unless noted)
 
@@ -229,8 +291,11 @@ Silvicom user. An unlinked user lands on All. A fleet manager / admin can pick a
   stops, clocks, fleet, links; every read org-scoped (`expectOrgScoped`); the row predicates (late risk,
   no next load, empty, HOS low, stale GPS) and the ETA are pure functions in `packages/shared` with their
   own tests.
-- **DB5 — The page.** Board + Uncovered loads tabs on `DataWorkspace`; `AppTabs`; badges from
-  `@/lib/badges` (the local `HOS_BADGE` goes); scope control; chips; ColumnPicker; SavedViewMenu.
+- **DB5 — The page.** Board tab on `DataWorkspace`; `AppTabs`; badges from `@/lib/badges` (the local
+  `HOS_BADGE` goes); scope control (a shared component); chips; ColumnPicker; SavedViewMenu; the
+  "N uncovered loads →" link.
+- **DB5b — Loads adopts the split (§5.3).** The shared scope control replaces the Dispatcher filter;
+  Active → Upcoming + In transit; truck links to the board; the shared on-time badge.
 - **DB6 — Drawer.** Stops timeline, clocks, on-demand route summary, links.
 - **DB7 — ETA measured.** Compare the v1 ETA with actual arrivals for 14 days; Q-DB4 decided on numbers.
 - **Later (not planned here):** DB8 "Find a truck" on an uncovered load (ranked by empty-time, deadhead,
