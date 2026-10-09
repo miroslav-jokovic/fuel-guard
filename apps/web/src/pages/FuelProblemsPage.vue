@@ -22,6 +22,7 @@ import {
   useAssigneesQuery, useAssignFindings, assigneeLabel, sectionsOf,
 } from "@/features/reconcile/useFindingAssignment";
 import { usd, usd2 } from "@/features/reconcile/format";
+import { NO_FIGURE, NO_FIGURE_NOTE, tileReady } from "@/lib/tileFigure";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 import { useQueryState } from "@/composables/useQueryState";
@@ -146,7 +147,8 @@ const window = computed(() => ({
   from: f.from.value, to: f.to.value,
   vehicleIds: f.vehicleIds.value, assignedTo: assignedTo.value,
 }));
-const { data: totals } = useExceptionTotalsQuery(window);
+const totalsQuery = useExceptionTotalsQuery(window);
+const totals = totalsQuery.data;
 
 /**
  * ── THREE TILES, THE CLAIM FROM OPEN TO PAID (F02-F04 chunk 9b) ─────────────────────────────────
@@ -156,25 +158,20 @@ const { data: totals } = useExceptionTotalsQuery(window);
  * money (D-FUI7) — and "Can be disputed" adds only the money the fleet can claim (D-FX5), so its sub-line
  * says how many items it counts and how many of them carry a claim.
  *
- * A dash while the figures load or fail, never $0: a zero is a claim about the fleet.
+ * A dash and "Not available" while the figures load or fail, never $0: a zero is a claim about the fleet
+ * (11c, N9). The previous window's figures, kept on screen while a new one loads, count as not available
+ * — they would sit under a filter bar naming a different window (`lib/tileFigure.ts`).
  */
 const tiles = computed(() => {
-  const t = totals.value;
-  const money = (n: number | undefined) => (n == null ? "—" : usd2(n));
+  const ready = tileReady({ data: totals.value, isError: totalsQuery.isError.value, isPlaceholderData: totalsQuery.isPlaceholderData.value });
+  const t = ready ? totals.value : null;
   const items = (n: number) => `${n} item${n === 1 ? "" : "s"}`;
+  const tile = (label: string, amount: number | undefined, sub: string, tone?: string) =>
+    t ? { label, value: usd2(amount), sub, tone } : { label, value: NO_FIGURE, sub: NO_FIGURE_NOTE, tone };
   return [
-    {
-      label: "Can be disputed",
-      value: money(t?.canDispute.amount),
-      sub: t ? `${items(t.canDispute.count)} open · ${t.canDispute.claims} with money to claim` : "money findings",
-    },
-    { label: "Disputed", value: money(t?.disputed.amount), sub: t ? `${items(t.disputed.count)} with Pilot` : "taken to the vendor" },
-    {
-      label: "Credited back",
-      value: money(t?.creditedBack.amount),
-      sub: t ? `${items(t.creditedBack.count)} credited` : "credited back",
-      tone: "text-success-700",
-    },
+    tile("Can be disputed", t?.canDispute.amount, t ? `${items(t.canDispute.count)} open · ${t.canDispute.claims} with money to claim` : ""),
+    tile("Disputed", t?.disputed.amount, t ? `${items(t.disputed.count)} with Pilot` : ""),
+    tile("Credited back", t?.creditedBack.amount, t ? `${items(t.creditedBack.count)} credited` : "", "text-success-700"),
   ];
 });
 

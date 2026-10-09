@@ -27,6 +27,7 @@ import { fuelTxnStatus, describeRowCoverage, fleetMpgScope, usd2, type FuelTrans
 import { weakSignals, whyTitle, hasWhy } from "./fillWhy";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { efsDateTime, stationClockNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
+import { NO_FIGURE, NO_FIGURE_NOTE, tileReady } from "@/lib/tileFigure";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useFuelTransactions, useFuelRangeTotals, FUEL_PAGE_SIZE, type FuelFilters } from "@/composables/useFuelLog";
@@ -113,7 +114,13 @@ const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
-const { data: rangeTotals } = useFuelRangeTotals(filters);
+const totalsQuery = useFuelRangeTotals(filters);
+const rangeTotals = totalsQuery.data;
+// 11c (N9): the tiles below read this query, not the list's. A failed or still-loading total renders a
+// dash and "Not available" (`lib/tileFigure.ts`), where `?? 0` printed a confident zero on every tile.
+const totalsReady = computed(() =>
+  tileReady({ data: rangeTotals.value, isError: totalsQuery.isError.value, isPlaceholderData: totalsQuery.isPlaceholderData.value }),
+);
 
 /**
  * Avg MPG, from the ONE place that computes it (M4, D-MPG1).
@@ -129,18 +136,20 @@ const { data: rangeTotals } = useFuelRangeTotals(filters);
  * bar naming somebody else, which is the disagreement this whole step exists to end.
  */
 const mpgScope = computed(() => fleetMpgScope(filters.value));
-const { data: fleetMpg } = useFleetMpg(
+// A window needs both ends before it is a window, and a filter this figure cannot answer is not a
+// question worth asking the server.
+const mpgAsked = computed(() => mpgScope.value.unanswerable == null && !!props.shared.from.value && !!props.shared.to.value);
+const mpgQuery = useFleetMpg(
   computed(() => ({
     from: props.shared.from.value ?? "",
     to: props.shared.to.value ?? "",
     vehicleIds: mpgScope.value.vehicleIds,
-    // A window needs both ends before it is a window, and a filter this figure cannot answer is not
-    // a question worth asking the server.
-    enabled:
-      mpgScope.value.unanswerable == null &&
-      !!props.shared.from.value &&
-      !!props.shared.to.value,
+    enabled: mpgAsked.value,
   })),
+);
+const fleetMpg = mpgQuery.data;
+const mpgReady = computed(() =>
+  tileReady({ data: fleetMpg.value, isError: mpgQuery.isError.value, isPlaceholderData: mpgQuery.isPlaceholderData.value }),
 );
 
 // ── Lookups for the Vehicle / Driver columns ──────────────────────────────────────────────────────
@@ -253,17 +262,18 @@ const rowClass = (row: FuelTransaction) => (alertsOpen.value && row.has_anomaly 
 // reader the Alerts page does not open for, and `flaggedCasesLink` withholds it under a filter that page
 // cannot apply.
 const flaggedCount = computed(() => rangeTotals.value?.flagged ?? 0);
-const flaggedLink = computed(() => (flaggedCount.value ? flaggedCasesLink(filters.value) : null));
+const flaggedLink = computed(() => (totalsReady.value && flaggedCount.value ? flaggedCasesLink(filters.value) : null));
 const clearCount   = computed(() => rangeTotals.value?.clear ?? 0);
 const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
 const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
 const hasCost      = computed(() => rangeTotals.value?.hasCost ?? false);
-const avgMpg       = computed(() => fleetMpg.value?.mpg ?? null);
+const avgMpg       = computed(() => (mpgReady.value ? (fleetMpg.value?.mpg ?? null) : null));
 /** The line under the tile: why there is no number, or what the number stands on. */
 const avgMpgNote = computed(() => {
   if (mpgScope.value.unanswerable) return mpgScope.value.unanswerable;
-  const m = fleetMpg.value;
-  if (m == null) return "measured miles ÷ fuel";
+  // Asked and not answered — still loading, failed, or holding the last window's answer (11c).
+  if (!mpgReady.value) return mpgAsked.value ? NO_FIGURE_NOTE : "measured miles ÷ fuel";
+  const m = fleetMpg.value!;
   if (m.mpg == null) return m.reason ?? "not enough measured distance";
   return m.measuredShare == null
     ? "measured miles ÷ fuel"
@@ -366,29 +376,29 @@ const columns: DataTableColumn[] = [
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalMiles, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">driven in selected range</dd>
+          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ flaggedCount }}</dd>
-          <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
-            {{ flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
+          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ totalsReady ? flaggedCount : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs" :class="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
+            {{ !totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
           </dd>
           <dd v-if="flaggedLink" class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ clearCount }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">transactions with no flags</dd>
+          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ totalsReady ? clearCount : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalGallons, 0) }}</dd>
+          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE }}</dd>
           <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
                needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
                never did. -->
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ !totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
