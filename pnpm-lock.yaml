@@ -146,6 +146,9 @@ importers:
       '@hazmat/placards':
         specifier: workspace:*
         version: link:../../packages/hazmat-placards
+      '@napi-rs/canvas':
+        specifier: ^1.0.8
+        version: 1.0.8
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
@@ -197,6 +200,9 @@ importers:
       pdf-lib:
         specifier: 1.17.1
         version: 1.17.1
+      pdfjs-dist:
+        specifier: ^6.2.108
+        version: 6.2.108
       pdfkit:
         specifier: 0.19.1
         version: 0.19.1
@@ -11220,7 +11226,6 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 1.0.8
       '@napi-rs/canvas-win32-arm64-msvc': 1.0.8
       '@napi-rs/canvas-win32-x64-msvc': 1.0.8
-    optional: true
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
