@@ -49,9 +49,6 @@ vi.mock("@/composables/useFuelLog", () => ({
   useFuelTransactions: () => ({ data: { value: { rows: [], total: 0 } }, isLoading: { value: false }, isError: { value: false }, error: { value: null }, refetch: () => {}, isFetching: { value: false } }),
   useFuelRangeTotals: () => ({ data: rangeTotals }),
 }));
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 vi.mock("vue-router", async (importOriginal) => ({
   // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
   // three names it takes from vue-router stay real under this mock.

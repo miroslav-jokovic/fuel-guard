@@ -141,9 +141,6 @@ async function mountPage() {
   return w;
 }
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("FuelLogPage — the Trailer column is gone, and stays gone (D-FUI14)", () => {
   it("shows no Trailer column header", async () => {
     const headers = (await mountPage()).findAll("th").map((h) => h.text().trim());

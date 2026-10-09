@@ -136,9 +136,6 @@ beforeEach(async () => {
   await asRole("admin");
 });
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("FuelLogPage — three views of one week's fuel, under one window (D-FUI1)", () => {
   it("opens on Fills, and names the three tabs", async () => {
     const { w } = await mountAt("/fuel-log");

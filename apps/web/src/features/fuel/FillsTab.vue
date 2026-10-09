@@ -7,9 +7,8 @@
  * rows a human created. The body is the old `FuelLogPage.vue`'s, moved rather than rewritten — the
  * tiles, the columns, the weak-signal marker and the honest-absence gate note are unchanged.
  *
- * What moved OUT: `Log fill-up` and its drawer, which now sit on the shell. Logging a fill is an act
- * on the fuel log rather than on one of its views, and putting it on the tab would have made a
- * primary action appear and disappear as a reader compares a fill with the decline beside it.
+ * What moved OUT: `Log fill-up` and its drawer, to the shell — and then out of the app (Q-F6, chunk 12a):
+ * every fill comes from the fuel card, and the page no longer writes one.
  *
  * What changed: the truck filter. It used to be a vehicle id chosen from a picker labelled with unit
  * numbers; it is now the shared unit numbers, resolved back to ids here (`unitFilter.ts`). The choice
