@@ -37,3 +37,24 @@ export async function fetchAllPaged<T>(
   await eachPage<T>(makeQuery, (rows) => out.push(...rows), pageSize);
   return out;
 }
+
+/**
+ * How many ids one `.in()` filter may carry. Two ceilings, both measured on the Loads board 2026-10-09:
+ *
+ *  · the URL. An `.in()` puts every id in the query string (37 bytes a uuid), and PostgREST echoes the
+ *    request path back in `Content-Location`. Past ~16 KB of response headers Node 22's fetch refuses
+ *    the reply (`UND_ERR_HEADERS_OVERFLOW`, surfacing as "fetch failed") — 400 load ids already did.
+ *    Node 26 raised the limit, which is why the same read passed on a laptop and failed on Railway.
+ *  · the rows. Each id may bring several rows back (a McLeod load has up to 12 stops), and PostgREST
+ *    caps a response at 1,000; 50 ids keep a stops read under it.
+ *
+ * 50 ids is under 2 KB of URL, so both hold with room to spare.
+ */
+export const IN_LIST_CHUNK = 50;
+
+/** `items` cut into consecutive slices of at most `size` (the last may be shorter). */
+export function chunks<T>(items: readonly T[], size = IN_LIST_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}

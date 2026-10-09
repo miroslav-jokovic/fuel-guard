@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { eachPage, fetchAllPaged } from "./paging.js";
+import { IN_LIST_CHUNK, chunks, eachPage, fetchAllPaged } from "./paging.js";
 
 /** A fake paged source: `total` rows of {id}, served in pages sized by the caller (via .range bounds),
  *  matching PostgREST. Records each [from,to] it was asked for. */
@@ -53,5 +53,18 @@ describe("eachPage", () => {
     expect(onPage).toHaveBeenCalledTimes(3);
     expect(onPage.mock.calls[0]![0]).toHaveLength(1000);
     expect(onPage.mock.calls[2]![0]).toHaveLength(500);
+  });
+});
+
+describe("chunks", () => {
+  it("cuts a list into consecutive slices of at most the size, keeping every item once and in order", () => {
+    const items = Array.from({ length: 2 * IN_LIST_CHUNK + 7 }, (_, i) => i);
+    const parts = chunks(items);
+    expect(parts.map((p) => p.length)).toEqual([IN_LIST_CHUNK, IN_LIST_CHUNK, 7]);
+    expect(parts.flat()).toEqual(items);
+  });
+
+  it("returns no slices for an empty list, so a caller runs no query", () => {
+    expect(chunks([])).toEqual([]);
   });
 });
