@@ -20,6 +20,15 @@ export { checkSegregation } from "./segregation/check.js";
 // Exported so the products API can ask the SAME question the §172.322 rule answers (0.14.0).
 export { classifyMarinePollutantEntry, concentrationThresholdPct } from "./placards/marinePollutant.js";
 export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/validate.js";
+// The printed-paper audit (document reader D-DR6) and the one LQ-notation definition it shares with the
+// hazmat extractor.
+export { auditPrintedPaper } from "./bol/auditPrintedPaper.js";
+export { declaresLimitedQuantity } from "./bol/paperSupport.js";
+export * from "./bol/paperTypes.js";
+// The one derivation of `ResolvedPaper.certificationExempt` (§172.204(b)(1), owner ruling Q-DR16), and the
+// §172.604(d)(2) shipping names quoted verbatim.
+export { certificationExemptionFrom, type CarrierRelationship, type CertificationExemptionFacts } from "./bol/certificationExemption.js";
+export { ER_PHONE_EXCEPTED_SHIPPING_NAMES } from "./bol/paperErPhone.js";
 export { checkEligibility, auditProvidedInputs, UNEVALUATED_INPUTS, type EligibilityInput, type EligibilityResult } from "./eligibility.js";
 
 const ALL_PLACARDS: readonly PlacardName[] = [
