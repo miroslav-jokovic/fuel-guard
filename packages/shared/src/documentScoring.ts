@@ -3,13 +3,17 @@ import { alignHazmatLines, valuesEqual } from "./documentFieldMatch.js";
 import {
   DOCUMENT_PROFILES,
   PAGE_QUALITY_BANDS,
+  READ_FAILURE_CODES,
+  READ_FAILURE_KIND,
   shippingDocumentLabelsSchema,
   type PageQualityBand,
+  type ReadFailureCode,
   type ShippingDocumentLabels,
 } from "./documentReadingContract.js";
 import { fieldEvidenceSchema, leafFieldPaths, valueAtPath, type FieldStatus } from "./fieldEvidenceContract.js";
 import {
   GRADUATION_MIN_CONFIRMATIONS,
+  emptyShippingDocument,
   printedHazmatLineSchema,
   shippingDocumentSchema,
   type FieldCriticality,
@@ -30,6 +34,20 @@ import {
  *                      THE number: a `read` value is one no dispatcher is asked to look at (D-DR4/D-DR5);
  *   - yield          = instances with status `read` / instances;
  *   - cost per page  = the reader's USD / the pages of the documents it read (bands and overall only).
+ * Beside accuracy, two columns split what accuracy blends (owner's ruling, 2026-10-09): agreement on a
+ * BLANK ("label null, reader null") counts as correct in accuracy, which flatters it, yet it is also the
+ * only evidence the reader did not invent a value — measured live the same day, Sonnet 4.6 read
+ * `freight.pieces` = 31 off a synthetic BOL that printed no piece count. So:
+ *   - printed-value accuracy = instances whose LABEL has a value (not null, not an empty list) and whose
+ *                              read value equals it / instances whose label has a value;
+ *   - invented-value rate    = instances whose label is blank and whose read has a value, under any
+ *                              status / instances whose label is blank — with the `read` subset counted
+ *                              beside it, since each of those is already a false accept.
+ * A FAILED read (`{ failure: { code } }`, READ_FAILURE_KIND) splits by whose failure it is. A `reader`
+ * failure needs a human for every field, so every labelled field of that document scores as not read,
+ * with no value, and never correct — it lowers yield and accuracy and adds no false accept or invention.
+ * An `operational` failure (budget, integrity) is not reader performance: the document is left out of
+ * every number and listed apart.
  * A field the reader gave no evidence for counts as not read. A labelled line no read line matched
  * (`missed`) contributes every one of its leaves as a wrong, unread instance; a read line no labelled
  * line matched (`extra`) contributes every one of its leaves as a wrong instance under the status the
@@ -48,9 +66,17 @@ export const readerOutputSchema = z.object({
   cost: readerCostSchema,
 });
 export type ReaderOutput = z.infer<typeof readerOutputSchema>;
+/** A run file for a read that ended in a terminal failure (§4.7) instead of an output. A refusal still
+ * spends tokens, so its cost may be recorded and then counts toward cost per page. */
+export const readerFailureSchema = z.object({
+  failure: z.object({ code: z.enum(READ_FAILURE_CODES as [ReadFailureCode, ...ReadFailureCode[]]) }),
+  cost: readerCostSchema.optional(),
+});
+export type ReaderFailure = z.infer<typeof readerFailureSchema>;
 
 /** One corpus document as the scorer receives it: raw JSON, validated here so one bad file is a line in
- * the report rather than a crashed run. `output` undefined = this run has no output for the document. */
+ * the report rather than a crashed run. `output` undefined = this run has no output for the document;
+ * an object with a `failure` key is a `readerFailureSchema` file, anything else a `readerOutputSchema` one. */
 export interface CorpusEntry {
   id: string;
   labels: unknown;
@@ -69,11 +95,21 @@ interface Counts {
   /** Instances whose label carries a value (not null, not an empty list) — how much of `accuracy` is
    * agreement on blanks. */
   labelPresent: number;
+  /** Of `labelPresent`, those read exactly right — printed-value accuracy's numerator. */
+  printedCorrect: number;
+  /** Instances whose label is blank (`fields - labelPresent`) — the invented-value rate's denominator. */
+  labelBlank: number;
+  /** Of `labelBlank`, those the reader gave a value for, under any status. */
+  invented: number;
+  /** Of `invented`, those with status `read` — every one is also a false accept. */
+  inventedRead: number;
 }
 interface Rates {
   accuracy: number | null;
   falseAcceptRate: number | null;
   yield: number | null;
+  printedAccuracy: number | null;
+  inventedRate: number | null;
 }
 export interface FieldScore extends Counts, Rates {
   field: string;
@@ -103,10 +139,19 @@ export interface CorpusScore {
     invalidLabels: string[];
     missingOutputs: string[];
     invalidOutputs: string[];
+    /** Scored, every field not read — counted in `scored` and in the four numbers. */
+    readerFailures: FailedRead[];
+    /** Not scored — not reader performance — and not counted in `scored`. */
+    operationalFailures: FailedRead[];
   };
   lines: { labelled: number; matched: number; missed: number; extra: number };
   fields: FieldScore[];
   bands: BandScore[];
+}
+
+export interface FailedRead {
+  id: string;
+  code: ReadFailureCode;
 }
 
 interface Instance {
@@ -115,6 +160,8 @@ interface Instance {
   correct: boolean;
   status: FieldStatus | null;
   labelPresent: boolean;
+  /** The reader gave this instance a value (not null, not an empty list). */
+  readPresent: boolean;
 }
 
 interface ScoredDoc {
@@ -122,6 +169,8 @@ interface ScoredDoc {
   labels: ShippingDocumentLabels;
   label: ShippingDocument;
   output: ReaderOutput;
+  /** A reader failure: `output` is then the empty document with no evidence, and nothing is correct. */
+  failed: boolean;
 }
 
 const profile = DOCUMENT_PROFILES.shipping_document;
@@ -157,6 +206,12 @@ export function documentFieldPaths(docs: readonly ShippingDocument[]): string[] 
 }
 
 function documentInstances(doc: ScoredDoc, paths: readonly string[]): Instance[] {
+  const all = readInstances(doc, paths);
+  // A failed read gives a human every field to key — a blank it "agreed" on was never looked at.
+  return doc.failed ? all.map((i) => ({ ...i, correct: false })) : all;
+}
+
+function readInstances(doc: ScoredDoc, paths: readonly string[]): Instance[] {
   const evidence = new Map(doc.output.evidence.map((e) => [e.path, e] as const));
   const out: Instance[] = paths.map((path) => {
     // `undefined` here only means a null parent (`parties.shipper` is null): the paper has no value.
@@ -168,6 +223,7 @@ function documentInstances(doc: ScoredDoc, paths: readonly string[]): Instance[]
       correct: valuesEqual(want, got),
       status: evidence.get(path)?.status ?? null,
       labelPresent: isPresent(want),
+      readPresent: isPresent(got),
     };
   });
   const labelLines = doc.label.hazmat.lines;
@@ -183,6 +239,7 @@ function documentInstances(doc: ScoredDoc, paths: readonly string[]): Instance[]
         correct: li != null && ri != null && valuesEqual(want, got),
         status: ri == null ? null : (evidence.get(`hazmat.lines[${ri}].${leaf}`)?.status ?? null),
         labelPresent: isPresent(want),
+        readPresent: isPresent(got),
       };
     });
   for (const p of pairs) out.push(...line(p.label, p.read));
@@ -193,25 +250,38 @@ function documentInstances(doc: ScoredDoc, paths: readonly string[]): Instance[]
 
 class Tally {
   docs = new Set<string>();
-  c: Omit<Counts, "documents"> = { fields: 0, correct: 0, read: 0, falseAccepts: 0, labelPresent: 0 };
+  c: Omit<Counts, "documents"> = {
+    fields: 0, correct: 0, read: 0, falseAccepts: 0, labelPresent: 0, printedCorrect: 0, labelBlank: 0, invented: 0, inventedRead: 0,
+  };
   add(docId: string, i: Instance): void {
     this.docs.add(docId);
     this.c.fields += 1;
     if (i.correct) this.c.correct += 1;
-    if (i.labelPresent) this.c.labelPresent += 1;
+    if (i.labelPresent) {
+      this.c.labelPresent += 1;
+      if (i.correct) this.c.printedCorrect += 1;
+    } else {
+      this.c.labelBlank += 1;
+      if (i.readPresent) {
+        this.c.invented += 1;
+        if (i.status === "read") this.c.inventedRead += 1;
+      }
+    }
     if (i.status === "read") {
       this.c.read += 1;
       if (!i.correct) this.c.falseAccepts += 1;
     }
   }
   result(): Counts & Rates {
-    const { fields, correct, read, falseAccepts } = this.c;
+    const { fields, correct, read, falseAccepts, labelPresent, printedCorrect, labelBlank, invented } = this.c;
     return {
       documents: this.docs.size,
       ...this.c,
       accuracy: ratio(correct, fields),
       falseAcceptRate: ratio(falseAccepts, read),
       yield: ratio(read, fields),
+      printedAccuracy: ratio(printedCorrect, labelPresent),
+      inventedRate: ratio(invented, labelBlank),
     };
   }
 }
@@ -236,20 +306,40 @@ function fieldScore(field: string, criticality: FieldCriticality, t: Tally): Fie
 
 type Triage = { scored: ScoredDoc[]; report: CorpusScore["documents"] };
 
+const isFailureFile = (v: unknown) => typeof v === "object" && v != null && "failure" in v;
+const NO_COST = { inputTokens: 0, outputTokens: 0, usd: 0 };
+
+/** A run file as an output to score — a reader failure becomes the empty document with no evidence —
+ * or, when it is not one, the report bucket it goes in instead (null). */
+function runFileOutput(e: CorpusEntry, report: CorpusScore["documents"]): { output: ReaderOutput; failed: boolean } | null {
+  if (e.output === undefined) { report.missingOutputs.push(e.id); return null; }
+  if (isFailureFile(e.output)) {
+    const f = readerFailureSchema.safeParse(e.output);
+    if (!f.success) { report.invalidOutputs.push(e.id); return null; }
+    const { code } = f.data.failure;
+    if (READ_FAILURE_KIND[code] === "operational") { report.operationalFailures.push({ id: e.id, code }); return null; }
+    report.readerFailures.push({ id: e.id, code });
+    return { output: { document: emptyShippingDocument(), evidence: [], cost: f.data.cost ?? NO_COST }, failed: true };
+  }
+  const output = readerOutputSchema.safeParse(e.output);
+  if (!output.success) { report.invalidOutputs.push(e.id); return null; }
+  return { output: output.data, failed: false };
+}
+
 /** Validate every entry; an invalid file is reported by id, never thrown. */
 function triage(entries: readonly CorpusEntry[]): Triage {
   const report: CorpusScore["documents"] = {
     total: entries.length, scored: 0, skippedUnlabelled: 0, invalidLabels: [], missingOutputs: [], invalidOutputs: [],
+    readerFailures: [], operationalFailures: [],
   };
   const scored: ScoredDoc[] = [];
   for (const e of entries) {
     const labels = shippingDocumentLabelsSchema.safeParse(e.labels);
     if (!labels.success) { report.invalidLabels.push(e.id); continue; }
     if (labels.data.labelledBy.length < 1) { report.skippedUnlabelled += 1; continue; }
-    if (e.output === undefined) { report.missingOutputs.push(e.id); continue; }
-    const output = readerOutputSchema.safeParse(e.output);
-    if (!output.success) { report.invalidOutputs.push(e.id); continue; }
-    scored.push({ id: e.id, labels: labels.data, label: shippingDocumentSchema.parse(labels.data), output: output.data });
+    const run = runFileOutput(e, report);
+    if (!run) continue;
+    scored.push({ id: e.id, labels: labels.data, label: shippingDocumentSchema.parse(labels.data), ...run });
   }
   report.scored = scored.length;
   return { scored, report };

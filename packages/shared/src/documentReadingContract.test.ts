@@ -4,6 +4,9 @@ import {
   DOCUMENT_PROFILES,
   INTAKE_LIMITS,
   INTAKE_REFUSALS,
+  READ_FAILURES,
+  READ_FAILURE_CODES,
+  READ_FAILURE_KIND,
   createSourceRequestSchema,
   reviewBatchRequestSchema,
   shippingDocumentLabelsSchema,
@@ -108,6 +111,12 @@ describe("routes and refusals", () => {
     expect(INTAKE_REFUSALS.too_small).toContain(String(INTAKE_LIMITS.minLongEdgePx));
     expect(INTAKE_REFUSALS.too_large).toContain(`${INTAKE_LIMITS.maxBytes / 1024 / 1024} MB`);
     expect(INTAKE_REFUSALS.too_many_pages).toContain(String(INTAKE_LIMITS.maxPdfPages));
+  });
+
+  it("gives every read failure code a kind, reader or operational, and no kind to a code that does not exist", () => {
+    expect(Object.keys(READ_FAILURE_KIND).sort()).toEqual([...READ_FAILURE_CODES].sort());
+    for (const code of READ_FAILURE_CODES) expect(["reader", "operational"]).toContain(READ_FAILURE_KIND[code]);
+    expect(Object.keys(READ_FAILURES)).toEqual(READ_FAILURE_CODES);
   });
 
   it("refuses an upload over the size limit or with a malformed hash", () => {

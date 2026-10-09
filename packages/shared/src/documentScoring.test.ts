@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { alignHazmatLines, hazmatLineKey, valuesEqual } from "./documentFieldMatch.js";
 import { documentBand, scoreCorpus, type CorpusEntry, type FieldScore } from "./documentScoring.js";
-import { shippingDocumentLabelsSkeleton } from "./documentReadingContract.js";
+import { READ_FAILURE_CODES, READ_FAILURE_KIND, shippingDocumentLabelsSkeleton } from "./documentReadingContract.js";
 import type { FieldEvidence } from "./fieldEvidenceContract.js";
 import { leafFieldPaths } from "./fieldEvidenceContract.js";
 import { emptyShippingDocument, printedHazmatLineSchema, type PrintedHazmatLine, type ShippingDocument } from "./shippingDocumentContract.js";
@@ -98,6 +98,8 @@ describe("alignHazmatLines — by key, not index (F-EX6)", () => {
     expect(s.lines).toEqual({ labelled: 2, matched: 1, missed: 1, extra: 1 });
     // UN1203 right; UN1993 missed (unread, wrong); UN1830 extra and `read` (a false accept).
     expect(field(s, "hazmat.lines[].psn")).toMatchObject({ fields: 3, correct: 1, read: 2, falseAccepts: 1 });
+    // The extra line's PSN has no label at all, so it is an invented value — and a `read` one.
+    expect(field(s, "hazmat.lines[].psn")).toMatchObject({ labelBlank: 1, invented: 1, inventedRead: 1 });
   });
 });
 
@@ -148,6 +150,7 @@ describe("scoreCorpus — the four numbers", () => {
     ];
     expect(scoreCorpus(entries).documents).toEqual({
       total: 5, scored: 1, skippedUnlabelled: 1, invalidLabels: ["bad-label"], missingOutputs: ["no-run"], invalidOutputs: ["bad-run"],
+      readerFailures: [], operationalFailures: [],
     });
   });
 
@@ -193,5 +196,101 @@ describe("scoreCorpus — the four numbers", () => {
     bad.identity.bolNumber = "X";
     const withError = scoreCorpus([...entries, { id: "e", labels: labelsFor(doc), output: output(bad) }]);
     expect(field(withError, "identity.bolNumber").graduation.upperBound95).toBeNull();
+  });
+});
+
+const READER_CODES = READ_FAILURE_CODES.filter((c) => READ_FAILURE_KIND[c] === "reader");
+const OPERATIONAL_CODES = READ_FAILURE_CODES.filter((c) => READ_FAILURE_KIND[c] === "operational");
+const all = (s: { bands: { band: string }[] }) => s.bands.find((b) => b.band === "all") as ReturnType<typeof scoreCorpus>["bands"][number];
+
+describe("scoreCorpus — failed reads (owner's ruling, 2026-10-09)", () => {
+  it("has both kinds of failure to test", () => {
+    expect(READER_CODES.length).toBeGreaterThan(0);
+    expect(OPERATIONAL_CODES.length).toBeGreaterThan(0);
+  });
+
+  it.each(READER_CODES)("scores a %s failure as every labelled field not read: yield falls, no false accept is added", (code) => {
+    const doc = paper();
+    const ok = { id: "ok", labels: labelsFor(doc), output: output(doc) };
+    const alone = all(scoreCorpus([ok]));
+    const s = scoreCorpus([ok, { id: "failed", labels: labelsFor(doc), output: { failure: { code }, cost: { inputTokens: 900, outputTokens: 10, usd: 0.02 } } }]);
+    expect(s.documents).toMatchObject({ scored: 2, readerFailures: [{ id: "failed", code }], operationalFailures: [], missingOutputs: [] });
+    expect(all(s)).toMatchObject({
+      documents: 2,
+      fields: 2 * alone.fields,
+      read: alone.read,
+      yield: alone.yield! / 2,
+      // Never correct — not even a blank the empty read "agreed" on — and nothing invented.
+      correct: alone.correct,
+      printedCorrect: alone.printedCorrect,
+      labelPresent: 2 * alone.labelPresent,
+      falseAccepts: 0,
+      invented: 0,
+      usd: alone.usd + 0.02,
+    });
+    expect(field(s, "identity.bolNumber")).toMatchObject({ fields: 2, correct: 1, read: 1, falseAccepts: 0, yield: 0.5 });
+    expect(field(s, "freight.pieces")).toMatchObject({ fields: 2, correct: 1, labelBlank: 2, invented: 0 });
+    expect(s.lines).toMatchObject({ labelled: 4, missed: 2 });
+  });
+
+  it.each(OPERATIONAL_CODES)("leaves a %s failure out of every number and lists it apart", (code) => {
+    const doc = paper();
+    const ok = { id: "ok", labels: labelsFor(doc), output: output(doc) };
+    const alone = scoreCorpus([ok]);
+    const s = scoreCorpus([ok, { id: "budget", labels: labelsFor(doc), output: { failure: { code } } }]);
+    expect(s.documents).toMatchObject({ scored: 1, readerFailures: [], operationalFailures: [{ id: "budget", code }] });
+    expect(s.fields).toEqual(alone.fields);
+    expect(s.bands).toEqual(alone.bands);
+    expect(s.lines).toEqual(alone.lines);
+  });
+
+  it("reports a failure file with an unknown code as an invalid run file, and an absent run file as missing", () => {
+    const doc = paper();
+    const s = scoreCorpus([
+      { id: "odd", labels: labelsFor(doc), output: { failure: { code: "timeout" } } },
+      { id: "none", labels: labelsFor(doc), output: undefined },
+    ]);
+    expect(s.documents).toMatchObject({ scored: 0, invalidOutputs: ["odd"], missingOutputs: ["none"], readerFailures: [], operationalFailures: [] });
+  });
+});
+
+describe("scoreCorpus — printed-value accuracy and invented values (owner's ruling, 2026-10-09)", () => {
+  it("leaves printed-value accuracy where it is when only the reader's answers on blank labels change", () => {
+    const doc = paper();
+    const inventing = clone(doc);
+    inventing.freight.pieces = 31;
+    inventing.freight.pallets = 4;
+    const agree = all(scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: output(doc) }]));
+    const invent = all(scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: output(inventing) }]));
+    expect(invent.accuracy!).toBeLessThan(agree.accuracy!);
+    expect(invent.printedAccuracy).toBe(agree.printedAccuracy);
+    expect(invent.printedCorrect).toBe(agree.printedCorrect);
+    expect(agree.printedAccuracy).toBe(1);
+    // A field whose label is blank everywhere has no printed-value accuracy, though accuracy says 100 %.
+    const blank = field(scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: output(doc) }]), "freight.pieces");
+    expect(blank).toMatchObject({ accuracy: 1, labelPresent: 0, printedAccuracy: null, labelBlank: 1, invented: 0, inventedRate: 0 });
+  });
+
+  it("drops printed-value accuracy for a wrong printed value", () => {
+    const doc = paper();
+    const read = clone(doc);
+    read.identity.bolNumber = "BOL-1O01";
+    const s = scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: output(read) }]);
+    expect(field(s, "identity.bolNumber")).toMatchObject({ labelPresent: 1, printedCorrect: 0, printedAccuracy: 0 });
+  });
+
+  it("counts a value read off a blank as invented under any status, and its `read` subset apart", () => {
+    const doc = paper();
+    const read = clone(doc);
+    read.freight.pieces = 31;
+    read.freight.pallets = 2;
+    const out = output(read);
+    out.evidence = out.evidence.map((e) => (e.path === "freight.pallets" ? { ...e, status: "check" as const } : e));
+    const s = scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: out }]);
+    expect(field(s, "freight.pieces")).toMatchObject({ labelBlank: 1, invented: 1, inventedRead: 1, inventedRate: 1, falseAccepts: 1 });
+    expect(field(s, "freight.pallets")).toMatchObject({ labelBlank: 1, invented: 1, inventedRead: 0, inventedRate: 1, falseAccepts: 0 });
+    const base = all(scoreCorpus([{ id: "d1", labels: labelsFor(doc), output: output(doc) }]));
+    expect(all(s)).toMatchObject({ invented: 2, inventedRead: 1, labelBlank: base.labelBlank, falseAccepts: base.falseAccepts + 1 });
+    expect(all(s).inventedRate).toBeCloseTo(2 / base.labelBlank);
   });
 });
