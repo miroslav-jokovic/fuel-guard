@@ -13,6 +13,15 @@ export const usd = (n: number | null | undefined): string =>
  */
 export const wholeUsd = (n: number | null | undefined): string => (n == null ? "—" : usd(Math.round(n) === 0 ? 0 : n));
 
+/**
+ * Dollars and cents, for ONE purchase rather than a total — a fill's amount is compared against the EFS
+ * statement line by line, and a rounded row would never match it. Moved from the reconcile feature's
+ * `format.ts` (F02-F04 chunk 11b) so the Fuel Log can read the same string without importing another
+ * feature's internals.
+ */
+export const usd2 = (n: number | null | undefined): string =>
+  n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 /** Per-gallon prices carry three decimals — a tenth of a cent is $200/year on this fleet's volume. */
 export const usd3 = (n: number | null | undefined): string => (n == null ? "—" : `$${n.toFixed(3)}`);
 
