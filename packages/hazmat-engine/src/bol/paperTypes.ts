@@ -75,11 +75,11 @@ export interface PrintedPaper {
     readonly pageOf: { readonly page: number | null; readonly of: number | null } | null;
     /**
      * The page marker printed on each image, one entry per image in capture order ("Page 1 of 2", "2",
-     * "" for an image that prints none) — what §172.201(c)'s "each page is consecutively numbered" is
+     * null for an image that prints none, as the contract writes it; "" is read the same) — what §172.201(c)'s "each page is consecutively numbered" is
      * checked against. Named as the reader's contract will name it (`identity.printedPageNumbers`), so
      * the seam test binds the two the day the contract gains it.
      */
-    readonly printedPageNumbers?: readonly string[] | null;
+    readonly printedPageNumbers?: readonly (string | null)[] | null;
   };
   readonly hazmat: {
     readonly lines: readonly PrintedPaperLine[];

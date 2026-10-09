@@ -85,6 +85,11 @@ describe("paper_page_complete — §172.201(c): \"A shipping paper may consist o
     expect(r.outcome).toBe("fail");
     expect(r.reason).toBe("page_not_numbered");
   });
+  it("reads the reader contract's null entry as an image with no page number — the same failure as \"\"", () => {
+    const r = pages({ pageOf: { page: 1, of: 2 }, printedPageNumbers: ["Page 1 of 2", null] });
+    expect(r.outcome).toBe("fail");
+    expect(r.reason).toBe("page_not_numbered");
+  });
   it("fails a total printed on page 2 only — \"the first page bears a notation specifying the total\"", () => {
     const r = pages({ pageOf: { page: 2, of: 2 }, printedPageNumbers: ["Page 1", "Page 2 of 2"] });
     expect(r.outcome).toBe("fail");

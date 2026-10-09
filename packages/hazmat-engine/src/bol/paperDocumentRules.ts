@@ -33,7 +33,8 @@ export function paperCertification(printed: PrintedPaper, resolved: ResolvedPape
 }
 
 /** "Page 2 of 3" → { page: 2, of: 3 }; "3" → { page: 3, of: null }; "" → { page: null, of: null }. */
-function parseMarker(marker: string): { page: number | null; of: number | null } {
+function parseMarker(marker: string | null): { page: number | null; of: number | null } {
+  if (marker == null) return { page: null, of: null }; // the reader saw no marker on this image
   const m = /(\d+)(?:\s*(?:of|\/)\s*(\d+))?/i.exec(marker);
   return m ? { page: Number(m[1]), of: m[2] != null ? Number(m[2]) : null } : { page: null, of: null };
 }
