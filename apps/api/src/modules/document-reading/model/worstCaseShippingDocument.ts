@@ -33,7 +33,7 @@ export function worstCaseShippingDocument(): ShippingDocument {
     address: `${name.length * 97} Industrial Parkway Suite 400, Building C Dock 12, Elk Grove Village, IL 60007-1234`,
   });
   return shippingDocumentSchema.parse({
-    identity: { bolNumber: "BOL-2026-0098765432-A", date: "10/08/2026 14:35 CDT", pageOf: { page: 2, of: 2 } },
+    identity: { bolNumber: "BOL-2026-0098765432-A", date: "10/08/2026 14:35 CDT", pageOf: { page: 2, of: 2 }, printedPageNumbers: ["Page 1 of 2 pages", "Page 2 of 2 pages"] },
     parties: {
       shipper: party("Midwest Specialty Chemical Distribution Company LLC"),
       consignee: party("Great Lakes Industrial Coatings and Finishing Incorporated"),
@@ -51,6 +51,7 @@ export function worstCaseShippingDocument(): ShippingDocument {
     hazmat: {
       lines: PSNS.map(([idText, psn, hazardClass, pg, technicalName], i) => ({
         idText, psn, hazardClass, pg, technicalName,
+        descriptionText: [idText, `${psn}${technicalName ? ` ${technicalName}` : ""}`, hazardClass, pg && `PG ${pg}`].filter(Boolean).join(", "),
         quantity: { value: 1234.5 + i, unit: "gal" },
         grossWeightLb: 3456.75 + i, packageCount: 12 + i, perPackageWeightLb: 288.06,
         packaging: `${12 + i} steel drums 55 gal 1A1/Y1.4/150`,
@@ -60,7 +61,13 @@ export function worstCaseShippingDocument(): ShippingDocument {
       emergencyPhone: "CHEMTREC 1-800-424-9300 CCN 812345",
       shipperCertification: true,
       offeror: "Midwest Specialty Chemical Distribution Company LLC",
+      emergencyContactText: "EMERGENCY CONTACT: CHEMTREC 24 HR — Contract CCN 812345 — Midwest Specialty Chemical",
     },
+    otherLines: [
+      "22 PLT Paper products, corrugated cartons (not regulated) 18,450 LBS CLASS 55",
+      "4 PLT Plastic pails, empty, new (not regulated) 1,120 LBS CLASS 85",
+      "1 CTN Material safety data sheets and shipping documents (not regulated) 12 LBS",
+    ],
     execution: {
       receiverSignaturePresent: true,
       receiverName: "J. Rodriguez-Hernandez, Receiving Supervisor",

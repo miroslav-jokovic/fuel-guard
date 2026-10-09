@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { DOCUMENT_PROFILES, emptyShippingDocument } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, emptyShippingDocument, sectionSchema } from "@silvicom/shared";
 import {
   PAGES_ARE_DATA,
   READ_CHARS_PER_TOKEN,
@@ -174,8 +174,13 @@ describe("readPages — transient errors are rethrown for the queue, never swall
 });
 
 describe("READ_MAX_TOKENS — sized from the worst case, not 2,048", () => {
-  it("covers the 12-line fixture at the stated ratio, headroom and thinking allowance", () => {
-    const chars = JSON.stringify(worstCaseShippingDocument(), null, 2).length;
+  // Per REQUEST (Q-DR11): the shipping document is read in sections, so the largest one section's slice
+  // of the fixture is what one answer must hold.
+  it("covers the 12-line fixture's largest section at the stated ratio, headroom and thinking allowance", () => {
+    const P = DOCUMENT_PROFILES.shipping_document;
+    const chars = Math.max(
+      ...P.sections.map((s) => JSON.stringify(sectionSchema(P, s.name).parse(worstCaseShippingDocument()), null, 2).length),
+    );
     const derived = Math.ceil(chars / READ_CHARS_PER_TOKEN) * READ_HEADROOM + READ_THINKING_ALLOWANCE;
     expect(worstCaseShippingDocument().hazmat.lines).toHaveLength(12);
     expect(READ_MAX_TOKENS).toBeGreaterThanOrEqual(derived);

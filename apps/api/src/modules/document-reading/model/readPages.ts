@@ -1,4 +1,5 @@
 import Anthropic, { APIError } from "@anthropic-ai/sdk";
+import type { z } from "zod";
 import type { DocumentProfileId } from "@silvicom/shared";
 import { DOCUMENT_PROFILES, type ReadFailureCode } from "@silvicom/shared";
 import { schemaHash, wireSchemaFor, type JsonSchema } from "./wireSchema.js";
@@ -41,7 +42,13 @@ import { schemaHash, wireSchemaFor, type JsonSchema } from "./wireSchema.js";
  * top, 8,000 for adaptive thinking, which Opus 5.5 cannot switch off and which spends from this same
  * budget at its default effort. 6,808 + 8,000 = 14,808, rounded up to 16,000. It stays below the SDK's
  * non-streaming ceiling (21,333: the TypeScript SDK refuses a non-streaming request whose max_tokens
- * implies more than ten minutes at 128k tokens/hour), so the call needs no stream. Re-derive it, by
+ * implies more than ten minutes at 128k tokens/hour), so the call needs no stream.
+ *
+ * Since Q-DR11 the shipping document is read in sections, so ONE request writes one section and the
+ * budget is per request: the profile-1.1.0 fixture's largest section (`lines`: twelve lines with their
+ * printed descriptions, plus three other lines) is 8,157 characters → 3,263 × 2 + 8,000 = 14,526, still
+ * under 16,000. (The figures above are profile 1.0.0's whole document, the one request it was then; the
+ * 1.1.0 whole document is 10,084 characters and would need 16,068, but no request sends it.) Re-derive it, by
  * the test that pins this figure, whenever the profile schema grows. Only output actually generated is
  * billed, so headroom costs nothing on an ordinary page.
  */
@@ -145,10 +152,18 @@ function usageOf(resp: Anthropic.Message): ReadUsage {
   };
 }
 
+/** One request for the WHOLE profile — the call for a profile that registers no sections. */
 export async function readPages(input: ReadPagesInput, client: ModelClient): Promise<ReadPagesResult> {
+  return readWithSchema(input, DOCUMENT_PROFILES[input.profile].schema, client);
+}
+
+/**
+ * One request against `schema` — the whole profile's (`readPages`) or one section's (`readSections`).
+ * The answer is validated with the same schema the wire schema was generated from.
+ */
+export async function readWithSchema(input: ReadPagesInput, schema: z.ZodType, client: ModelClient): Promise<ReadPagesResult> {
   if (input.pages.length === 0) throw new Error("readPages needs at least one page");
-  const profile = DOCUMENT_PROFILES[input.profile];
-  const wire = wireSchemaFor(profile.schema);
+  const wire = wireSchemaFor(schema);
   const hash = schemaHash(wire);
 
   let resp: Anthropic.Message;
@@ -178,12 +193,12 @@ export async function readPages(input: ReadPagesInput, client: ModelClient): Pro
   if (resp.stop_reason !== "end_turn") {
     return { kind: "schema_invalid", detail: `unexpected stop_reason ${resp.stop_reason}`, ...base };
   }
-  return parseDocument(resp, profile.schema, base);
+  return parseDocument(resp, schema, base);
 }
 
 function parseDocument(
   resp: Anthropic.Message,
-  schema: (typeof DOCUMENT_PROFILES)[DocumentProfileId]["schema"],
+  schema: z.ZodType,
   base: ReadProvenance,
 ): ReadPagesResult {
   const text = resp.content

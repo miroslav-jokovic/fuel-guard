@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { DOCUMENT_PROFILES, DOCUMENT_PROFILE_IDS } from "@silvicom/shared";
+import { sectionWireSchemas } from "./readSections.js";
 import {
   STRUCTURED_OUTPUT_LIMITS,
   UnsupportedSchemaError,
@@ -123,13 +124,56 @@ describe("schemaComplexity — measured against the documented compilation limit
     expect(schemaComplexity(s)).toEqual({ optionalParameters: 2, unionParameters: 2 });
   });
 
+  it("counts a list whose items are a union as one union, a list of objects as none", () => {
+    const s = wireSchemaFor(z.object({ a: z.array(z.string().nullable()), o: z.array(z.object({ n: z.string() })) }));
+    expect(schemaComplexity(s)).toEqual({ optionalParameters: 0, unionParameters: 1 });
+  });
+
   // The measurement the Step 1.4 report rests on: the shipping document has no optional parameter (every
   // field defaults, so `io: "output"` requires all of them) but one union per nullable field, which is
-  // well over the documented 16. The live call decides whether the API counts it the same way.
-  it("shipping_document: 0 optional parameters, 37 union parameters (limit 16)", () => {
+  // well over the documented 16 — 37 at profile 1.0.0, refused live with 400 (Q-DR11); 40 at 1.1.0. This
+  // is why the profile is read in sections (below), and it stays pinned so the whole-document count is
+  // never mistaken for one that a single request could send.
+  it("shipping_document whole: 0 optional parameters, 40 union parameters (limit 16)", () => {
     const c = schemaComplexity(wireSchemaFor(DOCUMENT_PROFILES.shipping_document.schema));
-    expect(c).toEqual({ optionalParameters: 0, unionParameters: 37 });
+    expect(c).toEqual({ optionalParameters: 0, unionParameters: 40 });
     expect(c.optionalParameters).toBeLessThanOrEqual(STRUCTURED_OUTPUT_LIMITS.optionalParameters);
     expect(c.unionParameters).toBeGreaterThan(STRUCTURED_OUTPUT_LIMITS.unionParameters);
+  });
+});
+
+/**
+ * Q-DR11's gate: every section of every sectioned profile, as the wire schema `readSections` sends, is
+ * under the documented per-request limits — so a field added later that breaks a section fails here,
+ * not as a 400 on a read. STRICTLY under 16 unions: the docs say "at most 16", and one live probe on
+ * 2026-10-09 had a FLAT object of 16 nullable strings accepted, but nothing measures 16 for a nested
+ * schema of real size, and the grammar-size limit is a second, unpublished one (the "16 nullable + 21
+ * optional" variant was refused as "The compiled grammar is too large") — so 16 is not assumed to pass.
+ * Optional parameters: at most 24.
+ */
+describe("profile sections — each one request the API will compile", () => {
+  const sectioned = DOCUMENT_PROFILE_IDS.filter((id) => (DOCUMENT_PROFILES[id] as { sections?: unknown }).sections);
+  it("has at least one sectioned profile to check", () => {
+    expect(sectioned).toContain("shipping_document");
+  });
+  it.each(sectioned.flatMap((id) => sectionWireSchemas(id).map((s) => [id, s.name, s.wire] as const)))(
+    "%s/%s: unions < 16, optional <= 24",
+    (_id, _name, wire) => {
+      const c = schemaComplexity(wire);
+      expect(c.unionParameters).toBeLessThan(STRUCTURED_OUTPUT_LIMITS.unionParameters);
+      expect(c.optionalParameters).toBeLessThanOrEqual(STRUCTURED_OUTPUT_LIMITS.optionalParameters);
+    },
+  );
+  it("shipping_document's measured packing: identity 15, load 12, lines 13 unions; none optional", () => {
+    const counts = sectionWireSchemas("shipping_document").map((s) => [s.name, schemaComplexity(s.wire)]);
+    expect(Object.fromEntries(counts)).toEqual({
+      identity: { optionalParameters: 0, unionParameters: 15 },
+      load: { optionalParameters: 0, unionParameters: 12 },
+      lines: { optionalParameters: 0, unionParameters: 13 },
+    });
+  });
+  it("the sections' unions add up to the whole document's — none is lost or counted twice", () => {
+    const total = sectionWireSchemas("shipping_document").reduce((t, s) => t + schemaComplexity(s.wire).unionParameters, 0);
+    expect(total).toBe(schemaComplexity(wireSchemaFor(DOCUMENT_PROFILES.shipping_document.schema)).unionParameters);
   });
 });

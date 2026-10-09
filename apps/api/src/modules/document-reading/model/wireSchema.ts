@@ -105,9 +105,13 @@ export function schemaHash(wire: JsonSchema): string {
  * parameters with union types (`anyOf` or a type array). A nullable field is a union. Counted over
  * every property at every depth, an array's item schema once — the docs say "total parameters across
  * all strict schemas" without saying whether nested properties count, so this counts the strict
- * reading. It is a MEASUREMENT for the record and the report; the API is the arbiter (a schema over a
+ * reading. A list whose ITEMS are a union (`array<string|null>`) counts as one union parameter too —
+ * also the strict reading: a live probe on 2026-10-09 had 16 nullable fields plus such a list accepted,
+ * so the API did not count it that day, but that is undocumented behaviour and a gate must not rest on
+ * it. It is a MEASUREMENT for the record and the report; the API is the arbiter (a schema over a
  * limit is a 400, which `readPages` lets propagate as the configuration error it is).
  */
+const isUnion = (s: JsonSchema) => Array.isArray(s.anyOf) || Array.isArray(s.type);
 export const STRUCTURED_OUTPUT_LIMITS = { optionalParameters: 24, unionParameters: 16 } as const;
 
 export function schemaComplexity(wire: JsonSchema): { optionalParameters: number; unionParameters: number } {
@@ -118,7 +122,7 @@ export function schemaComplexity(wire: JsonSchema): { optionalParameters: number
     const required = new Set(Array.isArray(s.required) ? (s.required as string[]) : []);
     for (const [name, p] of Object.entries(props)) {
       if (!required.has(name)) optionalParameters++;
-      if (Array.isArray(p.anyOf) || Array.isArray(p.type)) unionParameters++;
+      if (isUnion(p) || (isSchema(p.items) && isUnion(p.items))) unionParameters++;
     }
     const children = [...Object.values(props), ...(isSchema(s.items) ? [s.items] : [])];
     for (const branch of [...children, ...((s.anyOf as JsonSchema[] | undefined) ?? [])]) visit(branch);
