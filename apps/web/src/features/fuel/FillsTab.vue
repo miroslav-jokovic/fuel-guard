@@ -25,7 +25,7 @@ import { useRouter } from "vue-router";
 import { useOpens } from "@/composables/useOpens";
 import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, fleetMpgScope, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
-import { stationDateTime } from "@/lib/stationTime";
+import { efsDateTime, stationClockNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useFuelTransactions, useFuelRangeTotals, FUEL_PAGE_SIZE, type FuelFilters } from "@/composables/useFuelLog";
@@ -242,8 +242,6 @@ function onRowClick(row: FuelTransaction) {
 // `group` is DataTable's, via `pin-first-column`; this only adds what is specific to a fill.
 const rowClass = (row: FuelTransaction) => (alertsOpen.value && row.has_anomaly ? "cursor-pointer" : "");
 
-// Station-local (matches the EFS report), not the browser's timezone.
-const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
 
 // Summary stats reflect the WHOLE filtered range (not just this page) — sourced from useFuelRangeTotals
 // so applying a filter updates every tile, not only the rows currently visible.
@@ -372,10 +370,9 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
-    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
-         the section had four answers to “what is a day” and no surface admitted to having one. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the day of the fill at the station that sold it — the day EFS prints, and the day the
-        row beside it shows.</p>
+    <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
+         tabs mean EFS's Central day, so they say it in the one shared sentence. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <!-- Summary stats block -->
     <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
@@ -435,7 +432,10 @@ const columns: DataTableColumn[] = [
       @row-click="onRowClick"
     >
       <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
-      <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
+      <template #cell-fueled_at="{ row }">
+          <!-- EFS's Central clock, the day the filter and totals use (Q-F5); the station's own clock on hover (F-H2). -->
+          <span :title="stationClockNote(row.fueled_at, row.state ?? null) ?? undefined">{{ efsDateTime(row.fueled_at) }}</span>
+        </template>
       <template #cell-driver="{ row }">{{ driverName(row.driver_id) }}</template>
       <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
       <template #cell-gallons="{ row }">

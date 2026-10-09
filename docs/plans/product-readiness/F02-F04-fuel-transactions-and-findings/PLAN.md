@@ -514,6 +514,17 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
   footnotes "the day of the fill at the station" and "Central time" become one sentence on every
   tab.
   - Accept: September on the Fuel Log equals EFS's September line total (fuel lines, $1,317,898.79).
+  - Built. "When" is EFS's Central time, labelled CT, with the station's time in the hover. All three
+    tabs show one sentence: "All dates and times are in Central time (CT), the time EFS uses on its
+    statements." Source records' fallback time is Central too: EFS's own `tran_time` is Central
+    (3,080 of 3,080 lines at stations outside Central since 09-01).
+  - The target has moved since the audit. $1,317,898.79 was tractor diesel on 10-07. EFS has posted
+    $6,002.18 more September lines since. Re-measured 2026-10-08, read-only:
+    - Under 0444's rule, the Fuel Log's September is $1,338,438.24.
+    - EFS's September ULSD + ULSR lines are also $1,338,438.24: tractor $1,323,900.97 (1,949 lines)
+      and reefer $14,537.27 (135), equal to the cent.
+    - Under today's station rule it is $1,339,077.48, the audit's $639.24 Nevada fill apart.
+    - Confirmed live once 0444 is released.
 
 ### Chunk 11 — Fuel Log numbers (N5, N6, N9)
 - **11a** "Flagged" counts fills with an **open** case and links to them.
@@ -667,3 +678,7 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   goes to production in the next release. 10c built: the Fuel problems page filters fill cases and
   card-fraud incidents on the carrier's day at both ends, and the Dashboard's oldest-open date is a
   carrier day. No migration, so it does not depend on 10a.
+- 2026-10-08: #1378 merged (bebd4c1). 10b built: the Fuel Log's "When" is EFS's Central time, with the
+  station's time in the hover, and one dates sentence on all three tabs. The acceptance figure moved
+  with EFS's late postings; re-measured, see 10b. 10b must ship in the same release as 0444, which it is
+  merged after.

@@ -30,7 +30,7 @@ import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
-import { stationTime, businessDate } from "@/lib/stationTime";
+import { efsTime, businessDate, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
@@ -217,9 +217,9 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
-    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
-         the section had four answers to “what is a day” and no surface admitted to having one. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the EFS business date printed on the report line.</p>
+    <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
+         tabs mean EFS's Central day, so they say it in the one shared sentence. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <DataTable
       embedded
@@ -237,7 +237,7 @@ const columns: DataTableColumn[] = [
       @retry="refetch"
     >
       <template #cell-tran_date="{ row }">{{ businessDate(row.tran_date) }}</template>
-      <template #cell-tran_time="{ row }">{{ row.tran_time || stationTime(row.fueled_at, row.state) }}</template>
+      <template #cell-tran_time="{ row }">{{ row.tran_time || efsTime(row.fueled_at) }}</template>
       <template #cell-odometer="{ row }">{{ fmtNum(row.odometer) }}</template>
       <template #cell-unit_price="{ row }">{{ fmtMoney(row.unit_price) }}</template>
       <template #cell-qty="{ row }">{{ fmtNum(row.qty) }}</template>
