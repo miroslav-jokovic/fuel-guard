@@ -117,6 +117,10 @@ const result = computed(() => probe.data.value ?? null);
 
 const entitlementTone = (entitlement: string): string =>
   entitlement === "confirmed" ? "success" : entitlement === "denied" ? "danger" : "caution";
+// The contract's values are codes (`cardCapabilitiesContract.ts`); "unknown" printed as-is read as a
+// fault rather than as "nobody has run the check yet" (F02-F04 chunk 14a, W2).
+const entitlementLabel = (entitlement: string): string =>
+  entitlement === "confirmed" ? "confirmed" : entitlement === "denied" ? "refused" : "not checked yet";
 
 async function run(): Promise<void> {
   try {
@@ -142,7 +146,7 @@ async function run(): Promise<void> {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Prove EFS will accept our card changes — and that a no-op change leaves a card untouched." />
+    <PageHeader description="Check that Silvicom 360 can change your EFS cards safely, before anyone is allowed to." />
 
     <BaseCard v-if="stepUp">
       <StepUpPrompt
@@ -161,7 +165,7 @@ async function run(): Promise<void> {
             {{ settings.enabled ? "On" : "Off" }}
           </span>
           <span :class="[BADGE_BASE, toneClass(entitlementTone(settings.writeEntitlement))]">
-            EFS write access: {{ settings.writeEntitlement }}
+            EFS write access: {{ entitlementLabel(settings.writeEntitlement) }}
           </span>
         </div>
 
@@ -174,13 +178,13 @@ async function run(): Promise<void> {
           <span>
             Let this company change fuel cards.
             <span class="block text-ink-muted">
-              Off by default. Being able to READ cards never implies permission to change them.
+              Off by default. Seeing cards does not give permission to change them.
             </span>
           </span>
         </BaseCheckbox>
 
         <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
-          Card actions cannot be switched on until the EFS write check has passed — run it below.
+          Card actions stay off until the check below has passed.
           <template v-if="settings.probeVerdict"> Last check: {{ settings.probeVerdict }}</template>
         </p>
 
@@ -208,9 +212,9 @@ async function run(): Promise<void> {
           <h2 class="text-sm font-medium text-ink">Who may change a card</h2>
           <p class="text-sm text-ink-muted">
             Card changes are limited to
-            {{ (query.data.value.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }} — a dispatcher
-            granting fuel exceptions is the pattern this product exists to detect. Within those roles,
-            name the individuals and choose what each one may do.
+            {{ (query.data.value.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }}. A dispatcher
+            who grants fuel exceptions is the risk this product watches for. Within those roles, choose
+            each person and what they may do.
           </p>
         </div>
         <CardApproverList
@@ -231,8 +235,8 @@ async function run(): Promise<void> {
         <div class="space-y-1">
           <h2 class="text-sm font-medium text-ink">Run the check</h2>
           <p class="text-sm text-ink-muted">
-            Use a card WEX has confirmed is disposable, on the QA endpoint first. The card number is
-            never stored — only its last four digits appear in the audit log.
+            Use a spare card that WEX has agreed you may test with, and use the EFS test environment
+            first. The card number is never saved. Only its last four digits appear in the audit log.
           </p>
         </div>
 
@@ -244,10 +248,10 @@ async function run(): Promise<void> {
 
         <BaseCheckbox v-model="readOnly" :disabled="probe.isPending.value" class="items-start">
           <span>
-            Check the echo only — do not send a change.
+            Read only. Do not change the card.
             <span class="block text-ink-muted">
-              Proves our request reproduces this account's card exactly. Needs no write permission and
-              changes nothing. Start here.
+              Checks that Silvicom 360 copies this card exactly as EFS holds it. It needs no write
+              permission and changes nothing. Start here.
             </span>
           </span>
         </BaseCheckbox>
@@ -256,7 +260,7 @@ async function run(): Promise<void> {
           v-if="!readOnly"
           label="Type the confirmation"
           required
-          :hint="`Type WRITE ${last4 || '####'} to confirm a real setCardV2 against this card.`"
+          :hint="`Type WRITE ${last4 || '####'} to send a real change to this card.`"
         >
           <template #default="{ id }">
             <BaseInput :id="id" v-model="confirm" type="text" autocomplete="off" :disabled="probe.isPending.value" />
@@ -265,7 +269,7 @@ async function run(): Promise<void> {
 
         <div class="flex justify-end">
           <BaseButton variant="primary" :disabled="!ready || probe.isPending.value" @click="run">
-            {{ probe.isPending.value ? "Checking…" : readOnly ? "Check the echo" : "Run the write check" }}
+            {{ probe.isPending.value ? "Checking…" : readOnly ? "Run the read-only check" : "Run the write check" }}
           </BaseButton>
         </div>
       </div>
@@ -275,7 +279,7 @@ async function run(): Promise<void> {
       <div class="space-y-4">
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="text-sm font-medium text-ink">Result</h2>
-          <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement)), 'capitalize']">{{ result.entitlement }}</span>
+          <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement))]">EFS write access: {{ entitlementLabel(result.entitlement) }}</span>
           <span class="text-sm text-ink-muted">{{ result.environment }}</span>
         </div>
         <p class="text-sm leading-6 text-ink">{{ result.verdict }}</p>
@@ -306,8 +310,8 @@ async function run(): Promise<void> {
         -->
         <p v-if="result.documentShape" class="text-sm text-ink-muted">
           EFS answered in the <span class="font-medium text-ink">{{ result.documentShape }}</span>
-          shape. Compare it against the other environment before switching writes on — a proof
-          obtained on one shape does not carry to the other.
+          format. Before you switch card actions on, check that the other environment answers in the
+          same format. A check passed in one format does not count for the other.
         </p>
 
         <!--
@@ -354,8 +358,8 @@ async function run(): Promise<void> {
         </FormField>
 
         <p v-if="result.egressIp" class="text-sm text-ink-muted">
-          This request left from <span class="font-mono text-ink">{{ result.egressIp }}</span> —
-          the address EFS sees, and the one that has to be on their allowlist.
+          This request came from <span class="font-mono text-ink">{{ result.egressIp }}</span>.
+          EFS must have this address on its list of allowed addresses.
         </p>
 
         <p v-if="!result.persisted" class="text-sm text-caution-700">
