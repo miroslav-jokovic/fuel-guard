@@ -138,6 +138,11 @@ describe("paper_technical_name — G entries show a technical name (§172.203(k)
     expect(r.outcome).toBe("fail");
     expect(r.facts.requiredPsn).toBe("Flammable liquids, n.o.s.");
   });
+  it("cannot tell on a dataset cut before namesChemicalGroup existed — no hand-held vocabulary stands in for it", () => {
+    const preFlag = { ...DS, entries: DS.entries.map(({ namesChemicalGroup: _n, ...e }) => e) };
+    const r = result({ lines: [[fl(), flRes]], resolved: { dataset: preFlag } }, "paper_technical_name");
+    expect([r.outcome, r.reason, r.facts.needs]).toEqual(["cannot_tell", "requirement_not_in_dataset", "HMT namesChemicalGroup (§172.203(k)(2)(iii)/(iv))"]);
+  });
   it("cannot tell when the dataset view does not carry the HMT symbols", () => {
     const bare = { ...DS, entries: DS.entries.map(({ symbols: _s, ...e }) => e) };
     const r = result({ lines: [[fl(), flRes]], resolved: { dataset: bare } }, "paper_technical_name");

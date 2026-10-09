@@ -30,22 +30,16 @@
  * (i) is read from the row's name, its class and a printed EPA waste code (40 CFR 261: a letter D, F, K, P
  * or U and three digits). (ii) is read from the word "Sample", which §172.101(c)(11)(iv)(A) requires
  * "as part of the proper shipping name or in association with the basic description". (iii)/(iv) turn on
- * whether the n.o.s. name names a chemical element or group — something the dataset does not mark. The
- * rule therefore fails a missing name only on a G entry whose name LEADS with a hazard descriptor (the
- * words of §173.2 Table 1's class names, or one of the generic n.o.s. heads below) and so names no chemical;
- * any other G entry with no technical name may sit under (iii)/(iv) and the answer is cannot_tell.
- * WORKAROUND, labelled per CLAUDE.md: `HAZARD_HEADS` is a hand-held vocabulary standing in for a per-entry
- * "names a chemical group" flag the dataset does not carry; the flag on the HMT row removes it.
+ * whether the n.o.s. name names a chemical element or group, which the dataset marks on the HMT row as
+ * `namesChemicalGroup` (Q-DR17; derived by the importer's import/namesChemicalGroup.ts from datasets
+ * 2026.09.0 on). false — the name names no chemical, so (iii)/(iv) cannot apply and a missing technical name
+ * fails. true — they may apply, but whether that group is the one "primarily responsible" depends on the
+ * material, so the answer is cannot_tell. A dataset cut before the flag answers requirement_not_in_dataset:
+ * the hand-held HAZARD_HEADS vocabulary that stood in for the flag is retired, not kept as a fallback.
  */
 import type { PaperRuleResult } from "./paperTypes.js";
 import { gated, lineLabel, lineTexts, make, namedComponentCount, norm, rowOf, technicalNameText, type LineCtx } from "./paperSupport.js";
 
-const HAZARD_HEADS = new Set([
-  "flammable", "non-flammable", "combustible", "corrosive", "toxic", "poisonous", "oxidizing", "oxidizer", "infectious",
-  "radioactive", "self-heating", "self-reactive", "water-reactive", "pyrophoric", "organic", "environmentally",
-  "compressed", "liquefied", "adsorbed", "refrigerated", "gas", "elevated", "explosive", "articles", "substances",
-  "dangerous", "chemical", "polymerizing", "desensitized", "spontaneously", "hazardous", "other", "aerosols",
-]);
 const EPA_WASTE_CODE = /\b[DFKPU]\d{3}\b/;
 const HAZARDOUS_WASTE_PSN = new Set(["hazardous waste, liquid, n.o.s.", "hazardous waste, solid, n.o.s."]);
 
@@ -77,7 +71,10 @@ export function paperTechnicalName(ctx: LineCtx): PaperRuleResult {
     if (components != null && components >= 2) return r("fail", "needs_two_components", facts);
     return r("cannot_tell", "mixture_unknown", facts);
   }
-  const head = norm(row.entry.psnPrinted).split(/[\s,]+/)[0] ?? "";
-  if (HAZARD_HEADS.has(head)) return r("fail", "missing", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
+  const groupNamed = row.entry.namesChemicalGroup;
+  if (typeof groupNamed !== "boolean") {
+    return r("cannot_tell", "requirement_not_in_dataset", { lineLabel: label, needs: "HMT namesChemicalGroup (§172.203(k)(2)(iii)/(iv))" });
+  }
+  if (!groupNamed) return r("fail", "missing", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
   return r("cannot_tell", "k2_group_named", { lineLabel: label, requiredPsn: row.entry.psnPrinted });
 }

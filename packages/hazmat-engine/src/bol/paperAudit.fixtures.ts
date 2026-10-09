@@ -1,7 +1,8 @@
 /**
  * Shared fixtures for the printed-paper audit's tests. The HMT rows are copied from dataset 2026.08.0
  * (id, PSN, class, PG, column 8A as that dataset carries them); the Appendix A and B rows likewise, so a
- * test reads like a real paper rather than an invented one.
+ * test reads like a real paper rather than an invented one. `namesChemicalGroup` on the four G rows is the
+ * value the importer derives for them (import/namesChemicalGroup.ts), which datasets carry from 2026.09.0.
  */
 import { auditPrintedPaper } from "./auditPrintedPaper.js";
 import type {
@@ -21,14 +22,14 @@ export const DS = {
   entries: [
     { entryId: "UN1203-gasoline", symbols: [], psnPrinted: "Gasoline", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1203", pgRows: [{ pg: "II", exceptionsRef: "150" }] },
     { entryId: "UN1075-petroleum-gases-liquefied", symbols: [], psnPrinted: "Petroleum gases, liquefied", psnAlternates: ["Liquefied petroleum gas"], hazardClass: "2.1", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1075", pgRows: [{ pg: null, exceptionsRef: "306" }] },
-    { entryId: "UN1993-flammable-liquids-n-o-s", symbols: ["G"], psnPrinted: "Flammable liquids, n.o.s.", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1993", pgRows: [{ pg: "I", exceptionsRef: "150" }, { pg: "II", exceptionsRef: "150" }, { pg: "III", exceptionsRef: "150" }] },
+    { entryId: "UN1993-flammable-liquids-n-o-s", symbols: ["G"], psnPrinted: "Flammable liquids, n.o.s.", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1993", pgRows: [{ pg: "I", exceptionsRef: "150" }, { pg: "II", exceptionsRef: "150" }, { pg: "III", exceptionsRef: "150" }], namesChemicalGroup: false },
     { entryId: "UN1114-benzene", symbols: [], psnPrinted: "Benzene", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1114", pgRows: [{ pg: "II", exceptionsRef: "150" }] },
     { entryId: "UN1541-acetone-cyanohydrin-stabilized", symbols: [], psnPrinted: "Acetone cyanohydrin, stabilized", psnAlternates: [], hazardClass: "6.1", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1541", pgRows: [{ pg: "I", exceptionsRef: null }] },
-    { entryId: "UN3082-environmentally-hazardous-substance-liquid-n-o-s", symbols: ["G"], psnPrinted: "Environmentally hazardous substance, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }] },
+    { entryId: "UN3082-environmentally-hazardous-substance-liquid-n-o-s", symbols: ["G"], psnPrinted: "Environmentally hazardous substance, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }], namesChemicalGroup: false },
     { entryId: "UN3171-battery-powered-vehicle", symbols: [], psnPrinted: "Battery-powered vehicle", psnAlternates: ["Battery-powered equipment"], hazardClass: "9", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3171", pgRows: [{ pg: null, exceptionsRef: "220" }] },
     { entryId: "UN3497-krill-meal", symbols: [], psnPrinted: "Krill meal", psnAlternates: [], hazardClass: "4.2", subsidiaryClasses: [], idPrefix: "UN", idNumber: "3497", pgRows: [{ pg: "II", exceptionsRef: null }, { pg: "III", exceptionsRef: null }] },
-    { entryId: "NA3082-hazardous-waste-liquid-n-o-s", symbols: ["G"], psnPrinted: "Hazardous waste, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "NA", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }] },
-    { entryId: "UN2734-amine-liquid-corrosive-flammable-n-o-s", symbols: ["G"], psnPrinted: "Amine, liquid, corrosive, flammable, n.o.s.", psnAlternates: ["Polyamines, liquid, corrosive, flammable, n.o.s."], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2734", pgRows: [{ pg: "I", exceptionsRef: null }, { pg: "II", exceptionsRef: "154" }] },
+    { entryId: "NA3082-hazardous-waste-liquid-n-o-s", symbols: ["G"], psnPrinted: "Hazardous waste, liquid, n.o.s.", psnAlternates: [], hazardClass: "9", subsidiaryClasses: [], idPrefix: "NA", idNumber: "3082", pgRows: [{ pg: "III", exceptionsRef: "155" }], namesChemicalGroup: false },
+    { entryId: "UN2734-amine-liquid-corrosive-flammable-n-o-s", symbols: ["G"], psnPrinted: "Amine, liquid, corrosive, flammable, n.o.s.", psnAlternates: ["Polyamines, liquid, corrosive, flammable, n.o.s."], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2734", pgRows: [{ pg: "I", exceptionsRef: null }, { pg: "II", exceptionsRef: "154" }], namesChemicalGroup: true },
     { entryId: "NA1993-diesel-fuel", symbols: ["D"], psnPrinted: "Diesel fuel", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "NA", idNumber: "1993", pgRows: [{ pg: "III", exceptionsRef: "150" }] },
     { entryId: "UN2794-batteries-wet-filled-with-acid", symbols: [], psnPrinted: "Batteries, wet, filled with acid", psnAlternates: [], hazardClass: "8", subsidiaryClasses: [], idPrefix: "UN", idNumber: "2794", pgRows: [{ pg: null, exceptionsRef: "159" }] },
   ],
