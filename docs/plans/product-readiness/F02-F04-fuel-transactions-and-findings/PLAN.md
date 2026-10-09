@@ -4,7 +4,10 @@
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
 3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
 scorers write incidents) is merged (#1350). Chunk 7 (the reset) is complete: merged (#1352, #1353,
-#1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunk 6 is built.
+#1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunks 6, 8, 9 and 10 are merged
+and released (v2026.10.09 the last). Chunks 11 (#1384–#1386, migration 0446) and 12 (#1387, #1388,
+migration 0447) are merged and on staging, waiting for a release. Chunk 13 needed no product change:
+the five tools were already admin-only (see its entry). Next: chunk 14.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -544,6 +547,14 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 ### Chunk 13 — hide the unused tools (Q-F4)
 Surface grants for the five tools, as chunk 2.
 - **Accept:** `SidebarPreview` per role, and each URL still opens for admin.
+- **Found already done (2026-10-09).** None of the five is a sidebar entry; each is a card on the
+  Settings page. Q-SET2 (2026-09-30, `ec228c2`) already made every Settings screen start off for every
+  role but admin, a week before Q-F4 was ruled. Card control was never grantable at all: its gate is
+  `ADMIN` (Q-SET1). The links elsewhere (the dashboard's coverage tile, Reports' "Review cleared
+  fills", Odometer's Coverage link, the Cards page's settings link) each check the gate first.
+  Production stores no answer for any of the five keys, so the default holds for every org.
+  The change is therefore a test only: `tierCSurfaces.test.ts` names the five as Q-F4's, so relaxing
+  Q-SET2 later cannot bring them back without that test turning red.
 
 ### Chunk 14 — wording, one page group per PR (W2–W7)
 - **14a** EFS integration and Card control settings: no repo paths, environment-variable names
@@ -766,3 +777,15 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     - `schema-drift-reconciled`: five driver denials, and no write policy on the table.
   - Merged after 12a, so no served page offers a write the database refuses. If both ride one release,
     the migration applies minutes before the code; in that window only the old, unused button would fail.
+- 2026-10-09: 12b merged (#1388, 3574482). **Chunk 12 is complete.**
+- 2026-10-09: chunk 13 measured before building, and found already done by Q-SET2 (see its entry).
+  - Production, read-only: `org_role_surface_access` holds 1 row and `user_surface_access` 3, none on
+    `admin.recall-audit`, `admin.settings.card-control`, `admin.settings.thresholds`, `admin.coverage`
+    or `admin.reefer-coverage`.
+  - Built: a Q-F4 block in `tierCSurfaces.test.ts`. Each of the five is closed to every editable role
+    and open to the admin; an admin's grant brings back each of the four grantable ones; Card control
+    stays admin-only even with a grant.
+  - Proved by five mutants, each restored byte for byte: two of the tools starting on (one for every
+    role, one for the fleet manager), Card control made grantable, Anomaly thresholds made admin-only
+    (that one first survived, because the grant case filtered its keys on the gate; the keys are now
+    written out), and a key renamed.
