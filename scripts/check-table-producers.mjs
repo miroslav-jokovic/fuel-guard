@@ -70,6 +70,9 @@ const WAIVERS = new Map([
   // copy) for sources, the normalisation stage (Step 1.3) for pages, the review route (Step 1.6) for reviews.
   ["document_sources", "DOCUMENT-READER-PLAN.md Step 1.6/3.2 — intake writes it (schema-only Step 1.2, 0448)"],
   ["document_pages", "DOCUMENT-READER-PLAN.md Step 1.3 — the normalisation stage writes it (schema-only Step 1.2, 0448)"],
+  // document_page_classes (0449, Q-DR12) joins them schema-only: the page classifier (Step 1.5) writes its
+  // verdicts, and the override control (Step 3.4) a person's. It leaves with the classifier.
+  ["document_page_classes", "DOCUMENT-READER-PLAN.md Step 1.5 — the page classifier writes it (schema-only, 0449 Q-DR12)"],
   ["document_read_reviews", "DOCUMENT-READER-PLAN.md Step 1.6 — POST /api/documents/reads/:id/reviews writes it (schema-only Step 1.2, 0448)"],
 ]);
 
