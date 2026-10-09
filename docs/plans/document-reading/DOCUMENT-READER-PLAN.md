@@ -214,15 +214,43 @@ field reading runs on `bol` and `delivery_copy` pages only. A dispatcher can ove
 label too). Placard and securement photos are kept with the source — a later profile may read them; none
 does now.
 
+**D-DR12 — Three intake channels, one source table, and the sender names a driver, never a load.**
+(Owner ruling on Q-DR3, 2026-10-08: drivers send BOLs through Samsara, by SMS, and by email — all
+three.) Each channel is a collector that copies bytes into `document_sources` (D-DR9) with its origin:
+
+| Channel | What exists today | What is built |
+|---|---|---|
+| **Samsara** document | read-only token reads `/fleet/documents` (F-DR5) | the poller (Step 0.1) + photo copy (3.2) |
+| **SMS / MMS** to the Telnyx toll-free number | signed webhook `/api/webhooks/sms`, inbound parse (`lib/sms.ts` `parseTelnyxInboundSms`) — text only; MMS media ignored | read `payload.media[]`, download each within the webhook's job, store (Step 3.5) |
+| **Email** to a documents mailbox | Microsoft Graph mail connector built for EFS (`lib/graphMail.ts`: folder, unread, attachments, >4 MB `$value`, mark read) | the same connector pointed at a second folder, PDF + image attachments only (Step 3.6) |
+
+The sender is matched to a driver by the phone or email on the roster (`roster`'s interface) and is
+shown, never trusted: the dispatcher still picks what the document is for. An unknown sender's document
+lands in an **Unmatched** list, not in the bin. A forwarded chain or an email with a logo and a
+signature image yields only attachments that pass the page classifier (D-DR11). A document that arrives
+on two channels (driver texts and uploads to Samsara) is deduplicated on page SHA-256 within the org.
+
+**D-DR13 — One normalisation stage, before any reader sees a pixel.** (Owner ruling on Q-DR6,
+2026-10-08: "normalise images before they even hit OCR".) Whatever arrives — HEIC from an iPhone,
+an MMS JPEG a carrier already recompressed, a PNG screenshot, a WebP, a PDF page — becomes one
+**canonical page** in the PAGES stage: decoded, EXIF-orientation applied and stripped, converted to
+sRGB 8-bit, alpha flattened on white, stored losslessly as the page's ORIGINAL (PNG) beside the
+source's untouched bytes, plus the working copy the readers use. Nothing downstream — classifier,
+model, text-layer comparison, crops, review UI — knows what format came in. HEIC decoding uses
+libheif (via `heic-decode`, LGPL-3.0 — permissible for a hosted service; sharp's prebuilt binaries do
+not decode HEVC). An input the stage cannot decode is refused at intake with a sentence naming the
+format, never passed through. The normaliser is versioned and its version is in the cache key (§4.6).
+
 ---
 
 ## 2. The module — shape and contracts
 
 ```
- INTAKE       upload (web, signed PUT) · Samsara document photo (collector) · driver scan (later)
+ INTAKE       upload (web) · Samsara document · SMS/MMS · email attachment · driver scan (later)
    │          → document_sources row (sha256, origin, mime, bytes in bucket `document-intake`)
    ▼
- PAGES        image: EXIF-rotate → original kept · PDF: rasterise 300 DPI per page + text layer
+ PAGES        D-DR13 canonical page: decode (incl. HEIC) → orient → sRGB → original PNG + working copy
+   │          PDF: rasterise 300 DPI per page + text layer
    │          → classify each page (D-DR11) → document_pages rows (page n, class, keys, text words?)
    ▼
  READ         usability gate (shared metrics) → pass A ‖ pass B (structured outputs)
@@ -242,7 +270,7 @@ policies: the API serves everything with org filters, `expectOrgScoped` in every
 
 | Table | Holds | Mutability |
 |---|---|---|
-| `document_sources` | org, origin (`upload`/`samsara`/`driver_scan`), origin ref (Samsara document id), sha256, mime, byte size, page count, uploaded_by, created_at | append-only; `RETENTION_FORBIDDEN` |
+| `document_sources` | org, origin (`upload`/`samsara`/`sms`/`email`/`driver_scan`), origin ref (Samsara document id / Telnyx message id / Graph message+attachment id), sender (phone or address, as received) + matched driver, sha256, mime, byte size, page count, uploaded_by, created_at | append-only; `RETENTION_FORBIDDEN` |
 | `document_pages` | source, page number, page class + who set it, original key + sha256, working key, width/height, `text_layer` jsonb (words + boxes) or null, capture metrics | append-only |
 | `document_reads` | source, profile + profile version, status (`queued/reading/done/failed`), failure code, models, prompt version, schema hash, acceptance-rule version, `result` jsonb, `evidence` jsonb, input/output tokens, cache key, started/finished | insert, then one status transition RPC |
 | `document_read_reviews` | read, field path, action (`confirmed/corrected/unreadable`), old/new value, actor, consumer (`hazmat_calculator`…), created_at | append-only; `RETENTION_FORBIDDEN` |
@@ -290,7 +318,9 @@ tokens, latency, outcome).
 | JPEG / PNG / WebP | EXIF-rotate; original kept byte-exact; working copy ≤ 1568 px long edge | decode fails; long edge < 1200 px (the live resolution floor) |
 | PDF, born-digital | rasterise each page at 300 DPI; text layer + word boxes recorded | encrypted; > 10 pages; > 25 MB |
 | PDF, scanned | rasterise at 300 DPI; no text layer | same |
-| HEIC (iPhone) | **Q-DR6** — sharp's prebuilt binaries do not decode HEVC-HEIF; default: refuse with "Export as JPEG" until the Step 1.3 spike says otherwise | always, until Q-DR6 |
+| HEIC / HEIF (iPhone) | decoded by libheif, then the D-DR13 canonical page like everything else | decode fails |
+| MMS media (any of the above) | downloaded from Telnyx's media URL within the webhook's job, then as its format | URL expired or > 25 MB |
+| Email attachment (PDF or image) | fetched via Graph, then as its format; inline logos/signatures fall to the classifier | not PDF/image |
 | Mixed pages (BOL + placard/securement photos; BOL + invoice + rate con in one PDF) | every page classified first (D-DR11); non-BOL pages kept, not read for fields | — |
 
 Rasteriser choice is Step 1.3's spike: **pdfjs-dist (already a web dependency, Apache-2.0) with
@@ -427,9 +457,11 @@ the corpus through a thin shim. Record verbatim in §10. **No reading change mer
 only). *Verify:* `check-rls`, `lint:migrations`, a PGlite matrix that an update/delete on the
 append-only tables raises.
 
-**1.3 Pages: images and PDFs.** Rasteriser spike → choice recorded (§3); text-layer extraction; HEIC
-behaviour per Q-DR6; caps. *Verify:* five fixture PDFs (born-digital, scanned, rotated, encrypted,
-11 pages) produce the expected pages, text words at the generator's coordinates, and the refusals.
+**1.3 Pages: the normalisation stage (D-DR13).** Rasteriser spike → choice recorded (§3); libheif
+for HEIC; one canonical page out of every format; text-layer extraction; caps. *Verify:* five fixture PDFs (born-digital, scanned, rotated, encrypted,
+11 pages) and one image per format (HEIC, EXIF-rotated JPEG, PNG with alpha, WebP, CMYK JPEG) produce
+byte-identical canonical pages across two runs, upright, sRGB, with text words at the generator's
+coordinates, and the refusals.
 *Done-when:* green on the Railway staging image.
 
 **1.4 The model adapter (D-DR8).** Structured outputs from the Zod schema, no sampling params, typed
@@ -470,6 +502,17 @@ lines with the picker open, review batch on Calculate. `e2e-apply`-style stubbed
 `typecheck-build` (raw-JSON stub, never under `apps/web/e2e/`). *Measured:* p95 read time on staging
 for the corpus' 2-page documents. *Done-when:* a dispatcher reads a Samsara BOL into the form and
 calculates with every prefilled field visible and stated.
+
+**3.5 SMS/MMS intake (D-DR12).** `parseTelnyxInboundSms` gains `media[]`; the webhook enqueues a
+`document_intake_sms` job (never downloads inside the request); sender matched to a driver; documents
+appear in "From the drivers" beside Samsara's. *Prerequisite, owner action:* Q-DR9.
+*Verify:* fixture of Telnyx's published MMS payload; an unknown number lands in Unmatched; a STOP
+message is never treated as a document.
+
+**3.6 Email intake (D-DR12).** `graphMail.ts` generalised from "the EFS folder" to a named folder per
+use; a `Documents` folder polled by the `api` service's scheduler; PDF + image attachments only.
+*Prerequisite, owner action:* Q-DR10. *Verify:* a forwarded email with a logo, a signature image and a
+two-page BOL PDF yields one source with two `bol` pages.
 
 ### PHASE 4 — The paper audit and the earned trust
 
@@ -520,12 +563,16 @@ prefix exceeds the model's minimum cacheable length — measured, not assumed.
 **Q-DR1 — Which model pair?** *Default:* the pinned pair until Step 3.1's table; then the owner picks.
 *Recommendation:* the pair with zero engine-input false-accepts on the corpus, cheapest of those.
 
-**Q-DR2 — May the printed-paper audit live in `packages/hazmat-engine/src/bol/`?** It adds rules beside
+**Q-DR2 — ANSWERED 2026-10-08: yes, in `packages/hazmat-engine/src/bol/`.** The owner adds that the
+rules should draw on the regulatory sources the engine already carries (the versioned HMT, appendix B,
+the govinfo cross-check in `packages/hazmat-data`), so every `auditPrintedPaper` rule reads its
+requirement from the dataset version on the run rather than restating it. *Original question:* May the printed-paper audit live in `packages/hazmat-engine/src/bol/`? It adds rules beside
 `validateBol` and does not touch placard computation. *Recommendation:* yes — it is the only home the
 gates allow (pure, versioned, no `@silvicom/*` imports), and putting it in the API would create a second
 rules location. *Until answered:* Phase 4 waits; Phases 0–3 do not.
 
-**Q-DR3 — Will drivers send every hazmat BOL as a Samsara *BOL, SECURMENT, PLACARDS* document?** Owner
+**Q-DR3 — ANSWERED 2026-10-08: drivers send through Samsara, SMS and email — all three are intake
+(D-DR12).** *Original question:* Will drivers send every hazmat BOL as a Samsara *BOL, SECURMENT, PLACARDS* document? Owner
 action, no code: it is the only path into which we can read today (F-DR6). *Recommendation:* yes, and
 one document per load with "Load #" filled — Samsara's own form for the type has no Load # field, so
 either add it there or the picker shows driver + truck + time only.
@@ -533,11 +580,12 @@ either add it there or the picker shows driver + truck + time only.
 **Q-DR4 — Why is `loads.hazmat` false on all 303 loads?** (F-DR8.) *Until answered:* nothing keys on it;
 the calculator prefill does not need a load.
 
-**Q-DR5 — Who labels the corpus?** ~60 documents, ~5 minutes each, the hazmat section double-keyed:
+**Q-DR5 — ANSWERED 2026-10-08: one dispatcher + the safety manager, as recommended.** *Original question:* Who labels the corpus? ~60 documents, ~5 minutes each, the hazmat section double-keyed:
 roughly 6–8 person-hours. *Recommendation:* one dispatcher + the safety manager. Without labels there is
 no number and §8 cannot run; no reading change merges before it.
 
-**Q-DR6 — HEIC.** *Default:* refused with "export as JPEG". *Alternative:* convert in the browser
+**Q-DR6 — ANSWERED 2026-10-08: normalise every image before any reader (D-DR13); HEIC is decoded,
+not refused.** *Original question:* HEIC. *Default:* refused with "export as JPEG". *Alternative:* convert in the browser
 before upload. Decided by Step 1.3's spike on how often it occurs in the corpus.
 
 **Q-DR7 — Should the calculator gain an RQ input?** The paper says "RQ"; the engine derives RQ from
@@ -549,6 +597,20 @@ constants. *Default:* as written.
 
 ---
 
+**Q-DR9 — Today drivers text BOLs to whose number?** If to dispatchers' own phones, those pictures can
+never reach the system; the published number would be the Telnyx toll-free **+1 833 352 1766**. Its
+toll-free verification (2026-09-30) was filed under use case *HR / Staffing* — inbound driver MMS is
+probably covered (drivers message us), but before we text *replies* to drivers on it ("photo received",
+"page 2 unreadable") the use case may need amending with Telnyx. *Default:* intake is receive-only; no
+reply is sent until answered.
+
+**Q-DR10 — Which mailbox?** *Recommendation:* a dedicated address (e.g. `documents@silvicominc.com`)
+with a folder rule, read by the existing Entra app registration given access to that mailbox
+(`Mail.ReadWrite`, same as EFS). Owner action in Microsoft 365, ~10 minutes; no code waits on it until
+Step 3.6.
+
+---
+
 ## 10. Progress log
 
 Append dated lines at the end; never edit a row above.
@@ -557,4 +619,9 @@ Append dated lines at the end; never edit a row above.
   Measured: one hazmat-only reader, never run (0 rows in production); no PDF path; no calculator prefill;
   the BOL audit reads resolved lines only; Samsara documents readable with the existing token; the call
   shape 400s on current models; Samsara holds 492 BOL-type submissions (2,135 photos) in the last 30
-  days, mixed with placard and securement photos. Plan written: D-DR1–11, Phases 0–6, Q-DR1–8. Nothing built.
+  days, mixed with placard and securement photos. Plan written: D-DR1–11, Phases 0–6, Q-DR1–10. Nothing built.
+- **2026-10-08 (later)** — Owner ruled Q-DR2 (audit in `hazmat-engine/src/bol/`, reading its
+  requirements from the regulatory dataset), Q-DR3 (Samsara, SMS and email are all intake → D-DR12,
+  Steps 3.5–3.6), Q-DR5 (dispatcher + safety manager label), Q-DR6 (normalise everything before any
+  reader → D-DR13). Q-DR9 (which number drivers text; Telnyx use case) and Q-DR10 (documents mailbox)
+  opened as owner actions. Execution starts at Step 0.1.

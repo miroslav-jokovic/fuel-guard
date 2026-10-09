@@ -80,7 +80,7 @@ export const AREAS = [
     api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance"],
     web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal"],
     packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards"],
-    plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation"] },
+    plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
     api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "messages"],
     plans: ["dispatch-loads", "livemap", "loads-detail", "samsara", "sms"] },
