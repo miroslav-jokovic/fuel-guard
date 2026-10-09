@@ -98,6 +98,26 @@ describe("LiveMapVehicleFacts — its doors (SP5)", () => {
     expect(hrefs).toEqual(expect.arrayContaining(["/loads/l1", "/vehicles/veh-1", "/drivers/d1"]));
   });
 
+  it("draws the truck and driver doors as icons that keep their words as name and tooltip (D-TC1)", () => {
+    const RouterLinkWithAttrs = { props: ["to"], inheritAttrs: true, template: `<a :href="String(to)"><slot /></a>` };
+    const w = mount(LiveMapVehicleFacts, {
+      props: {
+        vehicle: { ...vehicle(null), driver: { id: "d1", name: "Reyes" } } as LiveMapVehicle,
+        board,
+        density: "compact",
+      },
+      global: { stubs: { RouterLink: RouterLinkWithAttrs } },
+    });
+    const door = (href: string) => w.find(`a[href="${href}"]`);
+    for (const [href, words] of [["/vehicles/veh-1", "Open truck"], ["/drivers/d1", "Open driver"]] as const) {
+      expect(door(href).attributes("aria-label")).toBe(words);
+      expect(door(href).attributes("title")).toBe(words);
+      expect(door(href).find("svg").exists()).toBe(true);
+      // The words are the name, not the picture: no visible text competes with the icon.
+      expect(door(href).text()).toBe("");
+    }
+  });
+
   it("keeps the load as words and drops the driver for a person whose Loads and Drivers are off", async () => {
     const { __session: session } = (await import("@/stores/session")) as unknown as {
       __session: import("@/testing/fakeSession").FakeSession;
