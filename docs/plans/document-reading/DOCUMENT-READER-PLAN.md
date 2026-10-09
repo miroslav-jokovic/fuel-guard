@@ -648,3 +648,16 @@ Append dated lines at the end; never edit a row above.
   dispatcher must pick with the printed text beside the picker: both paths are needed from day one,
   not as edge cases.
 
+- **2026-10-09 (Step 1.1)** — The three contracts are in `packages/shared/src/`:
+  `shippingDocumentContract.ts` (the profile document; every field null by default, so `parse({})` is
+  the empty document and the corpus skeleton derives from it; `ENGINE_INPUT_LINE_KEYS`,
+  `shippingFieldCriticality` and `GRADUATION_MIN_CONFIRMATIONS` hold D-DR5's two bars, which are the
+  owner's under Q-DR8), `fieldEvidenceContract.ts` (one path grammar, `hazmat.lines[2].quantity.value`,
+  shared by evidence, reviews, labels and counters; `leafFieldPaths` derives the set to score), and
+  `documentReadingContract.ts` (route schemas, the profile registry, closed vocabularies with the
+  migration's CHECKs to mirror, typed read failures and intake refusals each with their sentence, and
+  the labels schema). `BolFields` is now a projection (`bolFieldsFromShippingDocument`); its line schema
+  is the shared one, and the hazmat path's tests are unchanged and green. Two choices the plan did not
+  fix: page quality bands are `good / fair / poor` (definitions on `PAGE_QUALITY_BANDS`), and
+  `freight.seal` became `seals[]` because a trailer often carries more than one. The 51 unlabelled corpus
+  skeletons were rewritten to the contract (none had labelling work yet) and all 51 validate.
