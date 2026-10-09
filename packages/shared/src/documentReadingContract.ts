@@ -60,6 +60,27 @@ export const READ_FAILURES = {
 export type ReadFailureCode = keyof typeof READ_FAILURES;
 export const READ_FAILURE_CODES = Object.keys(READ_FAILURES) as ReadFailureCode[];
 
+/**
+ * Whose failure each code is (owner's ruling, 2026-10-09). A `reader` failure is the reader's
+ * performance — the model refused, ran out of room, answered in the wrong shape, or could not see a
+ * readable page — so a human must key every field, and `doc:score` counts every labelled field of that
+ * document as not read (BOL-READING-RELIABILITY-PLAN's yield: "fields `accepted` without a human"). An
+ * `operational` failure is ours — the budget ran out, or the stored bytes changed — and says nothing about
+ * how well the reader reads, so `doc:score` leaves the document out of the four numbers and counts it apart.
+ * One definition: the scorer derives both groups from here, and the `satisfies` makes a new code without
+ * a kind a type error.
+ */
+export const READ_FAILURE_KIND = {
+  refusal: "reader",
+  max_tokens: "reader",
+  schema_invalid: "reader",
+  unusable_image: "reader",
+  no_readable_page: "reader",
+  budget_exhausted: "operational",
+  integrity_mismatch: "operational",
+} as const satisfies Record<ReadFailureCode, "reader" | "operational">;
+export type ReadFailureKind = (typeof READ_FAILURE_KIND)[ReadFailureCode];
+
 /** Why intake refused a file before any read (§3). Each names the limit, so the sender can fix it. */
 export const INTAKE_REFUSALS = {
   unsupported_format: "Only PDF, JPEG, PNG, WebP and HEIC files can be read.",

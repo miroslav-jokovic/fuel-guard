@@ -6,7 +6,9 @@
  * ── WHAT IT READS ────────────────────────────────────────────────────────────────────────────────
  * Every `<dir>/<id>/labels.json` the corpus tool (`doc:corpus`, Step 0.2) wrote and the labellers filled
  * (Step 0.3), and, for the reader, a RECORDED output per document at `<dir>/<id>/runs/<name>.json`
- * (`readerOutputSchema`: the document, its evidence, its cost). A recorded run therefore re-scores for
+ * (`readerOutputSchema`: the document, its evidence, its cost — or `readerFailureSchema`, `{ failure: {
+ * code } }`, for a read that failed; a reader failure scores every field as not read, an operational one
+ * is listed apart and left out of the numbers). A recorded run therefore re-scores for
  * free — a label correction, a scoring fix or a new band split costs no model call. Documents with no
  * `labelledBy` are skipped and counted; an invalid labels or run file is reported by id, never fatal.
  *
@@ -22,7 +24,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { scoreCorpus, type BandScore, type CorpusEntry, type CorpusScore, type FieldScore } from "@silvicom/shared";
+import {
+  scoreCorpus, type BandScore, type CorpusEntry, type CorpusScore, type FailedRead, type FieldScore,
+} from "@silvicom/shared";
 import { CORPUS_DIR } from "./pullDocumentCorpus.js";
 
 export interface CorpusDocument {
@@ -99,25 +103,41 @@ function table(header: string[], rows: string[][]): string {
   return [fmt(header), fmt(widths.map((w) => "-".repeat(w))), ...rows.map(fmt)].join("\n");
 }
 
+type Tallied = FieldScore | BandScore;
+/** Accuracy, then the two columns that split it (owner's ruling, 2026-10-09): accuracy over printed
+ * values only, and how often a blank label got a value — with the `read` subset of those beside it. */
+const accuracyCells = (t: Tallied) => [
+  rate(t.correct, t.fields), rate(t.printedCorrect, t.labelPresent),
+  `${rate(t.invented, t.labelBlank)}, ${t.inventedRead} read`,
+];
+const ACCURACY_HEADS = ["accuracy", "printed acc", "invented"];
+
 function bandRow(b: BandScore): string[] {
   return [
-    b.band, String(b.documents), String(b.pages), rate(b.correct, b.fields), rate(b.falseAccepts, b.read),
+    b.band, String(b.documents), String(b.pages), ...accuracyCells(b), rate(b.falseAccepts, b.read),
     rate(b.read, b.fields), b.costPerPage == null ? "—" : `$${b.costPerPage.toFixed(4)} ($${b.usd.toFixed(2)}/${b.pages})`,
   ];
 }
 
+const failedList = (fs: readonly FailedRead[]) => (fs.length ? `: ${fs.map((f) => `${f.id} (${f.code})`).join(", ")}` : "");
+
 export function formatScoreTables(s: CorpusScore): string {
   const fields = table(
-    ["field", "crit", "docs", "accuracy", "false-accept", "yield", "D-DR5 bar"],
+    ["field", "crit", "docs", ...ACCURACY_HEADS, "false-accept", "yield", "D-DR5 bar"],
     s.fields.map((f) => [
-      f.field, f.criticality, String(f.documents), rate(f.correct, f.fields), rate(f.falseAccepts, f.read),
+      f.field, f.criticality, String(f.documents), ...accuracyCells(f), rate(f.falseAccepts, f.read),
       rate(f.read, f.fields), bar(f),
     ]),
   );
-  const bands = table(["band", "docs", "pages", "accuracy", "false-accept", "yield", "cost/page"], s.bands.map(bandRow));
+  const bands = table(["band", "docs", "pages", ...ACCURACY_HEADS, "false-accept", "yield", "cost/page"], s.bands.map(bandRow));
   const l = s.lines;
   const lines = `hazmat lines: ${l.labelled} labelled, ${l.matched} matched by key, ${l.missed} missed, ${l.extra} extra`;
-  return `${fields}\n\n${bands}\n\n${lines}\n`;
+  const d = s.documents;
+  const failures = [
+    `failed reads scored as not read: ${d.readerFailures.length}${failedList(d.readerFailures)}`,
+    `operational failures, not scored: ${d.operationalFailures.length}${failedList(d.operationalFailures)}`,
+  ].join("\n");
+  return `${fields}\n\n${bands}\n\n${lines}\n${failures}\n`;
 }
 
 export function scoreSummary(run: string, dir: string, s: CorpusScore) {
@@ -129,7 +149,12 @@ export function scoreSummary(run: string, dir: string, s: CorpusScore) {
     documents: s.documents,
     lines: s.lines,
     overall: all
-      ? { fields: all.fields, accuracy: all.accuracy, falseAccepts: all.falseAccepts, read: all.read, falseAcceptRate: all.falseAcceptRate, yield: all.yield, pages: all.pages, usd: all.usd, costPerPage: all.costPerPage }
+      ? {
+        fields: all.fields, accuracy: all.accuracy, falseAccepts: all.falseAccepts, read: all.read, falseAcceptRate: all.falseAcceptRate, yield: all.yield,
+        labelPresent: all.labelPresent, printedCorrect: all.printedCorrect, printedAccuracy: all.printedAccuracy,
+        labelBlank: all.labelBlank, invented: all.invented, inventedRead: all.inventedRead, inventedRate: all.inventedRate,
+        pages: all.pages, usd: all.usd, costPerPage: all.costPerPage,
+      }
       : null,
     engineFalseAccepts: engine.reduce((n, f) => n + f.falseAccepts, 0),
     graduating: s.fields.filter((f) => f.graduation.graduates).map((f) => f.field),
@@ -150,7 +175,11 @@ async function main(): Promise<void> {
   process.stderr.write(`doc:score: ${docs.length} corpus documents in ${dir}, run "${run}"\n`);
   const score = await scoreWith(reader, docs);
   const d = score.documents;
-  for (const [what, ids] of [["invalid labels.json", d.invalidLabels], ["no runs/" + run + ".json", d.missingOutputs], ["invalid run file", d.invalidOutputs]] as const) {
+  const failed = (fs: readonly FailedRead[]) => fs.map((f) => `${f.id} (${f.code})`);
+  for (const [what, ids] of [
+    ["invalid labels.json", d.invalidLabels], ["no runs/" + run + ".json", d.missingOutputs], ["invalid run file", d.invalidOutputs],
+    ["operational failure, not scored", failed(d.operationalFailures)],
+  ] as const) {
     if (ids.length) process.stderr.write(`doc:score: ${what}: ${ids.join(", ")}\n`);
   }
   if (!process.argv.includes("--json")) process.stdout.write(formatScoreTables(score) + "\n");

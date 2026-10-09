@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -37,10 +37,35 @@ describe("doc:score", () => {
     const s = await scoreWith(recordedRun("base"), loadCorpus(root));
     expect(s.documents).toEqual({
       total: 4, scored: 1, skippedUnlabelled: 1, invalidLabels: ["c"], missingOutputs: [], invalidOutputs: ["d"],
+      readerFailures: [], operationalFailures: [],
     });
     expect(s.bands.map((b) => b.band)).toEqual(["fair", "all"]);
-    expect(formatScoreTables(s)).toMatch(/identity\.bolNumber\s+standard\s+1\s+100\.0% \(1\/1\)/);
+    expect(formatScoreTables(s)).toMatch(/identity\.bolNumber\s+standard\s+1\s+100\.0% \(1\/1\)\s+100\.0% \(1\/1\)\s+— \(0\/0\), 0 read/);
     expect(scoreSummary("base", root, s)).toMatchObject({ engineFalseAccepts: 0, overall: { costPerPage: 0.02 } });
+  });
+
+  it("scores a recorded reader failure, lists an operational one apart, and prints both with the two new columns", async () => {
+    const root = synthetic();
+    for (const [id, code] of [["e", "refusal"], ["f", "budget_exhausted"]] as const) {
+      mkdirSync(path.join(root, id, "runs"), { recursive: true });
+      writeFileSync(path.join(root, id, "labels.json"), readFileSync(path.join(root, "a", "labels.json")));
+      writeFileSync(path.join(root, id, "runs", "base.json"), JSON.stringify({ failure: { code } }));
+    }
+    // "g" reads the paper right but invents a piece count the label leaves blank, as a `read` value.
+    mkdirSync(path.join(root, "g", "runs"), { recursive: true });
+    writeFileSync(path.join(root, "g", "labels.json"), readFileSync(path.join(root, "a", "labels.json")));
+    const inventing = JSON.parse(readFileSync(path.join(root, "a", "runs", "base.json"), "utf8"));
+    inventing.document.freight.pieces = 31;
+    writeFileSync(path.join(root, "g", "runs", "base.json"), JSON.stringify(inventing));
+    const s = await scoreWith(recordedRun("base"), loadCorpus(root));
+    expect(s.documents).toMatchObject({ scored: 3, readerFailures: [{ id: "e", code: "refusal" }], operationalFailures: [{ id: "f", code: "budget_exhausted" }] });
+    const text = formatScoreTables(s);
+    expect(text).toMatch(/^field\s+crit\s+docs\s+accuracy\s+printed acc\s+invented\s+false-accept\s+yield/m);
+    expect(text).toMatch(/identity\.bolNumber\s+standard\s+3\s+66\.7% \(2\/3\)\s+66\.7% \(2\/3\)\s+— \(0\/0\), 0 read\s+0\.0% \(0\/2\)\s+66\.7% \(2\/3\)/);
+    expect(text).toMatch(/freight\.pieces\s+standard\s+3\s+33\.3% \(1\/3\)\s+— \(0\/0\)\s+33\.3% \(1\/3\), 1 read\s+50\.0% \(1\/2\)/);
+    expect(text).toContain("failed reads scored as not read: 1: e (refusal)");
+    expect(text).toContain("operational failures, not scored: 1: f (budget_exhausted)");
+    expect(scoreSummary("base", root, s).overall).toMatchObject({ yield: 2 / 3, printedAccuracy: 2 / 3, invented: 1, inventedRead: 1 });
   });
 
   it("takes any injected reader, so a live reader plugs in where the recorded one does", async () => {
