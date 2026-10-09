@@ -485,6 +485,15 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 - **9b** The three habit kinds leave the queue. The tiles become **Can be disputed / Disputed /
   Credited back**.
   - Accept: the tile total equals the sum of the disputable rows.
+  - Built: the queue holds `QUEUE_EXCEPTION_KINDS` (every ledger kind but `BUYING_HABIT_KINDS`, derived)
+    plus fill cases and incidents. The list, the Dashboard's count, the Fuel Costs strip, the kind filter,
+    the CSV and the tiles all read it; a habit named in a link reads as nothing.
+  - The tiles count every item and add only claimable money (D-FX5): `overbilled` and `unrecorded`.
+    `underbilled` and `unbilled` are billing gaps where nothing is owed back. "Can be disputed" says both:
+    "14 items open · 4 with money to claim".
+  - Accept met on production, 2026-10-08: "Can be disputed" is $56.34, the SQL sum of the 4 open
+    claimable rows; 14 open items (the other 10: $208.60 underbilled, $2,339.63 unbilled, counted and not
+    added). The Dashboard's count drops from 157 to 14.
 
 ### Chunk 10 — one day for a fill (Q-F5)
 - **10a** Migration: `fuel_business_date` reads EFS's clock (`America/Chicago`, named as EFS's
@@ -637,3 +646,5 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   money drawer's moves are buttons (close in 2 clicks). The page's end-of-day cut is recorded for chunk 10.
 - 2026-10-08: #1373 merged (63d50f4): Q-F13 (a) and the money drawer's buttons. 9a built: the buying-habits
   table on Fuel Costs; September $8,095.80 matches the database to the cent.
+- 2026-10-08: 9a merged (#1374, 26cb87f). 9b built: the buying habits leave the queue; the tiles become
+  Can be disputed / Disputed / Credited back, adding only claimable money. Production: $56.34 to claim, 14 open.

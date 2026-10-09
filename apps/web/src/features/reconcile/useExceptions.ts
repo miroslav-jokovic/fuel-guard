@@ -8,7 +8,7 @@
  */
 import { computed, type Ref } from "vue";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { FuelExceptionKind, FuelExceptionStatus } from "@silvicom/shared";
+import type { DisputeTotals, FuelExceptionKind, FuelExceptionStatus } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 export interface FuelException {
@@ -54,14 +54,8 @@ export interface FuelExceptionEvent {
  * product reporting only the first can never prove itself. `byKind` keeps the four kinds of money
  * apart on top of that, because recoverable, owed and unexplained must not be added (D-FX5).
  */
-export interface ExceptionTotals {
-  identified: number;
-  claimed: number;
-  recovered: number;
-  lines: number;
-  openLines: number;
-  byKind: Record<string, { identified: number; lines: number }>;
-}
+/** The three money tiles of Fuel problems (9b): shared's `disputeTotals`, as the API returns it. */
+export type ExceptionTotals = DisputeTotals;
 
 export interface ExceptionQuery {
   status: FuelExceptionStatus[];

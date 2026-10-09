@@ -30,10 +30,15 @@ vi.mock("@/features/reconcile/useFindings", () => ({
     return asQuery(() => ({ rows: listed.value, total: listed.total, truncated: truncated.value }));
   },
 }));
+/** The three tiles' figures (9b), as `disputeTotals` returns them; null is a read that has not answered. */
+const TOTALS = {
+  canDispute: { count: 14, claims: 4, amount: 56.34 }, disputed: { count: 1, amount: 500 }, creditedBack: { count: 1, amount: 275.1 },
+};
+const totalsShown = { value: TOTALS as typeof TOTALS | null };
 vi.mock("@/features/reconcile/useExceptions", () => ({
   useExceptionTotalsQuery: (w: { value: Record<string, unknown> }) => {
     seen.totalsWindow = w.value;
-    return asQuery(() => ({ identified: 1942.11, claimed: 800, recovered: 275, lines: 4, openLines: 2, byKind: {} }));
+    return asQuery(() => totalsShown.value);
   },
   useExceptionQuery: () => asQuery(() => null),
   useMoveException: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
@@ -170,16 +175,41 @@ async function mountPage(query = "", path = "/fuel-problems") {
 }
 
 describe("Fuel problems", () => {
-  it("leads with identified, claimed and recovered — three numbers, never one", async () => {
-    // "We found $14,200" is a claim about the software; "we recovered $14,200" is a claim about the
-    // business, and only the second one renews a contract. The gap between them is the point.
+  // Chunk 9b: the claim from open to paid. "We can claim $56" is a claim about the bills; "we got $275
+  // back" is a claim about the business, and only the second one renews a contract.
+  it("leads with can be disputed, disputed and credited back — three numbers, never one", async () => {
     const t = (await mountPage()).w.text();
-    expect(t).toContain("Identified");
-    expect(t).toContain("Claimed");
-    expect(t).toContain("Recovered");
-    expect(t).toContain("$1,942");
-    expect(t).toContain("$275");
+    expect(t).toContain("Can be disputed");
+    expect(t).toContain("$56.34");
+    expect(t).toContain("14 items open · 4 with money to claim");
+    expect(t).toContain("Disputed");
+    expect(t).toContain("$500.00");
+    expect(t).toContain("Credited back");
+    expect(t).toContain("$275.10");
+    expect(t).not.toContain("Identified");
     expect(t).not.toContain("NaN");
+  });
+
+  it("shows a dash, never $0, while the figures have not answered", async () => {
+    totalsShown.value = null;
+    try {
+      const t = (await mountPage()).w.text();
+      expect(t).not.toContain("$0");
+      expect(t).toContain("—");
+    } finally {
+      totalsShown.value = TOTALS;
+    }
+  });
+
+  // The buying habits left the queue (Q-F2): the kind filter does not offer them, and an old link that
+  // names one is not a way back in.
+  it("offers no buying-habit kind and ignores one named in the address", async () => {
+    const { w } = await mountPage("?kind=off_network_premium");
+    expect(seen.listQuery?.kinds).toEqual([]);
+    const kindFilter = w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === "Finding")!;
+    const offered = (kindFilter.props("options") as { value: string }[]).map((o) => o.value);
+    expect(offered).toContain("contract_variance");
+    expect(offered.filter((v) => v.endsWith("_premium"))).toEqual([]);
   });
 
   it("renders a finding in words, never as its token", async () => {
@@ -320,7 +350,7 @@ describe("Fuel problems", () => {
     listed.value = [row(), theftRow()];
     listed.total = 2;
     const t = (await mountPage()).w.text();
-    expect(t).toContain("money findings");
+    expect(t).toContain("with money to claim");
   });
 
   // A zero in a money column is a figure, and one somebody would reasonably add to the column above.

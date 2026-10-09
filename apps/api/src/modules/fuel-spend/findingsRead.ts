@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CARD_FRAUD_KIND,
   FINDING_ASSIGNABLE_SECTIONS,
+  QUEUE_EXCEPTION_KINDS,
   anomalyStatusesIn,
   byOccurredDesc,
   canViewSection,
@@ -109,7 +110,9 @@ export async function readFindings(
 
   const wantsAnomalies = !f.kinds?.length || f.kinds.includes(CASE_RULE_ID as FindingKind);
   const wantsIncidents = !f.kinds?.length || f.kinds.includes(CARD_FRAUD_KIND as FindingKind);
-  const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => k !== CASE_RULE_ID && k !== CARD_FRAUD_KIND);
+  // Only the queue's money kinds (9b, Q-F2): a buying habit named in a filter reads as nothing, not as a
+  // way back into the queue for the kinds that left it.
+  const exceptionKinds = (f.kinds ?? []).filter((k): k is FuelExceptionKind => (QUEUE_EXCEPTION_KINDS as readonly string[]).includes(k));
   const wantsExceptions = !f.kinds?.length || exceptionKinds.length > 0;
   const readsCases = (wantsAnomalies && sections.has("safety")) || (wantsIncidents && sections.has("fuel"));
   const epoch = readsCases ? await detectionEpochOf(admin, orgId) : null;
@@ -219,7 +222,8 @@ async function readExceptions(
     .in("status", statuses);
   if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
   if (fleet) q = q.in("unit_number", fleet.units);
-  if (kinds.length) q = q.in("kind", kinds);
+  // Always a kind list: with none asked for, the queue's own (9b) — the buying habits are on Fuel Costs.
+  q = q.in("kind", kinds.length ? kinds : [...QUEUE_EXCEPTION_KINDS]);
   if (f.from) q = q.gte("occurred_on", f.from);
   if (f.to) q = q.lte("occurred_on", f.to);
   const { data } = await q.order("occurred_on", { ascending: false }).limit(READ_CAP);
@@ -347,7 +351,12 @@ export async function readFindingsSummary(
       : Promise.resolve({ count: null }),
     sections.has("fuel")
       ? countFromEpoch(
-          admin.from("fuel_exceptions").select("occurred_on", { count: "exact" }).eq("org_id", orgId).in("status", exceptionOpen),
+          admin
+            .from("fuel_exceptions")
+            .select("occurred_on", { count: "exact" })
+            .eq("org_id", orgId)
+            .in("status", exceptionOpen)
+            .in("kind", [...QUEUE_EXCEPTION_KINDS]),
           null,
           "occurred_on",
         )
