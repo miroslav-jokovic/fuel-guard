@@ -968,15 +968,19 @@ ok(
 // D. A role that a RESTRICTIVE policy already refuses is dead text in a permissive list (D-PERM12).
 // 0135 closed the driver's PostgREST fill-up (`fuel_tx_driver_insert`: restrictive, `auth_role() <>
 // 'driver'`), so the `driver` 0004 listed in ftxn_insert has been unreachable since; 0300 removes it
-// and the office half is the fuel section's manage set. Both halves are pinned here.
+// and the office half is the fuel section's manage set.
+// 0447 (F02-F04 chunk 12b, Q-F6) then dropped `ftxn_insert` itself: no browser writes a fill, whatever its
+// role or grant. The two cases that proved the policy ADMITTED a writer now prove nobody is admitted —
+// the admin, and a dispatcher whose org grants fuel: manage. The fill-write matrix for every role is in
+// `fuel-ledger-section-gate.test.mjs`.
 const P6_VEHICLE = (await one(
   `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P6-1','diesel',100) returning id`,
   [ORG],
 )).id;
 const NEW_FILL = `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1, $2, now(), 10, 'manual')`;
 ok(
-  "the fixture is real — an admin records a fill-up",
-  await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE]),
+  "not even the admin records a fill-up through PostgREST since 0447 — every fill comes from the API",
+  !(await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
   "a driver cannot record a fill-up through PostgREST — 0135's closure, which made the listed role dead (D-PERM12)",
@@ -987,8 +991,8 @@ ok(
   !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
-  "…until an org grants them fuel: manage, which now reaches this policy",
-  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE]),
+  "…nor when an org grants them fuel: manage — there is no write policy for a grant to reach (0447)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
   "and an org that drops its fleet managers to fuel: view is obeyed here too",

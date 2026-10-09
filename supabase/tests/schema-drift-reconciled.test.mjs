@@ -91,11 +91,17 @@ const AS_DRIVER = { sub: DRIVER_USER, org_id: ORG, user_role: "driver" };
 const AS_OFFICE = { sub: OFFICE, org_id: ORG, user_role: "admin" };
 
 // ── 1. restrictive driver denials ────────────────────────────────────────────────────────────────
+// 0422 restored six. 0447 (F02-F04 chunk 12b) dropped the sixth, `ftxn_driver_insert`, with every other
+// write policy on fills: a restrictive policy only narrows a permissive one, and none is left, so a driver's
+// insert is refused outright — asserted per role in `fuel-ledger-section-gate.test.mjs`.
 const restrictive = (await db.query(
   `select tablename || '.' || policyname p from pg_policies where permissive = 'RESTRICTIVE'
      and policyname in ('anomalies_driver_deny','thresholds_driver_deny','memberships_driver_deny',
-                        'tms_movements_driver_deny','ftxn_driver_select','ftxn_driver_insert')`)).rows.map((r) => r.p);
-ok("all six driver denials exist, and as RESTRICTIVE", restrictive.length === 6, JSON.stringify(restrictive));
+                        'tms_movements_driver_deny','ftxn_driver_select')`)).rows.map((r) => r.p);
+ok("all five driver denials exist, and as RESTRICTIVE", restrictive.length === 5, JSON.stringify(restrictive));
+const insertPolicies = (await db.query(
+  `select policyname from pg_policies where tablename = 'fuel_transactions' and cmd <> 'SELECT'`)).rows.map((r) => r.policyname);
+ok("fuel_transactions holds no write policy at all since 0447", insertPolicies.length === 0, JSON.stringify(insertPolicies));
 
 const officeMembers = (await seenAs(AS_OFFICE, `select id from memberships`)).length;
 const driverMembers = (await seenAs(AS_DRIVER, `select id from memberships`)).length;

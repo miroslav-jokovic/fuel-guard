@@ -14,8 +14,10 @@
 //   · THE DRIVER BRANCH MUST NOT WIDEN. A driver passes this gate by design, and is limited to their own
 //     rows by the policies already on the table; the case asserts that is STILL two rows and not the
 //     organisation's five, with and without a fuel grant in the token (D-PERM7).
-//   · WRITES ARE UNTOUCHED. A policy for SELECT can still break an UPDATE or DELETE ... RETURNING, which
-//     must read the row to act on it; a fuel manager's update-and-return is asserted to still work.
+//   · WRITES ARE REFUSED (0447, F02-F04 chunk 12b, Q-F6). Until 0447 this block asserted the opposite — a
+//     fuel manager's insert and update-and-return still worked after 0417. 0447 removed every browser write
+//     policy, so for EVERY role, even holding fuel: manage, an insert raises, and an update or delete finds
+//     no row to act on. The service role, which every API writer uses, still does all three.
 //
 // Run:  node supabase/tests/fuel-ledger-section-gate.test.mjs   (needs packages/shared/dist: build:rn)
 import { PGlite } from "@electric-sql/pglite";
@@ -151,13 +153,45 @@ ok("fuel_range_totals reports no fills to a manager whose org revoked fuel",
   deniedTotals.error === undefined && Number(deniedTotals.rows[0]?.j.fills ?? 0) === 0, JSON.stringify(deniedTotals));
 ok("fuel_range_totals reports no fills to a technician", techTotals.error === undefined && Number(techTotals.rows[0]?.j.fills ?? 0) === 0, JSON.stringify(techTotals));
 
-// ── Writes are untouched ────────────────────────────────────────────────────────────────────────
-const upd = await as(claimsFor("fleet_manager"), `update fuel_transactions set gallons = gallons where org_id = $1 returning id`, [ORG_A]);
-ok("a fuel manager's UPDATE ... RETURNING still sees and returns the organisation's rows", upd.error === undefined && upd.rows.length === IN_A, JSON.stringify(upd).slice(0, 160));
-const ins = await as(claimsFor("fleet_manager"), `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1,$2,now(),5,'manual') returning id`, [ORG_A, V1]);
-ok("a fuel manager can still insert a fill and read it back", ins.error === undefined && ins.rows.length === 1, JSON.stringify(ins).slice(0, 160));
-const insDenied = await as(claimsFor("technician"), `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1,$2,now(),5,'manual')`, [ORG_A, V1]);
-ok("a technician still cannot insert (the write policies are unchanged)", /row-level security/i.test(insDenied.error ?? ""), JSON.stringify(insDenied));
+// ── Writes are refused, for every role (0447) ───────────────────────────────────────────────────
+// USER_ROLES is the shared list, so a role added later is covered here without editing this file. Each
+// carries fuel: manage — the widest token a role can hold — because a refusal that held only for the
+// roles the default matrix leaves without manage would be the section gate, not the absence of a policy.
+// An UPDATE or DELETE with no policy for its command is not an error in Postgres: it matches no row. So
+// those two assert "nothing changed and nothing returned", and the fill is checked untouched afterwards.
+const FILL = (await one(`select id, gallons from fuel_transactions where org_id = $1 limit 1`, [ORG_A]));
+const insertSql = `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1,$2,now(),5,'manual') returning id`;
+for (const role of USER_ROLES) {
+  const c = claimsFor(role, { sections: { fuel: "manage" } });
+  const ins = await as(c, insertSql, [ORG_A, V1]);
+  ok(`a ${role} cannot insert a fill from the browser, even with fuel: manage`,
+    /row-level security/i.test(ins.error ?? ""), JSON.stringify(ins).slice(0, 160));
+  const upd = await as(c, `update fuel_transactions set gallons = gallons + 1 where id = $1 returning id`, [FILL.id]);
+  ok(`a ${role} cannot update a fill from the browser`, upd.error === undefined && upd.rows.length === 0, JSON.stringify(upd).slice(0, 160));
+  const del = await as(c, `delete from fuel_transactions where id = $1 returning id`, [FILL.id]);
+  ok(`a ${role} cannot delete a fill from the browser`, del.error === undefined && del.rows.length === 0, JSON.stringify(del).slice(0, 160));
+}
+ok("the fill those attempts aimed at is unchanged",
+  Number((await one(`select gallons from fuel_transactions where id = $1`, [FILL.id])).gallons) === Number(FILL.gallons));
+
+// The API's writers. `service_role` bypasses row-level security (the shim gives it BYPASSRLS, as Supabase
+// does), so 0447 must leave all three working for it — EFS ingest inserts, scoring and the flag reconcile
+// update. Each runs in a transaction that is rolled back.
+const asService = async (sql, params = []) => {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role service_role");
+    const r = await db.query(sql, params);
+    await db.exec("rollback");
+    return { rows: r.rows };
+  } catch (e) { await db.exec("rollback"); return { error: e.message }; }
+};
+const svcIns = await asService(insertSql, [ORG_A, V1]);
+ok("the service role still inserts a fill", svcIns.error === undefined && svcIns.rows.length === 1, JSON.stringify(svcIns).slice(0, 160));
+const svcUpd = await asService(`update fuel_transactions set gallons = gallons + 1 where id = $1 returning id`, [FILL.id]);
+ok("the service role still updates a fill", svcUpd.error === undefined && svcUpd.rows.length === 1, JSON.stringify(svcUpd).slice(0, 160));
+const svcDel = await asService(`delete from fuel_transactions where id = $1 returning id`, [FILL.id]);
+ok("the service role still deletes a fill", svcDel.error === undefined && svcDel.rows.length === 1, JSON.stringify(svcDel).slice(0, 160));
 
 // ── Shape ───────────────────────────────────────────────────────────────────────────────────────
 const pols = await all(`select policyname, permissive from pg_policies where schemaname='public' and tablename='fuel_transactions' and cmd='SELECT' order by 1`);
