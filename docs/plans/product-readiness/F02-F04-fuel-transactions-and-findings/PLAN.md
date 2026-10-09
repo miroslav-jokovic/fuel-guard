@@ -682,3 +682,16 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   station's time in the hover, and one dates sentence on all three tabs. The acceptance figure moved
   with EFS's late postings; re-measured, see 10b. 10b must ship in the same release as 0444, which it is
   merged after.
+- 2026-10-09: #1381 (10b) merged (c723e5c). Released as v2026.10.09 with #1377, #1378, #1379 and #1380. The
+  owner chose to ship #1380 (another session's Samsara documents collector, migration 0445) in the same
+  release. Production serves c723e5c with schema 0445. Accept, re-measured read-only:
+  - 0 fills off EFS's Central day.
+  - 0 of 4,776 fills since 08-01 dated differently from their EFS `tran_date`.
+  - September on the Fuel Log is $1,338,438.24, equal to EFS's September ULSD + ULSR lines to the cent.
+  - The backfill touched no other row's `updated_at`.
+  Spend days rebuilt 02-04 → 10-09 with the service key, run by Claude on the owner's instruction as
+  in the 10-01 rebuild: 34,715 rows written, 778 stale rows swept, and one `fuel.spend_rollup_rebuilt`
+  audit row (actor null, reason 0444). September tractor spend went from $1,324,540.21 to
+  $1,323,900.97, the $639.24 Nevada fill moved to October. Spend days total $8,656,213.71 for
+  02-04 → 10-09, equal to the fills to the cent. **Chunk 10 is complete.**
+
