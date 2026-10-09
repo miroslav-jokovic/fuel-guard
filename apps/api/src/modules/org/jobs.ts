@@ -30,6 +30,7 @@ export type JobKind =
    */
   | "idle_event_twins"
   | "sync_ifta" // Samsara IFTA jurisdiction miles, monthly grain (0255, SAMSARA-IFTA-MILEAGE-PLAN S1)
+  | "sync_documents" // Samsara driver documents — BOL, delivery copies, call forms (0445, DOCUMENT-READER-PLAN 0.1)
   | "sync_odometer" // Samsara cumulative odometer readings, one per truck per day per counter (0311, W3b)
   | "idle_engine" // our own idle engine's hour/stop/day rows, hourly + a nightly 2-day recompute (0404, IE2)
   | "sync_hos"

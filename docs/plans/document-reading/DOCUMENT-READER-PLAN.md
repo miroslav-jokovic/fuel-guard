@@ -625,3 +625,11 @@ Append dated lines at the end; never edit a row above.
   Steps 3.5–3.6), Q-DR5 (dispatcher + safety manager label), Q-DR6 (normalise everything before any
   reader → D-DR13). Q-DR9 (which number drivers text; Telnyx use case) and Q-DR10 (documents mailbox)
   opened as owner actions. Execution starts at Step 0.1.
+- **2026-10-08 (Step 0.1 built)** — `samsara_documents` (0445) and its collector
+  (`modules/samsara/samsaraDocumentsSync.ts`, tier every 15 min, job kind `sync_documents`, env in
+  `apps/api/src/envDocumentReading.ts`). Watermark = newest stored `samsara_updated_at` less one hour,
+  walked oldest day first; photo ids kept, vendor urls never stored; `Load #` read by exact label.
+  Live read-only run over the last two days: 373 documents fetched, 0 refused, 164 photos, 328
+  carrying a load number (35 BOL-type, 10 delivery copies, 328 call forms). Not yet wired into
+  `samsaraFeedHealth` (its alarm would mail on a new feed before anyone has ruled its freshness bound).
+

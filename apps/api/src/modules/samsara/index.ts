@@ -43,6 +43,7 @@ export {
 } from "./telematicsCoverage.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
 export { monthsToSync, syncIftaMilesForMonth, syncIftaMonths } from "./samsaraIftaSync.js";
+export { syncSamsaraDocuments } from "./samsaraDocumentsSync.js";
 export {
   syncVehicleOdometerReadings,
   ODOMETER_SOURCE_WINDOW_DAYS,

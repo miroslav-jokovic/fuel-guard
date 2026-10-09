@@ -23,6 +23,7 @@ import {
   syncIdleHandler,
   syncIftaHandler,
   syncOdometerHandler,
+  syncDocumentsHandler,
   syncStatsHandler,
   syncTrailersHandler,
   syncVehiclesHandler,
@@ -67,6 +68,7 @@ export function registerAllHandlers(): void {
   registerHandler("idle_event_twins", idleEventTwinsHandler);
   registerHandler("sync_ifta", syncIftaHandler);
   registerHandler("sync_odometer", syncOdometerHandler);
+  registerHandler("sync_documents", syncDocumentsHandler);
   registerHandler("sync_hos", syncHosHandler);
   registerHandler("sync_drivers", syncDriversHandler);
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
