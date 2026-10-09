@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseSamsaraDocument, type SamsaraDocumentRow } from "@silvicom/shared";
+import { parseSamsaraDocument, shippingDocumentLabelsSkeleton, type SamsaraDocumentRow } from "@silvicom/shared";
 import { loadEnv } from "../env.js";
 import { makeSamsaraDocumentsFetcher } from "../modules/samsara/lib/samsaraDocuments.js";
 
@@ -34,25 +34,13 @@ export const DEFAULT_TYPES = ["BOL, SECURMENT, PLACARDS", "Proof of Delivery"];
 const DAY_MS = 86_400_000;
 
 /**
- * The skeleton a labeller fills in, one per document. The sections are the plan's §2
- * `shippingDocument` contract; Step 1.1 writes that contract in Zod and validates these files with it.
- * Every value starts null — a label is what a person TYPED from the paper, and a pre-filled guess
- * would be agreed with rather than read. Each page's class and quality band are also the labeller's
- * (D-DR11: a BOL-type submission is mixed BOL, placard and securement photos).
+ * The skeleton a labeller fills in, one per document: `shippingDocumentLabelsSkeleton` from the
+ * profile's contract (`documentReadingContract.ts`), so the file a labeller edits is exactly the shape
+ * `doc:score` parses. Every value starts null — a label is what a person TYPED from the paper, and a
+ * pre-filled guess would be agreed with rather than read. Each page's class and quality band are also
+ * the labeller's (D-DR11: a BOL-type submission is mixed BOL, placard and securement photos).
  */
-export function labelsSkeleton(pageFiles: string[]) {
-  return {
-    labelledBy: [] as string[],
-    pages: pageFiles.map((file) => ({ file, class: null, band: null, assignedBy: null })),
-    identity: { bolNumber: null, date: null, pageOf: null },
-    parties: { shipper: null, consignee: null, billTo: null },
-    references: { po: [], customer: [], consignee: [] },
-    freight: { pieces: null, pallets: null, weight: null, weightUnit: null, seal: null, trailer: null },
-    hazmat: { lines: [], emergencyPhone: null, shipperCertification: null, offeror: null },
-    execution: { receiverSignaturePresent: null, receiverName: null, deliveredAt: null, osdNotations: [] },
-    notes: "",
-  };
-}
+export const labelsSkeleton = shippingDocumentLabelsSkeleton;
 
 /** Photo urls by id, from the RAW item (the parsed row deliberately carries ids only). Pure. */
 export function photoUrls(raw: unknown): Map<string, string> {
