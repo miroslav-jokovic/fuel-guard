@@ -24,14 +24,22 @@ import {
 describe("ShippingDocument", () => {
   it("parses {} to the empty document: every scalar null, every list empty", () => {
     const d = emptyShippingDocument();
-    expect(d.identity).toEqual({ bolNumber: null, date: null, pageOf: null });
-    expect(d.hazmat).toEqual({ lines: [], emergencyPhone: null, shipperCertification: null, offeror: null });
+    expect(d.identity).toEqual({ bolNumber: null, date: null, pageOf: null, printedPageNumbers: [] });
+    expect(d.hazmat).toEqual({ lines: [], emergencyPhone: null, shipperCertification: null, offeror: null, emergencyContactText: null });
     expect(d.freight.seals).toEqual([]);
+    expect(d.otherLines).toEqual([]);
+  });
+
+  it("holds one page marker per image, null for an image that prints none, and refuses a number", () => {
+    const d = shippingDocumentSchema.parse({ identity: { printedPageNumbers: ["Page 1 of 2", null] } });
+    expect(d.identity.printedPageNumbers).toEqual(["Page 1 of 2", null]);
+    expect(() => shippingDocumentSchema.parse({ identity: { printedPageNumbers: [1] } })).toThrow();
   });
 
   it("gives a printed line the hazmat extractor's defaults, so BolFields is a projection of it", () => {
     const d = shippingDocumentSchema.parse({ hazmat: { lines: [{ idText: "UN1203" }] } });
     expect(d.hazmat.lines[0]).toMatchObject({ idText: "UN1203", pg: null, quantity: { value: null, unit: null }, marks: [] });
+    expect(d.hazmat.lines[0]!.descriptionText).toBeNull();
   });
 
   it("generates a structured-output JSON schema in which every property is required (D-DR8)", () => {
@@ -57,6 +65,8 @@ describe("field criticality (D-DR5)", () => {
     expect(shippingFieldCriticality("hazmat.lines[12].quantity.value")).toBe("engine");
     expect(shippingFieldCriticality("hazmat.lines[1].marks")).toBe("engine");
     expect(shippingFieldCriticality("hazmat.lines[0].technicalName")).toBe("standard");
+    expect(shippingFieldCriticality("hazmat.lines[0].descriptionText")).toBe("standard");
+    expect(shippingFieldCriticality("hazmat.emergencyContactText")).toBe("standard");
     expect(shippingFieldCriticality("hazmat.emergencyPhone")).toBe("standard");
     expect(shippingFieldCriticality("identity.bolNumber")).toBe("standard");
     expect(GRADUATION_MIN_CONFIRMATIONS).toEqual({ engine: 600, standard: 300 });

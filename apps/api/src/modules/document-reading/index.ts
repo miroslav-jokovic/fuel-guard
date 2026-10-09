@@ -19,8 +19,16 @@ export {
   type ReadPrompt,
   type ReadUsage,
 } from "./model/readPages.js";
+export {
+  readSections,
+  combinedSchemaHash,
+  sectionWireSchemas,
+  FAILURE_PRECEDENCE,
+  type ReadSectionsResult,
+  type SectionOutcome,
+} from "./model/readSections.js";
 export { readModels, type ReadModels } from "./model/models.js";
-export { schemaHash, wireSchemaFor } from "./model/wireSchema.js";
+export { schemaComplexity, schemaHash, STRUCTURED_OUTPUT_LIMITS, wireSchemaFor } from "./model/wireSchema.js";
 export {
   normaliseSource,
   NORMALISER_VERSION,
