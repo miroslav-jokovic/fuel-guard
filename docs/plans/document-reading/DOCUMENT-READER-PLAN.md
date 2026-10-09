@@ -661,3 +661,16 @@ Append dated lines at the end; never edit a row above.
   fix: page quality bands are `good / fair / poor` (definitions on `PAGE_QUALITY_BANDS`), and
   `freight.seal` became `seals[]` because a trailer often carries more than one. The 51 unlabelled corpus
   skeletons were rewritten to the contract (none had labelling work yet) and all 51 validate.
+- **2026-10-09 (Step 0.4)** — `pnpm --filter @silvicom/api doc:score -- --run <name>` scores a recorded
+  run (`<id>/runs/<name>.json`: document, evidence, cost) against every labelled corpus document. The
+  arithmetic is pure in `packages/shared/src/documentScoring.ts`: accuracy, false-accept (status `read`
+  and wrong, over `read`), yield and cost per page, per field (line indexes collapsed) and per band (a
+  document's worst `bol`/`delivery_copy` page), with counts beside every number and D-DR5's 3/N bar per
+  field. Equality is defined once in `documentFieldMatch.ts` — whitespace-collapsed, case-sensitive,
+  numbers exact, lists as multisets, no fuzzy matching. Hazmat lines align by id digits with a PSN
+  tie-break (F-EX6), never by index; a missed line is wrong, a `read` field on an extra line is a false
+  accept. Unlabelled documents are skipped and counted; invalid labels or run files are reported by id.
+  The reader is injected (`DocumentReader`); only the recorded reader exists until Step 0.5. Open before
+  the baseline: whether a typed read failure scores as all-not-read (recommended yes, once Step 1.4's
+  failures are written to the run file), and an accuracy column over labelled values only, since
+  agreement on blanks inflates today's (`labelPresent` shows how much).
