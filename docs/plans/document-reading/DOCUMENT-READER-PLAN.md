@@ -628,6 +628,34 @@ not production). Hazmat lines are 12 unions on their own, so a hazmat section ha
 *Until answered:* Step 1.4's adapter is generic and merges; it passes the API's 400 back as a
 configuration error. No profile read runs before 1.6, so nothing waits on this but 1.6.
 
+**Q-DR13 — Should the contract carry each printed line's description text and a "non-hazmat lines
+present" flag?** (Found building Step 4.1.) `PrintedHazmatLine` holds the parts of the basic
+description, not their printed order or position, so `paper_sequence` cannot check ISHP order (a pass
+says `orderVerified: false`) and `paper_hm_column` cannot see whether hazmat lines are listed first or
+in a contrasting colour — it never fails, by design, and answers `cannot_tell` on mixed paper. The
+registrant-name rule beside a CHEMTREC-style number (Appendix A.5) needs the text next to
+`emergencyPhone`. *Recommendation:* yes — `descriptionText` per line, `nonHazmatLinesPresent` on the
+document and `emergencyContactText`, in the next profile version (bumps
+`SHIPPING_DOCUMENT_PROFILE_VERSION`; labels gain three fields).
+
+**Q-DR14 — Promote hazmat dataset 2026.08.0?** The released `LATEST_DATASET_VERSION` (2026.07.1) has no
+column 8A (`exceptionsRef`), so `paper_lq` on a printed "Ltd Qty" answers `requirement_not_in_dataset`
+in production today (pinned by an api test). Only the provisional 2026.08.0 carries it. Special
+provisions have 0 rows in every version, so an SP-based exception to §172.203(k) cannot be evaluated
+(a G entry always asks for its technical name). *Recommendation:* promote 2026.08.0 (or cut a
+non-provisional 2026.08.x) through `RELEASING.md`; the SP importer stays its own item.
+
+**Q-DR15 — Paper-format rules as code?** Q-DR2 ruled that every requirement is read from the dataset.
+Material-specific ones are; but §172.604 (a 24-hour number with area code), §172.204 (certification
+present) and §172.201(c) (all pages) have no table in `packages/hazmat-data` (`referenceText.json` is
+empty), so Step 4.1 states them in code, as `validateBol` already does. *Recommendation:* keep them as
+code rules; they are format rules, not per-material data. Owner to confirm.
+
+**Q-DR16 — Who supplies the audit's context?** `auditPrintedPaper` takes `certificationExempt`,
+`vesselLeg`, `mixedPaper` and `pagesPresent` from its caller; each is `cannot_tell` when absent.
+*Recommendation:* the Step 4.2 panel's API caller — exemption from `tripContext.carrierRelationship`,
+pages from the source's page count, vessel leg from the calculator form, mixed paper from Q-DR13's flag.
+
 ---
 
 ## 10. Progress log
@@ -703,3 +731,14 @@ Append dated lines at the end; never edit a row above.
   `DOC_READ_MODEL_A/_B`, falling back to the hazmat pins (defaults unchanged). SDK 0.107.0, no upgrade.
   42 tests, 15 mutants killed. **The live call found Q-DR11**: the full profile schema is refused (37
   unions, limit 16); per-section reads of a synthetic BOL all succeeded.
+- **2026-10-09 (Steps 4.1–4.2's catalogue)** — `auditPrintedPaper(printed, resolved, fieldStates?)` in
+  `packages/hazmat-engine/src/bol/` answers the twelve §5.1 rules pass / fail / cannot_tell per printed
+  line and per paper. Every material-specific requirement comes from the dataset on the run (HMT PSN,
+  class, PG and G symbol, column 8A, Appendix A RQ in lb and kg — never converted — Appendix B and SP
+  441); PSN and class verdicts come from `resolveHmtLine`'s normaliser, not a second copy. A Check or
+  Not-read field, an unresolved line, or a table the dataset lacks answers `cannot_tell`, never pass.
+  The F-DR11 lead-acid BOL fails `paper_sequence` and `paper_er_phone`. `bolFindingCatalogue.ts` gives
+  each rule its sentence, cite, actor and fix; an api test pins catalogue keys to the engine's rule ids
+  and the reader and resolver types to the engine's input shapes. `lineDeclaresLq` now reads the
+  engine's one LQ pattern. 73 engine + 41 catalogue + 4 seam tests; 10 of 10 mutants killed. Opened
+  Q-DR13–16.
