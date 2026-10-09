@@ -62,7 +62,7 @@ const addDays = (ymd: string, n: number): string => {
 interface RawFill {
   vehicle_id: string | null;
   fueled_at: string | null;
-  state: string | null;
+  business_date: string | null;
   tank_type: string | null;
   gallons: number | string | null;
   total_cost: number | string | null;
@@ -124,14 +124,14 @@ export async function buildFuelSpendRollup(
   };
 }
 
-/** Recorded fills. The UTC window is widened a day each side because business dates are station-local. */
+/** Recorded fills. The UTC window is widened a day each side because a business date (EFS's Central day) can sit either side of the UTC one. */
 async function readFills(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<SpendFill[]> {
   const out: SpendFill[] = [];
   await eachPage<RawFill>(
     (a, b) =>
       admin
         .from("fuel_transactions")
-        .select("vehicle_id, fueled_at, state, tank_type, gallons, total_cost, miles_since_last")
+        .select("vehicle_id, fueled_at, business_date, tank_type, gallons, total_cost, miles_since_last")
         .eq("org_id", orgId)
         .gte("fueled_at", `${addDays(from, -1)}T00:00:00.000Z`)
         .lte("fueled_at", `${addDays(to, 1)}T23:59:59.999Z`)
@@ -143,7 +143,7 @@ async function readFills(admin: SupabaseClient, orgId: string, from: string, to:
         out.push({
           vehicleId: r.vehicle_id,
           fueledAt: r.fueled_at,
-          state: r.state,
+          businessDate: r.business_date,
           tank: r.tank_type === "reefer" ? "reefer" : "tractor",
           gallons: num(r.gallons),
           totalCost: maybeNum(r.total_cost),

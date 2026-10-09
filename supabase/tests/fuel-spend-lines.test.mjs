@@ -116,7 +116,7 @@ ok(
   (await rows(`select * from fuel_spend_lines(p_from => '2026-08-01', p_to => '2026-08-31')`)).length === 0,
 );
 
-// ── 3. the business date is station-local, not UTC (D-FC2) ──────────────────────────────────────
+// ── 3. the business date is EFS's Central day, not UTC (D-FC2; Central since 0444) ───────────────
 // 02:00Z on the 13th is 21:00 on the 12th in Texas. EFS bills it to the 12th; dating it by UTC would
 // file it under the 13th and then look up the 13th's quote for a fill that happened the day before.
 await fill("2026-08-13", 60, 300, { at: "02:00:00" });
@@ -216,7 +216,7 @@ ok(
 );
 ok(
   "the inner tz call is schema-qualified, which is what makes dropping the SET safe",
-  (await one(`select prosrc from pg_proc where proname = 'fuel_business_date'`)).prosrc.includes("public.fuel_station_tz"),
+  (await one(`select prosrc from pg_proc where proname = 'fuel_business_date'`)).prosrc.includes("public.efs_clock_tz"), // 0444: EFS's clock, not the station's
 );
 
 // ── 10. reachability ────────────────────────────────────────────────────────────────────────────
