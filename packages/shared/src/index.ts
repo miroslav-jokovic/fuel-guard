@@ -13,6 +13,8 @@ export * from "./hazmatPackaging.js";
 export * from "./shippingDocumentContract.js";
 export * from "./fieldEvidenceContract.js";
 export * from "./documentReadingContract.js";
+export * from "./documentFieldMatch.js";
+export * from "./documentScoring.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
 export * from "./complianceSeed.js";
