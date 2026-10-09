@@ -30,7 +30,9 @@ jobs:
     # still runs — incident recovery is exactly when production must be reachable by hand.
     if: ${{ github.event_name != 'push' || vars.RELEASE_TRAIN != 'on' }}
     # Same machine switch as ci.yml (CI_RUNNER; its header says why).
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    # DATABASE_TRANSPORT Q-DT2: the jobs that open a Postgres connection run where DB_RUNNER says, so a
+    # network allow-list can name one fixed address. Unset = GitHub-hosted, exactly as before.
+    runs-on: ${{ vars.DB_RUNNER || vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       actions: read # the CI gate reads workflow run status
@@ -78,7 +80,9 @@ jobs:
   # Its own secrets, asserted the same way: STAGING_SUPABASE_PROJECT_REF, STAGING_SUPABASE_DB_PASSWORD
   # (SUPABASE_ACCESS_TOKEN is the same account token — one org owns both projects).
   migrate-staging:
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    # DATABASE_TRANSPORT Q-DT2: the jobs that open a Postgres connection run where DB_RUNNER says, so a
+    # network allow-list can name one fixed address. Unset = GitHub-hosted, exactly as before.
+    runs-on: ${{ vars.DB_RUNNER || vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       actions: read
