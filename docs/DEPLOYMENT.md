@@ -217,6 +217,17 @@ once. It depends on two things no gate can see:
 To check it worked, the old deployment's log should end with
 `[shutdown] api: SIGTERM — … waiting up to 35s` and then `N finished, M released`.
 
+## EFS feed older than 2 hours: who is told, and what to check
+
+**Who:** every member with `accounting: manage` gets "EFS transactions not updated in N hours" in
+the bell (a warning; critical after 6 h), and the org's notification emails get one message. It
+comes from `financialFreshness.ts`, which fires once the last successful `efs_soap_posted` run is
+over an hour old (the poll runs every minute). It checks only every 6 hours and says it once a day,
+so a 2-hour gap can go unannounced for up to 6 more hours. **Check:** Settings → Data & sync, the
+EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleetguard/api` for
+`efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
+runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.
