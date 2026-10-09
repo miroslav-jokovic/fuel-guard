@@ -754,3 +754,15 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
       is its own two-merge step if ever wanted.
   - Test: "offers no Log fill-up beside it, even to the admin" in `importRetired.test.ts`. Proved by
     restoring the old page.
+- 2026-10-09: 12a merged (#1387, 9e636c8). 12b built. Migration 0447 drops the browser's three write policies on fills (`ftxn_insert`,
+  `ftxn_update`, `ftxn_delete`). It also drops the two restrictive driver-insert policies
+  (`ftxn_driver_insert`, `fuel_tx_driver_insert`), which narrow nothing once no permissive insert is left.
+  Reads are unchanged.
+  - Accept: `fuel-ledger-section-gate.test.mjs` refuses insert, update and delete for every role in
+    `USER_ROLES` (derived), each holding fuel: manage. The service role still does all three. Proved by
+    putting back each of the three write policies, one at a time; each fails 8 cases.
+  - Two matrices had pinned the old capability and now pin its absence:
+    - `org-section-access` §D: the admin, and a dispatcher granted fuel: manage, are both refused.
+    - `schema-drift-reconciled`: five driver denials, and no write policy on the table.
+  - Merged after 12a, so no served page offers a write the database refuses. If both ride one release,
+    the migration applies minutes before the code; in that window only the old, unused button would fail.
