@@ -8,6 +8,7 @@ import {
   fuelMetric,
   offlineBoundSentence,
   rowMetric,
+  stopAddress,
 } from "./liveMapWords";
 
 /**
@@ -250,5 +251,21 @@ describe("engineWords", () => {
     expect(engineWords("Off")).toBe("Off");
     expect(engineWords(null)).toBeNull();
     expect(engineWords(undefined)).toBeNull();
+  });
+});
+
+describe("stopAddress", () => {
+  it("writes street, city, state and ZIP on one line", () => {
+    expect(stopAddress({ addressLine: "1 Main St", city: "Green Bay", state: "WI", postalCode: "54301" })).toBe("1 Main St, Green Bay, WI 54301");
+  });
+
+  it("leaves out what McLeod does not have, without a gap", () => {
+    expect(stopAddress({ addressLine: null, city: "Green Bay", state: "WI", postalCode: null })).toBe("Green Bay, WI");
+    expect(stopAddress({ addressLine: "1 Main St", city: null, state: null, postalCode: null })).toBe("1 Main St");
+  });
+
+  it("is null when there is no address at all, so the card shows the place name alone", () => {
+    expect(stopAddress({ addressLine: null, city: null, state: null, postalCode: null })).toBeNull();
+    expect(stopAddress({ addressLine: "", city: undefined as never, state: null })).toBeNull();
   });
 });

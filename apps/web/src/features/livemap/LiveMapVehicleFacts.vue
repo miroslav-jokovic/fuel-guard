@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { loadBoardState, type LiveMapBoard, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
+import { loadBoardState, type LiveMapBoard, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
-import { engineWords, formatAge, fuelMetric } from "./liveMapWords";
+import { engineWords, formatAge, fuelMetric, stopAddress } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
 import { AppIconButton } from "@silvicom/ui";
 import { UserIcon, VehicleIcon } from "@silvicom/ui/icons";
@@ -31,10 +31,11 @@ import { useOpens } from "@/composables/useOpens";
  * holds one of them; a figure hidden behind a component's own `v-if` is a permission decision in the
  * wrong place, so the endpoint does not send them and this cannot leak them.
  *
- * ⚠ There are no Destination / ETA / Next-stop ROWS here, which comp (7) draws and §4.2 of the
- * design-refresh plan rules out on purpose: `loads` holds 0 rows until LM12, and an ETA field that
- * is always blank reads as broken rather than as pending. The load block below appears only when
- * there IS a load, and says what it is waiting for when there is not.
+ * ⚠ There is still no ETA row, which comp (7) draws and §4.2 of the design-refresh plan rules out: an
+ * ETA field that is blank on most trucks reads as broken rather than as pending. The Pickup and
+ * Delivery rows arrived 2026-10-09 (TRUCK-CARD-ROUTE-PLAN D-TC2), once the Board VM made McLeod's
+ * stops real — 246 of 249 on-truck stops carry an address. The load block appears only when there IS
+ * a load, and says what it is waiting for when there is not.
  */
 const props = defineProps<{
   vehicle: LiveMapVehicle;
@@ -87,6 +88,15 @@ const heading = computed(() => {
  * `bounds` exists to prevent.
  */
 const fuel = computed(() => fuelMetric(props.vehicle, props.board));
+
+/** Pickup then delivery, each only when the api sent it (D-TC2; an older api sends neither). */
+const ends = computed(() => {
+  const load = props.vehicle.load;
+  const out: { label: string; stop: LiveMapStop }[] = [];
+  if (load?.pickup) out.push({ label: "Pickup", stop: load.pickup });
+  if (load?.delivery) out.push({ label: "Delivery", stop: load.delivery });
+  return out;
+});
 </script>
 
 <template>
@@ -137,7 +147,21 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
       <GatedLink v-else :to="`/loads/${vehicle.load.id}`" class="block text-sm text-link hover:text-link-hover" plain-class="block text-sm text-ink">
         {{ vehicle.load.ref ?? "Load" }} · <span :title="loadState?.mcleodWords ?? undefined">{{ loadState?.label }}</span>
       </GatedLink>
-      <p v-if="vehicle.load?.nextStop" class="text-xs text-ink-muted">
+      <!-- D-TC2: the load's two ends, by the board's rule (`boardStops`, chosen by the api). The place
+           name is McLeod's, the address one line under it. -->
+      <dl v-if="ends.length" class="space-y-2 text-sm">
+        <div v-for="end in ends" :key="end.label">
+          <dt class="text-xs text-ink-muted">{{ end.label }}</dt>
+          <dd class="text-ink">{{ end.stop.name ?? "—" }}</dd>
+          <dd v-if="stopAddress(end.stop)" class="text-xs text-ink-secondary">{{ stopAddress(end.stop) }}</dd>
+        </div>
+      </dl>
+      <p v-if="vehicle.load?.extraStops" class="text-xs text-ink-muted">
+        +{{ vehicle.load.extraStops }} more {{ vehicle.load.extraStops === 1 ? "stop" : "stops" }}
+      </p>
+      <!-- The next stop earns its line only when the two ends do not already say it: an api from
+           before the ends existed, or a load with stops between them. -->
+      <p v-if="vehicle.load?.nextStop && (!ends.length || vehicle.load.extraStops)" class="text-xs text-ink-muted">
         Next stop: {{ vehicle.load.nextStop.name ?? vehicle.load.nextStop.kind }}
         <template v-if="vehicle.load.nextStop.city">
           — {{ vehicle.load.nextStop.city
