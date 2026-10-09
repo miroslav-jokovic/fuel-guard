@@ -125,6 +125,9 @@ export {
   // ── People ──────────────────────────────────────────────────────────────
   UserGroupIcon               as UserGroupIcon,
   UserMultiple02Icon          as UsersIcon,
+  // ONE person (TRUCK-CARD-ROUTE-PLAN D-TC1): the live map's "Open driver" door names a single
+  // driver, and `UserGroupIcon` is the Drivers LIST — a group on a door to one person misreads.
+  UserIcon                    as UserIcon,
   // The applicant board (U5/D-UI6). It rendered `Building02Icon` — a BUILDING, for the person
   // applying — because the nav item was added before this barrel had a people-list glyph.
   UserListIcon                as UserListIcon,

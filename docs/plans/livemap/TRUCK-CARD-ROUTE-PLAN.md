@@ -38,9 +38,14 @@ whole request, so a repeat costs no HERE call) + `fetchTruckFuelState` (live fue
 
 **What the route will NOT know yet**, said once so nobody is surprised by it:
 
-- **The truck's size.** 0 of 199 active vehicles have `height_in`, `length_in` or `axle_count`;
-  `effectiveTruckProfile` falls back to the org's defaults in `route_fuel_settings`. Every route is
-  truck-legal for a standard tractor-trailer, not for this truck in particular.
+- **The truck's size is the fleet standard, by design.** The owner ruled 2026-10-09 that every truck
+  is the same standard tractor-trailer. That standard already exists ONCE: Settings → Fuel planning →
+  truck defaults (`route_fuel_settings`, set 2026-08-05: 164 in high, 840 in long, 102 in wide, 5 axles,
+  80,000 lb legal max), and `effectiveTruckProfile` applies it to every route, sent to HERE as
+  `vehicle[height]`, `[length]`, `[width]`, `[axleCount]`, `[grossWeight]` (`buildTruckRouteUrl`).
+  0 of 199 vehicles carry their own dimensions, which is correct: the per-vehicle columns are
+  exceptions to the standard, not a second copy of it. Writing the standard into 199 rows would be a
+  copy that drifts the day the setting changes.
 - **The hazmat class.** `loads.hazmat` is a boolean; HERE needs classes. A linked `hazmat_loads`
   record may supply them (`Q-TC2`).
 
@@ -156,3 +161,6 @@ setting.
 
 - **2026-10-09** — Request, research and rulings D-TC1–D-TC7 in one conversation. Measurements in §0
   taken against production that afternoon.
+- **2026-10-09, later** — The owner asked for one standard truck size in every route; it was already
+  the org setting the planner reads (§0), so nothing was copied onto vehicles. The owner accepted the
+  recommendations: **Q-TC1 (a), Q-TC2 (a), Q-TC3 1 mile** — they are rulings now. TC1 built.

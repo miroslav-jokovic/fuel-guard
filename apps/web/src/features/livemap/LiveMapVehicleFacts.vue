@@ -5,6 +5,8 @@ import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
+import { AppIconButton } from "@silvicom/ui";
+import { UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
 
 /**
@@ -144,17 +146,25 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
       </p>
     </div>
 
-    <div class="flex gap-4" :class="compact ? 'border-t border-edge pt-3' : 'hidden'">
-      <RouterLink v-if="opens(`/vehicles/${vehicle.vehicleId}`)" :to="`/vehicles/${vehicle.vehicleId}`" class="text-sm text-link hover:text-link-hover">
-        Open truck
-      </RouterLink>
-      <RouterLink
+    <!-- D-TC1: the two doors as icons, from the barrel. The words they replaced are each icon's
+         accessible name and tooltip, and each still appears only where its page opens (SP5). -->
+    <div class="flex gap-1" :class="compact ? 'border-t border-edge pt-2' : 'hidden'">
+      <AppIconButton
+        v-if="opens(`/vehicles/${vehicle.vehicleId}`)"
+        :to="`/vehicles/${vehicle.vehicleId}`"
+        :icon="VehicleIcon"
+        label="Open truck"
+        variant="secondary"
+        size="sm"
+      />
+      <AppIconButton
         v-if="vehicle.driver && opens(`/drivers/${vehicle.driver.id}`)"
         :to="`/drivers/${vehicle.driver.id}`"
-        class="text-sm text-link hover:text-link-hover"
-      >
-        Open driver
-      </RouterLink>
+        :icon="UserIcon"
+        label="Open driver"
+        variant="secondary"
+        size="sm"
+      />
     </div>
   </div>
 </template>
