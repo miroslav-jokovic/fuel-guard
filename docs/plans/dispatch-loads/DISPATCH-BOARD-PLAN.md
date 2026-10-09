@@ -1,6 +1,6 @@
 # Dispatch board: the Assignments page becomes the board a dispatcher works from — plan
 
-**Status: ANALYSED, WAITING ON OWNER RULINGS (§6).** Board vs Loads split added 2026-10-09 (§5.3). Written 2026-10-09 at the owner's request ("analyze our
+**Status: IN PROGRESS — wave 1 (schema, 0450) building.** Rulings recorded in §10; Board vs Loads split (§5.3). Written 2026-10-09 at the owner's request ("analyze our
 Assignment page and let's create a proper Dispatch board from this page, where a dispatcher sees all
 assignments but can also filter only his fleet"). Decision IDs `D-DB*`, open questions `Q-DB*`. This plan
 defers to `docs/plans/livemap/LIVE-MAP-PLAN.md` (`D-LM*`, the map and its scope), to
@@ -316,3 +316,24 @@ v2 · support.optimaldynamics.com (Assign by Driver) · kb.samsara.com (Routes, 
 Release notes / press: McLeod v17.2 (PRWeb), LoadMaster//web 25.2 (mcleodsoftware.com), PowerBroker
 Brokerage Planning (truckinginfo.com/321265). Marketing / reviews (weaker): Motive dispatch blog, Axon,
 PCS, Truckbase (bestcarriertms.com review), Tailwind (softwareadvice.com).
+
+## 10. Progress log
+
+**2026-10-09 — rulings.** The owner read §5.3 and §6 and said *"let's start with this plan
+implementation"*. Taken as adopting the recommendations, and recorded so a later reader can tell a
+ruling from a default: **Q-DB1** two axes, `tractor.fleet_id` imported (the roster plan's
+"do not import" is overruled for this one column; D-LM3 stands for what it measured); **Q-DB2**
+fleet `'1'` behind an "Unassigned pool" choice; **Q-DB3** admin + fleet manager link fleets and
+users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch board", path kept;
+**Q-DB6** the map's driver↔truck pairing; **Q-DB8** two pages. Still open and not blocking:
+**Q-DB7** (ask two dispatchers which McLeod columns they use) and **Q-DB9** (Send to driver,
+0 uses ever). Any of these is one sentence from the owner to reverse.
+
+**Waves** (large PRs, per the owner's standing batch rule):
+- **Wave 1 — schema (0450).** `vehicles.mcleod_fleet_code`, `tms_fleets`, `driver_hos_clocks`,
+  schema-only (`lint:migration-ordering`).
+- **Wave 2 — the facts arrive.** Agent reads `fleet_id` (new SQL, held for Alex's review before the
+  VM runs it), ingest writes the code and seeds `tms_fleets`; the HOS clocks poll; the links API.
+- **Wave 3 — the board.** Board API + shared predicates and ETA; the page; the Loads scope (DB5b);
+  the links card.
+
