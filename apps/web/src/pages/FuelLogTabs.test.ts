@@ -183,8 +183,9 @@ describe("FuelLogPage — three views of one week's fuel, under one window (D-FU
    * the three pages that existed before it.
    */
   it("keeps every column each page had", async () => {
+    // Plus Amount, added on purpose in F02-F04 chunk 11b (AUDIT.md N6): a fill row had no dollar figure.
     expect(headers((await mountAt("/fuel-log")).w)).toEqual([
-      "Vehicle", "When", "Driver", "Odometer", "Miles", "Gallons", "$/gal", "MPG", "Status",
+      "Vehicle", "When", "Driver", "Odometer", "Miles", "Gallons", "$/gal", "Amount", "MPG", "Status",
     ]);
     expect(headers((await mountAt("/fuel-log?tab=declines")).w)).toEqual([
       "Unit", "Risk", "Date / Time", "Card #", "Invoice", "Driver", "Location", "City", "State",

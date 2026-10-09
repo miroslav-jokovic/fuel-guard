@@ -715,3 +715,13 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     history, because that pointer is still true.
   - `FillsTab.vue` is at 494 lines (budget 500). 11b adds a column there, so 11b must split the file
     first.
+- 2026-10-09: 11a merged (#1384, be8f97d); 0446 goes to production in the next release. 11b built:
+  - The Fills table has an **Amount** column after $/gal: what EFS billed for the fill, to the cent
+    (`usd2`), "—" when EFS sent no amount. It is sortable. The export already carried `total_cost`.
+  - Gallons print to the hundredth with a thousands separator. That is what EFS sends: on production,
+    3,694 of 4,187 fills in the 60 days to 10-09 use the second decimal, and none uses a third.
+  - `usd2` moved from the reconcile feature into `@silvicom/shared` (`moneyFormat.ts`) beside `usd`, and
+    the reconcile tab re-exports it. The idle page and the PDF report keep their own copies, which
+    differ on purpose (locale, and "-" for a missing figure); not consolidated here.
+  - To make room, the four "why" helpers moved unchanged from `FillsTab.vue` to `fillWhy.ts`.
+    `FillsTab.vue` is 470 lines.

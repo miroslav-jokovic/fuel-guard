@@ -23,7 +23,8 @@
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useOpens } from "@/composables/useOpens";
-import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, fleetMpgScope, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
+import { fuelTxnStatus, describeRowCoverage, fleetMpgScope, usd2, type FuelTransaction } from "@silvicom/shared";
+import { weakSignals, whyTitle, hasWhy } from "./fillWhy";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { efsDateTime, stationClockNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -70,7 +71,7 @@ const searchBind = props.shared.facet("search");
  * PostgREST's `.order()`, so an unrecognised one is an error state rather than an empty list. This
  * is the list that refuses `declined_at` arriving from the declines tab's URL.
  */
-const SORTABLE = ["fueled_at", "odometer", "miles_since_last", "gallons", "price_per_gal", "computed_mpg"] as const;
+const SORTABLE = ["fueled_at", "odometer", "miles_since_last", "gallons", "price_per_gal", "total_cost", "computed_mpg"] as const;
 const sortKey = props.shared.facet("sort", SORTABLE);
 const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
 const { sort, onSort } = useUrlSort(sortKey, sortDir);
@@ -284,40 +285,12 @@ const coverage = computed(() => {
   // inside a deploy window, and one where saying nothing is right and saying "0%" is a lie.
   return t == null || t.fillsWithVehicle == null ? null : describeRowCoverage("fuelLog", t.fillUps, t.fillsWithVehicle);
 });
-const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
+// Fixed decimals, so a right-aligned column lines up. EFS sends gallons to the hundredth (the third
+// decimal was 0 on all 4,187 fills of the 60 days to 2026-10-09), and the row shows what EFS billed.
+const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 // Vehicle leads (sticky on small screens, like the source-records table); Driver follows.
-/** WP2 "why" surface — sub-threshold signals persisted on the fill (case_signals) explained in plain
- *  language, so a clear fill with a fired-but-weak signal (e.g. a lone odometer regression) is visible. */
-function weakSignals(row: FuelTransaction): CaseSignal[] {
-  if (row.has_anomaly) return []; // flagged fills explain themselves on the Alerts page
-  // Q-FUI17 (0323): the weightless rules belong HERE and nowhere else. This panel exists for exactly
-  // the fill that is clear and had something fire on it, which is the whole of what a weight-0 rule
-  // ever produces — before the column they vanished at the moment they fired, so a reviewer looking
-  // at an over-fuelled fill was told "no detection signals fired" about a rule that had.
-  return [...(row.case_signals ?? []), ...(row.case_signals_unscored ?? [])] as CaseSignal[];
-}
-function whyTitle(row: FuelTransaction): string {
-  const sigs = weakSignals(row);
-  const names = sigs.map((s) => formatRuleId(s.ruleId)).join(", ");
-  return `${names}\n\n${explainCaseOutcome((row.case_level ?? "clear") as CaseLevel, Number(row.case_score ?? 0), sigs)}${gatesNote(row)}`;
-}
-/** WP6 — honest-absence note: which rule groups were INELIGIBLE for this fill and why. */
-function gatesNote(row: FuelTransaction): string {
-  const g = row.case_gates;
-  if (!g?.ineligible?.length) return "";
-  const why: string[] = [];
-  if (g.tankSensor !== "reliable") why.push("tank sensor not learned-reliable");
-  if (g.odoSource === "other") why.push("odometer cross-check is GPS-derived");
-  if (g.fillSize === "too_small") why.push("fill too small for the sensor to read");
-  return `\n\nChecks limited on this fill (${why.join("; ") || "confidence gates"}): ${g.ineligible.map((r) => formatRuleId(r)).join(", ")} did not run.`;
-}
-/** Show the marker when sub-threshold signals fired OR meaningful checks were gated off. */
-function hasWhy(row: FuelTransaction): boolean {
-  return weakSignals(row).length > 0 || !!row.case_gates?.ineligible?.length;
-}
-
 const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
@@ -330,6 +303,8 @@ const columns: DataTableColumn[] = [
   { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
   { key: "gallons", label: "Gallons", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  // N6: what the fill cost, as EFS billed it — before this the only dollar figure was the range's total.
+  { key: "total_cost", label: "Amount", sortable: true, numeric: true, width: "md" },
   { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", width: "lg" },
 ];
@@ -447,10 +422,12 @@ const columns: DataTableColumn[] = [
       <template #cell-driver="{ row }">{{ driverName(row.driver_id) }}</template>
       <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
       <template #cell-gallons="{ row }">
-        <span>{{ row.gallons }}</span>
+        <span>{{ fmtNum(row.gallons, 2) }}</span>
         <!-- Reefer = the FUEL is reefer (ULSR), tagged on the gallons — NOT a property of the truck. -->
         <span v-if="row.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
       </template>
+      <!-- Cents, so a row can be checked against its EFS statement line; "—" when EFS sent no amount. -->
+      <template #cell-total_cost="{ row }">{{ usd2(row.total_cost) }}</template>
       <template #cell-status="{ row }">
         <div class="flex items-center gap-1.5">
           <span
