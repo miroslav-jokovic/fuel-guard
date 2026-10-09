@@ -785,3 +785,20 @@ Append dated lines at the end; never edit a row above.
   fields accepted without a human"); budget and integrity failures are excluded and counted apart;
   beside today's accuracy, printed-value accuracy and an invented-value rate (measured once already:
   Sonnet 4.6 invented `freight.pieces` = 31). Step 4.1 is held until its rules match the regulation.
+- **2026-10-09 (Step 1.3)** — `modules/document-reading/pages/normaliseSource` sniffs magic bytes (the
+  declared mime is recorded, never trusted) and emits D-DR13 canonical pages: EXIF orientation applied
+  and stripped, 8-bit sRGB, alpha flattened on white, a lossless PNG original with its sha256, and a
+  lossless-WebP working copy ≤ 1568 px, never enlarged — lossless because at 1568 px a BOL's 7-pt type
+  is 8–10 px tall and lossy compression damages exactly those strokes. Rasteriser as §3 recommended:
+  pdf.js 6.2.108 (Apache-2.0) on @napi-rs/canvas 1.0.8 (MIT), 300 DPI (capped at a 6,000 px long edge,
+  DPI recorded), pdf.js standard fonts, no system fonts; an owner-password-only PDF renders, a
+  user-password one is `encrypted_pdf`. Text layer: words boxed as page fractions, apportioned along
+  pdf.js runs by the fonts' glyph widths (≤ 0.1 em on fixtures). HEIC via heic-decode/libheif; the
+  iPhone's own colour profile is ignored (a slight colour shift, characters unaffected).
+  `NORMALISER_VERSION` 1.0.0. 12 synthetic fixtures, 42 tests (byte-identical over two runs, upright,
+  sRGB, words at pdfkit's coordinates, every refusal code at both boundaries); 12 of 13 mutants killed —
+  the survivor, removing `toColourspace("srgb")`, is a no-op on sharp 0.35, kept to pin intent.
+  **Done-when not yet met:** "green on the Railway staging image" is unverified; the new native binary
+  is `@napi-rs/canvas-linux-x64-gnu` (Nixpacks, glibc), and pdf.js reads `standard_fonts/` from
+  `node_modules` at run time. Nothing imports the stage at startup, so the check is a one-off import and
+  render on the staging service after merge.

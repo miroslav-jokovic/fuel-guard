@@ -21,3 +21,11 @@ export {
 } from "./model/readPages.js";
 export { readModels, type ReadModels } from "./model/models.js";
 export { schemaHash, wireSchemaFor } from "./model/wireSchema.js";
+export {
+  normaliseSource,
+  NORMALISER_VERSION,
+  WORKING_LONG_EDGE_PX,
+  WORKING_MEDIA_TYPE,
+  type CanonicalPage,
+  type NormaliseOutcome,
+} from "./pages/index.js";
