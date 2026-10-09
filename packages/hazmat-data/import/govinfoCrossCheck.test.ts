@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { crossCheckAll, crossCheckDefault, crossCheckHmt, govInfoEntryToSourceB } from "./govinfoCrossCheck.js";
+import { crossCheckAll, crossCheckDefault, crossCheckHmt, govInfoEntryToSourceB, triangulationVerdict } from "./govinfoCrossCheck.js";
 import { parseHmtGovInfoSection } from "./parseHmtGovInfo.js";
 import { compareEntry } from "./diff.js";
 
@@ -48,6 +48,30 @@ describe.skipIf(!PRESENT)("govinfoCrossCheck — automated eCFR↔GovInfo triang
     expect(t.segregation.clean).toBe(true);
     expect(t.segregation.valueDiffs).toEqual([]);
     expect(t.allClean).toBe(true);
+  });
+
+  it("a 302.4 cut adds Table 302.4 as a fourth CLEAN table; an Appendix A cut does not run it", () => {
+    const t = crossCheckAll({ cercla: true });
+    expect(t.cercla).toMatchObject({ matched: 1340, aCount: 1340, clean: true });
+    expect(t.allClean).toBe(true);
+    expect(crossCheckAll().cercla).toBeUndefined();
+    // …and a dirty 302.4 check alone turns the verdict NOT CLEAN.
+    const { allClean: _drop, ...parts } = t;
+    expect(triangulationVerdict({ ...parts, cercla: { ...t.cercla!, clean: false } })).toBe(false);
+    expect(triangulationVerdict(parts)).toBe(true);
+  });
+
+  it("the derived namesChemicalGroup flag is compared row by row (an alternate only one source has moves it)", () => {
+    const ecfr = `
+      <TABLE><TR><TD>Hazardous materials descriptions</TD><TD>Identification Numbers</TD></TR>
+      ${row("G", 'Flammable liquids, n.o.s. <E T="03">or</E> Arsenic widgets, n.o.s.', "3", "UN9999", "II")}
+      </TABLE>`;
+    const govinfo = `<GPOTABLE><BOXHD><CHED>Hazardous materials descriptions</CHED><CHED>Identification Numbers</CHED></BOXHD>
+      ${grow("G", "Flammable liquids, n.o.s.", "3", "UN9999", "II")}
+      </GPOTABLE>`;
+    const r = crossCheckHmt(ecfr, govinfo, "synthetic");
+    const fields = r.disagreements.find((d) => d.idNumber === "9999")?.fieldDiffs ?? [];
+    expect(fields.find((f) => f.field === "namesChemicalGroup")).toEqual({ field: "namesChemicalGroup", sourceA: true, sourceB: false });
   });
 
   it("a count mismatch under a shared key cannot hide (collision safety)", () => {

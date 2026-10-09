@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembleDataset, datasetChecksum, verifyChecksum } from "./buildDataset.js";
+import { FIRST_VERSION_WITH_GROUP_FLAG, assembleDataset, compareDatasetVersions, datasetChecksum, entriesForVersion, verifyChecksum } from "./buildDataset.js";
 import { parseDataset, type HmtEntry } from "../src/schema.js";
 
 function fuelEntry(over: Partial<HmtEntry> = {}): HmtEntry {
@@ -82,5 +82,22 @@ describe("assembleDataset", () => {
     const { checksum: _drop, ...content } = ds;
     expect("sha256:" + "".padEnd(0)).not.toBe(ds.checksum); // sanity
     expect(datasetChecksum(content)).toBe(ds.checksum);
+  });
+});
+
+describe("the namesChemicalGroup version gate (Q-DR17)", () => {
+  it("orders YYYY.MM.n numerically, not as strings", () => {
+    expect(compareDatasetVersions("2026.08.10", "2026.08.9")).toBeGreaterThan(0);
+    expect(compareDatasetVersions("2026.08.0", "2026.08.0")).toBe(0);
+    expect(compareDatasetVersions("2026.10.0", "2027.01.0")).toBeLessThan(0);
+  });
+
+  it("starts after 2026.08.0, so the attested re-cut of 2026.08.0 rewrites its reviewed content unchanged", () => {
+    expect(FIRST_VERSION_WITH_GROUP_FLAG).toBe("2026.09.0");
+    expect(compareDatasetVersions("2026.08.0", FIRST_VERSION_WITH_GROUP_FLAG)).toBeLessThan(0);
+    expect(compareDatasetVersions("2026.10.0", FIRST_VERSION_WITH_GROUP_FLAG)).toBeGreaterThanOrEqual(0);
+    const nos = fuelEntry({ symbols: ["G"], psnPrinted: "Flammable liquids, n.o.s.", idNumber: "1993" });
+    expect(entriesForVersion("2026.08.0", [nos])[0]).not.toHaveProperty("namesChemicalGroup");
+    expect(entriesForVersion("2026.09.0", [nos])[0]).toHaveProperty("namesChemicalGroup", false);
   });
 });

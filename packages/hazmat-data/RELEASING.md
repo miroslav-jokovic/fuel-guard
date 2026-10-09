@@ -109,6 +109,18 @@ silently passes). NOTE: only the HMT fuel rows are second-source verified (the s
 placard/segregation/appendix tables are parser-verified against frozen fixtures but not yet
 independently transcribed — extend the diff to them before a full non-provisional release.
 
+## `hazSubstances` from 2026-12-02 — 40 CFR 302.4
+
+91 FR 49305 (FR doc 2026-15809, effective **2026-12-02**) replaces Appendix A to §172.101 with "Refer to
+40 CFR 302.4 to see the list of hazardous substances and their reportable quantities (RQs) in Table 302.4".
+`buildDataset.ts` picks the list by the cut's `effectiveDate` (else `sourceEcfrDate`): before that day
+Appendix A from the §172.101 capture, from it Table 302.4 from `fixtures/section-40-302-4.xml`. For a cut
+effective on or after 2026-12-02, run `npx tsx import/captureCercla.ts` in step 1 and step 3 (it captures
+both the eCFR and the GovInfo Title 40 edition, no key needed); the step-5 gate then includes the 302.4
+eCFR↔GovInfo check and fails NOT CLEAN on any difference. `npx tsx import/hazSubstancesDiff.ts` prints what
+the switch changes against Appendix A. Rows Table 302.4 prints without an lb+kg RQ (`**` classes, `§`
+radionuclides, K181's "(##)") are not carried and are counted in `sourceSecondaryRef`.
+
 ## Emergency re-cut
 
 Same eight steps, same day. There is no shortcut path: a rushed dataset that skipped the second

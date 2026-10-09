@@ -36,7 +36,30 @@ import { defaultSourceA } from "./diff.js";
 import { crossCheckAll, formatTriangulation, type TriangulationResult } from "./govinfoCrossCheck.js";
 import { parsePlacardTables } from "./parsePlacards.js";
 import { parseSegregationGrid } from "./parseSegregation.js";
-import { parseHazSubstances, parseMarinePollutants } from "./parseAppendices.js";
+import { parseMarinePollutants } from "./parseAppendices.js";
+import { cerclaSourceNote, loadHazSubstances } from "./hazSubstancesSource.js";
+import { withNamesChemicalGroup } from "./namesChemicalGroup.js";
+
+/**
+ * The first dataset version whose HMT entries carry the derived `namesChemicalGroup` flag (Q-DR17).
+ * Gated by version, not applied to every cut, because PROMOTION-CHECKLIST §3 promotes 2026.08.0 by
+ * RE-RUNNING its cut with `--attested-by`: that run must rewrite the reviewed content unchanged, and a
+ * new field on 470 entries would be a data change nobody attested.
+ */
+export const FIRST_VERSION_WITH_GROUP_FLAG = "2026.09.0";
+
+/** Compare two `YYYY.MM.n` versions numerically (string order breaks at n ≥ 10). */
+export function compareDatasetVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0);
+  return 0;
+}
+
+/** The HMT entries a cut of `version` carries: flagged (Q-DR17) from FIRST_VERSION_WITH_GROUP_FLAG on. */
+export function entriesForVersion(version: string, parsed: HmtEntry[]): HmtEntry[] {
+  return compareDatasetVersions(version, FIRST_VERSION_WITH_GROUP_FLAG) >= 0 ? withNamesChemicalGroup(parsed) : parsed;
+}
 
 export interface AssembleInput {
   version: string;
@@ -150,16 +173,19 @@ export function cutDataset(opts: {
   attestedBy?: string | null;
   attestedOn?: string | null;
 }): CutResult {
-  const entries = defaultSourceA();
+  const entries = entriesForVersion(opts.version, defaultSourceA());
   const erg = loadErgEntries();
-  // Placards/segregation from their own committed section fixtures; appendices from the full §172.101
-  // file if present, else the frozen slices.
+  // Placards/segregation from their own committed section fixtures; App. B from the full §172.101 file if
+  // present, else the frozen slice. `hazSubstances` from the list in force on the dataset's effective
+  // date: §172.101 App. A before 2026-12-02, 40 CFR 302.4 from then (91 FR 49305; hazSubstancesSource.ts).
   const placards = parsePlacardTables(requireFixture("section-172-504.xml"));
   const segregation = parseSegregationGrid(requireFixture("section-177-848.xml"));
-  const hazSubstances = parseHazSubstances(fixture("section-172-101.xml") ?? requireFixture("appendix-a-slice.xml"));
+  const haz = loadHazSubstances({ effectiveDate: opts.effectiveDate, sourceEcfrDate: opts.sourceEcfrDate });
+  const hazSubstances = haz.substances;
   const marinePollutants = parseMarinePollutants(fixture("section-172-101.xml") ?? requireFixture("appendix-b-slice.xml"));
 
-  const triangulation = crossCheckAll();
+  // A 302.4 cut adds Table 302.4's own eCFR↔GovInfo check to the gate it must pass.
+  const triangulation = crossCheckAll({ cercla: haz.source === "40cfr302.4" });
   const attested = !!(opts.attestedBy && opts.attestedBy.trim());
   const provisional = !(triangulation.allClean && attested);
 
@@ -171,6 +197,8 @@ export function cutDataset(opts: {
     `${t.hmt.sourceRef}; automated eCFR↔GovInfo triangulation (D5 v7) ` +
     `${t.allClean ? "ALL CLEAN" : "NOT CLEAN"} — HMT ${t.hmt.full.matched}/${t.hmt.totals.aKeys} keys, ` +
     `placards ${t.placards.matched}/${t.placards.aCount}, segregation ${t.segregation.matched}/${t.segregation.aCount}` +
+    (t.cercla ? `, 40 CFR 302.4 ${t.cercla.matched}/${t.cercla.aCount} (${t.cercla.sourceRef})` : "") +
+    cerclaSourceNote(haz) +
     attestClause;
 
   const dataset = assembleDataset({

@@ -11,3 +11,9 @@ import/fixtures/*
 !import/fixtures/section-177-848.xml
 !import/fixtures/appendix-a-slice.xml
 !import/fixtures/appendix-b-slice.xml
+# 40 CFR 302.4 (captureCercla.ts) — the hazSubstances source from 2026-12-02 (91 FR 49305), both sources
+!import/fixtures/section-40-302-4.xml
+!import/fixtures/govinfo/
+import/fixtures/govinfo/*
+!import/fixtures/govinfo/cercla-302-4.xml
+!import/fixtures/govinfo/provenance-40-302-4.json
