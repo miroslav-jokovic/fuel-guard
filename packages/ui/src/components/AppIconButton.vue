@@ -19,8 +19,14 @@ const props = withDefaults(
      * truck and driver doors). A disabled one falls back to the button, which can be disabled.
      */
     to?: RouteLocationRaw;
+    /**
+     * A toggle's state (TRUCK-CARD-ROUTE-PLAN D-TC7, the live map's route): sets `aria-pressed`, so a
+     * screen reader hears "pressed", and the brand tint, so a sighted reader sees it is on. Omitted,
+     * the button is a plain action and carries no `aria-pressed` at all.
+     */
+    pressed?: boolean;
   }>(),
-  { variant: "ghost", size: "md", type: "button", disabled: false, to: undefined },
+  { variant: "ghost", size: "md", type: "button", disabled: false, to: undefined, pressed: undefined },
 );
 /** 44 px square inside a thumb-pressed layout (`touchTargets.ts`), whatever the size asked for. */
 const touchTargets = useTouchTargets();
@@ -31,6 +37,7 @@ const cls = computed(() => [
   props.variant === "secondary" && "bg-surface text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle",
   props.variant === "ghost" && "text-ink-tertiary hover:bg-surface-muted hover:text-ink",
   props.variant === "danger" && "text-danger-700 hover:bg-danger-subtle",
+  props.pressed && "bg-brand-50 text-brand-700 hover:bg-brand-50 hover:text-brand-700",
 ]);
 </script>
 
@@ -40,7 +47,7 @@ const cls = computed(() => [
   <RouterLink v-if="to && !disabled" :to="to" :aria-label="label" :title="label" :class="cls">
     <AppIcon :icon="icon" :class="size === 'sm' ? 'size-4' : 'size-5'" aria-hidden="true" />
   </RouterLink>
-  <button v-else :type="type" :disabled="disabled" :aria-label="label" :title="label" :class="cls">
+  <button v-else :type="type" :disabled="disabled" :aria-label="label" :title="label" :aria-pressed="pressed" :class="cls">
     <AppIcon :icon="icon" :class="size === 'sm' ? 'size-4' : 'size-5'" aria-hidden="true" />
   </button>
 </template>

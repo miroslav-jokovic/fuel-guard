@@ -13,7 +13,7 @@
  * one response (`fuelMetric`), so nothing here reads a clock.
  */
 import { secondsSince } from "@silvicom/shared";
-import type { LiveMapBoard, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapLoadRoute, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 
 /**
  * A fix's age in words (D-LM10 — shown per truck, never hidden behind the marker).
@@ -240,4 +240,24 @@ export function stopAddress(stop: Pick<LiveMapStop, "addressLine" | "city" | "st
   const region = [stop.state, stop.postalCode].filter(Boolean).join(" ");
   const place = [stop.city, region].filter(Boolean).join(", ");
   return [stop.addressLine, place].filter(Boolean).join(", ") || null;
+}
+
+/**
+ * What the card says under a drawn route (TRUCK-CARD-ROUTE-PLAN D-TC3/D-TC4): one summary line, then
+ * each caveat the answer carries, in the order a dispatcher acts on them. Nothing is said for the
+ * ordinary case beyond the summary.
+ */
+export function routeWords(route: LiveMapLoadRoute): { summary: string; notes: string[] } {
+  const stops = route.fuelStops.length;
+  const summary = [
+    `${Math.round(route.distanceMiles).toLocaleString("en-US")} mi`,
+    `about ${route.durationHours < 10 ? route.durationHours.toFixed(1) : Math.round(route.durationHours)} h driving`,
+    `${stops} fuel ${stops === 1 ? "stop" : "stops"}`,
+  ].join(" · ");
+  const notes: string[] = [];
+  if (route.offRouteMiles == null) notes.push("No position for this truck, so the whole route is shown ahead.");
+  else if (!route.truckOnRoute) notes.push(`Truck is ${Math.round(route.offRouteMiles)} mi off this route; fuel stops are planned from the pickup.`);
+  if (route.hazmatNotApplied) notes.push("Hazmat load: this route does not yet avoid hazmat-restricted roads.");
+  if (route.fuelNote) notes.push(route.fuelNote);
+  return { summary, notes };
 }

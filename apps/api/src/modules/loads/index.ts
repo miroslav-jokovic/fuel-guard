@@ -13,8 +13,11 @@ export { dispatchRouter } from "./routes/dispatch.js";
 // `isLoadOnTruck` (D-MCC12 for McLeod); an empty answer before the first sync is correct, not broken.
 export {
   readLiveLoadContext,
+  readLoadForRoute,
   type LiveLoadContext,
   type LiveLoadStop,
+  type LoadForRoute,
+  type LoadRouteStop,
 } from "./liveLoadReads.js";
 export {
   acceptLoad,

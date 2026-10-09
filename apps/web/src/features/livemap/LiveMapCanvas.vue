@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
+import { basemapFor, type BasemapChoice, type LiveMapLoadRoute, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
 import { planCameraMove } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
+import { clearRoute, routeBounds, showRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
@@ -48,8 +49,10 @@ const props = withDefaults(
      * component was extracted to prevent.
      */
     cardEl?: HTMLElement | null;
+    /** The load route the card's toggle turned on, drawn under the trucks (D-TC7); null clears it. */
+    route?: LiveMapLoadRoute | null;
   }>(),
-  { fit: "card", cardEl: null },
+  { fit: "card", cardEl: null, route: null },
 );
 
 const emit = defineEmits<{
@@ -379,6 +382,17 @@ watch([() => props.selectedId, () => props.cardEl], () => {
 // Without this, flipping the theme leaves a dark map wearing light-mode markers until a reload.
 watch(isDark, () => {
   if (map.value) installLiveMapIcons(map.value);
+  if (map.value && props.route) showRoute(map.value, props.route, SELECTED_LAYER);
+});
+
+// D-TC7: draw the route the card turned on and fit the camera to it; clear it the moment it goes.
+watch(() => props.route, (route) => {
+  const m = map.value;
+  if (!m?.isStyleLoaded()) return;
+  if (!route) return clearRoute(m);
+  showRoute(m, route, SELECTED_LAYER);
+  const bounds = routeBounds(route);
+  if (bounds) m.fitBounds(bounds, { padding: 72, duration: 600, maxZoom: 11 });
 });
 
 onBeforeUnmount(() => {

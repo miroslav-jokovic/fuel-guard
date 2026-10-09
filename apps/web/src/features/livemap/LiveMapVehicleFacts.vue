@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { loadBoardState, type LiveMapBoard, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
+import { loadBoardState, type LiveMapBoard, type LiveMapLoadRoute, type LiveMapStop, type LiveMapVehicle, type LoadStatus } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
-import { engineWords, formatAge, fuelMetric, stopAddress } from "./liveMapWords";
+import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
 import { AppIconButton } from "@silvicom/ui";
-import { UserIcon, VehicleIcon } from "@silvicom/ui/icons";
+import { RouteIcon, UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
 
 /**
@@ -49,7 +49,15 @@ const props = defineProps<{
   board: Pick<LiveMapBoard, "generatedAt" | "bounds">;
   /** `compact` drops the section rules and tightens the grid, for the floating panel. */
   density?: "comfortable" | "compact";
+  /**
+   * The load's route toggle (TRUCK-CARD-ROUTE-PLAN D-TC7), owned by the workspace: it draws on the
+   * map and must clear when the selection changes, neither of which this card can see. Omitted, the
+   * card has no route button — the rail's reading of the facts does not draw on a map.
+   */
+  route?: { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null };
 }>();
+
+const emit = defineEmits<{ toggleRoute: [] }>();
 
 const compact = computed(() => props.density === "compact");
 const opens = useOpens();
@@ -88,6 +96,8 @@ const heading = computed(() => {
  * `bounds` exists to prevent.
  */
 const fuel = computed(() => fuelMetric(props.vehicle, props.board));
+
+const routeText = computed(() => (props.route?.shown && props.route.data ? routeWords(props.route.data) : null));
 
 /** Pickup then delivery, each only when the api sent it (D-TC2; an older api sends neither). */
 const ends = computed(() => {
@@ -189,6 +199,25 @@ const ends = computed(() => {
         variant="secondary"
         size="sm"
       />
+      <!-- D-TC7: a toggle, drawn by the workspace. Only for a truck with a load: there is no route
+           without stops. -->
+      <AppIconButton
+        v-if="route && vehicle.load"
+        :icon="RouteIcon"
+        :label="route.shown ? 'Hide route' : 'Show route'"
+        :pressed="route.shown"
+        variant="secondary"
+        size="sm"
+        @click="emit('toggleRoute')"
+      />
+    </div>
+    <div v-if="route?.shown" class="space-y-1 text-xs" aria-live="polite">
+      <p v-if="route.pending" class="text-ink-muted">Planning the route…</p>
+      <p v-else-if="route.error" class="text-danger-700">{{ route.error }}</p>
+      <template v-else-if="routeText">
+        <p class="text-ink">{{ routeText.summary }}</p>
+        <p v-for="note in routeText.notes" :key="note" class="text-ink-muted">{{ note }}</p>
+      </template>
     </div>
   </div>
 </template>

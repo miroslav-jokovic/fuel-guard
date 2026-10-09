@@ -192,6 +192,9 @@ export {
   Calculator01Icon  as BooksCheckIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,
+  // The live map's route toggle (TRUCK-CARD-ROUTE-PLAN D-TC7): a path between two points, which is
+  // what the button draws — not MapIcon, which Fuel Planning's nav item wears.
+  Route01Icon                 as RouteIcon,
   ShippingTruck01Icon         as VehicleIcon,
   DashboardBrowsingIcon       as OdometerIcon,
 

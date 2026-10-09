@@ -201,3 +201,43 @@ export interface LiveMapBoard {
    */
   truncated: boolean;
 }
+
+/** A fuel stop the planner chose on the part of a load's route still ahead (TRUCK-CARD-ROUTE-PLAN D-TC4). */
+export interface LiveMapRouteFuelStop {
+  name: string | null;
+  brand: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  exit: string | null;
+  lat: number;
+  lng: number;
+  /** Miles ahead of the truck (or of the pickup, when the truck is off the route). */
+  milesAhead: number;
+}
+
+/**
+ * `GET /api/livemap/loads/:id/route` (D-TC3, D-TC6): the load's route pickup → delivery, split where the
+ * truck stands on it, and the fuel stops the planner places on the part ahead. No prices: the map is
+ * `dispatch` view, and money is another section's (LM-F).
+ */
+export interface LiveMapLoadRoute {
+  loadId: string;
+  /** Already driven: start → the truck's point on the line. Empty when the truck is off the route. */
+  covered: { lat: number; lng: number }[];
+  /** Still ahead: the truck's point → delivery. The whole line when the truck is off it. */
+  ahead: { lat: number; lng: number }[];
+  /** The whole route, pickup → delivery. */
+  distanceMiles: number;
+  durationHours: number;
+  /** Where the truck is against the line. `offRouteMiles` is null when there is no position for it. */
+  truckOnRoute: boolean;
+  coveredMiles: number;
+  offRouteMiles: number | null;
+  fuelStops: LiveMapRouteFuelStop[];
+  /** Why there are no fuel stops, or what the planner had to do — one sentence, or null. */
+  fuelNote: string | null;
+  /** A hazmat-marked load routed WITHOUT hazmat restrictions: no cleared record supplies its classes yet. */
+  hazmatNotApplied: boolean;
+}

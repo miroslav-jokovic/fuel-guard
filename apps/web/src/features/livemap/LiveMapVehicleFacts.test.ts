@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
-import type { LiveMapBoard, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapLoadRoute, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
 
 // SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
@@ -168,5 +168,37 @@ describe("LiveMapVehicleFacts — its doors (SP5)", () => {
     } finally {
       session.surfaces = null;
     }
+  });
+});
+
+describe("LiveMapVehicleFacts — the route toggle (D-TC7)", () => {
+  const RouterLink = { props: ["to"], template: `<a :href="String(to)"><slot /></a>` };
+  const load = { id: "l1", ref: "0006", status: "in_transit", source: "tms", externalStatus: "P", nextStop: null };
+  type RouteProp = { shown: boolean; pending: boolean; error: string | null; data: LiveMapLoadRoute | null };
+  const mountCard = (o: { load?: LiveMapVehicle["load"]; route?: RouteProp }) =>
+    mount(LiveMapVehicleFacts, {
+      props: { vehicle: vehicle(o.load === undefined ? load : o.load), board, density: "compact", ...(o.route ? { route: o.route } : {}) },
+      global: { stubs: { RouterLink } },
+    });
+  const off: RouteProp = { shown: false, pending: false, error: null, data: null };
+
+  it("offers the toggle only for a truck with a load, and only where the card can draw on a map", () => {
+    expect(mountCard({ route: off }).find('[aria-label="Show route"]').exists()).toBe(true);
+    expect(mountCard({ route: off, load: null }).find('[aria-label="Show route"]').exists()).toBe(false);
+    expect(mountCard({}).find('[aria-label="Show route"]').exists()).toBe(false);
+  });
+
+  it("says it is planning, then sums the route up, and emits the toggle", async () => {
+    const pending = mountCard({ route: { ...off, shown: true, pending: true } });
+    expect(pending.text()).toContain("Planning the route…");
+    const data: LiveMapLoadRoute = {
+      loadId: "l1", covered: [], ahead: [], distanceMiles: 690, durationHours: 11.1, truckOnRoute: true, coveredMiles: 100,
+      offRouteMiles: 0.2, fuelStops: [], fuelNote: "No fuel stop needed to reach the delivery.", hazmatNotApplied: false,
+    };
+    const w = mountCard({ route: { ...off, shown: true, data } });
+    expect(w.text()).toContain("690 mi · about 11 h driving · 0 fuel stops");
+    expect(w.text()).toContain("No fuel stop needed to reach the delivery.");
+    await w.get('[aria-label="Hide route"]').trigger("click");
+    expect(w.emitted("toggleRoute")).toHaveLength(1);
   });
 });

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
 import { requireModule } from "../../../middleware/requireModule.js";
-import { asyncHandler } from "../../../lib/http.js";
+import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
+import { readLoadRoute } from "../liveMapLoadRoute.js";
 
 /**
  * The live map's read surface (LM6).
@@ -35,5 +36,31 @@ export function liveMapRouter(): Router {
     }),
   );
 
+  /**
+   * One load's route, split at its truck, with the fuel stops ahead (TRUCK-CARD-ROUTE-PLAN TC3). The
+   * same gate as the board (D-TC5): whoever may see the map may draw a route on it. A read, so no audit.
+   * A malformed id is a 404 rather than a Postgres cast error surfacing as a 500.
+   */
+  router.get(
+    "/loads/:id/route",
+    requireSection("dispatch", "view"),
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id ?? "");
+      if (!UUID.test(id)) {
+        res.status(404).json(apiError("not_found", "That load no longer exists"));
+        return;
+      }
+      const env = getAppLocals(req).env;
+      const answer = await readLoadRoute(getSupabaseAdmin(env), env, req.auth!.orgId!, id);
+      if (!answer.ok) {
+        res.status(answer.status).json(apiError(answer.code, answer.message));
+        return;
+      }
+      res.json({ ok: true, data: answer.route });
+    }),
+  );
+
   return router;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
