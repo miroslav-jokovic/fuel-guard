@@ -688,6 +688,36 @@ sends `unknown` today (`calcModel.ts`). Vessel leg from the calculator's `vessel
 path sends none → cannot tell). Mixed paper from Q-DR13's non-hazmat lines; pages present from Q-DR13's
 per-image page numbers (an image count alone supports only the weaker "count ≥ total").
 
+**Q-DR14a — The currency check is not clean: attest 2026.08.0 as cut, or wait for a clean re-cut?**
+(Found 2026-10-09 running `RELEASING.md` step 0; both rules checked against the Federal Register API.)
+91 FR 51098 ("Allowing Fireworks Certification Agencies…", effective 2026-09-08) adds special provision
+200 to three HMT rows — UN0431, UN0335, UN0101. The engine branches on special provisions 1–5 only
+(`tableSelect.ts`, poison by inhalation) and the paper audit on 441; code 200 is read nowhere, so no
+computed result changes. But step 0 calls for a fresh cut, and a fresh cut is NOT CLEAN today: the
+GovInfo CFR-2025 edition predates the rule and `crossCheckAll()` has no path for a difference explained
+by a cited rule. Released 2026.07.1 was cut from the same 2026-07-28 text, so attesting 2026.08.0 makes
+production no less current than it is. *Candidates:* (a) attest 2026.08.0 as cut, the three stale rows
+and 91 FR 51098 named in the attestation; (b) build a cited-reconciliation path into the triangulation
+gate, then cut 2026.10.0; (c) wait for GovInfo's CFR-2026 Title 49. *Recommendation:* (a) — it turns on
+correct Limited Quantity handling now with a disclosed, measured gap that changes no output. The command
+and checklist are `packages/hazmat-data/datasets/2026.08.0/PROMOTION-CHECKLIST.md`. Owner action: name
+who attests.
+
+**Deadline 2026-12-02 — §172.101 Appendix A leaves 49 CFR.** 91 FR 49305 ("Remove Redundant List of
+U.S. EPA CERCLA Hazardous Substances", effective 2026-12-02) replaces Appendix A with a pointer to
+40 CFR 302.4. The dataset's `hazSubstances` (1,351 rows — the RQ source read by `validateBol` and
+`paper_rq`) then has no 49 CFR source. Before that date the importer needs a 40 CFR 302.4 source and its
+own two-source check, cut as a new version, whichever of Q-DR14a's options is taken.
+
+**Q-DR17 — Should the dataset mark whether an n.o.s. entry names a chemical group?** (Found fixing Step
+4.1 against §172.203(k)(2).) (k)(2)(iii)/(iv) exempt a shipping name that already "contains the name of
+the chemical element or group"; no HMT row says so. Until it does, a labelled `HAZARD_HEADS` list keeps
+"Flammable liquids, n.o.s." without a technical name failing, and every other G entry answers
+`cannot_tell`. Also recorded here: §171.4(c)(2)'s 5 L / 5 kg exception is about the INNER packaging,
+which a shipping paper does not show, so a combination package of small inners over 5 L in total is
+treated as a single packaging. *Recommendation:* a per-entry `namesChemicalGroup` flag derived in the
+importer from the HMT entry text, with its own diff in the triangulation, retiring the list.
+
 ---
 
 ## 10. Progress log
@@ -802,3 +832,21 @@ Append dated lines at the end; never edit a row above.
   is `@napi-rs/canvas-linux-x64-gnu` (Nixpacks, glibc), and pdf.js reads `standard_fonts/` from
   `node_modules` at run time. Nothing imports the stage at startup, so the check is a one-off import and
   render on the staging service after merge.
+- **2026-10-09 (Q-DR12 built)** — Migration 0449 (#1405): `document_page_classes` is one append-only
+  ledger for the classifier's verdicts (model + prompt version required, no actor) and each reviewer's
+  or labeller's override (actor required, no model), held by one provenance CHECK; newest row per page
+  wins, read through the service-role-only `document_page_current_class(p_org, p_pages)`. "Newest" is an
+  identity `seq` — `now()` ties within a transaction and `clock_timestamp()` was measured tying in
+  PGlite. `document_pages` lost the never-used class columns (0448 was staging-only, no reader) and
+  gained `(id, org_id)` for the composite FK. Matrix 78 checks; ten mutants killed.
+- **2026-10-09 (`doc:score` v2)** — #1406: a run file may record a typed failure;
+  `READ_FAILURE_KIND` sorts each code. A reader failure scores every labelled field not read (yield
+  falls, no false accept); budget and integrity failures are excluded and listed apart. Beside accuracy,
+  every field and band reports printed-value accuracy and the invented-value rate with its `read`
+  subset. On a synthetic run a "good" band read 98.6 % accuracy with 58 of 70 instances blank labels;
+  printed-value accuracy (12/12) is the number that shows the reading. Thirteen mutants killed.
+- **2026-10-09 (Q-DR14 prepared)** — #1407: golden `_pkg-lq-refused-pre-8a.yaml` pinned to 2026.07.1
+  (unpinned it fails three ways on a promoted dataset); `RELEASING.md` no longer calls `crossCheckAll()`
+  a remaining step; `PROMOTION-CHECKLIST.md` written. A simulated non-provisional 2026.08.0 (in memory,
+  nothing saved) passes all 13 golden scenarios with the pin. Nothing attested, LATEST unmoved. Step 0
+  found Q-DR14a and the 2026-12-02 deadline above.
