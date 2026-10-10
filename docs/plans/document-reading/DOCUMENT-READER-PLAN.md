@@ -730,6 +730,19 @@ consumer is already on every review (`document_read_reviews.consumer`), a read r
 screen belongs to that screen's module, and a separate policy would be a second switch for the same
 spend. Decide before Phase 6's first consumer ships.
 
+**Q-DR19 — Who turns a page whose content is sideways inside the scan?** (Found 2026-10-10 on the
+office samples.) One of the ten office PDFs is a landscape form scanned into a portrait page with no
+`/Rotate`: the normaliser renders it exactly as stored (correctly — `/Rotate` and EXIF are the only
+orientation a file declares), so the model gets text running top to bottom. The stage cannot know
+better without looking at the content. Candidates: (a) the page classifier (Step 1.5) also answers
+`rotation ∈ {0, 90, 180, 270}` — it already looks at every page once, so the answer costs no extra
+call — and the working copy the reader gets is turned by it (a derived copy, the original untouched,
+the rotation recorded beside the class in `document_page_classes` so a reviewer can override it);
+(b) send the page as is and let the reader cope; (c) an OCR orientation detector (Tesseract OSD) in
+the pages stage — a new native dependency. *Default until answered:* (b). *Recommendation:* (a) — one
+call, one ledger, and an override path that already exists for the class; measure (b) against it on
+the labelled corpus first, since a reader that copes would make (a) unnecessary.
+
 ---
 
 ## 10. Progress log
@@ -878,3 +891,25 @@ Append dated lines at the end; never edit a row above.
   `model_unavailable` (the queue's last retry ended transient) and `reading_disabled`. Matrix 83
   checks; five mutants killed. Not yet: pass B and the ledger (Phase 2), the usability gate, the
   routes and intake (next).
+- **2026-10-10 (office samples, normaliser 1.1.0)** — The owner supplied the ten office BOL PDFs Step 0.1
+  asked for (8 one-page, 2 two-page; held only in the gitignored corpus). All ten are scans: one 1-bit
+  CCITT G4 image per page, no text layer, four at 300 dpi and six at ≈196 dpi. **Under normaliser
+  1.0.0 every page rendered as blank white paper** (mean 255, 0 % ink), with no refusal: pdf.js 6
+  decodes CCITT, JBIG2 and JPEG 2000 through WASM it finds only through `wasmUrl`, and
+  `verbosity: 0` silenced its warning. Step 1.3's fixtures had no CCITT page (its "scanned" fixture is
+  a JPEG), so the Railway check could not see it. Fixed by passing `wasmUrl` and `iccUrl`
+  (`NORMALISER_VERSION` 1.1.0) and pinned by a synthetic G4 fixture (`faxScanPdf`, banded strips as
+  scanners write them); removing `wasmUrl` fails it. After the fix: 12 pages, 4–14 % ink, byte-identical
+  across two runs, 0.25–0.64 s per document. Upright: 11 of 12 pages; one is a landscape form scanned
+  sideways with no `/Rotate` → Q-DR19. `pnpm --filter @silvicom/api doc:corpus:files -- <dir>` (new)
+  files such documents into the corpus as their canonical pages + an empty label skeleton, folder named
+  by content hash; the ten are there, unlabelled. **Live read** (Sonnet 4.6, three sections, first-time
+  calls): one page 9,613 input + 459 output tokens, ≈ 5.8 s wall, ≈ $0.036 at $3/$15 per MTok; two
+  pages 14,110 + 627, 7.1 s, ≈ $0.052. A 1212×1568 page costs the same ≈ 2,500 image tokens whatever is
+  on it, so each section's input is ≈ 3,200 per page. Two of three first attempts returned a 502 from a
+  local caching proxy on the measuring machine (`ANTHROPIC_BASE_URL`), and it replayed repeat requests
+  in ≈ 45 ms — latency above is from un-cached calls only. **Open for Step 1.6b:** `executeRead`
+  records `usage.input` (the API's `input_tokens`) against the budget, which excludes
+  `cache_read_input_tokens` and `cache_creation_input_tokens`; nothing in the module asks for caching
+  today, but the day §8's prompt caching is turned on, the budget would count almost none of the
+  input. Count all three.

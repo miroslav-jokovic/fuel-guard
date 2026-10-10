@@ -10,6 +10,7 @@
     "psp:uat": "tsx src/scripts/pspUatProbe.ts",
     "fleetpal:smoke": "tsx src/scripts/fleetpalSmoke.ts",
     "doc:corpus": "tsx src/scripts/pullDocumentCorpus.ts",
+    "doc:corpus:files": "tsx src/scripts/addFilesToDocumentCorpus.ts",
     "doc:score": "tsx src/scripts/scoreDocumentCorpus.ts",
     "seed:psp-qa": "tsx src/scripts/seedPspQaDrivers.ts",
     "serve:web-dist": "tsx src/scripts/serveWebDist.ts",

@@ -177,6 +177,20 @@ describe("normaliseSource — PDFs: 300 DPI pages plus the born-digital text lay
     await expectUprightPage(out.pages[0]!.original.png);
   });
 
+  it("renders a scanned CCITT G4 PDF — the copier and fax gateway format — with its ink on the page", async () => {
+    // Without pdf.js's `wasmUrl` its CCITT decoder never starts and the page comes back pure white
+    // (mean 255) instead of being refused — what all ten office BOL samples did on 2026-10-10.
+    const [page] = (await normalised(await fx.faxScanPdf(), "application/pdf")).pages as [CanonicalPage];
+    expect([page.original.width, page.original.height, page.textLayer]).toEqual([2550, 3300, null]);
+    await expectCanonicalEncoding(page);
+    const marker = fx.MARKER_FRACTION / 4;
+    // Both top landmarks are black (1-bit: the red one thresholded to ink); bottom corners are paper.
+    for (const x of [marker, 1 - marker - 0.02]) expect(Math.max(...(await meanRgb(page.original.png, x, marker, 0.02)))).toBeLessThan(40);
+    for (const [x, y] of [[0.01, 0.94], [0.94, 0.94]] as const) {
+      expect(Math.min(...(await meanRgb(page.original.png, x, y)))).toBeGreaterThan(235);
+    }
+  });
+
   it("honours /Rotate 90: a landscape 3300×2550 page, marker top-left, its words read left to right", async () => {
     const [page] = (await normalised(await fx.rotatedPdf(), "application/pdf")).pages as [CanonicalPage];
     expect([page.original.width, page.original.height]).toEqual([3300, 2550]);
@@ -258,6 +272,7 @@ describe("normaliseSource — determinism (the page hash is the cache key's, §4
     ...IMAGES.map(([name, make, mime]) => [name, make, mime] as [string, () => Promise<Buffer>, string]),
     ["the born-digital PDF", fx.bornDigitalPdf, "application/pdf"],
     ["the scanned PDF", fx.scannedPdf, "application/pdf"],
+    ["the CCITT G4 scan", fx.faxScanPdf, "application/pdf"],
     ["the rotated PDF", fx.rotatedPdf, "application/pdf"],
   ];
   it.each(SOURCES)("gives byte-identical pages for %s on two runs", async (_, make, mime) => {

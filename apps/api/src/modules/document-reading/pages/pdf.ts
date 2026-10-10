@@ -38,7 +38,20 @@ const require = createRequire(import.meta.url);
  * raster on a laptop and on Railway, which would break the byte-identical promise and the cache key.
  * `useSystemFonts: false` closes the same door from the other side.
  */
-const STANDARD_FONTS = join(dirname(require.resolve("pdfjs-dist/legacy/build/pdf.mjs")), "../../standard_fonts/");
+const PDFJS_ROOT = join(dirname(require.resolve("pdfjs-dist/legacy/build/pdf.mjs")), "../../");
+const STANDARD_FONTS = join(PDFJS_ROOT, "standard_fonts/");
+/**
+ * pdf.js 6 decodes CCITT fax (`CCITTFaxDecode`) and JBIG2 through `jbig2.wasm`, JPEG 2000 through
+ * `openjpeg.wasm`, and ICC-based colour through `qcms_bg.wasm` — all shipped in `pdfjs-dist/wasm/`
+ * and found ONLY through `wasmUrl`. Without it the decoder fails to start, pdf.js logs a warning
+ * (silenced by `verbosity: 0`), skips the image, and the page renders as clean white paper: no
+ * refusal, no error, a "page" the reader would then read as empty. Measured 2026-10-10 on all ten
+ * office BOL samples — every one a scanned CCITT G4 PDF, the format a copier's scan-to-PDF and a
+ * fax gateway both write — and pinned by "renders a scanned CCITT G4 PDF — the copier and fax
+ * gateway format — with its ink on the page".
+ */
+const PDFJS_WASM = join(PDFJS_ROOT, "wasm/");
+const PDFJS_ICC = join(PDFJS_ROOT, "iccs/");
 
 type PdfOutcome = { ok: true; pages: CanonicalPage[] } | { ok: false; code: IntakeRefusalCode };
 
@@ -49,6 +62,8 @@ async function open(bytes: Buffer): Promise<Opened> {
     // pdf.js transfers (detaches) the buffer it is given; copy so the caller's bytes stay intact.
     data: new Uint8Array(bytes),
     standardFontDataUrl: STANDARD_FONTS,
+    wasmUrl: PDFJS_WASM,
+    iccUrl: PDFJS_ICC,
     useSystemFonts: false,
     verbosity: 0,
   });

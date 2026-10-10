@@ -31,8 +31,10 @@ export type { SourceFormat } from "./sniff.js";
  * 1.0.0 — 2026-10-09, Step 1.3: EXIF orient + strip, sRGB 8-bit, alpha on white; PNG original;
  *         1568 px lossless-WebP working copy; PDF at 300 DPI (≤ 6,000 px) via pdf.js + @napi-rs/canvas;
  *         text-layer words apportioned along pdf.js runs.
+ * 1.1.0 — 2026-10-10: pdf.js given its `wasmUrl`/`iccUrl` — CCITT, JBIG2 and JPEG 2000 images and
+ *         ICC colour now decode; under 1.0.0 a page made of them rendered as blank white (pdf.ts).
  */
-export const NORMALISER_VERSION = "1.0.0";
+export const NORMALISER_VERSION = "1.1.0";
 
 export type NormaliseOutcome =
   | {
