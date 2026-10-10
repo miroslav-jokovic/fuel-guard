@@ -927,3 +927,14 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
     tells and what to check. Measured for it: 60 successful `efs_soap_posted` runs per org in the
     last hour, so the poll runs every minute and the alarm fires after 60 minutes. It checks every 6
     hours. The same file's drain section already said "about once a minute".
+
+- 2026-10-10: Q-F14 — the owner rejected (a), closing chunk 16 on August, as "2 months behind".
+  The question behind it is no longer this plan's. Why September cannot be tied yet is that McLeod
+  posts a month 10–39 days after it ends, and the owner's answer to that is a preliminary month
+  built from the sub-ledgers, EFS among them. That is **D-FLEET11** in
+  `docs/plans/financial/FINANCE-FLEET-REPORT-PLAN.md`, with the nightly finance sweep and the AP
+  distribution collector ahead of it (that plan's log, 2026-10-10). Q-F14 therefore stays OPEN in
+  Rulings and is answered by whichever comes first: the September GL posting, which a nightly sweep
+  will now stage without anyone running it, or the preliminary month's fuel line. Chunk 16's
+  tie-out is one Log line at that point. Either way it does not hold the task walk.
+
