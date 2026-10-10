@@ -63,6 +63,9 @@ const KIND_CAPS: Record<string, number> = {
   efs_card_sync: 1,
   efs_card_status: 1,
   hazmat_extract: 2,
+  // Two, like hazmat_extract (DOCUMENT-READER-PLAN §2 Queue): a read is up to three parallel vision
+  // requests (Q-DR11 sections), so two reads is six in flight against Anthropic fleet-wide.
+  document_read: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
   // ⚠ ONE. FleetPal publishes no rate limit and sends no limiter headers — 94 sequential requests

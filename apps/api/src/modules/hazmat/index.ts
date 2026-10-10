@@ -16,3 +16,4 @@ export { meHazmatRouter } from "./routes/meHazmat.js";
 export { executeExtraction } from "./hazmatExtraction/orchestrate.js";
 export { executeManualAnalysis, buildManualLoadInput, type CargoTankProfileRow, type ManualLoadRow } from "./hazmatAnalysis.js";
 export { readEquipmentKind } from "./hazmatEquipment.js";
+export { shippingDocumentReadGate } from "./documentReadGate.js";

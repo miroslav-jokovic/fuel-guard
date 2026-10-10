@@ -57,6 +57,12 @@ export const READ_FAILURES = {
   no_readable_page: "None of the pages is a bill of lading or a signed delivery copy.",
   budget_exhausted: "This month's document-reading budget is used up.",
   integrity_mismatch: "A stored page no longer matches the bytes that were received, so it was not read.",
+  // Step 1.6 (0451). The queue retries a transient model error with backoff; this is the read the last
+  // retry left — without it the read would sit in `reading` forever with nobody told.
+  model_unavailable: "The reading service could not be reached after several tries. Start the read again.",
+  // Step 1.6 (0451). The consumer's module was switched off for the organization (entitlement or the
+  // module's kill switch) between the read being queued and a worker reaching it.
+  reading_disabled: "Document reading is turned off for this organization.",
 } as const satisfies Record<string, string>;
 export type ReadFailureCode = keyof typeof READ_FAILURES;
 export const READ_FAILURE_CODES = Object.keys(READ_FAILURES) as ReadFailureCode[];
@@ -79,6 +85,8 @@ export const READ_FAILURE_KIND = {
   no_readable_page: "reader",
   budget_exhausted: "operational",
   integrity_mismatch: "operational",
+  model_unavailable: "operational",
+  reading_disabled: "operational",
 } as const satisfies Record<ReadFailureCode, "reader" | "operational">;
 export type ReadFailureKind = (typeof READ_FAILURE_KIND)[ReadFailureCode];
 
