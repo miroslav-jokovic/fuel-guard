@@ -5,7 +5,8 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { SortState } from "@/lib/sort";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
-import { BOARD_COLUMNS as columns, dispatcherName, durationWords, gpsAgeWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { dispatcherName, durationWords, gpsAgeWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
 
 /**
@@ -16,6 +17,8 @@ import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
  */
 const props = defineProps<{
   rows: DispatchBoardRow[];
+  /** The columns this reader shows (`useTableColumns` over `BOARD_COLUMNS`), in their declared order. */
+  columns: DataTableColumn[];
   loading: boolean;
   error: string | null;
   retrying: boolean;

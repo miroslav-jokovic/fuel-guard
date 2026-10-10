@@ -71,6 +71,13 @@ export const BOARD_COLUMNS: DataTableColumn[] = [
   { key: "next", label: "Next load", width: "sm", sortable: true },
 ];
 
+/**
+ * The board's table id: the column picker's storage key (`fg.cols.dispatch.board`) and, once
+ * `SAVED_VIEW_TABLES` admits it, the saved views' `table_id` — the string migration 0452 lets the
+ * database store, spelled the same so the two agree about what "the board" is called.
+ */
+export const BOARD_TABLE = "dispatch.board";
+
 /** The column keys a `?sort=` link may name — derived, so a new sortable column cannot be forgotten. */
 export const BOARD_SORT_KEYS = BOARD_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
 

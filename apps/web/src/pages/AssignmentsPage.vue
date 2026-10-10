@@ -4,9 +4,11 @@ import type { DispatchBoardRow } from "@silvicom/shared";
 import { AppCallout, AppTabs, AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useQueryState } from "@/composables/useQueryState";
+import { useTableColumns } from "@/composables/useTableColumns";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { formatDateTime } from "@/lib/format";
 import { sortRows } from "@/lib/sort";
@@ -17,8 +19,10 @@ import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue
 import { useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
 import {
+  BOARD_COLUMNS,
   BOARD_QUEUES,
   BOARD_SORT_KEYS,
+  BOARD_TABLE,
   boardSortValue,
   filterBoard,
   type BoardQueue,
@@ -73,6 +77,13 @@ const search = qs.param("search");
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
 const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
+
+/**
+ * Which columns show (`useTableColumns`): a hidden list in `?hide=`, with this browser's own choice as
+ * the default, so a long-haul planner can drop Empties and a local one Next stop without either
+ * losing the column for the other. The truck stays; it is the row's name.
+ */
+const boardColumns = useTableColumns(BOARD_TABLE, () => BOARD_COLUMNS);
 
 const rows = computed(() => board.value?.rows ?? []);
 const dispatchers = computed(() => board.value?.dispatchers ?? []);
@@ -148,11 +159,13 @@ const emptyText = computed(() =>
             >
               {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →
             </BaseButton>
+            <ColumnPicker :columns="boardColumns" />
           </template>
         </FilterBar>
 
         <DispatchBoardTable
           :rows="sorted"
+          :columns="boardColumns.visible.value"
           :loading="isLoading"
           :error="isError ? (error instanceof Error ? error.message : 'Could not load the dispatch board') : null"
           :retrying="isFetching"
