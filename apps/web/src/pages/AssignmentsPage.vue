@@ -5,9 +5,11 @@ import { AppCallout, AppTabs, AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import ColumnPicker from "@/components/ui/ColumnPicker.vue";
+import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { useQueryState } from "@/composables/useQueryState";
+import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { formatDateTime } from "@/lib/format";
@@ -84,6 +86,12 @@ const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param(
  * losing the column for the other. The truck stays; it is the row's name.
  */
 const boardColumns = useTableColumns(BOARD_TABLE, () => BOARD_COLUMNS);
+/**
+ * Saved views: a name and this page's URL — queue, scope, fleet, dispatcher, search, sort and hidden
+ * columns — so "late trucks in VINNIEV, by appointment" is one click. Applying one is a navigation,
+ * the same as following a link (`useSavedViewMenu`).
+ */
+const viewMenu = useSavedViewMenu(BOARD_TABLE, "board");
 
 const rows = computed(() => board.value?.rows ?? []);
 const dispatchers = computed(() => board.value?.dispatchers ?? []);
@@ -159,6 +167,16 @@ const emptyText = computed(() =>
             >
               {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →
             </BaseButton>
+            <SavedViewMenu
+              :built-ins="viewMenu.builtIns"
+              :views="viewMenu.views.value"
+              :current-query="viewMenu.currentQuery.value"
+              :active-name="viewMenu.activeName.value"
+              :busy="viewMenu.busy.value"
+              @apply="viewMenu.apply"
+              @save="viewMenu.save"
+              @remove="viewMenu.remove"
+            />
             <ColumnPicker :columns="boardColumns" />
           </template>
         </FilterBar>

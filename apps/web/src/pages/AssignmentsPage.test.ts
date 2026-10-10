@@ -30,6 +30,21 @@ vi.mock("@/features/dispatch/useDispatchBoard", () => ({
     isFetching: ref(false), refetch: () => {},
   }),
 }));
+// The views themselves are the API's (`savedViews.test.ts`); here, what the board saves and applies.
+const savedViews = vi.hoisted(() => ({
+  views: [] as { table_id: string; name: string; query: string; updated_at: string }[],
+  table: "",
+  save: vi.fn(),
+  remove: vi.fn(),
+}));
+vi.mock("@/composables/useSavedViews", () => ({
+  useSavedViews: (table: string) => {
+    savedViews.table = table;
+    return { views: { value: savedViews.views }, loading: { value: false }, saving: { value: false }, save: savedViews.save, remove: savedViews.remove };
+  },
+}));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import AssignmentsPage from "./AssignmentsPage.vue";
 
 const response = (linked: boolean): DispatchBoardResponse => ({
@@ -156,6 +171,23 @@ describe("the dispatch board page", () => {
     expect(headers).not.toContain("Next load");
     // The picker says what is hidden; the truck is the row's name and cannot be turned off.
     expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("2 hidden");
+  });
+
+  it("saves the board's whole URL as a view, applies one by navigating, and names the one showing", async () => {
+    board.value = response(true);
+    savedViews.views = [{ table_id: "dispatch.board", name: "VLADI late", query: "scope=all&fleet=VLADI", updated_at: "2026-10-10T00:00:00Z" }];
+    const w = await mountPage("/assignments?queue=late&sort=onTime&dir=asc&hide=empties");
+    expect(savedViews.table).toBe("dispatch.board");
+    const menu = w.findComponent(SavedViewMenu);
+    expect(menu.props("builtIns")).toEqual([]);
+    menu.vm.$emit("save", "Late, by risk");
+    await flushPromises();
+    expect(savedViews.save).toHaveBeenCalledWith("Late, by risk", "queue=late&sort=onTime&dir=asc&hide=empties");
+    menu.vm.$emit("apply", "scope=all&fleet=VLADI");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ scope: "all", fleet: "VLADI" });
+    expect(units(w)).toEqual(["801"]);
+    expect(w.findComponent(SavedViewMenu).props("activeName")).toBe("VLADI late");
   });
 
   it("writes the scope a person chooses into the URL", async () => {
