@@ -57,8 +57,26 @@ const DECEMBER_THEN_THIN_JANUARY = [
   { period_start: "2026-01-01", period_end: "2026-02-01", swept_at: "2026-02-20 04:00:00+00", post_module: "RJ", glid: "42200000", line_count: 9, net_amount: "132686.00", abs_amount: "132686.00" },
 ];
 
-const recorder = (totals: unknown[] = TOTALS) =>
-  createSupabaseRecorder({ tables: { mcleod_gl_totals: totals, mcleod_gl_accounts: ACCOUNTS } });
+type Total = (typeof TOTALS)[number];
+
+/**
+ * The ledger read honours its `period_start` bounds, because the recorder does not filter: a fake
+ * that hands back every row would pass a reader that reads too little history as readily as one
+ * that reads enough, and "January is judged against December" is a claim about what is read.
+ */
+const recorder = (totals: Total[] = TOTALS) =>
+  createSupabaseRecorder({
+    tables: {
+      mcleod_gl_totals: (q) => {
+        const bound = (method: string) =>
+          q.ops.find((o) => o.method === method && o.args[0] === "period_start")?.args[1] as string | undefined;
+        const gte = bound("gte");
+        const lt = bound("lt");
+        return totals.filter((r) => (!gte || r.period_start >= gte) && (!lt || r.period_start < lt));
+      },
+      mcleod_gl_accounts: ACCOUNTS,
+    },
+  });
 
 describe("getIncomeStatement", () => {
   it("reports the asked-for month and the fiscal year to it, org-scoped", async () => {

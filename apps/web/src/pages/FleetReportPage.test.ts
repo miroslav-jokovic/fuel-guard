@@ -231,17 +231,20 @@ describe("FleetReportPage — the shell (R1)", () => {
   });
 
   it("opens on the latest month the sweep finished, and says why it is not the calendar's month", async () => {
-    const w = await mountPage();
-    const rail = w.find('[aria-live="polite"]');
-    expect(rail.text()).toBe("July 2026");
-    // The calendar's last full month is whatever today makes it; the note names it and says the
-    // report opens on July instead, because the trend said August was swept on the 28th.
-    if (new Date().getMonth() === 8 && new Date().getFullYear() === 2026) {
+    // The calendar's last full month comes from today, so today is pinned to September 2026 — the
+    // morning the trend said August was swept on the 28th. Unpinned, the sentence that names August
+    // was only checked during that one month, and every month since checked nothing.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T15:00:00Z"));
+    try {
+      const w = await mountPage();
+      const rail = w.find('[aria-live="polite"]');
+      expect(rail.text()).toBe("July 2026");
       expect(w.text()).toContain("August 2026 was swept on 2026-08-28, before the month ended, so the report opens on July 2026");
-    } else {
-      expect(w.text()).toContain("so the report opens on July 2026");
+      w.unmount();
+    } finally {
+      vi.useRealTimers();
     }
-    w.unmount();
   });
 
   it("keeps one period for every tab: stepping back on the rail changes the month everywhere", async () => {
