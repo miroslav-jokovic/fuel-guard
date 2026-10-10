@@ -13,6 +13,9 @@ const iso = z.string();
 
 /** A stop as the board shows it: where, the appointment window, and whether the truck is there. */
 export const dispatchBoardStopSchema = z.object({
+  /** The stop's place in its load (`load_stops.seq`) — with the load id, the key a recorded ETA is
+   *  later compared against the stop's actual arrival by (DB7). */
+  seq: z.number().nullable(),
   kind: z.string().nullable(),
   /** McLeod's place name first, then ours — the Loads board's `placeOf` order. */
   name: z.string().nullable(),

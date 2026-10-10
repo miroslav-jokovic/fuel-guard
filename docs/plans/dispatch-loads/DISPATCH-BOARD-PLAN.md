@@ -489,3 +489,33 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   the board's ETA is recorded as it is made: the next step, ahead of DB7 itself.
 - A `tools/mcleod-agent/node_modules` symlink rode into #1433 (a worktree's setup link;
   `.gitignore`'s `node_modules/` matches directories only). Removed, and the pattern now matches both.
+
+### 2026-10-10 — The board's ETA is recorded, so DB7 can start
+
+- **Migration 0453 `load_stop_eta_predictions`** (owned by `loads`: `livemap` owns no table by rule, and
+  a prediction is a fact about a load's stop). One row per truck heading to a stop, per recording:
+  load id + `stop_seq` (`load_stops.seq`, the join to `actual_arrival_at`), the ETA, and its basis —
+  road miles, whether a 10-hour reset was added, GPS age, whether HOS clocks were known — plus the
+  window's close and the verdict shown. Pruned at 60 days (`RETENTION_RULES`).
+- **`livemap/boardEtaRecorder.ts`**, hourly (`DISPATCH_BOARD_ETA_RECORD_MINUTES`, default 60, 0 off),
+  started from `startAllSchedulers` like every other scheduler. It reads the board through
+  `readBoardRows`, the composition `readDispatchBoard` now calls too, so the recorded estimate IS the
+  one on screen. ~2,900 rows a day; no vendor call. The board's stop now carries `seq` on the wire.
+- **DB7, from 14 days after the first row.** The comparison, for the review then:
+
+  ```sql
+  -- error by hours out: positive = the truck arrived later than the board said
+  select width_bucket(extract(epoch from s.actual_arrival_at - p.predicted_at) / 3600, 0, 24, 6) as hours_out_bucket,
+         count(*) as n,
+         percentile_cont(0.5) within group (order by extract(epoch from s.actual_arrival_at - p.eta_at) / 60) as median_min,
+         percentile_cont(0.9) within group (order by abs(extract(epoch from s.actual_arrival_at - p.eta_at)) / 60) as p90_abs_min,
+         avg((p.rest_added)::int) as share_rest_added
+    from load_stop_eta_predictions p
+    join load_stops s on s.load_id = p.load_id and s.seq = p.stop_seq and s.org_id = p.org_id
+   where s.actual_arrival_at is not null and p.predicted_at < s.actual_arrival_at
+   group by 1 order by 1;
+  ```
+
+  Q-DB4 is then decided on the numbers: keep the distance ETA, retune `BOARD_ROAD_FACTOR` /
+  `BOARD_PLANNING_MPH`, or buy HERE's matrix. The verdict column scores "on time / at risk / late"
+  against `window_closes_at` the same way.
