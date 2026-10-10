@@ -70,7 +70,8 @@ const WAIVERS = new Map([
   // copy) for sources, the normalisation stage (Step 1.3) for pages, the review route (Step 1.6) for reviews.
   // `document_pages` and `document_read_reviews` left with Step 1.6's read (executeRead.ts), which READS
   // both — a reference by this gate's definition; their writers are the intake and the review route.
-  ["document_sources", "DOCUMENT-READER-PLAN.md Step 1.6/3.2 — intake writes it (schema-only Step 1.2, 0448)"],
+  // `document_sources` left on 2026-10-10 with Step 1.6b: intake/intake.ts inserts it from the
+  // `document_intake` job behind POST /api/documents/sources/:id/complete. That was the last of 0448's.
   // document_page_classes (0449, Q-DR12) joins them schema-only: the page classifier (Step 1.5) writes its
   // verdicts, and the override control (Step 3.4) a person's. It leaves with the classifier.
   ["document_page_classes", "DOCUMENT-READER-PLAN.md Step 1.5 — the page classifier writes it (schema-only, 0449 Q-DR12)"],

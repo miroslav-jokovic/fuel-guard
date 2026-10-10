@@ -53,16 +53,15 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { samsaraWebhookBootWarning } from "./modules/samsara/index.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { jobsRouter } from "./modules/org/index.js";
+import { documentsRouter } from "./modules/document-reading/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
-import { hazmatRouter } from "./modules/hazmat/index.js";
-import { publicHazmatRouter } from "./modules/hazmat/index.js";
+import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter } from "./modules/driver-app/index.js";
 import { meRouter } from "./modules/driver-app/index.js";
-import { meHazmatRouter } from "./modules/hazmat/index.js";
 import { notificationsRouter } from "./modules/messaging/index.js";
 import { messagesRouter } from "./modules/messaging/index.js";
 import { rosterDriversRouter } from "./modules/roster/index.js";
@@ -293,6 +292,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());
+  app.use("/api/documents", documentsRouter()); // the document reader (DOCUMENT-READER-PLAN Step 1.6b)
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
   // A receiver that fails closed is indistinguishable from one nobody is calling — both are silence.

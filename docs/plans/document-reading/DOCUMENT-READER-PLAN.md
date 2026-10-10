@@ -913,3 +913,34 @@ Append dated lines at the end; never edit a row above.
   `cache_read_input_tokens` and `cache_creation_input_tokens`; nothing in the module asks for caching
   today, but the day §8's prompt caching is turned on, the budget would count almost none of the
   input. Count all three.
+- **2026-10-10 (Step 1.6b, the routes)** — `/api/documents`, gated `hazmatguard` + the `hazmat` section
+  (`manage` to send or review, `view` to look), which is Q-DR18's default and says so in the router. An
+  upload is **three calls, not one**, because `document_sources` is append-only with a NOT NULL
+  `page_count`: the row cannot exist until the file has been rendered, and rendering runs on the worker.
+  (1) `POST /sources` writes no row: a new id and a signed PUT URL for `<org>/<id>/source-<sha256>`, or —
+  when the org already holds those bytes — that source, `uploadUrl: null, duplicate: true` (D-DR12).
+  (2) The browser PUTs the bytes to Storage. (3) `POST /sources/:id/complete` queues `document_intake`
+  (dedupe `document_intake:{id}`, worker cap 2) → 202 + jobId; `runIntake` downloads the key, checks the
+  bytes against the sha in it, normalises, upserts each page's PNG original and WebP working copy,
+  inserts the source (sniffed mime, `origin: upload`) and the missing pages (original's width/height,
+  `capture_metrics.renderDpi`), and, when a profile was named, queues the read (reusing a done one, so a
+  retried job never reads twice). The in-request render was avoided deliberately: pdf.js renders on the
+  event loop, 0.25–0.64 s per document on the office scans, on a process that also serves every other
+  request. `GET /sources/:id` answers `uploading | normalising | ready | refused | failed`; **`failed` is
+  new** — an intake job that died for a reason not the file's (Storage down, retries spent), so a dead
+  job no longer polls as `normalising` for ever, and the sender's move is to press complete again. Two
+  new refusals, both the sender's: **`upload_missing`** (the key is not in Storage; any other Storage
+  error throws and is retried) and **`hash_mismatch`**. Every refusal is RETURNED as the job's stats,
+  never thrown, so a file that cannot be read is not re-read five times. `POST /reads` reuses a queued or
+  reading read; `GET /reads/:id` returns every page of the source with its class, one batch of 300 s
+  signed URLs, and the working copy's size from `workingSizeOf` (a page that cannot be signed refuses the
+  whole read — a review screen missing a page is a review of another document). `POST /reads/:id/reviews`
+  takes a done read only; each entry's `oldValue` must be what the read gave (missing = null), a path to a
+  group of fields is refused, and the batch is all or nothing. Audit: `document.intake_started`,
+  `document.read_requested` (not for a reused read), `document.read_reviewed` (a count per action).
+  `document_sources` left the table-producers waiver. 34 tests across `intake.test.ts`,
+  `requests.test.ts`, `routes/documents.test.ts`, every service test under `expectOrgScoped`; twelve
+  mutants killed. **Still open from 1.6b:** `executeRead` counts only `usage.input` against the budget,
+  not `cache_read_input_tokens` or `cache_creation_input_tokens` — count all three before §8's prompt
+  caching is turned on. Next: Step 3.2 (`from-samsara`, which needs D-DR9's one-source-per-document vs
+  per-photo answer first) and 3.3 (`bolPrefill.ts`).

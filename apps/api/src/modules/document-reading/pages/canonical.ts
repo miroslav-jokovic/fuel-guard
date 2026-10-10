@@ -75,6 +75,21 @@ function rasterInput(raster: RgbRaster) {
 }
 
 /** The one resize-and-encode both a fresh page and a re-derived working copy go through. */
+/**
+ * Pure: the working copy's size for an original of `width × height` — what `encodeWorking`'s
+ * `fit: "inside", withoutEnlargement` resize produces, so a reader of `document_pages` (which records
+ * the ORIGINAL's size) can state the working copy's without decoding it. Pinned against sharp's own
+ * output by "gives the size sharp's resize produces, for portrait, landscape, square and small pages".
+ */
+export function workingSizeOf(width: number, height: number): { width: number; height: number } {
+  const long = Math.max(width, height);
+  if (long <= WORKING_LONG_EDGE_PX) return { width, height };
+  const scale = WORKING_LONG_EDGE_PX / long;
+  return width >= height
+    ? { width: WORKING_LONG_EDGE_PX, height: Math.max(1, Math.round(height * scale)) }
+    : { width: Math.max(1, Math.round(width * scale)), height: WORKING_LONG_EDGE_PX };
+}
+
 async function encodeWorking(input: ReturnType<typeof sharp>): Promise<CanonicalPage["working"]> {
   const { data: bytes, info } = await input
     .resize(WORKING_LONG_EDGE_PX, WORKING_LONG_EDGE_PX, { fit: "inside", withoutEnlargement: true })

@@ -40,3 +40,8 @@ export {
 export { executeRead, failUnavailableRead, type ExecuteReadOutcome, type ReadDeps, type ReadGate, type ReadGateFor } from "./read/executeRead.js";
 export { readCacheKey, ACCEPTANCE_RULE_VERSION, type CacheKeyInput } from "./read/cacheKey.js";
 export { READ_PROMPTS } from "./read/prompts.js";
+export { documentsRouter } from "./routes/documents.js";
+export { readDispatcher } from "./dispatch.js";
+export { runIntake, registerUpload, sourceStatus, intakeDedupKey, type IntakeJob, type IntakeOutcome } from "./intake/intake.js";
+export { requestRead, getRead, recordReviews, reviewEntryProblem, readDedupKey } from "./read/requests.js";
+export { DOCUMENT_BUCKET } from "./storage.js";

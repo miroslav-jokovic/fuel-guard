@@ -10,6 +10,7 @@ import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import { documentReadHandler } from "./documentRead.js";
+import { documentIntakeHandler } from "./documentIntake.js";
 import {
   backfillHandler,
   patternSweepHandler,
@@ -56,6 +57,7 @@ export function registerAllHandlers(): void {
   registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
   registerHandler("document_read", documentReadHandler);
+  registerHandler("document_intake", documentIntakeHandler);
   registerHandler("rebuild", rebuildHandler);
   registerHandler("backfill", backfillHandler);
   registerHandler("score_import", scoreImportHandler);

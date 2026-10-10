@@ -98,6 +98,11 @@ export const INTAKE_REFUSALS = {
   too_large: "The file is larger than 25 MB.",
   too_many_pages: "The PDF has more than 10 pages.",
   encrypted_pdf: "The PDF is password-protected.",
+  // The two below are the upload channel's, not the file's: a signed-URL upload that never arrived, and
+  // bytes whose SHA-256 is not the one announced when the upload was registered (a truncated PUT, or a
+  // different file sent to the same URL). Either way the sender's fix is the same — send it again.
+  upload_missing: "The file never arrived — upload it again.",
+  hash_mismatch: "The file that arrived is not the one that was announced — upload it again.",
 } as const satisfies Record<string, string>;
 export type IntakeRefusalCode = keyof typeof INTAKE_REFUSALS;
 
@@ -244,7 +249,16 @@ export function mergeSections(profile: DocumentProfile, parts: Readonly<Record<s
 const SHA256_RX = /^[0-9a-f]{64}$/;
 const INTAKE_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 
-/** `POST /api/documents/sources` — register an upload; the response carries a signed PUT URL. */
+/**
+ * `POST /api/documents/sources` — register an upload; the response carries a signed PUT URL.
+ *
+ * Three calls, because `document_sources` is append-only and its `page_count` is NOT NULL: the row
+ * cannot exist until the bytes have been rendered into pages, and they are rendered on the worker,
+ * not in the request. So: (1) register → an id and a signed PUT URL, no row; (2) PUT the bytes to
+ * Storage directly (they never pass through the API); (3) `POST …/sources/:id/complete` queues the
+ * intake, which renders the pages and inserts the source and its pages, then (when asked) the read.
+ * `GET …/sources/:id` answers where that stands.
+ */
 export const createSourceRequestSchema = z.object({
   fileName: z.string().min(1).max(255),
   mime: z.enum(INTAKE_MIMES),
@@ -254,11 +268,42 @@ export const createSourceRequestSchema = z.object({
 export type CreateSourceRequest = z.infer<typeof createSourceRequestSchema>;
 export const createSourceResponseSchema = z.object({
   sourceId: z.uuid(),
-  uploadUrl: z.url(),
+  /** Null exactly when `duplicate`: nothing to upload. */
+  uploadUrl: z.url().nullable(),
   /** True when this org already holds these exact bytes — no upload needed (D-DR12 dedupe). */
   duplicate: z.boolean(),
 });
 export type CreateSourceResponse = z.infer<typeof createSourceResponseSchema>;
+
+/** `POST /api/documents/sources/:id/complete` — the bytes are uploaded; render them, and optionally read. */
+export const completeSourceRequestSchema = z.object({
+  /** The same SHA-256 the registration announced — it names the uploaded object and is checked against its bytes. */
+  sha256: z.string().regex(SHA256_RX),
+  /** When set, the intake queues a read under this profile as soon as the pages exist. */
+  profile: z.enum(DOCUMENT_PROFILE_IDS).nullable().default(null),
+});
+export type CompleteSourceRequest = z.infer<typeof completeSourceRequestSchema>;
+export const completeSourceResponseSchema = z.object({ jobId: z.uuid() });
+
+/**
+ * `refused` is the FILE's fault (a refusal code with its sentence); `failed` is ours — the intake job
+ * ended in an error that is not about the file (Storage down, the worker died past its retries), so
+ * the sender's move is to press complete again, not to change the file. Without it a dead job would
+ * poll as `normalising` for ever.
+ */
+export const SOURCE_STATUSES = ["uploading", "normalising", "ready", "refused", "failed"] as const;
+export type SourceStatus = (typeof SOURCE_STATUSES)[number];
+/** `GET /api/documents/sources/:id` — polled after `complete` until `ready` or `refused`. */
+export const sourceStatusResponseSchema = z.object({
+  sourceId: z.uuid(),
+  status: z.enum(SOURCE_STATUSES),
+  /** Set exactly when `refused`; its sentence is `INTAKE_REFUSALS[refusal]`. */
+  refusal: z.enum(Object.keys(INTAKE_REFUSALS) as [IntakeRefusalCode, ...IntakeRefusalCode[]]).nullable(),
+  pageCount: z.number().int().positive().nullable(),
+  /** The read the intake queued (`complete` with a profile), once it exists. */
+  readId: z.uuid().nullable(),
+});
+export type SourceStatusResponse = z.infer<typeof sourceStatusResponseSchema>;
 
 /** `POST /api/documents/sources/from-samsara` — copy a Samsara document's photos in (D-DR9). */
 export const sourceFromSamsaraRequestSchema = z.object({ samsaraDocumentId: z.string().min(1) });
@@ -309,6 +354,7 @@ export const reviewBatchRequestSchema = z.object({
   reviews: z.array(reviewEntrySchema).min(1).max(500),
 });
 export type ReviewBatchRequest = z.infer<typeof reviewBatchRequestSchema>;
+export const reviewBatchResponseSchema = z.object({ recorded: z.number().int().min(1) });
 
 // ── corpus labels (Step 0.3) ───────────────────────────────────────────────────────────────────────
 export const labelledPageSchema = z.object({
