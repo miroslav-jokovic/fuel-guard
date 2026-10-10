@@ -272,6 +272,16 @@ stops — the same five entries, no new one.
 - **Q-DB9 — Send to driver.** `load_dispatches` has never been written (0 rows). Keep the Dispatch
   column and action on Loads, or retire it until drivers use the app? Not a board question, but the
   remodel should not polish a column nobody uses. *Recommend: ask the dispatchers with Q-DB7.*
+- **Q-DB10 — "End shift" (added 2026-10-10).** The old Assignments page let a manager close a driver's
+  in-app duty shift that was left open (D44.5), so the truck could be picked again. The board (wave 3b)
+  dropped that button without saying so. `POST /api/dispatch/assignments/:id/end` and `useEndShift` are
+  still there, with no screen. Measured in production that day: 0 duty sessions ever, 0
+  `dispatch.shift_ended` audit rows, and the 16-hour auto-close sweeper still runs. Options: (a) put
+  End shift in the truck drawer, shown only when a session is open; (b) retire the route, the
+  `GET /api/dispatch/assignments` list it reads from, and the hook, leaving the sweeper as the only
+  close. *Recommend (b) while the driver app's duty check-in is unused, and (a) when it ships.* The
+  board must not quietly lose an action either way, so cleanup of `GET /api/dispatch/assignments`
+  waits on this ruling.
 
 ## 7. Steps (one PR each unless noted)
 
@@ -532,5 +542,4 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - Seen in Chromium (dev-bypass build, stubbed positions, two trucks 800 miles apart): without the
   parameter both are framed; with `?truck=773` the map opens on Chicago alone with 773's card open and
   its rail row current, and the URL reads `?tab=dispatch` afterwards.
-- **Still owed:** cleanup (`GET /api/dispatch/assignments`' list route, stale `tms_dispatchers`
-  comments); DB7 itself from two weeks after 0453's first row; the fleet code waits on Alex's VM update.
+- **Still owed:** cleanup, which waits on Q-DB10 (End shift; the dead list route is its data); DB7 itself from two weeks after 0453's first row; the fleet code waits on Alex's VM update.
