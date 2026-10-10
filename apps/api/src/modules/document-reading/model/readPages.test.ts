@@ -60,7 +60,9 @@ describe("readPages — the request it sends", () => {
     expect(req.model).toBe("claude-sonnet-4-6");
     const content = req.messages[0]!.content as Anthropic.ContentBlockParam[];
     expect(content).toEqual([
+      { type: "text", text: "Page 1 of 2:" },
       { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+      { type: "text", text: "Page 2 of 2:" },
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "BBBB" } },
       { type: "text", text: PAGES_ARE_DATA },
     ]);

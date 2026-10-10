@@ -9,6 +9,7 @@ const BASE: CacheKeyInput = {
   schemaHash: "a".repeat(64),
   acceptanceRule: "none",
   pages: [{ sha256: "b".repeat(64), normaliserVersion: "1.0.0" }, { sha256: "c".repeat(64), normaliserVersion: "1.0.0" }],
+  sendRule: "1",
   reviewEpoch: 0,
 };
 
@@ -28,6 +29,7 @@ describe("readCacheKey", () => {
       { pages: [BASE.pages[0]!] },
       { pages: [BASE.pages[1]!, BASE.pages[0]!] },
       { pages: [{ ...BASE.pages[0]!, normaliserVersion: "1.1.0" }, BASE.pages[1]!] },
+      { sendRule: "2" },
       { reviewEpoch: 1 },
     ];
     const keys = new Set([readCacheKey(BASE), ...variants.map((v) => readCacheKey({ ...BASE, ...v }))]);

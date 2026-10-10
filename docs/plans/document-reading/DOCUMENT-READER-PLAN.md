@@ -1081,3 +1081,17 @@ Append dated lines at the end; never edit a row above.
   leaving nothing behind. Matrix `document-assemblies` 32 checks; ten mutants killed; the eleventh
   (dropping the explicit revoke) is equivalent, because 0412 already closes new functions to clients.
   Next in N1: `document_reads.assembly_id` (its own merge, before its reader), then the routes.
+- **2026-10-10 (N3 first part: tier sizing + page labels, D-DR16 / R2)** — `model/visionTier.ts`
+  transcribes Anthropic's reference resize; a read now sends each page as `sentCopyOf` — ONE resize from
+  the verified original to the model's tier (standard 1568 px / 1568 tokens; 4.7-and-later 2576 / 4784;
+  either side ≤ 2000 px above 20 images) — and introduces each image with `Page n of m:`. The stored
+  1,568-px working copy is unchanged (it is what the reviewer sees). `SEND_RULE_VERSION` "1" joins the
+  cache key. **Measured LIVE** (an `oversized_image: "error"` block is refused with the target size
+  before any model runs): Sonnet 4.6 would downsize a 2000×1500 photo to **1270×952** — the Vision docs'
+  table says 1269×952, their reference code and the API say 1270 — and a 300 DPI letter page to
+  952×1232; Sonnet 5.5 takes 2000×1500 and 1920×1080 as sent and downsizes the letter page to 1688×2184.
+  So the pinned pair reads a letter page at ≈ 0.37 of its 300 DPI pixels per side and a 4.7+ model at
+  ≈ 0.66 (Q-DR20). `oversized_image: "error"` on the request itself waits for an SDK that types it
+  (0.107.0 does not). Eight mutants killed (half-even rounding, the 28-px padding at the 2000-px limit,
+  the 4.7 cut, the many-image cap, the resize itself, the model the size follows, the labels, the cache
+  term).
