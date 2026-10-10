@@ -7,6 +7,10 @@ import type { DispatchBoardResponse, DispatchBoardRow } from "@silvicom/shared";
 
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 vi.mock("@/features/dispatch/AssignmentHistory.vue", () => ({ default: { template: "<div data-test='history'/>" } }));
+// The drawer's own reads and rendering are DispatchTruckDrawer.test.ts's; here only WHICH truck it gets.
+vi.mock("@/features/dispatch/DispatchTruckDrawer.vue", () => ({
+  default: { name: "DispatchTruckDrawer", props: ["row"], emits: ["close"], template: "<div data-test='drawer'>{{ row ? row.unitNumber : 'closed' }}</div>" },
+}));
 
 /**
  * The dispatch board, mounted (DISPATCH-BOARD-PLAN DB5). The filtering rules are
@@ -49,7 +53,7 @@ beforeEach(() => {
   });
 });
 
-async function mountPage() {
+async function mountPage(path = "/assignments") {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -58,11 +62,11 @@ async function mountPage() {
       { path: "/loads/:id", name: "load-detail", component: { template: "<div/>" } },
     ],
   });
-  await router.push("/assignments");
+  await router.push(path);
   await router.isReady();
   const w = mount(AssignmentsPage, { global: { plugins: [router] } });
   await flushPromises();
-  return w;
+  return Object.assign(w, { router });
 }
 const units = (w: Awaited<ReturnType<typeof mountPage>>) =>
   w.findAll("tbody tr").map((tr) => tr.find("td:first-child div").text());
@@ -88,5 +92,25 @@ describe("the dispatch board page", () => {
     const link = w.findAll("a").find((a) => a.text().includes("uncovered"))!;
     expect(link.text()).toContain("12 uncovered loads");
     expect(link.attributes("href")).toBe("/loads?queue=uncovered");
+  });
+
+  it("opens a truck's drawer from its unit number and writes the truck into the URL", async () => {
+    board.value = response(true);
+    const w = await mountPage();
+    expect(w.get("[data-test=drawer]").text()).toBe("closed");
+    await w.findAll("tbody tr")[1]!.get("button").trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ truck: "669" });
+    expect(w.get("[data-test=drawer]").text()).toBe("669");
+  });
+
+  it("opens the drawer a link names with ?truck=, and closing it drops only that key", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?truck=801&from=loads");
+    expect(w.get("[data-test=drawer]").text()).toBe("801");
+    w.getComponent({ name: "DispatchTruckDrawer" }).vm.$emit("close");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ from: "loads" });
+    expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
 });

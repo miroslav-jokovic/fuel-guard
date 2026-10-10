@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { loadBoardState, movedByOther, needsAttention, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
@@ -24,7 +25,7 @@ const props = defineProps<{
   dispatchers: ReadonlyArray<{ id: string; name: string | null }>;
   fleetOwner: (code: string | null) => string | null;
 }>();
-const emit = defineEmits<{ retry: [] }>();
+const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow] }>();
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
 
@@ -67,6 +68,8 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     sticky-header
     pin-first-column
     :nowrap="false"
+    :row-class="() => 'cursor-pointer'"
+    @row-click="emit('open', $event as DispatchBoardRow)"
     @retry="emit('retry')"
   >
     <template #cell-unit="{ row }">
@@ -78,7 +81,11 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
           aria-label="Needs attention"
           title="Needs attention"
         />
-        {{ row.unitNumber }}
+        <!-- The row opens the truck's drawer on a click; the unit number is the same action as a real
+             button, so a keyboard reaches it too (contract §5.7: the primary cell is focusable). -->
+        <BaseButton variant="link" :aria-label="`Open truck ${row.unitNumber}`" @click.stop="emit('open', row)">
+          {{ row.unitNumber }}
+        </BaseButton>
       </div>
       <div class="text-xs text-ink-muted">{{ row.inShop ? "In shop" : (row.fleetCode ?? "No fleet") }}</div>
     </template>
