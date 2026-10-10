@@ -55,6 +55,7 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.recruiting", icon: BooksCheckIcon, desc: "How long application links stay open, the reminder, and who signs the handbook and the road test.", block: "config" },
   { key: "admin.settings.data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", block: "config" },
   { key: "admin.settings.efs", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", block: "config" },
+  { key: "admin.settings.mcleod-fleets", icon: ConnectIcon, desc: "Which McLeod dispatcher runs each fleet, and who each dispatcher is here. Builds the dispatch board's My fleet.", block: "config" },
   { key: "admin.settings.fleetpal", icon: ConnectIcon, desc: "The FleetPal API key, the hourly repair-record sweep, and what each collection last brought in.", block: "config" },
   { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", block: "config" },
   { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "The limits that decide when a fill is flagged, and the AI second opinion.", block: "config" },

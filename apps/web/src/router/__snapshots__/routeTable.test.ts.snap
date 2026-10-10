@@ -523,6 +523,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/fleetpal",
   },
   {
+    "name": "mcleod-fleets-settings",
+    "params": {},
+    "url": "/settings/mcleod-fleets",
+  },
+  {
     "name": "org-settings",
     "params": {},
     "url": "/settings/org",
@@ -646,7 +651,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Assignments",
+      "title": "Dispatch board",
     },
     "name": "assignments",
     "path": "/assignments",
@@ -1253,6 +1258,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "fuel-planning-settings",
     "path": "/settings/fuel-planning",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "McLeod fleets",
+    },
+    "name": "mcleod-fleets-settings",
+    "path": "/settings/mcleod-fleets",
     "redirect": null,
   },
   {

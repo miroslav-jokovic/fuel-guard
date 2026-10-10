@@ -250,7 +250,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Loads → /loads",
       "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -333,7 +333,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -491,7 +491,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Truck Stops → /truck-stops",
     ],
   },
@@ -562,7 +562,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Truck Stops → /truck-stops",
     ],
   },
@@ -705,7 +705,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Loads → /loads",
       "Messages → /messages [7]",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -786,7 +786,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -831,7 +831,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -953,7 +953,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -1019,7 +1019,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -1485,7 +1485,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
