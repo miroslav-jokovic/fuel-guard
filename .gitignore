@@ -1,5 +1,8 @@
 # Dependencies
-node_modules/
+# No trailing slash: `node_modules/` matches only a directory, so a worktree's node_modules SYMLINK
+# (the fresh-worktree setup links tools/mcleod-agent's) passed as untracked and was committed in
+# #1433 — and `git archive` of tools/mcleod-agent would carry it into the VM's update zip.
+node_modules
 .pnpm-store/
 
 # Build output

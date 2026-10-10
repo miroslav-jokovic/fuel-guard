@@ -1,5 +1,12 @@
 # The read routine, for the carrier's review
 
+> **2026-10-10 — the VM's first update.** [`REQUEST-TO-ALEX-2026-10-10-FLEET.md`](REQUEST-TO-ALEX-2026-10-10-FLEET.md):
+> the roster's tractor statement gains `fleet_id` (the Dispatch board's fleet, DISPATCH-BOARD-PLAN
+> DB1) and `exclude_fueltax` (IP4), both on a table the login already reads, plus a copy-over update
+> of the `connector\` folder. The VM's package dates from 2026-10-07 and had neither. The update zip
+> is `git archive --prefix=connector/ <main>:tools/mcleod-agent` minus `launchd/`, so it never
+> carries `node_modules`, `.env` or a state file.
+
 > **2026-09-29 — the routine reads the customer's name.** Statements 1 and 4 (open loads, and loads
 > that left the board) gain one `LEFT JOIN dbo.customer` on `company_id` AND `id` and one column,
 > `customer.name`, within the column grant Alex ran. Nothing else changed. Per Alex's condition, this
