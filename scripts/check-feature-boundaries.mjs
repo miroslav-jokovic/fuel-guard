@@ -130,6 +130,13 @@ const API_ALLOW = new Set([
   // construction: recordVehicleFleetCodes only, through roster's index, which writes ONE column and
   // only on change; mcleod keeps its own `tms_fleets` seed.
   "mcleod -> roster",
+  // The dispatch board's scope (DISPATCH-BOARD-PLAN DB3/DB4). Whose fleet is whose lives in mcleod's
+  // `tms_fleets` and `tms_dispatchers`, both layer=raw and sealed to mcleod, so the board asks mcleod
+  // for the caller's scope instead of reading them. Narrow by construction: readDispatchLinks only.
+  "livemap -> mcleod",
+  // The links card's people picker and its membership check (DB2): who in THIS org a McLeod login may
+  // be linked to is org's directory, not mcleod's. Narrow: listOfficeMembers and lookupMemberRole only.
+  "mcleod -> org",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:

@@ -355,3 +355,25 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   (default 5) into `driver_hos_clocks`, replacing the set on each poll; no jobs-ledger row (the
   positions tier's reasoning), no per-row work beyond one parse (the 2026-10-06 freeze). One parser
   of Samsara's clocks payload now serves all three readers (`parseHosClockReadings`).
+
+**2026-10-09 — wave 2 merged.**
+
+**2026-10-10 — wave 3a built: the board's API (no page yet).**
+- `GET /api/livemap/dispatch-board` (`dispatch: view`, the live map's gate): every non-retired truck
+  as a `DispatchBoardRow`, composed from five owner reads — roster (identity, fleet code), samsara
+  (positions, `readHosClocks`), loads (`readTruckLoadPlans`: current load, NEXT load, uncovered
+  count), mcleod (`readDispatchLinks`: the caller's scope). New edges `livemap -> mcleod` and
+  `mcleod -> org`, each narrow and justified in `check-feature-boundaries.mjs`.
+- Every verdict is a pure function in `packages/shared/src/dispatchBoard.ts`: `boardEta` (straight
+  line × 1.2 ÷ 50 mph, plus a 10-hour reset when the binding clock runs out), `onTimeVerdict`
+  (late / at risk inside the last hour / on time / unknown — never green by default), `emptiesAt`,
+  `freshHos` (15-minute cut), `boardFlags`, `inMyScope` (fleet ∪ my loads), `movedByOther`.
+- **Uncovered is a count, not "mine".** McLeod names no dispatcher on an `A` load (0 of 32), so
+  "uncovered in my fleet" does not exist as a fact; the board shows the fleet-wide count and links
+  to Loads' Uncovered queue.
+- The two office links: `GET /api/integrations/mcleod/dispatch-links` (`settings: view`), `PUT
+  …/mcleod/fleets/:code` and `PUT …/mcleod/dispatchers/:id/user` (`settings: manage` — Q-DB3's
+  "admin + fleet manager" IS that section, so no role list). Both audited; a user link is refused
+  for anybody outside the org.
+- Next, **wave 3b**: the page (Board · History), the links card in Settings, the Loads page's
+  Uncovered deep link. Then the drawer (DB6), saved views and the Loads scope control (DB5b).

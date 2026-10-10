@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readLiveMapBoardCached } from "../liveMapBoardCache.js";
 import { readLoadRoute } from "../liveMapLoadRoute.js";
+import { readDispatchBoard } from "../dispatchBoard.js";
 
 /**
  * The live map's read surface (LM6).
@@ -32,6 +33,22 @@ export function liveMapRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const board = await readLiveMapBoardCached(admin, req.auth!.orgId!);
+      res.json({ ok: true, data: board });
+    }),
+  );
+
+  /**
+   * The dispatch board (DISPATCH-BOARD-PLAN DB4): every active truck as a row, with the caller's scope
+   * beside it. The live map's gate, because it is the same fleet seen as a table: whoever may see where
+   * every truck is may see what each one is doing. Not cached like `/positions` — it polls once a minute,
+   * not every five seconds, and carries a per-user scope. A read, so no audit.
+   */
+  router.get(
+    "/dispatch-board",
+    requireSection("dispatch", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const board = await readDispatchBoard(admin, req.auth!.orgId!, req.auth!.userId);
       res.json({ ok: true, data: board });
     }),
   );
