@@ -1,6 +1,6 @@
-import { ref, watch, type Ref } from "vue";
+import { computed, type Ref } from "vue";
 import { inMyScope, type DispatchBoardResponse, type DispatchScope } from "@silvicom/shared";
-import type { FilterChip } from "@/components/ui/FilterBar.vue";
+import type { QueryState } from "@/composables/useQueryState";
 
 /**
  * Whose work a list shows — My fleet · All, Fleet, Dispatched by — for BOTH dispatch pages
@@ -69,39 +69,27 @@ export function dispatcherOptions(board: Board): { value: string; label: string 
   ];
 }
 
-/** The chips a scope choice adds to a FilterBar, keyed `fleet` and `dispatcher` for the page's remove handler. */
-export function scopeChips(f: ScopeFilter, board: Board): FilterChip[] {
-  const out: FilterChip[] = [];
-  if (f.fleet) out.push({ key: "fleet", label: "Fleet", value: fleetOptions(board).find((o) => o.value === f.fleet)?.label ?? f.fleet });
-  if (f.dispatcher) out.push({ key: "dispatcher", label: "Dispatched by", value: dispatcherName(f.dispatcher, board?.dispatchers ?? []) });
-  return out;
-}
-
 export type ScopeChoice = "mine" | "all";
 
 /**
  * My fleet or All, and which one a page opens on. A caller linked to a McLeod dispatcher opens on My
- * fleet, anyone else on All (D-DB3); the server says which once the board arrives, so the choice
- * follows `linked` until the person makes one, and is never forced back after that.
+ * fleet, anyone else on All (D-DB3); the server says which once the board arrives.
  *
- * `fromUrl` is a link's own choice and counts as made: the board's "N uncovered loads →" opens Loads
- * on `scope=all`, because McLeod names no dispatcher on an uncovered load (0 of 32, 2026-10-09) and
- * the queue would read empty under My fleet — a link must not land on a list that contradicts it.
+ * The choice lives in the URL (`?scope=`), like every other filter on both pages, so back, refresh and
+ * a pasted link keep it. Absent means "not chosen", and the default follows `linked` — which is how a
+ * choice is never forced back once made: making it writes the parameter. A link's own choice counts as
+ * made: the board's "N uncovered loads →" opens Loads on `scope=all`, because McLeod names no dispatcher
+ * on an uncovered load (0 of 32, 2026-10-09) and the queue would read empty under My fleet — a link
+ * must not land on a list that contradicts it. Anything else in the parameter reads as not chosen.
  */
-export function useScopeChoice(linked: Ref<boolean>, fromUrl: unknown = null) {
-  const preset: ScopeChoice | null = fromUrl === "mine" || fromUrl === "all" ? fromUrl : null;
-  const choice = ref<ScopeChoice>(preset ?? "all");
-  let chosen = preset !== null;
-  watch(
-    linked,
-    (l) => {
-      if (!chosen) choice.value = l ? "mine" : "all";
-    },
-    { immediate: true },
-  );
+export function useScopeChoice(linked: Ref<boolean>, qs: Pick<QueryState, "one" | "set">) {
+  const choice = computed<ScopeChoice>(() => {
+    const v = qs.one("scope");
+    if (v === "mine" || v === "all") return v;
+    return linked.value ? "mine" : "all";
+  });
   function choose(v: ScopeChoice) {
-    chosen = true;
-    choice.value = v;
+    qs.set({ scope: v });
   }
   return { choice, choose };
 }

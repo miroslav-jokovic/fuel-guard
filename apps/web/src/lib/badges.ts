@@ -299,6 +299,14 @@ export function assetMovementMarker(reason: AssetMovementReason): string {
   return reason === "retired" ? MARKER.neutral : MARKER.info;
 }
 
+/**
+ * A load stop's marker on the truck drawer's rail (DB6): the stops still ahead are what a dispatcher
+ * reads the rail for, so they are coloured; a stop already reached is history and takes the plain dot.
+ */
+export function stopMarker(reached: boolean): string {
+  return reached ? MARKER.neutral : MARKER.info;
+}
+
 /** The one spelling of what a movement was, for the rail's headline. */
 export const assetMovementLabel = (reason: AssetMovementReason): string =>
   ASSET_MOVEMENT_REASON_LABELS[reason];

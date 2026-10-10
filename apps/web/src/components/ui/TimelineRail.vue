@@ -52,8 +52,15 @@ const props = withDefaults(
      * history long enough that "when did this happen" needs answering while scrolling.
      */
     groupByDay?: boolean;
-    /** Newest first everywhere in this product; `oldest` exists for a narrative read forwards. */
-    order?: "newest" | "oldest";
+    /**
+     * Newest first everywhere in this product; `oldest` exists for a narrative read forwards.
+     *
+     * `given` keeps the caller's order, for a sequence whose order is NOT its timestamps: a load's
+     * stops are McLeod's `seq` (DB6, 2026-10-10), and a stop with no appointment, or an appointment
+     * typed out of order, must not jump the queue. It is a statement that the caller owns the order,
+     * so it is spelled out at the call site rather than being what an omitted prop means.
+     */
+    order?: "newest" | "oldest" | "given";
   }>(),
   { collapseAfter: 0, groupByDay: false, order: "newest" },
 );
@@ -66,6 +73,7 @@ const props = withDefaults(
  * newest-first.
  */
 const ordered = computed(() => {
+  if (props.order === "given") return props.entries;
   const rows = [...props.entries].sort((a, b) => a.at.localeCompare(b.at));
   return props.order === "newest" ? rows.reverse() : rows;
 });

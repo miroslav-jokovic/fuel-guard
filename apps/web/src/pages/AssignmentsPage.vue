@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { computed } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { AppTabs } from "@silvicom/ui";
+import { AppCallout, AppTabs, AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
-import FilterSelect from "@/components/ui/FilterSelect.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { formatDateTime } from "@/lib/format";
+import { sortRows } from "@/lib/sort";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
 import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
-import { scopeChips, useScopeChoice } from "@/features/dispatch/dispatchScope";
+import { useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
-import { BOARD_QUEUES, filterBoard, type BoardQueue } from "@/features/dispatch/dispatchBoardView";
+import {
+  BOARD_QUEUES,
+  BOARD_SORT_KEYS,
+  boardSortValue,
+  filterBoard,
+  type BoardQueue,
+} from "@/features/dispatch/dispatchBoardView";
 
 /**
  * Dispatch → Dispatch board (DISPATCH-BOARD-PLAN.md, D-DB2). It was the Assignments page — one row per
@@ -33,6 +40,13 @@ import { BOARD_QUEUES, filterBoard, type BoardQueue } from "@/features/dispatch/
  * load they dispatch). A caller no McLeod login is linked to opens on All, and the page says why rather
  * than showing an empty "My fleet" that reads as "nothing of mine needs me".
  *
+ * ── ONE LIST PATTERN WITH THE LOADS PAGE (owner, 2026-10-10) ─────────────────────────────────────
+ * The queues are tabs with their counts, as Loads' are, and History is the last tab, as Exceptions is
+ * there: a different feed at the end of the strip, never a second strip above it. Search, scope, the
+ * queue, the sort and the open truck all live in the URL (`useQueryState`), so back, refresh and a
+ * pasted link reopen the same board. Fleet and Dispatched by are primary filters, so they show their
+ * value in their own trigger and add no chip (contract §5.5 rules 3 and 5).
+ *
  * The History tab is the L5 attribution trail, unchanged.
  *
  * ── THE DRAWER IS IN THE URL (DB6) ───────────────────────────────────────────────────────────────
@@ -42,23 +56,23 @@ import { BOARD_QUEUES, filterBoard, type BoardQueue } from "@/features/dispatch/
  * against the polled board each minute, so it never shows a truck as it was when it opened.
  */
 const { zone } = useOrgTimezone();
-const route = useRoute();
-const router = useRouter();
+const qs = useQueryState();
 const { data: board, isLoading, isError, error, refetch, isFetching } = useDispatchBoardQuery();
 
-const TABS = [
-  { value: "board", label: "Board" },
-  { value: "history", label: "History" },
-];
-const tab = ref("board");
+const HISTORY = "history";
+const tab = computed({
+  get: () => qs.one("queue") ?? "all",
+  set: (v: string) => qs.set({ queue: v === "all" ? undefined : v }),
+});
+const queue = computed<BoardQueue>(() => (BOARD_QUEUES.find((q) => q.value === tab.value)?.value ?? "all"));
 
 const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
-const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked));
+const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked), qs);
 
-const search = ref("");
-const fleet = ref("");
-const dispatcher = ref("");
-const queue = ref<BoardQueue>("all");
+const search = qs.param("search");
+const fleet = qs.param("fleet");
+const dispatcher = qs.param("dispatcher");
+const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
 
 const rows = computed(() => board.value?.rows ?? []);
 const dispatchers = computed(() => board.value?.dispatchers ?? []);
@@ -66,38 +80,24 @@ const fleetOwner = (code: string | null) => board.value?.fleets.find((f) => f.co
 
 const base = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value }));
 const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }));
-const queueOptions = computed(() =>
-  BOARD_QUEUES.map((q) => ({
+const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValue));
+const tabItems = computed(() => [
+  ...BOARD_QUEUES.map((q) => ({
     value: q.value,
-    label: `${q.label} (${filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }).length})`,
+    label: q.label,
+    badge: board.value ? filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }).length : undefined,
   })),
-);
+  { value: HISTORY, label: "History" },
+]);
 
-const chips = computed<FilterChip[]>(() => scopeChips(base.value, board.value));
-function removeChip(key: string) {
-  if (key === "fleet") fleet.value = "";
-  if (key === "dispatcher") dispatcher.value = "";
-}
-function clearAll() {
-  search.value = "";
-  fleet.value = "";
-  dispatcher.value = "";
-  queue.value = "all";
-}
-
-const openUnit = computed(() => (typeof route.query.truck === "string" ? route.query.truck : null));
+const openUnit = computed(() => qs.one("truck") ?? null);
 const openRow = computed(() => (openUnit.value ? (rows.value.find((r) => r.unitNumber === openUnit.value) ?? null) : null));
-function openTruck(row: DispatchBoardRow) {
-  void router.replace({ query: { ...route.query, truck: row.unitNumber } });
-}
-function closeTruck() {
-  const { truck: _truck, ...rest } = route.query;
-  void router.replace({ query: rest });
-}
+const openTruck = (row: DispatchBoardRow) => qs.set({ truck: row.unitNumber });
+const closeTruck = () => qs.set({ truck: undefined });
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.value);
 const description = computed(() => {
-  if (tab.value === "history") return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
+  if (tab.value === HISTORY) return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
   const hos = board.value?.hosAsOf ? ` HOS as of ${at(board.value.hosAsOf)}.` : "";
   return `Every truck, what it is hauling, and whether it will make its appointment.${hos}`;
 });
@@ -110,15 +110,16 @@ const emptyText = computed(() =>
   <div class="space-y-6">
     <PageHeader :description="description" />
 
-    <AppTabs v-model="tab" :tabs="TABS" label="Dispatch board view" />
+    <!-- Scrollable for the same reason as Loads' strip: eight tabs do not fit a phone. -->
+    <AppTabs v-model="tab" :tabs="tabItems" label="Dispatch board queue" scrollable />
 
-    <AssignmentHistory v-if="tab === 'history'" />
+    <AssignmentHistory v-if="tab === HISTORY" />
 
     <template v-else>
-      <p v-if="board && !scope.linked" class="text-sm text-ink-muted">
+      <AppCallout v-if="board && !scope.linked" tone="info">
         Showing every truck. Your account is not linked to a McLeod dispatcher yet. An admin links it
         in Settings → McLeod fleets, and the board then opens on your fleet.
-      </p>
+      </AppCallout>
 
       <DataWorkspace>
         <FilterBar
@@ -127,9 +128,6 @@ const emptyText = computed(() =>
           search-placeholder="Search truck, driver, load, customer, city…"
           :count="filtered.length"
           count-label="trucks"
-          :chips="chips"
-          @remove="removeChip"
-          @clear-all="clearAll"
         >
           <template #filters>
             <DispatchScopeControls
@@ -140,30 +138,32 @@ const emptyText = computed(() =>
               :choice="scopeChoice"
               @choose="setScope"
             />
-            <FilterSelect v-model="queue" label="Show" :options="queueOptions" />
           </template>
           <template #actions>
-            <RouterLink
+            <BaseButton
               v-if="board && board.uncoveredCount > 0"
+              variant="link"
               :to="{ name: 'loads', query: { queue: 'uncovered', scope: 'all' } }"
-              class="text-sm font-medium text-brand-700 hover:underline"
+              class="text-sm font-medium"
             >
               {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →
-            </RouterLink>
+            </BaseButton>
           </template>
         </FilterBar>
 
         <DispatchBoardTable
-          :rows="filtered"
+          :rows="sorted"
           :loading="isLoading"
-          :error="isError ? (error instanceof Error ? error.message : 'Failed to load the dispatch board') : null"
+          :error="isError ? (error instanceof Error ? error.message : 'Could not load the dispatch board') : null"
           :retrying="isFetching"
           :empty-text="emptyText"
           :zone="zone"
           :dispatchers="dispatchers"
           :fleet-owner="fleetOwner"
+          :sort="sort"
           @retry="refetch"
           @open="openTruck"
+          @sort="onSort"
         />
       </DataWorkspace>
 

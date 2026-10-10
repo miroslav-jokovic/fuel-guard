@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RouterLink } from "vue-router";
 import type { DispatchBoardRow } from "@silvicom/shared";
+import { AppCallout, AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import { useLoadRoute } from "@/composables/useLoadRoute";
-import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
+import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
 import { dispatcherName, durationWords, legalDriveLeft, stopPlace } from "./dispatchBoardView";
 import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads";
@@ -46,6 +47,11 @@ const detail = useLoadDetailQuery(loadId);
 const route = useLoadRoute(loadId);
 
 const stops = computed<DispatchStopDetail[]>(() => [...(detail.data.value?.stops ?? [])].sort((a, b) => a.seq - b.seq));
+/** The stops on the shared rail, in McLeod's sequence (`order="given"`), each found again by its key. */
+const stopEntries = computed<TimelineEntry[]>(() =>
+  stops.value.map((s) => ({ key: s.id, at: arrivedAt(s) ?? s.appointment_start ?? "", marker: stopMarker(arrivedAt(s) !== null) })),
+);
+const stopById = computed(() => new Map(stops.value.map((s) => [s.id, s])));
 
 /** What happened at a stop, McLeod's record first (LR7) and the driver app's beside it. */
 function arrivedAt(s: DispatchStopDetail): string | null {
@@ -120,9 +126,9 @@ const description = computed(() => {
         </p>
         <template v-else>
           <p class="text-sm">
-            <RouterLink :to="{ name: 'load-detail', params: { id: row.current.loadId } }" class="font-medium text-brand-700 hover:underline">
+            <BaseButton variant="link" :to="{ name: 'load-detail', params: { id: row.current.loadId } }" class="font-medium">
               {{ row.current.ref ?? "Load" }}
-            </RouterLink>
+            </BaseButton>
             <span class="text-ink-muted"> · {{ row.current.customerName ?? "No customer" }}</span>
           </p>
           <p v-if="row.current.dispatcherId" class="text-xs text-ink-muted">
@@ -144,30 +150,34 @@ const description = computed(() => {
       <section v-if="row.current" aria-labelledby="truck-stops-heading" class="space-y-2">
         <h3 id="truck-stops-heading" class="text-sm font-semibold text-ink">Stops</h3>
         <p v-if="detail.isLoading.value" class="text-sm text-ink-muted">Loading the stops…</p>
-        <p v-else-if="detail.isError.value" class="text-sm text-danger-600">
+        <AppCallout v-else-if="detail.isError.value" tone="caution">
           {{ detail.error.value instanceof Error ? detail.error.value.message : "Could not load the stops." }}
-        </p>
-        <ol v-else class="space-y-3" data-testid="truck-stops">
-          <li v-for="s in stops" :key="s.id" class="border-l-2 pl-3 text-sm" :class="arrivedAt(s) ? 'border-edge' : 'border-brand-600'">
-            <div class="font-medium text-ink">
-              {{ s.kind === "pickup" ? "Pickup" : "Delivery" }} · {{ s.location_name || s.name || "Unnamed" }}
-            </div>
-            <div class="text-xs text-ink-muted">{{ [s.city, s.state].filter(Boolean).join(", ") }}</div>
-            <div class="text-xs text-ink-muted">{{ apptWindow(s) }}</div>
-            <div v-if="arrivedAt(s)" class="text-xs text-ink-secondary">Arrived {{ at(arrivedAt(s)) }}</div>
-            <div v-else-if="s.eta_at" class="text-xs text-ink-muted" data-testid="truck-mcleod-eta">
-              McLeod ETA {{ at(s.eta_at) }} (typed in McLeod, for reference)
-            </div>
-          </li>
-        </ol>
+        </AppCallout>
+        <!-- The rail draws nothing for no entries, by design; the emptiness is said here. -->
+        <p v-else-if="stopEntries.length === 0" class="text-sm text-ink-muted">McLeod lists no stops on this load.</p>
+        <TimelineRail v-else :entries="stopEntries" order="given" data-testid="truck-stops">
+          <template #entry="{ entry }">
+            <template v-for="s in [stopById.get(entry.key)!]" :key="s.id">
+              <div class="text-sm font-medium text-ink">
+                {{ s.kind === "pickup" ? "Pickup" : "Delivery" }} · {{ s.location_name || s.name || "Unnamed" }}
+              </div>
+              <div class="text-xs text-ink-muted">{{ [s.city, s.state].filter(Boolean).join(", ") }}</div>
+              <div class="text-xs text-ink-muted">{{ apptWindow(s) }}</div>
+              <div v-if="arrivedAt(s)" class="text-xs text-ink-secondary">Arrived {{ at(arrivedAt(s)) }}</div>
+              <div v-else-if="s.eta_at" class="text-xs text-ink-muted" data-testid="truck-mcleod-eta">
+                McLeod ETA {{ at(s.eta_at) }} (typed in McLeod, for reference)
+              </div>
+            </template>
+          </template>
+        </TimelineRail>
       </section>
 
       <section v-if="row.current" aria-labelledby="truck-route-heading" class="space-y-2">
         <h3 id="truck-route-heading" class="text-sm font-semibold text-ink">Route</h3>
         <p v-if="route.isLoading.value" class="text-sm text-ink-muted">Planning the route…</p>
-        <p v-else-if="route.isError.value" class="text-sm text-ink-muted">
-          {{ route.error.value instanceof Error ? route.error.value.message : "Could not draw this route" }}
-        </p>
+        <AppCallout v-else-if="route.isError.value" tone="caution">
+          {{ route.error.value instanceof Error ? route.error.value.message : "Could not draw this route." }}
+        </AppCallout>
         <template v-else-if="routeSummary">
           <p class="text-sm text-ink" data-testid="truck-route-summary">{{ routeSummary.line }}</p>
           <p v-if="routeSummary.offRoute" class="text-xs text-caution-700">{{ routeSummary.offRoute }}</p>
@@ -185,9 +195,9 @@ const description = computed(() => {
       <section aria-labelledby="truck-next-heading" class="space-y-1">
         <h3 id="truck-next-heading" class="text-sm font-semibold text-ink">Next load</h3>
         <p v-if="row.next" class="text-sm">
-          <RouterLink :to="{ name: 'load-detail', params: { id: row.next.loadId } }" class="font-medium text-brand-700 hover:underline">
+          <BaseButton variant="link" :to="{ name: 'load-detail', params: { id: row.next.loadId } }" class="font-medium">
             {{ row.next.ref ?? "Load" }}
-          </RouterLink>
+          </BaseButton>
           <span class="text-ink-muted"> · {{ stopPlace(row.next.nextStop) || row.next.customerName || "—" }}</span>
         </p>
         <p v-else class="text-sm text-ink-muted">None planned behind the current load.</p>
@@ -197,13 +207,13 @@ const description = computed(() => {
 
     <template #footer>
       <nav v-if="row" aria-label="Open" class="flex flex-wrap items-center justify-end gap-4 text-sm font-medium">
-        <RouterLink :to="{ name: 'vehicle-detail', params: { id: row.vehicleId } }" class="text-brand-700 hover:underline">Truck page</RouterLink>
-        <RouterLink v-if="row.driver" :to="{ name: 'driver-detail', params: { id: row.driver.id } }" class="text-brand-700 hover:underline">
+        <BaseButton variant="link" :to="{ name: 'vehicle-detail', params: { id: row.vehicleId } }">Truck page</BaseButton>
+        <BaseButton v-if="row.driver" variant="link" :to="{ name: 'driver-detail', params: { id: row.driver.id } }">
           Driver page
-        </RouterLink>
-        <RouterLink v-if="row.current" :to="{ name: 'load-detail', params: { id: row.current.loadId } }" class="text-brand-700 hover:underline">
+        </BaseButton>
+        <BaseButton v-if="row.current" variant="link" :to="{ name: 'load-detail', params: { id: row.current.loadId } }">
           Load page
-        </RouterLink>
+        </BaseButton>
       </nav>
     </template>
   </SlideOver>

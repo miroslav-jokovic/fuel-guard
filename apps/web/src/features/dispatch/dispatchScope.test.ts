@@ -45,14 +45,22 @@ describe("admitsScope", () => {
 });
 
 describe("useScopeChoice", () => {
+  /** A URL of one's own: `useQueryState`'s two methods the choice uses, over a plain object. */
+  const url = (initial: Record<string, string> = {}) => {
+    const q = ref<Record<string, string | undefined>>({ ...initial });
+    return { q, one: (k: string) => q.value[k] || undefined, set: (p: Record<string, string | undefined>) => (q.value = { ...q.value, ...p }) };
+  };
+
   it("follows whether the caller is linked until they choose, and never after", async () => {
     const linked = ref(false);
-    const { choice, choose } = useScopeChoice(linked);
+    const u = url();
+    const { choice, choose } = useScopeChoice(linked, u);
     expect(choice.value).toBe("all");
     linked.value = true;
     await nextTick();
     expect(choice.value).toBe("mine");
     choose("all");
+    expect(u.q.value.scope).toBe("all");
     linked.value = false;
     await nextTick();
     linked.value = true;
@@ -62,8 +70,8 @@ describe("useScopeChoice", () => {
 
   it("takes a link's scope=all as a choice already made, and ignores anything else in the URL", async () => {
     const linked = ref(true);
-    expect(useScopeChoice(linked, "all").choice.value).toBe("all");
-    expect(useScopeChoice(linked, "nonsense").choice.value).toBe("mine");
+    expect(useScopeChoice(linked, url({ scope: "all" })).choice.value).toBe("all");
+    expect(useScopeChoice(linked, url({ scope: "nonsense" })).choice.value).toBe("mine");
   });
 });
 
