@@ -113,4 +113,45 @@ describe("the dispatch board page", () => {
     expect(w.router.currentRoute.value.query).toEqual({ from: "loads" });
     expect(w.get("[data-test=drawer]").text()).toBe("closed");
   });
+
+  it("shows the queues as tabs with their counts, and History as the last tab", async () => {
+    board.value = response(true);
+    const w = await mountPage();
+    const tabs = w.findAll("[role=tab]").map((t) => t.text().replace(/\s+/g, " "));
+    expect(tabs[0]).toBe("All trucks 2");
+    expect(tabs).toContain("Empty now 2");
+    expect(tabs).toContain("Late risk 0");
+    expect(tabs.at(-1)).toBe("History");
+    await w.findAll("[role=tab]").at(-1)!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ queue: "history" });
+    expect(w.find("[data-test=history]").exists()).toBe(true);
+  });
+
+  it("sorts by a column and keeps the sort in the URL, so a link reopens it", async () => {
+    board.value = response(false);
+    const w = await mountPage();
+    await w.findAll("thead button").find((b) => b.text() === "Truck")!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ sort: "unit", dir: "asc" });
+    expect(units(w)).toEqual(["669", "773", "801"]);
+    const again = await mountPage("/assignments?sort=unit&dir=desc");
+    expect(units(again)).toEqual(["801", "773", "669"]);
+  });
+
+  it("reopens a link's scope and fleet, and shows a primary filter in its trigger rather than as a chip", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?scope=all&fleet=VLADI");
+    expect(units(w)).toEqual(["801"]);
+    expect(w.text()).not.toContain("Clear all");
+  });
+
+  it("writes the scope a person chooses into the URL", async () => {
+    board.value = response(true);
+    const w = await mountPage();
+    await w.findAll("[role=radio], button").find((b) => b.text() === "All")!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
+    expect(units(w)).toEqual(["773", "669", "801"]);
+  });
 });

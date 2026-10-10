@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { DispatchBoardRow, DispatchScope } from "@silvicom/shared";
-import { filterBoard, durationWords, gpsAgeWords, POOL_OPTION, NO_FLEET_OPTION, type BoardFilter } from "./dispatchBoardView";
+import { sortRows } from "@/lib/sort";
+import { boardSortValue, filterBoard, durationWords, gpsAgeWords, POOL_OPTION, NO_FLEET_OPTION, type BoardFilter } from "./dispatchBoardView";
 
 const flags = { lateRisk: false, noNextLoad: false, emptyNow: false, hosLow: false, noGps: false };
 const row = (unitNumber: string, o: Partial<DispatchBoardRow> = {}): DispatchBoardRow => ({
@@ -52,5 +53,27 @@ describe("words", () => {
     expect(gpsAgeWords(600)).toBe("10 min");
     expect(gpsAgeWords(3 * 3600)).toBe("3 h");
     expect(gpsAgeWords(null)).toBe("no fix");
+  });
+});
+
+describe("boardSortValue", () => {
+  const hos = (driveRemainingMs: number) =>
+    ({ status: "driving", driveRemainingMs, shiftRemainingMs: 14 * 3_600_000, cycleRemainingMs: 70 * 3_600_000, breakRemainingMs: 8 * 3_600_000, fetchedAt: "" }) as DispatchBoardRow["hos"];
+  const sorted = (rows: DispatchBoardRow[], key: string) => units(sortRows(rows, { key, dir: "asc" }, boardSortValue));
+
+  it("puts the trucks that will miss their appointment first, and the ones with no verdict last", () => {
+    const rows = [
+      row("on", { current: load(null), onTime: "on_time" }),
+      row("none", { current: null }),
+      row("late", { current: load(null), onTime: "late" }),
+      row("risk", { current: load(null), onTime: "at_risk" }),
+    ];
+    expect(sorted(rows, "onTime")).toEqual(["late", "risk", "on", "none"]);
+  });
+
+  it("sorts HOS by the time left, not by the words it is shown in", () => {
+    // As text, "10h 00m" sorts before "2h 05m"; as time it is the other way round.
+    const rows = [row("ten", { hos: hos(10 * 3_600_000) }), row("two", { hos: hos(2 * 3_600_000 + 5 * 60_000) }), row("unknown")];
+    expect(sorted(rows, "hos")).toEqual(["two", "ten", "unknown"]);
   });
 });

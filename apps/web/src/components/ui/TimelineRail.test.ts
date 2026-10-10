@@ -52,6 +52,16 @@ describe("the rail", () => {
     expect(keys(rail({ entries: shuffled, order: "oldest" }))).toEqual(["oldest", "middle", "newest"]);
   });
 
+  it("keeps the caller's order when told the order is not the timestamps'", () => {
+    // A load's stops run in McLeod's sequence; the second stop's appointment was typed earlier.
+    const stops: TimelineEntry[] = [
+      { key: "pickup", at: at(2) },
+      { key: "delivery", at: at(1) },
+      { key: "last", at: at(3) },
+    ];
+    expect(keys(rail({ entries: stops, order: "given" }))).toEqual(["pickup", "delivery", "last"]);
+  });
+
   it("collapses past its threshold and expands on the button", async () => {
     const w = rail({ entries: entries(12), collapseAfter: 8 });
     expect(keys(w)).toHaveLength(8);

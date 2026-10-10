@@ -28,10 +28,18 @@ const LOADS = [
   load("L-next", "pending_approval", "v-773", "773", "vinniev"), // planned behind L-mine-fleet
   load("L-uncovered", "pending_approval", null, null, null),
 ];
+const exception = (id: string, loadId: string | null, summary: string) => ({
+  id, kind: "declined", load_id: loadId, load_ref: loadId, driver_name: null, summary, occurred_at: "2026-10-10T14:00:00Z", action: "acknowledge",
+});
+const EXCEPTIONS = [
+  exception("e1", "L-mine-fleet", "Declined on my fleet's truck"),
+  exception("e2", "L-not-mine", "Declined on someone else's truck"),
+  exception("e3", null, "A shift auto-closed"), // names a driver, not a load
+];
 vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
   ...(await orig<typeof import("@/features/dispatch/useDispatchLoads")>()),
   useLoadsQuery: () => ({ data: ref(LOADS), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: () => {}, isFetching: ref(false) }),
-  useExceptionsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
+  useExceptionsQuery: () => ({ data: ref(EXCEPTIONS), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
 }));
 
@@ -77,9 +85,9 @@ async function mountPage(path = "/loads") {
   await router.isReady();
   const w = mount(DispatchLoadsPage, { global: { plugins: [router] } });
   await flushPromises();
-  return w;
+  return Object.assign(w, { router });
 }
-const refs = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((tr) => tr.find("td button").text());
+const refs = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((tr) => tr.find("td a").text());
 async function openTab(w: Awaited<ReturnType<typeof mountPage>>, label: string) {
   await w.findAll("[role=tab]").find((t) => t.text().startsWith(label))!.trigger("click");
   await flushPromises();
@@ -138,5 +146,37 @@ describe("the Loads page beside the dispatch board", () => {
     expect(statusOf("L-i-dispatch")).toContain("On time");
     await openTab(w, "Upcoming");
     expect(statusOf("L-next")).toBe("Planned");
+  });
+
+  it("keeps the toolbar on Exceptions and narrows them by the same scope, keeping the ones no fleet can claim", async () => {
+    board.value = response(true);
+    const w = await mountPage();
+    await openTab(w, "Exceptions");
+    expect(w.find("input[type=search], input").exists()).toBe(true);
+    const summaries = () => w.findAll("tbody tr").map((tr) => tr.findAll("td")[1]!.text());
+    expect(summaries()).toEqual(["Declined on my fleet's truck", "A shift auto-closed"]);
+    expect(w.text()).toContain("2 exceptions");
+    // A named fleet is a property the load-less one does not have, so it goes.
+    const vladi = await mountPage("/loads?queue=exceptions&scope=all&fleet=VLADI");
+    expect(vladi.findAll("tbody tr").map((tr) => tr.findAll("td")[1]!.text())).toEqual(["Declined on someone else's truck"]);
+  });
+
+  it("reopens a link's queue, scope and type, with no chip for a primary filter", async () => {
+    board.value = response(true);
+    const w = await mountPage("/loads?queue=in_transit&scope=all&fleet=VLADI");
+    expect(refs(w)).toEqual(["L-i-dispatch", "L-not-mine"]);
+    expect(w.text()).not.toContain("Clear all");
+  });
+
+  it("writes the queue and the sort into the URL", async () => {
+    board.value = response(false);
+    const w = await mountPage();
+    await openTab(w, "Upcoming");
+    expect(w.router.currentRoute.value.query).toEqual({ queue: "upcoming" });
+    await openTab(w, "In transit");
+    await w.findAll("thead button").find((b) => b.text() === "Load #")!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ sort: "ref", dir: "asc" });
+    expect(refs(w)).toEqual(["L-i-dispatch", "L-mine-fleet", "L-not-mine"]);
   });
 });
