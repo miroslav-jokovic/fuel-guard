@@ -31,6 +31,12 @@ export type PageClass = (typeof PAGE_CLASSES)[number];
 /** Who set a page's class. A dispatcher's override is a label too (D-DR11). */
 export const PAGE_CLASS_SETTERS = ["classifier", "reviewer", "labeller"] as const;
 export type PageClassSetter = (typeof PAGE_CLASS_SETTERS)[number];
+/**
+ * Who made a document assembly — "these pages, in this order, are one document" (D-DR14, 0454): Layer 1's
+ * proposal, the order a person uploaded in, or a person's edit (untick, reorder, add a page).
+ */
+export const ASSEMBLY_MAKERS = ["prepare", "sender", "reviewer"] as const;
+export type AssemblyMaker = (typeof ASSEMBLY_MAKERS)[number];
 
 /**
  * A page's quality as a labeller judges it, so `doc:score` can report every number per band (Step 0.4)
