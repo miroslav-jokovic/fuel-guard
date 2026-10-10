@@ -65,7 +65,7 @@ async function mountPage() {
   return w;
 }
 const units = (w: Awaited<ReturnType<typeof mountPage>>) =>
-  w.findAll("tbody tr").map((tr) => tr.find("td:nth-child(2) div").text());
+  w.findAll("tbody tr").map((tr) => tr.find("td:first-child div").text());
 
 describe("the dispatch board page", () => {
   it("opens a linked dispatcher on their own fleet", async () => {

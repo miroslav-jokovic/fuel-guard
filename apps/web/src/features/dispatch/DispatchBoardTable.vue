@@ -28,17 +28,26 @@ const emit = defineEmits<{ retry: [] }>();
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
 
+/**
+ * Widths are budgeted to fit the table's 1104 px at a 1440 px screen with the sidebar open — measured
+ * 2026-10-10 in the browser, when the first cut (every column at its content's natural width, no
+ * wrapping) came to 1664 px and pushed On time, Empties and Next load off the right edge: the three
+ * columns the board exists for (§5) were the three nobody saw without scrolling. Every cell is
+ * already a two-line stack, so cells wrap (`:nowrap="false"`) rather than widen — except a timestamp, which breaks
+ * only between "by" and its date, never inside "10:59 AM" — and the attention
+ * dot rides in front of the unit number (still the row's left edge) instead of spending a 4rem column
+ * on an 8 px dot. Narrower screens scroll with the truck pinned, as §5 asks.
+ */
 const columns: DataTableColumn[] = [
-  { key: "attention", label: "", width: "xs" },
   { key: "unit", label: "Truck", width: "sm", cellClass: "font-medium text-ink" },
-  { key: "driver", label: "Driver", width: "lg" },
-  { key: "hos", label: "Drive left", width: "md" },
-  { key: "now", label: "Now", width: "lg" },
-  { key: "load", label: "Current load", width: "xl" },
-  { key: "nextStop", label: "Next stop", width: "xl" },
-  { key: "onTime", label: "On time", width: "md" },
-  { key: "empties", label: "Empties", width: "lg" },
-  { key: "next", label: "Next load", width: "lg" },
+  { key: "driver", label: "Driver", width: "md" },
+  { key: "hos", label: "Drive left", width: "sm" },
+  { key: "now", label: "Now", width: "md" },
+  { key: "load", label: "Current load", width: "md" },
+  { key: "nextStop", label: "Next stop", width: "md" },
+  { key: "onTime", label: "On time", width: "sm" },
+  { key: "empties", label: "Empties", width: "md" },
+  { key: "next", label: "Next load", width: "sm" },
 ];
 
 const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
@@ -56,20 +65,21 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     :empty-text="emptyText"
     embedded
     sticky-header
+    pin-first-column
+    :nowrap="false"
     @retry="emit('retry')"
   >
-    <template #cell-attention="{ row }">
-      <span
-        v-if="needsAttention(row.flags)"
-        class="inline-block size-2 rounded-full bg-danger-600"
-        role="img"
-        aria-label="Needs attention"
-        title="Needs attention"
-      />
-    </template>
-
     <template #cell-unit="{ row }">
-      <div>{{ row.unitNumber }}</div>
+      <div class="flex items-center gap-1.5">
+        <span
+          v-if="needsAttention(row.flags)"
+          class="inline-block size-2 shrink-0 rounded-full bg-danger-600"
+          role="img"
+          aria-label="Needs attention"
+          title="Needs attention"
+        />
+        {{ row.unitNumber }}
+      </div>
       <div class="text-xs text-ink-muted">{{ row.inShop ? "In shop" : (row.fleetCode ?? "No fleet") }}</div>
     </template>
 
@@ -94,7 +104,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     <template #cell-now="{ row }">
       <div>{{ row.position?.place ?? "—" }}</div>
       <div class="text-xs" :class="row.flags.noGps ? 'text-caution-700' : 'text-ink-muted'">
-        GPS {{ gpsAgeWords(row.position?.ageSeconds) }}<template v-if="row.position?.speedMph"> · {{ Math.round(row.position.speedMph) }} mph</template>
+        GPS {{ gpsAgeWords(row.position?.ageSeconds) }}<template v-if="row.position?.speedMph"> · <span class="whitespace-nowrap">{{ Math.round(row.position.speedMph) }} mph</span></template>
       </div>
     </template>
 
@@ -117,7 +127,8 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
       <template v-if="row.current?.nextStop">
         <div>{{ stopPlace(row.current.nextStop) }}</div>
         <div class="text-xs text-ink-muted">
-          {{ row.current.nextStop.kind === "pickup" ? "Pickup" : "Delivery" }} by {{ at(row.current.nextStop.appointmentEnd ?? row.current.nextStop.appointmentStart) }}
+          {{ row.current.nextStop.kind === "pickup" ? "Pickup" : "Delivery" }} by
+          <span class="whitespace-nowrap">{{ at(row.current.nextStop.appointmentEnd ?? row.current.nextStop.appointmentStart) }}</span>
         </div>
       </template>
       <span v-else class="text-ink-muted">—</span>
@@ -136,7 +147,7 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
     <template #cell-empties="{ row }">
       <template v-if="row.empties && row.current">
         <div>{{ row.empties.place ?? "—" }}</div>
-        <div class="text-xs text-ink-muted">{{ at(row.empties.at) }}</div>
+        <div class="whitespace-nowrap text-xs text-ink-muted">{{ at(row.empties.at) }}</div>
       </template>
       <span v-else-if="row.empties" class="text-ink-muted">Now</span>
       <span v-else class="text-ink-muted">—</span>

@@ -400,3 +400,14 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   Loads page; DB7 (ETA vs actual arrivals). And, outside code: Alex's review of the `fleet_id` SQL,
   then the VM package upgrade — until then every truck reads "No fleet" and My fleet is only
   "loads I dispatch".
+
+### 2026-10-10 — the board fits a 1440 px screen
+
+- First look in a browser (`vite build` + `vite preview`, dev bypass, a stubbed 14-truck board):
+  at 1440 px with the sidebar open the table had 1104 px and needed 1664. **On time, Empties and
+  Next load — the three columns the board exists for — sat off the right edge.**
+- Fixed in layout only, no column dropped: cells wrap (every cell was already a two-line stack),
+  minimum widths rebudgeted to sum under 1104 px, the attention dot moved in front of the unit number
+  (still the row's left edge) instead of its own 4rem column, and the truck column is pinned for
+  narrower screens. Timestamps and "62 mph" never break inside themselves. Measured after: 1104 of
+  1104 px at 1440; at 1280 it scrolls 123 px with the truck pinned.
