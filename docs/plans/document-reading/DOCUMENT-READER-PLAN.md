@@ -1,6 +1,6 @@
 # Document reader — one reusable module that reads BOLs (and later every paper we receive) and prefills the form a person would have typed · 2026-10-08
 
-**Status:** PLAN PROPOSED — nothing here is built · **Supersedes:** the *phases* (§7) of
+**Status:** IN EXECUTION — Phase 1 built (§10); the order from 2026-10-10 is §7A · **Supersedes:** the *phases* (§7) of
 `docs/plans/drivers-app/BOL-READING-RELIABILITY-PLAN.md`. Its audit (F-EX1–13) and decisions
 (D-EXR1–12) are kept and cited by ID here; nothing in them is re-litigated. · **Extends:**
 `SCANNER-UPGRADE-PLAN.md` Step 6.2 (document profiles), `docs/17-HAZMAT-BOL-COMPLIANCE.md` (the rule
@@ -542,6 +542,124 @@ own 40-document corpus and baseline before it is switched on anywhere.
 
 ---
 
+## 7A. Two layers, and a BOL is the photos a driver sent — the execution order from 2026-10-10
+
+**The owner's flow, 2026-10-10 (four statements in one conversation, condensed):**
+
+> On the Placard calculator: upload the BOL — single or multi-page — by drag and drop, from the device,
+> the gallery or files. Our reader reads it, verifies the shipper wrote it correctly and with everything
+> the rules require, explains what is missing, and prefills the form; we press Calculate Placard and get
+> the placards. Drivers send BOLs as photos to Samsara or by SMS to a dispatcher, so there is no
+> multi-page PDF — there are several images of one BOL. So: a first layer that organises and optimises
+> the images so they are readable, then a second layer that reads, to lower any chance of a mistake.
+
+That flow is §6 unchanged in its last three steps (audit → prefill → Calculate). It changes what comes
+before them, and it reorders §7. What it changes, each forced by a measured fact:
+
+- **The unit of reading is not a file.** §0.1 measured 4.3 photos per Samsara *BOL…* submission, mixed
+  with cargo, placard and securement photos (F-DR11: every one a 2000×1500 JPEG). An upload of three
+  phone photos of a two-page BOL plus a retake is the same shape. `document_sources` today is one file
+  (`unique (org_id, sha256)`, NOT NULL `page_count`), and a read names one source — so page 2 of a
+  photographed BOL would be read as its own document and fail the audit for what is on page 1.
+- **Preparing the image is a layer of its own, with its own measurements**, not the normaliser's side
+  effect. §7A.1's research says which preparations lower the error rate and which raise it.
+
+### 7A.1 What the research says (sources current to 2026-10-10)
+
+| # | Finding | Source | What it does to this plan |
+|---|---|---|---|
+| R1 | Claude's vision input has two resolution tiers: **standard** (≤ 1,568 px long edge AND ≤ 1,568 visual tokens, one token per 28×28 patch) and **high-resolution** for Claude 4.7 and later (≤ 2,576 px AND ≤ 4,784 tokens). Above either limit the API downsizes the image itself. | Anthropic, *Vision* and *Coordinates* docs | **Measured on our sizes with Anthropic's reference resize:** our working copy (long edge capped at 1,568, no token check) of a letter page is 1212×1568 = 2,464 tokens, so the pinned Sonnet 4.6 *re-resizes it to 952×1232* — 7-pt type at about 6 px, after a second resample we do not control. A high-resolution-tier model would take the 300 DPI page at 1688×2184, and a Samsara photo untouched at 2000×1500 (3,888 tokens; we currently shrink it to 1568×1176). The single cheapest accuracy lever in this plan → D-DR16, Q-DR20. |
+| R2 | Put images before the text; introduce each image with a short label (`Image 1:` …) when sending several. Oversized images can be made an error instead of a silent resize (`transformations.oversized_image: "error"`). | Anthropic, *Vision* / *Coordinates* | `buildReadRequest` sends images first (good) but without per-image labels. Add `Page n of m:` before each image; mark every page `oversized_image: "error"` so a tier change can never silently shrink pages again. |
+| R3 | Lossy compression, especially repeated passes, damages text for the model. | Anthropic, *Vision* | Already held (lossless WebP working copy, D-DR13). A Samsara JPEG is already one lossy generation; we must never add a second. |
+| R4 | The largest VLM accuracy losses come from **resampling and geometric distortion** (up to 34 pp, upsampling among the worst); low-severity spatial changes hurt more than visually severe photometric ones. | VLM-RobustBench, ICML 2026 (arXiv 2603.06148) | Never upscale. Each prepared page is made with **one** resample from the original (rotation + crop + perspective + size composed into a single warp), not a chain. Brightness/contrast fixes are the lowest priority. |
+| R5 | Perspective warp is the degradation that most reduces LVLM OCR; mild blur and noise are tolerated. | *Quantifying the Effects of Image Degradation on LVLM Benchmark*, SciTePress 2025 | Rectification (find the paper, flatten the angle) is the highest-value preparation for phone photos. |
+| R6 | Under visual corruption, tables and structured content keep less accuracy than plain text (worst-case retention 0.826 → 0.676); pixelation, glass blur, elastic and motion blur do the most damage. | OCR-Robust, June 2026 (arXiv 2606.26041) | A BOL is a table, so it is on the weak side. The quality gate must catch motion blur specifically. |
+| R7 | On 20 controlled document degradations, extraction lost most to dithering (21 %) and fax/letterpress (14 %); a rotated scan cost 8 %, heavy JPEG 2 %. Text + image together is the strongest input for accuracy *and* confidence. Model self-confidence: Opus 4.6 near-calibrated, Sonnet 4.5 / Haiku 4.5 progressively overconfident; "treating high confidence as a replacement for review will silently pass through the errors the model is most certain about". | ConfBench, Aug 2026 (arXiv 2608.01792) | Rotation must be fixed (8 % is not noise). The office scans are fax-class (the ten CCITT G4 PDFs), so expect them to be our hardest case. A text layer (D-DR3) or device word boxes beside the image are a second input, not decoration. **The model's own confidence never decides Read vs Check** → D-DR17. |
+| R8 | Binarisation and hard thresholding were built for classic OCR engines; neural readers were trained on anti-aliased text and can get worse on binary images, while reporting high confidence. | Practitioner guidance (TheNeuralBase); classical-OCR studies (MDPI 2023) show the opposite for Tesseract | No binarisation or sharpening in the view the model reads. A contrast view may exist only as a second, independently read view whose value counts only when it agrees (already §7 Phase 5.4). |
+| R9 | Generic image-quality scores do not predict OCR outcome; quality has to be scored against reading success. A learned blur gate (MobileNetV3 + a Laplacian-magnitude channel) reaches F1 0.98 at ~7 ms on one CPU core and answers sharp / blurred / **uncertain**. | Frontiers in Signal Processing 2026; arXiv 2606.25838 | The gate is three-way and its thresholds come from our corpus' reading outcomes, not from a generic sharpness number → D-DR18. Our `@silvicom/capture-engine` metrics (focus, glare, text coverage) are the start; a learned gate is a later, measured option. |
+| R10 | Neural dewarping (UVDoc, DocTr++, DocRes, DvD 2025 — up to 151 M parameters) leads the curled-page benchmarks, but numbers differ by benchmark and paper. Classical quad detection + homography (OpenCV `findContours` → 4-point polygon → `warpPerspective`) runs in Node via WASM (opencv.js; `scanic` is Rust-WASM, Node-capable). The classical method's known failure is picking the wrong quad. | DvD (SIGGRAPH Asia 2025), D2Dewarp (arXiv 2507.08492), DocRes (CVPR 2024); OpenCV / scanic docs | A BOL is flat paper on a clipboard or dash: classical rectification first, neural dewarping only as a measured later rung. **No confident quad → no crop** (Anthropic: avoid cropping out context). |
+| R11 | Restoration models cut classical-OCR character error 64–70 % on historical pages — but generative restoration and upscaling *invent* strokes. | PreP-OCR (arXiv 2505.20429) | Generative restoration, AI upscaling and denoising never feed a field value. |
+
+### 7A.2 Decisions
+
+**D-DR14 — A document is an ordered ASSEMBLY of pages; a file stays a source.** Intake keeps one
+file = one `document_sources` row (per-file dedupe stays exact; a Samsara submission's photos become
+one source each, `origin_ref` = `<document id>/<photo id>`). A new append-only pair,
+`document_assemblies` + `document_assembly_pages (assembly_id, position, page_id)`, records "these
+pages, in this order, are one BOL". Layer 1 proposes the assembly; the dispatcher may untick, reorder
+or add a page from another submission, and every edit is a **new** assembly naming the one it replaces
+(nothing is updated). A read names an assembly. *Rejected:* (a) a multi-file source — it breaks
+per-file dedupe and the append-only `page_count`, and one photo could not belong to two submissions;
+(b) grouping by arrival time alone — retakes and two loads sent minutes apart make it guess.
+Resolves D-DR9's open "one source per document or per photo": **per photo**, grouped by assembly.
+
+**D-DR15 — Layer 1 (PREPARE) changes geometry, not meaning.** In the view the model reads: orientation,
+crop to the paper, perspective flattening, size — composed into one warp from the original (R4).
+Never: binarisation, sharpening, generative restoration, upscaling (R8, R11). A photometric view
+(contrast, shadow removal) is allowed only as a second view whose reading counts when it agrees with
+the first. Every step records what it did (`prepare` block on the page: rotation, quad, warp, scale)
+so a reviewer can see it and the original is always one click away.
+
+**D-DR16 — The working copy is sized to the model's resolution tier, and the API never resizes it.**
+`workingSizeOf` becomes Anthropic's reference `resizedSize(width, height, maxEdge, maxTokens)` for the
+tier of the model on the read (1568/1568 or 2576/4784); every image block carries
+`oversized_image: "error"`; the tier is part of the cache key (it changes what the model saw).
+Supersedes the 1,568 px constant (`WORKING_LONG_EDGE_PX`).
+
+**D-DR17 — The model's own confidence never makes a field Read.** *Read* needs independent agreement
+(second read, text layer, arithmetic, an exact HMT resolve) and every applicable rule passing; model
+self-reports may only push a field *down* to *Check* (R7).
+
+**D-DR18 — The quality gate answers pass / retake / uncertain, from reading outcomes.** *Retake* names
+the page and what is wrong ("page 2 is blurred — ask the driver to retake it"); *uncertain* reads and
+shows the page as *Check*; the thresholds are fitted on the labelled corpus against field accuracy and
+stated with their counts, never borrowed from a generic sharpness scale (R9).
+
+### 7A.3 Layer 1 — PREPARE, stage by stage
+
+| Stage | Does | How (first version) | Done when (on the labelled corpus) |
+|---|---|---|---|
+| P1 Normalise | any format → canonical page, original kept | built (D-DR13, normaliser 1.1.0) | — |
+| P2 Classify + orient | `bol / delivery_copy / placard / securement / other` and rotation 0/90/180/270, one cheap-model call per page (Q-DR19 (a)) | Step 1.5 widened | no corpus `bol` page classed `other`; every page upright after P2 |
+| P3 Rectify | find the paper's four corners, flatten perspective, crop | classical quad + homography in WASM (spike: opencv.js vs scanic); no confident quad → no crop | field accuracy on photographed pages ≥ unrectified, false-accept not raised |
+| P4 Size | one resample to the tier's exact size (D-DR16) | composed with P3's warp | no request ever resized server-side (`oversized_image: "error"` never fires in a week of staging) |
+| P5 Quality gate | pass / retake / uncertain per page (D-DR18) | capture-engine focus, glare, text coverage on the prepared page | thresholds fitted and stated with counts |
+| P6 Duplicates | retakes of the same page: keep the sharpest, keep the others attached | perceptual hash + P5 score | no assembly reads the same page twice |
+| P7 Assemble | order `bol` pages by printed "Page n of m", then capture order; missing page → `paper_page_complete` finding | reads `identity.printedPageNumbers` from a first pass, or the classifier | dispatcher reorders in < 5 % of assemblies |
+
+Layer 2 (READ) is §7's reader with D-DR16's sizing, R2's page labels and Phase 2's second read.
+
+### 7A.4 The execution order from here (replaces §7's order; step ids kept for history)
+
+1. **N1 — Assemblies (D-DR14).** Migration: `document_assemblies`, `document_assembly_pages`, RLS,
+   append-only triggers, `RETENTION_FORBIDDEN`; matrix. Then (a later merge, column before reader)
+   `document_reads.assembly_id`, and the routes: several files → several sources → one assembly.
+2. **N2 — The upload on the calculator.** Multi-file drag-and-drop / device / gallery / files on
+   `/hazmat/calculator`, thumbnails to untick and reorder (Step 3.4's first half).
+3. **N3 — Layer 1 P2 + P4 + R2** (classify + orient, tier sizing, page labels) — no new dependency.
+4. **N4 — Layer 1 P3 + P5 + P6 + P7** (rectify after its spike, gate, duplicates, assembly order).
+5. **N5 — Second read + cross-check (Phase 2.1, 2.2)** — the minimum before *Read* means anything.
+6. **N6 — Audit wiring + `bolPrefill.ts` (Step 3.3) + Calculate** — the flow end to end.
+7. **N7 — Samsara intake (3.2)**: a submission's photos → sources → a proposed assembly. Then SMS (3.5)
+   once Q-DR9 is answered.
+8. **N8 — Labels + model choice (0.3, 0.5, 3.1)** — runs alongside from N3; every Layer 1 stage ships
+   its before/after on the corpus (§8), and a stage that does not lower the error rate is removed.
+
+### 7A.5 Open questions this adds
+
+**Q-DR20 — Move reading to a high-resolution-tier model?** (R1.) The pinned pair (Sonnet 4.6 +
+Haiku 4.5) is standard tier, so every page is read at ≤ 1,568 tokens (952×1232 for a letter page). A
+4.7-or-later pair sees 1688×2184 — about 3× the pixels — at about 3× the image tokens per page.
+*Default until answered:* the pinned pair, with D-DR16 sizing pages exactly to its tier so the API no
+longer resizes them. *Recommendation:* add a high-resolution pair to Step 3.1's scoring and decide on
+the four numbers; R1 is the strongest single reason to expect it to win on poor photos.
+
+**Q-DR21 — Which rectification library?** opencv.js (WASM, large, the reference algorithm), `scanic`
+(Rust-WASM, small, young), or our own quad search over sharp. *Recommendation:* a one-day spike on the
+corpus' photographed pages, choosing on the wrong-quad rate first and size second.
+
+---
+
 ## 8. Measurement — the four numbers
 
 Unchanged from the old plan §5 (field accuracy, false-accept rate, yield, cost per page), now computed by
@@ -944,3 +1062,12 @@ Append dated lines at the end; never edit a row above.
   not `cache_read_input_tokens` or `cache_creation_input_tokens` — count all three before §8's prompt
   caching is turned on. Next: Step 3.2 (`from-samsara`, which needs D-DR9's one-source-per-document vs
   per-photo answer first) and 3.3 (`bolPrefill.ts`).
+- **2026-10-10 (the owner's flow, §7A)** — The owner restated the product: upload a BOL's pages on the
+  calculator, read, audit with explanations, prefill, Calculate — and drivers send *photos*, several
+  per BOL, to Samsara or by SMS, so the unit of reading is a set of images, not a file, and a
+  preparation layer comes before the reader. Researched (sources in §7A.1) and recorded D-DR14–D-DR18,
+  Layer 1's seven stages and the new order N1–N8; Q-DR20 (high-resolution-tier model) and Q-DR21
+  (rectification library) opened. **Measured with Anthropic's reference resize:** the pinned Sonnet 4.6
+  re-resizes our 1212×1568 working copy of a letter page to 952×1232 on the API's side; a
+  high-resolution-tier model would read the 300 DPI page at 1688×2184 and a Samsara photo untouched at
+  2000×1500. Next: N1, the assembly tables.
