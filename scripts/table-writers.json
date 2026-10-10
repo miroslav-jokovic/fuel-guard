@@ -491,9 +491,11 @@
     "apps/api/src/modules/messaging/messages.ts"
   ],
   "tms_dispatchers": [
+    "apps/api/src/modules/mcleod/dispatchLinks.ts",
     "apps/api/src/modules/mcleod/tmsDispatcherIngest.ts"
   ],
   "tms_fleets": [
+    "apps/api/src/modules/mcleod/dispatchLinks.ts",
     "apps/api/src/modules/mcleod/fleetCodes.ts"
   ],
   "tms_movements": [

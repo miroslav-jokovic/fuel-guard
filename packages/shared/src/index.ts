@@ -112,6 +112,8 @@ export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./loadBoard.js";
 export * from "./dispatchContract.js";
+export * from "./dispatchBoardContract.js";
+export * from "./dispatchBoard.js";
 export * from "./entitlements.js";
 export * from "./surfaces.js";
 export * from "./surfaceCatalogue.js";

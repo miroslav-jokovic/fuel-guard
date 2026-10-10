@@ -26,6 +26,12 @@ export interface FleetIdentity {
    * off a table it does not own (D-ARC3, and the file header above).
    */
   fuel: { percent: number; at: string } | null;
+  /**
+   * The truck's McLeod home fleet code ('VINNIEV'), verbatim, or null — who OWNS the truck, which the
+   * dispatch board scopes "my fleet" by (DISPATCH-BOARD-PLAN D-DB1). Written by mcleod's roster sweep
+   * through `recordVehicleFleetCodes`; read here for the reason `unitNumber` is.
+   */
+  fleetCode: string | null;
 }
 
 const PAGE_CAP = 1000;
@@ -38,6 +44,7 @@ type VehicleRow = {
   /** `numeric(5,1)` (migration 0138), so PostgREST sends it as a STRING — see `toFuel`. */
   samsara_fuel_percent: number | string | null;
   samsara_fuel_at: string | null;
+  mcleod_fleet_code: string | null;
 };
 type DriverRow = { id: string; first_name: string | null; last_name: string | null };
 
@@ -89,7 +96,7 @@ export async function readFleetIdentities(
 ): Promise<{ byVehicleId: Map<string, FleetIdentity>; truncated: boolean }> {
   const { data: vData, error: vErr } = await admin
     .from("vehicles")
-    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at")
+    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code")
     .eq("org_id", orgId)
     .limit(PAGE_CAP);
   if (vErr) throw new Error(vErr.message);
@@ -119,6 +126,7 @@ export async function readFleetIdentities(
       status: v.status,
       driver: d ? { id: d.id, name: displayName(d) } : null,
       fuel: toFuel(v),
+      fleetCode: v.mcleod_fleet_code?.trim() || null,
     });
   }
   return { byVehicleId, truncated: vehicles.length >= PAGE_CAP };

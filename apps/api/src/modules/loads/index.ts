@@ -19,6 +19,8 @@ export {
   type LoadForRoute,
   type LoadRouteStop,
 } from "./liveLoadReads.js";
+// Each truck's current and next load, for the dispatch board (DISPATCH-BOARD-PLAN DB4).
+export { readTruckLoadPlans, type TruckLoadPlan } from "./truckLoadPlanReads.js";
 export {
   acceptLoad,
   completeStop,
