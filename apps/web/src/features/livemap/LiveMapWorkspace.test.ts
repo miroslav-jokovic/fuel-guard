@@ -84,7 +84,7 @@ vi.mock("./useLiveMapBoard", () => ({
 
 /** The route query, faked like the board: it records which load it was asked for (D-TC7). */
 const routeAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null }));
-vi.mock("./useLoadRoute", async () => {
+vi.mock("@/composables/useLoadRoute", async () => {
   const { ref } = await import("vue");
   return {
     useLoadRoute: (loadId: { value: string | null }) => {

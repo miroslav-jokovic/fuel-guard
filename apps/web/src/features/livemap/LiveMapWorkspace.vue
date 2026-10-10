@@ -8,7 +8,7 @@ import { boardSummarySentence } from "./liveMapWords";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
-import { useLoadRoute } from "./useLoadRoute";
+import { useLoadRoute } from "@/composables/useLoadRoute";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 

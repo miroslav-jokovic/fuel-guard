@@ -411,3 +411,24 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   (still the row's left edge) instead of its own 4rem column, and the truck column is pinned for
   narrower screens. Timestamps and "62 mph" never break inside themselves. Measured after: 1104 of
   1104 px at 1440; at 1280 it scrolls 123 px with the truck pinned.
+
+### 2026-10-10 — DB6: the truck drawer
+
+- A board row (or its unit number, which is a real button for the keyboard) opens a `SlideOver` for
+  that truck: the four HOS clocks; the current load with our ETA, its basis and the on-time verdict;
+  the stops in sequence with appointment windows and arrivals, and McLeod's typed `eta_at` only on a
+  stop not yet reached, labelled as McLeod's reference (D-DB4); a route summary (miles still ahead,
+  driving time, next fuel stop); the next load and where it empties; links to the truck, driver and
+  load pages.
+- **Reads only on open, for one load**: stops from the load page's own `GET /api/dispatch/loads/:id`,
+  route from TC3's `GET /api/livemap/loads/:id/route`. `useLoadRoute` moved from `features/livemap`
+  to `@/composables` so the map and the drawer share one reader and one cache key.
+- **The drawer is in the URL**: `/assignments?truck=773` opens it — the target D-DB6 point 4 needs for
+  the Loads page's truck link (DB5b). Closing drops only `truck` from the query.
+- **Not done — "open on the map with this truck selected"** (§5's drawer spec). The map takes no truck
+  from the URL: its selection is local state in `useLiveMapView`, and the Dashboard reads only `?tab=`.
+  A link today would open the map with nothing selected, so the drawer carries none. Owed: a
+  `?tab=dispatch&truck=<vehicleId>` deep link on the Dashboard's map, then the link here.
+- Seen in a browser at 1440 px (stubbed board, stops and route): drawer renders all sections, no
+  console errors, Escape closes and clears the URL, `?truck=` opens on arrival, Enter on the unit opens
+  it; the table still fits 1104 of 1104 px.

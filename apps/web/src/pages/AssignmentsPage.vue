@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
+import type { DispatchBoardRow } from "@silvicom/shared";
 import { AppSegmentedControl, AppTabs } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
@@ -10,6 +11,7 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
+import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
 import {
   BOARD_QUEUES,
@@ -38,8 +40,16 @@ import {
  * than showing an empty "My fleet" that reads as "nothing of mine needs me".
  *
  * The History tab is the L5 attribution trail, unchanged.
+ *
+ * ── THE DRAWER IS IN THE URL (DB6) ───────────────────────────────────────────────────────────────
+ * A row opens its truck's drawer, and `?truck=773` opens it from anywhere — the Loads page's truck
+ * links here that way (D-DB6 point 4), so a load's truck is one click from its board row. The query
+ * holds the UNIT, which is what a person reads and a link can be written with; the drawer resolves it
+ * against the polled board each minute, so it never shows a truck as it was when it opened.
  */
 const { zone } = useOrgTimezone();
+const route = useRoute();
+const router = useRouter();
 const { data: board, isLoading, isError, error, refetch, isFetching } = useDispatchBoardQuery();
 
 const TABS = [
@@ -116,6 +126,16 @@ function clearAll() {
   queue.value = "all";
 }
 
+const openUnit = computed(() => (typeof route.query.truck === "string" ? route.query.truck : null));
+const openRow = computed(() => (openUnit.value ? (rows.value.find((r) => r.unitNumber === openUnit.value) ?? null) : null));
+function openTruck(row: DispatchBoardRow) {
+  void router.replace({ query: { ...route.query, truck: row.unitNumber } });
+}
+function closeTruck() {
+  const { truck: _truck, ...rest } = route.query;
+  void router.replace({ query: rest });
+}
+
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.value);
 const description = computed(() => {
   if (tab.value === "history") return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
@@ -185,8 +205,11 @@ const emptyText = computed(() =>
           :dispatchers="dispatchers"
           :fleet-owner="fleetOwner"
           @retry="refetch"
+          @open="openTruck"
         />
       </DataWorkspace>
+
+      <DispatchTruckDrawer :row="openRow" :zone="zone" :dispatchers="dispatchers" @close="closeTruck" />
     </template>
   </div>
 </template>
