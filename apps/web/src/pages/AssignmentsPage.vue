@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { AppSegmentedControl, AppTabs } from "@silvicom/ui";
+import { AppTabs } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -12,16 +12,10 @@ import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
 import DispatchTruckDrawer from "@/features/dispatch/DispatchTruckDrawer.vue";
+import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
+import { scopeChips, useScopeChoice } from "@/features/dispatch/dispatchScope";
 import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
-import {
-  BOARD_QUEUES,
-  NO_FLEET_OPTION,
-  POOL_FLEET,
-  POOL_OPTION,
-  dispatcherName,
-  filterBoard,
-  type BoardQueue,
-} from "@/features/dispatch/dispatchBoardView";
+import { BOARD_QUEUES, filterBoard, type BoardQueue } from "@/features/dispatch/dispatchBoardView";
 
 /**
  * Dispatch → Dispatch board (DISPATCH-BOARD-PLAN.md, D-DB2). It was the Assignments page — one row per
@@ -59,24 +53,7 @@ const TABS = [
 const tab = ref("board");
 
 const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
-const SCOPE_OPTIONS = [
-  { value: "mine", label: "My fleet" },
-  { value: "all", label: "All" },
-];
-const scopeChoice = ref<"mine" | "all">("all");
-// Open on My fleet once the server says the caller has one; never force it back after they choose.
-let scopeChosen = false;
-watch(
-  () => scope.value.linked,
-  (linked) => {
-    if (!scopeChosen) scopeChoice.value = linked ? "mine" : "all";
-  },
-  { immediate: true },
-);
-function setScope(v: string) {
-  scopeChosen = true;
-  scopeChoice.value = v === "mine" ? "mine" : "all";
-}
+const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked));
 
 const search = ref("");
 const fleet = ref("");
@@ -96,25 +73,7 @@ const queueOptions = computed(() =>
   })),
 );
 
-const fleetOptions = computed(() => [
-  { value: "", label: "All fleets" },
-  ...(board.value?.fleets ?? [])
-    .filter((f) => f.code !== POOL_FLEET)
-    .map((f) => ({ value: f.code, label: f.dispatcherId ? `${f.code} · ${dispatcherName(f.dispatcherId, dispatchers.value)}` : f.code })),
-  { value: POOL_OPTION, label: "Unassigned pool" },
-  { value: NO_FLEET_OPTION, label: "No fleet" },
-]);
-const dispatcherOptions = computed(() => [
-  { value: "", label: "Anyone" },
-  ...dispatchers.value.filter((d) => !d.isSystem).map((d) => ({ value: d.id, label: d.name || d.id })),
-]);
-
-const chips = computed<FilterChip[]>(() => {
-  const out: FilterChip[] = [];
-  if (fleet.value) out.push({ key: "fleet", label: "Fleet", value: fleetOptions.value.find((o) => o.value === fleet.value)?.label ?? fleet.value });
-  if (dispatcher.value) out.push({ key: "dispatcher", label: "Dispatched by", value: dispatcherName(dispatcher.value, dispatchers.value) });
-  return out;
-});
+const chips = computed<FilterChip[]>(() => scopeChips(base.value, board.value));
 function removeChip(key: string) {
   if (key === "fleet") fleet.value = "";
   if (key === "dispatcher") dispatcher.value = "";
@@ -173,21 +132,20 @@ const emptyText = computed(() =>
           @clear-all="clearAll"
         >
           <template #filters>
-            <AppSegmentedControl
-              :model-value="scopeChoice"
-              :options="SCOPE_OPTIONS"
-              label="Whose trucks"
-              :disabled="!scope.linked"
-              @update:model-value="setScope"
+            <DispatchScopeControls
+              v-model:fleet="fleet"
+              v-model:dispatcher="dispatcher"
+              :board="board"
+              :linked="scope.linked"
+              :choice="scopeChoice"
+              @choose="setScope"
             />
             <FilterSelect v-model="queue" label="Show" :options="queueOptions" />
-            <FilterSelect v-model="fleet" label="Fleet" :options="fleetOptions" />
-            <FilterSelect v-model="dispatcher" label="Dispatched by" :options="dispatcherOptions" />
           </template>
           <template #actions>
             <RouterLink
               v-if="board && board.uncoveredCount > 0"
-              :to="{ name: 'loads', query: { queue: 'uncovered' } }"
+              :to="{ name: 'loads', query: { queue: 'uncovered', scope: 'all' } }"
               class="text-sm font-medium text-brand-700 hover:underline"
             >
               {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →

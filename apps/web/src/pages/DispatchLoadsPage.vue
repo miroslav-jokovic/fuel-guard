@@ -24,6 +24,13 @@
  *
  * Status words come from `loadBoardState` (`@silvicom/shared`), McLeod's own code in the tooltip.
  * Every time is on the CARRIER's clock (`useOrgTimezone`), never the viewer's.
+ *
+ * ── THE ORDER RECORD BESIDE THE DISPATCH BOARD (DISPATCH-BOARD-PLAN §5.3, DB5b) ────────────────────
+ * This page answers "what is the state of this order"; the board answers "what do my trucks need now".
+ * They share one scope control (My fleet · All, Fleet, Dispatched by — `dispatchScope.ts`), which
+ * replaced this page's own Dispatcher filter, and one on-time verdict, read off the board rather than
+ * computed twice (`loadsOnBoard.ts`). A load's truck links to that truck on the board; HOS and GPS are
+ * never re-drawn here.
  */
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -60,7 +67,11 @@ import {
 } from "@/features/dispatch/useDispatchLoads";
 import DispatchLoadDrawer from "@/features/dispatch/DispatchLoadDrawer.vue";
 import { dispatchHeadline } from "@/features/dispatch/useLoadDispatch";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
+import DispatchScopeControls from "@/features/dispatch/DispatchScopeControls.vue";
+import { admitsScope, scopeChips, useScopeChoice } from "@/features/dispatch/dispatchScope";
+import { loadsOnBoard } from "@/features/dispatch/loadsOnBoard";
+import { BADGE_BASE, onTimeBadge, toneClass } from "@/lib/badges";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { formatDateTime } from "@/lib/format";
 
@@ -75,6 +86,7 @@ const { zone } = useOrgTimezone();
 const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoadsQuery();
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const resolveException = useResolveException();
+const { data: board } = useDispatchBoardQuery();
 
 const EXCEPTION_COLUMNS: DataTableColumn[] = [
   { key: "kind", label: "What happened", width: "lg" },
@@ -110,8 +122,27 @@ const search = ref("");
 // truck, and so no row of their own on a truck board (DISPATCH-BOARD-PLAN D-DB5). Unknown values fall back.
 const queueFromUrl = QUEUE_TABS.find((q) => q.value === route.query.queue)?.value;
 const tab = ref<QueueTab>(queueFromUrl ?? QUEUE_TABS[0]!.value);
-const dispatcherFilter = ref("");
 const typeFilter = ref("");
+
+// Whose loads (D-DB3): the board's scope, and the fleet of each load's truck, read off the board.
+const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
+const onBoard = computed(() => loadsOnBoard(board.value));
+const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => scope.value.linked), route.query.scope);
+const fleet = ref("");
+const dispatcher = ref("");
+const scopeFilter = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value }));
+/**
+ * My fleet does not narrow Uncovered: McLeod names no dispatcher on an uncovered load (0 of 32 on
+ * 2026-10-09) and it has no truck, so no load there could ever be "mine" — the queue would read empty
+ * while the board's link says "32 uncovered". Keyed on the LOAD's queue, not the tab's, so All counts
+ * the same uncovered loads the Uncovered tab does. The page says so above that list. Fleet and
+ * Dispatched by still apply, and simply match nothing, which is the truth.
+ */
+const inScope = (load: DispatchLoad): boolean =>
+  admitsScope(onBoard.value.scopeItem(load), scope.value, {
+    ...scopeFilter.value,
+    mine: scopeFilter.value.mine && loadBoardState(load).queue !== "uncovered",
+  });
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
 
@@ -134,10 +165,6 @@ const headerText = computed(() =>
     : "Loads come from McLeod. A load reaches a driver only when you dispatch it.",
 );
 
-const dispatcherOptions = computed(() => {
-  const names = [...new Set((loads.value ?? []).map((l) => l.dispatcher_name).filter((n): n is string => Boolean(n)))].sort();
-  return [{ value: "", label: "All dispatchers" }, ...names.map((n) => ({ value: n, label: n }))];
-});
 const typeOptions = [
   { value: "", label: "All types" },
   { value: "Regular", label: "Regular" },
@@ -160,7 +187,7 @@ function matchesType(load: DispatchLoad): boolean {
 const counts = computed(() => {
   const result = Object.fromEntries(QUEUE_TABS.map((q) => [q.value, 0])) as Record<QueueTab, number>;
   for (const load of loads.value ?? []) {
-    for (const q of QUEUE_TABS) if (q.value !== "exceptions" && inQueue(load, q.value)) result[q.value] += 1;
+    for (const q of QUEUE_TABS) if (q.value !== "exceptions" && inQueue(load, q.value) && inScope(load)) result[q.value] += 1;
   }
   // The exceptions count comes from the server feed, not from the loads list — most of its sources
   // exist only as events and are not visible in a load row at all (D-L2).
@@ -175,7 +202,7 @@ const filtered = computed(() => {
   if (queue === "exceptions") return [];
   return (loads.value ?? [])
     .filter((load) => inQueue(load, queue))
-    .filter((load) => !dispatcherFilter.value || load.dispatcher_name === dispatcherFilter.value)
+    .filter(inScope)
     .filter(matchesType)
     .filter((load) => {
       if (!term) return true;
@@ -205,9 +232,10 @@ function sortValue(load: DispatchLoad, key: string): unknown {
 
 const sorted = computed(() => sortRows(filtered.value, sort.value, sortValue));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
-const emptyText = computed(() =>
-  (loads.value ?? []).length === 0 ? "No loads yet. They arrive from McLeod on its next sync." : "No loads match these filters.",
-);
+const emptyText = computed(() => {
+  if ((loads.value ?? []).length === 0) return "No loads yet. They arrive from McLeod on its next sync.";
+  return scopeFilter.value.mine ? "No loads in your fleet match. Switch to All to search every load." : "No loads match these filters.";
+});
 
 /** Chip copy + tone for the linked hazmat record's state. "Not started" is the loudest (H-C1). */
 function hazmatChipLabel(status: string | null | undefined): string {
@@ -235,13 +263,12 @@ const columns: DataTableColumn[] = [
 ];
 
 const filterChips = computed<FilterChip[]>(() => {
-  const chips: FilterChip[] = [];
-  if (dispatcherFilter.value) chips.push({ key: "dispatcher", label: "Dispatcher", value: dispatcherFilter.value });
+  const chips: FilterChip[] = scopeChips(scopeFilter.value, board.value);
   if (typeFilter.value) chips.push({ key: "type", label: "Type", value: typeOptions.find((o) => o.value === typeFilter.value)?.label ?? typeFilter.value });
   return chips;
 });
 
-watch([search, tab, dispatcherFilter, typeFilter], () => {
+watch([search, tab, scopeChoice, fleet, dispatcher, typeFilter], () => {
   page.value = 1;
 });
 watch(filtered, (rows) => {
@@ -254,11 +281,13 @@ function onSort(key: string) {
 }
 function clearFilters() {
   search.value = "";
-  dispatcherFilter.value = "";
+  fleet.value = "";
+  dispatcher.value = "";
   typeFilter.value = "";
 }
 function removeFilter(key: string) {
-  if (key === "dispatcher") dispatcherFilter.value = "";
+  if (key === "fleet") fleet.value = "";
+  if (key === "dispatcher") dispatcher.value = "";
   if (key === "type") typeFilter.value = "";
 }
 
@@ -288,10 +317,21 @@ function openDetail(load: DispatchLoad) {
       @clear-all="clearFilters"
     >
       <template #filters>
-        <FilterSelect v-model="dispatcherFilter" label="Dispatcher" :options="dispatcherOptions" />
+        <DispatchScopeControls
+          v-model:fleet="fleet"
+          v-model:dispatcher="dispatcher"
+          :board="board"
+          :linked="scope.linked"
+          :choice="scopeChoice"
+          @choose="setScope"
+        />
         <FilterSelect v-model="typeFilter" label="Type" :options="typeOptions" />
       </template>
     </FilterBar>
+
+    <p v-if="tab === 'uncovered' && scopeFilter.mine" class="text-sm text-ink-muted">
+      Uncovered loads have no dispatcher in McLeod yet, so this queue shows all of them.
+    </p>
 
     <!-- Exceptions is its own feed, not a filter over the loads list: most of its sources exist only
          as events and have no row on the board at all (D-L2). -->
@@ -362,7 +402,15 @@ function openDetail(load: DispatchLoad) {
       </template>
       <template #cell-driver_name="{ row }">
         <p :class="row.driver_name ? 'text-ink' : 'text-ink-tertiary'">{{ row.driver_name ?? "No driver" }}</p>
-        <p class="text-xs tabular-nums text-ink-muted" title="Truck / trailer">{{ row.vehicle_unit ?? "No truck" }} / {{ row.trailer_unit ?? "no trailer" }}</p>
+        <p class="text-xs tabular-nums text-ink-muted" title="Truck / trailer">
+          <!-- D-DB6 point 4: the truck opens on the Dispatch board, its drawer open; HOS and GPS live there. -->
+          <RouterLink
+            v-if="row.vehicle_unit"
+            :to="{ name: 'assignments', query: { truck: row.vehicle_unit } }"
+            class="text-link hover:text-link-hover"
+            @click.stop
+          >{{ row.vehicle_unit }}</RouterLink><template v-else>No truck</template> / {{ row.trailer_unit ?? "no trailer" }}
+        </p>
       </template>
       <template v-for="end in ['pickup', 'delivery'] as const" :key="end" #[`cell-${end}`]="{ row }">
         <template v-for="stop in [boardStops(row.stops)[end]]" :key="stop?.seq ?? 'none'">
@@ -387,7 +435,13 @@ function openDetail(load: DispatchLoad) {
         </div>
       </template>
       <template #cell-status="{ row }">
-        <span :class="[BADGE_BASE, toneClass(loadBoardState(row).tone)]" :title="loadBoardState(row).mcleodWords ?? undefined">{{ loadBoardState(row).label }}</span>
+        <div class="flex flex-wrap gap-1">
+          <span :class="[BADGE_BASE, toneClass(loadBoardState(row).tone)]" :title="loadBoardState(row).mcleodWords ?? undefined">{{ loadBoardState(row).label }}</span>
+          <!-- D-DB4: the board's verdict for the load a truck is hauling now, the same badge the board shows. -->
+          <span v-if="onBoard.onTimeOf(row.id)" :class="[BADGE_BASE, toneClass(onTimeBadge(onBoard.onTimeOf(row.id)!).tone)]">
+            {{ onTimeBadge(onBoard.onTimeOf(row.id)!).label }}
+          </span>
+        </div>
       </template>
       <template #cell-dispatch="{ row }">
         <span :class="row.last_dispatch ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ dispatchHeadline(row.last_dispatch) }}</span>

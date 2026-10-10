@@ -91,7 +91,7 @@ describe("the dispatch board page", () => {
     const w = await mountPage();
     const link = w.findAll("a").find((a) => a.text().includes("uncovered"))!;
     expect(link.text()).toContain("12 uncovered loads");
-    expect(link.attributes("href")).toBe("/loads?queue=uncovered");
+    expect(link.attributes("href")).toBe("/loads?queue=uncovered&scope=all");
   });
 
   it("opens a truck's drawer from its unit number and writes the truck into the URL", async () => {

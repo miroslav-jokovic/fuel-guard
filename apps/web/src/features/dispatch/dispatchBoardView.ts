@@ -1,4 +1,7 @@
-import { inMyScope, legalDriveMs, needsAttention, type DispatchBoardRow, type DispatchScope } from "@silvicom/shared";
+import { legalDriveMs, needsAttention, type DispatchBoardRow, type DispatchScope } from "@silvicom/shared";
+import { POOL_FLEET, admitsScope, type ScopeFilter } from "./dispatchScope";
+
+export { NO_FLEET_OPTION, POOL_FLEET, POOL_OPTION, dispatcherName } from "./dispatchScope";
 
 /**
  * How the dispatch board page narrows and words its rows (DISPATCH-BOARD-PLAN §5). Every VERDICT on a
@@ -18,15 +21,7 @@ export const BOARD_QUEUES = [
 ] as const;
 export type BoardQueue = (typeof BOARD_QUEUES)[number]["value"];
 
-/** Fleet code '1' is the parked and shop pool (Q-DB2): off the default board, one choice away. */
-export const POOL_FLEET = "1";
-export const POOL_OPTION = "__pool__";
-export const NO_FLEET_OPTION = "__none__";
-
-export interface BoardFilter {
-  mine: boolean;
-  fleet: string;
-  dispatcher: string;
+export interface BoardFilter extends ScopeFilter {
   queue: BoardQueue;
   search: string;
 }
@@ -36,18 +31,10 @@ export function filterBoard(rows: readonly DispatchBoardRow[], scope: DispatchSc
   const queue = BOARD_QUEUES.find((q) => q.value === f.queue) ?? BOARD_QUEUES[0];
   const term = f.search.trim().toLowerCase();
   return rows.filter((r) => {
-    if (f.mine && !inMyScope(r, scope)) return false;
-    if (f.fleet === POOL_OPTION) {
-      if (r.fleetCode !== POOL_FLEET) return false;
-    } else if (f.fleet === NO_FLEET_OPTION) {
-      if (r.fleetCode !== null) return false;
-    } else if (f.fleet) {
-      if (r.fleetCode !== f.fleet) return false;
-    } else if (!f.mine && r.fleetCode === POOL_FLEET) {
-      // "All" still leaves the parked pool out unless it is asked for by name.
-      return false;
-    }
-    if (f.dispatcher && r.current?.dispatcherId !== f.dispatcher && r.next?.dispatcherId !== f.dispatcher) return false;
+    if (!admitsScope(r, scope, f)) return false;
+    // "All" still leaves the parked pool out unless it is asked for by name. A board rule, not a scope
+    // rule: a truck parked in the shop is not work, but a load on the Loads page is a record and stays.
+    if (!f.mine && !f.fleet && r.fleetCode === POOL_FLEET) return false;
     if (!queue.test(r)) return false;
     if (!term) return true;
     return [r.unitNumber, r.driver?.name, r.current?.ref, r.current?.customerName, r.position?.place, r.current?.nextStop?.city, r.next?.ref]
@@ -85,8 +72,3 @@ export function stopPlace(s: { city: string | null; state: string | null; name: 
   return [s.city, s.state].filter(Boolean).join(", ") || s.name || "";
 }
 
-/** A dispatcher's display name from the McLeod roster, falling back to the login. */
-export function dispatcherName(id: string | null | undefined, dispatchers: ReadonlyArray<{ id: string; name: string | null }>): string {
-  if (!id) return "";
-  return dispatchers.find((d) => d.id === id)?.name || id;
-}

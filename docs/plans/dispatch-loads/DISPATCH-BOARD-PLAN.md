@@ -432,3 +432,26 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - Seen in a browser at 1440 px (stubbed board, stops and route): drawer renders all sections, no
   console errors, Escape closes and clears the URL, `?truck=` opens on arrival, Enter on the unit opens
   it; the table still fits 1104 of 1104 px.
+
+### 2026-10-10 — DB5b: Loads adopts the split
+
+- **One scope control on both pages** (`features/dispatch/DispatchScopeControls.vue`, rule in
+  `dispatchScope.ts` → `admitsScope` over `inMyScope`). It replaced the Loads page's Dispatcher filter,
+  which matched on a display name; Dispatched by now matches McLeod's login, as on the board. A load's
+  fleet is its truck's, read off the board's response (`loadsOnBoard.ts`), the one place the API
+  composes fleets, links and the caller's scope; no second copy of the links on the Loads read.
+- **Active → In transit + Upcoming** in `loadBoardState` (`@silvicom/shared`). In transit is the
+  default tab. An app-accepted or offered load is Upcoming (taken, not under way). Old `?queue=active`
+  bookmarks fall back to the default.
+- **Ruling made in code, reversible — My fleet does not narrow uncovered loads.** McLeod names no
+  dispatcher on one and it has no truck, so none could ever be "mine", and the Uncovered tab would read
+  0 while the board's link says 32. Keyed on the load's own queue, so All counts them too; the page says
+  so above the Uncovered list. The board's link also carries `scope=all`.
+- **On-time badge on Loads rows**: the board's verdict, read for the load a truck is hauling now and
+  shown nowhere else (an upcoming load has no ETA; "unknown" on each would be noise).
+- **Truck → board, both ways**: the Loads row's truck and the load page's Truck open
+  `/assignments?truck=<unit>` (D-DB6 point 4).
+- Seen in a browser at 1440 px with stubbed data: tab counts sum, the table still fits 1104 px, the
+  truck link and the uncovered link land where they should, the board toolbar carries the same control.
+- **Still owed:** saved views and column picker; DB7 (ETA vs actual arrivals); the map deep link for
+  the drawer; cleanup (`GET /api/dispatch/assignments`, the stale `tms_dispatchers` comments).
