@@ -146,6 +146,18 @@ describe("the dispatch board page", () => {
     expect(w.text()).not.toContain("Clear all");
   });
 
+  it("shows the columns a link leaves in, never hiding the truck, and offers the column picker", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?hide=empties,next,unit");
+    const headers = w.findAll("thead th").map((th) => th.text().trim());
+    expect(headers).toContain("Truck");
+    expect(headers).toContain("On time");
+    expect(headers).not.toContain("Empties");
+    expect(headers).not.toContain("Next load");
+    // The picker says what is hidden; the truck is the row's name and cannot be turned off.
+    expect(w.findAll("button").find((b) => b.text().startsWith("Columns"))!.text()).toContain("2 hidden");
+  });
+
   it("writes the scope a person chooses into the URL", async () => {
     board.value = response(true);
     const w = await mountPage();

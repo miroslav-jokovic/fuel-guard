@@ -455,3 +455,13 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   truck link and the uncovered link land where they should, the board toolbar carries the same control.
 - **Still owed:** saved views and column picker; DB7 (ETA vs actual arrivals); the map deep link for
   the drawer; cleanup (`GET /api/dispatch/assignments`, the stale `tms_dispatchers` comments).
+
+### 2026-10-10 — Column picker; saved views wait one merge
+
+- **Column picker on the board** (`useTableColumns` + `ColumnPicker`, the roster's pair). Hidden columns
+  live in `?hide=` with this browser's own choice as the default; the truck column cannot be hidden.
+  Table id `dispatch.board` (`BOARD_TABLE`).
+- **Saved views need the database first.** 0278 closed `saved_views.table_id` to `'roster.drivers'`;
+  migration 0452 admits `'dispatch.board'` and ships alone, because the contract gaining the id in the
+  same merge could let staging serve a Save before `migrate-staging` widens the check. Next merge:
+  `SAVED_VIEW_TABLES` gains it, the board gets `SavedViewMenu` (and built-in views, if any earn a place).
