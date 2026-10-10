@@ -77,7 +77,7 @@ async function mountIt(row: DispatchBoardRow | null) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/", component: { template: "<div/>" } },
+      { path: "/", name: "dashboard", component: { template: "<div/>" } },
       { path: "/vehicles/:id", name: "vehicle-detail", component: { template: "<div/>" } },
       { path: "/drivers/:id", name: "driver-detail", component: { template: "<div/>" } },
       { path: "/loads/:id", name: "load-detail", component: { template: "<div/>" } },
@@ -143,5 +143,17 @@ describe("DispatchTruckDrawer", () => {
     const w = await mountIt(loaded);
     const links = Object.fromEntries(w.get("nav").findAll("a").map((a) => [a.text(), a.attributes("href")]));
     expect(links).toEqual({ "Truck page": "/vehicles/v-773", "Driver page": "/drivers/d-1", "Load page": `/loads/${LOAD}` });
+  });
+
+  it("opens the truck on the map by its unit when it has a position, and offers no map without one", async () => {
+    const located: DispatchBoardRow = {
+      ...loaded,
+      position: { place: "Joplin, MO", lat: 37.08, lng: -94.51, speedMph: 61, sampledAt: "2026-10-10T15:00:00Z", ageSeconds: 30 },
+    };
+    const w = await mountIt(located);
+    const map = w.get("nav").findAll("a").find((a) => a.text() === "On the map");
+    expect(map?.attributes("href")).toBe("/?tab=dispatch&truck=773");
+    // `loaded` has no position: the map would have nothing to show, so there is no link to it.
+    expect((await mountIt(loaded)).get("nav").text()).not.toContain("On the map");
   });
 });

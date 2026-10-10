@@ -29,9 +29,9 @@ import { useLoadDetailQuery, type DispatchStopDetail } from "./useDispatchLoads"
  * them were more than six hours in the past on 2026-10-09 — so it appears per stop as a reference,
  * labelled as McLeod's, and never decides anything.
  *
- * ⚠ No "open on the map" link yet: the map takes no truck from the URL (its selection is local state
- * in `useLiveMapView`), so a link could only open the map with nothing selected. That deep link is the
- * next step (plan §10, 2026-10-10), not a half-link here.
+ * "On the map" opens the Dashboard's Dispatch tab with `?truck=<unit>`, the same key this drawer's own
+ * URL uses; the map selects and frames that truck, then drops the parameter. A truck with no position
+ * gets no link — the map has nothing to show for it.
  */
 const props = defineProps<{
   row: DispatchBoardRow | null;
@@ -207,6 +207,9 @@ const description = computed(() => {
 
     <template #footer>
       <nav v-if="row" aria-label="Open" class="flex flex-wrap items-center justify-end gap-4 text-sm font-medium">
+        <BaseButton v-if="row.position" variant="link" :to="{ name: 'dashboard', query: { tab: 'dispatch', truck: row.unitNumber } }">
+          On the map
+        </BaseButton>
         <BaseButton variant="link" :to="{ name: 'vehicle-detail', params: { id: row.vehicleId } }">Truck page</BaseButton>
         <BaseButton v-if="row.driver" variant="link" :to="{ name: 'driver-detail', params: { id: row.driver.id } }">
           Driver page
