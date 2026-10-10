@@ -718,6 +718,18 @@ which a shipping paper does not show, so a combination package of small inners o
 treated as a single packaging. *Recommendation:* a per-entry `namesChemicalGroup` flag derived in the
 importer from the HMT entry text, with its own diff in the triangulation, retiring the list.
 
+**Q-DR18 — Whose gate does a shipping-document read pass once it has two consumers?** (Found building
+Step 1.6.) Today the profile has one consumer, the Hazmat Calculator, so a `shipping_document` read
+passes HazmatGuard's entitlement, its `extractionEnabled` switch and its `extractionMonthlyTokenBudget`
+(`documentReadGate.ts`), with the tokens counted on the org-wide `org_usage_month`. Stop readiness
+(Phase 6) reads the same profile for billing, where an org may not hold HazmatGuard. Candidates: (a) the
+gate of the consumer that requested the read, recorded on the read (`document_reads` gains a
+`consumer`); (b) one document-reading entitlement and policy of its own, beside the modules. *Default
+until answered:* (a)'s first case — every read is a calculator read. *Recommendation:* (a) — the
+consumer is already on every review (`document_read_reviews.consumer`), a read requested from a
+screen belongs to that screen's module, and a separate policy would be a second switch for the same
+spend. Decide before Phase 6's first consumer ships.
+
 ---
 
 ## 10. Progress log
@@ -850,3 +862,19 @@ Append dated lines at the end; never edit a row above.
   a remaining step; `PROMOTION-CHECKLIST.md` written. A simulated non-provisional 2026.08.0 (in memory,
   nothing saved) passes all 13 golden scenarios with the pin. Nothing attested, LATEST unmoved. Step 0
   found Q-DR14a and the 2026-12-02 deadline above.
+- **2026-10-09 (contract v1.1, Railway, Q-DR17)** — #1409: printed descriptions, `otherLines`, the
+  emergency-contact text and per-image page markers in profile 1.1.0, read in three sections (a CI test
+  holds each under 16 union parameters). #1396: the paper rules match eCFR's text. #1414: the 40 CFR
+  302.4 importer for the 2026-12-02 change and the `namesChemicalGroup` flag (carried from 2026.09.0).
+  Step 1.3's done-when met on the Railway staging image (linux-x64 glibc): a two-page pdfkit PDF rendered
+  to 2550×3300 pages with 17 and 7 text-layer words in 1.9 s.
+- **2026-10-10 (Step 1.6, orchestration)** — #1424: `executeRead` runs a queued read on the worker
+  (`document_read`, cap 2): the consumer's gate (for `shipping_document`, HazmatGuard's entitlement,
+  `extractionEnabled` and `extractionMonthlyTokenBudget`), then pages of the profile's classes (pages
+  not yet classed are read until Step 1.5), each original verified against its sha256 with the model
+  reading a copy re-derived from it, then the §4.6 cache key (the review epoch included), cache before
+  budget (D17), and one terminal transition. Migration 0451: the terminal move adds the read's tokens
+  to `org_usage_month` in its own transaction (`runs` untouched), and two operational codes —
+  `model_unavailable` (the queue's last retry ended transient) and `reading_disabled`. Matrix 83
+  checks; five mutants killed. Not yet: pass B and the ledger (Phase 2), the usability gate, the
+  routes and intake (next).
