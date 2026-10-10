@@ -124,6 +124,65 @@ export async function scannedPdf(): Promise<Buffer> {
 }
 
 /**
+ * A copier's or fax gateway's scan: the page as a 1-bit CCITT Group 4 image, no text operators — the
+ * format of every office BOL the owner supplied (2026-10-10). libvips encodes the G4 (as a TIFF with
+ * 256-row strips, each strip coded on its own), and each strip goes in as its own `/CCITTFaxDecode`
+ * image XObject, stacked into the page — the banded layout some scanners write. Thresholded, the red
+ * landmark comes out BLACK like the black one: a 1-bit page has no colour to keep.
+ */
+export async function faxScanPdf(): Promise<Buffer> {
+  const [width, height] = [1700, 2200];
+  const tiff = await raw(width, height).threshold(128).toColourspace("b-w").tiff({ compression: "ccittfax4", bitdepth: 1 }).toBuffer();
+  const strips = tiffStrips(tiff);
+  const { doc, done } = pdfDoc();
+  let top = 0;
+  strips.forEach((strip, i) => {
+    const rows = Math.min(strip.rowsPerStrip, height - i * strip.rowsPerStrip);
+    const image = doc.ref({
+      Type: "XObject",
+      Subtype: "Image",
+      Width: width,
+      Height: rows,
+      BitsPerComponent: 1,
+      ColorSpace: "DeviceGray",
+      Filter: "CCITTFaxDecode",
+      // K < 0 is pure two-dimensional coding (Group 4). libvips writes PhotometricInterpretation
+      // MinIsBlack, so a 1 bit is black.
+      DecodeParms: { K: -1, Columns: width, Rows: rows, BlackIs1: true },
+    });
+    image.end(strip.bytes);
+    (doc.page.xobjects as Record<string, unknown>)[`Band${i}`] = image;
+    const bandPt = (LETTER.height * rows) / height;
+    // pdfkit's page space runs y-down; this is the matrix its own `image()` writes.
+    doc.addContent(`q ${LETTER.width} 0 0 ${-bandPt} 0 ${top + bandPt} cm /Band${i} Do Q`);
+    top += bandPt;
+  });
+  doc.end();
+  return done;
+}
+
+/** A baseline TIFF's strips (StripOffsets 273, RowsPerStrip 278, StripByteCounts 279) — enough for libvips's output. */
+function tiffStrips(tiff: Buffer): { bytes: Buffer; rowsPerStrip: number }[] {
+  const le = tiff.toString("latin1", 0, 2) === "II";
+  const u16 = (o: number) => (le ? tiff.readUInt16LE(o) : tiff.readUInt16BE(o));
+  const u32 = (o: number) => (le ? tiff.readUInt32LE(o) : tiff.readUInt32BE(o));
+  const ifd = u32(4);
+  const values = (tag: number): number[] => {
+    for (let i = 0; i < u16(ifd); i++) {
+      const entry = ifd + 2 + i * 12;
+      if (u16(entry) !== tag) continue;
+      const [type, count] = [u16(entry + 2), u32(entry + 4)];
+      const size = type === 3 ? 2 : 4;
+      const base = count * size > 4 ? u32(entry + 8) : entry + 8;
+      return Array.from({ length: count }, (_, k) => (size === 2 ? u16(base + k * 2) : u32(base + k * 4)));
+    }
+    throw new Error(`TIFF tag ${tag} missing`);
+  };
+  const [offsets, counts, [rowsPerStrip]] = [values(273), values(279), values(278)];
+  return offsets.map((offset, i) => ({ bytes: tiff.subarray(offset, offset + counts[i]!), rowsPerStrip: rowsPerStrip! }));
+}
+
+/**
  * A portrait page with `/Rotate 90` whose content is drawn turned 90° counter-clockwise, so it READS
  * upright in landscape — what a scanner driver writes for a sideways-fed page. The black marker is
  * drawn where the displayed page's top-left corner falls.
@@ -174,6 +233,7 @@ async function writeAll(outDir: string, regenerateHeic: boolean): Promise<void> 
     "cmyk.jpg": cmykJpeg(),
     "born-digital.pdf": bornDigitalPdf(),
     "scanned.pdf": scannedPdf(),
+    "fax-scan.pdf": faxScanPdf(),
     "rotated.pdf": rotatedPdf(),
     "encrypted.pdf": encryptedPdf(),
     "eleven-pages.pdf": pagesPdf(11),

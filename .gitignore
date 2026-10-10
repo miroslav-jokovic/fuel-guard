@@ -101,7 +101,10 @@ apps/driver/modules/capture-native/android/build/
 # real/sheets/ — that is what makes a re-runnable benchmark possible without ever holding a customer's
 # paperwork. This entry exists BEFORE the first photograph rather than after the first accident.
 # See packages/capture-engine/fixtures/real/README.md.
-packages/capture-engine/fixtures/real/private/
+# No trailing slash: in a worktree `private` is a SYMLINK to the main checkout's corpus, and git treats
+# a symlink as a file, which `private/` does not match — `git status` listed it, one `git add -A` away
+# from a commit (seen 2026-10-10).
+packages/capture-engine/fixtures/real/private
 
 # PSP vendor material: the protocol guide is CONFIDENTIAL-footered on all 80 pages and
 # apitoken.txt is a live credential. Neither may enter git history (Q-H1, 2026-08-19).
