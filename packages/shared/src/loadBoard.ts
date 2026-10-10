@@ -24,11 +24,19 @@ import { mcleodStopDeparted } from "./mcleodLoadProjection.js";
  * tooltip (`mcleodWords`) so a dispatcher can match the board to McLeod's screen.
  */
 
-export const LOAD_BOARD_QUEUES = ["active", "uncovered", "delivered", "all"] as const;
+/**
+ * ── ACTIVE WAS SPLIT IN TWO (DISPATCH-BOARD-PLAN §5.3, DB5b, 2026-10-10) ─────────────────────────
+ * One "Active" queue held both the loads moving and the loads planned behind them, so an office reader
+ * looking for an order had to read every badge to know which it was. The queues now say it: In transit
+ * (a stop is behind the truck) and Upcoming (planned, including a truck's pre-assigned next load —
+ * 8 trucks had one on 2026-10-09). The live view of the trucks themselves is the Dispatch board's.
+ */
+export const LOAD_BOARD_QUEUES = ["in_transit", "upcoming", "uncovered", "delivered", "all"] as const;
 export type LoadBoardQueue = (typeof LOAD_BOARD_QUEUES)[number];
 
 export const LOAD_BOARD_QUEUE_LABELS: Record<LoadBoardQueue, string> = {
-  active: "Active",
+  in_transit: "In transit",
+  upcoming: "Upcoming",
   uncovered: "Uncovered",
   delivered: "Delivered",
   all: "All",
@@ -74,13 +82,13 @@ export function loadBoardState(load: BoardLoad): LoadBoardState {
 
   switch (load.status) {
     case "in_transit":
-      return state("active", "In transit", "brand");
+      return state("in_transit", "In transit", "brand");
     case "approved":
-      return state("active", "Planned", "info");
+      return state("upcoming", "Planned", "info");
     case "pending_approval":
     case "draft":
       return load.driver_id && load.vehicle_id
-        ? state("active", "Planned", "info")
+        ? state("upcoming", "Planned", "info")
         : state("uncovered", "Uncovered", "warning");
     case "delivered":
       return state("delivered", "Delivered", "success");
@@ -89,8 +97,9 @@ export function loadBoardState(load: BoardLoad): LoadBoardState {
       return state(null, "Canceled", "neutral");
     default:
       // offered / accepted: only the driver app's own verbs reach these now, and the words for them
-      // are the driver's ("Accepted"), which the status labels already carry.
-      return state("active", LOAD_STATUS_LABELS[load.status], "brand");
+      // are the driver's ("Accepted"), which the status labels already carry. Taken but not yet under
+      // way, so Upcoming — the same place McLeod's planned-but-not-departed `P` sits.
+      return state("upcoming", LOAD_STATUS_LABELS[load.status], "brand");
   }
 }
 
