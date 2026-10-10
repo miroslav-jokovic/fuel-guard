@@ -519,3 +519,18 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   Q-DB4 is then decided on the numbers: keep the distance ETA, retune `BOARD_ROAD_FACTOR` /
   `BOARD_PLANNING_MPH`, or buy HERE's matrix. The verdict column scores "on time / at risk / late"
   against `window_closes_at` the same way.
+
+### 2026-10-10 — "On the map" from the truck drawer
+
+- **The map takes a truck from the URL**: the Dashboard's Dispatch tab reads `?truck=<unit>` (the unit,
+  as the board's own `?truck=` does), selects that truck once the map's board has loaded, and drops the
+  parameter with `replace` — a selection the reader then changes must not leave a URL naming another
+  truck, and a unit the map does not carry opens on the fleet as before. The canvas's first framing
+  prefers an already-selected truck to the whole fleet (at `SELECT_ZOOM`), which is what makes an
+  arrival before the map has loaded land on the truck.
+- **The drawer's footer gains "On the map"**, only for a truck with a position.
+- Seen in Chromium (dev-bypass build, stubbed positions, two trucks 800 miles apart): without the
+  parameter both are framed; with `?truck=773` the map opens on Chicago alone with 773's card open and
+  its rail row current, and the URL reads `?tab=dispatch` afterwards.
+- **Still owed:** cleanup (`GET /api/dispatch/assignments`' list route, stale `tms_dispatchers`
+  comments); DB7 itself from two weeks after 0453's first row; the fleet code waits on Alex's VM update.

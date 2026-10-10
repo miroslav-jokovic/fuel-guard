@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { TruckIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
@@ -171,6 +172,31 @@ function select(vehicle: LiveMapVehicle): void {
   canvas.value?.flyTo(vehicle.vehicleId);
   railOpen.value = false;
 }
+
+/**
+ * `?truck=<unit>` — the Dispatch board drawer's "On the map" (DISPATCH-BOARD-PLAN DB6). The unit number,
+ * not the vehicle id, because it is the key the board's own `?truck=` uses and the one a person can read.
+ *
+ * ⚠ CONSUMED, NOT KEPT. Once the board has loaded, the truck is selected and the parameter dropped
+ * (`replace`, so Back returns to the board): a selection the reader then changes on the map must not
+ * leave a URL naming a different truck, and a reload must not snap the view back. A unit the board does
+ * not carry (no position, retired) is dropped the same way — the map opens on the fleet, as it would.
+ * Before the map has loaded, `flyTo` cannot move it; the canvas's first framing prefers the selected
+ * truck to the whole fleet for exactly this arrival.
+ */
+const route = useRoute();
+const router = useRouter();
+watch(
+  [() => route.query.truck, () => board.data.value],
+  ([truck, data]) => {
+    if (typeof truck !== "string" || !truck || !data) return;
+    const vehicle = data.vehicles.find((v) => v.unitNumber === truck);
+    if (vehicle) select(vehicle);
+    const { truck: _consumed, ...rest } = route.query;
+    void router.replace({ query: rest });
+  },
+  { immediate: true },
+);
 
 /** The rail's width is part of the map's box at `lg`, so the canvas has to re-measure when it moves. */
 const railVisible = computed(() => railOpen.value);

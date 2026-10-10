@@ -5,7 +5,7 @@ import { basemapFor, type BasemapChoice, type LiveMapLoadRoute, type LiveMapVehi
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
-import { planCameraMove } from "./liveMapCamera";
+import { planCameraMove, SELECT_ZOOM } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
 import { isMarkerClick, showRoute, syncRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
@@ -213,9 +213,20 @@ function visibleBounds(instance: maplibregl.Map): MapBounds {
   return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
 }
 
-/** Frame the whole fleet ONCE. Re-fitting on every poll would yank the view out from under a reader. */
+/**
+ * Frame the whole fleet ONCE. Re-fitting on every poll would yank the view out from under a reader.
+ *
+ * ⚠ A truck already selected at the first framing wins over the fleet: that is a page opened FOR one
+ * truck (the Dispatch board's "On the map", `?truck=`), whose `flyTo` ran before the map existed.
+ */
 function fitToFleet(instance: maplibregl.Map): void {
   if (fitted || props.vehicles.length === 0) return;
+  const chosen = props.selectedId ? props.vehicles.find((v) => v.vehicleId === props.selectedId) : undefined;
+  if (chosen) {
+    instance.jumpTo({ center: [chosen.position.lng, chosen.position.lat], zoom: SELECT_ZOOM });
+    fitted = true;
+    return;
+  }
   const first = props.vehicles[0]!.position;
   const bounds = new maplibregl.LngLatBounds([first.lng, first.lat], [first.lng, first.lat]);
   for (const v of props.vehicles) bounds.extend([v.position.lng, v.position.lat]);

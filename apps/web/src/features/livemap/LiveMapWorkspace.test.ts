@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
 import { createRouter, createMemoryHistory } from "vue-router";
 import type { LiveMapBoard } from "@silvicom/shared";
@@ -131,12 +131,12 @@ const router = createRouter({
   ],
 });
 
-async function mountWorkspace() {
+async function mountWorkspace(at = "/live-map") {
   // Fresh module graph per case: the panel state is a module-level singleton by design, so a toggle
   // in one case would otherwise be the starting state of the next.
   vi.resetModules();
   const { default: LiveMapWorkspace } = await import("./LiveMapWorkspace.vue");
-  await router.push("/live-map");
+  await router.push(at);
   await router.isReady();
   return mount(LiveMapWorkspace, {
     global: {
@@ -436,4 +436,18 @@ describe("LiveMapWorkspace (DR5)", () => {
     }
   });
 
+  // The Dispatch board drawer's "On the map" (DISPATCH-BOARD-PLAN DB6): `?truck=<unit>`.
+  it("opens on the truck the URL names, then drops the parameter so the reader's next choice is theirs", async () => {
+    const wrapper = await mountWorkspace("/?tab=dispatch&truck=47");
+    await flushPromises();
+    expect(wrapper.findComponent(canvasStub).props("selectedId")).toBe("veh-1");
+    expect(router.currentRoute.value.query).toEqual({ tab: "dispatch" });
+  });
+
+  it("drops a unit the board does not carry and opens on the fleet, as it would without one", async () => {
+    const wrapper = await mountWorkspace("/?tab=dispatch&truck=999");
+    await flushPromises();
+    expect(wrapper.findComponent(canvasStub).props("selectedId")).toBeNull();
+    expect(router.currentRoute.value.query).toEqual({ tab: "dispatch" });
+  });
 });
