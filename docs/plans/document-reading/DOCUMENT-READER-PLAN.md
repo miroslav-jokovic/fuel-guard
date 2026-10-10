@@ -1119,3 +1119,16 @@ Append dated lines at the end; never edit a row above.
   (`complete` with a profile) still reads the source; it moves to a one-file `sender` assembly with N2,
   and the source path is then retired by its own migration. Twelve mutants killed.
   Next: N2, the calculator's multi-photo upload.
+- **2026-10-10 (N2, the calculator's upload)** — "Read from a bill of lading" above the Placard
+  calculator's form (`features/hazmat/bolRead/`), shown to exactly the roles that manage `hazmat` (the
+  routes' gate, read from the matrix). Drop or pick the photos / PDF of ONE BOL — on a phone the picker
+  offers camera, gallery and files — and they show as pages: a thumbnail (a file tile for PDF and HEIC,
+  which a browser cannot draw), "Page n", a tick to leave a placard or a retake out, and earlier / later /
+  remove. Read sends the ticked files in the order shown: each is hashed, registered and PUT to Storage
+  (bytes the org already holds are not sent again; the same bytes under two names are sent once), the
+  sources are polled until ready — a REFUSED file stops everything before a read is spent, named with
+  the intake's sentence — then one `sender` assembly in that order, one read of it, polled to `done` or
+  its READ_FAILURES sentence. A file's type falls back to its extension, because desktop Chrome reports
+  an iPhone HEIC as "". The read is emitted, not yet applied: filling the form and saying what the
+  shipper left out is N6. Fifteen mutants killed; seen in a browser at desktop and 390-px widths.
+  Next: N3's remainder (P2 classify + orient).

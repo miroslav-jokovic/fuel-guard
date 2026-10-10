@@ -260,7 +260,8 @@ export function mergeSections(profile: DocumentProfile, parts: Readonly<Record<s
 
 // ── routes ─────────────────────────────────────────────────────────────────────────────────────────
 const SHA256_RX = /^[0-9a-f]{64}$/;
-const INTAKE_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+/** What intake accepts — the browser's picker and its pre-check read this list too (N2). */
+export const INTAKE_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 
 /**
  * `POST /api/documents/sources` — register an upload; the response carries a signed PUT URL.
