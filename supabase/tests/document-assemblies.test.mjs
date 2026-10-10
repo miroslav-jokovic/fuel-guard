@@ -1,7 +1,7 @@
-// FuelGuard — a document is an ordered assembly of pages (migration 0454, DOCUMENT-READER-PLAN.md §7A
-// D-DR14, step N1).
+// FuelGuard — a document is an ordered assembly of pages (migrations 0454–0455, DOCUMENT-READER-PLAN.md
+// §7A D-DR14, step N1).
 //
-// Six properties that would each fail quietly, because nothing in the product writes these tables yet:
+// Seven properties that would each fail quietly, because nothing in the product writes these tables yet:
 //
 //   0. ONE VOCABULARY. `made_by` is ASSEMBLY_MAKERS, read back out of the APPLIED catalog.
 //   1. ONE DOOR WRITES BOTH. document_assembly_create stores the assembly and its pages together, in the
@@ -15,6 +15,8 @@
 //   4. APPEND-ONLY, FOR THE SERVICE ROLE TOO. Neither table takes UPDATE or DELETE.
 //   5. ONE ORG, NO CLIENT PATH. A direct insert naming another carrier's page or assembly is refused by
 //      the composite FKs; RLS on, no policies, the function not executable by a browser session.
+//   6. A READ NAMES WHAT IT WAS GIVEN (0455). A read names exactly one of a source or an assembly, the
+//      assembly of its own org, and the assembly is fixed at insert like the source.
 //
 // Run:  node supabase/tests/document-assemblies.test.mjs   (after `pnpm --filter @silvicom/shared build:rn`)
 import { PGlite } from "@electric-sql/pglite";
@@ -74,6 +76,7 @@ await db.exec(
     "alter default privileges in schema storage grant all on tables to anon, authenticated, service_role;",
 );
 ok("0454 present", MIGRATIONS.some((f) => f.startsWith("0454_document_assemblies")));
+ok("0455 present", MIGRATIONS.some((f) => f.startsWith("0455_document_read_assembly")));
 for (const f of MIGRATIONS)
   await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
@@ -178,6 +181,27 @@ ok("a direct insert filing a page under another carrier's assembly is refused", 
 ok("a position below 1 is refused", (await sqlstate(
   `insert into document_assembly_pages (assembly_id, org_id, position, page_id) values ($1, $2, 0, $3)`,
   [S1.id, ORG, P3])) === "23514");
+
+// ── 6. a read names its assembly (0455) ────────────────────────────────────────────────────────────
+const SRC = (await one(`select source_id from document_pages where id = $1`, [P1])).source_id;
+const readOf = (org, { source = null, assembly = null } = {}) => sqlstate(
+  `insert into document_reads (org_id, source_id, assembly_id, profile, profile_version, requested_by)
+   values ($1, $2, $3, 'shipping_document', 'sd-1', $4)`, [org, source, assembly, USER]);
+ok("a read naming an assembly and no source is accepted", (await readOf(ORG, { assembly: A1.id })) === null);
+ok("a read naming a source and no assembly is still accepted (the path old code writes)",
+  (await readOf(ORG, { source: SRC })) === null);
+ok("a read naming both a source and an assembly is refused", (await readOf(ORG, { source: SRC, assembly: A1.id })) === "23514");
+ok("a read naming neither is refused", (await readOf(ORG)) === "23514");
+ok("a read naming another carrier's assembly is refused by the composite FK",
+  (await readOf(OTHER, { assembly: A1.id })) === "23503");
+ok("even with the RPC's flag set, a read's assembly is fixed", await (async () => {
+  const R = (await one(`select id from document_reads where assembly_id = $1`, [A1.id])).id;
+  await db.exec("begin");
+  try {
+    await db.query(`select set_config('silvicom.document_read_transition', 'on', true)`);
+    return (await sqlstate(`update document_reads set assembly_id = $2 where id = $1`, [R, E1.id])) === "DO012";
+  } finally { await db.exec("rollback"); }
+})());
 
 async function asClient(org, sql, params = []) {
   await db.exec("begin");
