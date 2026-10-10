@@ -473,3 +473,19 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   by both pages, rather than being copied.
 - **Still owed:** DB7 (ETA vs actual arrivals); the map deep link for the drawer; cleanup
   (`GET /api/dispatch/assignments`, the stale `tms_dispatchers` comments).
+
+### 2026-10-10 — Where the work stands; the fleet code waits on the VM
+
+- **Measured in production after release v2026.10.10.1:** 0 trucks carry `mcleod_fleet_code`,
+  `tms_fleets` is empty, 1,117 `driver_hos_clocks` rows (the clocks tier runs), McLeod loads written
+  within the minute. The board is live but every truck reads "No fleet", so My fleet narrows nothing.
+- **Why: the VM's connector predates DB1.** It was packaged 2026-10-07; `fleet_id` reached the roster
+  read on 10-09 (#1421), and `exclude_fueltax` (IFTA IP4, 10-05) is missing from it too. The "bundle
+  with the owed `fuel_tax_excluded` refresh" above was right: both columns ship in one update.
+  The request is `tools/mcleod-agent/review/REQUEST-TO-ALEX-2026-10-10-FLEET.md`, for the owner to send
+  with the routine and a copy-over zip. Same statement, a table the login already reads.
+- **DB7 cannot measure anything yet.** `boardEta` is computed on every read and stored nowhere, so
+  there is no past prediction to compare an arrival with. Fourteen days of measurement start only once
+  the board's ETA is recorded as it is made: the next step, ahead of DB7 itself.
+- A `tools/mcleod-agent/node_modules` symlink rode into #1433 (a worktree's setup link;
+  `.gitignore`'s `node_modules/` matches directories only). Removed, and the pattern now matches both.
