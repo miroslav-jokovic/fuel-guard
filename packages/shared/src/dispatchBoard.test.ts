@@ -16,7 +16,7 @@ const H = 3_600_000;
 // Joliet, IL → Indianapolis, IN: ~150 straight-line miles.
 const JOLIET = { lat: 41.525, lng: -88.0817 };
 const stop = (over: Partial<DispatchBoardStop> = {}): DispatchBoardStop => ({
-  kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN",
+  seq: 2, kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN",
   appointmentStart: "2026-10-10T02:00:00Z", appointmentEnd: "2026-10-10T04:00:00Z",
   arrivedAt: null, lat: 39.7684, lng: -86.1581, ...over,
 });

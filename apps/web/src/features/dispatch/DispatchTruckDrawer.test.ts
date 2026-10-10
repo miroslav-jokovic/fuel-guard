@@ -59,7 +59,7 @@ const SlideOverStub = {
 };
 const DispatchTruckDrawer = (await import("./DispatchTruckDrawer.vue")).default;
 
-const stop = { kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN", appointmentStart: null, appointmentEnd: null, arrivedAt: null, lat: 39.7, lng: -86.1 };
+const stop = { seq: 2, kind: "dropoff", name: "Kroger DC", city: "Indianapolis", state: "IN", appointmentStart: null, appointmentEnd: null, arrivedAt: null, lat: 39.7, lng: -86.1 };
 const loaded: DispatchBoardRow = {
   vehicleId: "v-773", unitNumber: "773", inShop: false, fleetCode: "VINNIEV",
   driver: { id: "d-1", name: "Dana Kelly" },

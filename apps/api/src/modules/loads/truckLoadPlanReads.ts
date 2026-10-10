@@ -131,6 +131,7 @@ export async function readTruckLoadPlans(
 
 function toBoardStop(s: StopRow): DispatchBoardStop {
   return {
+    seq: s.seq,
     kind: s.kind,
     name: s.location_name ?? s.name,
     city: s.city,

@@ -42,12 +42,33 @@ export async function readDispatchBoard(
   userId: string,
   now: Date = new Date(),
 ): Promise<DispatchBoardResponse> {
+  const board = await readBoardRows(admin, orgId, now);
+  const links = await readDispatchLinks(admin, orgId, userId);
+  return {
+    generatedAt: now.toISOString(),
+    rows: board.rows,
+    scope: links.scope,
+    fleets: links.fleets,
+    dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
+    uncoveredCount: board.uncoveredCount,
+    hosAsOf: board.hosAsOf,
+  };
+}
+
+/**
+ * The rows alone — the same for every caller, so the ETA recorder (`boardEtaRecorder.ts`, DB7) records
+ * exactly the estimate a dispatcher saw, from this one composition rather than a second copy of it.
+ */
+export async function readBoardRows(
+  admin: SupabaseClient,
+  orgId: string,
+  now: Date,
+): Promise<{ rows: DispatchBoardRow[]; uncoveredCount: number; hosAsOf: string | null }> {
   // Sequential on purpose, as on the live map: small reads against one pool this process shares.
   const identities = await readFleetIdentities(admin, orgId);
   const positions = await readVehiclePositions(admin, orgId);
   const clocks = await readHosClocks(admin, orgId);
   const plans = await readTruckLoadPlans(admin, orgId);
-  const links = await readDispatchLinks(admin, orgId, userId);
 
   const positionOf = new Map(positions.rows.map((p) => [p.vehicle_id, p]));
   const rows: DispatchBoardRow[] = [];
@@ -96,13 +117,5 @@ export async function readDispatchBoard(
   // A stable order for a first paint; the page sorts as the dispatcher asks.
   rows.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
 
-  return {
-    generatedAt: now.toISOString(),
-    rows,
-    scope: links.scope,
-    fleets: links.fleets,
-    dispatchers: links.dispatchers.map(({ id, name, isSystem }) => ({ id, name, isSystem })),
-    uncoveredCount: plans.uncoveredCount,
-    hosAsOf: clocks.newestAt,
-  };
+  return { rows, uncoveredCount: plans.uncoveredCount, hosAsOf: clocks.newestAt };
 }

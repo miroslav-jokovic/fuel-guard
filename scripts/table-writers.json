@@ -333,6 +333,9 @@
   "load_external_payloads": [
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
   ],
+  "load_stop_eta_predictions": [
+    "apps/api/src/modules/loads/etaPredictions.ts"
+  ],
   "load_stops": [
     "apps/api/src/modules/loads/mirrorLoads.ts",
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"

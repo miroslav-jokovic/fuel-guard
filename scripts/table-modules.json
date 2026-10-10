@@ -1421,6 +1421,17 @@
         "why": "proof-of-delivery photographs; its 1095d (3-year) rule predates this plan and is kept."
       }
     },
+    "load_stop_eta_predictions": {
+      "module": "loads",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 60,
+        "partition": null,
+        "budget_rows_per_day": 4000,
+        "why": "the dispatch board's ETA sampled hourly per truck heading to a stop (0453, DISPATCH-BOARD-PLAN DB7): ~120 trucks x 24 = ~2,900 rows/day on the 2026-10-10 fleet, budget leaves room for fleet growth. 60 days: two fortnight measurements plus a re-run."
+      }
+    },
     "load_stops": {
       "module": "loads",
       "layer": "core",
