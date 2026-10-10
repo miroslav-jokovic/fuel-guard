@@ -2318,6 +2318,18 @@ async function main() {
         `a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id) ` +
         `insert into document_assembly_pages (assembly_id, org_id, position, page_id) ` +
         `select a.id, '${org}', 1, p.id from a, p`,
+      // 0455: a read names exactly one of a source or an assembly (`document_reads_names_one`), and the
+      // generic seeder fills NOT NULL columns only — since 0455 neither — so a read of an inline assembly
+      // is built here, and a review hangs off one.
+      document_reads: (org) =>
+        `with a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id) ` +
+        `insert into document_reads (org_id, assembly_id, profile, profile_version) select '${org}', id, 'shipping_document', 'rls' from a`,
+      document_read_reviews: (org) =>
+        `with u as (insert into auth.users (id) values (gen_random_uuid()) returning id), ` +
+        `a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id), ` +
+        `r as (insert into document_reads (org_id, assembly_id, profile, profile_version) select '${org}', id, 'shipping_document', 'rls' from a returning id) ` +
+        `insert into document_read_reviews (org_id, read_id, field_path, action, actor, consumer) ` +
+        `select '${org}', r.id, 'identity.bolNumber', 'confirmed', u.id, 'hazmat_calculator' from r, u`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

@@ -1095,3 +1095,13 @@ Append dated lines at the end; never edit a row above.
   (0.107.0 does not). Eight mutants killed (half-even rounding, the 28-px padding at the 2000-px limit,
   the 4.7 cut, the many-image cap, the resize itself, the model the size follows, the labels, the cache
   term).
+- **2026-10-10 (N1, a read names its assembly)** — Migration 0455: `document_reads.assembly_id`, same-org
+  by composite FK and fixed at insert by `document_reads_guard` like `source_id`; `source_id` loses its
+  NOT NULL and a read names EXACTLY ONE of the two (`document_reads_names_one`) — an assembly of three
+  photos has no one source, and the first page's source beside it would be a second answer to "what was
+  read". Past reads keep their source; nothing is backfilled. The source path stays for old code in the
+  deploy window and is retired by its own migration once every request goes through an assembly (a single
+  upload becomes a one-file `sender` assembly). Matrix `document-assemblies` 39 checks (seven new);
+  four mutants killed (no names-one check, both allowed, single-column FK, guard ignoring the assembly);
+  `rls` gained seeders for `document_reads` and `document_read_reviews`, which the generic seeder can no
+  longer fill. Next in N1: the routes — files → sources → one assembly, and a read requested of it.
