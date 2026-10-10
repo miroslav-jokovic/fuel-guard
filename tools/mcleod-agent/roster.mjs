@@ -148,6 +148,13 @@ export const MAP = {
            * fact as "unknown" and never closes an exclusion period on it.
            */
           fuel_tax_excluded: s(r.exclude_fueltax) === "Y" ? true : s(r.exclude_fueltax) === "N" ? false : undefined,
+          /**
+           * The truck's home fleet code, verbatim ('VINNIEV'). Unlike a status letter it is not
+           * translated: it is a NAME the carrier chose, and Silvicom 360 maps it to a dispatcher only
+           * through a link an office confirms (tms_fleets). `null` = McLeod puts the truck in no
+           * fleet; absent (undefined) = this query did not read the column, which must never clear one.
+           */
+          fleet_code: "fleet_id" in r ? s(r.fleet_id) : undefined,
           make: s(r.make),
           model: s(r.model),
           year: year(r.model_year),

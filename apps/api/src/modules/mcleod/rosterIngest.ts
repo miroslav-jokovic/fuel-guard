@@ -4,6 +4,7 @@ import { deriveFullName, TMS_CLAIMABLE_SOURCES, todayInZone, DEFAULT_ORG_TIMEZON
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
 import { recordFuelTaxExclusion } from "../ifta/index.js";
+import { recordFleetCodes, type FleetPlacement } from "./fleetCodes.js";
 import {
   makeDriverMatcher,
   makeAssetMatcher,
@@ -113,6 +114,8 @@ export interface RosterIngestResult {
    *  sweep — the fact changes when the carrier flips McLeod's switch, which it had never done as of
    *  2026-10-05. */
   fuelTaxExclusionChanges?: number;
+  /** vehicles: trucks whose McLeod home fleet changed this run (DISPATCH-BOARD-PLAN DB1, 0450). */
+  fleetCodeChanges?: number;
 }
 
 const empty = (): RosterIngestResult => ({
@@ -393,6 +396,7 @@ export async function ingestVehicles(
   const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
   // One carrier day for the whole sweep, so every exclusion change it records carries the same date.
   const day = todayInZone(now, DEFAULT_ORG_TIMEZONE);
+  const fleets: FleetPlacement[] = [];
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
     const patch = writesIdentity(mode) ? vehiclePatch(r) : null;
@@ -429,7 +433,19 @@ export async function ingestVehicles(
       const change = await recordFuelTaxExclusion(admin, orgId, placed, r.fuel_tax_excluded, day);
       if (change) out.fuelTaxExclusionChanges = (out.fuelTaxExclusionChanges ?? 0) + 1;
     }
+    // The home fleet, under the same gate as the fuel-tax fact and for the same reason: not identity,
+    // so recorded for an office-owned truck too; never on an ABSENT fact (an older agent), which
+    // must not clear a code. `null` is a fact — McLeod puts the truck in no fleet — and does clear it.
+    if (
+      WRITES[mode] && writesIdentity(mode) && placed &&
+      out.ambiguous.length === ambiguousBefore && r.fleet_code !== undefined
+    ) {
+      fleets.push({ vehicleId: placed, code: r.fleet_code });
+    }
   }
+  // One read and a write per changed code for the whole sweep, never a statement per truck. The roster
+  // is McLeod's by construction (it writes `mcleod_tractor_id`), so the provider is too.
+  if (fleets.length > 0) out.fleetCodeChanges = await recordFleetCodes(admin, orgId, "mcleod", fleets);
   return out;
 }
 

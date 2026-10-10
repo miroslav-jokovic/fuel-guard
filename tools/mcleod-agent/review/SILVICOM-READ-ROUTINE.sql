@@ -349,7 +349,12 @@ SELECT
       -- McLeod's own switch for leaving a tractor out of its fuel-tax (IFTA) module. Measured on the
       -- live database 2026-10-05: N on every tractor, active or retired. roster.mjs turns it into the
       -- neutral fuel_tax_excluded fact (IFTA-PRECISION-PLAN IP4).
-      NULLIF(LTRIM(RTRIM(t.exclude_fueltax)), '')  AS exclude_fueltax
+      NULLIF(LTRIM(RTRIM(t.exclude_fueltax)), '')  AS exclude_fueltax,
+      -- The truck's home fleet: who OWNS it, not who is moving it today (that is the load's
+      -- dispatcher_user_id). Measured on live lme 2026-10-09: every one of the 159 running tractors
+      -- carries one of 14 named fleets (VINNIEV, KANE, ...), the parked and shop pool carries '1',
+      -- and 43 reservations carry none. Sent verbatim as fleet_code (DISPATCH-BOARD-PLAN DB1).
+      NULLIF(LTRIM(RTRIM(t.fleet_id)), '')         AS fleet_id
       FROM dbo.tractor AS t
      WHERE t.company_id = @companyId
        AND t.service_status = 'A'
