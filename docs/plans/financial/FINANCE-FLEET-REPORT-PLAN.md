@@ -1227,3 +1227,13 @@ the record.
   doc's log of the same date records why the literal reading of (a) was not buildable: it refuses
   January 2026 for a $100.00 line.
 
+  **Work item 1 is drafted:** `tools/mcleod-agent/review/REQUEST-TO-ALEX-2026-10-10-FINANCE.md` (for
+  the owner to send) asks for the finance night on the analytics copy and carries lever 4's question.
+  `SILVICOM-GRANTS.sql` gains `voucher_dist` on both databases, marked NOT YET RUN. **Work item 2's
+  table is McLeod's `voucher_dist`**, named in `docs/plans/mcleod/MCLEOD-CPM-DATA-SOURCE-SPEC.md`
+  §5.4 (397 rows when measured, `tractor`/`trailer` empty). Its other columns were not read this
+  session because the VPN was down. The collector waits for the grant and one read of
+  `INFORMATION_SCHEMA.COLUMNS` under the connector's login, so that nothing in its query is guessed.
+  The open question it must answer first is `MAINTENANCE-MONEY-CONTROL-PLAN.md` M-1: do the
+  distribution lines on the expense accounts sum to the GL's AP total for a posted month?
+
