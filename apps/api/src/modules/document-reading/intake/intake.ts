@@ -163,7 +163,7 @@ export async function runIntake(admin: SupabaseClient, orgId: string, job: Intak
   }
 
   if (!job.profile) return { outcome: "ready", sourceId, pageCount, readId: null };
-  const read = await requestRead(admin, orgId, job.requestedBy, sourceId, job.profile, deps.dispatchRead, { reuseDone: true });
+  const read = await requestRead(admin, orgId, job.requestedBy, { kind: "source", id: sourceId }, job.profile, deps.dispatchRead, { reuseDone: true });
   if ("code" in read) throw new Error(`document read: ${read.error}`);
   return { outcome: "ready", sourceId, pageCount, readId: read.readId };
 }

@@ -10,6 +10,7 @@ import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
 import { sentCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { READ_PROMPTS } from "./prompts.js";
+import { reviewEpoch, targetOfRow, targetPages, type ReadTarget, type TargetPage } from "./readTarget.js";
 import { DOCUMENT_BUCKET } from "../storage.js";
 
 /**
@@ -59,18 +60,18 @@ export type ExecuteReadOutcome =
 
 interface ReadRow {
   id: string;
-  source_id: string;
+  source_id: string | null;
+  assembly_id: string | null;
   profile: DocumentProfileId;
   profile_version: string;
   status: string;
 }
-interface PageRow {
-  id: string;
-  page_number: number;
+interface PageColumns {
   original_path: string;
   original_sha256: string;
   normaliser_version: string;
 }
+type PageRow = TargetPage<PageColumns>;
 
 interface Versions {
   models: string[];
@@ -97,16 +98,8 @@ function profileSchemaHash(profile: DocumentProfileId): string {
   return schemaHash(wireSchemaFor(p.schema));
 }
 
-/** The pages this profile reads, in page order (see the header for the unclassified rule). */
-async function readablePages(admin: SupabaseClient, orgId: string, sourceId: string, profile: DocumentProfileId): Promise<PageRow[]> {
-  const { data, error } = await admin
-    .from("document_pages")
-    .select("id, page_number, original_path, original_sha256, normaliser_version")
-    .eq("org_id", orgId)
-    .eq("source_id", sourceId)
-    .order("page_number", { ascending: true });
-  if (error) throw new Error(`document_pages: ${error.message}`);
-  const pages = (data ?? []) as PageRow[];
+/** The pages this profile reads, in document order (see the header for the unclassified rule). */
+async function readablePages(admin: SupabaseClient, orgId: string, pages: readonly PageRow[], profile: DocumentProfileId): Promise<PageRow[]> {
   if (pages.length === 0) return [];
   const { data: classes, error: cErr } = await admin.rpc("document_page_current_class", { p_org: orgId, p_pages: pages.map((p) => p.id) });
   if (cErr) throw new Error(`document_page_current_class: ${cErr.message}`);
@@ -135,21 +128,6 @@ async function loadImages(admin: SupabaseClient, pages: readonly PageRow[], mode
     images.push({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType });
   }
   return images;
-}
-
-/** How many reviews the source's reads hold — the cache key's review epoch (cacheKey.ts). */
-async function reviewEpoch(admin: SupabaseClient, orgId: string, sourceId: string): Promise<number> {
-  const { data: reads, error } = await admin.from("document_reads").select("id").eq("org_id", orgId).eq("source_id", sourceId);
-  if (error) throw new Error(`document_reads: ${error.message}`);
-  const ids = ((reads ?? []) as { id: string }[]).map((r) => r.id);
-  if (ids.length === 0) return 0;
-  const { count, error: rErr } = await admin
-    .from("document_read_reviews")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .in("read_id", ids);
-  if (rErr) throw new Error(`document_read_reviews: ${rErr.message}`);
-  return count ?? 0;
 }
 
 async function cachedResult(admin: SupabaseClient, orgId: string, readId: string, cacheKey: string): Promise<unknown | undefined> {
@@ -182,7 +160,7 @@ async function tokensUsedThisMonth(admin: SupabaseClient, orgId: string, now: Da
 export async function executeRead(admin: SupabaseClient, orgId: string, readId: string, deps: ReadDeps): Promise<ExecuteReadOutcome> {
   const { data: row, error } = await admin
     .from("document_reads")
-    .select("id, source_id, profile, profile_version, status")
+    .select("id, source_id, assembly_id, profile, profile_version, status")
     .eq("org_id", orgId)
     .eq("id", readId)
     .maybeSingle();
@@ -234,7 +212,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   const gate = await deps.gateFor(admin, orgId, read.profile);
   if (!gate.open) return fail("reading_disabled");
 
-  const pages = await readablePages(admin, orgId, read.source_id, read.profile);
+  const target: ReadTarget = targetOfRow(read);
+  const given = await targetPages<PageColumns>(admin, orgId, target, "original_path, original_sha256, normaliser_version");
+  const pages = await readablePages(admin, orgId, given, read.profile);
   if (pages.length === 0) return fail("no_readable_page");
   const images = await loadImages(admin, pages, models[0]!);
   if (images === "integrity_mismatch") return fail("integrity_mismatch");
@@ -247,7 +227,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     acceptanceRule: ACCEPTANCE_RULE_VERSION,
     pages: pages.map((p) => ({ sha256: p.original_sha256, normaliserVersion: p.normaliser_version })),
     sendRule: SEND_RULE_VERSION,
-    reviewEpoch: await reviewEpoch(admin, orgId, read.source_id),
+    reviewEpoch: await reviewEpoch(admin, orgId, given),
   });
   const cached = await cachedResult(admin, orgId, readId, versions.cacheKey);
   // D17's order: a cache hit spends nothing, so it needs no budget to authorise it.

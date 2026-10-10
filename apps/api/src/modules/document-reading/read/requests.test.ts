@@ -16,6 +16,8 @@ const ORG = "org-1";
 const USER = "user-1";
 const SOURCE = "11111111-1111-4111-8111-111111111111";
 const READ = "33333333-3333-4333-8333-333333333333";
+const ASSEMBLY = "44444444-4444-4444-8444-444444444444";
+const SRC = { kind: "source", id: SOURCE } as const;
 
 describe("requestRead", () => {
   function world(prior: string | null, source = true) {
@@ -31,7 +33,7 @@ describe("requestRead", () => {
 
   it("inserts a queued read under the profile's version and dispatches it once", async () => {
     const { rec, dispatched, dispatch } = world(null);
-    expect(await requestRead(rec.client, ORG, USER, SOURCE, "shipping_document", dispatch)).toEqual({ readId: READ, reused: false });
+    expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toEqual({ readId: READ, reused: false });
     expect(dispatched).toEqual([READ]);
     expect(rec.writtenRows("document_reads")).toEqual([{
       org_id: ORG, source_id: SOURCE, profile: "shipping_document", profile_version: DOCUMENT_PROFILES.shipping_document.version, requested_by: USER,
@@ -43,16 +45,41 @@ describe("requestRead", () => {
 
   it("returns the read already in flight without inserting or dispatching", async () => {
     const { rec, dispatched, dispatch } = world("prior-read");
-    expect(await requestRead(rec.client, ORG, USER, SOURCE, "shipping_document", dispatch)).toEqual({ readId: "prior-read", reused: true });
+    expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toEqual({ readId: "prior-read", reused: true });
     expect(dispatched).toEqual([]);
     expect(rec.writes()).toEqual([]);
   });
 
   it("answers not_found for a source outside the org", async () => {
     const { rec, dispatch } = world(null, false);
-    expect(await requestRead(rec.client, ORG, USER, SOURCE, "shipping_document", dispatch)).toMatchObject({ code: "not_found" });
+    expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toMatchObject({ code: "not_found" });
     expect(rec.writes()).toEqual([]);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("queues a read of an assembly under assembly_id alone, and reuses only a read of that same assembly", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { document_assemblies: [{ id: ASSEMBLY }], document_reads: (q) => (q.write ? [{ id: READ }] : []) },
+    });
+    const dispatched: string[] = [];
+    const out = await requestRead(rec.client, ORG, USER, { kind: "assembly", id: ASSEMBLY }, "shipping_document", async (id) => void dispatched.push(id));
+    expect(out).toEqual({ readId: READ, reused: false });
+    expect(rec.writtenRows("document_reads")).toEqual([{
+      org_id: ORG, assembly_id: ASSEMBLY, profile: "shipping_document", profile_version: DOCUMENT_PROFILES.shipping_document.version, requested_by: USER,
+    }]);
+    const reuse = rec.forTable("document_reads")[0]!.filters();
+    expect(reuse).toContainEqual({ col: "assembly_id", val: ASSEMBLY });
+    expect(reuse.some((f) => f.col === "source_id")).toBe(false);
+    expect(rec.forTable("document_assemblies")[0]!.filters()).toContainEqual({ col: "id", val: ASSEMBLY });
+    expect(dispatched).toEqual([READ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("answers not_found for an assembly outside the org", async () => {
+    const rec = createSupabaseRecorder({ tables: { document_assemblies: [], document_reads: [] } });
+    expect(await requestRead(rec.client, ORG, USER, { kind: "assembly", id: ASSEMBLY }, "shipping_document", async () => {}))
+      .toMatchObject({ code: "not_found" });
+    expect(rec.writes()).toEqual([]);
   });
 });
 
@@ -77,7 +104,7 @@ describe("getRead", () => {
   it("shows every page of the source with its class, a signed URL, and the working copy's size, signed in one call", async () => {
     const rec = world(signAll);
     const out = await getRead(rec.client, ORG, READ);
-    expect(out).toMatchObject({ id: READ, sourceId: SOURCE, status: "done", result: readRow.result, evidence: [] });
+    expect(out).toMatchObject({ id: READ, sourceId: SOURCE, assemblyId: null, status: "done", result: readRow.result, evidence: [] });
     expect("pages" in out && out.pages).toEqual([
       { page: 1, pageClass: "bol", url: `https://signed.example.test/${pageRows[0]!.working_path}`, ...workingSizeOf(2550, 3300) },
       { page: 2, pageClass: null, url: `https://signed.example.test/${pageRows[1]!.working_path}`, ...workingSizeOf(3300, 2550) },
@@ -90,6 +117,28 @@ describe("getRead", () => {
   it("refuses to show a read with a page it could not sign, rather than a document missing a page", async () => {
     const rec = world((paths) => ({ data: [{ path: paths[0], signedUrl: "https://signed.example.test/1" }, { path: paths[1], signedUrl: null, error: "x" }], error: null }));
     expect(await getRead(rec.client, ORG, READ)).toEqual({ code: "sign_failed", error: "Page 2 could not be shown." });
+  });
+
+  it("shows an assembly's pages in the assembly's order, numbered by position, whatever their files' page numbers", async () => {
+    // Two photos, each page 1 of its own file; the sender put the second one first.
+    const photos = [
+      { id: "pa", page_number: 1, working_path: `${ORG}/a/pages/1.webp`, width: 2000, height: 1500 },
+      { id: "pb", page_number: 1, working_path: `${ORG}/b/pages/1.webp`, width: 1500, height: 2000 },
+    ];
+    const rec = createSupabaseRecorder({
+      tables: {
+        document_reads: [{ ...readRow, source_id: null, assembly_id: ASSEMBLY }],
+        document_assembly_pages: [{ position: 1, page_id: "pb" }, { position: 2, page_id: "pa" }],
+        document_pages: photos,
+      },
+      rpc: { document_page_current_class: [] },
+      storage: { createSignedUrls: signAll },
+    });
+    const out = await getRead(rec.client, ORG, READ);
+    expect(out).toMatchObject({ sourceId: null, assemblyId: ASSEMBLY });
+    expect("pages" in out && out.pages.map((p) => [p.page, p.url.split("/").at(-3)])).toEqual([[1, "b"], [2, "a"]]);
+    expect(rec.forTable("document_assembly_pages")[0]!.filters()).toContainEqual({ col: "assembly_id", val: ASSEMBLY });
+    expectOrgScoped(rec, ORG);
   });
 
   it("answers not_found for a read outside the org", async () => {

@@ -1,10 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import {
   completeSourceRequestSchema,
+  createAssemblyRequestSchema,
   createReadRequestSchema,
   createSourceRequestSchema,
   reviewBatchRequestSchema,
   type CompleteSourceRequest,
+  type CreateAssemblyRequest,
   type CreateReadRequest,
   type CreateSourceRequest,
   type ReviewBatchRequest,
@@ -18,6 +20,8 @@ import { writeAudit } from "../../../lib/audit.js";
 import { dispatchJob } from "../../../queue/dispatch.js";
 import { readDispatcher } from "../dispatch.js";
 import { intakeDedupKey, registerUpload, sourceStatus } from "../intake/intake.js";
+import { createAssembly } from "../read/assemblies.js";
+import type { ReadTarget } from "../read/readTarget.js";
 import { getRead, isReaderError, recordReviews, requestRead, type ReaderError } from "../read/requests.js";
 
 /**
@@ -38,6 +42,8 @@ const STATUS: Record<string, number> = {
   not_found: 404,
   not_reviewable: 409,
   invalid_review: 400,
+  invalid_assembly: 400,
+  edited_elsewhere: 409,
   sign_failed: 502,
   query_failed: 500,
   insert_failed: 500,
@@ -117,7 +123,32 @@ export function documentsRouter(): Router {
     }),
   );
 
-  /** Queue a read of a source already rendered (a re-read after review, or a source sent before). */
+  /**
+   * Say which pages, in which order, are one document (D-DR14): the sender's files in their order, or a
+   * reviewer's edit of an assembly. 201 + the assembly; a read of it is then `POST /reads { assemblyId }`.
+   */
+  router.post(
+    "/assemblies",
+    canManage,
+    validateBody(createAssemblyRequestSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const userId = req.auth!.userId;
+      const body = res.locals.body as CreateAssemblyRequest;
+      const out = await createAssembly(admin, orgId, userId, body);
+      if (isReaderError(out)) return send(res, out);
+      await writeAudit(admin, {
+        orgId, actorId: userId, action: "document.assembly_created", entity: "document_assembly", entityId: out.assemblyId,
+        meta: "sourceIds" in body
+          ? { madeBy: "sender", sourceIds: body.sourceIds, pageCount: out.pageCount }
+          : { madeBy: "reviewer", supersedes: body.supersedes, pageCount: out.pageCount },
+      });
+      res.status(201).json(out);
+    }),
+  );
+
+  /** Queue a read of a rendered source or of an assembly (0455) — a first read, or a re-read after review. */
   router.post(
     "/reads",
     canManage,
@@ -128,12 +159,13 @@ export function documentsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const userId = req.auth!.userId;
       const body = res.locals.body as CreateReadRequest;
-      const out = await requestRead(admin, orgId, userId, body.sourceId, body.profile, readDispatcher(admin, env, orgId, userId));
+      const target: ReadTarget = "assemblyId" in body ? { kind: "assembly", id: body.assemblyId } : { kind: "source", id: body.sourceId };
+      const out = await requestRead(admin, orgId, userId, target, body.profile, readDispatcher(admin, env, orgId, userId));
       if (isReaderError(out)) return send(res, out);
       if (!out.reused) {
         await writeAudit(admin, {
           orgId, actorId: userId, action: "document.read_requested", entity: "document_read", entityId: out.readId,
-          meta: { sourceId: body.sourceId, profile: body.profile },
+          meta: { [target.kind === "source" ? "sourceId" : "assemblyId"]: target.id, profile: body.profile },
         });
       }
       res.status(out.reused ? 200 : 201).json({ readId: out.readId });

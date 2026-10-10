@@ -17,6 +17,8 @@ const SOURCE = "11111111-1111-4111-8111-111111111111";
 const READ = "33333333-3333-4333-8333-333333333333";
 const JOB = "44444444-4444-4444-8444-444444444444";
 const SHA = "b".repeat(64);
+const ASSEMBLY = "55555555-5555-4555-8555-555555555555";
+const SOURCE_B = "66666666-6666-4666-8666-666666666666";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
@@ -168,6 +170,70 @@ describe("POST /reads", () => {
       expect((await post(`${base}/reads`, { sourceId: SOURCE, profile: "shipping_document" })).status).toBe(404);
     });
     expect(queue.dispatchJob).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /assemblies", () => {
+  const sendersWorld = (rpc: unknown = { id: ASSEMBLY }) => createSupabaseRecorder({
+    tables: {
+      document_sources: [{ id: SOURCE }, { id: SOURCE_B }],
+      document_pages: [{ id: "p1", source_id: SOURCE, page_number: 1 }, { id: "p2", source_id: SOURCE_B, page_number: 1 }],
+    },
+    rpc: { document_assembly_create: rpc },
+  });
+
+  it("answers 201 with the assembly and audits who grouped which files", async () => {
+    rec = sendersWorld();
+    await withServer(async (base) => {
+      const res = await post(`${base}/assemblies`, { sourceIds: [SOURCE_B, SOURCE] });
+      expect(res.status).toBe(201);
+      expect(await res.json()).toEqual({ assemblyId: ASSEMBLY, pageCount: 2 });
+    });
+    expect(auditActions()).toEqual([expect.objectContaining({
+      action: "document.assembly_created", meta: { madeBy: "sender", sourceIds: [SOURCE_B, SOURCE], pageCount: 2 },
+    })]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("answers 409 edited_elsewhere when a reviewer's version was already replaced, without an audit row", async () => {
+    rec = sendersWorld({ error: { code: "23505", message: "duplicate key" } });
+    await withServer(async (base) => {
+      const res = await post(`${base}/assemblies`, { supersedes: ASSEMBLY, pageIds: [SOURCE] });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ error: { code: "edited_elsewhere" } });
+    });
+    expect(auditActions()).toEqual([]);
+  });
+
+  it("answers 400, before any query, to a list naming a file twice or a body mixing both shapes", async () => {
+    rec = createSupabaseRecorder();
+    await withServer(async (base) => {
+      expect((await post(`${base}/assemblies`, { sourceIds: [SOURCE, SOURCE] })).status).toBe(400);
+      expect((await post(`${base}/assemblies`, { sourceIds: [SOURCE], pageIds: [SOURCE_B] })).status).toBe(400);
+      expect((await post(`${base}/assemblies`, { sourceIds: [] })).status).toBe(400);
+    });
+    expect(rec.queries).toEqual([]);
+  });
+});
+
+describe("POST /reads of an assembly", () => {
+  it("queues a read naming the assembly, and audits it by the assembly", async () => {
+    rec = createSupabaseRecorder({ tables: { document_assemblies: [{ id: ASSEMBLY }], document_reads: (q) => (q.write ? [{ id: READ }] : []) } });
+    await withServer(async (base) => {
+      expect((await post(`${base}/reads`, { assemblyId: ASSEMBLY, profile: "shipping_document" })).status).toBe(201);
+    });
+    expect(rec.writtenRows("document_reads")[0]).toMatchObject({ assembly_id: ASSEMBLY });
+    expect(auditActions()).toEqual([expect.objectContaining({
+      action: "document.read_requested", meta: { assemblyId: ASSEMBLY, profile: "shipping_document" },
+    })]);
+  });
+
+  it("answers 400 to a read naming both a source and an assembly", async () => {
+    rec = createSupabaseRecorder();
+    await withServer(async (base) => {
+      expect((await post(`${base}/reads`, { sourceId: SOURCE, assemblyId: ASSEMBLY, profile: "shipping_document" })).status).toBe(400);
+    });
+    expect(rec.queries).toEqual([]);
   });
 });
 

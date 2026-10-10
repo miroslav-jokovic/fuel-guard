@@ -1105,3 +1105,17 @@ Append dated lines at the end; never edit a row above.
   four mutants killed (no names-one check, both allowed, single-column FK, guard ignoring the assembly);
   `rls` gained seeders for `document_reads` and `document_read_reviews`, which the generic seeder can no
   longer fill. Next in N1: the routes — files → sources → one assembly, and a read requested of it.
+- **2026-10-10 (N1, the routes)** — `POST /api/documents/assemblies`: `{ sourceIds }` is the sender's
+  assembly — the files in the order given, each file's pages in page order — and `{ supersedes, pageIds }`
+  a reviewer's edit (untick, reorder, add), 409 `edited_elsewhere` when that version was already replaced
+  (0454's `unique (supersedes_id)`). At most `ASSEMBLY_MAX_PAGES` = 20 pages, the vision API's many-image
+  threshold, so a long document is never read at the 2,000-px cap (a test holds the two together).
+  `POST /reads` takes `{ assemblyId }` as well as `{ sourceId }`; `GET /reads/:id` answers `assemblyId`
+  beside a now-nullable `sourceId` and numbers pages by their position in the document. One module,
+  `read/readTarget.ts`, turns either target into its pages, so the read, the review screen and the cache
+  key share one order. The review epoch now counts every read given any of the pages — by their source
+  or by any assembly holding one — because a reviewer's edit is a new assembly and would otherwise start
+  at epoch 0 and replay the unreviewed read of the same photos (F-EX10). The intake's own read
+  (`complete` with a profile) still reads the source; it moves to a one-file `sender` assembly with N2,
+  and the source path is then retired by its own migration. Twelve mutants killed.
+  Next: N2, the calculator's multi-photo upload.
