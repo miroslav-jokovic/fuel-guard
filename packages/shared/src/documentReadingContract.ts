@@ -37,6 +37,13 @@ export type PageClassSetter = (typeof PAGE_CLASS_SETTERS)[number];
  */
 export const ASSEMBLY_MAKERS = ["prepare", "sender", "reviewer"] as const;
 export type AssemblyMaker = (typeof ASSEMBLY_MAKERS)[number];
+/**
+ * The most pages one assembly may hold. Twenty is the vision API's many-image threshold: above it, every
+ * image in the request is held to 2,000 px a side, so a longer document would be read at a lower
+ * resolution than a shorter one (D-DR16; the API's `MANY_IMAGES_THRESHOLD`, model/visionTier.ts, which a
+ * test holds this at or below). A BOL is one to three pages; twenty leaves room for retakes.
+ */
+export const ASSEMBLY_MAX_PAGES = 20;
 
 /**
  * A page's quality as a labeller judges it, so `doc:score` can report every number per band (Step 0.4)
@@ -315,12 +322,35 @@ export type SourceStatusResponse = z.infer<typeof sourceStatusResponseSchema>;
 export const sourceFromSamsaraRequestSchema = z.object({ samsaraDocumentId: z.string().min(1) });
 export const sourceFromSamsaraResponseSchema = z.object({ sourceId: z.uuid(), pageCount: z.number().int() });
 
-/** `POST /api/documents/reads` — queue a read of a source under a profile. */
-export const createReadRequestSchema = z.object({ sourceId: z.uuid(), profile: z.enum(DOCUMENT_PROFILE_IDS) });
+/**
+ * `POST /api/documents/assemblies` — say which pages, in which order, are one document (D-DR14, 0454).
+ *
+ *   { sourceIds }            the sender's order: these uploaded files, in this order, each file's pages
+ *                            in page order (`made_by = sender`). A single file is a one-file assembly.
+ *   { supersedes, pageIds }  a reviewer's edit of an existing assembly — untick, reorder, add a page —
+ *                            as the full new page list (`made_by = reviewer`). 409 `edited_elsewhere`
+ *                            when someone else already replaced that version.
+ */
+const idList = (max: number) =>
+  z.array(z.uuid()).min(1).max(max).refine((ids) => new Set(ids).size === ids.length, "each id once");
+export const createAssemblyRequestSchema = z.union([
+  z.strictObject({ sourceIds: idList(ASSEMBLY_MAX_PAGES) }),
+  z.strictObject({ supersedes: z.uuid(), pageIds: idList(ASSEMBLY_MAX_PAGES) }),
+]);
+export type CreateAssemblyRequest = z.infer<typeof createAssemblyRequestSchema>;
+export const createAssemblyResponseSchema = z.object({ assemblyId: z.uuid(), pageCount: z.number().int().min(1) });
+export type CreateAssemblyResponse = z.infer<typeof createAssemblyResponseSchema>;
+
+/** `POST /api/documents/reads` — queue a read of a source, or of an assembly (0455), under a profile. */
+export const createReadRequestSchema = z.union([
+  z.strictObject({ sourceId: z.uuid(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
+  z.strictObject({ assemblyId: z.uuid(), profile: z.enum(DOCUMENT_PROFILE_IDS) }),
+]);
 export type CreateReadRequest = z.infer<typeof createReadRequestSchema>;
 export const createReadResponseSchema = z.object({ readId: z.uuid() });
 
 export const readPageSchema = z.object({
+  /** The page's place in the document read: its page number in a source, its position in an assembly. */
   page: z.number().int().min(1),
   pageClass: z.enum(PAGE_CLASSES).nullable(),
   /** Short-lived signed URL of the working copy; bboxes in the evidence are fractions of its size. */
@@ -333,7 +363,9 @@ export type ReadPage = z.infer<typeof readPageSchema>;
 /** `GET /api/documents/reads/:id` — the dispatcher's page polls this until `status` is terminal. */
 export const readResponseSchema = z.object({
   id: z.uuid(),
-  sourceId: z.uuid(),
+  /** Exactly one of the two is set: what the read was given (0455). */
+  sourceId: z.uuid().nullable(),
+  assemblyId: z.uuid().nullable(),
   profile: z.enum(DOCUMENT_PROFILE_IDS),
   profileVersion: z.string(),
   status: z.enum(READ_STATUSES),

@@ -39,6 +39,8 @@ interface World {
   missing?: string[];
   model?: () => Anthropic.Message;
   env?: Partial<typeof ENV>;
+  /** The read names an assembly of these page ids, in this order, instead of the source (0455). */
+  assembly?: string[];
 }
 
 function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -63,13 +65,14 @@ async function world(w: World = {}) {
       document_reads: (q) => {
         // The cache lookup excludes this read with `.neq("id", READ)`, so it is told apart first.
         if (isCache(q)) return w.cached === undefined ? [] : [{ id: "older", result: w.cached }];
-        if (isRow(q)) return [{ id: READ, source_id: SOURCE, profile: "shipping_document", profile_version: w.profileVersion ?? PROFILE.version, status: w.status ?? "queued" }];
+        if (isRow(q)) return [{ id: READ, source_id: w.assembly ? null : SOURCE, assembly_id: w.assembly ? "assembly-1" : null, profile: "shipping_document", profile_version: w.profileVersion ?? PROFILE.version, status: w.status ?? "queued" }];
         return [{ id: READ }, { id: "older" }];
       },
       document_pages: pages.map((p) => ({
-        id: p.id, page_number: p.page_number, original_path: p.path,
+        id: p.id, source_id: SOURCE, page_number: p.page_number, original_path: p.path,
         original_sha256: p.recordedSha ?? sha(p.bytes), normaliser_version: "1.0.0",
       })),
+      document_assembly_pages: (w.assembly ?? []).map((page_id, i) => ({ position: i + 1, page_id, assembly_id: "assembly-1" })),
       document_read_reviews: { data: [], count: w.reviews ?? 0 },
       org_usage_month: w.used === undefined ? [] : [{ input_tokens: w.used, output_tokens: 0 }],
     },
@@ -99,6 +102,22 @@ async function world(w: World = {}) {
 }
 
 describe("executeRead — a read that reaches the model", () => {
+  it("reads an assembly's pages in the assembly's order, not their page numbers, and keys the cache on that order", async () => {
+    const w = await world({ assembly: ["p2", "p1"] });
+    expect(await w.run()).toMatchObject({ outcome: "done", pages: 2 });
+    expect(w.rec.storageCalls().map((c) => c.args[0])).toEqual(["o/2.png", "o/1.png"]);
+    expect(w.rec.forTable("document_assembly_pages")[0]!.filters()).toContainEqual({ col: "assembly_id", val: "assembly-1" });
+    const [p1, p2] = w.pages;
+    expect(w.transitions()[1]!.p_cache_key).toBe(readCacheKey({
+      profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
+      schemaHash: combinedSchemaHash(sectionWireSchemas("shipping_document").map((s) => [s.name, s.hash] as const)),
+      acceptanceRule: ACCEPTANCE_RULE_VERSION,
+      pages: [p2!, p1!].map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0" })),
+      sendRule: SEND_RULE_VERSION, reviewEpoch: 0,
+    }));
+    expectOrgScoped(w.rec, ORG);
+  });
+
   it("reads every page that is classed for the profile or not yet classed, and ends done with the merged document", async () => {
     const extra = { id: "p3", page_number: 3, path: "o/3.png", bytes: await png(50) };
     const w = await world({

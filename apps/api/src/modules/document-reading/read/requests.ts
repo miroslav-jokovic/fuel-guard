@@ -10,6 +10,7 @@ import {
 } from "@silvicom/shared";
 import { workingSizeOf } from "../pages/canonical.js";
 import { DOCUMENT_BUCKET, PAGE_URL_TTL_SEC } from "../storage.js";
+import { targetColumn, targetIds, targetOfRow, targetPages, type ReadTarget } from "./readTarget.js";
 
 /**
  * The read-side requests behind `/api/documents/reads` (DOCUMENT-READER-PLAN Step 1.6b): queue a read,
@@ -21,13 +22,15 @@ import { DOCUMENT_BUCKET, PAGE_URL_TTL_SEC } from "../storage.js";
  */
 
 export interface ReaderError {
-  code: "not_found" | "not_reviewable" | "invalid_review" | "sign_failed" | "query_failed" | "insert_failed";
+  code:
+    | "not_found" | "not_reviewable" | "invalid_review" | "invalid_assembly" | "edited_elsewhere"
+    | "sign_failed" | "query_failed" | "insert_failed";
   error: string;
 }
 export const isReaderError = (v: unknown): v is ReaderError =>
   typeof v === "object" && v !== null && "code" in v && "error" in v;
 
-const fail = (code: ReaderError["code"], error: string): ReaderError => ({ code, error });
+export const fail = (code: ReaderError["code"], error: string): ReaderError => ({ code, error });
 
 /** Enqueue the `document_read` job for a read id — `dispatchJob` in the app, a recorder in tests. */
 export type DispatchRead = (readId: string) => Promise<unknown>;
@@ -38,7 +41,8 @@ export const readDedupKey = (readId: string): string => `document_read:${readId}
 const IN_FLIGHT = ["queued", "reading"] as const;
 
 /**
- * Queue a read of `sourceId` under `profile`, or return the one already queued or reading. A finished
+ * Queue a read of `target` (a source, or since 0455 an assembly) under `profile`, or return the one
+ * already queued or reading OF THE SAME TARGET — a read of an assembly is not a read of its first file. A finished
  * read is NOT reused here: a dispatcher asking again after reviewing fields gets a new read, and the
  * cache key's review epoch (§4.6) decides whether that costs anything. `reuseDone` is the intake's
  * variant — a retried intake job must not start a second read of a document it already read.
@@ -47,27 +51,29 @@ export async function requestRead(
   admin: SupabaseClient,
   orgId: string,
   userId: string | null,
-  sourceId: string,
+  target: ReadTarget,
   profile: DocumentProfileId,
   dispatch: DispatchRead,
   opts: { reuseDone?: boolean } = {},
 ): Promise<{ readId: string; reused: boolean } | ReaderError> {
-  const { data: source, error: sErr } = await admin
-    .from("document_sources").select("id").eq("org_id", orgId).eq("id", sourceId).maybeSingle();
+  const column = targetColumn(target);
+  // Two literal tables, not `.from(variable)`: the table gates (lint:boundaries' table-access) read names.
+  const parent = target.kind === "source" ? admin.from("document_sources") : admin.from("document_assemblies");
+  const { data: found, error: sErr } = await parent.select("id").eq("org_id", orgId).eq("id", target.id).maybeSingle();
   if (sErr) return fail("query_failed", sErr.message);
-  if (!source) return fail("not_found", "That document is not in this organization.");
+  if (!found) return fail("not_found", "That document is not in this organization.");
 
   const reusable: string[] = opts.reuseDone ? [...IN_FLIGHT, "done"] : [...IN_FLIGHT];
   const { data: prior, error: pErr } = await admin
     .from("document_reads").select("id")
-    .eq("org_id", orgId).eq("source_id", sourceId).eq("profile", profile).in("status", reusable)
+    .eq("org_id", orgId).eq(column, target.id).eq("profile", profile).in("status", reusable)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pErr) return fail("query_failed", pErr.message);
   if (prior) return { readId: (prior as { id: string }).id, reused: true };
 
   const { data: inserted, error: iErr } = await admin
     .from("document_reads")
-    .insert({ org_id: orgId, source_id: sourceId, profile, profile_version: DOCUMENT_PROFILES[profile].version, requested_by: userId })
+    .insert({ org_id: orgId, [column]: target.id, profile, profile_version: DOCUMENT_PROFILES[profile].version, requested_by: userId })
     .select("id").single();
   if (iErr || !inserted) return fail("insert_failed", iErr?.message ?? "The read was not recorded.");
   const readId = (inserted as { id: string }).id;
@@ -80,7 +86,8 @@ export async function requestRead(
 
 interface ReadRow {
   id: string;
-  source_id: string;
+  source_id: string | null;
+  assembly_id: string | null;
   profile: DocumentProfileId;
   profile_version: string;
   status: ReadResponse["status"];
@@ -88,9 +95,7 @@ interface ReadRow {
   result: ReadResponse["result"];
   evidence: unknown;
 }
-interface PageRow {
-  id: string;
-  page_number: number;
+interface PageColumns {
   working_path: string;
   width: number;
   height: number;
@@ -98,7 +103,7 @@ interface PageRow {
 
 /**
  * One read as the review screen needs it: status, the document once `done`, its evidence, and every
- * page of the source with a 5-minute signed URL of its working copy. Every page, not only the ones the
+ * page it was given (its source's, or its assembly's in the assembly's order) with a 5-minute signed URL of its working copy. Every page, not only the ones the
  * profile read: a reviewer who sees "no readable page" must be able to see what WAS sent. Sizes are
  * the working copy's (bboxes are fractions of it); `document_pages` records the original's, and
  * `workingSizeOf` is the resize rule itself, not an estimate of it.
@@ -106,17 +111,19 @@ interface PageRow {
 export async function getRead(admin: SupabaseClient, orgId: string, readId: string): Promise<ReadResponse | ReaderError> {
   const { data, error } = await admin
     .from("document_reads")
-    .select("id, source_id, profile, profile_version, status, failure_code, result, evidence")
+    .select("id, source_id, assembly_id, profile, profile_version, status, failure_code, result, evidence")
     .eq("org_id", orgId).eq("id", readId).maybeSingle();
   if (error) return fail("query_failed", error.message);
   if (!data) return fail("not_found", "That read is not in this organization.");
   const read = data as ReadRow;
 
-  const { data: pageRows, error: pErr } = await admin
-    .from("document_pages").select("id, page_number, working_path, width, height")
-    .eq("org_id", orgId).eq("source_id", read.source_id).order("page_number", { ascending: true });
-  if (pErr) return fail("query_failed", pErr.message);
-  const pages = (pageRows ?? []) as PageRow[];
+  const target = targetOfRow(read);
+  let pages;
+  try {
+    pages = await targetPages<PageColumns>(admin, orgId, target, "working_path, width, height");
+  } catch (e) {
+    return fail("query_failed", e instanceof Error ? e.message : String(e));
+  }
 
   const classOf = new Map<string, ReadResponse["pages"][number]["pageClass"]>();
   const urlOf = new Map<string, string>();
@@ -131,11 +138,11 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
   }
   const missing = pages.find((p) => !urlOf.has(p.working_path));
   // A review screen with a page silently absent is a review of a different document.
-  if (missing) return fail("sign_failed", `Page ${missing.page_number} could not be shown.`);
+  if (missing) return fail("sign_failed", `Page ${missing.position} could not be shown.`);
 
   return {
     id: read.id,
-    sourceId: read.source_id,
+    ...targetIds(target),
     profile: read.profile,
     profileVersion: read.profile_version,
     status: read.status,
@@ -143,7 +150,7 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
     result: read.result,
     evidence: fieldEvidenceSchema.array().parse(read.evidence ?? []),
     pages: pages.map((p) => ({
-      page: p.page_number,
+      page: p.position,
       pageClass: classOf.get(p.id) ?? null,
       url: urlOf.get(p.working_path)!,
       ...workingSizeOf(p.width, p.height),
