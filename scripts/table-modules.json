@@ -244,6 +244,28 @@
         "why": "one classifier verdict per page (document_pages' 400 a day, the same x5 headroom on DOCUMENT-READER-PLAN §0.1's ~82 pages) plus a re-classification on a prompt change and each dispatcher override; x2 on the page budget. Append-only labels, newest per page wins, RETENTION_FORBIDDEN (0449, Q-DR12)."
       }
     },
+    "document_assemblies": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "one Layer 1 proposal per submission or upload (~22 BOL-type submissions a day, DOCUMENT-READER-PLAN §0.1, plus office uploads) and each dispatcher edit as a new version; x5 headroom on ~40. Append-only, RETENTION_FORBIDDEN (0454, D-DR14)."
+      }
+    },
+    "document_assembly_pages": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "one row per page per assembly version: document_pages' 400 a day once, plus each edit re-listing its pages; x2.5 on the page budget. Append-only, RETENTION_FORBIDDEN (0454, D-DR14)."
+      }
+    },
     "document_read_reviews": {
       "module": "document-reading",
       "layer": "core",

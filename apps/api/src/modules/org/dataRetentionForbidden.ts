@@ -190,6 +190,7 @@ export const RETENTION_FORBIDDEN = [
    * composition `application_captures` above relies on deliberately, running here against evidence.
    */
   "hazmat_documents", "document_sources", "document_read_reviews", "document_page_classes", // + the reader's bytes and labels: the same papers (0448/0449, D-DR9)
+  "document_assemblies", "document_assembly_pages", // + which photos made one shipping paper (0454, D-DR14)
   /**
    * The driver's account-closure request (0330, D-PR8).
    *

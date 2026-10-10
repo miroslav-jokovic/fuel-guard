@@ -2305,6 +2305,19 @@ async function main() {
         `select '${org}', id, 1, 'o', repeat('a', 64), 'w', 1, 1, 'n1' from s returning id) ` +
         `insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) ` +
         `select '${org}', id, 'bol', 'classifier', 'rls', 'rls' from p`,
+      // 0454: the same cross-column provenance rule (`document_assemblies_provenance`: Layer 1's proposal
+      // names its prepare_version and no person), and the page row needs a real page of this org through
+      // the composite (page_id, org_id) FK — so both are built inline, as above.
+      document_assemblies: (org) =>
+        `insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls')`,
+      document_assembly_pages: (org) =>
+        `with s as (insert into document_sources (org_id, origin, storage_path, sha256, mime, byte_size, page_count) ` +
+        `values ('${org}', 'upload', 'rls', md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text), 'image/png', 1, 1) returning id), ` +
+        `p as (insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version) ` +
+        `select '${org}', id, 1, 'o', repeat('a', 64), 'w', 1, 1, 'n1' from s returning id), ` +
+        `a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id) ` +
+        `insert into document_assembly_pages (assembly_id, org_id, position, page_id) ` +
+        `select a.id, '${org}', 1, p.id from a, p`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

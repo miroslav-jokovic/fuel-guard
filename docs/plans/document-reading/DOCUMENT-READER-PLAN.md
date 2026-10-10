@@ -1071,3 +1071,13 @@ Append dated lines at the end; never edit a row above.
   re-resizes our 1212×1568 working copy of a letter page to 952×1232 on the API's side; a
   high-resolution-tier model would read the 300 DPI page at 1688×2184 and a Samsara photo untouched at
   2000×1500. Next: N1, the assembly tables.
+- **2026-10-10 (N1, the assemblies)** — Migration 0454 (renumbered from 0453 at merge: the dispatch board took 0453 first): `document_assemblies` (who made it — `prepare`,
+  `sender` or `reviewer`, `ASSEMBLY_MAKERS` — under one provenance CHECK, and the assembly it supersedes,
+  `unique` so an edit history is a line and a second concurrent edit conflicts) and
+  `document_assembly_pages` (positions 1..n, a page once per assembly, composite FKs to the org's pages).
+  Both append-only by trigger and in `RETENTION_FORBIDDEN`; a file stays a source (D-DR14). One door,
+  `document_assembly_create`, writes an assembly and its pages together in the array's order and refuses
+  an empty or repeating list (DO016), another carrier's page (DO017) or superseded assembly (DO018),
+  leaving nothing behind. Matrix `document-assemblies` 32 checks; ten mutants killed; the eleventh
+  (dropping the explicit revoke) is equivalent, because 0412 already closes new functions to clients.
+  Next in N1: `document_reads.assembly_id` (its own merge, before its reader), then the routes.
