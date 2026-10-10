@@ -12,6 +12,8 @@ import { createHash } from "node:crypto";
  *   schemaHash         the wire schema(s) sent — for a sectioned profile, the combined hash.
  *   acceptanceRule     the acceptance rule's version (Phase 2; `ACCEPTANCE_RULE_VERSION` until then).
  *   pages              each page READ, in order: its original's sha256 and the normaliser that made it.
+ *   sendRule           how the pages were sized and framed in the request (`SEND_RULE_VERSION`, D-DR16):
+ *                      the same pages sent at another size are another read.
  *   reviewEpoch        how many reviews the source's reads hold. F-EX10: once a person has corrected a
  *                      read of these bytes, a new read must be a new read, not the corrected one replayed
  *                      as if nobody had looked. Reviews are append-only (0448), so the count only rises.
@@ -28,6 +30,7 @@ export interface CacheKeyInput {
   schemaHash: string;
   acceptanceRule: string;
   pages: readonly { sha256: string; normaliserVersion: string }[];
+  sendRule: string;
   reviewEpoch: number;
 }
 
@@ -39,6 +42,7 @@ export function readCacheKey(k: CacheKeyInput): string {
     `schema=${k.schemaHash}`,
     `rule=${k.acceptanceRule}`,
     `pages=${k.pages.map((p) => `${p.sha256}@${p.normaliserVersion}`).join(",")}`,
+    `send=${k.sendRule}`,
     `reviews=${k.reviewEpoch}`,
   ];
   for (const l of lines) if (l.includes("\n")) throw new Error(`cache key term holds a newline: ${l.split("=")[0]}`);

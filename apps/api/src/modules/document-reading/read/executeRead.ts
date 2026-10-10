@@ -3,10 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DOCUMENT_PROFILES, withinBudget, type DocumentProfileId, type ReadFailureCode } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { readModels } from "../model/models.js";
-import { readPages, type ModelClient, type PageImage } from "../model/readPages.js";
+import { readPages, SEND_RULE_VERSION, type ModelClient, type PageImage } from "../model/readPages.js";
 import { combinedSchemaHash, readSections, sectionWireSchemas } from "../model/readSections.js";
+import { sendLimitsFor } from "../model/visionTier.js";
 import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
-import { workingCopyOf } from "../pages/canonical.js";
+import { sentCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { READ_PROMPTS } from "./prompts.js";
 import { DOCUMENT_BUCKET } from "../storage.js";
@@ -117,8 +118,12 @@ async function readablePages(admin: SupabaseClient, orgId: string, sourceId: str
   });
 }
 
-/** Download each page's original, verify it, and derive the working copy the model reads. */
-async function loadImages(admin: SupabaseClient, pages: readonly PageRow[]): Promise<PageImage[] | "integrity_mismatch"> {
+/**
+ * Download each page's original, verify it, and derive the copy the model reads — sized once, from the
+ * original, to the model's resolution tier (D-DR16), so the API never resizes it again.
+ */
+async function loadImages(admin: SupabaseClient, pages: readonly PageRow[], model: string): Promise<PageImage[] | "integrity_mismatch"> {
+  const limits = sendLimitsFor(model, pages.length);
   const images: PageImage[] = [];
   for (const p of pages) {
     const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
@@ -126,8 +131,8 @@ async function loadImages(admin: SupabaseClient, pages: readonly PageRow[]): Pro
     if (error || !blob) return "integrity_mismatch";
     const png = Buffer.from(await blob.arrayBuffer());
     if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return "integrity_mismatch";
-    const working = await workingCopyOf(png);
-    images.push({ base64: working.bytes.toString("base64"), mediaType: working.mediaType });
+    const sent = await sentCopyOf(png, limits);
+    images.push({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType });
   }
   return images;
 }
@@ -231,7 +236,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
 
   const pages = await readablePages(admin, orgId, read.source_id, read.profile);
   if (pages.length === 0) return fail("no_readable_page");
-  const images = await loadImages(admin, pages);
+  const images = await loadImages(admin, pages, models[0]!);
   if (images === "integrity_mismatch") return fail("integrity_mismatch");
 
   versions.cacheKey = readCacheKey({
@@ -241,6 +246,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     schemaHash: versions.schemaHash,
     acceptanceRule: ACCEPTANCE_RULE_VERSION,
     pages: pages.map((p) => ({ sha256: p.original_sha256, normaliserVersion: p.normaliser_version })),
+    sendRule: SEND_RULE_VERSION,
     reviewEpoch: await reviewEpoch(admin, orgId, read.source_id),
   });
   const cached = await cachedResult(admin, orgId, readId, versions.cacheKey);

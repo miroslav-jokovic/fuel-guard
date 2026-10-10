@@ -6,7 +6,9 @@ import { DOCUMENT_PROFILES } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
 import { combinedSchemaHash, sectionWireSchemas } from "../model/readSections.js";
-import { workingCopyOf } from "../pages/canonical.js";
+import { SEND_RULE_VERSION } from "../model/readPages.js";
+import { sentCopyOf } from "../pages/canonical.js";
+import { TIER_LIMITS } from "../model/visionTier.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { executeRead, failUnavailableRead, type ReadGate } from "./executeRead.js";
 import { READ_PROMPTS } from "./prompts.js";
@@ -16,7 +18,9 @@ const ORG = "org-1";
 const READ = "read-1";
 const SOURCE = "source-1";
 const PROFILE = DOCUMENT_PROFILES.shipping_document;
-const ENV = { HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: undefined, DOC_READ_MODEL_B: undefined };
+const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A?: string; DOC_READ_MODEL_B?: string } = {
+  HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: undefined, DOC_READ_MODEL_B: undefined,
+};
 
 async function png(shade: number): Promise<Buffer> {
   return sharp(Buffer.alloc(40 * 30 * 3, shade), { raw: { width: 40, height: 30, channels: 3 } }).png().toBuffer();
@@ -34,6 +38,7 @@ interface World {
   gate?: ReadGate;
   missing?: string[];
   model?: () => Anthropic.Message;
+  env?: Partial<typeof ENV>;
 }
 
 function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -84,7 +89,7 @@ async function world(w: World = {}) {
   const gates: string[] = [];
   const deps = {
     client,
-    env: ENV,
+    env: { ...ENV, ...w.env },
     now: () => new Date("2026-10-09T12:00:00Z"),
     gateFor: async (_a: unknown, org: string) => (gates.push(org), w.gate ?? { open: true, monthlyTokenBudget: null }),
   };
@@ -135,16 +140,40 @@ describe("executeRead — a read that reaches the model", () => {
     expect(done.p_cache_key).toBe(readCacheKey({
       profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
       schemaHash: hash, acceptanceRule: ACCEPTANCE_RULE_VERSION,
-      pages: w.pages.map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0" })), reviewEpoch: 3,
+      pages: w.pages.map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0" })), sendRule: SEND_RULE_VERSION, reviewEpoch: 3,
     }));
   });
 
-  it("sends the model the working copy re-derived from the verified original", async () => {
+  it("sends the model a copy re-derived from the verified original, after its page label", async () => {
     const w = await world();
     await w.run();
-    const first = (w.requests[0]!.messages[0]!.content as { type: string; source?: { data: string; media_type: string } }[])[0]!;
-    const expected = await workingCopyOf(w.pages[0]!.bytes);
-    expect(first.source).toEqual({ type: "base64", media_type: "image/webp", data: expected.bytes.toString("base64") });
+    const content = w.requests[0]!.messages[0]!.content as { type: string; text?: string; source?: { data: string; media_type: string } }[];
+    expect(content[0]).toEqual({ type: "text", text: "Page 1 of 2:" });
+    const expected = await sentCopyOf(w.pages[0]!.bytes, TIER_LIMITS.standard);
+    expect(content[1]!.source).toEqual({ type: "base64", media_type: "image/webp", data: expected.bytes.toString("base64") });
+  });
+
+  /** The size of the image the model was sent, read back out of the request's bytes. */
+  const sentSize = async (w: Awaited<ReturnType<typeof world>>) => {
+    const content = w.requests[0]!.messages[0]!.content as { type: string; source?: { data: string } }[];
+    const meta = await sharp(Buffer.from(content.find((c) => c.type === "image")!.source!.data, "base64")).metadata();
+    return `${meta.width}x${meta.height}`;
+  };
+  const letterPage = async () => {
+    const bytes = await sharp({ create: { width: 2550, height: 3300, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+    return [{ id: "p1", page_number: 1, path: "o/1.png", bytes }];
+  };
+
+  it("sizes a 300 DPI letter page to the standard tier's limit for Sonnet 4.6, so the API resizes nothing (D-DR16)", async () => {
+    const w = await world({ pages: await letterPage() });
+    await w.run();
+    expect(await sentSize(w)).toBe("952x1232");
+  });
+
+  it("sends the same page at the high-resolution tier's size when the model is 4.7 or later", async () => {
+    const w = await world({ pages: await letterPage(), env: { DOC_READ_MODEL_A: "claude-sonnet-5-5" } });
+    await w.run();
+    expect(await sentSize(w)).toBe("1688x2184");
   });
 
   it("names the org on every query and every RPC — the service role bypasses RLS", async () => {

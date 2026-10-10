@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import type { Bbox } from "@silvicom/shared";
+import { resizedSize, type TierLimits } from "../model/visionTier.js";
 
 /**
  * The D-DR13 canonical page — the one shape every reader downstream sees, whatever arrived.
@@ -38,11 +39,12 @@ export interface CanonicalPage {
 }
 
 /**
- * The working copy's long edge: the size Anthropic's vision input resizes to anyway (the hazmat
- * extractor's `NORMALIZED_LONG_EDGE_PX` and its §12.3 measurement). Sending more buys request bytes,
- * not characters. Restated rather than imported because `lint:boundaries` forbids reaching into the
- * hazmat module, and the two are not one fact: the hazmat value can only move with the hazmat run
- * cache, this one only with `NORMALISER_VERSION`.
+ * The STORED working copy's long edge — the copy the reviewer's screen shows (requests.ts). It is no
+ * longer what the model reads: since D-DR16 a read sends `sentCopyOf` (below), sized from the original
+ * to the model's resolution tier. The first reason given for 1,568 ("the size the vision input resizes to
+ * anyway") was a long-edge-only reading of a two-limit rule — a 1212×1568 page is 2,464 visual tokens and
+ * the standard tier re-resized it to 952×1232 (DOCUMENT-READER-PLAN §7A R1). Kept for the stored copy
+ * because moving it changes every stored page and so moves with `NORMALISER_VERSION` only.
  */
 export const WORKING_LONG_EDGE_PX = 1568;
 
@@ -107,6 +109,22 @@ async function encodeWorking(input: ReturnType<typeof sharp>): Promise<Canonical
  */
 export async function workingCopyOf(originalPng: Buffer): Promise<CanonicalPage["working"]> {
   return encodeWorking(sharp(originalPng));
+}
+
+/**
+ * The copy a read SENDS (D-DR16): one resize, from the verified original, to exactly the size the model's
+ * tier accepts (`resizedSize`), so the API has nothing left to resize; an original that already fits is
+ * re-encoded unchanged, never enlarged. Lossless WebP, the working copy's encoder — no second lossy
+ * generation (§7A R3).
+ */
+export async function sentCopyOf(originalPng: Buffer, limits: TierLimits): Promise<CanonicalPage["working"]> {
+  const meta = await sharp(originalPng).metadata();
+  if (!meta.width || !meta.height) throw new Error("sentCopyOf: the original has no dimensions");
+  const size = resizedSize(meta.width, meta.height, limits);
+  const img = sharp(originalPng);
+  const sized = size.width === meta.width && size.height === meta.height ? img : img.resize(size.width, size.height, { fit: "fill" });
+  const { data: bytes, info } = await sized.webp(WEBP_OPTIONS).toBuffer({ resolveWithObject: true });
+  return { bytes, mediaType: WORKING_MEDIA_TYPE, width: info.width, height: info.height };
 }
 
 /** Encode a decoded, upright, flattened sRGB raster as its canonical page. */
