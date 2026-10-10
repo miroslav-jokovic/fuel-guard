@@ -465,3 +465,11 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   migration 0452 admits `'dispatch.board'` and ships alone, because the contract gaining the id in the
   same merge could let staging serve a Save before `migrate-staging` widens the check. Next merge:
   `SAVED_VIEW_TABLES` gains it, the board gets `SavedViewMenu` (and built-in views, if any earn a place).
+- **Saved views on the board** (next merge, after 0452 reached staging): `SAVED_VIEW_TABLES` gains
+  `dispatch.board`, and the board's toolbar carries `SavedViewMenu`. A view is the board's whole URL
+  (queue, scope, fleet, dispatcher, search, sort, hidden columns). No built-in views: every combination
+  a dispatcher reaches for is already a queue tab, and a built-in repeating a tab is decoration
+  (`BUILT_IN_VIEWS`' own rule). The page wiring moved from DriversPage into `useSavedViewMenu`, shared
+  by both pages, rather than being copied.
+- **Still owed:** DB7 (ETA vs actual arrivals); the map deep link for the drawer; cleanup
+  (`GET /api/dispatch/assignments`, the stale `tms_dispatchers` comments).

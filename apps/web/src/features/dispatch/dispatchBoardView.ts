@@ -1,4 +1,4 @@
-import { legalDriveMs, needsAttention, type DispatchBoardRow, type DispatchScope } from "@silvicom/shared";
+import { legalDriveMs, needsAttention, type DispatchBoardRow, type DispatchScope, type SavedViewTable } from "@silvicom/shared";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { POOL_FLEET, admitsScope, type ScopeFilter } from "./dispatchScope";
 
@@ -72,11 +72,11 @@ export const BOARD_COLUMNS: DataTableColumn[] = [
 ];
 
 /**
- * The board's table id: the column picker's storage key (`fg.cols.dispatch.board`) and, once
- * `SAVED_VIEW_TABLES` admits it, the saved views' `table_id` — the string migration 0452 lets the
- * database store, spelled the same so the two agree about what "the board" is called.
+ * The board's table id, from the one place it is spelled (`SAVED_VIEW_TABLES`): the column picker's
+ * storage key (`fg.cols.dispatch.board`) and the saved views' `table_id` (admitted by migration 0452),
+ * so the two agree about what "the board" is called by construction.
  */
-export const BOARD_TABLE = "dispatch.board";
+export const BOARD_TABLE: SavedViewTable = "dispatch.board";
 
 /** The column keys a `?sort=` link may name — derived, so a new sortable column cannot be forgotten. */
 export const BOARD_SORT_KEYS = BOARD_COLUMNS.filter((c) => c.sortable).map((c) => c.key);

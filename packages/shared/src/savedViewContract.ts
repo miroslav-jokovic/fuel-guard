@@ -29,10 +29,13 @@ import { z } from "zod";
  *
  * Closed on purpose: `table_id` reaches the database from a client, and an open string means one
  * typo — or one crafted request — fills the table with rows no surface will ever list or clean up.
+ * The database holds the same list as a check constraint (0278; 'dispatch.board' added by 0452, which
+ * merged BEFORE this list grew, so no build could offer a Save the database refuses).
+ *
  * It is also the single place the id is spelled, so the column picker's storage key (R3b) and a
  * saved view agree about what "the roster" is called by construction rather than by care.
  */
-export const SAVED_VIEW_TABLES = ["roster.drivers"] as const;
+export const SAVED_VIEW_TABLES = ["roster.drivers", "dispatch.board"] as const;
 export type SavedViewTable = (typeof SAVED_VIEW_TABLES)[number];
 export const savedViewTableSchema = z.enum(SAVED_VIEW_TABLES);
 
@@ -149,6 +152,12 @@ export const BUILT_IN_VIEWS: Record<SavedViewTable, readonly BuiltInView[]> = {
       description: "Drivers on the roster with no qualification evidence filed at all.",
     },
   ],
+  /**
+   * None, by the rule above. Every combination a dispatcher reaches for — late risk, no next load,
+   * empty now, HOS low — is already a queue tab with its count, one click away; a built-in repeating
+   * a tab would be the decoration that rule refuses. The board's views are the ones people save.
+   */
+  "dispatch.board": [],
 };
 
 /** The built-ins for one table, or an empty list for a table that has none yet. */
