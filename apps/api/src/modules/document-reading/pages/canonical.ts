@@ -74,6 +74,26 @@ function rasterInput(raster: RgbRaster) {
   return sharp(raster.data, { raw: { width: raster.width, height: raster.height, channels: 3 } });
 }
 
+/** The one resize-and-encode both a fresh page and a re-derived working copy go through. */
+async function encodeWorking(input: ReturnType<typeof sharp>): Promise<CanonicalPage["working"]> {
+  const { data: bytes, info } = await input
+    .resize(WORKING_LONG_EDGE_PX, WORKING_LONG_EDGE_PX, { fit: "inside", withoutEnlargement: true })
+    .webp(WEBP_OPTIONS)
+    .toBuffer({ resolveWithObject: true });
+  return { bytes, mediaType: WORKING_MEDIA_TYPE, width: info.width, height: info.height };
+}
+
+/**
+ * The working copy of a stored ORIGINAL, made again from its PNG (Step 1.6). The read verifies the
+ * original against its recorded sha256 and reads THIS, not the stored working object, which has no hash
+ * of its own: so every byte the model sees descends from bytes the integrity check passed. The stored
+ * working copy stays what the reviewer's screen shows; the PNG decodes to the very raster it was encoded
+ * from, so the two are the same pixels.
+ */
+export async function workingCopyOf(originalPng: Buffer): Promise<CanonicalPage["working"]> {
+  return encodeWorking(sharp(originalPng));
+}
+
 /** Encode a decoded, upright, flattened sRGB raster as its canonical page. */
 export async function toCanonicalPage(
   raster: RgbRaster,
@@ -82,10 +102,7 @@ export async function toCanonicalPage(
   dpi: number | null,
 ): Promise<CanonicalPage> {
   const png = await rasterInput(raster).png(PNG_OPTIONS).toBuffer();
-  const { data: bytes, info } = await rasterInput(raster)
-    .resize(WORKING_LONG_EDGE_PX, WORKING_LONG_EDGE_PX, { fit: "inside", withoutEnlargement: true })
-    .webp(WEBP_OPTIONS)
-    .toBuffer({ resolveWithObject: true });
+  const working = await encodeWorking(rasterInput(raster));
   return {
     page,
     original: {
@@ -94,7 +111,7 @@ export async function toCanonicalPage(
       width: raster.width,
       height: raster.height,
     },
-    working: { bytes, mediaType: WORKING_MEDIA_TYPE, width: info.width, height: info.height },
+    working,
     textLayer,
     dpi,
   };

@@ -3,8 +3,8 @@
  *
  * Profile-driven: it reads a document under a PROFILE registered in `@silvicom/shared`'s
  * `DOCUMENT_PROFILES` and knows no trucking vocabulary itself (D-DR1). Today it holds the model adapter
- * (Step 1.4, `model/`); intake, pages, orchestration, the queue job and the routes land as their steps
- * do. It must not reach into the hazmat module's extractor — the hazmat path becomes a CONSUMER of this
+ * (Step 1.4, `model/`), the pages stage (Step 1.3, `pages/`) and the read itself (Step 1.6, `read/`);
+ * intake and the routes land as their steps do. It must not reach into the hazmat module's extractor — the hazmat path becomes a CONSUMER of this
  * module (Phase 3), never its dependency.
  */
 export {
@@ -37,3 +37,6 @@ export {
   type CanonicalPage,
   type NormaliseOutcome,
 } from "./pages/index.js";
+export { executeRead, failUnavailableRead, type ExecuteReadOutcome, type ReadDeps, type ReadGate, type ReadGateFor } from "./read/executeRead.js";
+export { readCacheKey, ACCEPTANCE_RULE_VERSION, type CacheKeyInput } from "./read/cacheKey.js";
+export { READ_PROMPTS } from "./read/prompts.js";

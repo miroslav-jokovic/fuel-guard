@@ -323,6 +323,23 @@ ok("reading → failed with a READ_FAILURES code is accepted",
   (await move(R2, "failed", { code: "max_tokens", tokens: 8000 })) === null && (await status(R2)).failure_code === "max_tokens");
 ok("failed is terminal: failed → done is refused", (await move(R2, "done", { result: "{}" })) === "DO014");
 ok("failed is terminal: failed → reading is refused", (await move(R2, "reading")) === "DO014");
+// 0451: the terminal move counts the read's tokens in org_usage_month — once, and never `runs`.
+const usage = async (org) => (await one(
+  `select input_tokens::int i, output_tokens::int o, runs from org_usage_month where org_id = $1`, [org])) ?? null;
+ok("a done read and a failed read each add their tokens to the org's month (1,200 + 8,000), not to runs",
+  JSON.stringify(await usage(ORG)) === JSON.stringify({ i: 9200, o: 0, runs: 0 }), JSON.stringify(await usage(ORG)));
+const R3 = await newRead();
+await move(R3, "reading");
+ok("a read that spent nothing (a cache hit) ends without touching the counter",
+  (await move(R3, "failed", { code: "reading_disabled" })) === null && (await usage(ORG)).i === 9200);
+ok("a refused second terminal move counts nothing twice",
+  (await move(R2, "failed", { code: "max_tokens", tokens: 8000 })) === "DO014" && (await usage(ORG)).i === 9200);
+ok("the other carrier's month is untouched", (await usage(OTHER)) === null);
+const R4 = await newRead();
+await move(R4, "reading");
+ok("model_unavailable ends a read the queue gave up on",
+  (await move(R4, "failed", { code: "model_unavailable" })) === null && (await status(R4)).failure_code === "model_unavailable");
+
 ok("even with the RPC's flag set, a read's source and profile are fixed", await (async () => {
   await db.exec("begin");
   try {
