@@ -380,34 +380,60 @@ describe("LiveMapWorkspace (DR5)", () => {
    * D-TC7: the route toggle. One route at a time, asked for only when turned on, and cleared whenever
    * the selection moves — a line left under a truck the card no longer describes is unaccountable.
    */
-  it("asks for the selected load's route only when its toggle is on, and drops it when the selection moves", async () => {
+  it("asks for the selected load's route only when its toggle is on, and closes it only when asked (D-TC7)", async () => {
+    const second = { ...BOARD.vehicles[0]!, vehicleId: "veh-2", unitNumber: "52", load: { id: "load-2", ref: "0002", status: "in_transit", nextStop: null } };
     board.data.value = {
       ...BOARD,
-      vehicles: [{ ...BOARD.vehicles[0]!, load: { id: "load-1", ref: "0001", status: "in_transit", nextStop: null } }],
+      vehicles: [{ ...BOARD.vehicles[0]!, load: { id: "load-1", ref: "0001", status: "in_transit", nextStop: null } }, second],
     };
     try {
       const wrapper = await mountWorkspace();
       const canvas = wrapper.findComponent({ name: "LiveMapCanvas" });
+      const asked = () => routeAsked.loadId?.value ?? null;
+      const toggle = () => wrapper.find('[aria-label="Show route"], [aria-label="Hide route"]');
+      const bar = () => wrapper.find('[role="status"]');
       await canvas.vm.$emit("select", "veh-1");
       await wrapper.vm.$nextTick();
-      expect(routeAsked.loadId?.value).toBeNull();
+      expect(asked()).toBeNull();
+      expect(bar().exists()).toBe(false);
 
-      const toggle = () => wrapper.find('[aria-label="Show route"], [aria-label="Hide route"]');
+      // On from the card's icon; off from it again.
       expect(toggle().attributes("aria-pressed")).toBe("false");
       await toggle().trigger("click");
-      expect(routeAsked.loadId?.value).toBe("load-1");
-      expect(toggle().attributes("aria-label")).toBe("Hide route");
+      expect(asked()).toBe("load-1");
       expect(toggle().attributes("aria-pressed")).toBe("true");
-
+      expect(bar().text()).toContain("Route · Unit 47 · Load 0001");
       await toggle().trigger("click");
-      expect(routeAsked.loadId?.value).toBeNull();
+      expect(asked()).toBeNull();
 
+      // Closing the card or clicking empty map — the gesture a fuel-stop click used to be mistaken
+      // for — leaves the route and its bar on screen.
       await toggle().trigger("click");
       await canvas.vm.$emit("select", null);
       await wrapper.vm.$nextTick();
-      expect(routeAsked.loadId?.value).toBeNull();
+      expect(asked()).toBe("load-1");
+      expect(bar().exists()).toBe(true);
+
+      // Re-selecting the same truck keeps it; choosing another truck replaces it.
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBe("load-1");
+      await canvas.vm.$emit("select", "veh-2");
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBeNull();
+
+      // The bar closes it from anywhere.
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      await toggle().trigger("click");
+      await canvas.vm.$emit("select", null);
+      await wrapper.vm.$nextTick();
+      await bar().findAll("button").find((b) => b.text() === "Hide route")!.trigger("click");
+      expect(asked()).toBeNull();
+      expect(bar().exists()).toBe(false);
     } finally {
       board.data.value = BOARD;
     }
   });
+
 });

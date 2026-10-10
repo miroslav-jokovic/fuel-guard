@@ -78,21 +78,37 @@ const pollSeconds = Math.round(LIVE_MAP_POLL_MS / 1000);
 const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
 
 /**
- * The load whose route is drawn (TRUCK-CARD-ROUTE-PLAN D-TC7): one at a time, on from the card's
- * toggle, off from it again, and off whenever the selection moves — a route left drawn under a truck
- * the card no longer describes would be a line nobody can account for.
+ * The route on the map (TRUCK-CARD-ROUTE-PLAN D-TC7, revised 2026-10-09): one at a time, and closed
+ * ONLY by a gesture that means "close the route".
+ *
+ * ⚠ It used to follow the selection — any change cleared it. But a click on a fuel stop reached the
+ * map's "empty map clears the selection" handler (see `isMarkerClick`), so opening a fuel stop closed
+ * the route the owner was reading; and closing the card took the route with it. Now:
+ *   · the card's route icon and its "Hide route", and the map's own route bar, close it;
+ *   · selecting a DIFFERENT truck replaces it (one route, never one for a truck nobody chose);
+ *   · closing the card or clicking empty map does NOT: the route bar stays on screen, naming the
+ *     truck and load, so the line is always accounted for and always one click from gone.
  */
-const routeLoadId = ref<string | null>(null);
+type RouteOn = { loadId: string; vehicleId: string; unitNumber: string; ref: string | null };
+const routeOn = ref<RouteOn | null>(null);
+const routeLoadId = computed(() => routeOn.value?.loadId ?? null);
 const routeQuery = useLoadRoute(routeLoadId);
-watch(selectedId, () => {
-  routeLoadId.value = null;
+watch(selectedId, (id) => {
+  if (id != null && id !== routeOn.value?.vehicleId) routeOn.value = null;
 });
 function toggleRoute(): void {
-  const loadId = selected.value?.load?.id ?? null;
-  routeLoadId.value = routeLoadId.value === loadId ? null : loadId;
+  const v = selected.value;
+  if (!v?.load || routeOn.value?.loadId === v.load.id) {
+    routeOn.value = null;
+    return;
+  }
+  routeOn.value = { loadId: v.load.id, vehicleId: v.vehicleId, unitNumber: v.unitNumber, ref: v.load.ref };
+}
+function hideRoute(): void {
+  routeOn.value = null;
 }
 const routeCard = computed(() => ({
-  shown: routeLoadId.value != null && routeLoadId.value === selected.value?.load?.id,
+  shown: routeOn.value != null && routeOn.value.loadId === selected.value?.load?.id,
   pending: routeQuery.isFetching.value && !routeQuery.data.value,
   error: routeQuery.error.value?.message ?? null,
   data: routeQuery.data.value ?? null,
@@ -205,7 +221,7 @@ watch(railVisible, async () => {
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
         :card-el="cardEl"
-        :route="routeCard.shown ? routeCard.data : null"
+        :route="routeOn ? routeCard.data : null"
         @select="selectedId = $event"
         @viewport="onViewport"
       />
@@ -274,6 +290,23 @@ watch(railVisible, async () => {
             })
           }}
         </p>
+      </div>
+
+      <!--
+        The route bar (D-TC7, 2026-10-09): while a route is drawn, it says whose it is and closes it,
+        whether or not the card is open — the one control a route can always be closed from.
+        ⚠ TOP-CENTRE for the reasons the strip above records (the bottom edge is the attribution's
+        and goes under the fold on a phone); below `lg` it sits under that strip, not on it.
+      -->
+      <div
+        v-if="routeOn"
+        class="map-panel absolute left-1/2 top-16 z-sticky flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-3 px-3 py-1.5 lg:top-3"
+        role="status"
+      >
+        <p class="truncate text-xs text-ink">
+          Route · Unit {{ routeOn.unitNumber }}<template v-if="routeOn.ref"> · Load {{ routeOn.ref }}</template>
+        </p>
+        <BaseButton variant="link" size="sm" @click="hideRoute">Hide route</BaseButton>
       </div>
 
       <!--
