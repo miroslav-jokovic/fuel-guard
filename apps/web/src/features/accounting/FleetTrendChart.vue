@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { ledgerMonthWhy } from "@silvicom/shared";
 import type { ChartConfiguration } from "chart.js";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import BaseChart from "@/components/BaseChart.vue";
@@ -100,8 +101,10 @@ const partial = computed(() => data.value?.monthsPartial ?? []);
 const partialNote = computed(() => {
   const p = partial.value;
   if (!p.length) return null;
-  const named = p.map((m) => `${m.month} (swept ${m.sweptAt?.slice(0, 10) ?? "—"})`).join(", ");
-  return `${named} ${p.length === 1 ? "was" : "were"} swept before the month ended, so ${p.length === 1 ? "it is" : "they are"} not on the chart yet.`;
+  // One clause per month from the shared wording, because a month swept early and a month McLeod has
+  // not posted (Q10) wait on different things, and the statement names them the same way.
+  const named = p.map((m) => `${m.month} ${ledgerMonthWhy(m)}`).join("; ");
+  return `${named}, so ${p.length === 1 ? "it is" : "they are"} not on the chart yet.`;
 });
 const missing = computed(() => {
   const partialMonths = new Set(partial.value.map((m) => m.month));

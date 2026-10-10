@@ -139,7 +139,7 @@ vi.mock("@/features/accounting/useFleetTrend", () => ({
       missing: ["2026-08"],
       rated: 2,
       monthsRequested: ["2026-06", "2026-07", "2026-08"],
-      monthsPartial: [{ month: "2026-08", periodEnd: "2026-08-31", sweptAt: "2026-08-28T21:02:56Z", complete: false, shortfall: "partial" }],
+      monthsPartial: [{ month: "2026-08", periodEnd: "2026-08-31", sweptAt: "2026-08-28T21:02:56Z", complete: false, shortfall: "partial", missingModules: [] }],
     }),
 }));
 

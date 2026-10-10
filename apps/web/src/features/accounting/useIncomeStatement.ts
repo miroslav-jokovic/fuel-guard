@@ -1,5 +1,6 @@
 import { computed, type Ref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
+import type { LedgerMonth } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -10,14 +11,8 @@ import { apiFetch } from "@/lib/api";
  * for the total to be wrong, and the reason this statement can be trusted is that there is one.
  */
 
-/** One month's ledger state, as the API reports it. */
-export interface LedgerMonthState {
-  month: string;
-  periodEnd: string;
-  sweptAt: string | null;
-  complete: boolean;
-  shortfall: "absent" | "partial" | null;
-}
+/** One month's ledger state, as the API reports it — the shared verdict type, not a copy of it. */
+export type LedgerMonthState = LedgerMonth;
 
 export interface StatementModule {
   post_module: string;

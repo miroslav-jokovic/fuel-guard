@@ -42,6 +42,21 @@ const JUNE_HALF_SWEPT = [
   { period_start: "2026-06-01", period_end: "2026-07-01", swept_at: "2026-06-20 04:00:00+00", post_module: "BILL", glid: "30000001", line_count: 5, net_amount: "-100000.00", abs_amount: "100000.00" },
 ];
 
+/**
+ * September as production held it on 2026-10-10: swept on 10-09, nine days after it ended, and
+ * holding recurring journals and nothing else, because McLeod's accountant had not posted it (Q10).
+ */
+const SEPTEMBER_UNPOSTED = [
+  { period_start: "2026-09-01", period_end: "2026-10-01", swept_at: "2026-10-09 18:59:00+00", post_module: "RJ", glid: "42200000", line_count: 8, net_amount: "26946.00", abs_amount: "26946.00" },
+];
+
+/** A December before the fiscal year, and a January that has only its recurring journals. */
+const DECEMBER_THEN_THIN_JANUARY = [
+  { period_start: "2025-12-01", period_end: "2026-01-01", swept_at: "2026-02-20 04:00:00+00", post_module: "BILL", glid: "30000001", line_count: 900, net_amount: "-3240532.00", abs_amount: "3240532.00" },
+  { period_start: "2025-12-01", period_end: "2026-01-01", swept_at: "2026-02-20 04:00:00+00", post_module: "FUEL", glid: "40050000", line_count: 3000, net_amount: "562325.00", abs_amount: "562325.00" },
+  { period_start: "2026-01-01", period_end: "2026-02-01", swept_at: "2026-02-20 04:00:00+00", post_module: "RJ", glid: "42200000", line_count: 9, net_amount: "132686.00", abs_amount: "132686.00" },
+];
+
 const recorder = (totals: unknown[] = TOTALS) =>
   createSupabaseRecorder({ tables: { mcleod_gl_totals: totals, mcleod_gl_accounts: ACCOUNTS } });
 
@@ -179,5 +194,22 @@ describe("getIncomeStatement", () => {
     expect(s.revenue).toBe(0);
     expect(s.monthsPartial.map((m) => m.month)).toEqual(["2026-06"]);
     expect(s.ledgerReason).toContain("2026-06-20");
+  });
+
+  it("refuses a month swept after it ended that McLeod has not posted yet, and names what is missing", async () => {
+    const s = await getIncomeStatement(recorder([...TOTALS, ...SEPTEMBER_UNPOSTED]).client, ORG, "2026-09-01", "2026-09-30");
+    expect(s.revenue).toBe(0);
+    expect(s.monthsCovered).toEqual([]);
+    expect(s.monthsMissing).toEqual([]);
+    expect(s.monthsPartial.map((m) => [m.month, m.shortfall, m.missingModules])).toEqual([["2026-09", "unposted", ["BILL", "FUEL"]]]);
+    expect(s.ledgerReason).toContain("2026-09 has not been fully posted in McLeod yet (no BILL, FUEL lines)");
+  });
+
+  it("judges January against the December before the fiscal year, which the window does not read", async () => {
+    const s = await getIncomeStatement(recorder(DECEMBER_THEN_THIN_JANUARY).client, ORG, "2026-01-01", "2026-01-31");
+    expect(s.monthsCovered).toEqual([]);
+    expect(s.monthsPartial.map((m) => m.shortfall)).toEqual(["unposted"]);
+    // December is still not in a January statement's year to date.
+    expect(s.toDateRevenue).toBe(0);
   });
 });

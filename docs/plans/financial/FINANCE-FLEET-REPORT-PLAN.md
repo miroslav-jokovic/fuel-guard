@@ -58,6 +58,20 @@ time — which is the test a simplification has to pass.
   and the class of every deduction is read from the GL account it posts to (§1.3).
 - **D-FLEET8 — nothing is allocated.** There is no overhead pool, no basis, no apportionment and
   no ruling to sign. A fleet number divided by fleet miles needs none of it.
+- **D-FLEET11 — a month McLeod has not posted yet is reported as PRELIMINARY (owner, 2026-10-10;
+  amends D-FLEET2 and D-FLEET4 for unposted months only).** The owner rejected waiting for the
+  ledger as "two months behind" ("We need to be more accurate and closer to the current date").
+  McLeod's accountant posts a month 10–39 days after it ends (measured 2026-10-10, §7), but
+  everything except the general journals and office payroll is current to yesterday. So until a
+  month's ledger posts, it is built from the sources that are already there, and labelled
+  preliminary: revenue from billing, driver and owner-operator pay from settlements, fuel from EFS
+  (which reproduces McLeod's FUEL module to $152.25 in August), and AP from voucher distribution
+  lines. General journals (leases, insurance, interest) and office payroll, about 22% of expense,
+  have no sub-ledger. They are **carried from the last posted month as a labelled estimate** (the
+  owner chose this over "not posted yet", which would print a margin a fifth too good). When the
+  ledger posts, it replaces the preliminary figures and the page shows the difference. D-FLEET2
+  still holds for every posted month: the ledger is the answer, and the preliminary month is the
+  answer only until it arrives.
 
 ### What these rulings delete
 
@@ -1171,3 +1185,45 @@ the record.
   **Nothing reads these rows yet** — that is W4, and `distanceByVehicle` (W3a) is already the reader
   it will use. The collector starts filling the table the moment it deploys; W4 has real history to
   read as soon as a few days have passed.
+
+- 2026-10-10 · **Finance is two months behind: what is missing, and the owner's rulings.** Measured
+  read-only on production (snapshot of `lme_analytics` restored 10-09). Every sub-ledger is current
+  to 10-09: billing (September $5.98M, 1,549 bills), settlements (September $1.55M accrued),
+  deductions, settled movements and AP voucher headers (September $1.68M); EFS is ours and current
+  to the hour. Every September bill and settlement already carries `transfer_date`/`transferred_at`
+  and a `post_key`. Only `gl_ledger` is behind: September holds eight `RJ` lines. August was RJ-only
+  on the 09-10 restore and complete on the 10-09 one, so McLeod posts a month 10–39 days after it
+  ends. August expense by source (July in brackets): settlements 40.5% (35.2%), fuel 29.2% (25.2%),
+  general journals 15.7% (13.3%), office payroll `OFF` 6.0% (7.1%), AP 4.6% (11.0%), recurring
+  journals 4.5% (8.5%). Revenue is ~100% `BILL`. About 70% of expense and all revenue are therefore
+  available to yesterday. Not seen: McLeod's unposted-batch or holding tables. The VPN was down, so
+  `lme_analytics` was not reachable and the 10–39 days comes from comparing two snapshots.
+
+  Still unexplained, and a preliminary month will make both visible every month: billing exceeds GL
+  receivables (12000000) by 1.3% in July and 3.4% in August (+$166k, all company TMS — the open
+  question June recorded), and settlements accrued differ from the GL SET+SETV P&L accounts by
+  −3.4% in July and +0.9% in August.
+
+  **Rulings, owner, 2026-10-10 ("proceed as recommended"):**
+  1. **Turn on the nightly finance sweep on McLeod's server.** The connector on Alex's VM has run
+     live since 10-09 with `FINANCE_FEED=off` until Alex grants finance reads on LME
+     (`tools/mcleod-agent/connector.example.env`). The grants go on the analytics copy first, for one
+     night of `agent.mjs --financial --dry-run`. **Work item:** a draft request to Alex in
+     `tools/mcleod-agent/review/`, which the owner sends.
+  2. **Collect AP voucher DISTRIBUTION lines.** `mcleod_ap_vouchers.ap_glid` is the payables account
+     (20000000 and similar), never the expense, so AP's 5–11% of expense cannot be put in a family
+     until the lines are read. **Work item:** McLeod query + staging table + ingest path in one
+     merge (`lint:table-producers`), with the table name taken from McLeod's schema, not guessed.
+  3. **D-FLEET11, the preliminary month,** with general journals and payroll carried from the last
+     posted month as a labelled estimate. **Work item:** after 1 and 2, because a preliminary month
+     without AP lines is missing a source it does not need to miss.
+  4. **Ask accounting to post GJ and payroll sooner.** A process question, not code. It goes into
+     the Alex draft as a light question.
+
+  **Q10 (`docs/plans/fuel/DATA-PRECISION-AUDIT-2026-09-20.md` §4) is ruled (a) and built in this
+  PR.** A month swept after it ended is also withheld until it carries the module that earned the
+  most and the one that spent the most in the last complete month before it. September and October
+  2026 are now withheld as `unposted` instead of opening the report on near-zero revenue. The audit
+  doc's log of the same date records why the literal reading of (a) was not buildable: it refuses
+  January 2026 for a $100.00 line.
+

@@ -84,6 +84,7 @@ const respond = (o: Partial<FleetTrendResponse> = {}) => {
     rated: 2,
     monthsRequested: ["2026-02", "2026-03", "2026-04"],
     monthsPartial: [],
+    ledgerReason: null,
     ...o,
   };
 };
@@ -204,15 +205,27 @@ describe("FleetTrendChart", () => {
     respond({
       missing: ["2026-01", "2026-08"],
       monthsPartial: [
-        { month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial" },
+        { month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial", missingModules: [] },
       ],
     });
     const w = render();
-    expect(w.text()).toContain("swept before the month ended");
-    expect(w.text()).toContain("2026-08-28");
+    expect(w.text()).toContain("2026-08 was swept on 2026-08-28, before the month ended");
     // The "not reached" sentence names January only — August was reached, and too early.
     const notReached = w.text().slice(w.text().indexOf("has not reached"));
     expect(notReached).toContain("2026-01");
     expect(notReached).not.toContain("2026-08");
+  });
+
+  /** September 2026 as production held it on 2026-10-10 — swept after it ended, not posted (Q10). */
+  it("says a month McLeod has not posted is waiting on the posting, not on a sweep", () => {
+    respond({
+      missing: ["2026-09"],
+      monthsPartial: [
+        { month: "2026-09", periodEnd: "2026-10-01", sweptAt: "2026-10-09 18:59:00+00", complete: false, shortfall: "unposted", missingModules: ["BILL", "SET"] },
+      ],
+    });
+    const w = render();
+    expect(w.text()).toContain("2026-09 has not been fully posted in McLeod yet (no BILL, SET lines), so it is not on the chart yet.");
+    expect(w.text()).not.toContain("swept before the month ended");
   });
 });
