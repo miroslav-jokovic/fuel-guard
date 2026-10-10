@@ -26,7 +26,7 @@
  * Every time is on the CARRIER's clock (`useOrgTimezone`), never the viewer's.
  */
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   type DispatchException,
   EXCEPTION_LABELS,
@@ -69,6 +69,7 @@ const PAGE_SIZE = 20;
 const session = useSessionStore();
 const toast = useToastStore();
 const router = useRouter();
+const route = useRoute();
 const { zone } = useOrgTimezone();
 
 const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoadsQuery();
@@ -105,7 +106,10 @@ async function clearException(row: DispatchException) {
 const dispatching = ref<DispatchLoad | null>(null); // LR-D3: the load whose Dispatch drawer is open
 
 const search = ref("");
-const tab = ref<QueueTab>(QUEUE_TABS[0]!.value);
+// `?queue=uncovered` opens on that queue: the dispatch board links here for the loads that have no
+// truck, and so no row of their own on a truck board (DISPATCH-BOARD-PLAN D-DB5). Unknown values fall back.
+const queueFromUrl = QUEUE_TABS.find((q) => q.value === route.query.queue)?.value;
+const tab = ref<QueueTab>(queueFromUrl ?? QUEUE_TABS[0]!.value);
 const dispatcherFilter = ref("");
 const typeFilter = ref("");
 const page = ref(1);

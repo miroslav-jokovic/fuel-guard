@@ -1,225 +1,192 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import {
-  shiftDuration,
-  loadBoardState,
-  type AssignmentRow,
-  type LoadStatus,
-} from "@silvicom/shared";
-import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
+import { computed, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
+import { AppSegmentedControl, AppTabs } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
-import DataTable from "@/components/ui/DataTable.vue";
-import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { BADGE_BASE, toneClass } from "@/lib/badges";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
+import { formatDateTime } from "@/lib/format";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
-import { useAssignmentsQuery, useEndShift } from "@/features/dispatch/useAssignments";
+import DispatchBoardTable from "@/features/dispatch/DispatchBoardTable.vue";
+import { useDispatchBoardQuery } from "@/features/dispatch/useDispatchBoard";
+import {
+  BOARD_QUEUES,
+  NO_FLEET_OPTION,
+  POOL_FLEET,
+  POOL_OPTION,
+  dispatcherName,
+  filterBoard,
+  type BoardQueue,
+} from "@/features/dispatch/dispatchBoardView";
 
 /**
- * Dispatch → Assignments: the live duty board, TELEMATICS-SOURCED (Samsara HOS). Per driver: live duty
- * status, current truck + paired trailer, city location, how long they've been in the status, and the
- * load they are working. "End shift" only appears for a genuinely open in-app duty session (this fleet
- * doesn't use the in-app shift feature, so it stays hidden) — the board itself never depends on it.
+ * Dispatch → Dispatch board (DISPATCH-BOARD-PLAN.md, D-DB2). It was the Assignments page — one row per
+ * DRIVER with a duty badge up to six hours old — and is now one row per TRUCK: who drives it and how
+ * long they may, where it is, what it hauls, whether it will make its appointment, where and when it
+ * empties, and what it hauls next. The path stays `/assignments` so bookmarks keep working (Q-DB5).
  *
- * The HISTORY tab is the same subject over time (L5): who held which truck and trailer, for how long.
- * A tab rather than a page — it is one more view of assignments, not a second place to look for them.
+ * ── TWO PAGES, ONE QUESTION EACH (D-DB5) ─────────────────────────────────────────────────────────
+ * This page answers "what do my trucks need from me now"; the Loads page answers "what is the state of
+ * this order". So there is no Uncovered list here — a load with no truck has no row on a truck board,
+ * and the board LINKS to the Loads page's Uncovered queue rather than keeping a second list of it.
+ *
+ * ── MY FLEET IS A FILTER, NOT A PERMISSION (D-DB1, D-DB3) ────────────────────────────────────────
+ * Every truck arrives; the server says which are the caller's (their McLeod fleets, plus any truck on a
+ * load they dispatch). A caller no McLeod login is linked to opens on All, and the page says why rather
+ * than showing an empty "My fleet" that reads as "nothing of mine needs me".
+ *
+ * The History tab is the L5 attribution trail, unchanged.
  */
-
-const session = useSessionStore();
-const toast = useToastStore();
-const { data: rows, isLoading, isError, error, refetch, isFetching } = useAssignmentsQuery();
-const endShift = useEndShift();
-
-// A ticking clock so the "in status 6h 12m" column advances without waiting for the next refetch.
-const nowMs = ref(Date.now());
-let timer: ReturnType<typeof setInterval> | undefined;
-onMounted(() => {
-  timer = setInterval(() => (nowMs.value = Date.now()), 30_000);
-});
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
-
-const search = ref("");
-const activeOnly = ref(true);
-const filtered = computed(() =>
-  (rows.value ?? []).filter((r) => {
-    if (activeOnly.value && r.driver_status && r.driver_status !== "active") return false;
-    const t = search.value.trim().toLowerCase();
-    if (!t) return true;
-    return [r.driver_name, r.vehicle_unit, r.trailer_unit, r.load_ref, r.location]
-      .filter((f): f is string => Boolean(f))
-      .some((f) => f.toLowerCase().includes(t));
-  }),
-);
-
-/** HOS duty badge — tones from the shared vocabulary, so it matches every other status in the app.
- *  Labels are lowercase because BADGE_BASE capitalises. */
-const HOS_BADGE: Record<string, { label: string; tone: string }> = {
-  driving: { label: "driving", tone: "success" },
-  on_duty: { label: "on duty", tone: "info" },
-  off_duty: { label: "off duty", tone: "neutral" },
-  sleeper: { label: "sleeper", tone: "brand" },
-  yard_move: { label: "yard move", tone: "warning" },
-  personal_conveyance: { label: "personal", tone: "warning" },
-  unknown: { label: "unknown", tone: "neutral" },
-};
-const hosBadge = (s: string | null) => HOS_BADGE[s ?? "unknown"] ?? HOS_BADGE.unknown!;
+const { zone } = useOrgTimezone();
+const { data: board, isLoading, isError, error, refetch, isFetching } = useDispatchBoardQuery();
 
 const TABS = [
-  { value: "board", label: "Duty board" },
+  { value: "board", label: "Board" },
   { value: "history", label: "History" },
-] as const;
-const tab = ref<(typeof TABS)[number]["value"]>("board");
+];
+const tab = ref("board");
 
-// The Loads board's words (`loadBoardState`), not the approval chain's: a McLeod load planned but not
-// started is `approved`, which LOAD_STATUS_LABELS would call "Approved" (2026-09-28).
-const loadLabel = (r: AssignmentRow) =>
-  r.load_ref && r.load_status
-    ? `${r.load_ref} · ${loadBoardState({ status: r.load_status as LoadStatus, source: r.load_source ?? "", external_status: r.load_external_status }).label}`
-    : (r.load_ref ?? "—");
-
-// Legacy in-app shift gating: End shift appears only for a genuinely open session.
-const hasOpenSession = (r: AssignmentRow) => r.session_id != null;
-
-async function end(r: AssignmentRow) {
-  // `hasOpenSession` already gates the button; this narrows the nullable type rather than asserting.
-  if (!r.session_id) return;
-  try {
-    await endShift.mutateAsync(r.session_id);
-    toast.success(`Ended ${r.driver_name}'s shift`);
-  } catch (e) {
-    toast.error("Could not end the shift", e instanceof Error ? e.message : undefined);
-  }
+const scope = computed(() => board.value?.scope ?? { linked: false, fleetCodes: [], dispatcherIds: [] });
+const SCOPE_OPTIONS = [
+  { value: "mine", label: "My fleet" },
+  { value: "all", label: "All" },
+];
+const scopeChoice = ref<"mine" | "all">("all");
+// Open on My fleet once the server says the caller has one; never force it back after they choose.
+let scopeChosen = false;
+watch(
+  () => scope.value.linked,
+  (linked) => {
+    if (!scopeChosen) scopeChoice.value = linked ? "mine" : "all";
+  },
+  { immediate: true },
+);
+function setScope(v: string) {
+  scopeChosen = true;
+  scopeChoice.value = v === "mine" ? "mine" : "all";
 }
 
-const columns: DataTableColumn[] = [
-  { key: "driver_name", label: "Driver", width: "lg" },
-  { key: "duty", label: "Duty status", width: "md" },
-  {
-    key: "vehicle_unit",
-    label: "Truck",
-    width: "sm",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "trailer_unit",
-    label: "Trailer",
-    width: "sm",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "location",
-    label: "Location",
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "duration",
-    label: "In status",
-    numeric: true,
-    width: "sm",
-    cellClass: "text-ink-secondary",
-  },
-  {
-    key: "load",
-    label: "Current load",
-    width: "lg",
-    cellClass: "text-ink-secondary",
-  },
-];
+const search = ref("");
+const fleet = ref("");
+const dispatcher = ref("");
+const queue = ref<BoardQueue>("all");
+
+const rows = computed(() => board.value?.rows ?? []);
+const dispatchers = computed(() => board.value?.dispatchers ?? []);
+const fleetOwner = (code: string | null) => board.value?.fleets.find((f) => f.code === code)?.dispatcherId ?? null;
+
+const base = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value }));
+const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }));
+const queueOptions = computed(() =>
+  BOARD_QUEUES.map((q) => ({
+    value: q.value,
+    label: `${q.label} (${filterBoard(rows.value, scope.value, { ...base.value, queue: q.value }).length})`,
+  })),
+);
+
+const fleetOptions = computed(() => [
+  { value: "", label: "All fleets" },
+  ...(board.value?.fleets ?? [])
+    .filter((f) => f.code !== POOL_FLEET)
+    .map((f) => ({ value: f.code, label: f.dispatcherId ? `${f.code} · ${dispatcherName(f.dispatcherId, dispatchers.value)}` : f.code })),
+  { value: POOL_OPTION, label: "Unassigned pool" },
+  { value: NO_FLEET_OPTION, label: "No fleet" },
+]);
+const dispatcherOptions = computed(() => [
+  { value: "", label: "Anyone" },
+  ...dispatchers.value.filter((d) => !d.isSystem).map((d) => ({ value: d.id, label: d.name || d.id })),
+]);
+
+const chips = computed<FilterChip[]>(() => {
+  const out: FilterChip[] = [];
+  if (fleet.value) out.push({ key: "fleet", label: "Fleet", value: fleetOptions.value.find((o) => o.value === fleet.value)?.label ?? fleet.value });
+  if (dispatcher.value) out.push({ key: "dispatcher", label: "Dispatched by", value: dispatcherName(dispatcher.value, dispatchers.value) });
+  return out;
+});
+function removeChip(key: string) {
+  if (key === "fleet") fleet.value = "";
+  if (key === "dispatcher") dispatcher.value = "";
+}
+function clearAll() {
+  search.value = "";
+  fleet.value = "";
+  dispatcher.value = "";
+  queue.value = "all";
+}
+
+const at = (iso: string | null | undefined) => formatDateTime(iso, "—", zone.value);
+const description = computed(() => {
+  if (tab.value === "history") return "Who held which truck and trailer, and when. The attribution trail behind every evidence panel.";
+  const hos = board.value?.hosAsOf ? ` HOS as of ${at(board.value.hosAsOf)}.` : "";
+  return `Every truck, what it is hauling, and whether it will make its appointment.${hos}`;
+});
+const emptyText = computed(() =>
+  rows.value.length === 0 ? "No trucks on the roster yet." : "No trucks match these filters.",
+);
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader
-      :description="
-        tab === 'board'
-          ? 'Live from ELD telematics: each driver\'s duty status, truck, trailer, location, and load.'
-          : 'Who held which truck and trailer, and when. The attribution trail behind every evidence panel.'
-      "
-    />
+    <PageHeader :description="description" />
 
-    <nav
-      class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm"
-      role="tablist"
-      aria-label="Assignments view"
-    >
-      <BaseButton
-        v-for="t in TABS"
-        :key="t.value"
-        type="button"
-        role="tab"
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="
-          tab === t.value
-            ? 'bg-surface text-ink'
-            : 'text-ink-muted hover:text-ink-secondary'
-        "
-        :aria-selected="tab === t.value"
-        @click="tab = t.value"
-      >
-        {{ t.label }}
-      </BaseButton>
-    </nav>
+    <AppTabs v-model="tab" :tabs="TABS" label="Dispatch board view" />
 
     <AssignmentHistory v-if="tab === 'history'" />
 
     <template v-else>
-      <FilterBar
-        v-model:search="search"
-        search-placeholder="Search driver, truck, location, load…"
-        :count="filtered.length"
-        count-label="drivers"
-      >
-        <template #filters>
-          <BaseCheckbox v-model="activeOnly">Active drivers only</BaseCheckbox>
-        </template>
-      </FilterBar>
+      <p v-if="board && !scope.linked" class="text-sm text-ink-muted">
+        Showing every truck. Your account is not linked to a McLeod dispatcher yet. An admin links it
+        in Settings → McLeod fleets, and the board then opens on your fleet.
+      </p>
 
-      <DataTable
-        :columns="columns"
-        :rows="filtered"
-        row-key="driver_id"
-        :loading="isLoading"
-        :error="
-          isError
-            ? error instanceof Error
-              ? error.message
-              : 'Failed to load the duty board'
-            : null
-        "
-        :retrying="isFetching"
-        empty-text="No drivers on the roster yet."
-        @retry="refetch"
-      >
-        <template #cell-duty="{ row }">
-          <span :class="[BADGE_BASE, toneClass(hosBadge(row.duty_status).tone)]">
-            {{ hosBadge(row.duty_status).label }}
-          </span>
-        </template>
-        <template #cell-vehicle_unit="{ row }">{{ row.vehicle_unit || "—" }}</template>
-        <template #cell-trailer_unit="{ row }">{{ row.trailer_unit || "—" }}</template>
-        <template #cell-location="{ row }">{{ row.location || "—" }}</template>
-        <template #cell-duration="{ row }">
-          {{ row.duty_since ? shiftDuration(row.duty_since, nowMs) : "—" }}
-        </template>
-        <template #cell-load="{ row }">{{ loadLabel(row) }}</template>
-        <template #actions="{ row }">
-          <BaseButton
-            v-if="session.can('dispatch') && hasOpenSession(row)"
-            variant="ghost"
-            size="sm"
-            :disabled="endShift.isPending.value"
-            @click="end(row)"
-          >
-            End shift
-          </BaseButton>
-        </template>
-      </DataTable>
+      <DataWorkspace>
+        <FilterBar
+          v-model:search="search"
+          embedded
+          search-placeholder="Search truck, driver, load, customer, city…"
+          :count="filtered.length"
+          count-label="trucks"
+          :chips="chips"
+          @remove="removeChip"
+          @clear-all="clearAll"
+        >
+          <template #filters>
+            <AppSegmentedControl
+              :model-value="scopeChoice"
+              :options="SCOPE_OPTIONS"
+              label="Whose trucks"
+              :disabled="!scope.linked"
+              @update:model-value="setScope"
+            />
+            <FilterSelect v-model="queue" label="Show" :options="queueOptions" />
+            <FilterSelect v-model="fleet" label="Fleet" :options="fleetOptions" />
+            <FilterSelect v-model="dispatcher" label="Dispatched by" :options="dispatcherOptions" />
+          </template>
+          <template #actions>
+            <RouterLink
+              v-if="board && board.uncoveredCount > 0"
+              :to="{ name: 'loads', query: { queue: 'uncovered' } }"
+              class="text-sm font-medium text-brand-700 hover:underline"
+            >
+              {{ board.uncoveredCount }} uncovered {{ board.uncoveredCount === 1 ? "load" : "loads" }} →
+            </RouterLink>
+          </template>
+        </FilterBar>
+
+        <DispatchBoardTable
+          :rows="filtered"
+          :loading="isLoading"
+          :error="isError ? (error instanceof Error ? error.message : 'Failed to load the dispatch board') : null"
+          :retrying="isFetching"
+          :empty-text="emptyText"
+          :zone="zone"
+          :dispatchers="dispatchers"
+          :fleet-owner="fleetOwner"
+          @retry="refetch"
+        />
+      </DataWorkspace>
     </template>
   </div>
 </template>

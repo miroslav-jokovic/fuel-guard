@@ -149,7 +149,7 @@ export const SURFACES: readonly Surface[] = [
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
   // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
   { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread", startsOnFor: [] },
-  { key: "dispatch.assignments", label: "Assignments", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
+  { key: "dispatch.assignments", label: "Dispatch board", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.fuel-planning", label: "Fuel Planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
   { key: "dispatch.truck-stops", label: "Truck Stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
 
@@ -390,6 +390,10 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2, 2026-10-10). `settings: view` to read and
+  // the API's `settings: manage` to edit — Q-DB3's "admin + fleet manager" IS that section, so the gate
+  // is read from the matrix rather than written as a role list.
+  { key: "admin.settings.mcleod-fleets", label: "McLeod fleets", path: "/settings/mcleod-fleets", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.efs", label: "EFS integration", path: "/settings/efs-soap", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   // The FleetPal connection (2026-10-04). Admin-only for `fleetpal.connection`'s reason in
   // namedGrants.ts: the key it stores speaks for the carrier to the shop system.

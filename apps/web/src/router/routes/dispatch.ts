@@ -20,7 +20,7 @@ export const dispatchRoutes: RouteRecordRaw[] = [
     path: "/assignments",
     name: "assignments",
     component: () => import("@/pages/AssignmentsPage.vue"),
-    meta: { requiresAuth: true, title: "Assignments" },
+    meta: { requiresAuth: true, title: "Dispatch board" },
   },
   {
     path: "/loads",

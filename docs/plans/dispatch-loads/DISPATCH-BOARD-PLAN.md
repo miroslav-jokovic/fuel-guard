@@ -377,3 +377,26 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   for anybody outside the org.
 - Next, **wave 3b**: the page (Board · History), the links card in Settings, the Loads page's
   Uncovered deep link. Then the drawer (DB6), saved views and the Loads scope control (DB5b).
+
+**2026-10-10 — wave 3a merged.**
+
+**2026-10-10 — wave 3b built: the page.**
+- `/assignments` is now **Dispatch board** (sidebar, title; path kept, Q-DB5). Tabs Board · History.
+  One row per truck: attention dot, truck + fleet, driver + duty badge, drive time left (the binding
+  clock; tooltip shows drive / shift / cycle), place + GPS age + speed, current load (links to the
+  load page; "Moved by asen" when the load's dispatcher is not the fleet's), next stop + appointment,
+  on time (shared `onTimeBadge`, ETA basis in the tooltip), empties (place + time), next load.
+- Toolbar: My fleet · All (`AppSegmentedControl`; opens on My fleet for a linked user, on All with a
+  sentence saying why for anyone else), Show (the six queues, each with its count), Fleet (fleet '1'
+  is the "Unassigned pool", off by default, Q-DB2), Dispatched by, search. "N uncovered loads →"
+  opens Loads on `?queue=uncovered`, which the Loads page now honours.
+- **Settings → McLeod fleets** (`admin.settings.mcleod-fleets`, `settings: view`): link each fleet
+  code to the McLeod login that runs it (a name match is SUGGESTED, never written), and each login to
+  a person. Edits need `settings: manage`, like the API.
+- The old driver-row duty board and its local `HOS_BADGE` tone map are gone (`hosStatusBadge`
+  already existed). `GET /api/dispatch/assignments` stays: it has no other web reader now, and
+  retiring it is its own decision.
+- **Still owed:** the drawer (DB6); saved views and column picker; DB5b's shared scope control on the
+  Loads page; DB7 (ETA vs actual arrivals). And, outside code: Alex's review of the `fleet_id` SQL,
+  then the VM package upgrade — until then every truck reads "No fleet" and My fleet is only
+  "loads I dispatch".

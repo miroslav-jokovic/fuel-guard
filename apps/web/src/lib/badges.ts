@@ -324,6 +324,24 @@ export function hosStatusBadge(status: string): DqBadge {
   }
 }
 
+/**
+ * The dispatch board's on-time verdict (`onTimeVerdict` in `@silvicom/shared`) → badge. One spelling
+ * for every page that shows it — the board row and, from DB5b, the Loads page (D-DB6). "Unknown" is
+ * neutral and never green: no appointment, or no ETA, is not on time.
+ */
+export function onTimeBadge(verdict: string): DqBadge {
+  switch (verdict) {
+    case "on_time":
+      return { label: "On time", tone: "success" };
+    case "at_risk":
+      return { label: "At risk", tone: "warning" };
+    case "late":
+      return { label: "Late", tone: "danger" };
+    default:
+      return { label: "No ETA", tone: "neutral" };
+  }
+}
+
 /** Driver-app access (active | disabled | none) → badge (moved from DriversPage per D3). */
 export function appAccessBadge(access: string): DqBadge {
   switch (access) {
