@@ -9,6 +9,7 @@ import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
 import { workingCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { READ_PROMPTS } from "./prompts.js";
+import { DOCUMENT_BUCKET } from "../storage.js";
 
 /**
  * One document read, end to end (Step 1.6): the body of the `document_read` queue job.
@@ -33,7 +34,6 @@ import { READ_PROMPTS } from "./prompts.js";
  * (id, org) so a wrong org finds nothing.
  */
 
-const BUCKET = "document-intake";
 
 /** The consumer's gate (entitlement + kill switch + monthly budget), injected by the composition root. */
 export interface ReadGate {
@@ -121,7 +121,7 @@ async function readablePages(admin: SupabaseClient, orgId: string, sourceId: str
 async function loadImages(admin: SupabaseClient, pages: readonly PageRow[]): Promise<PageImage[] | "integrity_mismatch"> {
   const images: PageImage[] = [];
   for (const p of pages) {
-    const { data: blob, error } = await admin.storage.from(BUCKET).download(p.original_path);
+    const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
     // A missing object is a stored page that no longer matches what was received — the same failure.
     if (error || !blob) return "integrity_mismatch";
     const png = Buffer.from(await blob.arrayBuffer());

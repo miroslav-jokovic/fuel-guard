@@ -57,6 +57,18 @@
     "apps/api/src/modules/messaging/notify.ts",
     "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
+  "document_pages": [
+    "apps/api/src/modules/document-reading/intake/intake.ts"
+  ],
+  "document_read_reviews": [
+    "apps/api/src/modules/document-reading/read/requests.ts"
+  ],
+  "document_reads": [
+    "apps/api/src/modules/document-reading/read/requests.ts"
+  ],
+  "document_sources": [
+    "apps/api/src/modules/document-reading/intake/intake.ts"
+  ],
   "documents": [
     "apps/api/src/modules/evidence/compliance.ts",
     "apps/api/src/modules/evidence/documentDerivatives.ts",

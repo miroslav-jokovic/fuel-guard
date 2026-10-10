@@ -66,6 +66,9 @@ const KIND_CAPS: Record<string, number> = {
   // Two, like hazmat_extract (DOCUMENT-READER-PLAN §2 Queue): a read is up to three parallel vision
   // requests (Q-DR11 sections), so two reads is six in flight against Anthropic fleet-wide.
   document_read: 2,
+  // Two: a render holds pdf.js on the event loop (≈0.25–0.64 s per office BOL, measured 2026-10-10) and
+  // ~34 MB of RGBA per 300-DPI page, one page at a time (pdf.ts); two at once is a bounded cost.
+  document_intake: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
   // ⚠ ONE. FleetPal publishes no rate limit and sends no limiter headers — 94 sequential requests

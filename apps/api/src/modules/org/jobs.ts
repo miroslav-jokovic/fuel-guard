@@ -49,6 +49,7 @@ export type JobKind =
   | "hazmat_extract"
   | "hazmat_analyze"
   | "document_read" // one document read: pages → model → document_read_transition (DOCUMENT-READER-PLAN Step 1.6)
+  | "document_intake" // one uploaded file → canonical pages → document_sources + document_pages (Step 1.6b)
   | "pattern_sweep" // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
   | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
   | "dq_binder" // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
