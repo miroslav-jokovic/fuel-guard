@@ -19,8 +19,8 @@ const ORG = "org-1";
 const READ = "read-1";
 const SOURCE = "source-1";
 const PROFILE = DOCUMENT_PROFILES.shipping_document;
-const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A?: string; DOC_READ_MODEL_B?: string; DOC_CLASSIFY_MODEL: string } = {
-  HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: undefined, DOC_READ_MODEL_B: undefined,
+const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A: string; DOC_READ_MODEL_B?: string; DOC_CLASSIFY_MODEL: string } = {
+  HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: "claude-sonnet-4-6", DOC_READ_MODEL_B: undefined,
   DOC_CLASSIFY_MODEL: "claude-haiku-5-5",
 };
 

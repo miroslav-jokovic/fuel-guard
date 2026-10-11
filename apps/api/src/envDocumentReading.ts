@@ -19,7 +19,10 @@ export const documentReadingEnvFields = {
   // The reader's own pins (D-DR8, Step 1.4). Unset by default, so each falls back to the hazmat pin
   // above — the hazmat names are aliases until retired, and a deployment that sets neither reads with
   // exactly the models it reads with today. Resolved in `modules/document-reading/model/models.ts`.
-  DOC_READ_MODEL_A: z.string().min(1).optional(),
+  // D-DR20 (owner, 2026-10-11): the reader is LOCKED to Sonnet 4.6 — its own default, no longer falling
+  // through HAZMAT_MODEL_A, so a change to the hazmat extractor's pin cannot move the reader. Measured on the
+  // ten office BOLs (DOCUMENT-READER-PLAN §7B.2): 0 wrong UN ids against Haiku 5.5's 5.
+  DOC_READ_MODEL_A: z.string().min(1).default("claude-sonnet-4-6"),
   DOC_READ_MODEL_B: z.string().min(1).optional(),
   // Layer 1 P2's page classifier (§7A.3, Q-DR19 (a)): what a page is and which way is up, one call per
   // page. Its own pin, not pass B's, because the default pass-B model failed the orientation half when

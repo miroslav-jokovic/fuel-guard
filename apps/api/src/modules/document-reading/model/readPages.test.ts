@@ -12,6 +12,8 @@ import {
   type ModelClient,
   type ReadPagesInput,
 } from "./readPages.js";
+import { z } from "zod";
+import { documentReadingEnvFields } from "../../../envDocumentReading.js";
 import { readModels } from "./models.js";
 import { schemaHash, wireSchemaFor } from "./wireSchema.js";
 import { worstCaseShippingDocument } from "./worstCaseShippingDocument.js";
@@ -194,12 +196,15 @@ describe("READ_MAX_TOKENS — sized from the worst case, not 2,048", () => {
   });
 });
 
-describe("readModels — the reader's pins, falling back to the hazmat aliases", () => {
-  const hazmat = { HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5" };
-  it("falls back to the hazmat pins when DOC_READ_MODEL_* is unset", () => {
-    expect(readModels({ ...hazmat, DOC_READ_MODEL_A: undefined, DOC_READ_MODEL_B: undefined })).toEqual({ A: "claude-sonnet-4-6", B: "claude-haiku-4-5" });
+describe("readModels — pass A locked to Sonnet 4.6 (D-DR20), pass B falling back to the hazmat alias", () => {
+  const parse = (env: Record<string, string>) => z.object(documentReadingEnvFields).parse(env);
+  it("reads with Sonnet 4.6 when nothing is set", () => {
+    expect(readModels(parse({}))).toEqual({ A: "claude-sonnet-4-6", B: "claude-haiku-4-5" });
   });
-  it("DOC_READ_MODEL_* wins, each independently", () => {
-    expect(readModels({ ...hazmat, DOC_READ_MODEL_A: "claude-sonnet-5-5", DOC_READ_MODEL_B: undefined })).toEqual({ A: "claude-sonnet-5-5", B: "claude-haiku-4-5" });
+  it("a change to the hazmat extractor's pin does not move the reader", () => {
+    expect(readModels(parse({ HAZMAT_MODEL_A: "claude-opus-5-5", HAZMAT_MODEL_B: "claude-haiku-5-5" }))).toEqual({ A: "claude-sonnet-4-6", B: "claude-haiku-5-5" });
+  });
+  it("DOC_READ_MODEL_* still wins, each independently", () => {
+    expect(readModels(parse({ DOC_READ_MODEL_A: "claude-sonnet-5-5" }))).toEqual({ A: "claude-sonnet-5-5", B: "claude-haiku-4-5" });
   });
 });
