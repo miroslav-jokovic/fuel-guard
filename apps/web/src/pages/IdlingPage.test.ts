@@ -82,13 +82,24 @@ async function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
   const w = mount(IdlingPage, {
-    global: { plugins: [router, pinia], stubs: { SamsaraFeedLine: true, IdleBurnRatesPanel: true, IdleEngineParityPanel: true } },
+    global: { plugins: [router, pinia], stubs: { SamsaraFeedLine: true, IdleBurnRatesPanel: true } },
   });
   await flushPromises();
   return w;
 }
 
 const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((h) => h.text()).filter(Boolean);
+
+describe("IdlingPage — the engine release gate is not an office figure (Q-FSV17 step 3)", () => {
+  it("shows the burn rates under 'How idle is scored' and never the parity gate", async () => {
+    const w = await mountPage();
+    const scored = w.findAll("button").find((b) => b.text() === "How idle is scored")!;
+    await scored.trigger("click");
+    expect(w.findComponent({ name: "IdleBurnRatesPanel" }).exists()).toBe(true);
+    const t = w.text();
+    for (const s of ["Days with data missing", "finished days", "release", "parity"]) expect(t.toLowerCase(), s).not.toContain(s.toLowerCase());
+  });
+});
 
 describe("IdlingPage — each total says what it covers, how it was priced, and how far the data reaches", () => {
   it("puts the coverage and pricing lines on the card they qualify, and the reach above the cards", async () => {
