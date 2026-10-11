@@ -264,6 +264,8 @@ jobs:
       # sources, then fails if either differs from what was committed. It had existed since the
       # codegen work but was never wired in here, so for its whole life it enforced nothing —
       # including for the *.generated.ts files it was written for (found 2026-08-23, D-DS3).
+      # Since 2026-10-11 it also regenerates the SMS Appendix A dataset from FMCSA's committed
+      # workbook (`scripts/gen-sms-appendix.mjs --check`, INSPECTION-CHALLENGE-PLAN IC3).
       - name: Generated output matches its sources
         run: pnpm lint:codegen
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { ledgerMonthWhy } from "@silvicom/shared";
 import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -58,9 +59,8 @@ watch(
       period.value = periodForMonth(latest);
       if (latest !== calendarCap) {
         const partial = trend.monthsPartial.find((m) => m.month === calendarCap);
-        const why = partial
-          ? `was swept on ${partial.sweptAt?.slice(0, 10) ?? "an unknown day"}, before the month ended`
-          : "has not been swept from McLeod yet";
+        // The shared clause, so this note and the overview's reason never word one month two ways.
+        const why = partial ? ledgerMonthWhy(partial) : "has not been swept from McLeod yet";
         openedEarlierNote.value = `${monthName(calendarCap)} ${why}, so the report opens on ${periodLabel(period.value)}. Step forward to see what the ledger holds for it.`;
       }
     } else if (failed) {

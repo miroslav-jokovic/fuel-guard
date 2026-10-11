@@ -24,6 +24,8 @@ import { statusIsRevertible, statusRevert } from "./statusRevert.js";
  */
 export const cardDeactivateBehaviour = defineBehaviour(cardDeactivateContract, {
   target: { kind: "card" },
+  /** McLeod rewrites TRIP/TRLR on every dispatch; this action decides nothing about prompts (`rebasesOver`). */
+  rebasesOver: ["infos"],
 
   mutation: {
     kind: "echo",

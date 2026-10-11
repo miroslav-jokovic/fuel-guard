@@ -187,6 +187,16 @@ export async function loadThresholds(admin: SupabaseClient, orgId: string): Prom
   };
 }
 
+/**
+ * The org's fill-detection start date (0439, D-CF9), or null when it was never reset. A fill before it
+ * raises no case (`beforeDetectionEpoch`, packages/shared/src/detectionEpoch.ts).
+ */
+export async function loadDetectionEpoch(admin: SupabaseClient, orgId: string): Promise<string | null> {
+  const { data, error } = await admin.from("organizations").select("detection_epoch").eq("id", orgId).single();
+  if (error) throw new Error(`[scoring] could not load the detection start date for org ${orgId}: ${error.message}`);
+  return (data?.detection_epoch as string | null | undefined) ?? null;
+}
+
 export async function loadOperatingHours(
   admin: SupabaseClient,
   orgId: string,
@@ -274,6 +284,8 @@ export interface ScoreOpts {
   ctx?: {
     thresholds?: Awaited<ReturnType<typeof loadThresholds>>;
     operatingHours?: Awaited<ReturnType<typeof loadOperatingHours>>;
+    /** The org's detection start date (0439); `null` = never reset. Absent = load it per fill. */
+    detectionEpoch?: string | null;
     /** Org Samsara token, loaded once; `null` = not configured. Passed to reconcile to skip per-fill lookup. */
     samsaraToken?: string | null;
   };

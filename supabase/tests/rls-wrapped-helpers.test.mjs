@@ -1,5 +1,5 @@
 // Silvicom 360 — every RLS policy calls auth_org_id() / auth_role() wrapped, never bare
-// (migration 0435, DATABASE-AUDIT Q-DA4 step 1).
+// (migration 0460, DATABASE-AUDIT Q-DA4 step 1).
 //
 // A bare call is evaluated per row; `(select auth_org_id())` once per statement. Measured on production
 // 2026-10-05: 210–216 ms bare vs 65 ms wrapped on ~205k idle_events rows. Step 2 adds a membership

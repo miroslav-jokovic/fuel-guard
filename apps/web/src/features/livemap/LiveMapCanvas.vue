@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
-import { basemapFor, type BasemapChoice, type LiveMapVehicle } from "@silvicom/shared";
+import { basemapFor, type BasemapChoice, type LiveMapLoadRoute, type LiveMapVehicle } from "@silvicom/shared";
 import { useMapLibre, tokenColor } from "@/composables/useMapLibre";
 import { useColorScheme } from "@/composables/useColorScheme";
 import LiveMapControls from "./LiveMapControls.vue";
-import { planCameraMove } from "./liveMapCamera";
+import { planCameraMove, SELECT_ZOOM } from "./liveMapCamera";
 import { installLiveMapIcons } from "./liveMapIcons";
+import { isMarkerClick, showRoute, syncRoute } from "./liveMapRouteLayer";
 import { toFeatureCollection, type MapBounds, type RenderedPlace } from "./liveMapLayer";
 import { planTweens, sampleTweens, tweensSettled, type Tween } from "./liveMapMotion";
 
@@ -48,8 +49,10 @@ const props = withDefaults(
      * component was extracted to prevent.
      */
     cardEl?: HTMLElement | null;
+    /** The load route the card's toggle turned on, drawn under the trucks (D-TC7); null clears it. */
+    route?: LiveMapLoadRoute | null;
   }>(),
-  { fit: "card", cardEl: null },
+  { fit: "card", cardEl: null, route: null },
 );
 
 const emit = defineEmits<{
@@ -210,9 +213,20 @@ function visibleBounds(instance: maplibregl.Map): MapBounds {
   return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
 }
 
-/** Frame the whole fleet ONCE. Re-fitting on every poll would yank the view out from under a reader. */
+/**
+ * Frame the whole fleet ONCE. Re-fitting on every poll would yank the view out from under a reader.
+ *
+ * ⚠ A truck already selected at the first framing wins over the fleet: that is a page opened FOR one
+ * truck (the Dispatch board's "On the map", `?truck=`), whose `flyTo` ran before the map existed.
+ */
 function fitToFleet(instance: maplibregl.Map): void {
   if (fitted || props.vehicles.length === 0) return;
+  const chosen = props.selectedId ? props.vehicles.find((v) => v.vehicleId === props.selectedId) : undefined;
+  if (chosen) {
+    instance.jumpTo({ center: [chosen.position.lng, chosen.position.lat], zoom: SELECT_ZOOM });
+    fitted = true;
+    return;
+  }
   const first = props.vehicles[0]!.position;
   const bounds = new maplibregl.LngLatBounds([first.lng, first.lat], [first.lng, first.lat]);
   for (const v of props.vehicles) bounds.extend([v.position.lng, v.position.lat]);
@@ -326,7 +340,9 @@ const { map } = useMapLibre({
     });
     // A click on empty water or road clears the selection — the same gesture a map user expects
     // from every other map they have used.
+    // ⚠ Not a click on a fuel stop or a route pin: maplibre opens their popups from this same event.
     instance.on("click", (event) => {
+      if (isMarkerClick(event.originalEvent.target)) return;
       const hit = instance.queryRenderedFeatures(event.point, { layers: [SYMBOL_LAYER] });
       if (hit.length === 0) emit("select", null);
     });
@@ -379,6 +395,14 @@ watch([() => props.selectedId, () => props.cardEl], () => {
 // Without this, flipping the theme leaves a dark map wearing light-mode markers until a reload.
 watch(isDark, () => {
   if (map.value) installLiveMapIcons(map.value);
+  if (map.value && props.route) showRoute(map.value, props.route, SELECTED_LAYER);
+});
+
+// D-TC7: draw the route the card turned on and fit to it; clear it the moment it goes. Waits only for
+// the map's own `load` (our layers exist) — never `isStyleLoaded()`, see `syncRoute`.
+watch(() => props.route, (route) => {
+  const m = map.value;
+  if (m?.getLayer(SELECTED_LAYER)) syncRoute(m, route, SELECTED_LAYER);
 });
 
 onBeforeUnmount(() => {

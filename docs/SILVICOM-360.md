@@ -41,6 +41,7 @@ later without the features above noticing.
 | **Manual uploads** | Toll expenses, Pilot/posted fuel prices, spreadsheets | Partially live (imports + price XLS); tolls not yet built |
 | **FleetPal** | Maintenance — **operational, not financial**. Work orders, jobs and job items, service history, PM schedules, meters, DVIR defects, issues, expirations; and the parts CATALOGUE, which is all FleetPal holds — it has no on-hand quantity anywhere in its model, so the shelf stays ours (D-INV10, D-FP11) | **In build from 2026-09-10** — `docs/plans/maintenance/FLEETPAL-INTEGRATION-PLAN.md`, steps F0–F15. The API key is expected mid-September; 15 of the 16 steps need no credential, and F4 is the only one that does. ⚠ **This row instructed a financial dedup until 2026-09-09 and that instruction is WRONG**: the 2026-09-03 fleet ruling (D-FLEET2) made McLeod's GL the entire financial input, and D-INV11 closes the parts door — GL `30230000` already carries the money. **FleetPal must not project into `financial_entries` at all**, so there is no "maintenance arrives twice" trap left to dedupe against; the trap was real when this row was written and was closed by deletion rather than by a dedup key. What FleetPal owns is the repair JOB — work orders, PM schedules, DVIR defects — tied to our shelf by `part_movements.work_order_ref` and by nothing else (D-INV10). D-SEP8's gate survives in its operational half: no first row before its ingest contract is written. **Per-unit repair cost IS built** (D-FP3, 2026-09-10) — FleetPal is the only source that has it — but it is an operational figure in the Maintenance section, shown only beside the coverage ratio measuring what share of the GL maintenance family it represents (D-FP4). It still never reaches `financial_entries` or the fleet report. |
 | **FMCSA Clearinghouse / MCMIS** | §382.701 queries, carrier data | Planned |
+| **FMCSA open data** (data.transportation.gov) | Our roadside inspections, violations, units, citations, and the SMS input FMCSA scores us on (D-S360-8) | Planned. The six datasets were verified live 2026-10-10 and refresh daily |
 | ~~SambaSafety~~ | MVR ordering + licence monitoring | **DEFERRED 2026-08-26 on cost** (D-S360-4). Possibly replaced later by an in-house MVR path; the recon and the settled credential decision are preserved in the plan banners |
 
 ## 3. Feature inventory
@@ -112,6 +113,16 @@ later without the features above noticing.
 - **Financial store** — McLeod settlements/AP/billing ingestion into `financial_entries`
   (schema shipped 0257; ingestion is the work).
 - **Toll expense collection** — manual upload first (D-S360-3).
+- **Roadside inspection challenges (DataQs)** — the owner's go, 2026-10-10. FMCSA's public open data
+  holds **1,390** roadside inspections for USDOT 1864495 (2023-10-11 → 2026-10-07): 1,422 violations,
+  230 out-of-service inspections, and 741 violations in the current SMS snapshot. Nothing in the
+  product reads any of it. **D-S360-8: the engine challenges records that are wrong, never records
+  that are real.** It detects from FMCSA's feed, freezes our own evidence at detection, decides with
+  versioned deterministic rules, and lets AI draft only from findings that are already verified. A
+  person files in DataQs under 18 USC 1001. A weak filing costs credibility with the state analyst
+  who decides every one that follows, so the engine's first duty is to say "do not file".
+  Plan: `docs/plans/safety-dqf/INSPECTION-CHALLENGE-PLAN.md`. The official sources it cites are in
+  `docs/regulatory/fmcsa/`.
 
 ### Deferred, deliberately
 

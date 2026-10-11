@@ -94,6 +94,26 @@ sweeper (1 h). R2 fixes both; no binder had been exported yet, so nothing leaked
   first tick is "one interval after boot" runs at the mercy of the deploy rhythm. Daily work fires
   at a fixed Central hour (the `nightlyReconcile.ts` pattern); short-interval sweeps also run a few
   minutes after boot. R2 applies this to the two schedulers that had never run.
+- **D-REL14 — The console approves a release too (owner, 2026-10-08).** The 10/08 night shipped
+  nothing because #1351 had no GitHub review: approving meant opening GitHub, which the owner does
+  not do at bedtime. D-REL5's go signal is now EITHER a GitHub review by a repository admin OR an
+  approval in the platform console (Settings → Tonight's release), stored in
+  `platform_release_approvals` (0440). Rules:
+  1. Only a `platform_owner`, at aal2 with a second factor proved in the last five minutes (the
+     console's step-up), may approve or withdraw; both reach the platform audit trail.
+  2. The approval pins the commit the release NOTES describe — `release-candidate.yml` writes it
+     into the PR body as `<!-- release-candidate-sha: … -->` — not main's moving head, so what the
+     owner read is what ships, and later merges ride the next train exactly as with a GitHub review.
+  3. Only the PRODUCTION console may approve (Railway's `RAILWAY_GIT_BRANCH=production`): the uat
+     console writes the staging database, which `release.yml` never reads.
+  4. `release.yml` takes the NEWER of the two signals; a console approval counts only while its
+     approver is still an active `platform_owner`. If the console read fails (management API
+     down, table not yet released), the run says so and falls back to GitHub reviews alone.
+  5. Withdrawing in the console withdraws console approvals only. A GitHub review is dismissed on
+     GitHub.
+  What this trades: the release no longer requires GitHub admin rights, only a console owner's
+  password and authenticator. The console's owner list (`platform_admins`) is the trust root, and it
+  is already the trust root for impersonation and alert recipients.
 
 ## 3. Phases
 
@@ -189,6 +209,27 @@ jobs resume exactly as before R5.
   on forward-only, additive migrations (D-REL9). **Recommend (a)** together with the Micro → Small
   move the database already needs (memory: the DB is Micro and swapping) — the owner's call, it is
   spend. The backup gate reads `pitr_enabled` and passes on it, so (a) needs no workflow change.
+- **Q-REL8 — A bot-opened pull request cannot merge into main without a browser click.** Measured
+  2026-10-07. `release.yml` opens the hotfix back-merge (`production` → `main`) and
+  `release-candidate.yml` opens the release PR with `github.token`, so github-actions[bot] is the
+  author. The repository's workflow-approval policy is `first_time_contributors`, and the bot has no
+  commit of its own in this repository, so GitHub holds every `pull_request` run on those PRs
+  ("This workflow run required approval"; runs 37386760753 / 37386761002 expired unapproved). For
+  the release PR that is cosmetic. For the back-merge it is not: main requires the `build` check with
+  `enforce_admins` on, so #1323 stayed BLOCKED with thirteen green checks from the PUSH run, `--admin`
+  was refused, auto-merge is off for the repository, and the nightly runs of 10/06 and 10/07 could
+  not fast-forward until the owner pressed "Approve and run" on the held run. v2026.10.05.4 was
+  shipped on 10/05 at 23:08 UTC; the back-merge merged 10/07 at 14:21 UTC. (a) Set the policy to
+  `first_time_contributors_new_to_github` (one API call, no code): bot PRs run CI unasked; the cost is
+  that an outside first-time contributor's fork PR also runs CI unasked on this public repository,
+  with a read-only token and no secrets, which is GitHub's default. (b) Open both PRs with a
+  fine-grained personal token scoped to this repository's pull requests, stored as a secret: the PR
+  is the owner's, CI runs as for any human PR; the cost is a human token readable by every workflow
+  on main, the trade the deploy key was chosen to avoid (R5 cutover). (c) Keep the click and say so
+  in the hotfix summary email, so the owner does it the same evening. **Recommend (a)**: it removes
+  the hold at its cause and leaves no secret behind; the fork-PR exposure it accepts is the default
+  every public repository runs with. Until ruled, the hotfix runbook says: after a hotfix, open the
+  back-merge PR's held run and approve it the same day — the next nightly cannot ship otherwise.
 - **Q-REL5 — PSP UAT orders on the shared database.** uat has `PSP_ORDERS_ENABLED=true` against
   PSP's sandbox, but writes its order rows into the PRODUCTION database. Resolved by R3; until then,
   do not place PSP orders from uat.
@@ -298,3 +339,19 @@ jobs resume exactly as before R5.
   channel, falls back to the `RELEASE_NOTIFY_*` secrets when the read fails or the channel is empty —
   never the union, so a removal takes effect. Matrix `platform-alert-recipients.test.mjs`. Also the
   first answer to DATA-LIFECYCLE-PLAN Q9's "where does a platform alarm go": this list.
+- 2026-10-07 — v2026.10.07 shipped by dispatch at 09:21 CT after the owner's chat approval, eighteen
+  PRs and 0432–0435. Two nightly runs before it skipped: #1324 had no GitHub approval, and the
+  v2026.10.05.4 back-merge #1323 was unmergeable (Q-REL8) so production was not an ancestor of main.
+  The release's APK build — the first one GitHub did not hold — failed in `setup-android` asking for the
+  `tools` package Google withdrew on 09-14; `driver-android.yml` now names `packages: platform-tools`
+  as ci.yml has since that day (#1335). `/api/version` reads `version: null` for up to five minutes
+  after a deploy because the tag is minted after it (`RETRY_MS`); verify:live prints `?` for it then.
+- 2026-10-08 — D-REL14 built (owner: "proceed as recommended" after the 10/08 night shipped nothing
+  because #1351 had no GitHub review). Migration 0440 `platform_release_approvals`; admin-api
+  `/admin/release` (GET for any platform role; approve/revoke owner-only, step-up, production console
+  only, audited, refused as `stale` when the PR or its notes' commit moved since the page loaded);
+  console Settings card that asks for the authenticator code in place, because "sign out and in again"
+  for step-up is not a bedtime action; `release-train.mjs approval <pr>` replaces release.yml's review
+  loop and takes the newer of GitHub and console; `release-candidate.yml` writes the
+  `release-candidate-sha` marker; the 18:00 email links the console when `CONSOLE_URL` is set.
+  The console half works only once 0440 and this code are RELEASED: until then, approve on GitHub.

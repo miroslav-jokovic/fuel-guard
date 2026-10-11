@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fleet overview v3 — proposal prototype</title>
+<!--
+  FLEET-OVERVIEW-REDESIGN-PROPOSAL.md §4 drawn as a page. Figures are ILLUSTRATIVE; the layout,
+  the anatomy and the "each figure appears once" rule are the proposal. Tokens are the product's
+  own (`packages/ui/src/tokens.generated.css`), loaded over http from the repo root:
+
+      python3 -m http.server 8731      # from the repo root
+      open http://127.0.0.1:8731/docs/plans/design-system/prototypes/fleet-overview-v3.html
+
+  Same token bridge as dashboard-v2.html: a plain browser drops the `@theme inline` block, so the
+  radii and `--text-2xs` are re-derived from their `:root` sources here.
+-->
+<link rel="stylesheet" href="/packages/ui/src/tokens.generated.css" />
+<style>
+:root {
+  --radius-detail: var(--shape-detail);
+  --radius-control: var(--shape-control);
+  --radius-surface: var(--shape-surface);
+  --radius-overlay: var(--shape-overlay);
+  --radius-dialog: var(--shape-dialog);
+  --text-2xs: 0.6875rem;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light; }
+html[data-scheme="dark"] { color-scheme: dark; }
+body {
+  margin: 0; background: var(--canvas); color: var(--ink);
+  font-family: var(--font-sans, Inter, system-ui, sans-serif); font-size: 14px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1376px; margin: 0 auto; padding: 24px 32px 48px; }
+
+/* ── topbar + greeting ─────────────────────────────────────────────────────────────────────── */
+.topbar { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-muted); margin-bottom: 28px; }
+.topbar b { color: var(--ink); letter-spacing: .08em; font-size: 11px; }
+.greet h1 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 4px; font-weight: 700; }
+.greet p { margin: 0; color: var(--ink-muted); }
+
+/* ── control row: tabs left, status chip + scope right ─────────────────────────────────────── */
+.controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 24px 0 20px; flex-wrap: wrap; }
+.tabs { display:inline-flex; background: var(--surface-muted); border-radius: var(--radius-control); padding: 3px; }
+.tabs span { padding: 6px 12px; border-radius: calc(var(--radius-control) - 3px); font-weight: 500; color: var(--ink-secondary); }
+.tabs span.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card); }
+.right { display:flex; align-items:center; gap:8px; }
+.btn { display:inline-flex; align-items:center; gap:6px; height: 34px; padding: 0 12px; border-radius: var(--radius-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--edge); font-weight: 500; color: var(--ink-secondary); }
+.status { display:inline-flex; align-items:center; gap:6px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--surface-subtle); font-size: 12px; color: var(--ink-muted); }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--ramp-success-500); }
+
+/* ── grid + card ───────────────────────────────────────────────────────────────────────────── */
+.grid { display:grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
+.card { background: var(--surface); border-radius: var(--radius-dialog); box-shadow: var(--shadow-card); padding: 20px; min-width: 0; }
+.span5 { grid-column: span 5; } .span4 { grid-column: span 4; } .span3 { grid-column: span 3; }
+.span6 { grid-column: span 6; } .span12 { grid-column: span 12; }
+.head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom: 12px; }
+.title { display:flex; gap: 10px; align-items:flex-start; }
+.chip { width: 32px; height: 32px; border-radius: var(--radius-control); display:grid; place-items:center; flex: none; color: #fff; }
+.chip.success { background: linear-gradient(180deg, var(--chip-success-from), var(--chip-success-to)); }
+.chip.brand   { background: linear-gradient(180deg, var(--chip-brand-from), var(--chip-brand-to)); }
+.chip.danger  { background: linear-gradient(180deg, var(--chip-danger-from), var(--chip-danger-to)); }
+.chip.info    { background: linear-gradient(180deg, var(--chip-info-from), var(--chip-info-to)); }
+.chip.caution { background: linear-gradient(180deg, var(--chip-caution-from), var(--chip-caution-to)); }
+.chip svg { width: 16px; height: 16px; }
+h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.sub { margin: 2px 0 0; font-size: 12px; color: var(--ink-muted); }
+.link { font-size: 12px; font-weight: 500; color: var(--link); white-space: nowrap; }
+
+/* readout: ONE big number per card, proportional figures (not tabular) on the hero */
+.readout { display:flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
+.readout .n { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
+.readout .cap { font-size: 12px; color: var(--ink-tertiary); }
+.delta { display:inline-flex; align-items:center; gap: 3px; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+.delta.good { color: var(--ramp-success-700); background: var(--ramp-success-50); }
+.delta.bad  { color: var(--ramp-danger-700);  background: var(--ramp-danger-50); }
+.delta.flat { color: var(--ink-muted); background: var(--surface-subtle); }
+.delta.bad.quiet { background: var(--ramp-caution-50); color: var(--ramp-caution-800); }
+
+/* charts: hairline grid, thin marks */
+.plot { width: 100%; height: auto; display:block; }
+.plot .grid-line { stroke: var(--viz-grid); stroke-width: 1; }
+.plot .tick { fill: var(--viz-tick); font-size: 10px; }
+.plot .bar { fill: var(--viz-spend); }
+.plot .bar.prev { fill: var(--ramp-neutral-200); }
+.plot .line { fill: none; stroke: var(--viz-brand); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.plot .area { fill: var(--viz-brand); opacity: .10; }
+.plot .dot { fill: var(--viz-brand); stroke: var(--surface); stroke-width: 2; }
+.plot .band { fill: var(--ramp-neutral-100); }
+
+/* composition: a stacked share bar replaces the donut */
+.share { margin-top: 14px; }
+.share .bar { display:flex; height: 10px; border-radius: 999px; overflow:hidden; gap: 2px; background: var(--surface); }
+.share .bar i { display:block; height: 100%; }
+.share .legend { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; font-size: 12px; }
+.share .legend span { display:flex; align-items:center; gap: 6px; color: var(--ink-muted); }
+.share .legend b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.share .legend i { width: 8px; height: 8px; border-radius: 2px; flex:none; }
+
+/* needs-attention rail */
+.rail { display:flex; flex-direction:column; }
+.rail ul { list-style:none; margin: 0; padding: 0; display:flex; flex-direction:column; }
+.rail li { display:grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 11px 0; border-top: 1px solid var(--edge-subtle); align-items:center; }
+.rail li:first-child { border-top: 0; padding-top: 4px; }
+.rail .l { font-weight: 500; }
+.rail .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.rail .m { grid-column: 1 / -1; font-size: 12px; color: var(--ink-tertiary); display:flex; justify-content:space-between; gap: 4px 8px; flex-wrap: wrap; }
+.rail .m .link { margin-left: auto; }
+.sev { display:flex; height: 6px; gap: 2px; border-radius: 999px; overflow:hidden; margin-top: 6px; grid-column: 1 / -1; }
+.sev i { display:block; }
+.rail .now { font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-tertiary); margin: 0 0 6px; }
+
+/* activity strip: one card subdivided by hairlines, container-query columns */
+.strip { container-type: inline-size; padding: 0; }
+.strip .cells { display:grid; grid-template-columns: 1fr; }
+@container (min-width: 640px)  { .strip .cells { grid-template-columns: repeat(2, 1fr); } }
+@container (min-width: 1000px) { .strip .cells { grid-template-columns: repeat(4, 1fr); } }
+.cell { display:flex; gap: 12px; padding: 16px 20px; border-left: 1px solid var(--edge-subtle); min-width: 0; }
+.cell:first-child { border-left: 0; }
+.cell .chip { width: 28px; height: 28px; } .cell .chip svg { width: 14px; height: 14px; }
+.cell dt { font-size: 12px; font-weight: 500; color: var(--ink-tertiary); margin: 0; }
+.cell dd { margin: 2px 0 0; }
+.cell .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; display:flex; align-items: baseline; gap: 8px; }
+.cell .c { font-size: 12px; color: var(--ink-tertiary); }
+
+/* ranked bar list */
+.seg { display:inline-flex; background: var(--surface-muted); border-radius: var(--radius-control); padding: 2px; font-size: 12px; }
+.seg span { padding: 4px 10px; border-radius: calc(var(--radius-control) - 2px); color: var(--ink-secondary); }
+.seg span.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card); font-weight: 500; }
+.rank { list-style:none; margin: 4px 0 0; padding: 0; }
+.rank li { display:grid; grid-template-columns: 20px 92px 1fr auto; gap: 10px; align-items:center; padding: 7px 0; font-size: 13px; }
+.rank .i { color: var(--ink-tertiary); font-variant-numeric: tabular-nums; font-size: 12px; }
+.rank .lab { font-weight: 500; }
+.rank .track { display:flex; height: 8px; gap: 2px; }
+.rank .track i { display:block; height: 100%; border-radius: 2px; background: var(--ramp-neutral-300); }
+.rank .track i.crit { background: var(--viz-severity-critical); }
+.rank .n { font-variant-numeric: tabular-nums; color: var(--ink-muted); font-size: 12px; white-space: nowrap; }
+.rank .n b { color: var(--ink); }
+.keys { display:flex; gap: 14px; font-size: 12px; color: var(--ink-muted); margin-top: 10px; }
+.keys i { display:inline-block; width: 10px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--ramp-neutral-300); }
+.keys i.crit { background: var(--viz-severity-critical); }
+
+/* opportunities */
+.opps { list-style:none; margin: 0; padding: 0; }
+.opps li { display:grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items:center; padding: 10px 0; border-top: 1px solid var(--edge-subtle); font-size: 13px; }
+.opps li:first-child { border-top: 0; padding-top: 4px; }
+.opps .what { font-weight: 500; }
+.opps .why { font-size: 12px; color: var(--ink-tertiary); }
+.opps .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.opps .go { font-size: 12px; color: var(--link); font-weight: 500; }
+
+.foot { text-align:center; font-size: 11px; color: var(--ink-tertiary); margin-top: 32px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar"><span><b>SILVICOM 360</b> &nbsp;·&nbsp; Fleet overview v3 — proposal prototype</span><span>Light</span></div>
+
+  <div class="greet">
+    <h1>Good evening, Miki.</h1>
+    <p>Fuel is running ahead of last month. Two things need a decision today.</p>
+  </div>
+
+  <!-- D-FO1: one scope for the whole page. No per-card period switchers. Feed freshness is a status
+       chip here, not a full-width first row — it grows into the caution banner only when stale. -->
+  <div class="controls">
+    <div class="tabs"><span class="on">Fleet overview</span><span>Dispatch</span></div>
+    <div class="right">
+      <span class="status"><i></i>Telematics current · 4 min ago</span>
+      <span class="btn">Aug 19 – Sep 18 · vs previous 31 days</span>
+      <span class="btn">Customize</span>
+      <span class="btn">Export</span>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ════ BAND 1 — three questions, three cards, each figure ONCE ════ -->
+
+    <!-- Fuel: spend + its trend + its composition in ONE card (was four cards) -->
+    <section class="card span5">
+      <div class="head">
+        <div class="title">
+          <span class="chip success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
+          <div><h3>Fuel spend</h3><p class="sub">Daily total across the fleet · tractor and reefer</p></div>
+        </div>
+        <span class="link">Transactions →</span>
+      </div>
+      <div class="readout">
+        <span class="n">$1.30M</span>
+        <span class="delta bad">↑ 12%</span>
+        <span class="cap">vs previous 31 days · $1.16M</span>
+      </div>
+      <!-- bars: this period emerald, previous period as a grey ghost behind — the comparison IS the chart -->
+      <svg class="plot" viewBox="0 0 560 190" aria-label="Fuel spend by day, this period against the previous period">
+        <g class="grid-line"><line x1="36" x2="556" y1="20" y2="20"/><line x1="36" x2="556" y1="69" y2="69"/><line x1="36" x2="556" y1="118" y2="118"/><line x1="36" x2="556" y1="167" y2="167"/></g>
+        <g class="tick"><text x="0" y="23">$60K</text><text x="0" y="72">$40K</text><text x="0" y="121">$20K</text><text x="0" y="170">$0</text></g>
+        <g id="bars"></g>
+        <g class="tick"><text x="40" y="186">Aug 19</text><text x="178" y="186">Aug 29</text><text x="318" y="186">Sep 8</text><text x="470" y="186">Sep 18</text></g>
+      </svg>
+      <div class="keys" style="margin-top:6px"><span><i style="background: var(--viz-spend)"></i>This period</span><span><i style="background: var(--ramp-neutral-200)"></i>Previous period, same day</span></div>
+      <div class="share">
+        <div class="bar">
+          <i style="width:82%; background: var(--viz-cost-moving)"></i>
+          <i style="width:12%; background: var(--viz-cost-idle)"></i>
+          <i style="width:6%; background: var(--viz-cost-reefer)"></i>
+        </div>
+        <div class="legend">
+          <span><i style="background: var(--viz-cost-moving)"></i>Moving <b>$1.06M · 82%</b></span>
+          <span><i style="background: var(--viz-cost-idle)"></i>Idle <b>$151.9K · 12%</b></span>
+          <span><i style="background: var(--viz-cost-reefer)"></i>Reefer <b>$83.8K · 6%</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Efficiency: MPG + its weekly line + its caveat in ONE card (was three) -->
+    <section class="card span4">
+      <div class="head">
+        <div class="title">
+          <span class="chip brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14l4-6M3 17a9 9 0 1118 0"/></svg></span>
+          <div><h3>Fleet MPG</h3><p class="sub">Measured miles ÷ the fuel behind them · by week</p></div>
+        </div>
+        <span class="link">Driver performance →</span>
+      </div>
+      <div class="readout">
+        <span class="n">7.72</span>
+        <span class="delta good">↑ 0.3</span>
+        <span class="cap">vs 7.42 previous · 97% of fuel measured</span>
+      </div>
+      <svg class="plot" viewBox="0 0 440 150" aria-label="Fleet MPG by week with the previous period's band">
+        <g class="grid-line"><line x1="30" x2="436" y1="20" y2="20"/><line x1="30" x2="436" y1="56" y2="56"/><line x1="30" x2="436" y1="92" y2="92"/><line x1="30" x2="436" y1="128" y2="128"/></g>
+        <g class="tick"><text x="0" y="23">8.0</text><text x="0" y="59">7.5</text><text x="0" y="95">7.0</text><text x="0" y="131">6.5</text></g>
+        <!-- previous period's range as a quiet band: context, not a second series -->
+        <rect class="band" x="30" y="62" width="406" height="30"/>
+        <path class="area" d="M50,100 L130,88 L210,92 L290,70 L370,60 L420,47 L420,128 L50,128 Z"/>
+        <path class="line" d="M50,100 L130,88 L210,92 L290,70 L370,60 L420,47"/>
+        <circle class="dot" cx="420" cy="47" r="4"/>
+        <g class="tick"><text x="40" y="146">Aug 19</text><text x="200" y="146">Sep 1</text><text x="380" y="146">Sep 15</text></g>
+      </svg>
+      <p class="sub" style="margin-top:8px">Grey band: where last period's weeks sat (7.2 – 7.6). Gaps would mean too little measured distance.</p>
+    </section>
+
+    <!-- Needs attention: the "what do I do" column — ranked, each row a door -->
+    <section class="card span3 rail">
+      <div class="head">
+        <div class="title">
+          <span class="chip danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></span>
+          <div><h3>Needs attention</h3><p class="sub">Open now · ranked by what it costs</p></div>
+        </div>
+      </div>
+      <ul>
+        <li>
+          <span class="l">Card declines to review</span><span class="v">22</span>
+          <span class="m"><span>of 309 declined · 287 cleared</span><span class="link">Review →</span></span>
+        </li>
+        <li>
+          <span class="l">Open cases</span><span class="v">68</span>
+          <div class="sev" aria-label="68 open cases: 9 critical, 17 high, 24 medium, 18 low">
+            <i style="width:13%; background: var(--viz-severity-critical)"></i>
+            <i style="width:25%; background: var(--viz-severity-high)"></i>
+            <i style="width:35%; background: var(--viz-severity-medium)"></i>
+            <i style="width:27%; background: var(--viz-severity-low)"></i>
+          </div>
+          <span class="m"><span>9 critical · 17 high · 24 medium · 18 low</span><span class="link">Cases →</span></span>
+        </li>
+        <li>
+          <span class="l">Findings unassigned</span><span class="v">158</span>
+          <span class="m"><span>$41.2K in dispute · 0 assigned</span><span class="link">Assign →</span></span>
+        </li>
+        <li>
+          <span class="l">Idle hours this period</span><span class="v">32,302</span>
+          <span class="m"><span><span class="delta bad quiet">↑ 18%</span> &nbsp;$151.9K at the pump</span><span class="link">Idling →</span></span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ════ BAND 2 — activity in range: the figures that appear nowhere else ════ -->
+    <section class="card span12 strip">
+      <dl class="cells" style="margin:0">
+        <div class="cell">
+          <span class="chip info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h12v16H4zM16 8h3l2 3v6h-5"/></svg></span>
+          <div><dt>Fill-ups</dt><dd class="v">2,045 <span class="delta good">↑ 6%</span></dd><dd class="c">45 trucks never filled</dd></div>
+        </div>
+        <div class="cell">
+          <span class="chip info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s6 7 6 11a6 6 0 01-12 0c0-4 6-11 6-11z"/></svg></span>
+          <div><dt>Gallons</dt><dd class="v">235,003 <span class="delta flat">↑ 3%</span></dd><dd class="c">115 gal per fill</dd></div>
+        </div>
+        <div class="cell">
+          <span class="chip success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20L12 4l9 16M8 14h8"/></svg></span>
+          <div><dt>Miles driven</dt><dd class="v">1,628,378 <span class="delta good">↑ 5%</span></dd><dd class="c">odometer span in range</dd></div>
+        </div>
+        <div class="cell">
+          <span class="chip brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a16 16 0 0120 0M5 13a11 11 0 0114 0M8.5 17a6 6 0 017 0M12 21h.01"/></svg></span>
+          <div><dt>Telematics coverage</dt><dd class="v">97% <span class="delta flat">—</span></dd><dd class="c">95% all time · 1,980 of 2,045 fills corroborated</dd></div>
+        </div>
+      </dl>
+    </section>
+
+    <!-- ════ BAND 3 — where it concentrates, and what to do about it ════ -->
+    <section class="card span6">
+      <div class="head">
+        <div class="title">
+          <span class="chip caution"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17h18M5 17V9l3-4h8l3 4v8M7 21h2M15 21h2"/></svg></span>
+          <div><h3>Where open cases concentrate</h3><p class="sub">Top five · bar length is open cases, red is critical</p></div>
+        </div>
+        <span class="seg"><span class="on">Vehicles</span><span>Drivers</span></span>
+      </div>
+      <ol class="rank">
+        <li><span class="i">1</span><span class="lab">TRK-104</span><span class="track"><i class="crit" style="width:22%"></i><i style="width:58%"></i></span><span class="n"><b>11</b> open · 3 critical</span></li>
+        <li><span class="i">2</span><span class="lab">TRK-322</span><span class="track"><i class="crit" style="width:7%"></i><i style="width:58%"></i></span><span class="n"><b>9</b> open · 1 critical</span></li>
+        <li><span class="i">3</span><span class="lab">TRK-017</span><span class="track"><i style="width:50%"></i></span><span class="n"><b>7</b> open</span></li>
+        <li><span class="i">4</span><span class="lab">TRK-271</span><span class="track"><i class="crit" style="width:14%"></i><i style="width:22%"></i></span><span class="n"><b>5</b> open · 2 critical</span></li>
+        <li><span class="i">5</span><span class="lab">TRK-198</span><span class="track"><i style="width:29%"></i></span><span class="n"><b>4</b> open</span></li>
+      </ol>
+      <div class="keys"><span><i class="crit"></i>Critical</span><span><i></i>Other open</span></div>
+    </section>
+
+    <section class="card span6">
+      <div class="head">
+        <div class="title">
+          <span class="chip success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg></span>
+          <div><h3>Biggest savings on the table</h3><p class="sub">Ranked by dollars · same rows as Fuel costs</p></div>
+        </div>
+        <span class="link">Fuel costs →</span>
+      </div>
+      <ul class="opps">
+        <li><div><div class="what">Idle over 4 hours parked</div><div class="why">31 trucks · 12,400 of the 32,302 idle hours</div></div><span class="amt">$58.3K</span><span class="go">Review →</span></li>
+        <li><div><div class="what">Out-of-network fills</div><div class="why">412 fills · $0.31/gal above network</div></div><span class="amt">$14.9K</span><span class="go">Review →</span></li>
+        <li><div><div class="what">Station not identified</div><div class="why">88 fills with no matched location</div></div><span class="amt">$9.1K</span><span class="go">Review →</span></li>
+        <li><div><div class="what">Reefer fuel outside loads</div><div class="why">6 units running on empty trailers</div></div><span class="amt">$3.4K</span><span class="go">Review →</span></li>
+      </ul>
+    </section>
+
+  </div>
+
+  <p class="foot">Proposal prototype · figures are illustrative · every tile, chip and colour is a product token from <code>packages/ui/src/tokens.generated.css</code> · built 2026-10-06</p>
+</div>
+<script>
+  // Illustrative daily bars: this period (emerald) with the previous period as a grey ghost behind.
+  // Thin marks, a 2px surface gap between bars, 4px rounded tops anchored at the baseline.
+  const g = document.getElementById('bars');
+  // `plotTop`, not `top`: a top-level `const top` collides with the non-configurable `window.top`
+  // and throws a SyntaxError that silently empties the whole chart (found on the first render).
+  const base = 167, plotTop = 20, n = 31, x0 = 40, w = (556 - x0) / n;
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < n; i++) {
+    const weekend = i % 7 === 5 || i % 7 === 6;
+    const cur = weekend ? 8 + rnd() * 10 : 34 + rnd() * 28;
+    const prev = weekend ? 6 + rnd() * 10 : 30 + rnd() * 24;
+    const hC = (cur / 60) * (base - plotTop), hP = (prev / 60) * (base - plotTop);
+    const x = x0 + i * w;
+    // createElementNS, not insertAdjacentHTML: HTML-namespace rects inside an <svg> never paint.
+    const rect = (cls, rx, ry, rw, rh) => {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('class', cls); r.setAttribute('x', rx); r.setAttribute('y', ry);
+      r.setAttribute('width', rw); r.setAttribute('height', rh); r.setAttribute('rx', 2);
+      g.appendChild(r);
+    };
+    rect('bar prev', x + 1, base - hP, w - 2, hP);
+    rect('bar', x + 4, base - hC, w - 8, hC);
+  }
+</script>
+</body>
+</html>

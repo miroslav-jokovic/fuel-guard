@@ -438,10 +438,18 @@ describe("Upload a photo instead (§6.6.6)", () => {
     expect(pickers.camera).not.toHaveBeenCalled();
     // One argument: the accept list. A second would be the `capture` attribute, which opens the camera
     // — the very thing a driver pressing this button was refused.
-    expect(pickers.file).toHaveBeenCalledWith("image/*");
+    // A document's accept list takes a PDF too (2026-10-07, `uploadAccept`).
+    expect(pickers.file).toHaveBeenCalledWith("image/*,application/pdf");
     expect(captures.slots.value.find((s) => s.slot === "cdl_back")?.source).toBe("file");
     await captures.use("cdl_back");
     expect(onStaged).toHaveBeenCalledWith("cdl_back", UPLOADED);
+  });
+
+  it("offers a PDF for the medical card, and only pictures for the selfie", async () => {
+    const captures = useApplicationCaptures(ref(TOKEN), ref([]), { io: spyIo(), only: ["medical_card", "selfie"] });
+    await captures.take("medical_card", "file");
+    await captures.take("selfie", "file");
+    expect(pickers.file.mock.calls).toEqual([["image/*,application/pdf"], ["image/*"]]);
   });
 
   it("the camera is the default, and a later camera press does not reuse the uploaded file", async () => {

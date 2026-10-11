@@ -29,6 +29,7 @@ export function resolveCapability<TBody>(
     verify: behaviour.verify,
     governance: behaviour,
     vendorMovesFields: behaviour.vendorMovesFields ?? [],
+    rebasesOver: behaviour.rebasesOver ?? [],
     body,
   };
 }

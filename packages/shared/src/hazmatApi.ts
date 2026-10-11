@@ -227,8 +227,9 @@ export interface HazmatRegisterDocumentResponse {
  * consuming code is a lie waiting to be believed. `strictObject` makes PUT reject unknown keys —
  * a typo'd knob must 400, never be silently stored and silently ignored.
  *
- *   extractionEnabled           — the org-level kill-switch the extraction orchestrator reads.
- *   extractionMonthlyTokenBudget — the D17 monthly budget (null = unlimited).
+ *   extractionEnabled           — the org-level kill-switch the extraction orchestrator reads, and the
+ *                                 document reader's shipping-document reads (documentReadGate.ts).
+ *   extractionMonthlyTokenBudget — the D17 monthly budget (null = unlimited), for both readers.
  *
  * Engine-side policy semantics (thresholds, auto-clear preferences) are a SEPARATE, later lock —
  * the engine's LoadInput.policy stays null in v1 and is audited as not_evaluated if provided

@@ -86,7 +86,7 @@ describe("FleetOverview", () => {
     const t = text({
       total: column({ trucks: null, miles: null, revenue: 0, expenses: 8430, net: -8430, revenuePerMile: null, costPerMile: null, netPerMile: null }),
       monthsCovered: [],
-      monthsPartial: [{ month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial" }],
+      monthsPartial: [{ month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial", missingModules: [] }],
       ledgerReason: "2026-08 (swept 2026-08-28) was swept before the month ended, so only part of the ledger is here — those figures are left out rather than reported short.",
     });
     expect(t).toContain("no figures for this period yet");
@@ -109,7 +109,7 @@ describe("FleetOverview", () => {
   it("still prints the figures when one month of the window is finished and another is not", () => {
     const t = text({
       monthsCovered: ["2026-07"],
-      monthsPartial: [{ month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial" }],
+      monthsPartial: [{ month: "2026-08", periodEnd: "2026-09-01", sweptAt: "2026-08-28 21:02:56.551+00", complete: false, shortfall: "partial", missingModules: [] }],
       ledgerReason: "2026-08 (swept 2026-08-28) was swept before the month ended, so only part of the ledger is here — those figures are left out rather than reported short.",
     });
     expect(t).toContain("$4,828,189");
