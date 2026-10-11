@@ -12,9 +12,10 @@
  *
  * ── WHAT IS KEPT ───────────────────────────────────────────────────────────────────────────────
  * The six BASIC sheets only, the code as printed (trimmed: three rows carry a leading space) and its
- * KEY — uppercased, every non-alphanumeric removed — because FMCSA's own SMS input file writes
+ * normalised form `norm` — uppercased, every non-alphanumeric removed — because FMCSA's own SMS input file writes
  * `393.75A3-TAOL` as `39375A3TAOL` and the inspection file writes it with punctuation. Measured
- * 2026-10-11: 2,412 rows, no two share a key. Descriptions are left out: nothing computes on them,
+ * 2026-10-11: 2,412 rows, no two share a `norm`. (Not called `key`: gitleaks' generic-api-key rule reads
+ * `"key":"39375A3TAOL"` as a credential, 120 times, and the fix is the name, not an allowlist.) Descriptions are left out: nothing computes on them,
  * and they are 70% of the bytes. A new edition is a new file beside this one, never an edit.
  *
  * Usage:  node scripts/gen-sms-appendix.mjs [--check]
@@ -67,15 +68,15 @@ for (const [sheet, basic] of Object.entries(SHEETS)) {
     if (!Number.isInteger(severity) || severity < 0 || severity > 10) throw new Error(`${sheet} ${code}: severity ${row.getCell(4).value}`);
     const dsms = text(row.getCell(5).value).toUpperCase();
     if (dsms !== "Y" && dsms !== "N") throw new Error(`${sheet} ${code}: DSMS flag ${dsms}`);
-    rows.push({ code, key: code.toUpperCase().replace(/[^A-Z0-9]/g, ""), basic, group: text(row.getCell(3).value), severity, dsms: dsms === "Y" });
+    rows.push({ code, norm: code.toUpperCase().replace(/[^A-Z0-9]/g, ""), basic, group: text(row.getCell(3).value), severity, dsms: dsms === "Y" });
   });
 }
 const keys = new Set();
 for (const r of rows) {
-  if (keys.has(r.key)) throw new Error(`two rows share the key ${r.key}`);
-  keys.add(r.key);
+  if (keys.has(r.norm)) throw new Error(`two rows share the normalised code ${r.norm}`);
+  keys.add(r.norm);
 }
-rows.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+rows.sort((a, b) => (a.norm < b.norm ? -1 : a.norm > b.norm ? 1 : 0));
 const out = JSON.stringify({ edition: { ...EDITION, sha256 }, violations: rows }, null, 0).replace(/\},\{/g, "},\n{") + "\n";
 
 if (process.argv.includes("--check")) {

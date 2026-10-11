@@ -31,9 +31,14 @@ export function violationKey(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+interface RawViolation extends Omit<AppendixViolation, "key"> {
+  /** `key` in the engine; `norm` on disk (scripts/gen-sms-appendix.mjs says why). */
+  norm: string;
+}
+
 function load(raw: { edition: { version: string; snapshot: string; sha256: string }; violations: unknown[] }): AppendixEdition {
   const byKey = new Map<string, AppendixViolation>();
-  for (const v of raw.violations as AppendixViolation[]) byKey.set(v.key, v);
+  for (const { norm, ...v } of raw.violations as RawViolation[]) byKey.set(norm, { ...v, key: norm });
   return { ...raw.edition, byKey };
 }
 
