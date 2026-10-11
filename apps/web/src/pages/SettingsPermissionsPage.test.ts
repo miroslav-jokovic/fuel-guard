@@ -3,12 +3,13 @@ import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
 import {
+  ADMIN_ONLY_CAPABILITIES,
+  ADMIN_ONLY_SURFACES,
   APP_SECTIONS,
   EDITABLE_ROLES,
   EDITABLE_SECTIONS,
-  NAV_SURFACES,
+  GRANTABLE_SURFACES,
   USER_ROLE_LABELS,
-  isEditableSurface,
   sectionAccess,
 } from "@silvicom/shared";
 import { AppCombobox } from "@silvicom/ui";
@@ -44,12 +45,14 @@ const ROLE_LABEL = USER_ROLE_LABELS[ROLE];
 const defaults = Object.fromEntries(
   EDITABLE_ROLES.map((r) => [r, Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess(r, s)]))]),
 );
-const catalogue = NAV_SURFACES.filter(isEditableSurface).map((s) => ({
+const catalogue = GRANTABLE_SURFACES.map((s) => ({
   key: s.key,
   label: s.label,
   group: s.group,
   section: s.gate.kind === "section" ? s.gate.section : null,
   level: s.gate.kind === "section" ? s.gate.level : null,
+  reachedFrom: s.reachedFrom ?? null,
+  startsOnFor: s.startsOnFor ? [...s.startsOnFor] : null,
 }));
 
 const state = vi.hoisted(() => ({
@@ -66,12 +69,20 @@ const calls = vi.hoisted(() => ({
   setMemberSurface: [] as unknown[],
 }));
 const toasts = vi.hoisted(() => ({ success: [] as Array<[string, string?]>, error: [] as unknown[] }));
+/** How many writes the API refuses with `step_up_required` before a token is held (SP9). */
+const stepUp = vi.hoisted(() => ({ refusals: 0 }));
 
 vi.mock("@/features/permissions/usePermissions", async () => {
   const { ref: r, computed } = await import("vue");
   const query = (get: () => unknown) => ({ data: computed(get), isPending: r(false) });
   const mutation = (sink: unknown[]) => ({
     mutateAsync: vi.fn(async (v: unknown) => {
+      // SP9: the API refuses a write without a step-up token, as `usePermissions.put` throws it — an
+      // Error that keeps the code. Counted down, so the retry after the password is accepted.
+      if (stepUp.refusals > 0) {
+        stepUp.refusals -= 1;
+        throw Object.assign(new Error("Confirm your password to continue."), { code: "step_up_required" });
+      }
       sink.push(v);
     }),
     isPending: r(false),
@@ -109,6 +120,7 @@ beforeEach(() => {
   calls.setMemberSurface = [];
   toasts.success = [];
   toasts.error = [];
+  stepUp.refusals = 0;
   state.sections = {
     // ⚠ The overridden cell is one whose shipped default is NOT the value being written, and not
     // `none` either. With `safety` (shipped `none`) here, a "reset" that wrote `none` instead of the
@@ -243,7 +255,7 @@ describe("the Roles tab", () => {
   });
 
   /**
-   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so Fuel Spend
+   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so Fuel Costs
    * (fuel: manage) is not a screen an org can hand them here — and neither is any Fuel screen, so
    * the whole group is named as unlisted rather than drawn as four rows of refusals. A group with
    * SOME reachable screens keeps the others, each saying what it needs.
@@ -261,8 +273,8 @@ describe("the Roles tab", () => {
     await openRole(w, USER_ROLE_LABELS.dispatcher);
     expect(sectionAccess("dispatcher", "fuel")).toBe("view");
     expect(toggle(w, "Cards")).toBeTruthy();
-    expect(toggle(w, "Fuel Spend")).toBeUndefined();
-    expect(row(w, "Fuel Spend")!.text()).toContain("Needs Fuel · Manage");
+    expect(toggle(w, "Fuel Costs")).toBeUndefined();
+    expect(row(w, "Fuel Costs")!.text()).toContain("Needs Fuel · Manage");
   });
 
   it("resets a role by writing each changed section back to its shipped default and each screen to allowed", async () => {
@@ -285,6 +297,99 @@ describe("the Roles tab", () => {
     await flushPromises();
     await openRole(w, USER_ROLE_LABELS.auditor);
     expect(link(w, "Reset role to defaults")).toBeUndefined();
+  });
+});
+
+/**
+ * SETTINGS-PERMISSIONS-PLAN.md SP1. Each Settings screen is its own row now, and Q-SET2 starts the
+ * ones that were admin-only OFF for every other role. The switch has to draw that starting value —
+ * not `true`, which is what every screen started at before — or the page would show Organization
+ * as on for a fleet manager whom the guard sends away. And the reset at the role layer is "write the
+ * starting value", which for these screens is `false`: a reset that still wrote `true` would be a
+ * grant with a misleading name.
+ */
+describe("the Settings screens (SP1, Q-SET2)", () => {
+  const FM = USER_ROLE_LABELS.fleet_manager;
+
+  it("files the Settings screens under their own Settings group, not beside the Settings entry", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    const screens = w.find('section[aria-label="Screens"]');
+    const headings = screens.findAll("li.uppercase").map((li) => li.text());
+    // The directory's group closes the list, after the sidebar group that holds the directory. That
+    // group ("Admin") is gone from the page: its one entry, Settings, is not a switch since
+    // 2026-09-30 — it shows when any screen in this group does.
+    expect(headings.at(-1)).toBe("Settings");
+    expect(headings).not.toContain("Admin");
+    const settingsAt = screens.findAll("li").findIndex((li) => li.text() === "Settings" && li.classes().includes("uppercase"));
+    const orgAt = screens.findAll("li").findIndex((li) => li.text().startsWith("Organization"));
+    expect(orgAt).toBeGreaterThan(settingsAt);
+  });
+
+  it("draws a screen that starts off as an off switch with no Changed tag, and turning it on writes `true`", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    expect(sectionAccess("fleet_manager", "settings")).toBe("manage");
+    const org = toggle(w, "Organization")!;
+    expect(org.attributes("aria-checked")).toBe("false");
+    expect(row(w, "Organization")!.text()).not.toContain("Changed");
+    // A screen with no starting default is still drawn on, as every screen was before SP1.
+    expect(toggle(w, "Fuel Log")!.attributes("aria-checked")).toBe("true");
+    await org.trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: true }]);
+  });
+
+  it("resets a screen that starts off by writing `false`, alone and in the role's reset", async () => {
+    (state.surfaces as { overrides: Record<string, Record<string, boolean>> }).overrides.fleet_manager = {
+      "admin.settings.org": true,
+      "fuel.log": false,
+    };
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, FM);
+    expect(toggle(w, "Organization")!.attributes("aria-checked")).toBe("true");
+    expect(row(w, "Organization")!.text()).toContain("Changed");
+    await row(w, "Organization")!.findAll("button").find((b) => b.text() === "Reset")!.trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSurface).toEqual([{ role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false }]);
+    calls.setRoleSurface.length = 0;
+    await link(w, "Reset role to defaults")!.trigger("click");
+    await flushPromises();
+    // Each screen goes back to ITS start: off for Organization, on for Fuel Log.
+    expect(calls.setRoleSurface).toEqual([
+      { role: "fleet_manager", surfaceKey: "admin.settings.org", allowed: false },
+      { role: "fleet_manager", surfaceKey: "fuel.log", allowed: true },
+    ]);
+  });
+
+  it("starts the Audit log off for the auditor too, since 2026-09-30 (Q-SET3, Q-SET2 as revised)", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, USER_ROLE_LABELS.auditor);
+    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("false");
+    await openRole(w, FM);
+    expect(toggle(w, "Audit log")!.attributes("aria-checked")).toBe("false");
+  });
+
+  it("offers a dispatcher Planned fueling as an off switch, because they hold its section", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w, USER_ROLE_LABELS.dispatcher);
+    expect(sectionAccess("dispatcher", "dispatch")).toBe("manage");
+    expect(toggle(w, "Planned fueling")!.attributes("aria-checked")).toBe("false");
+    expect(row(w, "Planned fueling")!.text()).not.toContain("Needs");
+  });
+
+  it("names the Settings group as unlisted for a role that holds no Settings screen's section", async () => {
+    const w = mountPage();
+    await flushPromises();
+    await openRole(w);
+    expect(sectionAccess(ROLE, "settings")).toBe("none");
+    expect(toggle(w, "Organization")).toBeUndefined();
+    expect(w.text()).toMatch(/Not listed: .*Settings/);
   });
 });
 
@@ -356,6 +461,39 @@ describe("the People tab", () => {
     expect(toasts.success[0]![1]).toMatch(/page/i);
   });
 
+  /**
+   * Q-SET2 in the person's row: a fleet manager given Organization personally follows a role that
+   * starts it OFF, so the link must say "Hidden" — "Shown" was the only answer it could give before
+   * SP1, and here it would promise the opposite of what the click does.
+   */
+  it("names Hidden as the role's answer for a screen that starts off for that role", async () => {
+    state.members = [
+      ...(state.members as object[]),
+      { userId: "u-fm", email: "ops@silvicom.test", fullName: "Ops Lead", role: "fleet_manager", joinedAt: "2026-01-03T00:00:00Z" },
+    ];
+    state.memberSections = {
+      userId: "u-fm",
+      role: "fleet_manager",
+      shipped: Object.fromEntries(APP_SECTIONS.map((s) => [s, sectionAccess("fleet_manager", s)])),
+      roleOverrides: {},
+      userOverrides: {},
+      editableSections: EDITABLE_SECTIONS,
+    };
+    state.memberSurfaces = {
+      userId: "u-fm",
+      role: "fleet_manager",
+      roleOverrides: {},
+      userOverrides: { "admin.settings.org": true },
+      surfaces: catalogue,
+    };
+    const w = await openPeople("u-fm");
+    expect(toggle(w, "Organization")!.attributes("aria-checked")).toBe("true");
+    expect(toggle(w, "Notifications")!.attributes("aria-checked")).toBe("false");
+    await link(w, "Follow role (Hidden)")!.trigger("click");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([{ userId: "u-fm", surfaceKey: "admin.settings.org", allowed: null }]);
+  });
+
   it("gives one person back a screen their whole role has lost", async () => {
     const w = await openPeople();
     const inspectors = toggle(w, "Inspectors")!;
@@ -396,8 +534,11 @@ describe("the People tab", () => {
     // controls above do nothing.
     const alwaysOn = w.findAll("p").find((el) => el.text().includes("Always available"))!;
     expect(alwaysOn.text()).toContain("Dashboard");
-    expect(alwaysOn.text()).toContain("Ask AI");
+    // Nor Ask AI since Q-SET15 (owner 2026-09-30): admin-only by default, and the admin's to grant.
+    expect(alwaysOn.text()).not.toContain("Ask AI");
     expect(alwaysOn.text()).not.toContain("Inspectors");
+    // Nor Settings: it follows the screens behind it (2026-09-30), which are the admin's to answer.
+    expect(alwaysOn.text()).not.toContain("Settings");
   });
 
   it("explains why an admin gets no controls instead of showing live ones", async () => {
@@ -426,6 +567,24 @@ describe("the page itself", () => {
     expect(w.text()).toContain("Each one is recorded with its reason");
   });
 
+  it("lists every admin-only screen and act, read from the two shared lists (SP11, Q-SET11)", async () => {
+    const w = mountPage();
+    await flushPromises();
+    /**
+     * The list is the page's copy of what the API enforces as the admin's alone, so it is asserted
+     * against the SAME two lists the gates read — `ADMIN_ONLY_SURFACES` (the catalogue's `ADMIN`
+     * gate) and `ADMIN_ONLY_CAPABILITIES` (`requireAdminOnly`) — rather than against a fixture that
+     * could agree with a stale page. Exact, in order, so a dropped or duplicated row fails.
+     */
+    const items = w.find('ul[aria-label="Admin only"]').findAll("li").map((li) => li.text());
+    expect(items).toEqual([
+      ...ADMIN_ONLY_SURFACES.map((s) => s.label),
+      ...ADMIN_ONLY_CAPABILITIES.map((c) => c.label),
+    ]);
+    expect(items).toContain("Samsara connection and fleet sync");
+    expect(items).toContain("Users");
+  });
+
   it("states each staleness contract beside the rows it governs, and does not conflate them", async () => {
     const w = mountPage();
     await flushPromises();
@@ -444,5 +603,76 @@ describe("the page itself", () => {
     expect(w.find('section[aria-label="Sections"]').exists()).toBe(true);
     expect(w.findComponent(AppCombobox).exists()).toBe(false);
     expect(w.text()).not.toContain("Pick a member");
+  });
+});
+
+describe("the Who has access tab (SP10, Q-SET10)", () => {
+  // The reverse view sits beside Roles and People in the same tab strip, rather than on a page of
+  // its own: it answers the same question backwards, from the same layers.
+  it("is offered as a third tab of the page's own tab strip", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const labels = w.findAll('[role="tab"]').map((t) => t.text());
+    expect(labels).toEqual(expect.arrayContaining(["Roles", "People", "Who has access"]));
+  });
+});
+
+describe("SP9 · a change asks for the password, then happens (Q-SET8 (a))", () => {
+  /**
+   * The API refuses every write on this page without a step-up token. What only the page decides is
+   * that the refusal becomes the password prompt — not a "Could not save" toast — and that the SAME
+   * write goes out once the password is confirmed, so the admin does not click the control twice.
+   * The drawer and the prompt are stubbed to their contract: the prompt's own password round trip is
+   * `lib/stepUp.ts`'s, and it is not what is under test here.
+   */
+  const promptStubs = {
+    ...stubs,
+    SlideOver: { template: "<div v-if='open'><slot /></div>", props: ["open", "title", "description"] },
+    StepUpPrompt: {
+      template: "<div data-test='step-up'>{{ reason }}<button data-test='step-up-ok' @click=\"$emit('confirmed')\">ok</button></div>",
+      props: ["reason"],
+      emits: ["confirmed", "cancel"],
+    },
+  };
+  const mountWithPrompt = () =>
+    mount(SettingsPermissionsPage, { global: { plugins: [createPinia()], stubs: promptStubs }, attachTo: document.body });
+
+  it("a role's section change refused for step-up opens the prompt, and is sent again after it", async () => {
+    stepUp.refusals = 1;
+    const w = mountWithPrompt() as unknown as W;
+    await flushPromises();
+    await openRole(w);
+    await segment(w, "Fuel access", "View")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-test='step-up']").text()).toContain("Confirm your password");
+    expect(calls.setRoleSection).toEqual([]);
+    expect(toasts.error).toEqual([]);
+
+    await w.find("[data-test='step-up-ok']").trigger("click");
+    await flushPromises();
+    expect(calls.setRoleSection).toEqual([{ role: ROLE, section: "fuel", access: "view" }]);
+    expect(w.find("[data-test='step-up']").exists()).toBe(false);
+    expect(toasts.success).toHaveLength(1);
+    w.unmount();
+  });
+
+  it("a person's screen change refused for step-up opens the same prompt, and is sent again after it", async () => {
+    stepUp.refusals = 1;
+    const w = mountWithPrompt() as unknown as W;
+    await flushPromises();
+    await w.findAll('[role="tab"]').find((t) => t.text() === "People")!.trigger("click");
+    await flushPromises();
+    await w.findComponent(AppCombobox).vm.$emit("update:modelValue", "u-tech");
+    await flushPromises();
+    await link(w, "Follow role (Shown)")!.trigger("click");
+    await flushPromises();
+    expect(w.find("[data-test='step-up']").exists()).toBe(true);
+    expect(calls.setMemberSurface).toEqual([]);
+
+    await w.find("[data-test='step-up-ok']").trigger("click");
+    await flushPromises();
+    expect(calls.setMemberSurface).toEqual([{ userId: "u-tech", surfaceKey: "maintenance.repair-spend", allowed: null }]);
+    expect(toasts.error).toEqual([]);
+    w.unmount();
   });
 });

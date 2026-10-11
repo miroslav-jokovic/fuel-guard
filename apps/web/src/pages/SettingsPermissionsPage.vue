@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { AppTabs, type TabItem } from "@silvicom/ui";
+import { ADMIN_ONLY_CAPABILITIES, ADMIN_ONLY_SURFACES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import RolesTab from "@/features/permissions/RolesTab.vue";
 import PeopleTab from "@/features/permissions/PeopleTab.vue";
+import WhoHasAccessTab from "@/features/permissions/WhoHasAccessTab.vue";
+import SlideOver from "@/components/SlideOver.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { useStepUpRetry } from "@/composables/useStepUpRetry";
 
 /**
  * Permissions (SURFACE-ENTITLEMENTS-PLAN.md S6; EDITABLE-PERMISSIONS-PLAN.md P5).
@@ -22,6 +27,11 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
  * person's answer outlives their role changing underneath them, and it is the only layer where
  * "shown" is a real answer rather than a reset (D-SURF6, D-SURF7).
  *
+ * ── A THIRD TAB, THE SAME QUESTION ASKED BACKWARDS (SP10, Q-SET10) ───────────────────────────
+ * "Who has access" answers "who can open Card control" — the question an access review asks first,
+ * which the two tabs above can only answer one member at a time. It edits nothing: every change is
+ * still made on Roles or People, and this view recomputes from the same layers when one is.
+ *
  * ── WHY THE PAGE NO LONGER EXPLAINS ITSELF AT THE TOP ───────────────────────────────────────────
  * The first editable version opened with a paragraph on the two staleness contracts and closed with
  * a paragraph on what the page does not govern. Both were true and both were in the wrong place: the
@@ -34,12 +44,32 @@ import PeopleTab from "@/features/permissions/PeopleTab.vue";
  * the argument for why it is open — and two fitness functions fail the build if a new one appears
  * unexamined. What remains outside this page is therefore a short, named list rather than an unknown,
  * and the disclosure below says it in the reader's words.
+ *
+ * ── "ADMIN ONLY", LISTED RATHER THAN IMPLIED (SP11, Q-SET11) ────────────────────────────────────
+ * The screens Q-SET1 keeps with the admin (`ADMIN_ONLY_SURFACES`, derived from the catalogue's gate)
+ * and the integration acts Q-SET11 put beside them (`ADMIN_ONLY_CAPABILITIES`, the list the API's
+ * `requireAdminOnly` reads). Both are READ here, never restated: `routeGateLedger.test.ts` fails if a
+ * capability guards no route or a route names one the list does not hold, so what this page says is
+ * the admin's alone is what the API enforces as the admin's alone.
  */
+const adminOnly = [...ADMIN_ONLY_SURFACES.map((s) => s.label), ...ADMIN_ONLY_CAPABILITIES.map((c) => c.label)];
 const tabs: TabItem[] = [
   { value: "roles", label: "Roles" },
   { value: "people", label: "People" },
+  { value: "access", label: "Who has access" },
 ];
 const tab = ref("roles");
+
+/**
+ * ── EVERY CHANGE HERE ASKS FOR THE PASSWORD, ONCE PER FIVE MINUTES (SP9) ─────────────────────────
+ * Q-SET8 (a), ruled 2026-09-30: each write on this page is behind the same step-up card control
+ * uses, because a stolen admin session that can edit this matrix can hand anyone every other
+ * capability in the product. ONE prompt for the page, not one per tab: both tabs write, and the
+ * token `lib/stepUp.ts` holds covers either for its five minutes, so a second prompt would ask for a
+ * password the admin has already given. It opens in a drawer so the tab that asked stays mounted and
+ * its write re-runs as it was — the same `useStepUpRetry` MemberPasswordResetDrawer uses.
+ */
+const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 </script>
 
 <template>
@@ -51,11 +81,18 @@ const tab = ref("roles");
     <AppTabs v-model="tab" :tabs="tabs" label="Permission views" id-prefix="permissions" />
 
     <div v-if="tab === 'roles'" id="permissions-panel-roles" role="tabpanel" aria-labelledby="permissions-tab-roles">
-      <RolesTab />
+      <RolesTab :hold-for-step-up="holdForStepUp" />
     </div>
-    <div v-else id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
-      <PeopleTab />
+    <div v-else-if="tab === 'people'" id="permissions-panel-people" role="tabpanel" aria-labelledby="permissions-tab-people">
+      <PeopleTab :hold-for-step-up="holdForStepUp" />
     </div>
+    <div v-else id="permissions-panel-access" role="tabpanel" aria-labelledby="permissions-tab-access">
+      <WhoHasAccessTab :hold-for-step-up="holdForStepUp" />
+    </div>
+
+    <SlideOver :open="stepUpFor !== null" title="Confirm your password" @close="cancel">
+      <StepUpPrompt v-if="stepUpFor" :reason="stepUpFor" @confirmed="confirmed" @cancel="cancel" />
+    </SlideOver>
 
     <details class="border-t border-edge-subtle pt-4">
       <summary class="cursor-pointer text-sm font-medium text-ink-muted">What this page does not decide</summary>
@@ -66,6 +103,13 @@ const tab = ref("roles");
         belong to an organisation. Each one is recorded with its reason; nothing else in the product
         decides access anywhere but here.
       </p>
+      <h3 class="mt-4 text-sm font-medium text-ink">Admin only</h3>
+      <p class="mt-1 max-w-prose text-sm text-ink-muted">
+        These stay with the Admin role and cannot be given to another role or person.
+      </p>
+      <ul class="mt-2 list-disc space-y-0.5 pl-5 text-sm text-ink-muted" aria-label="Admin only">
+        <li v-for="label in adminOnly" :key="label">{{ label }}</li>
+      </ul>
     </details>
   </div>
 </template>

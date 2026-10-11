@@ -218,3 +218,31 @@ Append a dated line per step. Never edit §4.
     was rendered: RT4 serves the certificate RT2 draws.
   · **D2 is complete.** Next per HIRING-MODULE-PLAN §9: D3 (orientation + handbook, a 0215 `purpose`
     CHECK widening, so two merges), then D4 (videos).
+- **2026-09-29** — **G-10 (APPLICATION-FLOW-V2-PLAN Q-AW19): the owner ruled both halves (a).**
+  · **§391.33 equivalency stays off.** Q-RT4 (dry van and reefer only) had made it lawful, which is
+    why it was asked again. The carrier requires a real test anyway, as §391.33(c) allows. §6 stands, now
+    as a ruling rather than a wait on Q-REC3. The fold still counts `cdl_equivalency` (a roster
+    manager can enter one from the compliance page), but no recruiter door is built.
+  · **"Handed a paper copy" is built. No migration.** §391.31(g) owes the driver a copy; RT4 could prove
+    it only for a driver who downloads it from their link, which offers it only once the application
+    is filed. Each certificate on the step-13 drawer now says whether the driver has had it, and how:
+    `road_test_certificate_downloaded` (RT4, no actor) or the new `road_test_certificate_handed_over`
+    (the office's press, with its actor). Both are `audit_logs` rows keyed by the certificate's
+    `qualification_records.id`, because the record is append-only and the audit log is
+    `RETENTION_FORBIDDEN`. API: `GET /api/recruitment/applicants/:driverId/road-test/copies` and
+    `POST …/road-test/:recordId/paper-copy` on the recruitment section (idempotent: a second press
+    writes nothing; a failed audit write is a 500, because the row is the whole record). Measured in
+    production before building: the read uses 0163's `action` index, 5.7 ms on the 5.06M-row org. It
+    is a fact on file, not a hire gate.
+  · 11 of 12 mutants killed. The survivor removes `.in("entity_id", …)`, which changes no output: the
+    match is repeated in TypeScript, and the filter only narrows the read. A first run found a real
+    gap, a certificate record citing no document, which is now in the fixture.
+- **2026-09-29** — **Q-AW19's examiner half ruled by the owner: "examiner will be the person that only
+  admin can add".** Adding and retiring an examiner (with their signature) now needs `manage` on
+  `ROAD_TEST_EXAMINER_SECTION` = `admin` (`roadTestContract.ts`). That is the one section the matrix holds
+  for the admin alone, and no org can widen it (D-PERM7). The API (`POST /road-test-examiners`, `…/retire`),
+  Settings → Recruiting's register and the step-13 panel all read that one constant. A recruiter or fleet
+  manager with no examiner on file is told that an administrator adds one in Settings → Recruiting.
+  **Unchanged:** reading the list and recording a road test stay `recruitment` acts. Q-RT2 stands: the
+  office applies the stored signature and every filing names who did. Representatives stay with
+  `recruitment: manage`. No migration: 0372 has no client policy (deny-all), so the API is the only writer.

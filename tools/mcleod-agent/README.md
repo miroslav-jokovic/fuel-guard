@@ -1,5 +1,26 @@
 # FuelGuard ⇄ McLeod sync agent
 
+> **2026-09-28 — how it runs in production: `--service` on the Board VM.** One process, one held LME
+> connection, every feed on its own schedule (loads 1 min, close 10 min, roster 15 min, finance 02:00
+> Central). Configuration is `connector.env`, from `connector.example.env`; the install notes are
+> `review/CONNECTOR-ON-THE-VM.md` and the statements it runs are `review/SILVICOM-READ-ROUTINE.sql`.
+> What the service guarantees and refuses is in `service.mjs` (tested by `service.test.mjs`): https
+> only, one copy only (a timer heartbeat on the lock), a 60 s ceiling on every POST, a refusal never
+> retried, state written atomically with a `.bak`, `ROSTER_MODE=reconcile` and `--dry-run` refused.
+> The sections below describe the older one-shot flags, which still work for checks and by-hand runs.
+>
+> **Cut-over, once:** loads that left McLeod's open board before the service existed are closed by hand
+> with `--close --ids-file=close-ids.txt`. The list is production's open McLeod loads, one movement id
+> per line, from the linked Supabase project:
+>
+> ```sh
+> supabase db query --linked "select split_part(external_id, ':', 2) from loads
+>   where source = 'tms' and provider = 'mcleod' and status not in ('delivered', 'canceled')"
+> ```
+>
+> Dry-run it first (`--close --dry-run --ids-file=…`): it prints McLeod's answer per status and sends
+> nothing. Only McLeod's own D or V closes a load; an id McLeod reports as still open is left alone.
+
 A tiny program that runs **on your network** (on the McLeod server, or any Windows/Linux box that can reach
 it). It reads dispatch data from McLeod LoadMaster and sends it **out** to FuelGuard over HTTPS.
 
@@ -17,7 +38,7 @@ network) and to FuelGuard's HTTPS address (outbound, like any web browser). No i
 
 ## Requirements
 
-- **Node.js 18 or newer** (free: https://nodejs.org — pick the LTS installer). Check with `node --version`.
+- **Node.js 22 or newer** (free: https://nodejs.org — pick the LTS installer). Check with `node --version`.
 - `npm install` once in this folder. The roster sync needs the `mssql` driver; the movement sync has no
   dependencies and still runs without it.
 

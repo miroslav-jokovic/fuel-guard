@@ -106,7 +106,12 @@ vi.mock("@/features/inventory/useAssets", async () => {
     useMoveAsset: () => move,
   };
 });
-vi.mock("vue-router", () => ({
+vi.mock("vue-router", async (importOriginal) => ({
+  // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+  // three names it takes from vue-router stay real under this mock.
+  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+    await importOriginal<typeof import("vue-router")>(),
+  ),
   useRoute: () => ({ params: { sessionId: SESSION }, path: `/shop/count/${SESSION}`, meta: { title: "Count" } }),
   useRouter: () => ({ push: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
 }));

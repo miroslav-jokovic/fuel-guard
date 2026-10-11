@@ -1121,6 +1121,10 @@ date.
 - **Q-REC3 · Equipment** (owner): does Silvicom haul tank vehicles or doubles?
   *Fallback:* the §391.33 equivalency path stays disabled; everyone gets a real road test
   (D-REC7 — cannot be wrong, only stricter than necessary).
+  **Answered 2026-09-25** (ROAD-TEST-PLAN Q-RT4): dry van and reefer only, so equivalency became
+  lawful. **Owner ruled 2026-09-29** (APPLICATION-FLOW-V2-PLAN Q-AW19): it stays off anyway, under
+  §391.33(c) — every driver gets a real road test in the carrier's truck. D-REC7's fallback is now
+  the ruling, not a wait.
 - **Q-REC4 · SambaSafety account** (owner + Samba rep): demo and production credentials, which
   MVR products the contract carries, monitoring price, webhook signature scheme, rate limits,
   whether a no-hit bills, and the UT access-code contradiction in the collection.

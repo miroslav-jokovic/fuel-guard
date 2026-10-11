@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RouterLink } from "vue-router";
+import GatedLink from "@/components/GatedLink.vue";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -105,7 +105,8 @@ function exportLines() {
       <p class="mt-1 max-w-2xl text-sm text-ink-muted">
         No fill in this window matched a Pilot quote, so what these fills should have cost is unknown. Quotes come
         from the daily Pilot price report, which is uploaded on
-        <RouterLink to="/truck-stops" class="font-medium text-brand-700 underline">Truck Stops</RouterLink> — or
+        <!-- SP5: text where Truck Stops (`dispatch` view) does not open; Fuel spend is `fuel` manage. -->
+        <GatedLink to="/truck-stops" class="font-medium text-brand-700 underline">Truck Stops</GatedLink> — or
         narrow the dates to a period that already has them.
       </p>
     </BaseCard>
@@ -117,7 +118,7 @@ function exportLines() {
       <BaseCard>
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-ink">Billed against contract</h3>
+            <h3 class="text-sm font-semibold text-ink" title="Billed against contract">Paid vs Pilot quote</h3>
             <p class="mt-1 max-w-2xl text-sm text-ink-muted">
               Every fill scored against <span class="font-medium text-ink-secondary">"Your Price"</span> — the net
               per-gallon Pilot quoted for that station on that day, contract discount already applied. Not a median

@@ -13,7 +13,7 @@ import { hashInvitationToken } from "./applicationIntake.js";
 const mailer = vi.hoisted(() => ({ fn: vi.fn(async () => ({ ok: true, provider: "resend", status: 200 })) }));
 vi.mock("../../lib/mailer.js", () => ({ sendEmail: mailer.fn }));
 
-const { createApplicationInvite, findExistingApplicants, sendApplicationLinkAgain } = await import("./applicationLink.js");
+const { createApplicationInvite, findExistingApplicants, isApplicationLinkError, sendApplicationLinkAgain } = await import("./applicationLink.js");
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const OTHER = "0f0f0f0f-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -27,9 +27,11 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   revoked_at: null, handbook_filed_at: null, created_at: "2026-09-10T00:00:00Z", ...over,
 });
 
-const seed = (invitations: Record<string, unknown>[], driver: Record<string, unknown> = {}) =>
+const seed = (invitations: Record<string, unknown>[], driver: Record<string, unknown> = {}, settings?: Record<string, unknown>) =>
   createSupabaseRecorder({
     tables: {
+      // The carrier's own link lifetime (Q-AW41). Absent: no row, the product's defaults.
+      recruiting_settings: settings ? [settings] : [],
       drivers: postgrestFixture([{ id: DRIVER, org_id: ORG, status: "applicant", email: "own@example.test", ...driver }]),
       application_invitations: (q: RecordedQuery) => {
         if (q.write?.method === "update") return [{ ...invitation(), ...(q.write.payload as object) }];
@@ -66,6 +68,40 @@ describe("sending the link again", () => {
       { col: "org_id", val: ORG }, { col: "id", val: INV }, { col: "revoked_at", val: null }, { col: "handbook_filed_at", val: null },
     ]));
     expectOrgScoped(rec, ORG, { exempt: ["organizations"] });
+  });
+
+  it("extends to the carrier's own lifetime when it has chosen one (Q-AW41)", async () => {
+    const rec = seed([invitation()], {}, { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" });
+    await again(rec);
+    const patch = rec.writes().find((q) => q.table === "application_invitations")!.write!.payload as { expires_at: string };
+    expect(patch.expires_at).toBe("2026-10-02T12:00:00.000Z");
+  });
+
+  it("gives a new invitation the carrier's lifetime, unless the drawer overrides it for this link", async () => {
+    const created = (days?: number) => {
+      const rec = seed([], {}, { invite_ttl_days: 5, reminders_enabled: true, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" });
+      return createApplicationInvite(rec.client, env, { orgId: ORG, userId: USER, driverId: DRIVER, email: null, days })
+        .then(() => rec.writtenRows("application_invitations")[0]!.expires_at as string);
+    };
+    const lifetime = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
+    expect(lifetime(await created())).toBe(5);
+    expect(lifetime(await created(30))).toBe(30);
+  });
+
+  it("refuses an override that dies before its driver counts as stopped, and writes nothing (Q-AW51)", async () => {
+    const attempt = async (days: number) => {
+      const rec = seed([], {}, { invite_ttl_days: 5, reminders_enabled: false, reminder_after_hours: 48, updated_at: "2026-09-28T00:00:00Z" });
+      const result = await createApplicationInvite(rec.client, env, { orgId: ORG, userId: USER, driverId: DRIVER, email: null, days });
+      return { result, written: rec.writtenRows("application_invitations").length };
+    };
+    // 2 days is exactly the 48 hours: the link and the alert arrive together, and the sweep skips it.
+    const refused = await attempt(2);
+    expect(refused.result).toMatchObject({ status: 422, code: "link_shorter_than_delay" });
+    expect((refused.result as { message: string }).message).toContain("after 48 hours");
+    expect(refused.written).toBe(0);
+    const accepted = await attempt(3);
+    expect(isApplicationLinkError(accepted.result)).toBe(false);
+    expect(accepted.written).toBe(1);
   });
 
   it("never shortens a link that already outlives the window", async () => {

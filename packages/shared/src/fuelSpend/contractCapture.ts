@@ -183,6 +183,39 @@ function rollup(lines: readonly ContractLine[], key: (l: SpendLine) => string | 
     .sort((a, b) => b.variance - a.variance);
 }
 
+/**
+ * The four sums the "Paid vs Pilot quote" tile is made of, over in-scope fills (Q-FSV18). Either the
+ * database adds them (`fuel_contract_totals`, 0418) or `analyzeContractCapture` adds them from rows; the
+ * tile's two figures are then ONE formula, below, not one in SQL, one in TypeScript and one in a test.
+ * `measured*` are the fills that carry a quote; `unmeasuredPaid` is what EFS billed on those that do not.
+ */
+export interface ContractTotals {
+  measuredLines: number;
+  measuredGallons: number;
+  measuredPaid: number;
+  measuredExpected: number;
+  unmeasuredLines: number;
+  unmeasuredPaid: number;
+}
+
+/**
+ * The tile's headline: paid minus expected over the measured fills, and the share of in-scope DOLLARS that
+ * is. Null is not zero twice over here — a window with no measured fill has no net variance to state
+ * (`measuredLines` is 0 and the tile says "unmeasured"), and no in-scope dollar has no share.
+ */
+export function contractHeadline(t: ContractTotals): {
+  measuredLines: number;
+  netVariance: number;
+  measuredSpendShare: number | null;
+} {
+  const inScopePaid = t.measuredPaid + t.unmeasuredPaid;
+  return {
+    measuredLines: t.measuredLines,
+    netVariance: r2(t.measuredPaid - t.measuredExpected),
+    measuredSpendShare: inScopePaid > 0 ? t.measuredPaid / inScopePaid : null,
+  };
+}
+
 export function analyzeContractCapture(lines: readonly SpendLine[]): ContractCapture {
   const inScope = lines.filter(isInScope);
   const measured = inScope.filter(isMeasurable);
@@ -218,14 +251,21 @@ export function analyzeContractCapture(lines: readonly SpendLine[]): ContractCap
   const captured = withRetail.reduce((a, c) => a + c.captured!, 0);
   // The denominator the headline is measured against: every in-scope dollar, priced or not.
   const unmeasuredPaid = unmeasured.reduce((a, l) => a + (l.netAmount ?? 0), 0);
-  const inScopePaid = paid + unmeasuredPaid;
+  const headline = contractHeadline({
+    measuredLines: scored.length,
+    measuredGallons,
+    measuredPaid: paid,
+    measuredExpected: expected,
+    unmeasuredLines: unmeasured.length,
+    unmeasuredPaid,
+  });
 
   return {
     measuredLines: scored.length,
     measuredGallons: r2(measuredGallons),
     paid: r2(paid),
     expected: r2(expected),
-    netVariance: r2(paid - expected),
+    netVariance: headline.netVariance,
     paidPerGal: measuredGallons > 0 ? r4(paid / measuredGallons) : null,
     contractPerGal: measuredGallons > 0 ? r4(expected / measuredGallons) : null,
 
@@ -244,7 +284,7 @@ export function analyzeContractCapture(lines: readonly SpendLine[]): ContractCap
     unmeasuredLines: unmeasured.length,
     unmeasuredGallons: r2(unmeasured.reduce((a, l) => a + l.gallons, 0)),
     unmeasuredPaid: r2(unmeasuredPaid),
-    measuredSpendShare: inScopePaid > 0 ? paid / inScopePaid : null,
+    measuredSpendShare: headline.measuredSpendShare,
     carriedForwardLines: scored.filter((c) => (c.staleDays ?? 0) > 0).length,
 
     exceptions: [...beyond].sort((a, b) => b.variance - a.variance),

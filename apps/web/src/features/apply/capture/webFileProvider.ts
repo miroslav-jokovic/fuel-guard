@@ -2,6 +2,7 @@ import {
   evaluateGate,
   unavailableOcr,
   type CaptureConfig,
+  type CaptureMode,
   type CaptureProvider,
   type CapturedPage,
   type ImageMetrics,
@@ -38,19 +39,58 @@ import { browserImageIo, pickPhotoFromCamera, type WebImageIo } from "./webImage
  * unmeasured check is `na` and never a silent pass.
  */
 
+/**
+ * A photograph and how it was made. A picker that returns a bare `File` made it through a file input
+ * (`web_file_input`); the live scanner says `web_live_camera`, so a page never claims the wrong provenance.
+ */
+export interface PickedPhoto {
+  file: File;
+  captureMode: CaptureMode;
+}
+
 export interface WebCaptureOptions {
   io?: WebImageIo;
-  pick?: () => Promise<File | null>;
+  pick?: () => Promise<File | PickedPhoto | null>;
 }
 
 export const WEB_PROVIDER_ID = "capture.web.file_input";
 export const WEB_PROVIDER_VERSION = "0.1.0";
 
+/** A processed photograph: the page the engine describes, and the encoded bytes its `uri` points at. */
+export interface ProcessedPhoto {
+  page: CapturedPage;
+  bytes: Blob;
+}
+
+/**
+ * The web provider, plus the one thing only it can do: turn its own handle back into bytes.
+ *
+ * ── WHY THE BYTES ARE HANDED OVER, AND NEVER READ BACK FROM THE URL ───────────────────────────
+ * `ImageRef.uri` is, in the engine's words, "an opaque handle the owning provider understands". Here it
+ * is an object URL, and the obvious way to get the bytes out again — `fetch(uri)` — is a CONNECTION as
+ * far as the browser is concerned, governed by `connect-src`. Production's CSP (`appHttp.ts`) does not
+ * list `blob:` there, and should not need to: so `fetch("blob:…")` fails with a bare "Failed to fetch",
+ * which the capture screen could only report as a lost signal. That was every applicant photograph in
+ * production from the day the scanner shipped until 2026-09-30 — zero rows in `application_captures`,
+ * zero objects in its bucket — and no test saw it, because `vite preview` sends no CSP and the unit
+ * tests stubbed `fetch`. So the bytes leave the provider as bytes, once, and the URL is only ever an
+ * `<img src>` (which `img-src blob:` does allow).
+ */
+export interface WebCaptureProvider extends CaptureProvider {
+  /**
+   * The encoded bytes behind a page this provider returned, handed over ONCE: the entry is dropped as it
+   * is read, so a phone does not keep a second copy of every photograph alive. Null for a handle this
+   * provider never issued, or one already taken.
+   */
+  takeBytes(uri: string): Blob | null;
+}
+
 export async function processPhoto(
   file: File,
   config: CaptureConfig,
   io: WebImageIo,
-): Promise<CapturedPage> {
+  captureMode: CaptureMode = "web_file_input",
+): Promise<ProcessedPhoto> {
   const decoded = await io.decode(file);
   try {
     // Measured before anything is resized — see the header.
@@ -72,7 +112,7 @@ export async function processPhoto(
     const ocr = unavailableOcr("web.none");
     const quality = evaluateGate({ metrics, ocr, platform: "web" }, config);
 
-    return {
+    const page: CapturedPage = {
       originalOfRecord: image,
       perspectiveCorrected: image,
       enhancedColor: image,
@@ -90,9 +130,10 @@ export async function processPhoto(
         device: "web",
       },
       integrityHash,
-      // The phone's camera app or a picked file, through a file input — never Expo (§6.6.7).
-      provenance: { captureMode: "web_file_input", osEnhanced: false },
+      // A file input (the camera app, a picked file) or the live scanner — never Expo (§6.6.7).
+      provenance: { captureMode, osEnhanced: false },
     };
+    return { page, bytes: encoded.blob };
   } finally {
     decoded.close();
   }
@@ -101,9 +142,11 @@ export async function processPhoto(
 export function createWebFileProvider(
   config: CaptureConfig,
   options: WebCaptureOptions = {},
-): CaptureProvider {
+): WebCaptureProvider {
   const io = options.io ?? browserImageIo;
   const pick = options.pick ?? pickPhotoFromCamera;
+  /** Bytes of accepted pages not yet taken, by their object URL. Rejected pages never enter it. */
+  const issued = new Map<string, Blob>();
 
   return {
     id: WEB_PROVIDER_ID,
@@ -117,17 +160,19 @@ export function createWebFileProvider(
     },
 
     async scan(): Promise<ScanResult> {
-      let file: File | null;
+      let picked: File | PickedPhoto | null;
       try {
-        file = await pick();
+        picked = await pick();
       } catch (e) {
         return { ok: false, reason: "PROVIDER_ERROR", message: e instanceof Error ? e.message : String(e) };
       }
-      if (!file) return { ok: false, reason: "CAPTURE_CANCELLED" };
+      if (!picked) return { ok: false, reason: "CAPTURE_CANCELLED" };
+      const { file, captureMode } = picked instanceof File ? { file: picked, captureMode: "web_file_input" as const } : picked;
 
       let page: CapturedPage;
+      let bytes: Blob;
       try {
-        page = await processPhoto(file, config, io);
+        ({ page, bytes } = await processPhoto(file, config, io, captureMode));
       } catch (e) {
         return { ok: false, reason: "PROVIDER_ERROR", message: e instanceof Error ? e.message : String(e) };
       }
@@ -143,7 +188,14 @@ export function createWebFileProvider(
           message: page.quality.reasons.join(", "),
         };
       }
+      issued.set(page.originalOfRecord.uri, bytes);
       return { ok: true, pages: [page] };
+    },
+
+    takeBytes(uri: string): Blob | null {
+      const bytes = issued.get(uri) ?? null;
+      issued.delete(uri);
+      return bytes;
     },
 
     cancel(): void {

@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssignmentRow } from "@silvicom/shared";
+import { WITH_DRIVER_CANDIDATE_STATUSES, compareLoadsOnTruck, isLoadWithDriver, type AssignmentRow } from "@silvicom/shared";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { labelOf, memberLabels } from "../../../lib/memberLabels.js";
 import { dispatchesByLoad } from "../dispatchToDriver.js";
+import { chunks, fetchAllPaged } from "../../../lib/paging.js";
 import { readDispatcherNames } from "../../mcleod/index.js";
 
 type DispatcherRef = { provider?: string | null; dispatcher_external_id?: string | null };
@@ -34,27 +35,41 @@ export async function dispatcherNamesFor(
 
 /** Every load in the org with stops nested — dispatch's queue, all statuses. */
 export async function listLoads(admin: SupabaseClient, orgId: string): Promise<unknown[]> {
-  const { data: loads, error } = await admin
-    .from("loads")
-    .select(LOAD_COLUMNS)
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-
-  const rows = (loads ?? []) as unknown as (Record<string, unknown> & { id: string })[];
+  // Paged: the McLeod connector closes ~150 loads a day into `delivered`, and the board lists every
+  // status, so the org's loads pass PostgREST's 1,000-row cap within days of the Board VM going live
+  // (2026-10-09). `id` breaks created_at ties so no row falls between two pages.
+  type Row = Record<string, unknown> & { id: string };
+  const rows = await fetchAllPaged<Row>((from, to) =>
+    admin
+      .from("loads")
+      .select(LOAD_COLUMNS)
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .then(({ data, error }) => ({ data: data as unknown as Row[] | null, error })),
+  );
   if (rows.length === 0) return [];
 
-  const { data: stops } = await admin
-    .from("load_stops")
-    .select(STOP_COLUMNS)
-    // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
-    // and a read that is only safe because of the query above it stops being safe when that changes.
-    .eq("org_id", orgId)
-    .in("load_id", rows.map((r) => r.id))
-    .order("seq", { ascending: true });
+  // In id chunks (IN_LIST_CHUNK): one `.in()` over the whole board overflowed Node 22's header limit
+  // at 454 loads and failed every board read for an afternoon. A failed stops read now fails the board
+  // — it used to be ignored, which would have shown every load without its pickup and delivery.
+  const stops: { load_id: string }[] = [];
+  for (const ids of chunks(rows.map((r) => r.id))) {
+    const { data, error: stopsError } = await admin
+      .from("load_stops")
+      .select(STOP_COLUMNS)
+      // Scoped to the org as well as to ids an org-scoped read produced: the service role bypasses RLS,
+      // and a read that is only safe because of the query above it stops being safe when that changes.
+      .eq("org_id", orgId)
+      .in("load_id", ids)
+      .order("seq", { ascending: true });
+    if (stopsError) throw new Error(stopsError.message);
+    stops.push(...((data ?? []) as unknown as { load_id: string }[]));
+  }
 
   const byLoad = new Map<string, unknown[]>();
-  for (const s of (stops ?? []) as unknown as { load_id: string }[]) {
+  for (const s of stops) {
     const list = byLoad.get(s.load_id) ?? [];
     list.push(s);
     byLoad.set(s.load_id, list);
@@ -199,9 +214,10 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
       .is("ended_at", null),
     admin
       .from("loads")
-      .select("id, ref, status, driver_id")
+      .select("id, ref, status, source, external_status, driver_id")
       .eq("org_id", orgId)
-      .in("status", ["offered", "accepted", "in_transit"]),
+      // The widest set any source can mean; `isLoadWithDriver` then applies each load's own rule.
+      .in("status", [...WITH_DRIVER_CANDIDATE_STATUSES]),
     admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
     admin
       .from("trailers")
@@ -216,15 +232,16 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
     sessionByDriver.set(s.driver_id, { id: s.id, started_at: s.started_at });
   }
 
-  const loadByDriver = new Map<string, { id: string; ref: string; status: string }>();
-  for (const l of (loadsRes.data ?? []) as unknown as { id: string; ref: string; status: string; driver_id: string | null }[]) {
-    if (!l.driver_id) continue;
-    // in_transit outranks accepted outranks offered — show what they are actually doing.
-    const held = loadByDriver.get(l.driver_id);
-    const rank = (s: string) => (s === "in_transit" ? 3 : s === "accepted" ? 2 : 1);
-    if (!held || rank(l.status) > rank(held.status)) {
-      loadByDriver.set(l.driver_id, { id: l.id, ref: l.ref, status: l.status });
-    }
+  // One load per driver: `isLoadWithDriver` decides which count (a McLeod `P` is one, D-MCC12) and
+  // `compareLoadsOnTruck` which wins when a driver holds two — under way first, then the smaller
+  // reference — so the row does not depend on the order PostgREST happened to return.
+  type HeldLoad = { id: string; ref: string; status: string; source: string | null; external_status: string | null };
+  const loadByDriver = new Map<string, HeldLoad>();
+  const held = ((loadsRes.data ?? []) as unknown as (HeldLoad & { driver_id: string | null })[])
+    .filter(isLoadWithDriver)
+    .sort(compareLoadsOnTruck);
+  for (const l of held) {
+    if (l.driver_id && !loadByDriver.has(l.driver_id)) loadByDriver.set(l.driver_id, l);
   }
 
   // drivers.current_hos_vehicle stores the truck's UNIT NAME (Samsara display name) → resolve to our
@@ -266,6 +283,8 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
       load_id: load?.id ?? null,
       load_ref: load?.ref ?? null,
       load_status: load?.status ?? null,
+      load_source: load?.source ?? null,
+      load_external_status: load?.external_status ?? null,
     };
   });
 }

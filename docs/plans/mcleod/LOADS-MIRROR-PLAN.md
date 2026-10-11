@@ -700,3 +700,82 @@ Append a dated line per merge. Never edit a status column.
   the analytics part does not grant one (it failed on the old file, naming exactly those five). The
   copy is a snapshot whose newest rows date from ~2026-09-10, so its night checks permissions and
   runtime, not freshness.
+- 2026-09-28 — **The live map and the Assignments board read McLeod loads correctly.** An audit of every
+  consumer in §3.3 found both still asking for the approval chain's statuses (`accepted`/`in_transit`,
+  plus `offered` on Assignments). A McLeod load never becomes `accepted`: the projection writes
+  `approved` for `P` with nothing departed. So a load McLeod had planned onto a truck would have been
+  on neither surface, contrary to D-MCC12 ("draw only `P`"). And the map's next stop read only the
+  driver app's stop statuses, which a McLeod load's stops never leave (`pending`), so it would have named
+  the pickup McLeod had departed as the next stop on every McLeod truck. Measured on live `lme` first
+  (96 `P`, 253 stops): McLeod's `stop.status` is `A`/`D`, every `D` has `actual_departure`, none out of
+  sequence; all 96 `P` had a stop departed, so today no load was hidden by the first gap, but every
+  truck would have shown the wrong next stop. **Built:** shared `isLoadOnTruck` / `isLoadWithDriver`
+  (McLeod: `approved` + `in_transit`; any other source: the old rule, since an office-approved manual
+  load was never released), `nextStopOnRoute` (a stop is behind the truck when the driver app finished
+  it OR McLeod departed it; the driver's own `nextStop` is deliberately left alone, that is Q-LMR2),
+  `mcleodStopDeparted` (now also the projection's own definition of in transit) and
+  `compareLoadsOnTruck`. That last one replaces row order where a truck or driver holds two loads: the
+  map's comment promised "the first row wins deterministically" over a read with no ORDER BY. No truck
+  held two on the live board, but McLeod can plan the next load early. The map and Assignments now
+  word statuses with `loadBoardState` ("Planned", "In transit", McLeod's code in the map's tooltip),
+  not the raw enum or "Approved". New contract fields are optional/defaulted because web and api
+  deploy separately. No migration. 21 mutants, each killed by name. **Still open, deliberately:** the
+  driver app lists `offered`/`accepted`/`in_transit`/… (`DRIVER_VISIBLE_STATUSES`, RLS 0087), so a
+  dispatched McLeod load not yet started (`approved`) would not show in the app, and its stops follow
+  the driver's own statuses. Both belong to the app channel ("later", §6a) and Q-LMR2, and change
+  nothing today: dispatch is SMS-only and no load has been dispatched.
+- 2026-09-28 — **Production-readiness audit of both halves; fixes in two PRs.** Connector (#1106):
+  POST timeout, refusals not retried, https-only origin, a timer heartbeat on the lock, atomic state
+  with `.bak`, `reconcile`/`--dry-run` refused under `--service`, and the API's refused/unmatched
+  movements now logged. Ingest (this PR): **a failed roster read no longer unassigns loads.** Before,
+  the driver/vehicle/trailer lookups ignored `error`, so a transient database failure resolved every
+  code to null and the projection wrote null onto every load in the batch, and the connector only
+  resends a movement when McLeod changes it. Those lookups also page past PostgREST's 1,000 rows now.
+  A failed token lookup answers 500, not 401. The token is checked before the 8 MB body is parsed. A
+  movement whose stops lack a usable sequence is refused by name instead of failing the batch (never
+  seen: 0 in 72,633 TMS stops over a year). The legacy stop writer checks its delete. **Accepted for
+  go-live, with the reason, not fixed:**
+  (1) *Last write wins on the raw mirror* (no version or time check), so a replayed or out-of-order
+  payload could move a load's status backwards. There is one writer: one connector, a lock that can
+  no longer go stale, cycles strictly one after another, and a retry resends the SAME content. A
+  guard needs a connector read-time on every movement plus a migration; worth doing if a second
+  writer is ever planned.
+  (2) *The projection is not one transaction.* A failure mid-way answers 500, the connector keeps the
+  batch unhashed and resends it, and the writes are idempotent on McLeod's keys. The one thing a
+  retry does not restore is a `created` event lost on the first attempt (the retry takes the update
+  path). A single RPC would fix it; that is LR8-sized work.
+  (3) *`POST /api/tms/loads` is still mounted and writes the same rows.* Nothing posts to it: the Board
+  VM connector has no path to it, and the laptop runs `--roster` only. Retiring it belongs with LR8
+  (`load_external_payloads`, which also has no retention and still holds the old feed's rows).
+  (4) *No test drives the `/api/tms` rate limiter* (300 per 15 min per IP; a 1-minute cycle posts one
+  to three). Its budget is separate from the office's `/api` limiter, so the carrier's shared IP is
+  not at risk.
+  **Laptop, until cut-over:** the launchd roster sweep runs every 2 minutes from the SHARED checkout,
+  so it runs whatever commit another chat has checked out (detached `4cbba9d` at the time of the
+  audit), with `MCLEOD_SQL_ENCRYPT=false` against Alex's "do not run unencrypted", posting to the web
+  service. It is switched off at cut-over (Alex's step 4); until then the owner may set
+  `MCLEOD_SQL_SERVERNAME=APPNEW` and remove `MCLEOD_SQL_ENCRYPT=false` in its `.env`. **The close
+  backlog is 293** (289 D, 4 V of 303 open, 2026-09-28), not ~181; the query that produces the ids
+  file is in the connector README.
+- 2026-09-29 — **Alex ran the six remaining grant lines**: `customer (company_id)` on LME, and
+  `movement`, `movement_order`, `orders`, `stop`, `users` on `lme_analytics`. Checked the same day
+  under `silvicom_dispatch_ro`, encrypted: LME `customer` column grants id/name/city/state_id/
+  company_id = 1, whole table 0; the company-matched join finds one customer for each of 132 open
+  orders. Every routine statement was run: LME 1–8, 16, 22–24 OK; `lme_analytics` 9–21 OK (15–18
+  refused yesterday). No write permission. **Q-LMR5's customer name is unblocked**; its PU # half
+  still waits on the dispatcher check of candidate (a).
+- 2026-09-29 — **0383 + 0384 merged (#1124)**: `customer_name` on `mcleod_dispatch_movements` (raw, 0383)
+  and `loads` (core, 0384), nullable, no default; two files because `lint:table-modules` refuses one
+  migration across two modules. Measured first on live `lme` under the connector's login: 130 of 130
+  open movements carry a customer id, the company-matched join gives exactly one named customer each
+  (44 distinct; 238 rows on id alone), `customer.name` varchar(40), longest 37.
+- 2026-09-29 — **Q-LMR5's customer name, end to end.** `DISPATCH_LOADS` (and so the close read) LEFT JOIN
+  `customer` on company AND id; the contract REQUIRES `customer_name`, so an older connector is refused by
+  name instead of blanking a stored name; the ingest keeps it raw, the projection writes
+  `loads.customer_name`, and the API's load columns carry it. The board shows it under the load number,
+  above the dispatcher, capped at `max-w-32`: measured in the built page at 1440, an uncapped 40-character
+  name widened Load # 119 → 298 px; capped, 168 (+49, inside the 56 px LR7 left). The load page shows
+  "Customer" beside Dispatcher; search matches it. Eight mutants each killed by name — two survived first
+  (the recorder serves every column whatever the read-back asks for; every fixture sent the field) and
+  each got its own test. **`SILVICOM-READ-ROUTINE.sql` changed (statements 1 and 4): Alex receives it
+  before the VM runs it.** PU # (the other half of Q-LMR5) still waits on the dispatcher check.

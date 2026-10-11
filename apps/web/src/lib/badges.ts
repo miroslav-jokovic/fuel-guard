@@ -198,6 +198,18 @@ export function archivedBadge(archivedAt: string | null | undefined): DqBadge | 
 }
 
 /**
+ * An office member's suspension (Q-SET12, migration 0393) → badge, or null for an active member.
+ *
+ * Null rather than "Active" for `archivedBadge`'s reason: a badge on every row of the Users page
+ * would mean nothing. `warning`, not `danger` — a suspension is a reversible hold on access, and the
+ * page's red is kept for the one act that is not (Remove). `null`/`undefined` both read as active,
+ * because an API on the previous build sends no `suspendedAt` at all.
+ */
+export function suspendedBadge(suspendedAt: string | null | undefined): DqBadge | null {
+  return suspendedAt ? { label: "Suspended", tone: "warning" } : null;
+}
+
+/**
  * A stock line's level (INVENTORY-PLAN.md I4, D-INV4).
  *
  * ── IT ASKS `isLowStock`; IT DOES NOT RE-IMPLEMENT IT ──────────────────────────────────────────
@@ -287,6 +299,14 @@ export function assetMovementMarker(reason: AssetMovementReason): string {
   return reason === "retired" ? MARKER.neutral : MARKER.info;
 }
 
+/**
+ * A load stop's marker on the truck drawer's rail (DB6): the stops still ahead are what a dispatcher
+ * reads the rail for, so they are coloured; a stop already reached is history and takes the plain dot.
+ */
+export function stopMarker(reached: boolean): string {
+  return reached ? MARKER.neutral : MARKER.info;
+}
+
 /** The one spelling of what a movement was, for the rail's headline. */
 export const assetMovementLabel = (reason: AssetMovementReason): string =>
   ASSET_MOVEMENT_REASON_LABELS[reason];
@@ -309,6 +329,24 @@ export function hosStatusBadge(status: string): DqBadge {
       return { label: "Personal", tone: "neutral" };
     default:
       return { label: "Unknown", tone: "neutral" };
+  }
+}
+
+/**
+ * The dispatch board's on-time verdict (`onTimeVerdict` in `@silvicom/shared`) → badge. One spelling
+ * for every page that shows it — the board row and, from DB5b, the Loads page (D-DB6). "Unknown" is
+ * neutral and never green: no appointment, or no ETA, is not on time.
+ */
+export function onTimeBadge(verdict: string): DqBadge {
+  switch (verdict) {
+    case "on_time":
+      return { label: "On time", tone: "success" };
+    case "at_risk":
+      return { label: "At risk", tone: "warning" };
+    case "late":
+      return { label: "Late", tone: "danger" };
+    default:
+      return { label: "No ETA", tone: "neutral" };
   }
 }
 

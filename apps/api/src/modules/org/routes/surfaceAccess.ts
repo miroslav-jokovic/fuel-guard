@@ -2,10 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   EDITABLE_ROLES,
-  NAV_SURFACES,
-  SURFACES,
-  isEditableSurface,
+  GRANTABLE_SURFACES,
   surfaceAccessSetSchema,
+  surfaceStartsOn,
   userSurfaceAccessSetSchema,
   type SurfaceAccessSetRequest,
   type SurfaceClaim,
@@ -14,10 +13,11 @@ import {
   type UserSurfaceAccessSetRequest,
 } from "@silvicom/shared";
 import { requireAuth, requireRole, requireOrg } from "../../../middleware/auth.js";
+import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { validateBody, apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { writeAudit } from "../../../lib/audit.js";
+import { writeAccessCell } from "../accessWrites.js";
 import { lookupMemberRole } from "../memberLookup.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -37,6 +37,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * ⚠ The API reads with the SERVICE ROLE, which bypasses RLS, so every query below carries its own
  * `.eq("org_id", …)`; `surfaceAccess.test.ts` asserts it with `expectOrgScoped`.
+ * The WRITES go through `write_access_cell` (0395, SP8) with `p_org_id` taken from the token, never
+ * the body, and the tests assert that argument the same way.
  */
 
 const ROW_COLS = "role, surface_key, allowed";
@@ -53,7 +55,7 @@ interface UserSurfaceRow {
   allowed: boolean;
 }
 
-const KNOWN_KEYS = new Set(SURFACES.filter((s) => isEditableSurface(s) && !s.parent).map((s) => s.key));
+const KNOWN_KEYS = new Set(GRANTABLE_SURFACES.map((s) => s.key));
 
 /**
  * Rows → the sparse `role → key → allowed` shape the shared resolver takes (D-SURF6).
@@ -141,13 +143,19 @@ export async function surfaceClaimFor(
  * saying "hidden, because they have no Maintenance access" is the difference between a disabled
  * control and a broken one. Derived from the catalogue rather than restated, so a screen that moves
  * section moves here with it.
+ *
+ * `reachedFrom` and `startsOnFor` travel for SP1's Settings screens: the first puts a row in the
+ * directory's group rather than the sidebar's, the second is Q-SET2's starting default, without
+ * which the page would draw a screen that starts off as switched on.
  */
-const EDITABLE_CATALOGUE = NAV_SURFACES.filter(isEditableSurface).map((s) => ({
+const EDITABLE_CATALOGUE = GRANTABLE_SURFACES.map((s) => ({
   key: s.key,
   label: s.label,
   group: s.group,
   section: s.gate.kind === "section" ? s.gate.section : null,
   level: s.gate.kind === "section" ? s.gate.level : null,
+  reachedFrom: s.reachedFrom ?? null,
+  startsOnFor: s.startsOnFor ?? null,
 }));
 
 export function surfaceAccessRouter(): Router {
@@ -245,56 +253,49 @@ export function surfaceAccessRouter(): Router {
   /**
    * Set one cell.
    *
-   * Allowing a screen back DELETES the row rather than storing `true`. The table is a sparse delta
-   * (D-SURF6) and "no row" is how it says "unchanged" — a stored `true` would still read as a
-   * deliberate answer on the page, and would keep applying after the surface's own gate changed
-   * underneath it. `allowed: false` is therefore the only value that ever produces a row at THIS
-   * layer; S4's per-user layer is where a `true` earns its keep, overriding a role-level denial.
+   * Answering with the screen's STARTING value deletes the row rather than storing it. The table is a
+   * sparse delta (D-SURF6) and "no row" is how it says "unchanged" — a stored copy of the default
+   * would still read as a deliberate answer on the page, and would keep applying after the surface's
+   * own gate changed underneath it.
+   *
+   * Until SP1 the starting value was always `true`, so `false` was the only value that ever made a
+   * row here. Q-SET2 added screens that start OFF for a role (`startsOnFor`), and for those `true` is
+   * the real answer — the admin turning Organization on for fleet managers — and `false` is the reset.
+   * `surfaceStartsOn` is the same function the guard falls back to, so "reset" here and "no answer"
+   * there cannot mean two things.
    */
   router.put(
     "/",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(surfaceAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const { role, surfaceKey, allowed } = res.locals.body as SurfaceAccessSetRequest;
+      // The contract has already refused a key that is not grantable, so this cannot miss.
+      const startsOn = surfaceStartsOn(GRANTABLE_SURFACES.find((s) => s.key === surfaceKey)!, role as UserRole);
 
-      // Never `.upsert()` with a partial payload (`lint:upserts`): Postgres checks NOT NULL before
-      // conflict arbitration. Delete-then-insert is the shape 0174/0175 settled on, and the primary
-      // key makes the pair idempotent.
-      const { error: delErr } = await admin
-        .from("org_role_surface_access")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("role", role)
-        .eq("surface_key", surfaceKey);
-      if (delErr) {
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0395). The starting value is
+      // written as null — no row (D-SURF6's sparseness) — and a real answer as the boolean's text,
+      // which the function casts back to the column's type and records as a boolean `from`/`to`.
+      const isStart = allowed === startsOn;
+      const written = await writeAccessCell(admin, {
+        table: "org_role_surface_access",
+        orgId,
+        role,
+        userId: null,
+        key: surfaceKey,
+        value: isStart ? null : String(allowed),
+        actorId: req.auth!.userId,
+        action: "permissions.screen_changed",
+        meta: { role, surfaceKey, allowed, resetToDefault: isStart },
+      });
+      if (!written) {
         res.status(500).json(apiError("db_error", "Could not update screen permissions"));
         return;
       }
-      if (!allowed) {
-        const { error: insErr } = await admin.from("org_role_surface_access").insert({
-          org_id: orgId,
-          role,
-          surface_key: surfaceKey,
-          allowed: false,
-          updated_by: req.auth!.userId,
-        });
-        if (insErr) {
-          res.status(500).json(apiError("db_error", "Could not update screen permissions"));
-          return;
-        }
-      }
-
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "permissions.screen_changed",
-        entity: "org_role_surface_access",
-        meta: { role, surfaceKey, allowed, resetToDefault: allowed },
-      });
       res.json({ ok: true, role, surfaceKey, allowed });
     }),
   );
@@ -324,6 +325,7 @@ export function surfaceAccessRouter(): Router {
     "/user",
     requireOrg,
     requireRole("admin"),
+    requireFreshAuth(), // SP9, Q-SET8 (a): an access change needs the password again — see requireFreshAuth.ts
     validateBody(userSurfaceAccessSetSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -346,38 +348,17 @@ export function surfaceAccessRouter(): Router {
         return;
       }
 
-      // Never `.upsert()` with a partial payload (`lint:upserts`): Postgres checks NOT NULL before
-      // conflict arbitration. Delete-then-insert is the shape 0174/0175 settled on, and the primary
-      // key makes the pair idempotent.
-      const { error: delErr } = await admin
-        .from("user_surface_access")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("user_id", userId)
-        .eq("surface_key", surfaceKey);
-      if (delErr) {
-        res.status(500).json(apiError("db_error", "Could not update screen permissions"));
-        return;
-      }
-      if (allowed !== null) {
-        const { error: insErr } = await admin.from("user_surface_access").insert({
-          org_id: orgId,
-          user_id: userId,
-          surface_key: surfaceKey,
-          allowed,
-          updated_by: req.auth!.userId,
-        });
-        if (insErr) {
-          res.status(500).json(apiError("db_error", "Could not update screen permissions"));
-          return;
-        }
-      }
-
-      await writeAudit(admin, {
+      // One transaction with its audit row (SP8, Q-SET7 (a), migration 0395); `allowed: null` removes
+      // the row, which is how "follow the role" is stored.
+      const written = await writeAccessCell(admin, {
+        table: "user_surface_access",
         orgId,
+        role: null,
+        userId,
+        key: surfaceKey,
+        value: allowed === null ? null : String(allowed),
         actorId: req.auth!.userId,
         action: "permissions.screen_changed_user",
-        entity: "user_surface_access",
         // The member's role travels with the change so the log reads without the reader having to
         // reconstruct who held what on the day it was written — the same reason the role-level audit
         // carries the shipped default.
@@ -389,6 +370,10 @@ export function surfaceAccessRouter(): Router {
           resetToRole: allowed === null,
         },
       });
+      if (!written) {
+        res.status(500).json(apiError("db_error", "Could not update screen permissions"));
+        return;
+      }
       res.json({ ok: true, userId, surfaceKey, allowed });
     }),
   );

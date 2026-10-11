@@ -132,7 +132,31 @@ export const APPLY_PART_ONE_COPY = {
       reading: "Reading the barcode on your licence…",
       readFilled: "We read your licence's barcode and filled in some of the next screens. Check each answer before you continue.",
       readNothing: "The barcode could not be read. That's fine — you'll type your details on the next screens.",
-      medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate.", outline: "Your medical card" },
+      medical_card: {
+        heading: "Photo of your medical card",
+        // A clinic usually emails the certificate as a PDF, and "Upload" takes one (`uploadAccept`).
+        hint: "Your DOT medical examiner's certificate. If the clinic emailed it to you, upload the PDF.",
+        outline: "Your medical card",
+      },
+      /**
+       * Screen 11 (AW6, §6.7). The why comes in the same breath as the ask (the house rule above): a face
+       * is the most personal thing Part 1 asks for, and the three promises are the ones Q-AW5 (a) keeps —
+       * a person looks, no face-matching software, and it is deleted after the staged-capture retention.
+       * `APPLICATION_CAPTURE_KEEP_DAYS` is that retention, pinned to the pruner by an api test.
+       */
+      selfie: {
+        heading: "A photo of you",
+        hint: "Hold your phone at arm's length, face the screen, and fit your face in the oval.",
+        outline: "Your face",
+        howTo: "Take off sunglasses and a hat. Face a window or a light, not away from it.",
+        why: (carrier: string, days: number): string =>
+          `${carrier} will look at it next to your licence photo, to check the application is really yours. A person looks — no face-recognition software. It is not added to your file, and it is deleted ${days} days after you take it.`,
+        check: "Is your whole face in the picture, and clear? If not, retake it.",
+        receivedEarlier: "Received on an earlier visit. Take it again only if it did not show your face clearly.",
+        cannot: "I can't take a photo of myself",
+        cannotHint: "That's fine. Bring your licence when you come to the office, and they will check it's you there.",
+        required: "Take the photo, or tick “I can't take a photo of myself”.",
+      },
       howTo: "Lay it on a flat surface. No flash, and all four corners in the picture.",
       take: "Take photo",
       /** §6.6.6: the camera was refused, or the photo is already on the phone. Same screen, same checks. */
@@ -152,6 +176,67 @@ export const APPLY_PART_ONE_COPY = {
       /** D-AW9: the server re-hashed the object and it was not the photo sent (422 `capture_not_intact`). */
       notIntact: "That photo did not arrive intact. Take it again.",
       required: "Take the photo to continue.",
+      /**
+       * The live scanner (2026-09-30): the camera inside the page, for all four photographs since the owner's
+       * ruling the same day (Q-AW53). The CDL's back takes itself once its barcode reads; the other three wait
+       * for the button. Every refusal names the way on — the camera app is one press away in all of them.
+       */
+      live: {
+        starting: "Opening the camera…",
+        aim: {
+          cdl_front: "Fit the card inside the corners, then press the button.",
+          cdl_back: "Fit the card inside the corners. It takes the photo by itself once the barcode is clear.",
+          medical_card: "Fit the page inside the corners, then press the button.",
+          selfie: "Fit your face in the oval, then press the button.",
+        },
+        /** Which side goes up, said once above the frame, because the wrong side is the commonest bad photo. */
+        side: {
+          cdl_front: "Front — the side with your photo",
+          cdl_back: "Back — the side with the barcode",
+          medical_card: "Your DOT medical examiner's certificate",
+          selfie: "Your face",
+        },
+        settling: "Hold still…",
+        taking: "Got it.",
+        shutter: "Take photo",
+        close: "Close the camera",
+        cameraApp: "Use the camera app instead",
+        upload: "Upload a photo instead",
+        /** The same two ways out, shorter, under the live view, where they sit side by side. */
+        cameraAppShort: "Camera app",
+        uploadShort: "Upload a photo",
+        torchOn: "Turn the flashlight off",
+        torchOff: "Turn the flashlight on",
+        /**
+         * Shown once a visit for each kind, before the camera first opens for it (`scannerTips.ts`). A document's
+         * three are what spoil a licence photo — glare, a busy background, a card too small in the picture — and
+         * fit the medical card as written. A face's three are what spoil a selfie: too close, hidden, backlit.
+         */
+        tips: {
+          heading: {
+            cdl_front: "Photograph your CDL",
+            cdl_back: "Photograph your CDL",
+            medical_card: "Photograph your medical card",
+            selfie: "Take a photo of yourself",
+          },
+          flat: "Lay the card flat on a dark surface, like a seat or the dashboard.",
+          glare: "Turn it away from lamps and windows so nothing shines on it.",
+          fill: "Fill the frame with the card, all four corners showing.",
+          arm: "Hold your phone at arm's length, level with your face.",
+          uncovered: "Take off sunglasses and a hat.",
+          light: "Face a window or a light, not away from it.",
+          open: "Open the camera",
+        },
+        tryAgain: "Try again",
+        videoLabel: "Camera view",
+        refused: {
+          unsupported: "This browser cannot show the camera on this page. Use your camera app instead.",
+          denied: "Camera access is off for this page. Use your camera app instead, or allow the camera in your browser settings and try again.",
+          no_camera: "We could not find a camera. Use your camera app, or upload a photo.",
+          busy: "The camera stopped, or another app is using it. Close that app and try again, or use your camera app.",
+          too_low: "This phone's camera gives too few pixels on this page for a clear photo. Your camera app takes a sharper one.",
+        },
+      },
       /**
        * §6.6.6, the desktop handoff (C3b2b2). A computer has no camera worth photographing a licence
        * with, so the same link is offered to the phone — by QR code first, by text only to a number the

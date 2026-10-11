@@ -1,3 +1,5 @@
+import { driverPlacementIds, signingPlaceDestination } from "@silvicom/shared";
+import { pdfDestinations } from "../../testing/pdfDestinations.js";
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { pdfText as textOf } from "../../testing/pdfText.js";
@@ -107,6 +109,14 @@ describe("the packet a driver reads before signing it", () => {
     expect(text).not.toContain("DRAFT - NOT A SIGNED APPLICATION");
     expect(result.filename).toBe("your-application.pdf");
     expect(result.filename).not.toContain("preview");
+  });
+
+  it("names every place the driver signs inside the copy it serves, so the walk can open its page (D-HB12)", async () => {
+    const result = await applicantReadingCopy(seed().client, TOKEN, NOW);
+    if (isIntakeError(result)) throw new Error(result.message);
+    const dests = await pdfDestinations(result.pdf);
+    for (const id of driverPlacementIds(null)) expect(dests.get(signingPlaceDestination(id))?.kind, id).toBe("FitR");
+    expect(dests.get(signingPlaceDestination("p18"))?.page).toBe(18);
   });
 
   /**

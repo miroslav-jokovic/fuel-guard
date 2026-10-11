@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./queue/handlers/index.js";
 import { startQueueWorker } from "./queue/worker.js";
 import { startQueueMetricsLogger } from "./queue/metrics.js";
+import { installShutdownHandlers } from "./lib/shutdown.js";
 
 /**
  * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
@@ -51,6 +52,7 @@ const KIND_CAPS: Record<string, number> = {
   sync_hos: 1,
   sync_drivers: 1,
   sync_driver_scores: 1,
+  idle_engine: 1,
   snapshot_driver_week: 1,
   nightly_reconcile: 1,
   financial_projection: 1,
@@ -59,7 +61,14 @@ const KIND_CAPS: Record<string, number> = {
   efs_window_refetch: 1,
   efs_process_import: 1,
   efs_card_sync: 1,
+  efs_card_status: 1,
   hazmat_extract: 2,
+  // Two, like hazmat_extract (DOCUMENT-READER-PLAN §2 Queue): a read is up to three parallel vision
+  // requests (Q-DR11 sections), so two reads is six in flight against Anthropic fleet-wide.
+  document_read: 2,
+  // Two: a render holds pdf.js on the event loop (≈0.25–0.64 s per office BOL, measured 2026-10-10) and
+  // ~34 MB of RGBA per 300-DPI page, one page at a time (pdf.ts); two at once is a bounded cost.
+  document_intake: 2,
   hazmat_analyze: 4,
   dq_binder: 2,
   // ⚠ ONE. FleetPal publishes no rate limit and sends no limiter headers — 94 sequential requests
@@ -86,3 +95,7 @@ if (
 }
 
 // A consumer-only process is kept alive by the queue loop's timers; a scheduler process by its intervals.
+
+// The queue loop stops claiming on shutdown and executeJob hands back what is still running
+// (lib/shutdown.ts); the scheduler intervals simply stop at exit.
+installShutdownHandlers({ name: `worker:${role}` });

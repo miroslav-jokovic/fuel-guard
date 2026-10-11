@@ -19,6 +19,7 @@ const BOARD: LiveMapBoard = {
   scopeReason: "Showing every truck in the fleet.",
   bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400, fuelFreshSeconds: 900 },
   truncated: false,
+  untracked: [],
   vehicles: [
     // Two in Chicago, one moving and one offline; one parked in Los Angeles. The geography is what
     // D-LM23 needs and the unit numbers are what D-LM21 searches for, so one board serves both.
@@ -41,6 +42,8 @@ function truck(
     driver: null,
     state,
     ageSeconds: 6,
+    engineState: null,
+    inShop: false,
     load: null,
     fuel: null,
     position: {

@@ -83,15 +83,6 @@ export const handbookMarkSchema = z.object({
    * one text would be recorded under the next one the moment the text changed.
    */
   handbook_version: z.string().min(1).max(100),
-  /**
-   * The name a driver adopts ON THE HANDBOOK SCREEN — sent only while `LinkHandbookStatus.adoption` is
-   * required and nothing is pinned yet, and read by the server on the FIRST place only; every later
-   * place carries the first one's `signed_name` (APPLICATION-FLOW-V2-PLAN.md A-1, C0b).
-   *
-   * ⚠ WORKAROUND for the missing `signature_adoptions` (D-AW15), removed by C3s. Every other driver's
-   * handbook is signed with the packet's adopted name and never sends this.
-   */
-  signed_name: z.string().trim().min(2).max(200).optional(),
 });
 export type HandbookMark = z.infer<typeof handbookMarkSchema>;
 
@@ -129,6 +120,11 @@ export interface CarrierRepresentative {
 export interface HandbookStatus {
   /** The application is filed, so the handbook can be opened (D-HB1: it comes after the packet). */
   canOpen: boolean;
+  /**
+   * When the handbook opened for the driver's places: the envelope's stamp (`signing_opened_at`, D-AW16,
+   * C3s4b), and null until the application is filed as well — HB022 refuses a place before that, so a
+   * handbook "open" beside an unfiled packet would be one the driver cannot sign.
+   */
   openedAt: string | null;
   /** The driver's places already signed, in the handbook's order. */
   driverSigned: HandbookPlacementId[];
@@ -148,26 +144,8 @@ export interface OfficeHandbookStatus extends HandbookStatus {
   linkExpiresAt: string;
 }
 
-/**
- * A handbook adopting its own signature, on the driver's link (APPLICATION-FLOW-V2-PLAN.md A-1, C0b).
- *
- * ⚠ WORKAROUND for the missing `signature_adoptions` (D-AW15), removed by C3s. The handbook signs with
- * the name and picture the driver adopted for the PACKET (`handbookCeremony.ts`); an application filed
- * before the packet was signed on screen — `d61557dc`, filed 2026-09-14 with 0 packet marks — has none,
- * so its handbook could never be signed and the driver never hired. `required` is true in exactly that
- * state: filed, handbook open, not filed, no packet marks.
- */
-export interface HandbookSelfAdoptionView {
-  required: boolean;
-  /** The name pinned by the first place signed here, once there is one. */
-  adoptedName: string | null;
-  /** A `signature_mark` picture is staged on this link — the handbook prints it. */
-  pictureStaged: boolean;
-}
-
-/** The link's view: the fold, plus the self-adoption state (null when it cannot apply). */
+/** The link's view: the fold, plus the text it is showing. */
 export interface LinkHandbookStatus extends HandbookStatus {
-  adoption: HandbookSelfAdoptionView | null;
   /** The handbook text this page is showing; each mark sends it back (A-6). */
   version: string;
 }
@@ -180,6 +158,7 @@ export interface LinkHandbookStatus extends HandbookStatus {
  */
 export function handbookStatus(input: {
   submittedAt: string | null;
+  /** The envelope's stamp, `application_invitations.signing_opened_at` (0369; D-AW16). */
   openedAt: string | null;
   filedAt: string | null;
   signedPlacementIds: readonly string[];
@@ -188,7 +167,7 @@ export function handbookStatus(input: {
   const driverSigned = HANDBOOK_DRIVER_PLACEMENT_IDS.filter((id) => signed.has(id));
   return {
     canOpen: input.submittedAt !== null,
-    openedAt: input.openedAt,
+    openedAt: input.submittedAt !== null ? input.openedAt : null,
     driverSigned,
     driverComplete: driverSigned.length === HANDBOOK_DRIVER_PLACEMENT_IDS.length,
     filedAt: input.filedAt,

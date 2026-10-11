@@ -491,6 +491,14 @@ describe("the rate limit", () => {
     }
     expect(sawLimit).toBe(true);
   });
+
+  it("reads the packet on the ceremony's bucket, so a walk that redraws it after every place is not cut off (D-HB12)", async () => {
+    // 25 reads from one address: past the intake's 20 a minute, inside the ceremony's 60 per link.
+    holder.client = seed().client;
+    const statuses: number[] = [];
+    for (let i = 0; i < 25; i++) statuses.push((await callFromOneAddress(`/${TOKEN}/packet`)).status);
+    expect(statuses).not.toContain(429);
+  });
 });
 
 /**
@@ -679,7 +687,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Sus" }, section: "identity" }),
+      body: JSON.stringify({ payload: { first_name: "Sus" }, section: "identity", revision: 0 }),
     });
     expect(res.status).toBe(200);
     // Half-typed and invalid against §391.21's schema, and saved anyway — a form that will not save
@@ -694,7 +702,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan", ssn: "123456789" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan", ssn: "123456789" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(400);
     expect(rec.rpcs()).toHaveLength(0);
@@ -705,7 +713,7 @@ describe("the saved draft", () => {
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(409);
     expect(rec.rpcs()).toHaveLength(0);
@@ -715,7 +723,7 @@ describe("the saved draft", () => {
     holder.client = seed(null).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: {}, section: null }),
+      body: JSON.stringify({ payload: {}, section: null, revision: 0 }),
     });
     const unlocked = await call(`/${TOKEN}/unlock`, {
       method: "POST",
@@ -765,7 +773,7 @@ describe("the ESIGN consent", () => {
       holder.client = seed({ consented_at: null }).client;
       const saved = await call(`/${TOKEN}/draft`, {
         method: "PUT",
-        body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+        body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
       });
       expect(saved.status).toBe(200);
     });
@@ -784,7 +792,7 @@ describe("the ESIGN consent", () => {
     holder.client = seed({ consented_at: null }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     const sent = await call(`/${TOKEN}`, { method: "POST", body: JSON.stringify(APPLICATION) });
     const signed = await call(`/${TOKEN}/release`, {
@@ -801,7 +809,7 @@ describe("the ESIGN consent", () => {
     holder.client = seed({ consented_at: "2026-08-21T09:00:00Z" }).client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(saved.status).toBe(200);
   });
@@ -1071,7 +1079,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
     holder.client = rec.client;
     const res = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     expect(res.status).toBe(409);
     expect(await refusal(res)).toBe("esign_consent_required");
@@ -1116,7 +1124,7 @@ describe("with the carrier's wording published as rows, and no consent given", (
     holder.client = rec.client;
     const saved = await call(`/${TOKEN}/draft`, {
       method: "PUT",
-      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null }),
+      body: JSON.stringify({ payload: { first_name: "Susan" }, section: null, revision: 0 }),
     });
     const signed = await call(`/${TOKEN}/release`, {
       method: "POST",
@@ -1404,10 +1412,10 @@ describe("the driver handbook on the link", () => {
 
   it("tells the page where the handbook stands once it is filed and opened", async () => {
     holder.client = seed({
-      submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z", handbook_filed_at: null,
+      submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z", handbook_filed_at: null,
     }, { handbook_marks: [{ placement_id: "h1" }, { placement_id: "h2" }] }).client;
     const body = (await (await call(`/${TOKEN}`)).json()) as { handbook: { openedAt: string; driverSigned: string[]; driverComplete: boolean } };
-    expect(body.handbook).toMatchObject({ openedAt: "2026-09-25T11:00:00Z", driverSigned: ["h1", "h2"], driverComplete: false });
+    expect(body.handbook).toMatchObject({ openedAt: "2026-09-25T09:00:00Z", driverSigned: ["h1", "h2"], driverComplete: false });
   });
 });
 

@@ -1,4 +1,5 @@
 import type { Env } from "../env.js";
+import { outboundAllowed, WITHHELD_DETAIL } from "./outboundAllowlist.js";
 
 /**
  * Provider-agnostic SMS sender (A11b) — `mailer.ts`'s shape, deliberately.
@@ -66,6 +67,11 @@ export const smsConfigured = (env: Env): boolean =>
  * is the only caller.
  */
 export async function sendSms(env: Env, message: OutgoingSms): Promise<SmsResult> {
+  // Staging guard (outboundAllowlist.ts): a no-op in production, where the variable is unset.
+  if (!outboundAllowed(env, message.to)) {
+    console.warn(`[sms] to=${redactNumber(message.to)} withheld by OUTBOUND_ALLOWLIST`);
+    return { ok: false, provider: "none", detail: WITHHELD_DETAIL };
+  }
   try {
     const sender = senderOf(env);
     if (smsConfigured(env) && sender) {

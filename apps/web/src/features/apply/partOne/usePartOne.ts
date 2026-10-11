@@ -230,8 +230,9 @@ export function usePartOne(
         // The capture landed through its own two calls; the bundle is where it is recorded.
         const fresh = (await refresh()) ?? inputs.value;
         if (s === "medical_card" && begun.value) await save(s);
-        if (!photoDone(s, fresh.captures, answers.medical_card_pending)) {
-          errors.value = { photo: APPLY_COPY.partOne.photo.required };
+        if (!photoDone(s, fresh.captures, answers)) {
+          const copy = APPLY_COPY.partOne.photo;
+          errors.value = { photo: s === "selfie" ? copy.selfie.required : copy.required };
           return;
         }
       } catch (e) {

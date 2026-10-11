@@ -22,9 +22,10 @@ import {
   countersignHandbook,
   driverHandbookStatus,
   isHandbookError,
-  openHandbookSigning,
+  extendHandbookLink,
   type HandbookError,
 } from "../handbookSigning.js";
+import { handbookPreviewPdf } from "../handbookPreview.js";
 
 /**
  * The driver handbook and the Representatives who sign it for the carrier — HANDBOOK-SIGNING-PLAN.md
@@ -122,29 +123,43 @@ export function recruitmentHandbookRouter(): Router {
     }),
   );
 
+  // D-AW17 (C3s5): the handbook as the driver will sign it, prefilled, from the signing row. On the view
+  // door like the packet's preview: printing a document changes nothing about it.
+  router.get(
+    "/applicants/:driverId/handbook/preview.pdf",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await handbookPreviewPdf(admin, req.auth!.orgId!, String(req.params.driverId ?? ""));
+      if (isHandbookError(result)) {
+        res.status(handbookStatusCode(result)).json(apiError(result.code, result.message));
+        return;
+      }
+      res.setHeader("content-type", "application/pdf");
+      res.setHeader("content-disposition", `inline; filename="${result.filename}"`);
+      res.send(result.pdf);
+    }),
+  );
+
+  // A-2: keep the driver's link alive while the handbook is still to be signed or countersigned. It was
+  // "/handbook/open" until C3s4b, when the envelope began opening the handbook (D-AW16) and this press
+  // kept only its extension (`extendHandbookLink` says why that half had to stay).
   router.post(
-    "/applicants/:driverId/handbook/open",
+    "/applicants/:driverId/handbook/extend",
     requireOrg,
     requireSection("recruitment"),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
-      const result = await openHandbookSigning(admin, orgId, req.auth!.userId, driverId);
+      const result = await extendHandbookLink(admin, orgId, driverId);
       if (isHandbookError(result)) {
         res.status(handbookStatusCode(result)).json(apiError(result.code, result.message));
         return;
       }
-      await writeAudit(admin, {
-        orgId,
-        actorId: req.auth!.userId,
-        action: "compliance.handbook_signing_opened",
-        entity: "application_invitations",
-        entityId: result.invitationId,
-        meta: { driverId },
-      });
-      // A-2: the press kept the driver's link alive. Its own row, carrying the invitation and the new
-      // expiry and nothing else — the link is a bearer credential, so nothing about the token is logged.
+      // Its own row, carrying the invitation and the new expiry and nothing else — the link is a bearer
+      // credential, so nothing about the token is logged. A press that changed nothing writes nothing.
       if (result.extended) {
         await writeAudit(admin, {
           orgId,
@@ -183,7 +198,10 @@ export function recruitmentHandbookRouter(): Router {
         action: "compliance.handbook_filed",
         entity: "qualification_records",
         entityId: result.recordId,
-        meta: { driverId, representativeId: body.representative_id, documentId: result.documentId },
+        // Q-HB1: the same press countersigned the packet; its copy is named so the audit row accounts
+        // for both documents it filed.
+        meta: { driverId, representativeId: body.representative_id, documentId: result.documentId,
+          packetDocumentId: result.packetDocumentId },
       });
       res.status(201).json(result);
     }),

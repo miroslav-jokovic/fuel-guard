@@ -12,7 +12,7 @@
  * surfaces of phase P5 read through this module's interfaces, never PostgREST.
  */
 export { projectFinancialWindow, type ProjectionResult } from "./projection.js";
-export { startFinancialProjectionScheduler } from "./projectionScheduler.js";
+export { startFinancialProjectionScheduler, projectionWindow } from "./projectionScheduler.js";
 export {
   startFinancialFreshnessScheduler,
   runFinancialFreshnessOnce,

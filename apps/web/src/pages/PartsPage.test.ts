@@ -66,10 +66,20 @@ vi.mock("@/features/inventory/useInventory", async () => {
     useLowStockQuery: () => ({ data: low, isLoading: r(false), error: r(null), refetch: vi.fn() }),
   };
 });
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
-vi.mock("vue-router", async () => {
+// The real shape (SP5): the Labels button asks whether the Labels screen opens (`useOpens`).
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("technician");
+  return { useSessionStore: () => s, __session: s };
+});
+vi.mock("vue-router", async (importOriginal) => {
   const { h } = await import("vue");
   return {
+    // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+    // three names it takes from vue-router stay real under this mock.
+    ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+      await importOriginal<typeof import("vue-router")>(),
+    ),
     useRoute: () => ({ query: query.value, params: {}, meta: { title: "Parts" }, matched: [], path: "/shop/inventory" }),
     useRouter: () => ({ push, replace: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
     // The header's Labels button is a link, and `AppButton` reaches for the router's own component.
@@ -119,6 +129,28 @@ describe("the header", () => {
     const text = page().text();
     expect(text).toContain("Stock locations");
     expect(text).toContain("New part");
+  });
+});
+
+/**
+ * SP5 (plan §4b): Labels is `maintenance` view and answers to the shop home's screen
+ * (`maintenance.repair-spend`, D-SURF8), switchable per person apart from Parts. The button asked
+ * `maintenance` MANAGE, which hid it from a viewer the Labels page admits and kept it for a person
+ * whose shop home was switched off.
+ */
+describe("the Labels button (SP5)", () => {
+  const session = async () =>
+    ((await import("@/stores/session")) as unknown as { __session: import("@/testing/fakeSession").FakeSession }).__session;
+  it("shows where Labels opens and not where it is off for this person", async () => {
+    const s = await session();
+    const labels = () => page().findAll("a, button").filter((b) => b.text().trim() === "Labels");
+    expect(labels()).toHaveLength(1);
+    s.surfaces = { "maintenance.repair-spend": false };
+    try {
+      expect(labels()).toHaveLength(0);
+    } finally {
+      s.surfaces = null;
+    }
   });
 });
 

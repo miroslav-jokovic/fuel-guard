@@ -7,7 +7,7 @@ import {
   AppFormField as FormField,
   AppInput as BaseInput,
 } from "@silvicom/ui";
-import { applicantIdentitySchema, jurisdictionOptions, rolesThatManage } from "@silvicom/shared";
+import { applicantIdentitySchema, jurisdictionOptions } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -28,8 +28,8 @@ import { useCorrectApplicantIdentity } from "@/features/recruitment/useApplicant
  * screening runs on and the licence on the filed application cannot come apart. `PATCH` on the
  * driver row would change one of the two, which is the drift D-AF8 exists to remove.
  *
- * ⚠ `rolesThatManage("recruitment")`, the same test `ApplicationInviteCard` applies and the route
- * enforces. A reader sees the values and no button.
+ * ⚠ `session.can("recruitment")`, the same test `ApplicationInviteCard` applies and the route
+ * enforces (`requireSection`). A reader sees the values and no button.
  */
 const props = defineProps<{
   invitationId: string;
@@ -42,7 +42,8 @@ const toast = useToastStore();
 const correct = useCorrectApplicantIdentity();
 const JURISDICTIONS = jurisdictionOptions();
 
-const canCorrect = computed(() => Boolean(session.role) && rolesThatManage("recruitment").includes(session.role!));
+// SP5: the org's answer (the `sections` claim), which is what the route's `requireSection` reads.
+const canCorrect = computed(() => session.can("recruitment"));
 const editing = ref(false);
 const form = reactive({ date_of_birth: "", cdl_number: "", cdl_state: "" });
 const errors = ref<Partial<Record<keyof typeof form, string>>>({});

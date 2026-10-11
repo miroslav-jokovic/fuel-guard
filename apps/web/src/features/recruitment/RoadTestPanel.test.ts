@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
-import { ROAD_TEST_ITEMS } from "@silvicom/shared";
+import { ROAD_TEST_ITEMS, sectionAccess } from "@silvicom/shared";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 
 /**
@@ -11,20 +11,43 @@ import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
  */
 const EXAMINER = "44444444-5555-4666-8777-888888888888";
 const TRUCK = "55555555-6666-4777-8888-999999999999";
-const state = vi.hoisted(() => ({ examiners: [] as unknown[], posts: [] as Array<{ url: string; body: unknown }> }));
+const state = vi.hoisted(() => ({
+  examiners: [] as unknown[],
+  posts: [] as Array<{ url: string; body: unknown }>,
+  records: [] as unknown[],
+  copies: [] as unknown[],
+  /** The examiner list never answers — the panel as it is while the read is in flight. */
+  examinersPending: false,
+}));
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string, opts?: { method?: string; body?: unknown }) => {
     if (opts?.method === "POST") {
       state.posts.push({ url, body: opts.body });
+      if (url.endsWith("/paper-copy")) {
+        // As the API would: the next read of the copies reports the handover.
+        state.copies = [{ recordId: "r1", given: true, downloadedAt: null, handedOverAt: "2026-09-29T15:30:00Z" }];
+        return { ok: true, data: { copy: state.copies[0] } };
+      }
       return url.endsWith("/road-test")
         ? { ok: true, data: { passed: true, formDocumentId: "f", certificateDocumentId: "c", recordId: "r" } }
         : { ok: true, data: { examiner: { id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" } } };
     }
-    if (url.includes("road-test-examiners")) return { ok: true, data: { examiners: state.examiners } };
-    return { ok: true, data: { records: [] } };
+    if (url.includes("road-test-examiners")) {
+      if (state.examinersPending) return new Promise(() => {});
+      return { ok: true, data: { examiners: state.examiners } };
+    }
+    if (url.endsWith("/road-test/copies")) return { ok: true, data: { copies: state.copies } };
+    return { ok: true, data: { records: state.records } };
   }),
 }));
+// The session, put in one role's shoes from the shared matrix (`AuthorizationsPanel.test.ts`'s idiom).
+const session = vi.hoisted(() => ({ role: "admin" as string, can: (_s: string): boolean => true }));
+vi.mock("@/stores/session", () => ({ useSessionStore: () => session }));
+const actAs = (role: string) => {
+  session.role = role;
+  session.can = (s: string) => sectionAccess(role as never, s as never) === "manage";
+};
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: { value: [{ id: TRUCK, unit_number: "1432", year: 2024, make: "FRHT", status: "active" }] } }),
 }));
@@ -40,7 +63,11 @@ const mountPanel = () =>
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  actAs("admin");
+  state.examinersPending = false;
   state.posts = [];
+  state.records = [];
+  state.copies = [];
 });
 
 describe("with no examiner on file (Q-RT2)", () => {
@@ -48,8 +75,68 @@ describe("with no examiner on file (Q-RT2)", () => {
     state.examiners = [];
     const w = mountPanel();
     await settle(w);
-    expect(w.text()).toContain("Add the examiner");
+    expect(w.text()).toContain("Add an examiner");
     expect(w.text()).not.toContain("The road test given includes");
+  });
+
+  it("puts the examiner just added in the Examiner field", async () => {
+    state.examiners = [];
+    const w = mountPanel();
+    await settle(w);
+    const inputs = w.findAll("input:not([type=file])");
+    await inputs[0]!.setValue("Arvidera Gakhal");
+    await inputs[1]!.setValue("Maintenance manager");
+    const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    w.findComponent({ name: "SignaturePad" }).vm.$emit("change", png);
+    await settle(w);
+    // The api now lists them, as it would after the add.
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    await w.findAll("button").find((b) => b.text() === "Add examiner")!.trigger("click");
+    await settle(w);
+    expect(state.posts.map((p) => p.url)).toEqual(["/api/recruitment/road-test-examiners"]);
+    expect(w.findAllComponents({ name: "AppCombobox" })[0]!.props("modelValue")).toBe(EXAMINER);
+  });
+});
+
+/**
+ * Q-AW19 (owner, 2026-09-29): only the admin adds an examiner. A recruiter holds `recruitment: manage`
+ * and a fleet manager `settings: manage` too, and neither is offered the form — they are told who adds one.
+ */
+describe("who may add an examiner", () => {
+  for (const role of ["recruiter", "fleet_manager"]) {
+    it(`tells a ${role} an administrator adds one, and offers no form`, async () => {
+      actAs(role);
+      state.examiners = [];
+      const w = mountPanel();
+      await settle(w);
+      expect(w.text()).toContain("An administrator adds one");
+      expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+    });
+
+    it(`offers a ${role} no "Add another examiner" beside the ones on file`, async () => {
+      actAs(role);
+      state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+      const w = mountPanel();
+      await settle(w);
+      expect(w.text()).toContain("The road test given includes");
+      expect(w.text()).not.toContain("Add another examiner");
+    });
+  }
+
+  it("offers a recruiter no form while the examiner list is still loading", async () => {
+    actAs("recruiter");
+    state.examinersPending = true;
+    const w = mountPanel();
+    await settle(w);
+    expect(w.findComponent({ name: "SignatoryAddForm" }).exists()).toBe(false);
+  });
+
+  it("offers the admin both", async () => {
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    const w = mountPanel();
+    await settle(w);
+    expect(w.text()).toContain("Add another examiner");
+    expect(w.text()).not.toContain("An administrator adds one");
   });
 });
 
@@ -68,6 +155,17 @@ describe("recording a test", () => {
     await settle(w);
   };
   const button = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => b.text().includes("Record the road test"))!;
+
+  it("lets a recruiter record the test itself — only adding an examiner is the admin's", async () => {
+    actAs("recruiter");
+    state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
+    const w = mountPanel();
+    await settle(w);
+    await fill(w);
+    await button(w).trigger("click");
+    await settle(w);
+    expect(state.posts.at(-1)!.url).toBe("/api/recruitment/applicants/d1/road-test");
+  });
 
   it("rates all nine items and posts exactly what the API takes", async () => {
     state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "" }];
@@ -94,5 +192,45 @@ describe("recording a test", () => {
     await settle(w);
     await fill(w, "needs_training");
     expect(w.text()).toContain("Not a pass");
+  });
+});
+
+/** G-10 (Q-AW19, owner 2026-09-29): whether the driver has had their copy of each certificate. */
+describe("the driver's copy of the certificate", () => {
+  const passed = (id: string) => ({ id, kind: "road_test", occurred_on: "2026-09-25", performed_by: "Arvidera Gakhal, Maintenance manager" });
+  const mountDone = () =>
+    mount(RoadTestPanel, { props: { driverId: "d1", done: true }, global: { plugins: [VueQueryPlugin] } });
+  const paperButton = (w: ReturnType<typeof mount>) => w.findAll("button").find((b) => b.text() === "Handed a paper copy");
+
+  it("offers the paper-copy press on a certificate nobody has had, and posts it for that certificate", async () => {
+    state.records = [passed("r1")];
+    state.copies = [{ recordId: "r1", given: false, downloadedAt: null, handedOverAt: null }];
+    const w = mountDone();
+    await settle(w);
+    expect(w.text()).toContain("has not had their copy");
+    await paperButton(w)!.trigger("click");
+    await settle(w);
+    expect(state.posts.map((p) => p.url)).toEqual(["/api/recruitment/applicants/d1/road-test/r1/paper-copy"]);
+    // The press refetched the copies, so the row now says how it was given.
+    expect(w.get('[data-testid="copy-given"]').text()).toContain("paper copy handed over 09/29/2026");
+    expect(paperButton(w)).toBeUndefined();
+  });
+
+  it("counts a download from the driver's link as given, and offers no press", async () => {
+    state.records = [passed("r1")];
+    state.copies = [{ recordId: "r1", given: true, downloadedAt: "2026-09-26T15:00:00Z", handedOverAt: null }];
+    const w = mountDone();
+    await settle(w);
+    expect(w.get('[data-testid="copy-given"]').text()).toContain("downloaded from their link 09/26/2026");
+    expect(paperButton(w)).toBeUndefined();
+  });
+
+  it("says nothing about a copy for a road test this product did not certify", async () => {
+    state.records = [passed("r-roster")];
+    state.copies = [];
+    const w = mountDone();
+    await settle(w);
+    expect(w.text()).not.toContain("copy");
+    expect(paperButton(w)).toBeUndefined();
   });
 });

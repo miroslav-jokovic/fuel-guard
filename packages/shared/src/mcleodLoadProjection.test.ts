@@ -10,7 +10,8 @@ import {
 const movement = (over: Partial<RawDispatchMovement> = {}): RawDispatchMovement => ({
   company_id: "TMS", movement_id: "900", order_id: "0135527", movement_status: "P", loaded: "L",
   dispatcher_user_id: "romann", driver_codes: ["DKELLY"], tractor_id: "702", trailer_id: "536686",
-  trailer_type: "R", commodity: "paints", customer_id: "BATTSOL", weight: "42000.0", weight_um: "LB",
+  trailer_type: "R", commodity: "paints", customer_id: "BATTSOL",
+  customer_name: "BATTERY SOLUTIONS LLC", weight: "42000.0", weight_um: "LB",
   pieces: 24, consignee_refno: "PO-77", move_distance: "812.0", closed_at: null, ...over,
 });
 const stop = (over: Partial<RawDispatchStop> = {}): RawDispatchStop => ({
@@ -73,8 +74,20 @@ describe("the load", () => {
     expect(ok(movement({ loaded: "E" }), []).loaded).toBe(false);
     expect(ok(movement({ loaded: null }), []).loaded).toBeNull();
   });
+  it("carries the customer's name beside its code (Q-LMR5), and a name McLeod did not give stays null", () => {
+    expect(ok(movement(), [])).toMatchObject({ customer_code: "BATTSOL", customer_name: "BATTERY SOLUTIONS LLC" });
+    expect(ok(movement({ customer_name: null }), []).customer_name).toBeNull();
+  });
   it("a movement with no order is not a load we can show — refused with the reason", () => {
     expect(projectMcleodMovement(movement({ order_id: null }), [])).toMatchObject({ ok: false, reason: "no order attached" });
+  });
+  // A stop's number is its identity in `load_stops` (unique on load + seq). Falling back to position
+  // could collide with another stop's real number and fail a whole batch (audit 2026-09-28).
+  it.each([
+    ["missing", [stop({ stop_id: "a", movement_sequence: 1 }), stop({ stop_id: "b", movement_sequence: null, stop_type: "SO" })]],
+    ["repeated", [stop({ stop_id: "a", movement_sequence: 2 }), stop({ stop_id: "b", movement_sequence: 2, stop_type: "SO" })]],
+  ])("a movement whose stop sequence is %s is refused by name, never numbered by position", (_label, stops) => {
+    expect(projectMcleodMovement(movement(), stops)).toEqual({ ok: false, movement_id: "900", reason: "stop sequence missing or repeated" });
   });
   it("names the first of a team and says so", () => {
     const r = projectMcleodMovement(movement({ driver_codes: ["DKELLY", "JSMITH"] }), []);

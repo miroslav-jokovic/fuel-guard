@@ -59,7 +59,7 @@ const seed = (
     rpc: { save_application_draft: { draft_id: "d-1", updated_at: "2026-08-21T09:05:00Z" } },
   });
 
-const BODY = { payload: { first_name: "Susan" }, section: "identity" };
+const BODY = { payload: { first_name: "Susan" }, section: "identity", revision: 0 };
 
 describe("saving against a revision (AW10, C3d1b)", () => {
   it("uses the revision-checked save when the page says which revision it holds", async () => {
@@ -76,18 +76,6 @@ describe("saving against a revision (AW10, C3d1b)", () => {
     const rec = seed();
     await saveDraft(rec.client, TOKEN, { ...BODY, revision: 0 }, NOW);
     expect(rec.rpcs()[0]!.args).toHaveProperty("p_expected_revision", 0);
-  });
-
-  /**
-   * A page loaded before C3d1b deployed sends no revision. Refusing it would stop that driver's autosave
-   * mid-form, so it keeps the 5-argument save — without the key, because PostgREST picks the overload by
-   * the NAMES it is sent (PGRST203 if two could match).
-   */
-  it("keeps the old save, with no revision key at all, for a page that sends none", async () => {
-    const rec = seed();
-    const result = await saveDraft(rec.client, TOKEN, BODY, NOW);
-    expect(isIntakeError(result)).toBe(false);
-    expect(rec.rpcs()[0]!.args).not.toHaveProperty("p_expected_revision");
   });
 
   it("answers a stale revision as draft_revision_conflict, in the driver's words", async () => {
@@ -162,7 +150,7 @@ describe("saving a draft", () => {
   it("caps the payload rather than letting a link become free storage", async () => {
     const rec = seed();
     const huge = { blob: "x".repeat(DRAFT_PAYLOAD_MAX_BYTES + 1) };
-    const result = await saveDraft(rec.client, TOKEN, { payload: huge, section: null }, NOW);
+    const result = await saveDraft(rec.client, TOKEN, { payload: huge, section: null, revision: 0 }, NOW);
     expect(isIntakeError(result) && result.code).toBe("draft_too_large");
     expect(rec.rpcs()).toHaveLength(0);
   });

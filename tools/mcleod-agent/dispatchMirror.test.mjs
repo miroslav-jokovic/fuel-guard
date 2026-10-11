@@ -21,6 +21,7 @@ const row = (over = {}) => ({
   external_status: "P",
   loaded: "L",
   customer_id: "BATTSOL",
+  customer_name: "BATTERY SOLUTIONS LLC",
   weight: 42000,
   weight_um: "LB",
   pieces: 24,
@@ -90,6 +91,14 @@ test("the movement keeps McLeod's names and values: both team drivers, the L/E l
   assert.equal(m.weight_um, "LB");
   assert.equal(m.pallets_how_many, 22);
   assert.equal(m.move_distance, 812);
+});
+
+test("the customer travels as McLeod has it — code and name side by side, and no name is null", () => {
+  const m = mapDispatchMovement(row(), []);
+  assert.equal(m.customer_id, "BATTSOL");
+  assert.equal(m.customer_name, "BATTERY SOLUTIONS LLC");
+  assert.equal(mapDispatchMovement(row({ customer_name: null }), []).customer_name, null);
+  assert.equal(mapDispatchMovement(row({ customer_name: undefined }), []).customer_name, null, "a missing column is null, never undefined");
 });
 
 test("a weight McLeod recorded as 0 stays 0 — whether it means 'not entered' is LR4's ruling, not the reader's", () => {

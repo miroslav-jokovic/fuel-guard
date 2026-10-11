@@ -48,10 +48,40 @@ export const APPLICATION_CAPTURE_SLOTS = [
    * thing is the FACE the driver chose, which is presentation.
    */
   "initials_mark",
+  /**
+   * A photograph of the applicant, taken in Part 1 (AW6, D-AW10 phase 1, Q-AW5 (a)) for a PERSON to set
+   * beside the licence photo — never a template, never a match score. 0376 put it in the CHECK.
+   *
+   * ⚠ **Never promoted, and the type says so** (`PromotedCaptureSlot` below). It is not evidence of
+   * anything the qualification file records: `documents` is append-only and `RETENTION_FORBIDDEN`, so a
+   * face filed there would be kept forever, where Part 1 tells the driver it is deleted after
+   * `APPLICATION_CAPTURE_KEEP_DAYS`. It lives in the staging bucket and goes with the staged row.
+   */
+  "selfie",
   "other",
 ] as const;
 
 export type ApplicationCaptureSlot = (typeof APPLICATION_CAPTURE_SLOTS)[number];
+
+/**
+ * The slots that never leave the staging bucket (AW6). 0376's two filing functions skip the same slot
+ * in SQL (`ac.slot <> 'selfie'`); this is the TypeScript half, which `promoteCaptures` filters on before
+ * it copies bytes into the evidence bucket.
+ */
+export const NEVER_PROMOTED_CAPTURE_SLOTS = ["selfie"] as const satisfies readonly ApplicationCaptureSlot[];
+export type PromotedCaptureSlot = Exclude<ApplicationCaptureSlot, (typeof NEVER_PROMOTED_CAPTURE_SLOTS)[number]>;
+export const isPromotedCaptureSlot = (slot: ApplicationCaptureSlot): slot is PromotedCaptureSlot =>
+  !(NEVER_PROMOTED_CAPTURE_SLOTS as readonly string[]).includes(slot);
+
+/**
+ * How long a staged capture is kept, in days — what Part 1's selfie screen tells the driver (AW6).
+ *
+ * ⚠ The rule itself is `RETENTION_RULES`'s `application_captures` entry in the api, which
+ * `check-table-lifecycle.mjs` reads as a literal and so cannot import this. The api test "keeps staged
+ * captures for as long as the applicant is told" pins the two together, so the sentence a driver reads
+ * cannot drift from what the pruner does.
+ */
+export const APPLICATION_CAPTURE_KEEP_DAYS = 90;
 
 /**
  * Which slot holds the picture for each kind of mark the carrier's packet asks for (Q-HUI14).
@@ -80,6 +110,7 @@ export const APPLICATION_CAPTURE_SLOT_LABELS: Record<ApplicationCaptureSlot, str
   ssn_card: "Social Security card",
   signature_mark: "Your signature",
   initials_mark: "Your initials",
+  selfie: "A photo of you",
   other: "Anything else",
 };
 
@@ -142,7 +173,7 @@ export const APPLICATION_CAPTURE_REQUIRED: readonly ApplicationCaptureSlot[] = [
  * `documents` is restricted at both the row (0146's driver-scoped RESTRICTIVE policy) and the
  * projection; it is named here so the next person weighing a retention rule meets the asymmetry.
  */
-export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<ApplicationCaptureSlot, DocumentKind> = {
+export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<PromotedCaptureSlot, DocumentKind> = {
   cdl_front: "cdl",
   cdl_back: "cdl",
   medical_card: "medical_card",
@@ -163,7 +194,7 @@ export const APPLICATION_CAPTURE_DOCUMENT_KIND: Record<ApplicationCaptureSlot, D
  * since 0146 (a multi-page BOL). Filing the back as page 2 keeps the pair adjacent and ordered
  * wherever documents are listed, instead of two page-1 rows whose order depends on which upload won.
  */
-export const APPLICATION_CAPTURE_PAGE: Record<ApplicationCaptureSlot, number> = {
+export const APPLICATION_CAPTURE_PAGE: Record<PromotedCaptureSlot, number> = {
   cdl_front: 1,
   cdl_back: 2,
   medical_card: 1,

@@ -308,7 +308,7 @@ federal Clearinghouse consent cannot be collected by us.**
 | **D-AW11** | Part 1 is a linear stepper; Part 2 a task-list hub; one thing per page; add-another loops; check your answers; memorable-date boxes. | §6.4, §6.8. |
 | **D-AW12** | SMS window uses the zone derived from Part 1's state (and ZIP where a state spans two zones: take the strictest); unknown stays strict; held messages go to `sms_outbox` and the scheduler drains them when the window opens. No `drivers.time_zone` column — derived, never stored. | A-11 at the root; deriving beats restating. |
 | **D-AW13** | The four employer fields and a gap explanation become required **for new filings** through the certification refinement (`applicationBeforeCertificationSchema`, `applicationContract.ts:408`), not by changing `.nullish()` — the base schema must parse append-only history. **§40.25(j) is enforced by `record_applicant_intake` in Part 1**, not by the draft refinement. | §4; append-only filings. |
-| **D-AW14** | **Signing happens on the driver's own phone, sent by the office while the driver is present.** "Send for signing" mints a fresh sign link (rotating any earlier one — `open_packet_signing` sets a new hash per call, 0369:210) and sends it by **email** always, and SMS where the driver consented (production has 0 consents today). **Supersedes D-AF6/D-AF7 and restates D-AF3**: "in person" is the office's act of sending while the driver is in the office, not the device. The link lives **72 hours** from sending. The signing screen stays behind the date-of-birth unlock (D-APP16), which gains a **per-link attempt counter: 5 wrong answers revoke the link** and the office re-sends (M1 column `unlock_failures`). A 6-digit code texted/emailed to the driver is **on by default** for the sign link (Q-AW25). | Owner, 2026-09-26: "we will send link to his phone and he will sign there". The DOB is printed on the CDL photographed in Part 1, so it cannot be the only secret once a link travels. |
+| **D-AW14** | **Signing happens on the driver's own phone, sent by the office while the driver is present.** "Send for signing" mints a fresh sign link (rotating any earlier one — `open_packet_signing` sets a new hash per call, 0369:210) and sends it by **email** always, and SMS where the driver consented (production has 0 consents today). **Supersedes D-AF6/D-AF7 and restates D-AF3**: "in person" is the office's act of sending while the driver is in the office, not the device. The link lives **72 hours** from sending. The signing screen stays behind the date-of-birth unlock (D-APP16), which gains a **per-link attempt counter: 5 wrong answers revoke the link** and the office re-sends (M1 column `unlock_failures`). ~~A 6-digit code texted/emailed to the driver is **on by default** for the sign link (Q-AW25).~~ Withdrawn by the owner 2026-09-29 (Q-AW25). | Owner, 2026-09-26: "we will send link to his phone and he will sign there". The DOB is printed on the CDL photographed in Part 1, so it cannot be the only secret once a link travels. |
 | **D-AW15** | **Adopt once, click everywhere.** Part 1 has an **Adopt your signature and initials** screen (§6.2 screen 13, C3s) before the permissions; each is kept as an append-only `signature_adoptions` row with its image frozen in the evidence bucket (the row IS the registration; the orphan reconcile is extended to its `storage_path`). Every later place — permissions, packet, handbook — is one click that applies it, and every mark stores `adoption_id`. The office signing session opens with "This is your signature — use it" (a new adoption supersedes the old one via `superseded_by`). Legacy marks (`adoption_id` null) print from the staged capture as today; C3s back-fills one adoption row per legacy invitation from its capture before the capture's prune date. | Owner's DocuSign model. Fixes A-1 at the root and G-13; **also resolves ORIENTATION-PLAN Q-OR8** (a driver signature exists before orientation). |
 | **D-AW16** | **One envelope at step 13, one link, place by place, two filings**: packet places → certification (files the packet) → handbook places → the office countersigns (files the handbook, under A-10's claim). "Place N of M" spans both; **handbook places are NOT in `record_packet_mark`'s `p_expected_count`**. HB022 becomes "refuse unless `signing_opened_at is not null OR submitted_at is not null`" (the OR keeps legacy filed invitations such as `d61557dc`, which predate 0369's stamp), shipped in **M2 after `d61557dc` is filed**, together with 0374's `application_invitations_handbook_order_check` (which must change the same way). Packet p25 is withdrawn — h5 is the receipt (closes Q-AW18, G-1 and MVR plan Q-MVR7); `f2b142e4` has already marked p25, and its filed PDF prints the withdrawal notice there, as D-PKT19 did for p15/p20/p22. | Owner: "move from section to section easy and smoothly". |
 | **D-AW17** | **Everything is prefilled, and the office previews it before sending.** Permissions: printed name and date drawn on the unsigned copy (identity exists from Part 1). Packet: add p01 date and p22 printed name to the preview. Handbook: a preview with name and masked SSN. "Preview" sits on the row where "Send for signing" is, for packet and handbook. Carrier lines per Q-HB1. SSN stays off the packet (D-HIRE6). | Owner: "all places … prefilled properly. We can review these documents prefilled." |
@@ -615,6 +615,8 @@ execute); `submit-application-v2.test.mjs` (promoted captures skipped, verificat
   ⚠ Since C3d1b the 5-argument `save_application_draft` has exactly one caller: `saveDraft` when a
   page sends no `revision` (a page loaded before C3d1b deployed). The same merge makes
   `applicationDraftSaveSchema.revision` required and deletes that branch.
+- Drop 0381's `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` and their three constraints
+  (Q-AW25 withdrawn 2026-09-29; nothing ever read or wrote them — grep `sign_code_` before dropping).
 - Held until answered: versioned packet templates (Q-AW2 (b)); a `drivers` status trigger (Q-AW21).
 
 ### 8.4 The AW work items
@@ -676,6 +678,27 @@ run in parallel with M1; C2 in parallel with C3's non-screen work.
 
 ---
 
+### 8.6 Cleanup ledger — what must be removed, and when (owner, 2026-09-29)
+
+The owner: *"we will need cleanup later so we don't leave stale code and tables and migrations"*. Every
+item below is dead or dying because of a ruling or a batch already merged. Each is removed by a named
+batch, and a batch that makes something stale adds it here in the same PR. **A migration is never
+edited or deleted** (it is history, and production has applied it); what it added is dropped by a new one.
+
+| # | What | Why stale | Measured | Removed by |
+|---|---|---|---|---|
+| 1 | 0381's `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` + their three constraints | Q-AW25 withdrawn 2026-09-29 | 0 rows with a code; no reader in code | **DONE — 0382** |
+| 2 | Old function signatures: 11-arg `record_packet_mark`, 11-arg `record_driver_release`, 5-arg `save_application_draft`, the pre-0376 `submit_driver_application`, `record_applicant_identity` if unused | superseded by 0376's overloads | ⚠ `track_functions = none` in production (2026-09-29), so `pg_stat_user_functions` reads 0 for EVERY function — §8.3's "only after `pg_stat_user_functions` shows no caller" cannot be answered that way. Decide by grepping `apps/` for each call's key set | **DONE — 0385 (M2b)**: the 11-argument `record_packet_mark` and `record_driver_release` and the 5-argument `save_application_draft` (its last caller went in M2a) are dropped; the matrices call the survivors. The 12-argument `submit_driver_application` and `record_applicant_identity` are still called and stay |
+| 3 | `saveDraft`'s no-`revision` branch; `applicationDraftSaveSchema.revision` becomes required | C3d1b; only a page loaded before C3d1b sends none | — | **Code DONE — M2a**: required in the contract, always passed to the 6-argument save, and the web's "API older than C3d1b" branches gone too (a save waits for a restored revision). dropped by 0385 (M2b) |
+| 4 | Links opened on the office's screen before C3s3a: `SendForSigningPanel`'s `legacy` state, and the resolver letting a sign token with no `sign_link_expires_at` keep the invitation's expiry | C3s3a sets the 72 hours before every mint | **0** invitations with `signing_opened_at` and no `sign_link_expires_at`, and **0** with a sign token and no end (production, 2026-09-29, re-measured before removal) | **DONE — M2a** |
+| 5 | The office's separate "Open handbook signing" (`openHandbookSigning`, `HandbookPanel`'s button, route) and, if nothing else reads them, `handbook_signing_opened_at/_by` | D-AW16: the envelope opens the handbook | Production 2026-09-29: **0** invitations with the old stamp; **0** filed without `signing_opened_at` (DR036 makes that impossible) | **DONE — C3s4b (code) and 0385 (M2b, schema)**: the columns are dropped with `handbook_signing_opened_by`'s foreign key; HB023 and `application_invitations_handbook_order_check` read the envelope (`signing_opened_at`) alone; `handbook-signing`, `purge-applicant` and `rls` seed the envelope instead. The audit action `compliance.handbook_signing_opened` is no longer written; its old rows are evidence and stay |
+| 6 | HB022/HB023 and `application_invitations_handbook_order_check` in their 0374 shape | D-AW16 | — | **DONE — 0382** (HB023 and the order check accept the sent envelope; HB022 kept) |
+| 7 | Local worktrees `../FuelGuard-*` whose branches are merged (about 30 on 2026-09-29) | merged PRs | — | housekeeping; not in the repository |
+
+Not stale, by design: `packetMarkGeometry.ts`'s p04/p15/p19/p20/p22/p25 rules (they measure the carrier's
+paper, which still prints those lines), and the audit rows `compliance.packet_signing_opened` (append-only
+evidence of what happened before C3s3a).
+
 ## 9. Definition of done — "100% production ready"
 
 The module is done when **every** line below is true and recorded in §11 with its evidence:
@@ -734,11 +757,11 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW18** | Handbook receipt signed twice (p25 + h5) | — | **Resolved by D-AW16**: withdraw p25. |
 | **Q-AW19** | Road test: examiner attestation; certificate handed over; §391.33 door | — | Record "handed over"; add the equivalency door; counsel note. |
 | **Q-AW20** | 44 px targets: `/apply` only or product-wide? | — | `/apply` first. |
-| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0c; trigger in M2 if the owner wants defence in depth. |
+| **Q-AW21** | Applicant→active: route guard only, or also a DB trigger? | — | Route guard in C0c; trigger in M2 if the owner wants defence in depth. **RULED by the owner 2026-09-29: add the trigger**, as its own small migration after M2b, not inside the cleanup. **BUILT — 0386.** |
 | **Q-AW22** | Gap explanation threshold: 30 days (our coverage rule) or 59 (carrier's p5)? | — | 30 — stricter, and the office can ignore short ones. |
 | **Q-AW23** | Orientation videos/live orientation before D4 ships: excluded from the hire gate (§9.3)? | — | Excluded, shown as "not built yet". |
 | **Q-AW24** | The owner said "permissions, application and handbook" are prefilled and reviewed before sending. The permissions must be signed in Part 1, before screening. | (a) permissions prefilled from Part 1, no office review before; (b) office reviews permissions too, delaying screening | (a). |
-| **Q-AW25** | Signer check on the phone for the sign link. | DOB only / DOB + one-time code | **DOB + a 6-digit code by default** (D-AW14): once the link travels by SMS/email, the DOB — printed on the CDL photographed in Part 1 — cannot be the only secret. |
+| **Q-AW25** | Signer check on the phone for the sign link. | DOB only / DOB + one-time code | **DOB + a 6-digit code by default** (D-AW14): once the link travels by SMS/email, the DOB — printed on the CDL photographed in Part 1 — cannot be the only secret. **WITHDRAWN by the owner 2026-09-29** ("I don't see the purpose of this code"): the link carries an application the driver fills and signs, not confidential data; what they sign is filed, joins the DQF if hired, and is purged if not. The sent link keeps the date of birth, its 72 hours and the five-strike stop (C3s3a). |
 | **Q-AW26** | May a queued text hold a link? | rendered body / template + params, link minted at drain | Template + params (§8.2 `sms_outbox`); a plaintext bearer token never sits in the database. |
 | **Q-AW27** | Legacy invitations (all 8 in production) under the new rules | — | The legacy rule in §7 and §8.3's (M2) `OR submitted_at`; stated, not left to each batch. |
 | **Q-AX5** | Staff re-send of a lost link | (a) rotate on the same invitation / (b) new invitation | (a), audited, in C2 (one token now spans weeks and three visits). |
@@ -760,6 +783,17 @@ The module is done when **every** line below is true and recorded in §11 with i
 | **Q-AW41** (2026-09-28) | The link's lifetime (14 days, extended by 14 on every send, reminder and signing opened; `INVITE_TTL_DAYS_DEFAULT`) and the reminder (after 48 hours without progress, once per part; `STALE_DRAFT_HOURS`) are constants. The owner: drivers often finish over a couple of days, and the carrier wants control. | (a) Settings → Recruiting: the default link lifetime (1–60 days), the reminder delay in hours and an on/off switch; a per-invite override in the invite drawer (the api already takes `expires_in_days`). New columns: a migration, then the reader — two merges. The 72 hours a phone keeps unsent answers (Q-AW39) stays fixed: it is a privacy rule, not a convenience; (b) leave the constants | **(a). RULED by the owner 2026-09-28.** |
 | **Q-AW42** (2026-09-28) | There is no place to add a carrier Representative or a road-test examiner ahead of time: each is added only inside one driver's panel, and only once that driver reaches the step (`HandbookPanel.vue`, `RoadTestPanel.vue`). So the owner could not add the Representative the countersign needs. | (a) a register under Settings, beside Q-AW41's settings, listing both with add and remove (the api exists: `/recruitment/representatives`, the examiners' routes); no migration; (b) keep them in the panels | **(a), under Settings. RULED by the owner 2026-09-28.** |
 | **Q-AW43** (2026-09-28) | Q-AW17's fines. | — | **DEFERRED by the owner 2026-09-28**: the fines stay as they are until the hiring process works end to end. Counsel's question is written (`COUNSEL-REVIEW-PACKAGE.md` Q18, added 2026-09-28) and goes with the rest of the memo. **#1059 stays held.** |
+| **Q-AW44** (2026-09-28, found building P1) | After a purge the applicant's **name and email survive in `audit_logs`**. Measured on the two test applicants: 16 audit rows, and `driver.created` (`meta.fullName`), `compliance.application_invited` (`meta.email`) and `driver.archived` (`meta.fullName`) carry them. `audit_logs` is append-only evidence, so 0380 leaves it alone rather than decide this by rewriting it. Separately, for **real** applicants rather than test ones: federal record-keeping (29 CFR §1602.14, for employers Title VII covers) generally keeps an application for a year after it was made or acted on. So "applicants generally" may be narrower than the ruling reads. | (a) keep the audit rows as they are; the purge removes the applicant from the product, and the trail of who did what stays; (b) the purge also blanks the name and email in that driver's audit `meta` (a second, named exception to append-only); (c) from now on audit rows carry ids, never names or emails, plus (b) for rows already written. Real applicants: (i) purge anyone never hired, as ruled; (ii) purge only after a year, or only test applicants, until counsel answers | **(a) now, and (c) as its own small step if the owner wants names gone.** For real applicants, **(ii)**, with the question going to counsel as the memo's Q19. P2 can ship either way; the test applicants are not covered by the record-keeping rule. **RULED by the owner 2026-09-29: (a), and (ii) for real applicants until counsel answers (memo Q19).** (c) is not asked for. |
+| **Q-AW45** (2026-09-28) | The carrier's Representative and road-test examiner were added with an **uploaded PNG** of their signature (`SignatoryAddForm.vue`, "a scan or a photo of them signing on white paper"). The owner: *"We need on dashboard sign pad so this representative can Sign or use Signing Pad directly. We don't want to upload some PNG file with signature."* Production had 0 Representatives and 0 examiners, because the owner stopped at the upload. | (a) a drawn pad in the office's form; the drawing is sent as the same PNG, so the contract, the api, `signature_path` and both renderers are unchanged, and the image is stored once and printed on every countersignature after; (b) the Representative signs each countersignature live, no stored image — changes the handbook countersign flow and the schema | (a) first, then ask whether (b) is wanted. First deferred ("leave this for later"), then **RULED (a) by the owner 2026-09-28** ("Office official can sign with mouse on screen and that signature can be saved and used in future") and built the same day — §12. (b) is not asked for. |
+| **Q-AW46** (2026-09-28, found measuring C3d4) | §6.8's web-vitals bar is **not met**, and the cause is structural. Lighthouse 13.5 mobile (Slow 4G simulated, 4× CPU), built `dist` served gzipped as production serves it, stubbed API, 3 runs per screen: a11y **100** on all five screens and INP **25–28 ms** (a user flow through expectations → Start → I agree), but perf **70–74** (filed page 57–60), LCP **4.5–4.8 s**, FCP 3.15 s, CLS **0.118–0.331**. The applicant downloads ~415 KB gzipped of the office app first: `App.vue` imports every layout including `AppShell`, the router's `beforeEach` awaits `session.init()` (Supabase) on every route, and `index.html` is an empty `#app`. CLS is the footer drawn before the content, and on the filed page the handbook's list and viewer. | (a) `/apply` gets its own HTML entry (and production's SPA fallback in `app.ts` serves it for `/apply/*`) — a throwaway build measured perf 82–85, LCP 3.15–3.45 s; (b) plus `ApplyPage` loading each phase lazily (its chunk alone is 137 KB gzipped); (c) reserve the content's height (CLS); (d) gate only what passes today (a11y, INP, CLS once (c) lands) and record perf | **PARKED by the owner 2026-09-28** ("we have overcomplicated this") in favour of Q-AW45. When it resumes: (c) and (d) in one PR, then (a), then (b), and the perf ≥ 90 / LCP ≤ 2.5 s gate last. The measuring script is not committed; its method is in §12. |
+| **Q-AW47** (2026-09-28, found reading C3s3's call sites) | Q-AW25's 6-digit code has **no storage**. 0376 gave D-AW14 two columns, `unlock_failures` and `sign_link_expires_at`, and nothing for the code: no hash, no expiry, no attempt count, in any migration through 0380. §8.5's C3s row lists the code as if M1 had built it. A code kept only in the api process would die with a deploy (Railway restarts on every merge) and would not survive the two services, so it cannot be built without a migration. | (a) three columns on `application_invitations` — `sign_code_hash`, `sign_code_expires_at`, `sign_code_failures` — beside the two D-AW14 already put there: one invitation has one live sign link, so it has one live code; (b) its own append-only table, one row per code sent; (c) ship send-for-signing without the code and add it later | **(a)**, as a schema-only migration (0381) in its own merge, the reader in a later one (`lint:migration-ordering`), and C3s3 split: **C3s3a** send-for-signing, the 72 hours, the unlock counter and the new-tab path retired (no schema); **C3s3b** the code, once 0381 is applied. (b) keeps a history nobody has asked for; each send already writes an audit row. **RULED (a) by the owner 2026-09-28** ("proceed as recommended"). **Superseded 2026-09-29** by Q-AW25's withdrawal: 0381 is applied and its three columns have no reader and never will. They are dropped in M2 (§8.3), not left as schema nobody writes. |
+| **Q-AW48** (2026-09-28, found building C3s3a) | The sent sign link's 72 hours and its five-strike counter hold the link that TRAVELS at signing time — the sign door and the text door. The invite door (`token_hash`, the link the driver was invited with) opens the same session (A5b: the doors ADD, they do not move), so it can also reach the signing screen, on the invitation's own expiry and with D-APP16's uncounted unlock. So a stranger with the ORIGINAL invitation email is held only by the rate limiter, as before C3s3a. | (a) as built: the rules are the sent link's, the invite link keeps D-APP16 — it is the driver's own, sits in their own inbox, and is what they reopen after filing to see what was filed; (b) while a sent link is live, marks are refused on the invite door (sign only on the link that was sent); (c) count wrong dates of birth on every door once signing has been sent | **(a)**, recorded so the limit of the rule is written down rather than assumed. (b) is a one-condition change in the mark writers if the owner wants signing held to the sent link. **RULED (a) by the owner 2026-09-29** — as built. |
+| **Q-AW49** (2026-09-29, found analysing 0381) | **Which channel carries the 6-digit code** (Q-AW25) decides whether it guards anything. The sign link goes by email always and by text where the driver agreed (C3s3a). A code sent in the SAME message as the link adds nothing: a forwarded email or a shared phone carries both. Texts cannot reach anybody until Telnyx's toll-free verification clears, and production has 0 SMS consents. | (a) the code is shown ONCE on the office's screen at Send for signing, and the driver types it on their phone — they are in the office when it is sent (D-AW14), so it also proves the in-person act D-AF3 wanted, needs no provider, and never travels with the link; (b) the code goes on the OTHER channel from the link (texted when the link is emailed), falling back to (a) when there is no text consent; (c) in the same email/text as the link | **(a)**, with the code living as long as the link (72 hours; a re-send makes a new one) and 5 wrong codes stopping the link like 5 wrong dates of birth. (b) only if the owner wants signing possible away from the office. (c) is not recommended. Needed before C3s3b; 0381's columns hold every answer. **MOOT 2026-09-29**: Q-AW25 withdrawn, no code is built. |
+| **Q-AW50** (2026-09-29, S2's open note) | Should switching driver reminders OFF also silence the office's alert? S2 built it ON (`applicationNudgeSweep.ts` alerts before it checks `reminders_enabled`). Two defects found at the call sites: the form HID the delay while reminders were off, though the delay still times the office's alert; and the contract only held the delay before the link's expiry while reminders were on, so off + a delay past the link's life was an alert that never came (the sweep skips expired invitations). | (a) keep the alert on; always show the delay; the delay must come before expiry in both states; name the carrier's notification switch as the way to stop office alerts; (b) reminders off silences the office too (one line in the sweep) | **RULED (a) by the owner 2026-09-29; BUILT as C-AL1.** The switch is about the driver; with reminders off the office's alert is the only signal left. ⚠ **Consequence the ruling did not name:** the shortest delay is 24 h (0379), so a **1-day link can no longer be saved** in either state — before, it could with reminders off. 0379's CHECK stays looser; the contract is the stricter of the two. |
+| **Q-AW51** (2026-09-29, found building C-AL1) | The invite drawer's per-invite override (`expires_in_days`, 1–60) is not checked against the carrier's delay. A link sent for fewer hours than the delay expires before its driver can count as stopped, so the office is never alerted about that applicant — Q-AW50's defect, on one invitation instead of the carrier's default. | (a) the api refuses an override of `days × 24 ≤ reminder_after_hours` with the same sentence, and the drawer's hint names the carrier's delay; (b) accept it: a short link is a deliberate choice; (c) the sweep alerts on a link that died unfinished | **(a)** — it is the same rule as Q-AW50, and the api already reads the carrier's settings to fill a missing override. No migration. Not built: the ruling was about the settings. **RULED (a) by the owner 2026-09-29.** Not built yet. |
+| **Q-AW52** (2026-09-29, found building C-AL1) | The carrier's master notification switch (`organizations.notifications_enabled`) gates the stalled-application alert, the digest, DQ alerts, fuel and feed alarms — but its only screen, Settings → Notifications (admin only), labels it "Email recipients when high/critical anomalies are detected". C-AL1's copy points office users at it, truthfully ("which stops its other alerts too"), but the checkbox they find there says something narrower. | (a) relabel that checkbox and its section to say it is the carrier's notifications, listing what it stops; (b) split it into per-kind switches (a migration); (c) leave it | **(a)**, a copy change on one admin page, its own small PR. (b) only if the owner wants anomaly emails off with everything else on. **RULED (a) by the owner 2026-09-29.** Not built yet. |
+| **Q-AW53** (2026-09-30, live scanner) | The medical card is a letter-size page, not an ID-1 card, so the live scanner's fixed card outline does not fit it, and it still opens the camera app. An in-page page scanner needs edge detection and perspective correction. | (a) jscanify (MIT) over OpenCV.js, loaded only on that screen — several MB on a driver's data plan; (b) keep the camera app for it; (c) a paid SDK (Scanbot covers both documents and IDs) | (b) until the CDL scanner is measured on real phones — Q-AW54 is how. **RULED by the owner 2026-09-30, against the recommendation: the in-page scanner for the medical card AND the selfie, so all four Part 1 photo screens look and behave the same — but without (a)'s edge detection.** The medical card gets a letter-size page outline as an aiming guide only, shutter-taken like the CDL's front; the selfie gets the front camera, an oval and a mirrored preview. Whether (a) is worth its download for the page is still Q-AW54's evidence to answer. **BUILT 2026-09-30** (progress log). |
+| **Q-AW54** (2026-09-30, live scanner) | The server cannot tell a scanner photograph from a camera-app one. `CapturedPage.provenance.captureMode` says `web_live_camera` or `web_file_input` in the browser, but `stageCapture` sends only slot, type and hash, so "does the scanner reduce re-shoots and rejected documents?" — the reason it was built — cannot be answered from data. | (a) a nullable `application_captures.capture_mode` column (migration), then the confirm body carries it in a LATER merge (`lint:migration-ordering`); (b) log it only (`[capture-verify]` line); (c) nothing | **(a)**: one column, then one field. Needed before Q-AW53 or Q-AW32 can be decided on evidence. |
 
 ---
 
@@ -1463,3 +1497,721 @@ Append dated lines at the END.
     handbook, the task list and the permissions wait never checked on the real page), one was the adoption
     bug above, and two are no-ops: the batch cap's mutant changes a constant the test reads, and dropping
     closed visits from memory changes only memory (a clean visit is never resent). No migration.
+- 2026-09-28 — **C3d3a merged** (#1098, main `752e8cc`); CI green on the merged head.
+- 2026-09-28 — **C3d3b1 built** (`claude/applicant-flow-c3d3b1`): the first browser tests CI runs, and the defect
+  they found on their first run.
+  - **The harness:** `apps/web/playwright.apply.config.ts` serves the BUILT app (`vite preview`) to Chromium at
+    390 px with touch; `e2e-apply/stubApi.ts` is a stateful fake of `/api/public/application/**` and the
+    storage upload in raw JSON, refuses every other origin, and records what the page sent. Its own folder
+    because `e2e/` is `smoke.yml`'s, run against production. Run in `typecheck-build` after the build, with
+    Chromium cached (`e2e:apply`); listed in CLAUDE.md's CI section. The specs are typechecked.
+  - **§6.8's network bar, end to end** (`e2e-apply/offline.spec.ts`): Part 1's screens 3–6 survive a cut at
+    screen 7 and a reload, and the write that lands carries them (C3d1a); a Part 2 answer typed while saves
+    fail is put back after a reload and saved on its revision (C3d1b); a photograph whose upload was cut is
+    sent again after a reload with the same bytes and hash and no picker opened, and one held while offline
+    goes by itself on `online` (C3d2).
+  - **Found by the first run: both copies of typed answers could lose the last screen.** They were a plain
+    300 ms trailing debounce, which a stream of changes each sooner than that never lets fire: the walk
+    reached screen 7 with NOTHING on the phone, and the reload reopened Part 1 on its first screen, empty.
+    A write on `pagehide` does not rescue it — measured, a write started as the page reloads does not
+    commit. Fixed in `deviceCopies.ts`'s `debouncedCopy`: a screen passed (Part 1) or a section left
+    (Part 2) is written at ONCE; typing within a screen keeps the pause; a pending write also runs on
+    `visibilitychange` → hidden (the one event a phone reliably sends before dropping a background tab)
+    and, best effort, on `pagehide`.
+  - **Found on the way:** `page.route` answers above the network stack, so `setOffline(true)` does not cut
+    a stubbed request (the first offline-photo test "went offline" and the photo was received). The specs
+    cut with the stub and use `setOffline` only for the browser's `offline`/`online` events.
+  - **The smoke test:** `getByLabel('Password')` also matched the "Show password" button and failed every
+    production smoke run; `{ exact: true }` in `smoke.spec.ts` and `hazmat.spec.ts`.
+  - **Checks:** 12 mutants, 11 killed on the first pass; the survivor (listeners left behind when a copy's
+    scope ends) now has its test. Four of the mutants disable C3d1a's restore, C3d1b's replay, C3d2's replay
+    and C3d2's `online` resend, and only the browser specs are run against them. 20 of 20 on `--repeat-each 5`.
+    No migration.
+- 2026-09-28 — **C3d3b1 merged** (#1099, main `dd6b356`); CI green on the merged head.
+- 2026-09-28 — **C3d3b2 built** (`claude/applicant-flow-c3d3b2`): §6.8's tap-target bar, measured and met on every
+  `/apply` screen at 390 and 320 px.
+  - **What the first sweep found:** over a hundred controls under 44 px on nearly every screen, from ten causes.
+    Five were the primitives' compact sizes (`AppButton` md/sm 36/32, `AppInput` 36, the combobox, `AppCheckbox`
+    36, `AppSegmentedControl` 32). The others: the date field and its calendar (a 36×36 button, 35 px days,
+    25×25 month arrows); the **Sign here** tag, sized off the PDF's 48 pt box (79×32 on a phone); the permission's
+    "Read this document as text" disclosure (20 tall); the SMS card's two links (16 tall, on a line of their own,
+    so WCAG 2.5.8's inline exemption does not cover them); and what the owner-approved split left unmeasured —
+    the Part 2 drawers, the packet walk, the handbook.
+  - **The fix is stated once, not a hundred times.** 20 call sites had asked for `size="touch"` and the rest had
+    not, because "this route is pressed by a thumb" was being restated per control. `@silvicom/ui`'s
+    `touchTargets.ts` now carries it: `ApplyLayout.vue` (the layout of `/apply/:token` and no other route) calls
+    `provideTouchTargets()`, and `AppButton`, `AppInput`, `AppSelect`, `AppCombobox` (input and options),
+    `AppCheckbox`, `AppRadioGroup`, `AppSegmentedControl`, `AppIconButton` and the date field raise their own
+    compact sizes to 44. An inline link (`variant="link"`) is never boxed. The office keeps its 36 px density;
+    `packages/ui/src/touchTargets.test.ts` pins both halves for every primitive. The existing `size="touch"`
+    props stay — they are what a control asks for outside such a layout. The calendar is teleported out of the
+    layout, so it takes the floor as a menu class (`app-date-touch`): 44 px days and arrows, and its sides come
+    in from 8 to 4 px so a whole month fits a 320 px phone (it measured 326).
+  - **What the bigger controls broke, found by the sweep's overflow check:** Part 2's Back/Save row (side by
+    side it needed 380 px of a 342 px column — it already overflowed at 320 before this) now stacks on a phone,
+    the forward act on top; the adoption's confirm row wraps (at 320 px "Change" was off the card).
+  - **Found by looking, not by the sweep:** the 44 px Sign-here tag, bottom-aligned to an 18 px box, covered
+    the intent sentence the driver signs to on a real permission PDF at 320 px. It now hangs from the box's top
+    and grows down over the empty signature line; the spec asserts its top is the box's. And the packet's strip
+    of sixteen place dots is 10 px each, but it is an indicator, not a control (its markup has no handler on a
+    phone; the rail's buttons are `lg:` only), so it is not a target.
+  - **The spec:** `e2e-apply/tapTargets.spec.ts`, on the C3d3b1 harness, at 390 and 320 px: expectations,
+    consent, all nine Part 1 screens (with an open state list and an added licence), the adoption in its three
+    ways, the confirm, both permissions with the disclosure open, the permissions wait, the unlock with its
+    calendar open, the Part 2 task list, every task and every "Add…" it offers (the address and job drawers
+    included), both office waits, the sign-off with the packet's adoption, confirm and first place, and the
+    filed page with the handbook open. It measures every button, link, field, select, disclosure and
+    interactive role (a radio or checkbox by its label), fails a target that is cut off by the screen's edge or
+    a page that scrolls sideways, and exempts a link inside a sentence, decided from the page rather than
+    listed. `stubApi.ts` gained the consent, Part 1's completion, the permissions and their PDFs (drawn by hand
+    with the real `sign-here` destination, so the tag is its true size), the unlock, SMS consent, the packet,
+    the handbook, a Part 2 v2 fixture, and a list of any request it had no answer for, which every check asserts
+    is empty.
+  - **Checks:** 22 mutants, all killed on the first pass — one per primitive's raised size, the provider
+    removed, the calendar's four variables and its class, and each page-level fix. Three are killed only by
+    the unit test (an inline link given a box, a 36 px select, a 36 px icon button): no `/apply` screen renders
+    one today, so the walk cannot see them. 60 of 60 on `--repeat-each 5`. No migration.
+- 2026-09-28 — **C3d3b2 merged** (#1101, main `4cbba9d`); CI green on the merged head.
+- 2026-09-28 — **R1 built** (`claude/recruiting-register`): Settings → Recruiting, Q-AW42's register. No migration.
+  - **The page:** `/settings/recruiting` lists the carrier's Representatives and its road-test examiners, each
+    with its add form, a Representative's Remove (DELETE) and an examiner's Retire (the api's `/retire`,
+    which nothing in the web called before — `useRetireRoadTestExaminer`). Both ask first. A Representative
+    who has countersigned cannot be removed, and the api's sentence is what the toast shows. Each list is a
+    `SettingsSection`, so Q-AW41's invitation settings (S2) arrive as a third without moving anything.
+  - **Who:** a sidebar entry of its own, `admin.recruiting`, gated `section("recruitment")` — NOT a child of
+    `admin.settings`, because a recruiter holds `settings: none` and `recruitment: manage` and is who the page
+    is for. The writes are offered on `session.can("recruitment")`, what the api's routes ask. A Settings card
+    shows on `canView("recruitment")` too. No `meta.parent`: the breadcrumb would have pointed the recruiter at
+    a Settings page the guard bounces them from.
+  - **One form, not three:** the panels' two add forms were the same form with different words, so they are
+    now `SignatoryAddForm` (kind = representative | examiner), and the handbook panel's list is the register's
+    `SignatoryRegister`. The panels keep their inline add. The handbook panel's Remove now asks first and
+    shows only on `manage`, as the register's does; the road-test panel's heading reads "Add an examiner".
+  - **Found by the mutation pass, a regression in the split itself:** the form is usually on screen BECAUSE the
+    list is empty, and the add's own success refetches the list, which unmounted the form before its `await`
+    returned — and Vue drops an emit from an unmounted component. So the handbook panel no longer selected the
+    Representative just added, nor the road-test panel the examiner. Neither behaviour had a test before; the
+    two tests written to close the survivors failed on the unmutated code. `onAdded` is a callback prop now.
+  - **Checks:** 17 mutants, 17 killed after three survivors were closed (the two above and the Settings card's
+    gate). Seen in a browser (built, dev bypass, as admin): both lists, the inline form on an empty list, a
+    390 px phone, the Settings card and the sidebar entry, no page errors.
+- 2026-09-28 — **R1 merged** (#1102, main `3f927c0`); CI green on the merged head.
+- 2026-09-28 — **Owner ruling on R1: Recruiting lives under the Settings page, not in the sidebar's Admin group.**
+  Built (`claude/recruiting-under-settings`): `admin.recruiting` is now a child of `admin.settings` (no nav
+  entry, icon removed), the route takes `meta.parent: "/settings"`, and the Settings card is its way in. The
+  gate is unchanged — `section("recruitment")`, what the api asks — so nothing is refused that was allowed.
+  A recruiter and a safety manager hold `settings: none`, so they have no link to the register (the URL
+  still works for them). **That is intended — the owner, same day: "admin will set this Representative and
+  examiner and there is no need for recruiter to do anything with this."** No open question. A recruiter still
+  adds one inline from the handbook and road-test panels when a hire needs it.
+- 2026-09-28 — **Recruiting under Settings merged** (#1104, main `61e03a9`); CI green on the merged head.
+- 2026-09-28 — **S1 built** (`claude/recruiting-settings-s1`): migration **0379** `recruiting_settings`, schema only — it
+  merges alone and S2 is its reader (Q-AW41).
+  - **Shape:** one row per org (`org_id` primary key, cascades with the org): `invite_ttl_days`, `reminders_enabled`,
+    `reminder_after_hours`, `updated_by`, stamps. RLS on, no policies (service role only, as 0173).
+  - **No row = the product's defaults,** and the three columns carry NO default: the defaults' one home is
+    `INVITE_TTL_DAYS_DEFAULT`/`STALE_DRAFT_HOURS`, and only a saved org has a row, so a column default would never be
+    the value in force. **S2 must** fall back to the constants on a missing row and write all three answers at once.
+  - **Bounds:** link 1–60 days (the CHECK's 60 is `INVITE_TTL_DAYS_MAX`, read from source by the matrix); reminder
+    24–1440 hours — ⚠ **24 is this migration's choice, not the owner's** (the ruling gave no range; the sweep is six-
+    hourly, so a reminder lands up to 6 h late); a reminder that is ON must come before the link dies (the sweep skips
+    an expired invitation), an OFF one keeps its number unchecked.
+  - **Checks:** `supabase/tests/recruiting-settings.test.mjs` (23), the RLS matrix seeds it explicitly (its CHECKs
+    refuse invented integers), `recruiting_settings` pinned in `check-table-producers.mjs` until S2's save writes it.
+    12 of 12 migration mutants killed.
+- 2026-09-28 — **S1 merged** (#1105, main `f9b043c`); CI green on the merged head. **0379 verified applied** in production
+  ~6½ minutes after the merge: the table, RLS on with no policies, its six constraints, no rows.
+- 2026-09-28 — **S2 built** (`claude/recruiting-settings-s2`): the reader of 0379 (Q-AW41). No migration.
+  - **The screen:** Settings → Recruiting gains "Application links" above the two registers: the link's lifetime in
+    days, "Remind a driver who stops" on/off, and the delay in hours. It validates with `recruitingSettingsSchema`,
+    the contract the api's `PUT /api/recruitment/settings` uses (bounds, and a reminder that is on must come before
+    the link dies), so both refuse in the same sentence; 0379 refuses a third time. `recruitment` view reads,
+    manage writes; audited `recruitment.settings_updated` with from/to.
+  - **The one reader:** `recruitingSettings.ts` — the org's row, else `RECRUITING_SETTINGS_DEFAULTS` (built from
+    `INVITE_TTL_DAYS_DEFAULT`/`STALE_DRAFT_HOURS`); a failed read THROWS rather than fall back to a longer-lived
+    default. The save is UPDATE-then-INSERT, a racing insert's 23505 answered by an update. Every place that
+    extended a link by the constant now asks it: the invite, "send the link again", Send, open signing, the
+    handbook's Open/Extend, and the reminder sweep; the Send email's "stops working in N days" is the same number.
+  - **The reminder switch, as built:** OFF sends the driver nothing and neither rotates nor extends their link, but
+    the office is still alerted once that they stopped — the path an invitation with no address already takes. The
+    delay is also when the office alert fires. ⚠ If the owner meant OFF to silence the office too, it is one line.
+  - **The per-invite override:** the invite drawer's "Link stays open for (days)", blank by default with the
+    carrier's number as its placeholder; blank sends nothing and the api applies the carrier's setting, typed sends
+    `expires_in_days`. It applies to a NEW invitation only — "Send them the link again" extends by the carrier's
+    lifetime like every re-send. `applicationInviteCreateSchema.expires_in_days` lost its `.default(14)`, which would
+    have silently overruled the carrier.
+  - **The handbook's Extend toast** now states the date the server set, not "another 14 days".
+  - `recruiting_settings` left `check-table-producers.mjs`'s waivers (0 remain); 0379's matrix now reads the hour
+    bounds from the contract's source too.
+  - **Checks:** 26 mutants, 25 killed; the survivor swaps `STALE_DRAFT_HOURS` for the literal 48 in the defaults — the
+    same value, so a no-op no test can see. Seen in a browser (built, dev bypass, as admin): the defaults, the refusal
+    under the delay when the link is shortened to 2 days, and the switched-off state at 390 px; no page errors.
+- 2026-09-28 — **S2 merged** (#1108, main `6e8fc1f`); CI green on the merged head.
+- 2026-09-28 — **P1 built** (`claude/purge-applicant-p1`): migration **0380** `purge_applicant(p_org, p_driver, p_actor)`, Q-AW40's
+  migration half. It merges alone; P2 (the admin screen, Storage cleanup, the `driver.purged` audit) is its reader.
+  - **Measured on production first:** 40 foreign keys into `drivers` (18 cascade, 5 restrict, 17 set null), the FK tree
+    below them, and every trigger on it. **Six guards refuse a service-role delete:** `drivers` (DR010),
+    `driver_applications` (DA010), `esign_consents` (EC010), `signature_adoptions` (SA010), `employer_verification_calls`
+    (EV010), `handbook_marks` (HB011). The handoff's note that packet marks, drafts and captures "refuse a delete by
+    trigger" is not so: `application_packet_marks` and `application_edits` have no trigger, and the rest refuse only a
+    JWT-bearing writer. The two test applicants are drivers `16045e32` (invitation `d61557dc`) and `0c77fabb`
+    (`f2b142e4`), both `applicant`, archived, and linked to nothing. Their rows: 2 invitations, 1 application,
+    1 qualification record, 8 authorizations, 2 consents, 20 packet marks, 2 drafts, 1 capture, 1 employment row,
+    1 document, and 16 audit rows.
+  - **The flag:** new, `fuelguard.purging_applicant`. It holds the DRIVER'S ID, not 'on', so each guard is opened
+    for that applicant's rows only. It is transaction-local and cleared before return. Why not reuse `merging_driver`:
+    the guards' exemption would then read "a merge" when it was a purge. Each of the six guards is reproduced
+    with one branch added, and the pre/post `pg_get_functiondef` diff shows nothing else changed. `merge_driver` is untouched.
+  - **"Ever hired", PA010:** status past `applicant`, a `hire_date` or `termination_date`, or an audit row
+    `compliance.applicant_hired` for the driver. The last is the durable one, because 0213 lets an admin edit
+    status and dates back. **PA011:** a row in any drivers-referencing table the purge doesn't own, read from
+    `pg_constraint` at call time rather than listed, so a new table refuses until somebody decides (the
+    merge_driver cascade trap, inverted). Also PA011: a DQ export naming the driver. **PA012:** a driver-app account
+    or a McLeod/Samsara/EFS id. **PA020:** another org, or missing. **PA030:** the actor isn't an admin of the org.
+  - **Kept:** `sms_suppressions` (a STOP belongs to the number; the driver id is nulled), `audit_logs`, and
+    `notification_events`. ⚠ The name and email survive in audit `meta`; that is **Q-AW44**.
+  - **Storage:** the function RETURNS `{counts, storage}`, with storage keyed by table (`documents`,
+    `application_captures`, `signature_adoptions`, `drivers` photo). If P2 read the paths first, it would race a
+    capture confirmed in between.
+  - **Checks:** `supabase/tests/purge-applicant.test.mjs` (65). The fixture fills every table that references
+    `application_invitations`, read from the catalogue so a new one fails the matrix until it is seeded. 45
+    migration mutants, 40 killed on the first pass. Of the survivors, one was a real gap and now has its test
+    (the flag left set inside an explicit transaction: the old check read it after the implicit one had ended).
+    Two showed my own two-step deletes were unneeded — RESTRICT is checked at the end of the statement — so both
+    were removed along with their wrong comments. Two are no-ops: the audit read's `created_at` lower bound only
+    bounds the index scan, and `for update` guards a race that a single PGlite connection cannot stage.
+- 2026-09-28 — **P1 merged** (#1110, main `796d530`); CI green on the merged head. **0380 verified applied** in production
+  ~8 minutes after the merge: highest migration 0380, `purge_applicant` executable by service_role only (not
+  authenticated, not anon), all six guards carry the purge branch.
+- 2026-09-28 — **P2 built** (`claude/purge-applicant-p2`): the reader of 0380 (Q-AW40). No migration.
+  - **The route:** `POST /api/recruitment/applicants/:driverId/purge`, in the recruiting module (`routes/purge.ts`,
+    `applicantPurge.ts`). Gates, in order: `canPurgeApplicant` (new in `@silvicom/shared`, `isAdmin` — the ruling,
+    derived rather than hand-listed), `requireFreshAuth` (the password again, as the member password reset does), then
+    the body's `confirm_name`. The service reads the driver org-scoped, refuses one that is **not archived**
+    (`not_archived`), checks the typed name (`purgeNameMatches`: case and runs of spaces forgiven, nothing else), then
+    calls 0380 and maps its refusals: PA010 → 409 `was_hired`, PA011 → 409 `has_records`, PA012 → 409 `linked`,
+    PA020 → 404, PA030 → 403, anything else → 500 "nothing was deleted".
+  - **Storage, after the commit:** each path 0380 returned is removed from its table's bucket — `documents` and
+    `signature_adoptions` from the evidence bucket, captures from theirs. A file that cannot be removed is named in
+    the answer and in the audit row. `drivers.photo_path` has no writer and no bucket anywhere in the product, so a
+    path found there is reported as not removed rather than guessed at (none exists in production).
+  - **The audit:** one `driver.purged` row — entity `drivers`, the id, `counts`, `storageRemoved`,
+    `storageNotRemoved`; never the name (a test asserts the row does not contain it). If that write fails after the
+    delete has committed, the answer says `audited: false` and the drawer says so; the database's own
+    `driver.delete` trigger row remains either way.
+  - **The screen:** the Recruitment board's **Archived** view gains "Delete permanently…" in the row menu, for an
+    admin only (`kebab-item-danger`). It opens `PurgeApplicantDrawer`: what is removed, that a hired person cannot be,
+    and a "Type their name to confirm" field; Delete stays disabled until the name matches. The password prompt
+    replaces the body and the same delete re-runs once it is given. A delete that left a file behind or wrote no
+    audit row is reported as "Deleted, with something left over", never as a clean success. Offering it only on the
+    Archived view is the api's `not_archived` rule, not a second one. `ArchiveDriverModal`'s comment, which said
+    there was no destructive version of archiving, now says where the one for applicants is.
+  - **Checks:** 24 mutants over the route, service, contract, drawer and page; 23 killed on the first pass. The
+    survivor was a redundant `!matches` guard inside the drawer's delete (the button is already disabled, and the
+    api checks again); removed rather than kept as a no-op.
+  - **Found by looking, not by a test: no danger menu item in the app was red.** `.kebab-item-danger` lives in
+    `@layer components`, and a menu item is an `AppButton` whose variant sets `text-ink-secondary` as a utility, which
+    outranks it — the loss `LiveMapControls.vue` already records for a brand tint. Measured in Chromium on this board:
+    "Delete permanently…" computed `oklch(0.478 0.016 286)`, the same ink as "Restore"; with `!text-danger-600` in
+    `packages/tokens/src/epilogue.css` it computes `oklch(0.589 0.240 27)`. One line, and it fixes the eight other
+    danger items too (Users, Anomalies, Annual inspections, Vehicles, Trailers, the inspector register, plan history).
+  - **Seen in a browser** (built, dev bypass, as admin, API stubbed): the Archived view's menu at 1280 and 390 px,
+    the drawer with Delete disabled until the name was typed (it stayed disabled for the wrong applicant's name), the
+    typed name sent as typed, and a `was_hired` refusal shown in 0380's sentence with the drawer left open. No page
+    errors. The hint under the field now carries the name alone; a placeholder repeating it was removed.
+  - **Next:** once merged, the owner deletes the two test applicants (drivers `16045e32` and `0c77fabb`, invitations
+    `d61557dc` and `f2b142e4`) from the Archived view; new test applicants go in a QA org.
+- 2026-09-28 — **P2 merged** (#1111, main `7125913`); both production services verified at `7125913` / schema 0380.
+  The owner then deleted the test applicants from the Archived view (7 `driver.purged` rows, all `audited: true`,
+  no file left behind).
+- 2026-09-28 — **C3d4 measured, not built, and parked** (Q-AW46). Method, so it can be repeated: `dist` built with
+  CI's placeholder values and **without** `apps/web/.env` (a copied `.env` carries `VITE_DEV_BYPASS`, and the first
+  run measured an admin session's requests); served by express + `compression()` as `app.ts`/`appHttp.ts` serve it,
+  because `vite preview` does not compress and production does (the index chunk: 499 KB raw, 152 KB on the wire);
+  `stubApi.ts` installed on a Playwright persistent context whose remote-debugging port Lighthouse drives, one bundle
+  per screen — expectations, Part 1 "About you", the Part 2 task list, the sign-off with the packet, the filed page
+  with the handbook. Numbers in Q-AW46. Two cautions for whoever resumes it: 4× CPU on a fast Mac (benchmark index
+  ~4,100) understates a Galaxy A24, though TBT is ~50 ms so the network dominates; and a timespan over the Part 1
+  walk measured CLS 0.164, which the navigation runs do not see.
+- 2026-09-28 — **Q-AW45 (a) built** (`claude/representative-signature-pad`): the Representative and the road-test
+  examiner sign on a pad, with the mouse or a finger, in Settings → Recruiting and in the handbook and road-test
+  panels (all three are `SignatoryAddForm.vue`). No migration, no api change.
+  - **One pad.** The applicant's `SignaturePad.vue` moved from `features/apply/signing/` to `components/`
+    (`lint:boundaries` forbids recruitment importing apply's internals). It carries no words: the applicant's come from
+    `APPLY_COPY.packet` (their clear button's `drawClear` was defined and never shown), the office's from the form.
+    `APPLY_COPY.signing` — the A5 defaults no caller used since AF6 — is gone.
+  - **`trim`** crops the office's PNG to the ink with a 6 px margin, because both renderers `fit` the image into a
+    box ~27 pt tall: an 878×128 pad became a 224×77 image. Off for the applicant, whose mark places were measured
+    with the whole pad.
+  - **Dark theme:** the ink is fixed near-black for print, and the office has a dark theme, so the pad is
+    `color-scheme: light` — its `light-dark()` surface resolves to white. Measured: `oklch(1 0 0)` under both schemes.
+  - **Seen:** in Chromium (built, dev bypass, API stubbed) at 1280 px, light and dark: a signature drawn with the
+    mouse, the POST carrying a 224×77 PNG. That PNG rendered by `handbookPdf` (the carrier's line under "Agreed") and
+    `roadTestCertificatePdf` (the examiner's line), rasterised and looked at: on its rule, legible, the caption clear.
+  - **Not pinned by a unit test:** jsdom has no canvas, so the crop and the colour scheme were verified by looking.
+    The three form tests now drive the pad's `change` rather than the dropzone's `files`.
+- 2026-09-28 — **Q-AW45 (a) merged** (#1112, main `3ceef75`); both production services verified at `3ceef75`.
+- 2026-09-28 — **AW6 built** (`claude/applicant-selfie-aw6`): the selfie, phase 1 (§6.7, D-AW10, Q-AW5 (a)). No
+  migration — 0376 already carried the `selfie` slot and `application_intakes.selfie_verdict`/`_by`/`_at`.
+  - **The driver:** Part 1 screen 11, "A photo of you", between the medical card and the rights (`PART_ONE_SCREENS`,
+    so Part 1 is now ten steps and every "Step n of N" in the tests is derived from it). The front camera
+    (`capture="user"`, chosen by slot in `useApplicationCaptures`), an oval where the card's outline is, and before the
+    button why and for how long: the carrier looks at it beside the licence photo, a person and no face-recognition
+    software, not added to the file, deleted after `APPLICATION_CAPTURE_KEEP_DAYS` (90). That number is new in
+    `@silvicom/shared`; `check-table-lifecycle.mjs` reads `RETENTION_RULES` as a literal, so an api test ("keeps
+    staged captures for as long as the applicant is told") pins the pruner to the sentence.
+  - **Never a hard block:** "I can't take a photo of myself" lets the screen pass, as the medical card's "I don't
+    have one yet" does. It is held in the page only — the missing photo already says it — so a returning driver
+    without a selfie meets the screen again (`resumeScreen`).
+  - **§6.7's "/apply privacy statement gains its own line":** there is no /apply privacy statement; the public policy
+    page (`legalMeta.ts`) describes the driver app. The notice is on the screen that takes the photo instead, which is
+    where the purpose and the term have to be read. A standalone /apply privacy statement is not built.
+  - **Never promoted, by type:** `NEVER_PROMOTED_CAPTURE_SLOTS`, `PromotedCaptureSlot`; `APPLICATION_CAPTURE_DOCUMENT_KIND`
+    and `_PAGE` are keyed by it, so filing a selfie does not compile. **Found on the way:** `promoteCaptures` copies
+    EVERY staged capture into `compliance-docs` before the submit transaction, and 0376 skips the selfie only in SQL
+    — a selfie would have been left in the evidence bucket with no row pointing at it. It is filtered before the copy.
+  - **The office:** the checklist's Part 1 drawer (which said it had nothing for the office to do until C3) now holds
+    `SelfieCheckPanel`: the licence's front and the selfie side by side, the same size, no score, and Same person /
+    Not the same person / Can't tell. `GET /recruitment/applicants/:driverId/intake/selfie` (view; five-minute signed
+    URLs from the staging bucket, `no-store`) and `POST …/intake/selfie-verdict` (manage; writes the three columns on
+    the live invitation's intake row, audits `recruiting.selfie_verdict_recorded` without a URL; refuses `no_selfie`).
+    A second reading replaces the first; the audit rows are the history. The reading gates nothing; "Not the same
+    person" and "Can't tell" say to check the licence in person. `applicantSelfie.ts` joins `table-writers.json`.
+  - **Found by a test:** a broken photo refetched "once per answer" — but every refetch IS a new answer, so a photo
+    whose object was gone would have asked the api forever. It now retries once until an image loads.
+  - **Seen:** in Chromium, the selfie screen at 390 px (the notice, the oval, the tick-box and its line); the drawer at
+    1280 and 390 px with both photos, a reading posted and shown. The tap-target walk covers the selfie screen at 390
+    and 320 px (ticked, and a photo to review); 12 of 12 browser specs.
+  - **Checks:** 14 mutants, all killed on the first pass — the promotion filter, the org filter on the photos, the
+    `no_selfie` refusal, a write touching no row, the URL lifetime, `no-store`, the front camera, resuming at the
+    selfie, "I can't take one" accepted, the manage gate on the buttons, the retry guard, the in-person advice, the
+    tick-box hidden once a selfie is on file, and the promised 90 days against the pruner. No migration.
+- 2026-09-28 — **AW6 merged** (#1113, main `761ad16`); both production services verified at `761ad16` / schema 0380.
+- 2026-09-28 — **C3s split into five PRs** (§8.5 estimated it at four days as one). No migration in any of them: M1 (0376)
+  built the columns, and production's `pg_proc` was checked on 2026-09-28 — `record_signature_adoption` (9 arguments), the
+  12-argument `record_driver_release` and the 13-argument `record_packet_mark` are all there, with 0 `signature_adoptions`
+  rows. In order:
+  1. **C3s1 — adopt once, driver half (D-AW15).** Screen 13 is the adoption at the head of the permissions branch, where
+     today's signature-only adoption already sits (`SigningCeremony.vue`); it now takes initials too, and registers both
+     through `POST /apply/:token/adoption` → `record_signature_adoption`, the PNG in `compliance-docs` at
+     `documentStoragePath(org,'driver',driverId,id,'image/png')` and no `documents` row. Each permission is signed with
+     the live signature adoption, which the SERVER finds and passes to the 12-argument `record_driver_release` — the
+     client names no id. The nightly `compliance-docs` reconcile reads `signature_adoptions.storage_path` as well as
+     `documents`, **without which it would delete every adoption 24 hours after it was made** (it deletes any object no
+     `documents` row names). The renderers draw the most recent picture made before the document's instant — a staged
+     capture or an adoption — so the permissions print the adoption and a packet drawn afresh prints its own. The packet
+     offers the adoption as carried over (its `markStaged`), and still asks for the typed name as today.
+  2. **C3s2 — one click everywhere.** The packet and the handbook apply the adoption (`adoption_id` on every mark, the
+     13-argument `record_packet_mark`, DR037/DR038) and stop staging captures; the renderers read each mark's own adoption;
+     the office session opens with "This is your signature — use it" and supersedes via `superseded_by`; the legacy
+     back-fill (measured first, written by the owner); C0b's workaround retired.
+  3. **C3s3 — send for signing (D-AW14):** the route, 72 h, `unlock_failures`, the 6-digit code (Q-AW25), and
+     `OpenSigningPanel`'s new-tab path retired.
+  4. **C3s4 — one envelope (D-AW16):** one "Place N of M", p25 withdrawn, the pinned counts in §8.5 updated.
+  5. **C3s5 — prefilled and previewed (D-AW17).**
+  HB022 and 0374's handbook order check stay M2's.
+- 2026-09-28 — **C3s1 built** (`claude/applicant-flow-c3s1`), as the split above says. No migration.
+  - **Found:** the nightly `compliance-docs` reconcile deletes any object no `documents` row names, so every adoption
+    would have been deleted 24 hours after it was made. It now reads `signature_adoptions` too, and refuses to sweep if
+    that read fails.
+  - Screen 13 asks for the initials as well. The permissions' copy says they are KEPT for the application's pages,
+    because the packet's sentence names page numbers read off stops this screen does not have.
+  - A driver may adopt again until a permission has been signed with the adoption (`adoption_in_use`). From then on
+    the served adoption pins the marks, and the resumed panel counts the documents from the walk, earlier visits
+    included.
+  - **Checks:** 12 mutants, all killed. The tap-target walk at 390 and 320 px now adopts both marks and asserts two PNG
+    POSTs. The adoption screen was walked in Chromium only, not on a phone.
+- 2026-09-28 — **C3s1 merged** (#1114, main `4153a05`); both production services verified at `4153a05`.
+- 2026-09-28 — **C3s2 measured, then split into C3s2a (build) and C3s2b (the legacy back-fill); C3s2b is DROPPED.**
+  Production, read-only: **one** `application_invitations` row in total (`396000db`, revoked 2026-08-22, never
+  consented). It has no `signature_mark`/`initials_mark` capture, and there are 0 packet marks, 0 handbook marks, 0
+  invitation-linked permissions and 0 `signature_adoptions` rows. There is nothing to back-fill, and every link from
+  now on adopts on screen 13. `d61557dc`, the one invitation C0b existed for, was purged by P2.
+- 2026-09-28 — **C3s2a built** (`claude/applicant-flow-c3s2a`). No migration.
+  - **Every mark records its adoption.** The packet (13-argument `record_packet_mark`, `p_adoption_id`), the handbook
+    (`handbook_marks.adoption_id`) and the permissions (since C3s1) find the link's live adoption server-side, and
+    refuse a name that is not its typed text (`adoption_name_mismatch`, DR038 alike).
+  - **One adoption per kind per document** (`documentAdoption.ts`). A mark is refused when its document's earlier
+    marks carry another adoption (`adoption_changed_mid_document`). A new adoption is refused only while a document
+    is part-signed with the live one (`adoption_in_use`), so a new signature BETWEEN documents is the ordinary case.
+    This replaces C3s1's "never once used".
+  - **The renderers draw the adoption the document's own marks name** (`signatureMarkBytes(…, document)`), so the
+    permissions keep printing the one they were signed with after a new one is made at the packet. This replaces
+    C3s1's "newest before the instant". Marks naming none (pre-C3s1, or A8b's failed picture) read the capture as
+    before.
+  - **The packet offers the link's adoption:** "This is your signature" with "Use it", or "Make a new one" until a
+    place carries the mark. A mark made there is registered as an adoption and never staged.
+  - **C0b retired:** `handbookSelfAdoption.ts`, `useHandbookAdoption.ts`, the capture exception after filing,
+    `LinkHandbookStatus.adoption`, `handbookMarkSchema.signed_name` (a stale page's field is stripped by the schema)
+    and the handbook's adoption copy. The handbook signs with the adoption, or else the packet's adopted name.
+  - **Not in C3s2a:** the office's own sign-link session is still `OpenSigningPanel` (C3s3).
+  - **Checks:** 19 mutants. One survived first: no test signed an INITIALS place, so looking up the signature's adoption
+    for `p05` passed. A test was added and the mutant is now killed. The browser walk at 390 and 320 px adds the
+    packet's "This is your signature" panel: "Use it" reaches the first place with no adoption POST. Seen in Chromium
+    only.
+- 2026-09-28 — **C3s2a merged** (#1115, main `18f464e`); both production services verified at `18f464e`.
+- 2026-09-28 — **C3s3 split into C3s3a and C3s3b (Q-AW47).** 0376 stores nothing for Q-AW25's 6-digit code, so the
+  code needs a migration §8.5 never listed. **RULED (a) by the owner 2026-09-28**: three columns on
+  `application_invitations` in a schema-only 0381, the reader in C3s3b once it is applied.
+- 2026-09-28 — **C3s3a built** (`claude/applicant-flow-c3s3a`). No migration: 0376's `sign_link_expires_at` and
+  `unlock_failures` get their first readers and writers.
+  - **Send for signing replaces Open signing.** `POST /recruitment/applications/:invitationId/send-for-signing`
+    (keyed on the invitation, beside approve; the plan's `/applicants/:driverId` shape would have had to pick one).
+    It refuses not-approved, revoked and filed from the row it read; writes the 72 hours and a zeroed count BEFORE
+    minting (a failure leaves no link without an end); mints through 0369's `open_packet_signing`; audits
+    (`compliance.packet_signing_sent`); emails the link always and texts it where the driver agreed. **The answer
+    carries no link**: it says where the link went, until when, and the office's panel warns when it reached nobody.
+  - **The text** is a new outbox template, `signing_link` (0376's reason already allowed it), minted on the TEXT token at
+    send time like the other link texts (0378). A queued one is cancelled at drain once its send is filed, past its
+    72 hours, or stopped — the stop matters because the drain mints a fresh token.
+  - **The resolver names the door** a token came through. The sign and text doors lapse at `sign_link_expires_at`; the
+    invite door keeps the invitation's expiry. A sign link opened on a screen before C3s3a has no end of its own and
+    keeps the invitation's, as before. What this leaves open is Q-AW48.
+  - **Five wrong dates of birth** on a sent link (sign or text door) stop it: counted by a conditional UPDATE, retried
+    on a lost race; the fifth clears `sign_token_hash` and `sms_token_hash` in the counting write, never `revoked_at`
+    (a revoked invitation cannot be sent again), audits `compliance.sign_link_locked`, and answers 410
+    `sign_link_locked`. Each wrong answer says how many are left. The invite door keeps D-APP16's no-counter rule.
+  - **Office:** `SendForSigningPanel` replaces `OpenSigningPanel` (no tab, no link on screen) and reads the last send
+    from the invitation: live until when, ran out, or stopped after five wrong dates. **Applicant:** the wait screen
+    and the approval email say a link comes to their phone at the visit; the unlock screen shows the tries left and,
+    once stopped, only "ask them to send it again".
+  - **Checks:** 25 mutants, all killed. Every CI gate, every suite (one dashboard widget test timed out under load
+    and passed 3/3 alone), 94 matrices, the build with CI's placeholders, and the 12 browser specs.
+- 2026-09-28 — **C3s3a merged** (#1116, main `1788978`); both production services verified at `1788978` / schema 0380.
+- 2026-09-29 — **0381 built** (`claude/sign-code-0381`), schema only, as Q-AW47 (a) ruled: `sign_code_hash` (64 hex,
+  a KEYED digest — a plain SHA-256 of a million possible codes is reversed at once), `sign_code_expires_at` (paired with
+  the digest by a CHECK) and `sign_code_failures` (its own count, not `unlock_failures`) on `application_invitations`.
+  No reader: C3s3b follows once 0381 is verified applied, and waits on **Q-AW49** (which channel carries the code).
+  The matrix `application-intake-v2` gains 8 cases; 4 mutants of the migration, all killed.
+- 2026-09-29 — **0381 merged** (#1117, main `db7d4b6`); applied in production (schema 0381, no drift) and both services
+  verified at `db7d4b6`. The three columns and three constraints were read back from production.
+- 2026-09-29 — **The 6-digit code is WITHDRAWN by the owner (Q-AW25); C3s3b is DROPPED.** In the owner's words, the link
+  carries a driver application, not confidential data: the driver fills and signs it, it is filed, it joins the DQF if
+  they are hired and is purged if not. The sent link stays guarded by the date of birth, its 72 hours and the five-strike
+  stop (C3s3a), so C3s3 is complete as C3s3a. Q-AW47 is superseded and Q-AW49 moot. 0381's columns were already applied;
+  they have no reader and M2 drops them (§8.3). Next: C3s4.
+- 2026-09-29 — **C3s4 split into C3s4a and C3s4b.** Read at the call sites: the handbook cannot join the packet's envelope
+  without a migration. `handbook_marks_guard` refuses a mark until `handbook_signing_opened_at` is set (HB023, 0380's
+  copy), and `application_invitations_handbook_order_check` refuses that stamp until the packet is filed — so Send for
+  signing cannot open the handbook, and only the office's separate press can. D-AW16 already names the change (§5); it
+  is **0382**, then its reader. So: **C3s4a** p25 withdrawn (no migration); **0382** the handbook guard accepts the sent
+  envelope (`signing_opened_at`) in place of the separate opening, and the order check changes the same way;
+  **C3s4b** one walk — packet places, certification, handbook places, "Place N of M" across both — and the office's
+  separate handbook opening retired. §8.6 (new) is the cleanup ledger the owner asked for.
+- 2026-09-29 — **C3s4a built** (`claude/applicant-flow-c3s4a`). No migration. `p25` joins `PACKET_WITHDRAWALS` (ruling
+  D-AW16): the packet's handbook receipt is not walked, not counted, and prints "Not signed here. Receipt of the handbook
+  is signed on the handbook itself." — seen on the rendered page 25 (one line, inside the rule; page 26 still signed).
+  The walk is 15 stops (14 for a company driver). The pinned counts §8.5 listed moved by one each. A mutant of the
+  notice wording and the removal of the entry were both caught.
+- 2026-09-29 — **C3s4a merged** (#1119, main `22955e7`).
+- 2026-09-29 — **0382 built** (`claude/handbook-envelope-0382`), schema only. The sent envelope (`signing_opened_at`)
+  opens the handbook: `handbook_marks_guard` HB023 accepts it beside the old separate opening, and the order check lets
+  the handbook be filed once either is set. **HB022 is kept, not loosened**: D-AW16's own order is packet → certification
+  → handbook, and "signing opened or filed" (the plan's first draft) would let a handbook be signed before its
+  application is filed. 0381's three sign-code columns are dropped (§8.6 item 1). No reader is needed — it only accepts
+  more; C3s4b is the page. `handbook-signing` matrix +5 cases, the 0381 cases removed; 5 mutants, all killed.
+- 2026-09-29 — **0382 merged** (#1120, main `6877bbe`) and **applied in production** at 10:46 UTC; both services
+  verified at `6877bbe`, schema 0382 current, no drift; the sign-code columns read back as gone.
+- 2026-09-29 — **C3s4b built** (`claude/applicant-flow-c3s4b`): one walk through the envelope (D-AW16). No migration.
+  - **The envelope opens the handbook.** Every reader now takes `signing_opened_at`: `handbookCeremony.ts` (the
+    mark and the reading copy), `handbookSigning.ts` (office status, countersign), the checklist's builder. The
+    shared fold `handbookStatus` decides "open" once — the envelope's stamp AND a filed application, because HB022
+    refuses a place before the filing — so the checklist, the drawer and the link cannot disagree. Measured before
+    retiring anything: 0 invitations carried the old stamp and 0 were filed without the envelope (DR036 forbids it).
+  - **The office's "Open handbook signing" is retired** (§8.6 item 5): its function, its button and its route. Its
+    link extension is KEPT, as `extendHandbookLink` on `POST …/handbook/extend` behind the drawer's existing "Extend
+    the driver's link": Send for signing's extension covers the driver's walk that morning, but HB021 also refuses
+    the COUNTERSIGNATURE on a lapsed link, and Send for signing refuses a filed application, so nothing else could
+    revive it. The audit action `compliance.handbook_signing_opened` is no longer written.
+  - **The applicant's page:** "Place N of M" spans both documents (`signing/envelope.ts`: the packet's served places
+    plus the handbook's five; 19 for a company driver, 20 for an owner-operator). The packet walk counts against it,
+    and the adoption intro names both numbers. After the certification, the filed card LEADS with the handbook —
+    one line saying the application is filed, then one place at a time (the carrier's sentence, one button, "Place
+    15 of 19") — instead of five buttons under the downloads; once every place is signed it is the filed page
+    again. The current place is derived (first unsigned, this tab's included), never a cursor. The packet rail's
+    "0 of 15 done" now says "on the application", because beside "Place 1 of 20" it read as a second answer.
+    The copy that said the carrier opens the handbook in their office is gone.
+  - **Not done, on purpose:** the handbook viewer shows the whole document above the place, not the place's page —
+    the handbook is flowed text with no fixed page per place (`handbookPdf.ts`). Named destinations per place would
+    let it jump; left for C3s5's handbook preview.
+  - **What the walk now relies on (Q-AW48):** a driver who stops between the packet and the handbook for more than
+    72 hours loses the SENT link, and Send for signing cannot be pressed again on a filed application. They finish on
+    the invitation's own link, which Q-AW48 (a) keeps open to signing on the invitation's expiry — which the office's
+    Extend keeps alive. (b) would not strand them either — it refuses the invite door only while the sent link is
+    live — but any ruling that closes the invite door to signing outright would, and would need a handbook re-send.
+  - **Checks:** 14 mutants, all killed; the router's packet count is killed only by the browser spec (its new
+    "Place 1 of M" and "Place 15 of M" assertions). One survivor of the first pass was a real gap — nothing checked
+    that the checklist's handbook reads the envelope — and now has its test. Every CI gate, every suite, 94
+    matrices, the build with CI's placeholders, 12 of 12 browser specs.
+- 2026-09-29 — **C3s4b merged** (#1121, main `faf119b`); both production services verified at `faf119b`, schema 0382.
+- 2026-09-29 — **C3s5 built** (`claude/applicant-flow-c3s5`): prefilled and previewed (D-AW17). No migration.
+  - **Measured first, by rendering, not by reading the plan.** One payload was rendered as the office's packet preview
+    and as a filing, and the text of every page was diffed: the ONLY words the filing had and the preview lacked were
+    dates — page 1's `Date:` and one beside each signature. No name was missing. D-AW17's "p22 printed name" needs
+    nothing: every printed-name line reads the payload's name since AUD-18, and page 22's own line is withdrawn
+    (D-PKT19).
+  - **Packet:** page 1's `Date:` is prefilled with the day of the preview, on the office's copy and on the driver's
+    reading copy (one renderer, `preview.ts`). The filed date is still stamped by the server at certification. The
+    date beside each signature stays blank until that place is signed — it is the day THAT place was signed, and
+    D-AW17 did not ask for it.
+  - **Permissions:** the unsigned copy the driver reads now carries the printed name and today's date, as the signed
+    copy will print them. The name is the adoption the next permission is signed with (`adoptionForMark` — the
+    name `applicationReleases.ts` checks `signed_name` against). The signature box stays empty. A link with no
+    adoption (legacy) gets the date and no name.
+  - **Handbook:** the office now has a preview, `GET /recruitment/applicants/:driverId/handbook/preview.pdf`
+    (view door), drawn by the SAME function as the driver's reading copy (`handbookPreview.ts`
+    `handbookReadingCopy`; A2's lesson), with a `DRAFT - NOT A SIGNED HANDBOOK` band in the top margin
+    (`stamp.ts`'s `drawBand`, now exported) that the driver's copy never carries. Refused once filed, as the packet's
+    is. ⚠ **The masked SSN cannot be in it before the application is filed:** the SSN is asked at the signature
+    and goes straight to `driver_applications` (D-HIRE6 — the draft never holds it), so the office's preview,
+    which comes before sending, shows that line blank. After the filing it prints `•••1234`.
+  - **Office:** "Preview the application" and "Preview the handbook" sit on the Send for signing row, open in the
+    viewer nested in the drawer body (B8's Escape rule), for any role that can read the applicant; only sending is
+    `recruitment: manage`. The viewer closes when the drawer moves to another applicant.
+  - **Not built, on purpose:** the packet's and the handbook's CARRIER lines ("Carrier lines per Q-HB1") — Q-HB1 is
+    still the owner's (HANDBOOK-SIGNING-PLAN §7; recommendation there: yes, as its own step). The handbook's
+    per-place page jump (C3s4b's note) stays unbuilt: the walk shows the whole document above the place, and
+    nothing in D-AW17 needs it. Nothing made stale; §8.6 unchanged.
+  - **Checks:** 13 mutants, all killed; the one survivor of the first pass was a real gap (nothing checked that the
+    driver's own handbook copy carries no DRAFT band) and now has its test. The permission, handbook-signature and
+    handbook-cover pages were rendered and looked at. Every CI gate, every suite (the api's `inspections.test.ts`
+    failed once with "other side closed" — the known flake — and passed 3 of 3 alone), 94 matrices, the build with
+    CI's placeholders, 12 of 12 browser specs.
+  - **Found by CI, not by this batch:** `tapTargets.spec.ts` read the adoption POSTs straight after "Use this",
+    and they follow asynchronously (each PNG is drawn first). It failed once at 390 px on #1122's first run while
+    passing at 320 px. It now waits for both (`expect.poll`); 16 of 16 on `--repeat-each 8`.
+- 2026-09-29 — **C3s5 merged** (#1122, main `4a0964f`); both production services verified at `4a0964f`, schema 0382.
+- 2026-09-29 — **C-AL1 built** (`claude/applicant-flow-cal1`): the reminder switch and the office's alert, as the owner
+  ruled Q-AW50 (a). No migration.
+  - **The form:** the delay is shown whether reminders are on or off, relabelled "Count a driver as stopped after";
+    its hint says the office is alerted then (and, when on, the driver reminded). The switch's note names Settings →
+    Notifications as the way to stop office alerts, and says it stops the carrier's other alerts too (Q-AW52).
+  - **The contract:** the delay must come before the link expires in both states, in a sentence that no longer says
+    "reminder". 0379's CHECK stays as it is (0 `recruiting_settings` rows in production, 2026-09-29, so nothing saved
+    became invalid). A 1-day link is now unsavable — the shortest delay is a whole day (Q-AW50's note).
+  - **Found, not built:** the per-invite override can still undercut the delay (Q-AW51); the master notification
+    switch is labelled as anomaly emails (Q-AW52). Nothing made stale; §8.6 unchanged.
+  - **Checks:** 6 mutants, all killed (the refine back to on-only, `<` to `<=`, the field hidden when off, the old
+    message prefix, the hint ignoring the switch, the pointer dropped).
+- 2026-09-29 — **M2a built** (`claude/applicant-flow-m2a`): §8.6 items 3 and 4, the code half of M2. No migration.
+  - **Item 3, the revision:** `applicationDraftSaveSchema.revision` is required, and `saveDraft` always calls the
+    6-argument, revision-checked save. The web's mirror image went too: `saveApplicationDraft` always sends the
+    revision, `ApplyDraft.revision` and `Released.revision` are numbers (the bundle and the unlock always serve one),
+    and `useApplicationDraft` takes `revision` as a required option and sends nothing while it is null — i.e.
+    before the page's restore — rather than a save with no expectation. The 5-argument `save_application_draft`
+    now has no caller; M2b drops it.
+  - **Item 4, the pre-C3s3a sign link:** re-measured first — 0 invitations opened without an end, 0 sign tokens
+    without one. The sign door is now a sent door always (`isSentSignDoor`), so a sign token with no end resolves
+    dead; the text door keeps the invitation's expiry until signing is sent, since the application's own texts
+    carry it. `SendForSigningPanel`'s `legacy` state is gone: an opening with no end reads as nothing sent.
+  - **Checks:** 7 mutants, all killed (the old door rule, the null end read as live, the text door always sent,
+    the revision optional again, the null guard dropped, the panel's end check dropped, the web omitting the key).
+  - **Next, M2b (0385; 0383/0384 went to McLeod's customer name):** drop the 11-argument `record_packet_mark` and
+    `record_driver_release` (rewriting the `packet-signing`, `release-ceremony` and `signature-adoption` matrix
+    cases), the 5-argument `save_application_draft` once M2a is live, and `handbook_signing_opened_at/_by` with
+    HB023's and the order check's old-stamp clauses (§8.6 items 2 and 5).
+- 2026-09-29 — **C-AL1 merged** (#1125, main `6d6b975`); both production services verified at `6d6b975`.
+- 2026-09-29 — **M2a merged** (#1127, main `2d4dcfc`). Its first CI run failed once on
+  `packetOverlay.test.ts` *"draws nothing at all for a blank value, down to the bytes"* (650371 vs 650367 bytes)
+  and passed on a rerun. It compares two renders by LENGTH, and the compressed object stream carries the
+  creation time, so two renders either side of a second differ by a few bytes — `labelPdf`'s indirect-timestamp
+  flake again, in a test M2a does not touch. Not fixed here; it needs the render's clock pinned.
+- 2026-09-29 — **M2b built** (`claude/applicant-flow-m2b`): migration **0385**, §8.6 items 2 and 5. Opened only after
+  M2a was verified live on both services, since 0385 drops the 5-argument save the api called before M2a.
+  - **The overloads:** drops the 11-argument `record_packet_mark` and `record_driver_release` and the 5-argument
+    `save_application_draft`, each after reading every call site in `apps/` (production's `track_functions = none`
+    makes `pg_stat_user_functions` useless) and checking that no SQL function calls them. The survivors' comments
+    now say they are the only signature. Matrices: `packet-signing` and `release-ceremony` call the survivors with
+    NULL version/adoption (what the old ones recorded); `signature-adoption` and `application-intake-v2` now
+    assert the old key sets resolve to nothing (42883) and one function each remains; `application-drafts` saves
+    against the current revision.
+  - **The handbook's separate opening:** re-measured first (0 invitations with the old stamp). HB023 reads the
+    envelope alone; the order check keeps only "filed once the envelope was sent"; the two columns go.
+  - **Checks:** 6 mutants on the migration, all killed (each drop kept, the order check made vacuous, HB023
+    removed). All 95 matrices, every CI gate.
+- 2026-09-29 — **Owner rulings, all as recommended:** Q-AW51 (a), Q-AW52 (a), Q-AW48 (a), Q-AW44 (a) + (ii),
+  Q-AW21 (a trigger, its own migration after M2b), and Q-HB1 yes (HANDBOOK-SIGNING-PLAN §7; its own step).
+  Queue after M2b: Q-AW51 + Q-AW52 (one small code PR, no migration), then Q-AW21's trigger (migration, then
+  nothing to read — the api already enforces it), then Q-HB1's design. Telnyx toll-free verification
+  `14c37df3…` read 2026-09-29: **"Waiting For Vendor"** since 2026-09-28 16:34 UTC (Telnyx's own review is done;
+  no rejection reason).
+- 2026-09-29 — **M2b merged** (#1128, main `6d99b4b`) and **0385 verified applied**: production's `pg_proc` holds one
+  `record_packet_mark` (13), one `record_driver_release` (12) and one `save_application_draft` (6); the
+  `handbook_signing_opened_*` columns are gone; the order check reads `handbook_filed_at IS NULL OR signing_opened_at IS
+  NOT NULL`. **M2 is complete.** **Q-AW51 + Q-AW52 merged** (#1129, main `59d786a`); both services verified at
+  `59d786a`, schema 0385, 16:17 UTC.
+- 2026-09-29 — **Q-AW21 built** (`claude/applicant-flow-aw21-trigger`): migration **0386**.
+  - **What it guards, and what it does not restate:** `applicant → active` is refused (HA011) for every writer — the
+    service role and every lifecycle role through PostgREST included — except inside `hire_applicant`, which the api
+    calls only after `hireBlockers` is empty. The hire's requirements stay in the shared checklist; the trigger guards
+    the door, so nothing can go around them, without a second copy of them in SQL.
+  - **How:** `hire_applicant` sets `fuelguard.hiring_applicant` to the driver's id around its one UPDATE and clears it
+    (the `purging_applicant` pattern, 0380); `hiring_applicant(uuid)` is the one reading of the flag; the trigger is
+    `before update of status`.
+  - **Scope, on purpose:** only `applicant → active`. Terminating an applicant or making them inactive stays a
+    lifecycle role's act (restricted-records pins it), and inserts are untouched. Measured first: the only SQL
+    function that sets `drivers.status` is `hire_applicant`, and no api writer sets an applicant active.
+  - **Checks:** 6 mutants on the migration, all killed. The first pass had a survivor, and it was a real gap: a
+    helper that read an UNSET flag as open passed every case, because the matrix's first hire defined the setting for
+    the rest of the session — the one state a fresh pooled connection in production is in. A case before the first
+    hire now proves NULL is closed. `purge-applicant`'s "a hired driver is refused" now hires through
+    `hire_applicant` rather than writing `status`.
+- **2026-09-29** — #1130 merged (`bc0ca4e`); 0386 verified applied; both services at `bc0ca4e`.
+  Q-HB1's design is HANDBOOK-SIGNING-PLAN.md §6 (Q-HB3/Q-HB4 await the owner).
+- **2026-09-29** — **Q-AW19 ruled by the owner, both halves (a); G-10 built (ROAD-TEST-PLAN §8).**
+  · **§391.33 equivalency: not built.** The recommendation in §11 ("add the equivalency door") had
+    missed that it reverses D-REC7. Q-RT4 had made equivalency lawful; the owner keeps a real road
+    test for every driver (§391.33(c)). No counsel question follows from this half.
+  · **Certificate handed over: built.** The step-13 drawer shows, per certificate, whether the driver
+    has had their copy (a download from the link, or the office's new "Handed a paper copy" press).
+    Both are audit rows. No migration.
+  · **Still open under Q-AW19:** the examiner-attestation half (§3.4, any recruiter can print the
+    examiner's stored signature). Its counsel note goes in COUNSEL-REVIEW-PACKAGE.md, per §9 item 7.
+- **2026-09-29** — **Q-AW19's examiner half ruled and built** (ROAD-TEST-PLAN §8): only the admin adds or
+  retires a road-test examiner (`ROAD_TEST_EXAMINER_SECTION = "admin"`). §3.4's "any recruiter can print
+  the examiner's stored signature" is narrowed at the source: a recruiter can no longer put a signature
+  on file. Applying the stored one to a test they record stays theirs (Q-RT2). **The owner set the counsel
+  package aside for now**, so Q-AW19's counsel note is not written; §9 item 7 stays open on it.
+- **2026-09-30** — **No applicant photograph had ever been received in production; fixed.** Reported by the owner
+  ("it is not allowing me to upload any image"). Measured before touching anything: `application_captures` had
+  **0 rows** and the `application-captures` bucket **0 objects** — so C3b2b's scanner screen, C3d2's kept photo and
+  AW6's selfie had never delivered one picture. Cause: "Use this photo" read the photograph back from its own object
+  URL with `fetch(blob:…)`, and production's CSP (`appHttp.ts`) has no `blob:` in `connect-src`, so Chromium refused
+  it ("Failed to fetch", reproduced under the live header, passing with `blob:` added) and the screen reported a lost
+  signal. Nothing saw it because `vite preview` sends no CSP and every unit test stubbed `fetch` to answer — the
+  same blind spot as the viewer's `frame-src` (2026-09-19).
+  · **Fix:** the web provider hands its bytes over (`WebCaptureProvider.takeBytes`, once) and `use` sends them; no
+    `fetch` of a `blob:` URL remains in the web app (swept). `connect-src` NOT widened — the page no longer needs it.
+  · **The blind spot closed:** `e2e:apply` now serves `dist` through the API's own `createApp`
+    (`apps/api/src/scripts/serveWebDist.ts`), so the specs run under production's CSP, served not copied; the stub's
+    upload moved to a `*.supabase.co`-shaped URL (supabase-js 2.110's `createSignedUploadUrl` shape) so `connect-src`'s
+    Supabase rule is exercised too; unit-test `fetch` stubs now REFUSE as the CSP does.
+  · **Checks:** the old read-back fails 4 browser specs and 20+ unit tests; a non-Supabase upload host fails 4 specs.
+  · **Still unproven until a real walk after deploy:** that production's `SUPABASE_URL` is a `*.supabase.co` host
+    (reading the Railway variable was refused this session). The first real photograph answers it — check
+    `select count(*) from application_captures` after the owner's next test.
+  · **Consequence for Q-AW32:** its ruled (a) — floors from ~50 recruiter-judged captures — had collected nothing,
+    because there were no captures. Its clock starts at this deploy.
+- **2026-09-30** — **The CDL's two sides are photographed through a live scanner in the page; owner ruling the
+  same day ("build Phase 1", free/open-source).** This amends D-AW9 and §6.6 item 1: "Take photo" on a phone opens
+  the rear camera INSIDE the page with a card outline, instead of the camera app. The camera app stays one press
+  away in every state, and remains the path for the medical card (Q-AW53), the selfie and a computer (QR first).
+  · **How each side is taken:** the back takes itself — the frame whose PDF417 READ is the one kept, a sharpness
+    test that needs no threshold. The front waits for the shutter, then takes the first frame after the press that
+    is as sharp as the driver's own aim just before it (`liveFrame.settled`: relative, 90% of the look-back's best,
+    1.2 s deadline). Auto-capturing the front needs an absolute floor — Q-AW32 — so it is not built.
+  · **Nothing downstream changed:** the scanner is one more PICKER into `useApplicationCaptures`, so its photo goes
+    through the same gate, downscale, EXIF strip, "Use this photo / Retake", kept copy and server re-hash
+    (D-AW9). It is recorded as `captureMode: "web_live_camera"` in the browser — see Q-AW54 for the server.
+  · **D-APP11's premise re-checked, not assumed:** iOS 11 capped `getUserMedia` at 1280×720; current iPhones are
+    reported to grant 3840×2160 (addpipe), focus is continuous but not steerable from a page, `ImageCapture.takePhoto`
+    only from Safari 18.4. So the scanner measures what it was GRANTED, cut to the outline, against the gate's own
+    1200 px floor BEFORE the driver aims, and sends a short phone to its camera app (`too_low`).
+  · **Measured in Chromium:** a `3840×2160` request from an upright (2160×3840) camera came back 2160×2160 — cropped
+    to a square, 44% of the pixels lost. `4096×4096`, width alone and no size all came back whole, so the request
+    is aspect-neutral (`LIVE_CONSTRAINTS`, pinned by a unit test).
+  · **Browser proof:** the `scanner` project runs Chromium's fake camera on a licence carrying AAMVA §D.13's own
+    example as a real PDF417, under production's CSP: the back closes itself and fills Part 1 (DOB 1986); a denied
+    camera hands over to the camera app and the page stops offering the scanner; a 640×480 camera is refused before
+    aiming with its track already ended; closing ends every track. Every existing walk now photographs the CDL
+    through the scanner, and the 44 px sweep measures the open scanner at 390 and 320 px.
+  · **Not proven from here — owed on real phones before this is called done (§9):** an iPhone (Safari) and an
+    Android (Chrome), each: the camera opens inline (not full-screen), the granted size clears 1200 px under the
+    outline, the back of a real CDL takes itself, the front's shutter gives a legible photo, a locked phone resumes.
+- **2026-09-30** — **The live scanner now looks and behaves like an ID scanner; the owner approved a seven-screen mock
+  the same day ("I love it, let's build it").** Researched against BlinkID, Scandit, Scanbot, Onfido, Persona and
+  Veriff first; the common parts were kept and the ones that need a quality floor were not.
+  · **What a driver sees:** a tips screen before the FIRST scanner of a visit (a dark flat surface, no lamp or window
+    on the card, all four corners) — then corner brackets instead of an outline, a chip naming the side ("Front — the
+    side with your photo" / "Back — the side with the barcode"), a round shutter, and the camera app and upload as two
+    links under it. The brackets carry the state: white aiming, the brand colour pulsing with a bar that fills over
+    `SHUTTER_DEADLINE_MS` while the phone settles, green with a check and the kept frame shown inside them once taken
+    (`TAKEN_HOLD_MS`, 650 ms), plus a 40 ms buzz where `navigator.vibrate` exists (Android; not iOS Safari). A
+    refusal moves into the camera's place with an icon, and the camera app becomes the main button. The back's live
+    read gets a sweep line so a driver can see it is working.
+  · **Flashlight:** shown only where the camera reports `torch` in `getCapabilities()` (Chrome on Android), and it
+    says "on" only when `applyConstraints` took it — an iPhone shows no button rather than one that does nothing.
+  · **Tips are per visit, not stored on the phone** (`scannerTips.ts`): the mock's "Don't show this again" box was
+    dropped, since a driver applies once and a reload costs one tap.
+  · **Not built, on purpose:** "move closer", "too dark", "glare" about the live picture. Each needs a fixed floor,
+    which D-SCAN10 and Q-AW32 hold until recorded samples exist; the tips say it before the camera opens instead.
+  · **Found while building, and fixed in the same change:** the scanner shipped in the morning's change with its
+    close button and both ways out in `ghost`'s grey (#5C5C66 on the scrim, about 2.6:1, under WCAG's 4.5:1), because
+    `class="text-ink-inverse"` lost to the variant's own colour. Measured from the BUILT page's computed style, not
+    read off the source. `AppButton` gains `variant="inverse"` for a control on a dark surface, and a browser spec now
+    measures what was painted. `AppButton` also gains `size="shutter"` (68 px round); both added in the primitive, as
+    `icon`, `row` and `touch` were, rather than as `!important` at the call site.
+  · **Checks:** 11 component tests and 4 new loop tests; the browser suite (20 specs) adds the flashlight both ways,
+    no flashlight on a camera without one, tips once a visit, and the painted-colour check, and the 44 px sweep now
+    measures the tips screen at 390 and 320 px. The sweep no longer waits on an animation that never ends (the
+    sweep line), which would otherwise hang it. Mutation: 8 unit mutants and 3 browser mutants (each rebuilt before
+    it ran) all killed, against a passing control.
+  · **Still owed on real phones (§9), unchanged:** the five checks in the entry above, plus that the flashlight button
+    appears on an Android phone with a light and the buzz is felt.
+- **2026-09-30** — **The medical card and the selfie now use the live scanner, so all four Part 1 photo screens
+  look and behave the same (owner ruling, Q-AW53, against its recommendation (b)).** `LiveLicenceScanner` is now
+  `LiveScanner`, and what differs between the four slots is defined once in `liveFrame.LIVE_SLOTS`: which camera,
+  which outline, and whether frames are read. The hook, the screen, the tips and the crop all read it from there.
+  · **Medical card:** the rear camera, a portrait letter-size page (8.5 × 11) inside the same corner brackets, and
+    the shutter with the CDL front's settle rule. There is no barcode, so it never takes itself. The flashlight is
+    offered where the camera has one. **Nothing finds the page's edges or squares it up**: that is Q-AW53's option
+    (a), a multi-MB OpenCV download, and it was not chosen. The outline is only an aiming guide, and "Use this
+    photo / Retake" is where a crooked page gets caught.
+  · **Selfie:** the front camera (`facingMode: { ideal: "user" }`; the rear request is unchanged), an oval in place
+    of the brackets, the preview mirrored in CSS (`-scale-x-100`, which in Tailwind 4 is the `scale` property, not
+    `transform`), and the photograph NOT mirrored, because it is cut from the video's own pixels.
+    `viewRectToVideo` now maps a rectangle under a mirrored view to its reflection. The oval is centred, so today
+    the reflection is the same rectangle. The mapping is pinned for the day the oval moves off centre. There is no
+    flashlight, even where a camera reports one. "I can't take one" and the privacy note stay on the page,
+    unchanged. The camera app inside the scanner opens the front camera too.
+  · **Tips are per kind, once a visit each** (`scannerTips.ts`): a document's three (the medical card shares the
+    CDL's, under its own heading) and a face's three (arm's length, sunglasses and hat off, face the light). A driver
+    who pressed past the licence's tips still sees the selfie's.
+  · **The outline fits short phones:** the page and the oval are sized against the view's height as well as its
+    width (container units). Measured in the built app: a 375 × 667 phone leaves a view only 391 px tall, so the
+    page is 242 × 313 there, where 88% of the width would have made it 330 × 427 and run it off the bottom.
+  · **The resolution floor, measured with a portrait 2160 × 3840 camera:** in Chromium, at 390 × 844, 320 × 844
+    and 375 × 667, both the page and the face clear 1200 px. At 1080p the page and the face clear it on a tall phone
+    but the page is refused on a 375 × 667 one, where its height binds. That phone goes to its camera app before the
+    driver aims, which is the refusal doing its job. (For comparison, the CDL's card at 1080p on a 390 px phone is
+    ~1,064 px and is refused there too.) These numbers are pinned in `liveFrame.test.ts`.
+  · **Checks:** the browser suite gains `liveSlots.spec.ts`: the medical card by its shutter, with the
+    rear camera asked for and a page-shaped outline; the selfie with the front camera asked for, the preview
+    painted mirrored, no flashlight, and the uploaded photo read for which side the card's writing is on (it is on
+    the left, so the photo was saved unmirrored); the tips once a visit for each kind; and the painted-colour check
+    for both new scanners. The 44 px walk now photographs the medical card and the selfie through the scanner and
+    measures each one open, plus the selfie's tips, at 390 and 320 px. (`offline.spec.ts` photographs only the CDL
+    front, so it needed no change.) Mutation: 13 mutants, including front camera not requested, preview not
+    mirrored, photo mirrored, crop ignoring the mirror, wrong outline shape and one tips flag for both kinds. All
+    were killed, with `dist` rebuilt before every browser mutant and two mutants that failed to compile rewritten
+    so that they did compile.
+  · **Still owed on real phones (§9), now for all four:** on an iPhone (Safari) and an Android (Chrome), check that
+    the camera opens inline, the picture clears 1200 px, the CDL back takes itself, the CDL front and the medical
+    card give legible photos, the selfie preview is mirrored and the saved photo is not, lock and unlock resumes
+    the camera, and the flashlight and buzz work on Android. Then `select count(*) from application_captures`
+    (0 on 2026-09-30), which also proves the upload fix.
+
+- **2026-10-07 — taking a photo and uploading one, made the same (owner: "uploading image and taking picture
+  has no difference in flow and final result"; "medical card upload in test there was some issue").** No migration.
+  · **What production showed:** `application_captures` held no `medical_card` row, ever. Both test applications
+    (an iPhone's JPEGs on 2026-10-01 03:37 UTC, an Android's WebPs at 20:27 UTC) stored the CDL's two sides and then
+    ended on "I don't have one yet" (`medical_card_pending = true`) — the Android one after 4½ minutes on the
+    screen, with a reload in the middle (`application_screen_events`: left 20:32:09, back 20:33:07). The cause on
+    that phone cannot be read from the server; what the browser does with each source can, and was measured.
+  · **Measured, in Chromium under production's CSP, on the medical card screen:** the scanner, the camera app and an
+    upload all reach the office as WebP at a 1568 px long edge through the same three calls. What differed:
+    "Upload a photo instead" offered images only, so a certificate the clinic emailed as a PDF could not be chosen;
+    a PDF or an iPhone HEIC forced past the picker said "Something went wrong with the camera"; a small upload was
+    told to "Move closer".
+  · **Changed:** a document's upload (CDL sides, medical card — on the screen and inside the scanner) now accepts a
+    PDF (`uploadAccept`), and its first page is drawn by the link's own pdfjs at 2200 px and enters the same pipeline
+    as a photo, so the office receives a picture either way. The selfie stays images only. The medical card's hint
+    says a PDF works. `PROVIDER_ERROR` and `RESOLUTION_TOO_LOW` are worded true for every source.
+  · **Still different, on purpose:** the scanner cuts its photo to the outline and a camera-app or uploaded file is
+    sent whole — finding a page's edges in a picture the scanner did not frame is Q-AW53 (a), still not built. An
+    Android tab discarded while the camera app is open loses that photo (it is kept on the phone only from "Use this
+    photo", C3d2); the scanner keeps the driver in the page and avoids it, which is the case for it.
+  · **Checks:** `uploadParity.spec.ts` (a PDF is sent as its letter-shaped first page; the three sources send the same
+    type at the same long edge; an unreadable file is not blamed on the camera) and two unit tests for the accept
+    list. Mutation: no PDF decode, image-only accept and the old copy each fail one spec; all killed, `dist` rebuilt
+    before each.

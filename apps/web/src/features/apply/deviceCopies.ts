@@ -1,4 +1,4 @@
-import { computed, getCurrentInstance, inject, provide, type InjectionKey, type Ref } from "vue";
+import { computed, getCurrentInstance, inject, onScopeDispose, provide, type InjectionKey, type Ref } from "vue";
 
 /**
  * The apply link's copies on the device (AW10): Part 1's held screens (`partOne/partOneLocal.ts`, C3d1a),
@@ -115,6 +115,63 @@ export function copyExpiry(now: Date, ttlMs: number, linkExpiresAt: string): str
 /** A copy of this shape, not yet expired. */
 export const isLive = (row: CopyRow, version: number, now: Date): boolean =>
   row.version === version && Date.parse(row.expiresAt) > now.getTime();
+
+/**
+ * A copy written a moment after the last change — and at once when a screen is passed (`now`) or the page
+ * is put away (C3d3b1).
+ *
+ * ⚠ **Found by the first browser test, not by a unit test.** Both copies of typed answers (`partOneLocal`,
+ * `draftLocal`) were a plain 300 ms trailing debounce, which a stream of changes each sooner than 300 ms
+ * apart never lets fire: Playwright walked Part 1's screens 3–6 that fast, reloaded at screen 7, and Part 1
+ * reopened on its first screen, empty. A driver's autofill does the same to one screen. §6.8's bar is zero
+ * lost answers, so:
+ *
+ * - **`now`** writes at once, and the callers use it at the moments that matter — a screen passed (Part 1),
+ *   a section changed (Part 2). Typing within a screen stays debounced.
+ * - **`visibilitychange` → hidden** runs a pending write: on a phone it is the one event reliably sent
+ *   while the tab is still alive, before the OS may drop it in the background.
+ * - **`pagehide`** runs it too, best effort only. Measured: a write started as the page RELOADS did not
+ *   survive — the document is gone before IndexedDB commits — which is why `now` exists at all.
+ *
+ * Call in a setup or an effect scope: the two listeners are removed with it, and the pending write is
+ * dropped, never run, when the scope ends — a screen that is gone has nothing left to keep.
+ */
+export function debouncedCopy(write: () => void, ms: number): { schedule(): void; now(): void; cancel(): void } {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const cancel = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const flush = (): void => {
+    if (timer === null) return;
+    cancel();
+    write();
+  };
+  const onVisibility = (): void => {
+    if (document.visibilityState === "hidden") flush();
+  };
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+  if (typeof window !== "undefined") window.addEventListener("pagehide", flush);
+  onScopeDispose(() => {
+    cancel();
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+    if (typeof window !== "undefined") window.removeEventListener("pagehide", flush);
+  });
+  return {
+    schedule() {
+      cancel();
+      timer = setTimeout(() => {
+        timer = null;
+        write();
+      }, ms);
+    },
+    now() {
+      cancel();
+      write();
+    },
+    cancel,
+  };
+}
 
 /** What the bundle says about the link, for a copy's key and its lifetime. */
 export interface LocalCopySpec {

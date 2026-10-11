@@ -37,6 +37,8 @@ const at = (lat: number, lng: number, heading: number | null = 0): LiveMapVehicl
   },
   state: "moving",
   ageSeconds: 2,
+  engineState: null,
+  inShop: false,
   load: null,
 });
 

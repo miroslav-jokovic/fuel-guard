@@ -18,7 +18,7 @@ vi.mock("./useApplication", () => ({ saveApplicationDraft: saved.fn }));
 
 const run = (draft: ApplicationDraft, enabled = ref(true)) => {
   const scope = effectScope();
-  const api = scope.run(() => useApplicationDraft(ref("t".repeat(43)), draft, { enabled }))!;
+  const api = scope.run(() => useApplicationDraft(ref("t".repeat(43)), draft, { enabled, revision: ref(0) }))!;
   return { ...api, stop: () => scope.stop() };
 };
 

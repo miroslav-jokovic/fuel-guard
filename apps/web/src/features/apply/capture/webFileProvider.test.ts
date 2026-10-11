@@ -64,7 +64,7 @@ describe("what the gate can see", () => {
     // 2400px original, downscaled to the config's 1568px model-facing profile. Gating the copy would
     // be circular — everything is resized to the same long edge, so everything would pass.
     const io = fakeIo({ width: 2400, height: 1600 });
-    const page = await processPhoto(photo(), CONFIG, io);
+    const { page } = await processPhoto(photo(), CONFIG, io);
 
     const resolution = page.quality.checks.find((c) => c.name === "resolution");
     expect(resolution?.status).toBe("pass");
@@ -74,7 +74,7 @@ describe("what the gate can see", () => {
 
   /** §5's rule: an unmeasured check is `na`, never a silent pass. The server gate is the backstop. */
   it("reports everything it cannot measure as na rather than as passing", async () => {
-    const page = await processPhoto(photo(), CONFIG, fakeIo());
+    const { page } = await processPhoto(photo(), CONFIG, fakeIo());
     const byName = Object.fromEntries(page.quality.checks.map((c) => [c.name, c.status]));
     expect(byName.resolution).toBe("pass");
     for (const unmeasurable of ["blur", "glare", "coverage", "contrast", "brightness", "shadow"]) {
@@ -85,14 +85,14 @@ describe("what the gate can see", () => {
   });
 
   it("stamps the config version and the platform on the capture", async () => {
-    const page = await processPhoto(photo(), CONFIG, fakeIo());
+    const { page } = await processPhoto(photo(), CONFIG, fakeIo());
     expect(page.metadata.configVersion).toBe(CONFIG.configVersion);
     expect(page.metadata.device).toBe("web");
     expect(page.integrityHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("says the photo came through a file input — not Expo, which the applicant never had (§6.6.7)", async () => {
-    const page = await processPhoto(photo(), CONFIG, fakeIo());
+    const { page } = await processPhoto(photo(), CONFIG, fakeIo());
     expect(page.provenance).toEqual({ captureMode: "web_file_input", osEnhanced: false });
   });
 });
@@ -168,9 +168,45 @@ describe("the encoded image", () => {
    */
   it("publishes the re-encoded blob and never the original file", async () => {
     const original = photo();
-    const page = await processPhoto(original, CONFIG, fakeIo());
+    const { page } = await processPhoto(original, CONFIG, fakeIo());
     expect(page.originalOfRecord.uri).toBe("blob:capture");
     expect(page.originalOfRecord.mediaType).toBe("image/webp");
     expect(page.originalOfRecord.bytes).toBe(64);
+  });
+});
+
+/**
+ * The bytes leave the provider AS BYTES (2026-09-30). The capture screen used to `fetch()` a page's object
+ * URL to get them back, and production's CSP has no `blob:` in `connect-src`, so every applicant photograph
+ * failed as a "lost signal" — see the header of `webFileProvider.ts`. `takeBytes` is the replacement.
+ */
+describe("handing over the bytes of an accepted page", () => {
+  const accepted = () => createWebFileProvider(CONFIG, { io: fakeIo(), pick: async () => photo() });
+
+  it("hands over the re-encoded bytes the page describes, never the original file", async () => {
+    const provider = accepted();
+    const result = await provider.scan();
+    const page = result.ok ? result.pages[0]! : null;
+    const bytes = provider.takeBytes(page!.originalOfRecord.uri);
+    expect(bytes).not.toBeNull();
+    // The encoder's output (64 bytes of WebP), not the 3-byte JPEG the picker returned: the original's
+    // EXIF — GPS included — must not travel by this route either.
+    expect(bytes!.type).toBe("image/webp");
+    expect(bytes!.size).toBe(page!.originalOfRecord.bytes);
+  });
+
+  it("hands them over once, so a phone does not hold a second copy of every photograph", async () => {
+    const provider = accepted();
+    const result = await provider.scan();
+    const uri = result.ok ? result.pages[0]!.originalOfRecord.uri : "";
+    expect(provider.takeBytes(uri)).not.toBeNull();
+    expect(provider.takeBytes(uri)).toBeNull();
+  });
+
+  it("has nothing for a page the gate refused, or a handle it never issued", async () => {
+    const provider = createWebFileProvider(CONFIG, { io: fakeIo({ width: 900, height: 600 }), pick: async () => photo() });
+    await provider.scan();
+    expect(provider.takeBytes("blob:capture")).toBeNull();
+    expect(accepted().takeBytes("blob:somebody-else")).toBeNull();
   });
 });

@@ -47,7 +47,12 @@ vi.mock("@/composables/useVehicles", () => ({
 }));
 vi.mock("@/composables/useTrailers", () => ({ useTrailersQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, admin: true }) }));
+// The real shape (SP5): the Rebuild / Re-sync button asks whether Data & sync opens (`useOpens`).
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 // See the other C3 suites: without the desktop breakpoint `DataTable` renders as cards and there is
 // no `<th>` at all, so a header-click assertion would pass by finding nothing to click.
 vi.mock("@vueuse/core", async (orig) => {
@@ -62,7 +67,11 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 async function mountAt(url: string) {
   const router: Router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/anomalies", component: { template: "<div/>" }, meta: { title: "Alerts" } }],
+    routes: [
+      { path: "/anomalies", component: { template: "<div/>" }, meta: { title: "Alerts" } },
+      // The page's one outbound door, declared so the router can say whether it opens (SP5).
+      { path: "/settings/data", component: { template: "<div/>" } },
+    ],
   });
   await router.push(url);
   await router.isReady();
@@ -208,5 +217,50 @@ describe("Alerts keeps the deep link's meaning while making the status filter li
 
     expect(seen.filters?.value.status).toBe("open");
     for (const key of ["vehicle", "severity", "from", "status"]) expect(query()[key], key).toBeUndefined();
+  });
+});
+
+/**
+ * SP5 (plan §4b): "Rebuild / Re-sync →" goes to Data & sync, a Settings screen that starts off for
+ * everyone but the admin (Q-SET2). It asked `can("safety")`, which a safety manager holds and the
+ * page it points at never asked.
+ */
+// Labelled "Rebuild / Re-sync →" until chunk 14c (W4), which names the screen it opens instead.
+describe("the Data & sync button (SP5)", () => {
+  const offered = (w: Mounted) => w.findAll("a, button").some((b) => b.text().includes("Data & sync"));
+
+  it("is offered where Data & sync opens and not to a safety manager without that screen", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    expect(offered((await mountAt("/anomalies")).w)).toBe(true);
+    session.role = "safety_manager";
+    try {
+      expect(offered((await mountAt("/anomalies")).w)).toBe(false);
+    } finally {
+      session.role = "admin";
+    }
+  });
+});
+
+/**
+ * F02-F04 chunk 14c (AUDIT.md W4). The header says what the page holds without "anomaly detection",
+ * and the two views are the shared tab strip — a tablist a keyboard and a screen reader can use —
+ * rather than two styled buttons that were neither.
+ */
+describe("the Alerts page's words and tabs (W4)", () => {
+  it("names what the page holds, without the detector's jargon", async () => {
+    const { w } = await mountAt("/anomalies");
+    expect(w.text()).toContain("Fuel-card fills that look wrong");
+    expect(w.text()).not.toMatch(/anomal|Rebuild|Re-sync|ULSD|ULSR/i);
+  });
+
+  it("offers the two views as tabs, with the current one selected", async () => {
+    const { w } = await mountAt("/anomalies?reefer=1");
+    expect(w.find("[role=tablist]").exists()).toBe(true);
+    const tabs = w.findAll("[role=tab]");
+    expect(tabs.map((t) => t.text().trim())).toEqual(["All alerts", "Reefer fueling"]);
+    expect(tabs.map((t) => t.attributes("aria-selected"))).toEqual(["false", "true"]);
+    expect(w.text()).not.toMatch(/ULSD|ULSR/);
   });
 });

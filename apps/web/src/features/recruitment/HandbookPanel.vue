@@ -1,36 +1,36 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
-import { HANDBOOK_PLACEMENTS, INVITE_TTL_DAYS_DEFAULT, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
-import {
-  AppButton as BaseButton,
-  AppCombobox as ComboSelect,
-  AppFormField as FormField,
-  AppInput as BaseInput,
-} from "@silvicom/ui";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
+import { computed, ref } from "vue";
+import { HANDBOOK_PLACEMENTS, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCombobox as ComboSelect, AppFormField as FormField } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
-import { pngDataUrl } from "@/features/recruitment/useRoadTest";
+import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import {
-  useAddRepresentative,
   useCountersignHandbook,
-  useDeleteRepresentative,
+  useExtendHandbookLink,
   useHandbookStatus,
-  useOpenHandbook,
   useRepresentatives,
 } from "@/features/recruitment/useHandbook";
 
 /**
  * The driver handbook, worked from the step's drawer (HANDBOOK-SIGNING-PLAN.md HB4; D-HB1..D-HB5).
  *
- * ── THE THREE MOVES, IN THE ORDER THE DATABASE HOLDS ──────────────────────────────────────────
- * After the application is filed, the office OPENS handbook signing with the driver at the desk; the
- * driver signs its five places on their own link, with the signature they adopted for the application;
- * then the office COUNTERSIGNS for the carrier with a Representative, which files the signed handbook.
- * The panel shows the one move that is next, and why the others are not yet.
+ * ── THE MOVES, IN THE ORDER THE DATABASE HOLDS ────────────────────────────────────────────────
+ * The envelope the office sent for signing opens the handbook too (D-AW16, C3s4b): the driver files the
+ * application and goes straight on to the handbook's five places on the same link, with the signature
+ * they adopted for the application; then the office COUNTERSIGNS for the carrier with a Representative,
+ * which files the signed handbook. There is no separate opening press any more — "Open handbook signing"
+ * was retired with C3s4b — so the panel shows where the driver is, keeps their link alive, and offers the
+ * countersignature once they are done.
+ *
+ * ⚠ Q-HB1 (D-HB7): the same press countersigns the APPLICATION's four carrier lines (pages 18, 19 and
+ * 22) with the same Representative, before the handbook is filed. The hint and the toast say so, because
+ * an office that did not know would go looking for a second button that does not exist.
  *
  * ── THE REPRESENTATIVES (D-HB3) ───────────────────────────────────────────────────────────────
  * Added with their signature and removed, as the maintenance inspectors are. One who has countersigned
- * a handbook cannot be removed — the server says so, and that sentence is what the toast shows.
+ * a handbook cannot be removed — the server says so, and that sentence is what the toast shows. The
+ * list and its form are `SignatoryRegister`, the same one Settings → Recruiting shows (Q-AW42), so a
+ * Representative can be added before any driver reaches this step and still be added here.
  */
 const props = defineProps<{ driverId: string; done: boolean }>();
 
@@ -38,9 +38,7 @@ const toast = useToastStore();
 const driverId = computed(() => props.driverId);
 const statusQ = useHandbookStatus(driverId);
 const repsQ = useRepresentatives();
-const addRep = useAddRepresentative();
-const deleteRep = useDeleteRepresentative();
-const open = useOpenHandbook(driverId);
+const extend = useExtendHandbookLink(driverId);
 const countersign = useCountersignHandbook(driverId);
 
 const status = computed(() => statusQ.data.value ?? null);
@@ -51,62 +49,21 @@ const signedCount = computed(() => status.value?.driverSigned.length ?? 0);
 const linkExpired = computed(() => Boolean(status.value && Date.parse(status.value.linkExpiresAt) <= Date.now()));
 
 const representativeId = ref("");
-
-// ── adding a Representative ────────────────────────────────────────────────────────────────────
-const repForm = reactive({ fullName: "", title: "" });
-const signature = ref<File | null>(null);
-const addingRep = ref(false);
-const canAddRep = computed(
-  () => repForm.fullName.trim().length >= 2 && repForm.title.trim().length >= 2 && Boolean(signature.value),
-);
-
-async function saveRep(): Promise<void> {
-  if (!signature.value) return;
-  try {
-    const created = await addRep.mutateAsync({
-      full_name: repForm.fullName.trim(),
-      title: repForm.title.trim(),
-      signature_png: await pngDataUrl(signature.value),
-    });
-    toast.success("Representative added", `${created.full_name} can now sign handbooks for the carrier.`);
-    representativeId.value = created.id;
-    Object.assign(repForm, { fullName: "", title: "" });
-    signature.value = null;
-    addingRep.value = false;
-  } catch (e) {
-    toast.error("Could not add the representative", e instanceof Error ? e.message : undefined);
-  }
-}
-
-async function removeRep(id: string, name: string): Promise<void> {
-  try {
-    await deleteRep.mutateAsync(id);
-    toast.success("Representative removed", `${name} is no longer on the list.`);
-    if (representativeId.value === id) representativeId.value = "";
-  } catch (e) {
-    toast.error("Could not remove the representative", e instanceof Error ? e.message : undefined);
-  }
+function forgetRepresentative(id: string): void {
+  if (representativeId.value === id) representativeId.value = "";
 }
 
 // ── the two acts ───────────────────────────────────────────────────────────────────────────────
-async function openSigning(): Promise<void> {
-  try {
-    await open.mutateAsync(undefined);
-    toast.success("Handbook signing is open", "The driver signs it now, on their own link.");
-  } catch (e) {
-    toast.error("Could not open handbook signing", e instanceof Error ? e.message : undefined);
-  }
-}
-
 /**
- * The same door as Open (APPLICATION-FLOW-V2-PLAN.md A-2): every press keeps the driver's link alive for
- * another `INVITE_TTL_DAYS_DEFAULT` days, and a second press never re-stamps who opened it. Nothing
- * else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed one.
+ * APPLICATION-FLOW-V2-PLAN.md A-2: every press keeps the driver's link alive for another of the
+ * carrier's link lifetimes (Q-AW41) — the toast says the date the server set, never a number restated
+ * here. Nothing else extends a filed invitation's link, and 0374 refuses every handbook mark on a lapsed
+ * one — the countersignature included (`extendHandbookLink` has why it outlived the opening).
  */
 async function extendLink(): Promise<void> {
   try {
-    await open.mutateAsync(undefined);
-    toast.success("Link extended", `The driver's link stays open for another ${INVITE_TTL_DAYS_DEFAULT} days.`);
+    const { expiresAt } = await extend.mutateAsync(undefined);
+    toast.success("Link extended", `The driver's link is open until ${formatDisplayDateTime(expiresAt)}.`);
   } catch (e) {
     toast.error("Could not extend the driver's link", e instanceof Error ? e.message : undefined);
   }
@@ -115,7 +72,7 @@ async function extendLink(): Promise<void> {
 async function countersignAndFile(): Promise<void> {
   try {
     await countersign.mutateAsync({ representative_id: representativeId.value });
-    toast.success("Handbook filed", "The signed handbook is in the driver's file.");
+    toast.success("Handbook filed", "The signed handbook and the countersigned application are in the driver's file.");
   } catch (e) {
     toast.error("Could not file the handbook", e instanceof Error ? e.message : undefined);
   }
@@ -128,22 +85,13 @@ async function countersignAndFile(): Promise<void> {
 
     <template v-else-if="status">
       <p v-if="status.filedAt" class="text-sm text-ink">
-        Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook is in the driver's file.
+        Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook and the countersigned
+        application are in the driver's file.
       </p>
 
       <p v-else-if="!status.canOpen" class="text-sm text-ink-secondary">
         The handbook is signed after the application. It opens here once the application is signed and filed.
       </p>
-
-      <div v-else-if="!status.openedAt" class="space-y-3">
-        <p class="text-sm text-ink-secondary">
-          Open it with the driver at the desk. They sign its five places on the same link they used for the
-          application, with the signature they adopted there.
-        </p>
-        <BaseButton variant="primary" size="sm" :disabled="open.isPending.value" @click="openSigning">
-          {{ open.isPending.value ? "Opening…" : "Open handbook signing" }}
-        </BaseButton>
-      </div>
 
       <div v-else class="space-y-3">
         <p class="text-sm font-medium text-ink">
@@ -163,8 +111,8 @@ async function countersignAndFile(): Promise<void> {
               ? `The driver's link expired on ${formatDisplayDateTime(status.linkExpiresAt)}. Extend it before they sign or you countersign.`
               : `The driver's link is open until ${formatDisplayDateTime(status.linkExpiresAt)}.` }}
           </p>
-          <BaseButton variant="secondary" size="sm" :disabled="open.isPending.value" @click="extendLink">
-            {{ open.isPending.value ? "Extending…" : "Extend the driver's link" }}
+          <BaseButton variant="secondary" size="sm" :disabled="extend.isPending.value" @click="extendLink">
+            {{ extend.isPending.value ? "Extending…" : "Extend the driver's link" }}
           </BaseButton>
         </div>
       </div>
@@ -173,7 +121,7 @@ async function countersignAndFile(): Promise<void> {
     <!-- The countersignature: only once the driver is done, and never after filing. -->
     <div v-if="status?.driverComplete && !status.filedAt" class="space-y-4">
       <p class="text-sm font-medium text-ink">Countersign for the carrier</p>
-      <FormField v-if="reps.length > 0" v-slot="{ id }" label="Representative" hint="Their signature prints on the Agreed line.">
+      <FormField v-if="reps.length > 0" v-slot="{ id }" label="Representative" hint="Their signature prints on the handbook's Agreed line and on the application's four carrier lines (pages 18, 19 and 22).">
         <ComboSelect :id="id" v-model="representativeId" :options="repOptions" />
       </FormField>
       <BaseButton
@@ -190,48 +138,11 @@ async function countersignAndFile(): Promise<void> {
     <!-- The Representatives, managed here like the maintenance inspectors (D-HB3). -->
     <div class="space-y-3">
       <p class="text-sm font-medium text-ink">Representatives</p>
-      <p v-if="reps.length === 0" class="text-xs text-ink-muted">
-        Nobody signs for the carrier yet. Add a representative to countersign handbooks.
-      </p>
-      <ul v-else class="divide-y divide-edge border-y border-edge">
-        <li v-for="rep in reps" :key="rep.id" class="flex items-center justify-between gap-3 py-2 text-xs">
-          <span class="text-ink">{{ rep.full_name }} <span class="text-ink-secondary">· {{ rep.title }}</span></span>
-          <BaseButton variant="ghost" size="sm" :disabled="deleteRep.isPending.value" @click="removeRep(rep.id, rep.full_name)">
-            Remove
-          </BaseButton>
-        </li>
-      </ul>
-
-      <div v-if="reps.length === 0 || addingRep" class="space-y-4 rounded-surface border border-edge p-4">
-        <p class="text-sm font-medium text-ink">Add a representative</p>
-        <p class="text-xs text-ink-secondary">
-          Their signature prints where the carrier agrees. Upload a PNG of it — a scan or a photo of them
-          signing on white paper.
-        </p>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Name">
-            <BaseInput :id="id" v-model="repForm.fullName" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Title" hint="Printed beside their signature.">
-            <BaseInput :id="id" v-model="repForm.title" placeholder="Safety manager" />
-          </FormField>
-        </div>
-        <FileDropzone
-          accept=".png"
-          :busy="addRep.isPending.value"
-          busy-label="Saving…"
-          :label="signature ? signature.name : 'Drag & drop the signature (PNG)'"
-          hint="PNG only. Stored privately with the carrier's files."
-          @files="signature = $event[0] ?? null"
-        />
-        <div class="flex gap-3">
-          <BaseButton variant="primary" size="sm" :disabled="!canAddRep || addRep.isPending.value" @click="saveRep">
-            Add representative
-          </BaseButton>
-          <BaseButton v-if="reps.length > 0" variant="ghost" size="sm" @click="addingRep = false">Cancel</BaseButton>
-        </div>
-      </div>
-      <BaseButton v-else variant="link" size="sm" @click="addingRep = true">Add a representative</BaseButton>
+      <SignatoryRegister
+        kind="representative"
+        @added="representativeId = $event.id"
+        @removed="forgetRepresentative"
+      />
     </div>
   </div>
 </template>

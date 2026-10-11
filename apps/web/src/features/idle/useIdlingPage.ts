@@ -6,10 +6,20 @@ import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useIdleConfidence } from "./useIdleConfidence";
+import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
-import { APU_TYPE_LABELS, formatDisplayDate, formatDisplayDayShort, type ApuType } from "@silvicom/shared";
+import {
+  APU_TYPE_LABELS,
+  BEHAVES_LIKE_LABELS,
+  EQUIPMENT_SOURCE_LABELS,
+  formatDisplayDate,
+  formatDisplayDayShort,
+  IDLE_DEFAULT_WINDOW_DAYS,
+  type ApuType,
+  type BehavesLike,
+} from "@silvicom/shared";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 /** All state + logic for IdlingPage.vue: fleet KPIs, tabs, and the three tab tables. */
@@ -33,7 +43,7 @@ const rangeDays = computed(() => {
     const d = (Date.parse(`${dateTo.value}T23:59:59`) - Date.parse(`${dateFrom.value}T00:00:00`)) / 86_400_000;
     return Math.max(1, Math.round(d));
   }
-  return 30;
+  return IDLE_DEFAULT_WINDOW_DAYS;
 });
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 // Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
@@ -45,30 +55,36 @@ const rangeLabel = computed(() => {
   if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;
   if (f) return `since ${fmtDay(f)}`;
   if (t) return `through ${fmtDay(t)}`;
-  return "last 30 days";
+  return `last ${IDLE_DEFAULT_WINDOW_DAYS} days`;
 });
 
 // Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.
 const costBasis = useIdleCostBasis();
 const priceSource = computed(() => costBasis.value.priceSource);
 const fuelPricePerGal = computed(() => costBasis.value.fuelPricePerGal);
-const priceNote = computed(() => {
-  const p = usd2(costBasis.value.fuelPricePerGal) + "/gal";
-  return costBasis.value.priceSource === "truck_stops"
-    ? `${p} · live truck-stop prices`
-    : costBasis.value.priceSource === "settings"
-      ? `${p} · from idle settings`
-      : `${p} · default estimate`;
-});
 
 // Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
 const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter, costBasis);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
+/** What each total covers, how it was priced, and how far the data reaches — beside it (`idleEstimateLines`). */
+const estimate = computed(() => {
+  const f = fleet.value;
+  if (!f) return null;
+  return {
+    scope: idleScopeLine(f),
+    avoidableCoverage: avoidableCoverageLine(f),
+    avoidablePricing: idlePricingLine(f.avoidablePricing, costBasis.value),
+    reducibleCoverage: reducibleCoverageLine(f),
+    reduciblePricing: idlePricingLine(f.reduciblePricing, costBasis.value),
+  };
+});
 // The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
 // breakdown reads — no separate raw-table scan, no silent-failure path.
-const { data: caps } = useIdleCapabilities();
+// The Truck capability tab's own read: its loading and failure belong to its table, or a pending or failed
+// read says "No trucks match" (design verdict, E8).
+const { data: caps, isLoading: capLoading, isError: capIsError, error: capError, isFetching: capFetching, refetch: capRefetch } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -96,14 +112,28 @@ const CAP: Record<string, { label: string; cls: string }> = {
   unknown: { label: "Unknown", cls: toneClass("neutral") },
 };
 const capBadge = (c: string) => CAP[c] ?? CAP.unknown!;
+// Long-park behaviour (IE1, D-IE7) — evidence, shown beside the declaration and never in its place.
+const BEHAVES_TONE: Record<BehavesLike, string> = {
+  battery_apu: "success",
+  no_apu: "warning",
+  mixed: "neutral",
+  not_enough_parks: "neutral",
+};
+const behavesBadge = (b: BehavesLike) => ({ label: BEHAVES_LIKE_LABELS[b], cls: toneClass(BEHAVES_TONE[b]) });
+const sourceLabel = (s: string | null) =>
+  s ? (EQUIPMENT_SOURCE_LABELS as Record<string, string>)[s] ?? s : "Not entered";
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "trucks" | "drivers" | "capability";
-const activeTab = ref<TabKey>("trucks");
+// In `AppTabs`' shape: it owns the roles, the roving tabindex and the arrow keys the hand-rolled strip never
+// had (design verdict, E8). `AppTabs` emits a plain string, so the key is one. A count shows once its read has
+// answered: a pending or failed read is not zero trucks.
+const activeTab = ref("trucks");
+/** Which reads have answered — the result counts above each table wait on the same thing. */
+const answered = computed(() => ({ trucks: breakdown.value != null, drivers: driverRows.value != null, capability: caps.value != null }));
 const tabs = computed(() => [
-  { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
-  { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
-  { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
+  { value: "trucks", label: "Trucks", badge: breakdown.value?.trucks.length },
+  { value: "drivers", label: "Drivers", badge: driverRows.value?.length },
+  { value: "capability", label: "Truck capability", badge: caps.value?.length },
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
@@ -148,22 +178,41 @@ function clearTrk() {
   trkConfidentOnly.value = false;
 }
 watch(trkFiltered, () => (trkPage.value = 1));
+/**
+ * The Trucks table leads with money: truck, the two costs and their hours, how much of the running was idle,
+ * and whether the data can be trusted — seven columns, so the costs are on screen at a desktop width
+ * (design verdict 2026-10-03, E3: thirteen columns put them ninth and eleventh, off the right edge). The time
+ * split behind them (engine, driving, idle, off-duty and on-duty idle) and the learned capability open under
+ * each truck (`trkExpanded`), where the reader asking "why this figure" goes, instead of competing with it.
+ * Rows arrive largest avoidable cost first (`computeIdleBreakdown`), which is the ranking this order serves.
+ */
 const trkColumns: DataTableColumn[] = [
   { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true },
-  { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "restIdleH", label: "Rest idle (SB/OFF)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   // Reported for EVERY truck, including the ones with no equipment (where avoidable is a correct zero).
-  // This is the column that stops the page reading as empty for most of the fleet.
-  { key: "reducibleH", label: "Reducible with equipment (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "reducibleUsd", label: "Reducible cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "capability", label: "Idle capability" },
-  { key: "coveragePct", label: "Data confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  // This is the pair that stops the page reading as empty for most of the fleet. Worded as the card above
+  // names it: "Reducible cost" said the same thing in a second word.
+  { key: "reducibleUsd", label: "Needs an APU, cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reducibleH", label: "Needs an APU, hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "coveragePct", label: "Data completeness", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+];
+const trkExpanded = ref(new Set<string>());
+function toggleTrk(row: TruckBreakdown) {
+  const next = new Set(trkExpanded.value);
+  if (next.has(row.vehicleId)) next.delete(row.vehicleId);
+  else next.add(row.vehicleId);
+  trkExpanded.value = next;
+}
+/** What opens under a truck: where its running time went. `null` (no duty split) prints as a dash. */
+const hours = (h: number | null) => (h == null ? "—" : `${h.toLocaleString()} h`);
+const trkDetail = (t: TruckBreakdown) => [
+  { label: "Engine hours", value: hours(t.engineOnH) },
+  { label: "Driving", value: hours(t.driveH) },
+  { label: "Idling", value: hours(t.idleH) },
+  { label: "Idling while off duty or sleeping", value: hours(t.restIdleH) },
+  { label: "Idling on duty", value: hours(t.workIdleH) },
 ];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
@@ -189,9 +238,9 @@ const recordedLabel = (t: { has_apu: boolean | null; apu_type: string | null }) 
 const recordedCls = (t: { has_apu: boolean | null }) =>
   t.has_apu === true ? toneClass("success") : t.has_apu === false ? toneClass("neutral") : toneClass("warning");
 const XCHECK: Record<string, { label: string; cls: string; title: string }> = {
-  agree: { label: "Matches", cls: "text-success-600", title: "The data matches the recorded equipment" },
-  disagree: { label: "Doesn't match", cls: "text-danger-600", title: "The data disagrees with the recorded equipment — worth a look" },
-  na: { label: "–", cls: "text-ink-tertiary", title: "Not enough data to compare" },
+  agree: { label: "Matches", cls: "text-success-600", title: "The long parks match the recorded equipment" },
+  disagree: { label: "Check this truck", cls: "text-danger-600", title: "The long parks say the opposite of the recorded equipment, or the truck has none recorded — check it and correct the Vehicles page if needed" },
+  na: { label: "–", cls: "text-ink-tertiary", title: "Mixed or too few long parks to compare" },
 };
 const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 
@@ -222,7 +271,7 @@ const drvColumns: DataTableColumn[] = [
   { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableUsd", label: "Estimated avoidable fuel cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
 // ── tab: truck idle capability ───────────────────────────────────────────────
@@ -231,17 +280,17 @@ const capFilter = ref<string>("");
 const capSort = ref<SortState>({ key: null, dir: "asc" });
 const capPage = ref(1);
 const capOptions = [
-  { value: "", label: "All capabilities" },
-  { value: "apu", label: "Engine-off rest" },
-  { value: "ecu_optimized", label: "Optimized idle" },
-  { value: "continuous_only", label: "Continuous idle only" },
-  { value: "unknown", label: "Unknown" },
+  { value: "", label: "All trucks" },
+  { value: "review", label: "Check this truck" },
+  ...(Object.keys(BEHAVES_LIKE_LABELS) as BehavesLike[]).map((b) => ({ value: b, label: BEHAVES_LIKE_LABELS[b] })),
 ];
 const capFilterCount = computed(() => (capSearch.value.trim() ? 1 : 0) + (capFilter.value ? 1 : 0));
 const capFiltered = computed(() => {
   const q = capSearch.value.trim().toLowerCase();
   return (caps.value ?? []).filter(
-    (t) => (!capFilter.value || t.idle_capability === capFilter.value) && (!q || t.unit_number.toLowerCase().includes(q)),
+    (t) =>
+      (!capFilter.value || (capFilter.value === "review" ? t.cross_check === "disagree" : t.behaves_like === capFilter.value)) &&
+      (!q || t.unit_number.toLowerCase().includes(q) || (t.batch ?? "").toLowerCase().includes(q)),
   );
 });
 const capSorted = computed(() => (capSort.value.key ? sortRows(capFiltered.value, capSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : capFiltered.value));
@@ -251,24 +300,27 @@ watch(capFiltered, () => (capPage.value = 1));
 
 const capColumns: DataTableColumn[] = [
   { key: "unit_number", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "batch", label: "Bought as", sortable: true, cellClass: "text-ink-secondary" },
   { key: "recorded", label: "Recorded equipment" },
-  { key: "idle_capability", label: "What the data shows" },
-  { key: "idle_optimized_pct", label: "Engine off / optimized %", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "behaves_like", label: "Long parks, last 45 days" },
+  { key: "idling_pct", label: "Parks mostly running", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "off_pct", label: "Parks mostly off", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "cross_check", label: "Cross-check" },
 ];
   return {
     isLoading, isError, error, isFetching, refetch,
     breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
     trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
-    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
+    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
-    tabs, activeTab, showInfo, showConfidence,
+    tabs, answered, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-    capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
+    capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
-    priceSource, fuelPricePerGal, priceNote,
+    priceSource, fuelPricePerGal, estimate,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+    capLoading, capIsError, capError, capFetching, capRefetch,
   };
 }

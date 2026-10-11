@@ -7,7 +7,7 @@ import { signatureBoxOnPage, type BoxOnPage } from "@/features/apply/signing/sig
 /**
  * One permission, every page of it, with the signature box marked (AF6, D-AF2).
  *
- * ── WHY A SECOND VIEWER AND NOT `PacketPageView` ──────────────────────────────────────────────
+ * ── WHY A SECOND VIEWER AND NOT `SigningPageView` ──────────────────────────────────────────────
  * The packet ceremony shows ONE page at a time, because the applicant walks twenty places on a
  * thirty-one-page document and the rail carries them between pages. A permission is read whole before
  * it is signed: the PSP form runs to two pages and its signature is at the end of the text, above
@@ -37,7 +37,7 @@ const doc = shallowRef<LoadedPdf["doc"] | null>(null);
 let task: LoadedPdf["task"] | null = null;
 let destroyed = false;
 let drawnWidth = 0;
-/** One render per canvas at a time; a new one cancels the stale one (`PacketPageView`'s reason). */
+/** One render per canvas at a time; a new one cancels the stale one (`SigningPageView`'s reason). */
 const inFlight = new Map<number, { cancel(): void }>();
 
 async function findBox(d: LoadedPdf["doc"]): Promise<{ page: number; at: BoxOnPage } | null> {
@@ -158,10 +158,12 @@ onBeforeUnmount(() => {
         :aria-label="`${label}, page ${n} of ${pageCount}`"
       />
       <!-- Over the box the renderer drew, in percentages of this page, so it stays on the box at
-           every width the page is drawn at. -->
+           every width the page is drawn at. ⚠ Hung from the box's TOP, so a tag taller than the box
+           grows down over the box and its caption, never up: at 320 px the box is 18 px tall and the
+           44 px tag (§6.8, C3d3b2), bottom-aligned, covered the intent sentence the driver signs to. -->
       <div
         v-if="state === 'ready' && box && box.page === n - 1"
-        class="absolute flex items-end"
+        class="absolute flex items-start"
         :style="{
           left: `${box.at.left}%`,
           top: `${box.at.top}%`,

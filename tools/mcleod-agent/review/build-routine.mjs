@@ -45,7 +45,7 @@ const PARTS = [
       "and 335 stops at a time. About 32 ms of CPU for all three.",
     ],
     statements: [
-      ["OPEN LOADS", "Movements with status P or A that have a stop scheduled in the last 30 days.", Q.DISPATCH_LOADS],
+      ["OPEN LOADS", "Movements with status P or A that have a stop scheduled in the last 30 days, with the customer's name (added 2026-09-29).", Q.DISPATCH_LOADS],
       ["THE STOPS OF THOSE LOADS", "LME stores longitudes as positive numbers; the connector flips the sign.", Q.DISPATCH_LOAD_STOPS],
       ["THE DISPATCHERS ON THOSE LOADS", "Only users with an open load right now, not the whole users table.", Q.DISPATCH_DISPATCHERS],
     ],
@@ -101,6 +101,11 @@ const PARTS = [
       ["CHART OF ACCOUNTS", "", Q.GL_ACCOUNTS],
       ["GENERAL LEDGER TOTALS BY DAY AND ACCOUNT", "", Q.GL_CONTROL_TOTALS],
       ["OFFICE PAYROLL LINES", "", Q.OFFICE_SETTLEMENT_LINES],
+      [
+        "FUEL RECEIPTS KEYED BY HAND",
+        "Source F of the fuel-tax history only: cash and own-card receipts. Read over two years each night (about 70 rows a quarter).",
+        Q.FUEL_TAX_RECEIPTS,
+      ],
     ],
   },
   {

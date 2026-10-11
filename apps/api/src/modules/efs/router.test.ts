@@ -16,6 +16,9 @@ import { defineBehaviour } from "./types.js";
 import { mount } from "./registry.js";
 import { fuelCardCapabilityRouter } from "./router.js";
 import { closeTestServer } from "../../testing/httpServer.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseCardDocument, redactCardXml } from "./lib/efsCardXml.js";
 
 /**
  * Step 3.5b: a body-only refusal must not spend a rate-limit slot.
@@ -81,7 +84,22 @@ const gatedBehaviour = defineBehaviour(gatedContract, {
   preflightStepUp: (body) => (body.uses > 3 ? "Confirm your password to do the thing." : null),
 });
 
-function seededClient(): SupabaseRecorder {
+/**
+ * 2026-10-08: a capability whose fresh read is a FIXTURE, so the plan-time version check can refuse
+ * without the vendor being dialled. The stored mirror document is the same card one field earlier.
+ */
+const SINGLE_XML = readFileSync(
+  fileURLToPath(new URL("./lib/__fixtures__/efs/getCardV2.single.xml", import.meta.url)), "utf8",
+);
+const MOVED_XML = SINGLE_XML.replace("<status>Active</status>", "<status>Hold</status>");
+const movedContract = defineContract({ ...gatedContract, key: "test_moved", route: { method: "POST", path: "/:id/unlock" } });
+const movedBehaviour = defineBehaviour(movedContract, {
+  target: { kind: "card" },
+  mutation: { kind: "echo", buildEdits: () => [] },
+  verify: { ...cardEchoVerify(), snapshot: async () => ({ doc: parseCardDocument(MOVED_XML) }) },
+});
+
+function seededClient(opts: { promoted?: boolean } = {}): SupabaseRecorder {
   return createSupabaseRecorder({
     rpc: { bump_card_write_counter: { allowed: true } },
     tables: {
@@ -91,7 +109,7 @@ function seededClient(): SupabaseRecorder {
        * Without it every write below refuses `not_promoted` — which is the gate working, and exactly
        * why the plan insists the backfill ship in the same change as the gate.
        */
-      efs_capability_promotions: promotedCapabilitiesTable("test_gated"),
+      efs_capability_promotions: opts.promoted === false ? [] : promotedCapabilitiesTable("test_gated", "test_moved"),
       efs_card_control_settings: {
         data: {
           org_id: ORG,
@@ -105,14 +123,17 @@ function seededClient(): SupabaseRecorder {
       },
       efs_soap_credentials: [{
         org_id: ORG, environment: "sandbox", endpoint_url: ENDPOINT,
-        soap_username: "user", soap_password: "pass", soap_password_sealed: null, account_id: null,
+        soap_username: "user", soap_password: "", soap_password_sealed: seal(env, "pass", secretAad(ORG, "efs_soap_password.v1")), account_id: null,
         posted_last_cursor: null, rejected_last_cursor: null,
         posted_last_polled_at: null, rejected_last_polled_at: null,
         posted_last_success_at: null, rejected_last_success_at: null,
         posted_last_error: null, rejected_last_error: null,
         enabled: true,
       }],
-      efs_cards: [{ id: CARD_ID, org_id: ORG, card_number_sealed: seal(env, PAN, secretAad(ORG, "efs_card_pan")) }],
+      efs_cards: [{
+        id: CARD_ID, org_id: ORG, card_number_sealed: seal(env, PAN, secretAad(ORG, "efs_card_pan")),
+        card_version: "0123456789abcdef0123456789abcdef", last_response_xml_redacted: redactCardXml(SINGLE_XML),
+      }],
       efs_card_mutations: (query) =>
         query.write?.method === "insert"
           ? { data: { id: "mutation-1" }, error: null }
@@ -144,7 +165,7 @@ beforeAll(async () => {
       return ADMIN;
     },
   });
-  app.use("/api/fuel-cards", fuelCardCapabilityRouter(env, [mount(gatedContract, gatedBehaviour)]));
+  app.use("/api/fuel-cards", fuelCardCapabilityRouter(env, [mount(gatedContract, gatedBehaviour), mount(movedContract, movedBehaviour)]));
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
       baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -163,8 +184,13 @@ afterEach(() => { vi.unstubAllGlobals(); });
 /** Captured before any stub replaces it, so the suite can still talk to its own server. */
 const REAL_FETCH = globalThis.fetch;
 
-const post = (uses: number, version = "0123456789abcdef0123456789abcdef"): Promise<Response> => {
-  recorder = seededClient();
+const post = (
+  uses: number,
+  version = "0123456789abcdef0123456789abcdef",
+  seed: { promoted?: boolean } = {},
+  action = "lock",
+): Promise<Response> => {
+  recorder = seededClient(seed);
   holder.client = recorder.client;
   // Anything reaching EFS is a test failure, not a network call: every case here is refused or
   // stopped before dispatch, and a real fetch would say so by hanging or throwing.
@@ -173,7 +199,7 @@ const post = (uses: number, version = "0123456789abcdef0123456789abcdef"): Promi
     if (url.includes("127.0.0.1")) return REAL_FETCH(input as Parameters<typeof fetch>[0], init);
     throw new Error("the vendor must not be dialled in this suite");
   }) as typeof fetch);
-  return REAL_FETCH(`${baseUrl}/api/fuel-cards/${CARD_ID}/lock`, {
+  return REAL_FETCH(`${baseUrl}/api/fuel-cards/${CARD_ID}/${action}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -230,6 +256,10 @@ describe("a card the mirror has only ever seen in the roster (Step 7.5)", () => 
     const payload = await res.json() as { error: { code: string; message: string } };
     expect(payload.error.code).toBe("card_never_read");
     expect(payload.error.message).toMatch(/not been read from EFS/i);
+    // Recorded since 2026-10-08, like every other 409 that opens no ledger row.
+    expect(recorder.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({ action: "card.action_refused", meta: expect.objectContaining({ code: "card_never_read" }) }),
+    ]);
     // Refused ahead of `prepare()`, like the step-up gate above it: an operator who has to refresh
     // first must not also be billed for the attempt.
     expect(counterBumps(), "a refused request charged the daily counter").toBe(0);
@@ -244,5 +274,59 @@ describe("a card the mirror has only ever seen in the roster (Step 7.5)", () => 
     expect(res.status).toBe(400);
     const payload = await res.json() as { error: { code: string } };
     expect(payload.error.code).toBe("invalid_request");
+  });
+});
+
+/**
+ * EFS audit 2026-09-30: a refused prompts edit left no trace in production — no ledger row, no audit
+ * row, and the deploy's logs gone. A gate refusal now writes `card.action_refused` (refusalAudit.ts),
+ * after the answer and without changing it.
+ */
+describe("a gate refusal leaves an audit row", () => {
+  it("an unpromoted capability answers not_promoted AND records who was refused, on which card, by which gate", async () => {
+    const res = await post(1, undefined, { promoted: false });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("card_control_not_promoted");
+    expect(recorder.writtenRows("audit_logs")).toEqual([
+      expect.objectContaining({
+        org_id: ORG,
+        actor_id: ADMIN.userId,
+        action: "card.action_refused",
+        entity_id: CARD_ID,
+        meta: { capability: "test_gated", scope: "lock", code: "card_control_not_promoted", blockedBy: "not_promoted" },
+      }),
+    ]);
+    // A refusal is not an attempt: no slot charged, no ledger row opened.
+    expect(counterBumps()).toBe(0);
+    expect(recorder.writtenRows("efs_card_mutations")).toHaveLength(0);
+  });
+});
+
+
+/**
+ * 2026-10-08: the plan-time `card_state_changed` refusal opens no ledger row, so it left NOTHING —
+ * the ••••7962 grant that morning was found only in Railway's HTTP log, and the document the stale
+ * version came from had already been overwritten. It now leaves a row naming the paths that moved.
+ */
+describe("a card that moved under the operator leaves an audit row", () => {
+  it("answers card_state_changed AND records which fields moved since the screen was drawn", async () => {
+    const res = await post(1, undefined, {}, "unlock");
+    expect(res.status).toBe(409);
+    const payload = await res.json() as { error: { code: string }; movedFields: string[] };
+    expect(payload.error.code).toBe("card_state_changed");
+    expect(payload.movedFields).toEqual([expect.stringMatching(/\/status$/)]);
+
+    const refused = recorder.writtenRows("audit_logs").filter((r) => r.action === "card.action_refused");
+    expect(refused).toEqual([
+      expect.objectContaining({
+        org_id: ORG,
+        entity_id: CARD_ID,
+        meta: expect.objectContaining({
+          capability: "test_moved", code: "card_state_changed", blockedBy: "card_moved",
+          movedFields: [expect.stringMatching(/\/status$/)], mirrorWasExpected: true,
+        }),
+      }),
+    ]);
+    expect(recorder.writtenRows("efs_card_mutations")).toHaveLength(0);
   });
 });

@@ -237,7 +237,7 @@ describe("signing a permission needs identity first (D-AF1)", () => {
  */
 describe("the draft save keeps identity the server's", () => {
   const save = (payload: Record<string, unknown>) =>
-    pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload, section: "licence" }) });
+    pub(`/${TOKEN}/draft`, { method: "PUT", body: JSON.stringify({ payload, section: "licence", revision: 0 }) });
   const savedPayload = (rec: SupabaseRecorder) =>
     (rec.rpcs().find((r) => r.fn === "save_application_draft")!.args as { p_payload: Record<string, unknown> }).p_payload;
 

@@ -183,8 +183,8 @@ async function fetchReadings(
       .gte("reading_at", fromIso)
       .lte("reading_at", toIso)
       // Unordered `.range()` paging repeats and drops rows across pages — the lesson financialReads
-      // learned the expensive way. Ordered by the identity's leading columns, which the unique index
-      // already covers.
+      // learned the expensive way. Served by 0428's (org_id, vehicle_id, reading_at) index; the
+      // identity index cannot, because `source` and `day` sit between its two sort columns.
       .order("vehicle_id", { ascending: true })
       .order("reading_at", { ascending: true })
       .range(from, from + PAGE - 1);

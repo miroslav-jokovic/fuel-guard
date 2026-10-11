@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import {
   callerCanManage,
   callerCanView,
+  isAdmin,
+  type AdminOnlyCapability,
   type AppSection,
   type SectionAccess,
   type UserRole,
@@ -9,7 +11,12 @@ import {
 import { apiError } from "../lib/http.js";
 import { verifyAccessToken, getProjectJwks, projectTokenAudience } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";
+import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { membershipVerdict } from "./membershipCurrent.js";
 import * as Sentry from "@sentry/node";
+
+/** The token is genuine but names a membership that was removed, re-roled or suspended since (SP7). */
+class AccessChanged extends Error {}
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
@@ -24,10 +31,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   const locals = getAppLocals(req);
+  // A token is signed AND its membership is still the one it names (SP7, Q-SET6 (a) —
+  // membershipCurrent.ts says why and what it costs). A test that injects `verifyToken` replaces the
+  // whole verification, signature and membership alike, exactly as it did before.
   const verify =
     locals.verifyToken ??
-    ((t: string) =>
-      verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env)));
+    (async (t: string) => {
+      const ctx = await verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env));
+      if ((await membershipVerdict(getSupabaseAdmin(locals.env), ctx)) === "stale") throw new AccessChanged();
+      return ctx;
+    });
 
   verify(token)
     .then((ctx) => {
@@ -39,7 +52,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       if (ctx.role) Sentry.setTag("role", ctx.role);
       next();
     })
-    .catch(() => {
+    .catch((err: unknown) => {
+      if (err instanceof AccessChanged) {
+        res.status(401).json(apiError("access_changed", "Your access to this organization has changed. Sign in again."));
+        return;
+      }
       res.status(401).json(apiError("unauthorized", "Invalid or expired token"));
     });
 }
@@ -114,6 +131,30 @@ export function requireAnySection(...specs: Array<[AppSection, SectionAccess?]>)
   return Object.assign(handler, { gateKind: "role" as const, specs });
 }
 
+/**
+ * An act that stays with the admin and is never offered to another role (Q-SET11 (a),
+ * SETTINGS-PERMISSIONS-PLAN.md SP11) — gated by NAME, from `ADMIN_ONLY_CAPABILITIES` in shared.
+ *
+ * Answers exactly what `requireRole("admin")` answered; what it adds is the key. The Permissions page
+ * lists the same keys as "Admin only", and `routeGateLedger.test.ts` fails if a key guards no route
+ * or a route names a key the list does not hold — so the page and the API cannot disagree about what
+ * is the admin's alone. A bare `requireRole("admin")` is still right for Users and Permissions
+ * themselves (`ADMIN_ONLY_SURFACES`); this is for the acts that are not a screen of their own.
+ *
+ * `isAdmin` rather than a section: the `admin` role is not editable (D-PERM7), so an org's overrides
+ * can neither narrow this nor widen it, and the claim is not consulted on purpose.
+ */
+export function requireAdminOnly(capability: AdminOnlyCapability) {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
+    if (!isAdmin(req.auth?.role)) {
+      res.status(403).json(apiError("forbidden", "Insufficient role"));
+      return;
+    }
+    next();
+  };
+  return Object.assign(handler, { gateKind: "role" as const, adminOnly: capability });
+}
+
 /** Require one of the given app roles. */
 export function requireRole(...roles: UserRole[]) {
   const handler = (req: Request, res: Response, next: NextFunction): void => {
@@ -126,5 +167,5 @@ export function requireRole(...roles: UserRole[]) {
   };
   // Runtime marker for routeGates.test.ts (P4.2, D-SEP10): the role-coverage fitness function
   // walks the mounted middleware stacks and can only see a gate that declares itself.
-  return Object.assign(handler, { gateKind: "role" as const });
+  return Object.assign(handler, { gateKind: "role" as const, roles });
 }

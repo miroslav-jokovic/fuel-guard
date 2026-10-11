@@ -59,6 +59,9 @@ export const AUTH_ONLY_MOUNTS = new Map<string, string>([
   // is nobody else's business. A section gate here would invent a capability nobody needs: whichever
   // widgets a caller may see, they may certainly decide which of them to look at.
   ["/api/dashboard-layout", "the caller's own Dashboard arrangement — a list of widget keys that grants nothing (the resolver never sees the catalogue) and reveals nothing; isolated by org_id + user_id on every query and by 0343's own-row RLS"],
+  // X1 (Q-PR4, 0435). Write-only and answers nothing but a status: a member reports which catalogue
+  // screens they opened, and that is all any member may do here.
+  ["/api/page-views", "the page-view count (X1): a signed-in member reports catalogue keys of screens they opened. Grants nothing and reveals nothing — the route answers 204 with no body. Org and role come from the token, the day from the org's clock; unknown keys are dropped (`acceptedPageViewKeys`). Pinned by \"ignores a role or org in the body — only the token decides them\" in modules/org/routes/pageViews.test.ts"],
 
   // Queue item 5 step 3. The FIGURES, beside the arrangement above, and open for the same reason the
   // findings strip on this page is: the Dashboard is `gate: ALWAYS` in surfaceCatalogue, so every
@@ -171,18 +174,13 @@ export const OPEN_ROUTES = new Map<string, string>([
  * here why it is not a section question at all.
  */
 export const ROLE_LIST_WAIVERS = new Map<string, string>([
-  [
-    "modules/roster/routes/credentials.ts [admin,fleet_manager]",
-    "deliberately narrower than rolesThatManage('roster'), which gained safety_manager in the D-ROS12 split: issuing a driver's app login mints a credential handed to a person once and cannot be un-handed. Granted by NAME, and the router's own header makes the argument at length",
-  ],
-  [
-    "modules/roster/routes/drivers.ts [admin,fleet_manager]",
-    "the same act and the same argument as rosterCredentialsRouter — an invitation is the first half of issuing a credential, and /reconcile and /:id/merge are irreversible identity merges. Each carries the ⚠ comment saying why it is narrower than its section",
-  ],
-  [
-    "modules/insights/routes/ai.ts [admin,auditor,dispatcher,fleet_manager,safety_manager]",
-    "Ask AI is a `staff`-gated SCREEN with no section of its own (Q-SURF3), and this list is not a section's set — it equals hazmat/view by coincidence, which is exactly the trap a set comparison cannot see. What it means is 'the roles whose data the assistant can answer about'; re-pointing it is a product decision, recorded as Q-SURF7",
-  ],
+  // SP11 (Q-SET11): the two roster entries that stood here — credentials.ts and drivers.ts
+  // `[admin,fleet_manager]` — left the ledger because the list is no longer a literal. It is
+  // `DRIVER_IDENTITY_ROLES` in shared, named once beside its reason (a login cannot be un-handed, a
+  // merge cannot be undone) and read by both routers and by the web's buttons.
+  // SP11 (Q-SET14 (b), owner 2026-09-30): the Ask AI entry that stood here left the ledger — the
+  // route reads `requireSection("fuel", "view")` now, the section its answers are made of, so it is no
+  // longer a literal to argue for.
   [
     "modules/driver-app/routes/me.ts [driver]",
     "the driver app's own surface — a role test, not a section question. Every row it returns is scoped to the caller's own driver record",

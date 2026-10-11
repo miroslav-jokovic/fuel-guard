@@ -10,7 +10,9 @@ import {
   APPLICATION_CAPTURE_SLOT_LABELS,
   applicationCaptureConfirmSchema,
   applicationCaptureStartSchema,
+  NEVER_PROMOTED_CAPTURE_SLOTS,
   applicationCaptureStoragePath,
+  isPromotedCaptureSlot,
 } from "./applicationCaptureContract.js";
 import { DOCUMENT_CONTENT_TYPES, DOCUMENT_KINDS } from "./complianceContract.js";
 import { PACKET_MARK_KINDS } from "./packetPlacements.js";
@@ -24,19 +26,28 @@ import { PACKET_MARK_KINDS } from "./packetPlacements.js";
  */
 
 describe("the capture slot vocabulary", () => {
-  it("maps every slot to a kind `documents` will actually accept", () => {
-    for (const slot of APPLICATION_CAPTURE_SLOTS) {
+  it("maps every promoted slot to a kind `documents` will actually accept", () => {
+    for (const slot of APPLICATION_CAPTURE_SLOTS.filter(isPromotedCaptureSlot)) {
       const kind = APPLICATION_CAPTURE_DOCUMENT_KIND[slot];
       expect(kind, slot).toBeTruthy();
       expect(DOCUMENT_KINDS as readonly string[]).toContain(kind);
     }
   });
 
-  it("ships a label and a page for every slot", () => {
+  it("ships a label for every slot, and a page for every promoted one", () => {
     for (const slot of APPLICATION_CAPTURE_SLOTS) {
       expect(APPLICATION_CAPTURE_SLOT_LABELS[slot], slot).toBeTruthy();
-      expect(APPLICATION_CAPTURE_PAGE[slot], slot).toBeGreaterThanOrEqual(1);
+      if (isPromotedCaptureSlot(slot)) expect(APPLICATION_CAPTURE_PAGE[slot], slot).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  /** AW6: a selfie is never evidence — `documents` would keep it forever (see the slot's note). */
+  it("never promotes the selfie, and has no kind or page to file it under", () => {
+    expect(NEVER_PROMOTED_CAPTURE_SLOTS).toEqual(["selfie"]);
+    expect(isPromotedCaptureSlot("selfie")).toBe(false);
+    expect(isPromotedCaptureSlot("cdl_front")).toBe(true);
+    expect(Object.keys(APPLICATION_CAPTURE_DOCUMENT_KIND)).not.toContain("selfie");
+    expect(Object.keys(APPLICATION_CAPTURE_PAGE)).not.toContain("selfie");
   });
 
   /** Two sides of one licence: one kind, two pages, so the pair stays ordered wherever it is listed. */

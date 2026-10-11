@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { APPLICATION_CAPTURE_KEEP_DAYS } from "@silvicom/shared";
 import {
   runDataRetention,
   RETENTION_RULES,
@@ -58,6 +59,16 @@ describe("retention policy (the config itself)", () => {
   });
 
   /**
+   * AW6: Part 1's selfie screen tells the driver the photo is deleted `APPLICATION_CAPTURE_KEEP_DAYS`
+   * after it is taken. `check-table-lifecycle.mjs` reads `keepDays` as a literal, so the rule cannot
+   * import the constant; this is what keeps the sentence a driver reads equal to what the pruner does.
+   */
+  it("keeps staged captures for as long as the applicant is told", () => {
+    const rule = RETENTION_RULES.find((r) => r.table === "application_captures");
+    expect(rule?.keepDays).toBe(APPLICATION_CAPTURE_KEEP_DAYS);
+  });
+
+  /**
    * The hazmat evidence table, pinned 2026-09-07 (SCANNER-UPGRADE-PLAN.md §6 Q1, owner ruling).
    *
    * Asserted on its own rather than folded into the list above, because what makes it worth a test
@@ -75,6 +86,18 @@ describe("retention policy (the config itself)", () => {
     const listed = new Set(RETENTION_RULES.map((r) => r.table));
     expect(RETENTION_FORBIDDEN).toContain("hazmat_documents");
     expect(listed.has("hazmat_documents")).toBe(false);
+  });
+
+  /**
+   * Q11 (DATA-LIFECYCLE-PLAN, 0432): the inbox is pruned, the dedupe ledger never is. Asserted as a
+   * pair because each half is only safe given the other.
+   */
+  it("prunes the notification inbox and cannot reach the dedupe ledger that makes that safe", () => {
+    const inbox = RETENTION_RULES.find((r) => r.table === "notification_events");
+    expect(inbox?.keepDays).toBe(90);
+    expect(inbox?.orgScoped).toBe(true);
+    expect(RETENTION_FORBIDDEN).toContain("notification_dedupe_keys");
+    expect(RETENTION_RULES.some((r) => r.table === "notification_dedupe_keys")).toBe(false);
   });
 
   it("keeps raw telematics at least 13 months and only prunes finished jobs", () => {
@@ -140,6 +163,29 @@ describe("runDataRetention", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  /**
+   * A delete by id names its ids in the URL (`id=in.(…)`), and Supabase answers a long one with a bare
+   * `400 Bad Request` before PostgREST sees it. Measured 2026-10-05 against production: 500 uuids
+   * (18,583-byte URL) answered, 700 (25,983) did not. A full 1,000-id batch is ~37 KB, which is why
+   * the real fleet's run failed on `scoring_attempts` every day from 2026-09-23, the first day it had
+   * rows past 45 days. 8 KB keeps half the measured headroom; the test org never had a full batch, so
+   * only a production-sized page reproduces it.
+   */
+  it("id strategy: a full batch is deleted in requests whose id list fits a URL", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    }));
+    const rec = createSupabaseRecorder({ tables: { idle_events: { pages: [full, []] } } });
+    const res = await runDataRetention(rec.client, ORG, [idRule]);
+    expect(res.totalDeleted).toBe(1000);
+    expect(deletedIds(rec, "idle_events")).toEqual(full.map((r) => r.id));
+    for (const q of deleteStatements(rec, "idle_events")) {
+      const ids = q.filters().find((f) => f.col === "id")?.val as string[];
+      expect(`id=in.(${ids.join(",")})`.length).toBeLessThan(8_000);
+    }
+    expectOrgScoped(rec, ORG);
+  });
+
   it("id strategy: nothing past the cutoff → zero deletes issued", async () => {
     const rec = createSupabaseRecorder({ tables: { idle_events: { pages: [[]] } } });
     const res = await runDataRetention(rec.client, ORG, [idRule]);
@@ -178,5 +224,38 @@ describe("runDataRetention", () => {
     await expect(runDataRetention(rec.client, ORG, [failing, idRule])).rejects.toThrow("nope");
     expect(deletedIds(rec, "idle_events")).toEqual(["x"]); // the healthy table was still pruned
     expectOrgScoped(rec, ORG);
+  });
+
+  /**
+   * A failed run goes through `fail_job`, which stores the error and no stats — so before this, the
+   * Data & Sync page showed a bare "nope" and nothing of what the run DID delete. On 2026-10-05 the
+   * real fleet's run had failed daily since 09-23 and nobody could tell which tables still pruned.
+   * The error itself now carries the per-table summary.
+   */
+  it("a failed run's error says what every table deleted before it failed", async () => {
+    const failing: RetentionRule = { ...idRule, table: "boom" };
+    const rec = createSupabaseRecorder({
+      tables: {
+        boom: { error: { message: "nope" } },
+        idle_events: { pages: [[{ id: "x" }], []] },
+      },
+    });
+    await expect(runDataRetention(rec.client, ORG, [failing, idRule])).rejects.toThrow(
+      "boom select: nope — deleted this run: boom 0 (failed), idle_events 1",
+    );
+  });
+
+  it("rows a table deleted before its later batch failed are counted, not reported as 0", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({ id: `id-${i}` }));
+    let deletes = 0;
+    const rec = createSupabaseRecorder({
+      tables: {
+        // 200-id delete chunks: the first two land, the third is rejected.
+        idle_events: (q) => (q.write ? (++deletes > 2 ? { writeError: { message: "timeout" } } : {}) : { data: full }),
+      },
+    });
+    await expect(runDataRetention(rec.client, ORG, [idRule])).rejects.toThrow(
+      "idle_events delete: timeout — deleted this run: idle_events 400 (failed)",
+    );
   });
 });

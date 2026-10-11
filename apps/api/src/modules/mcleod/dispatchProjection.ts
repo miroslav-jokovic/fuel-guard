@@ -16,7 +16,7 @@ import { loadEntityResolvers } from "./tmsLoadIngest.js";
 
 const MOVEMENT_COLUMNS =
   "company_id, movement_id, order_id, movement_status, loaded, dispatcher_user_id, driver_codes, tractor_id, trailer_id, " +
-  "trailer_type, commodity, customer_id, weight, weight_um, pieces, consignee_refno, move_distance, closed_at";
+  "trailer_type, commodity, customer_id, customer_name, weight, weight_um, pieces, consignee_refno, move_distance, closed_at";
 const STOP_COLUMNS =
   "movement_id, stop_id, movement_sequence, stop_type, status, location_id, location_name, address, city_name, state, " +
   "zip_code, latitude, longitude, sched_arrive_early, sched_arrive_late, actual_arrival, actual_departure, eta, " +
@@ -26,7 +26,10 @@ const CHUNK = 50;
 
 export interface DispatchProjectionResult extends MirrorWriteResult {
   projected: number;
-  /** Movements with no core load — no order, or a McLeod status nobody has ruled on. Said, never dropped. */
+  /**
+   * Movements with no core load — no order, a McLeod status nobody has ruled on, or stops without a usable
+   * sequence. Kept in raw and returned here; the connector logs each one by id (since 2026-09-28).
+   */
   refused: { movement_id: string; reason: string }[];
   /** McLeod codes with no Silvicom match — the load is kept, the field left empty, the code reported. */
   unmatched: string[];

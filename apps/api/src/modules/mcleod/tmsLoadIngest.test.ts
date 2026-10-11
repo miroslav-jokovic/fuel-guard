@@ -41,6 +41,11 @@ function stub(opts: {
   const builder = (table: string): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
     for (const m of ["select", "eq", "in", "is", "not", "order"]) self[m] = () => self;
+    // The roster lookups page past PostgREST's 1,000-row cap (`fetchAllPaged`, 2026-09-28): serve the
+    // requested slice, so a short page ends the loop exactly as it does against the real API.
+    self.range = (from: number, to: number) => ({
+      then: (resolve: (v: { data: unknown[]; error: null }) => unknown) => resolve({ data: rowsFor(table).slice(from, to + 1), error: null }),
+    });
     self.maybeSingle = () => Promise.resolve({ data: rowsFor(table)[0] ?? null, error: null });
     self.single = () => Promise.resolve({ data: { id: `new-${table}` }, error: null });
     self.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>

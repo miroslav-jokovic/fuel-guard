@@ -99,9 +99,18 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 const role = vi.hoisted(() => ({ value: "recruiter" as string | null }));
-vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ get role() { return role.value; } }),
-}));
+// `can` is the real matrix over the mocked role — the gate asks `session.can("recruitment")` (SP5).
+const claim = vi.hoisted(() => ({ sections: null as Record<string, string> | null }));
+vi.mock("@/stores/session", async () => {
+  const { callerCanManage } = await import("@silvicom/shared");
+  return {
+    useSessionStore: () => ({
+      get role() { return role.value; },
+      // The ORG's matrix, as the store derives it: the `sections` claim layered over the shipped one.
+      can: (s: string) => callerCanManage(role.value as never, s as never, claim.sections as never),
+    }),
+  };
+});
 
 const mountSection = () =>
   mount(PspRecordsSection, {
@@ -120,6 +129,7 @@ describe("PSP records on the driver page", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     role.value = "recruiter";
+    claim.sections = null;
   });
 
   it("says an imported record was not machine-read rather than showing it as zero", async () => {
@@ -175,6 +185,17 @@ describe("PSP records on the driver page", () => {
     const w = mountSection();
     await settle(w);
     expect(w.findAll("button").some((b) => b.text().includes("Import a PSP record"))).toBe(true);
+  });
+
+  /**
+   * SP5: the section half is the ORG's answer. It read the shipped matrix until then, so a recruiter
+   * the org had narrowed to `recruitment: view` still saw an import the API (`requireSection`) refused.
+   */
+  it("does not offer it to a recruiter the org narrowed to viewing recruitment", async () => {
+    claim.sections = { recruitment: "view" };
+    const w = mountSection();
+    await settle(w);
+    expect(w.findAll("button").some((b) => b.text().includes("Import a PSP record"))).toBe(false);
   });
 
   /** Manages the section, may not read investigation history — the one role the API refuses. */

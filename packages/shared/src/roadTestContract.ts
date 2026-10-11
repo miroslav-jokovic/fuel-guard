@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AppSection } from "./auth.js";
 
 /**
  * The §391.31 road test, as the carrier's form records it — D2 (`ROAD-TEST-PLAN.md`, D-HM7).
@@ -116,6 +117,19 @@ export const roadTestExaminerCreateSchema = z.object({
 });
 export type RoadTestExaminerCreate = z.infer<typeof roadTestExaminerCreateSchema>;
 
+/**
+ * The section whose MANAGERS keep the road-test examiner register — add and retire (owner's ruling,
+ * 2026-09-29, the examiner half of APPLICATION-FLOW-V2-PLAN Q-AW19: "only admin can add").
+ *
+ * `admin`, because it is the one section the matrix holds for the admin alone and no org can widen
+ * (`UNEDITABLE_SECTIONS`, D-PERM7). An examiner's stored signature is printed on every §391.31 form and
+ * certificate the office records in their name (Q-RT2), so who may put a signature on file is a
+ * decision about the carrier's attestation, not part of working a hire. Named here once so the API's
+ * gate and every screen that offers the add read the same fact; recording a road test stays a
+ * `recruitment` act, and so does reading the list.
+ */
+export const ROAD_TEST_EXAMINER_SECTION = "admin" as const satisfies AppSection;
+
 /** An examiner as the office's screen sees them — never the storage path. */
 export interface RoadTestExaminer {
   id: string;
@@ -130,4 +144,21 @@ export interface RoadTestResult {
   formDocumentId: string;
   certificateDocumentId: string | null;
   recordId: string | null;
+}
+
+/**
+ * Whether the driver has had their copy of one filed certificate (§391.31(g): "a copy of the certificate
+ * shall be given to the person who was examined") — `ROAD-TEST-PLAN.md` §8 (G-10, Q-AW19 (a)).
+ *
+ * Two ways it happens, and each is its own audit row, so both stay facts rather than one flag: the
+ * driver downloads it from their link (RT4, no actor), or the office hands them paper and says so.
+ * `given` is the step's answer — either one — and the two instants say which.
+ */
+export interface RoadTestCertificateCopy {
+  recordId: string;
+  given: boolean;
+  /** The first download from the driver's link, or null. */
+  downloadedAt: string | null;
+  /** When the office recorded handing over a paper copy, or null. */
+  handedOverAt: string | null;
 }

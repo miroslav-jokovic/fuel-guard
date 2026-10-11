@@ -71,7 +71,7 @@ await db.exec(`
   );
   create table storage.objects (
     id uuid primary key default gen_random_uuid(),
-    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+    bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now()
   );
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(name text)
@@ -145,14 +145,20 @@ const asRole = async (role, sql, params = []) => {
   }
 };
 
-const save = (invitation, payload, section = null) =>
-  db.query(`select public.save_application_draft($1,$2,$3,$4::jsonb,$5) as r`, [
+// Saves against the draft's CURRENT revision (0 with none), so every case below is the save of a tab
+// that is up to date: M2b dropped the 5-argument, unchecked signature this helper used, and stale
+// revisions are application-intake-v2's matrix's subject, not this one's.
+const save = async (invitation, payload, section = null) => {
+  const held = await db.query(`select revision from application_drafts where invitation_id = $1`, [invitation]);
+  return db.query(`select public.save_application_draft($1,$2,$3,$4::jsonb,$5,$6) as r`, [
     ORG,
     invitation,
     DRIVER,
     JSON.stringify(payload),
     section,
+    held.rows[0]?.revision ?? 0,
   ]);
+};
 
 // ── saving: update-then-insert, never a partial upsert ─────────────────────────────────────────
 const first = (await save(INV, { first_name: "Susan" }, "identity")).rows[0].r;

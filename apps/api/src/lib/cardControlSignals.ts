@@ -223,3 +223,51 @@ export function signalMirrorTombstoneRefused(fields: {
     { ...fields },
   );
 }
+
+/**
+ * A card's status changed at EFS without us (EFS audit, 2026-09-30).
+ *
+ * Somebody used the WEX portal, or EFS put the card on hold itself. Until the status poll existed
+ * nothing noticed: the mirror swept once a day and the page drew yesterday's status with no warning.
+ * `warning`, not `error` — the change is legitimate in the common case, and the audit row the poll
+ * writes beside this line is the durable record.
+ */
+export function signalCardStatusChangedExternally(fields: {
+  orgId: string;
+  efsCardId: string;
+  from: string;
+  to: string;
+}): void {
+  emit(
+    "card_status_changed_externally",
+    "warning",
+    `card ${fields.efsCardId} went ${fields.from} → ${fields.to} at EFS, not through Silvicom 360`,
+    { ...fields },
+  );
+}
+
+/**
+ * The status poll's ratio guard held a batch back — the tombstone guard's shape, for status.
+ *
+ * One poll seeing a large share of the fleet change at once is far more likely to be the roster
+ * spelling a status differently from the detail read than a real mass change — the two have
+ * disagreed on case before (`efsStatusEquals`). Writing the batch would flip every badge and write an
+ * audit row per card. The guard refuses and says so; the daily detail sweep still re-reads every card
+ * from `getCardv2`, so a real mass change still lands within a day, and this line is the alarm for it.
+ */
+export function signalStatusPollRefused(fields: {
+  orgId: string;
+  changes: number;
+  knownCards: number;
+  ceiling: number;
+  /** One example transition, e.g. `ACTIVE → A` — vendor vocabulary, never a card reference. */
+  example: string;
+}): void {
+  emit(
+    "card_status_poll_refused",
+    "error",
+    `refused ${fields.changes} status change(s) of ${fields.knownCards} card(s) in one poll — over the ` +
+      `${fields.ceiling}-card ceiling; e.g. ${fields.example}`,
+    { ...fields },
+  );
+}

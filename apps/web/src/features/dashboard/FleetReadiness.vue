@@ -13,6 +13,15 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
+import { useOpens } from "@/composables/useOpens";
+
+/**
+ * "Fix →" shows only where the page that fixes the gap opens for the reader (SP5, plan §4b). The
+ * gap itself stays: it is true whoever reads it, and the person who cannot fix it is the person who
+ * most needs to know to ask. Recipients point at `/settings/notifications` — they pointed at the
+ * `/settings` directory until SP5, which since SP1 is a list of cards, not the recipients.
+ */
+const opens = useOpens();
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -43,7 +52,7 @@ const rows = computed<Row[]>(() => {
     { label: "Samsara-mapped vehicles", ok: v.filter((x) => x.samsara_vehicle_id).length, total: v.length, to: "/vehicles", why: "Links each truck to telematics for location & fuel level." },
     { label: "Fuel sensor reporting", ok: v.filter((x) => x.samsara_fuel_percent != null).length, total: v.length, to: "/vehicles", why: "Enables tank-level and siphoning detection." },
     { label: "Drivers mapped to Samsara", ok: d.filter((x) => x.samsara_driver_id).length, total: d.length, to: "/drivers", why: "Attributes fills to the right driver." },
-    { label: "Notification recipients", ok: notif ? 1 : 0, total: 1, to: "/settings", why: "Who receives alerts and the weekly digest." },
+    { label: "Notification recipients", ok: notif ? 1 : 0, total: 1, to: "/settings/notifications", why: "Who receives alerts and the weekly digest." },
   ];
 });
 
@@ -98,13 +107,13 @@ const textTone = (r: Row) =>
           <span class="flex shrink-0 items-center gap-2">
             <span :class="['text-xs font-semibold tabular-nums', textTone(r)]">{{ r.ok }}/{{ r.total }}</span>
             <RouterLink
-              v-if="r.ok < r.total"
+              v-if="r.ok < r.total && opens(r.to)"
               :to="r.to"
               class="rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               Fix →
             </RouterLink>
-            <AppIcon v-else :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
+            <AppIcon v-else-if="r.ok >= r.total" :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
           </span>
         </div>
         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">

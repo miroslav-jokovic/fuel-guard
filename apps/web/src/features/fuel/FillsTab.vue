@@ -7,9 +7,8 @@
  * rows a human created. The body is the old `FuelLogPage.vue`'s, moved rather than rewritten — the
  * tiles, the columns, the weak-signal marker and the honest-absence gate note are unchanged.
  *
- * What moved OUT: `Log fill-up` and its drawer, which now sit on the shell. Logging a fill is an act
- * on the fuel log rather than on one of its views, and putting it on the tab would have made a
- * primary action appear and disappear as a reader compares a fill with the decline beside it.
+ * What moved OUT: `Log fill-up` and its drawer, to the shell — and then out of the app (Q-F6, chunk 12a):
+ * every fill comes from the fuel card, and the page no longer writes one.
  *
  * What changed: the truck filter. It used to be a vehicle id chosen from a picker labelled with unit
  * numbers; it is now the shared unit numbers, resolved back to ids here (`unitFilter.ts`). The choice
@@ -22,9 +21,12 @@
  */
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { fuelTxnStatus, explainCaseOutcome, formatRuleId, describeRowCoverage, fleetMpgScope, type FuelTransaction, type CaseLevel, type CaseSignal } from "@silvicom/shared";
+import { useOpens } from "@/composables/useOpens";
+import { fuelTxnStatus, describeRowCoverage, fleetMpgScope, usd2, type FuelTransaction } from "@silvicom/shared";
+import { weakSignals, whyTitle, hasWhy } from "./fillWhy";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
-import { stationDateTime } from "@/lib/stationTime";
+import { efsDateTime, stationClockNote, FUEL_LOG_DATES_NOTE } from "@/lib/stationTime";
+import { NO_FIGURE, NO_FIGURE_NOTE, tileReady } from "@/lib/tileFigure";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useFuelTransactions, useFuelRangeTotals, FUEL_PAGE_SIZE, type FuelFilters } from "@/composables/useFuelLog";
@@ -42,6 +44,8 @@ import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
+import { flaggedCasesLink } from "./flaggedCasesLink";
+import DoorLink from "@/components/ui/DoorLink.vue";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
@@ -67,7 +71,7 @@ const searchBind = props.shared.facet("search");
  * PostgREST's `.order()`, so an unrecognised one is an error state rather than an empty list. This
  * is the list that refuses `declined_at` arriving from the declines tab's URL.
  */
-const SORTABLE = ["fueled_at", "odometer", "miles_since_last", "gallons", "price_per_gal", "computed_mpg"] as const;
+const SORTABLE = ["fueled_at", "odometer", "miles_since_last", "gallons", "price_per_gal", "total_cost", "computed_mpg"] as const;
 const sortKey = props.shared.facet("sort", SORTABLE);
 const sortDir = props.shared.facet("dir", SORT_DIRECTIONS);
 const { sort, onSort } = useUrlSort(sortKey, sortDir);
@@ -109,7 +113,13 @@ const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
-const { data: rangeTotals } = useFuelRangeTotals(filters);
+const totalsQuery = useFuelRangeTotals(filters);
+const rangeTotals = totalsQuery.data;
+// 11c (N9): the tiles below read this query, not the list's. A failed or still-loading total renders a
+// dash and "Not available" (`lib/tileFigure.ts`), where `?? 0` printed a confident zero on every tile.
+const totalsReady = computed(() =>
+  tileReady({ data: rangeTotals.value, isError: totalsQuery.isError.value, isPlaceholderData: totalsQuery.isPlaceholderData.value }),
+);
 
 /**
  * Avg MPG, from the ONE place that computes it (M4, D-MPG1).
@@ -125,18 +135,20 @@ const { data: rangeTotals } = useFuelRangeTotals(filters);
  * bar naming somebody else, which is the disagreement this whole step exists to end.
  */
 const mpgScope = computed(() => fleetMpgScope(filters.value));
-const { data: fleetMpg } = useFleetMpg(
+// A window needs both ends before it is a window, and a filter this figure cannot answer is not a
+// question worth asking the server.
+const mpgAsked = computed(() => mpgScope.value.unanswerable == null && !!props.shared.from.value && !!props.shared.to.value);
+const mpgQuery = useFleetMpg(
   computed(() => ({
     from: props.shared.from.value ?? "",
     to: props.shared.to.value ?? "",
     vehicleIds: mpgScope.value.vehicleIds,
-    // A window needs both ends before it is a window, and a filter this figure cannot answer is not
-    // a question worth asking the server.
-    enabled:
-      mpgScope.value.unanswerable == null &&
-      !!props.shared.from.value &&
-      !!props.shared.to.value,
+    enabled: mpgAsked.value,
   })),
+);
+const fleetMpg = mpgQuery.data;
+const mpgReady = computed(() =>
+  tileReady({ data: fleetMpg.value, isError: mpgQuery.isError.value, isPlaceholderData: mpgQuery.isPlaceholderData.value }),
 );
 
 // ── Lookups for the Vehicle / Driver columns ──────────────────────────────────────────────────────
@@ -230,28 +242,37 @@ const total = computed(() => data.value?.total ?? 0);
 const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
 
 // A flagged row opens that truck's cases (all statuses) on the Alerts page; clear rows aren't interactive.
+// Nor is a flagged one when Alerts does not open for the reader (SP5, plan §4b): the Fuel Log is
+// `fuel` view and Alerts is `safety` view, so an accountant was handed a pointer that the guard
+// answered with the dashboard.
+const opens = useOpens();
+const alertsOpen = computed(() => opens("/anomalies"));
 function onRowClick(row: FuelTransaction) {
-  if (row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
+  if (alertsOpen.value && row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
 }
 // `group` is DataTable's, via `pin-first-column`; this only adds what is specific to a fill.
-const rowClass = (row: FuelTransaction) => (row.has_anomaly ? "cursor-pointer" : "");
+const rowClass = (row: FuelTransaction) => (alertsOpen.value && row.has_anomaly ? "cursor-pointer" : "");
 
-// Station-local (matches the EFS report), not the browser's timezone.
-const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
 
 // Summary stats reflect the WHOLE filtered range (not just this page) — sourced from useFuelRangeTotals
 // so applying a filter updates every tile, not only the rows currently visible.
+// Fills with an OPEN case (migration 0446, N5) — no longer every fill whose row is marked, which kept
+// counting fills whose case had been dismissed. Its link opens those cases; `DoorLink` hides it from a
+// reader the Alerts page does not open for, and `flaggedCasesLink` withholds it under a filter that page
+// cannot apply.
 const flaggedCount = computed(() => rangeTotals.value?.flagged ?? 0);
+const flaggedLink = computed(() => (totalsReady.value && flaggedCount.value ? flaggedCasesLink(filters.value) : null));
 const clearCount   = computed(() => rangeTotals.value?.clear ?? 0);
 const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
 const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
 const hasCost      = computed(() => rangeTotals.value?.hasCost ?? false);
-const avgMpg       = computed(() => fleetMpg.value?.mpg ?? null);
+const avgMpg       = computed(() => (mpgReady.value ? (fleetMpg.value?.mpg ?? null) : null));
 /** The line under the tile: why there is no number, or what the number stands on. */
 const avgMpgNote = computed(() => {
   if (mpgScope.value.unanswerable) return mpgScope.value.unanswerable;
-  const m = fleetMpg.value;
-  if (m == null) return "measured miles ÷ fuel";
+  // Asked and not answered — still loading, failed, or holding the last window's answer (11c).
+  if (!mpgReady.value) return mpgAsked.value ? NO_FIGURE_NOTE : "measured miles ÷ fuel";
+  const m = fleetMpg.value!;
   if (m.mpg == null) return m.reason ?? "not enough measured distance";
   return m.measuredShare == null
     ? "measured miles ÷ fuel"
@@ -273,40 +294,12 @@ const coverage = computed(() => {
   // inside a deploy window, and one where saying nothing is right and saying "0%" is a lie.
   return t == null || t.fillsWithVehicle == null ? null : describeRowCoverage("fuelLog", t.fillUps, t.fillsWithVehicle);
 });
-const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
+// Fixed decimals, so a right-aligned column lines up. EFS sends gallons to the hundredth (the third
+// decimal was 0 on all 4,187 fills of the 60 days to 2026-10-09), and the row shows what EFS billed.
+const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 // Vehicle leads (sticky on small screens, like the source-records table); Driver follows.
-/** WP2 "why" surface — sub-threshold signals persisted on the fill (case_signals) explained in plain
- *  language, so a clear fill with a fired-but-weak signal (e.g. a lone odometer regression) is visible. */
-function weakSignals(row: FuelTransaction): CaseSignal[] {
-  if (row.has_anomaly) return []; // flagged fills explain themselves on the Alerts page
-  // Q-FUI17 (0323): the weightless rules belong HERE and nowhere else. This panel exists for exactly
-  // the fill that is clear and had something fire on it, which is the whole of what a weight-0 rule
-  // ever produces — before the column they vanished at the moment they fired, so a reviewer looking
-  // at an over-fuelled fill was told "no detection signals fired" about a rule that had.
-  return [...(row.case_signals ?? []), ...(row.case_signals_unscored ?? [])] as CaseSignal[];
-}
-function whyTitle(row: FuelTransaction): string {
-  const sigs = weakSignals(row);
-  const names = sigs.map((s) => formatRuleId(s.ruleId)).join(", ");
-  return `${names}\n\n${explainCaseOutcome((row.case_level ?? "clear") as CaseLevel, Number(row.case_score ?? 0), sigs)}${gatesNote(row)}`;
-}
-/** WP6 — honest-absence note: which rule groups were INELIGIBLE for this fill and why. */
-function gatesNote(row: FuelTransaction): string {
-  const g = row.case_gates;
-  if (!g?.ineligible?.length) return "";
-  const why: string[] = [];
-  if (g.tankSensor !== "reliable") why.push("tank sensor not learned-reliable");
-  if (g.odoSource === "other") why.push("odometer cross-check is GPS-derived");
-  if (g.fillSize === "too_small") why.push("fill too small for the sensor to read");
-  return `\n\nChecks limited on this fill (${why.join("; ") || "confidence gates"}): ${g.ineligible.map((r) => formatRuleId(r)).join(", ")} did not run.`;
-}
-/** Show the marker when sub-threshold signals fired OR meaningful checks were gated off. */
-function hasWhy(row: FuelTransaction): boolean {
-  return weakSignals(row).length > 0 || !!row.case_gates?.ineligible?.length;
-}
-
 const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
@@ -319,6 +312,8 @@ const columns: DataTableColumn[] = [
   { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
   { key: "gallons", label: "Gallons", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
+  // N6: what the fill cost, as EFS billed it — before this the only dollar figure was the range's total.
+  { key: "total_cost", label: "Amount", sortable: true, numeric: true, width: "md" },
   { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, width: "sm", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", width: "lg" },
 ];
@@ -366,10 +361,9 @@ const columns: DataTableColumn[] = [
       </template>
     </FilterBar>
 
-    <!-- D-FUI11: one date contract, and each control says which day it means. Before FUEL-T1
-         the section had four answers to “what is a day” and no surface admitted to having one. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">Dates are the day of the fill at the station that sold it — the day EFS prints, and the day the
-        row beside it shows.</p>
+    <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
+         tabs mean EFS's Central day, so they say it in the one shared sentence. -->
+    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <!-- Summary stats block -->
     <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
@@ -381,28 +375,29 @@ const columns: DataTableColumn[] = [
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalMiles, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">driven in selected range</dd>
+          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ flaggedCount }}</dd>
-          <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
-            {{ flaggedCount ? 'anomalies need review' : 'none in selected range' }}
+          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ totalsReady ? flaggedCount : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs" :class="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
+            {{ !totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
           </dd>
+          <dd v-if="flaggedLink" class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ clearCount }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">transactions with no flags</dd>
+          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ totalsReady ? clearCount : NO_FIGURE }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalGallons, 0) }}</dd>
+          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE }}</dd>
           <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
                needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
                never did. -->
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ !totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
@@ -429,14 +424,19 @@ const columns: DataTableColumn[] = [
       @row-click="onRowClick"
     >
       <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
-      <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
+      <template #cell-fueled_at="{ row }">
+          <!-- EFS's Central clock, the day the filter and totals use (Q-F5); the station's own clock on hover (F-H2). -->
+          <span :title="stationClockNote(row.fueled_at, row.state ?? null) ?? undefined">{{ efsDateTime(row.fueled_at) }}</span>
+        </template>
       <template #cell-driver="{ row }">{{ driverName(row.driver_id) }}</template>
       <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
       <template #cell-gallons="{ row }">
-        <span>{{ row.gallons }}</span>
+        <span>{{ fmtNum(row.gallons, 2) }}</span>
         <!-- Reefer = the FUEL is reefer (ULSR), tagged on the gallons — NOT a property of the truck. -->
         <span v-if="row.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
       </template>
+      <!-- Cents, so a row can be checked against its EFS statement line; "—" when EFS sent no amount. -->
+      <template #cell-total_cost="{ row }">{{ usd2(row.total_cost) }}</template>
       <template #cell-status="{ row }">
         <div class="flex items-center gap-1.5">
           <span

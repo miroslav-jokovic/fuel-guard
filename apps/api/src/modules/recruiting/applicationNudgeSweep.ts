@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   APPLICATION_SECTION_LABELS,
-  INVITE_TTL_DAYS_DEFAULT,
   planApplicationNudges,
   type NudgeCandidate,
   type NudgePart,
@@ -13,6 +12,7 @@ import { fetchAllPaged } from "../../lib/paging.js";
 import { notify } from "../messaging/index.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { sendOrQueueSms } from "./smsOutbox.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The abandonment sweep (A10, D-APP15) — one email to a driver who walked away, and one alert to the
@@ -221,6 +221,13 @@ export interface NudgeSweepResult {
 /**
  * One org's sweep.
  *
+ * ⚠ THE CARRIER'S REMINDER (Q-AW41). Its delay is the fold's `staleHours` — a driver counts as stalled
+ * after the carrier's number of hours, for the office's alert and the driver's reminder alike. Switched
+ * OFF, the driver is sent nothing and the link is not rotated or extended, but the office is still told:
+ * the switch is about pestering the applicant, and "this person stopped" is the office's cue to call.
+ * That is exactly the no-address path below, so an unstamped, alerted-once invitation is a state the
+ * sweep already knew how to hold.
+ *
  * ⚠ An invitation with no address still alerts the office and is NOT stamped. The office alert is the
  * cue to pick up the phone; stamping would spend the one nudge this invitation gets on an email that
  * was never sent, and leaving it unstamped costs nothing — the dedupe key means the office is told
@@ -233,7 +240,8 @@ export async function runApplicationNudgesOnce(
   officeUserIds: readonly string[],
   now: Date,
 ): Promise<NudgeSweepResult> {
-  const planned = planApplicationNudges(await candidates(admin, orgId), now.toISOString());
+  const settings = await recruitingSettings(admin, orgId);
+  const planned = planApplicationNudges(await candidates(admin, orgId), now.toISOString(), settings.reminder_after_hours);
   if (planned.length === 0) return { stalled: 0, emailed: 0, messaged: 0 };
 
   const { data: org } = await admin
@@ -256,7 +264,7 @@ export async function runApplicationNudgesOnce(
     const driverName = (driver as { full_name?: string } | null)?.full_name ?? "An applicant";
 
     if (notificationsOn) await alertOffice(admin, orgId, officeUserIds, nudge, driverName);
-    if (!nudge.email || !env.APPLICATION_NUDGE_ENABLED) continue;
+    if (!nudge.email || !env.APPLICATION_NUDGE_ENABLED || !settings.reminders_enabled) continue;
 
     // Rotate FIRST — see the header. `false` means the driver submitted, revoked or expired between
     // the read and here, and the correct response is to leave them alone.
@@ -265,7 +273,7 @@ export async function runApplicationNudgesOnce(
       p_org: orgId,
       p_invitation: nudge.invitationId,
       p_token_hash: hash,
-      p_extend_days: INVITE_TTL_DAYS_DEFAULT,
+      p_extend_days: settings.invite_ttl_days,
     });
     if (error || rotated !== true) continue;
 

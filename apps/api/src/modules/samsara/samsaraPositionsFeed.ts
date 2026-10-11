@@ -23,7 +23,14 @@
  * source of truth this plan is arranged against.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { accumulateGpsFeedPage, feedPageHasData, latestGpsFix, type GpsFix } from "@silvicom/shared";
+import {
+  accumulateEngineStateFeedPage,
+  accumulateGpsFeedPage,
+  feedPageHasData,
+  latestGpsFix,
+  type EngineStateEvent,
+  type GpsFix,
+} from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { loadSamsaraToken } from "./lib/samsaraToken.js";
 import {
@@ -59,6 +66,8 @@ export interface VehiclePositionsFeedResult {
   pages: number;
   /** GPS pings read across every page, before reduction to one fix per truck. */
   fixes: number;
+  /** Trucks the run carried an ECU engine event for (D-LM29), after reduction to the newest each. */
+  engineStates: number;
   /** Trucks the feed spoke about that are not mapped to a vehicle row here. */
   unmappedVehicles: number;
   /** True when the page cap stopped the walk — the cursor still advanced. */
@@ -78,16 +87,24 @@ export interface VehiclePositionsFeedResult {
 
 type VehicleRow = { id: string; samsara_vehicle_id: string };
 
-/** The payload row `record_vehicle_positions` destructures. Named for its SQL columns, not camelCase. */
+/**
+ * The payload row `record_vehicle_positions` destructures. Named for its SQL columns, not camelCase.
+ *
+ * Either half may be absent (0393): a truck switched off in a yard sends an engine event and no GPS,
+ * a truck on the highway the reverse. The writer advances each half on its own clock and skips the
+ * position half of a row that has no coordinate, so an engine-only row is a legal row.
+ */
 type PositionRow = {
   vehicle_id: string;
-  lat: number;
-  lng: number;
-  heading_degrees: number | null;
-  speed_mph: number | null;
-  is_ecu_speed: boolean | null;
-  formatted_location: string | null;
-  sampled_at: string;
+  lat?: number;
+  lng?: number;
+  heading_degrees?: number | null;
+  speed_mph?: number | null;
+  is_ecu_speed?: boolean | null;
+  formatted_location?: string | null;
+  sampled_at?: string;
+  engine_state?: EngineStateEvent["value"];
+  engine_state_at?: string;
 };
 
 export interface PositionsFeedOpts {
@@ -114,7 +131,7 @@ export async function syncVehiclePositionsFromSamsara(
 
   const startCursor = await readFeedCursor(admin, orgId, VEHICLE_POSITIONS_FEED);
   const result: VehiclePositionsFeedResult = {
-    written: 0, pages: 0, fixes: 0, unmappedVehicles: 0,
+    written: 0, pages: 0, fixes: 0, engineStates: 0, unmappedVehicles: 0,
     pagesCapped: false, resumed: startCursor != null, writerMissing: false,
   };
 
@@ -122,20 +139,25 @@ export async function syncVehiclePositionsFromSamsara(
   // Merged before anything is reduced: the newest ping for a truck can sit on an EARLIER page than
   // one of its older pings, so choosing a winner per page would pick the wrong fix at a boundary.
   const byVehicle = new Map<string, GpsFix[]>();
+  const engineByVehicle = new Map<string, EngineStateEvent>();
   let cursor = startCursor;
   for (let page = 0; page < POSITIONS_FEED_MAX_PAGES; page++) {
     const body = await fetch(cursor ?? undefined);
     result.pages++;
     if (!feedPageHasData(body)) break;
     accumulateGpsFeedPage(body, byVehicle);
+    accumulateEngineStateFeedPage(body, engineByVehicle);
     const next = body.pagination?.endCursor;
     if (typeof next !== "string" || !next.trim() || next === cursor) break;
     cursor = next;
     if (page === POSITIONS_FEED_MAX_PAGES - 1) result.pagesCapped = true;
   }
   for (const fixes of byVehicle.values()) result.fixes += fixes.length;
+  result.engineStates = engineByVehicle.size;
 
-  if (byVehicle.size > 0) await applyFixes(admin, orgId, byVehicle, result);
+  if (byVehicle.size > 0 || engineByVehicle.size > 0) {
+    await applyFixes(admin, orgId, byVehicle, engineByVehicle, result);
+  }
 
   // Only now. A cursor moved past fixes we failed to store would lose them silently — and because this
   // table holds the CURRENT position and no history, "silently" would mean a truck frozen on the map
@@ -147,7 +169,8 @@ export async function syncVehiclePositionsFromSamsara(
 }
 
 /**
- * Resolve Samsara ids to our vehicles, reduce each truck to its newest fix, and write the tick.
+ * Resolve Samsara ids to our vehicles, reduce each truck to its newest fix and newest engine event,
+ * and write the tick as one row per truck carrying whichever halves it has.
  *
  * The vehicle read is deliberately narrow — two columns — and org-scoped in the query, because `admin`
  * is the SERVICE ROLE and bypasses RLS: this `.eq("org_id", …)` is the only tenant boundary the read
@@ -157,6 +180,7 @@ async function applyFixes(
   admin: SupabaseClient,
   orgId: string,
   byVehicle: Map<string, GpsFix[]>,
+  engineByVehicle: Map<string, EngineStateEvent>,
   result: VehiclePositionsFeedResult,
 ): Promise<void> {
   const { data: rows } = await admin
@@ -169,7 +193,8 @@ async function applyFixes(
   for (const r of (rows ?? []) as unknown as VehicleRow[]) idBySamsara.set(r.samsara_vehicle_id, r.id);
 
   const payload: PositionRow[] = [];
-  for (const [samsaraId, fixes] of byVehicle) {
+  const samsaraIds = new Set([...byVehicle.keys(), ...engineByVehicle.keys()]);
+  for (const samsaraId of samsaraIds) {
     const vehicleId = idBySamsara.get(samsaraId);
     if (!vehicleId) {
       // A truck Samsara reports and the roster does not carry yet. Counted, never invented: creating a
@@ -178,17 +203,21 @@ async function applyFixes(
       result.unmappedVehicles++;
       continue;
     }
-    const fix = latestGpsFix(fixes);
-    if (!fix) continue;
+    const fix = latestGpsFix(byVehicle.get(samsaraId) ?? []);
+    const engine = engineByVehicle.get(samsaraId);
+    if (!fix && !engine) continue;
     payload.push({
       vehicle_id: vehicleId,
-      lat: fix.lat,
-      lng: fix.lng,
-      heading_degrees: fix.headingDegrees,
-      speed_mph: fix.speedMph,
-      is_ecu_speed: fix.isEcuSpeed,
-      formatted_location: fix.formattedLocation,
-      sampled_at: fix.time,
+      ...(fix && {
+        lat: fix.lat,
+        lng: fix.lng,
+        heading_degrees: fix.headingDegrees,
+        speed_mph: fix.speedMph,
+        is_ecu_speed: fix.isEcuSpeed,
+        formatted_location: fix.formattedLocation,
+        sampled_at: fix.time,
+      }),
+      ...(engine && { engine_state: engine.value, engine_state_at: engine.time }),
     });
   }
   if (payload.length === 0) return;

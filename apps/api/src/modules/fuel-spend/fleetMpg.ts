@@ -314,16 +314,38 @@ export async function getFleetMpg(
   to: string,
   vehicles: VehicleScope = null,
 ): Promise<FleetMpgResult> {
+  const [only] = await getFleetMpgPeriods(admin, orgId, [{ from, to }], vehicles);
+  return only!;
+}
+
+/**
+ * The same figure for ANY list of periods, from one read of each source (FS2) — the Fuel Costs
+ * report asks for its range, the previous range and a trailing week ending on every day of the range,
+ * which is up to 368 periods for a year. Each is resolved and paired exactly as `getFleetMpg` alone
+ * would (that function is this one with one period, which keeps the two from drifting apart), and
+ * periods may overlap: nothing here buckets, every period folds the shared rows on its own bounds.
+ */
+export async function getFleetMpgPeriods(
+  admin: SupabaseClient,
+  orgId: string,
+  periods: readonly { from: string; to: string }[],
+  vehicles: VehicleScope = null,
+): Promise<FleetMpgResult[]> {
+  if (periods.length === 0) return [];
   const [tz, fuelThrough] = await Promise.all([readTimezone(admin, orgId), readFuelThrough(admin, orgId)]);
   // ⚠ Resolved BEFORE either source is read, not applied to the answer afterwards. Both reads below
   // take `w.to`, which is what makes the odometer difference and the gallons cover the same days —
   // clamping the label alone would leave the bias exactly where it was.
-  const w = resolveFleetMpgWindow(from, to, fuelThrough);
-  const [[distance], gallonDays] = await Promise.all([
-    readFleetDistancePeriods(admin, orgId, [instants(w.from, w.to, tz)]),
-    readTractorGallonDays(admin, orgId, w.from, w.to, vehicles),
+  const windows = periods.map((p) => resolveFleetMpgWindow(p.from, p.to, fuelThrough));
+  const first = windows.reduce((a, w) => (w.from < a ? w.from : a), windows[0]!.from);
+  const last = windows.reduce((a, w) => (w.to > a ? w.to : a), windows[0]!.to);
+  const [distances, gallonDays] = await Promise.all([
+    readFleetDistancePeriods(admin, orgId, windows.map((w) => instants(w.from, w.to, tz))),
+    readTractorGallonDays(admin, orgId, first, last, vehicles),
   ]);
-  return pairPeriod(distance!, foldGallons(gallonDays, w.from, w.to), { window: w, timezone: tz });
+  return windows.map((w, i) =>
+    pairPeriod(distances[i]!, foldGallons(gallonDays, w.from, w.to), { window: w, timezone: tz }),
+  );
 }
 
 /**

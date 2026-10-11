@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * The API's view of one planned stop (D-FP5). Split out of fuelPlanning.ts on 2026-09-10 when the price started
  * being carried twice — pump and net, with its basis and age — and the orchestrator crossed the 500-line budget.
@@ -10,6 +11,9 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 export interface PlanStopView {
   kind: "fuel" | "rest";
   milesAhead: number;
+  /** The `fuel_stations` row, for a caller that needs more of it than the plan carries (the live map's
+   *  station address, TRUCK-CARD-ROUTE-PLAN D-TC4). Null on a rest stop. */
+  stationId: string | null;
   stationLat: number | null;
   stationLng: number | null;
   stationName: string | null;
@@ -97,6 +101,7 @@ export function stopView(st: PlannedStop, ctx: {
   return {
     kind: st.kind,
     milesAhead: r1(st.milesAhead),
+    stationId: s?.id ?? null,
     stationLat: pos?.lat ?? null, stationLng: pos?.lng ?? null,
     stationName: s ? (s.name ?? s.brand) : null, brand: s?.brand ?? null, state: s?.state ?? null, exit: s?.exit ?? null, storeNumber: s?.store_number ?? null,
     detourMiles: st.station ? r1(st.station.detourMiles) : 0, gallons: r1(st.fillGal),
@@ -107,4 +112,18 @@ export function stopView(st: PlannedStop, ctx: {
     coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
     isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? ctx.border?.state ?? null : null, isOffNetwork: st.isOffNetwork,
   };
+}
+
+/** A fuel station's street address, for the live map's fuel-stop popup (D-TC4). `fuel_stations` is global. */
+export interface StationAddress { address: string | null; city: string | null; zip: string | null }
+
+export async function readStationAddresses(admin: SupabaseClient, ids: string[]): Promise<Map<string, StationAddress>> {
+  const out = new Map<string, StationAddress>();
+  if (ids.length === 0) return out;
+  const { data, error } = await admin.from("fuel_stations").select("id, address, city, zip").in("id", ids);
+  if (error) throw new Error(error.message);
+  for (const r of (data ?? []) as { id: string; address: string | null; city: string | null; zip: string | null }[]) {
+    out.set(r.id, { address: r.address, city: r.city, zip: r.zip });
+  }
+  return out;
 }

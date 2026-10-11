@@ -158,3 +158,48 @@ describe("loadConsumptionContext — intermediate gallons", () => {
     expect(spans[0]!.ops.some((o) => o.method === "not")).toBe(false);
   });
 });
+
+/**
+ * CF5 (2026-10-08) took every odometer rule to weight 0, which moves it from `case_signals` to
+ * `case_signals_unscored`. The previous fill — whose odometer sets this fill's miles and MPG, the numbers
+ * Fleet MPG adds up — must still skip a fill with a flagged odometer, wherever the flag is stored: fills
+ * scored before CF5 carry it in the first list, fills scored after it in the second.
+ */
+describe("loadConsumptionContext — the previous fill skips a flagged odometer in either list", () => {
+  const flagged = (where: "case_signals" | "case_signals_unscored" | null): FtxnRow =>
+    ({ ...b3, ...(where ? { [where]: [{ ruleId: "odometer_regression" }] } : {}) }) as FtxnRow;
+  const previousOf = async (b3Row: FtxnRow) => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        fuel_transactions: (q) => {
+          const shape = shapeOf(q);
+          if (shape === "previous") {
+            const older = q.ops.some((o) => o.method === "lt" && o.args[0] === "fueled_at");
+            return older ? [b3Row, b2, b1] : [];
+          }
+          return shape === "window" ? [] : [b1, blank, b2, b3Row, current];
+        },
+      },
+    });
+    const ctx = await loadConsumptionContext(
+      rec.client,
+      { id: CURRENT, vehicleId: V, tankType: "tractor" } as TxnView,
+      current,
+      CURRENT,
+      "2026-06-01T00:00:00Z",
+      "2026-06-13T00:00:00Z",
+      vehicle,
+    );
+    return ctx.previousTxn?.id ?? null;
+  };
+
+  it("uses the latest fill when its odometer is not flagged", async () => {
+    expect(await previousOf(flagged(null))).toBe("b3");
+  });
+  it("skips it when the flag is a scored signal (scored before CF5)", async () => {
+    expect(await previousOf(flagged("case_signals"))).toBe("b2");
+  });
+  it("skips it when the flag is a note (scored after CF5)", async () => {
+    expect(await previousOf(flagged("case_signals_unscored"))).toBe("b2");
+  });
+});

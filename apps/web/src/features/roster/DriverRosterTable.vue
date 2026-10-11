@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { Driver, DqRosterColumnKey } from "@silvicom/shared";
-import { driverAppAccess } from "@silvicom/shared";
+import { canManageDriverIdentity, driverAppAccess } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
@@ -10,6 +10,8 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import GatedLink from "@/components/GatedLink.vue";
+import { useOpens } from "@/composables/useOpens";
 import StatusBadge from "@/components/StatusBadge.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { formatPhone, formatDate } from "@/lib/format";
@@ -59,6 +61,12 @@ const emit = defineEmits<{
 }>();
 
 const session = useSessionStore();
+/**
+ * SP5 (plan §4b): the qualification file is its own screen (`safety.driver-qualification`), which
+ * the admin can switch off per role and per person apart from the roster. Where it does not open,
+ * the badge stays and stops being a door, and the row menu drops "Open qualification file…".
+ */
+const opens = useOpens();
 
 // HOS badge lives in lib/badges.ts (D3); the "as of" tooltip stays here with its data.
 function hosAgo(iso: string | null): string {
@@ -181,13 +189,14 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
       </div>
     </template>
     <template #cell-qualification="{ row }">
-      <RouterLink
+      <GatedLink
         v-if="qualBadge(row.id)"
         :to="`/compliance/${row.id}`"
         :class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
+        :plain-class="[BADGE_BASE, toneClass(qualBadge(row.id)!.tone)]"
       >
         {{ qualBadge(row.id)!.label }}
-      </RouterLink>
+      </GatedLink>
       <span v-else class="text-ink-tertiary">—</span>
     </template>
     <!-- The date cells NAVIGATE, they do not edit (D-ROS1). `?section=qualification` is a public
@@ -239,10 +248,12 @@ const assignedUnits = (driverId: string) => unitsByDriver.value.get(driverId)?.j
     <template #actions="{ row }">
       <KebabMenu v-if="session.can('roster')">
         <BaseButton class="kebab-item" @click="emit('edit', row)">Edit driver</BaseButton>
-        <BaseButton class="kebab-item" @click="emit('manage-access', row)">
+        <!-- A login is granted by NAME (DRIVER_IDENTITY_ROLES, SP11), narrower than roster manage:
+             a safety manager edits the row and is refused the credential, so is not offered it. -->
+        <BaseButton v-if="canManageDriverIdentity(session.role)" class="kebab-item" @click="emit('manage-access', row)">
           {{ row.user_id ? "Manage app login…" : "Create app login…" }}
         </BaseButton>
-        <RouterLink :to="`/compliance/${row.id}`" class="kebab-item"
+        <RouterLink v-if="opens(`/compliance/${row.id}`)" :to="`/compliance/${row.id}`" class="kebab-item"
           >Open qualification file…</RouterLink
         >
         <!-- Never "Delete". `drivers` is in RETENTION_FORBIDDEN and 0235 refuses the DELETE for

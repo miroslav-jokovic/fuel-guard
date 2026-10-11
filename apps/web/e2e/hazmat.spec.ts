@@ -19,7 +19,7 @@ test.describe("HazmatGuard — Placard Calculator (H5)", () => {
   async function login(page: Page) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(EMAIL!);
-    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD); // not "Show password" (smoke.spec.ts)
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).not.toHaveURL(/\/login/);
   }
@@ -84,7 +84,7 @@ test.describe("HazmatGuard — Review queue (H7)", () => {
   async function login(page: Page) {
     await page.goto("/login");
     await page.getByLabel("Email").fill(EMAIL!);
-    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD); // not "Show password" (smoke.spec.ts)
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).not.toHaveURL(/\/login/);
   }

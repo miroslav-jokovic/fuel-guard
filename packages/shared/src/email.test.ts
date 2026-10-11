@@ -6,6 +6,7 @@ import {
   renderApplicationLinkResentEmail,
   renderDigestEmail,
   renderInviteEmail,
+  renderSigningLinkEmail,
 } from "./email.js";
 
 describe("renderApplicationInviteEmail", () => {
@@ -179,5 +180,23 @@ describe("renderApplicationLinkResentEmail", () => {
       expect(body).toContain("14 days");
     }
     expect(m.subject).toContain("Silvicom Inc");
+  });
+});
+
+describe("renderSigningLinkEmail", () => {
+  it("carries the sign link, the hours it works, and the date of birth it will ask for", () => {
+    const m = renderSigningLinkEmail("Silvicom Inc", "https://app.test/apply/sig", 72);
+    for (const body of [m.text, m.html]) {
+      expect(body).toContain("https://app.test/apply/sig");
+      expect(body).toContain("72 hours");
+      expect(body).toContain("date of birth");
+      expect(body).toContain("no longer works");
+    }
+    expect(m.subject).toBe("Sign your Silvicom Inc driver application");
+  });
+
+  it("escapes the carrier's name in the HTML", () => {
+    const m = renderSigningLinkEmail('Ac<script>me & Co"', "https://app.test/apply/sig", 72);
+    expect(m.html).not.toContain("<script>");
   });
 });

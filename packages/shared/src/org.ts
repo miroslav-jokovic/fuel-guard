@@ -15,6 +15,8 @@ export interface OrgSettings {
   operating_hours: { start: string; end: string; tz: string };
   notification_emails: string[];
   notifications_enabled: boolean;
+  /** Fill alerts start here (0439, D-CF9); null = never reset. Set only by the audited reset. */
+  detection_epoch?: string | null;
 }
 
 const timeHHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24h)");
@@ -43,7 +45,21 @@ export const orgSettingsFormSchema = z.object({
   city: z.string().trim().max(100).or(z.literal("")).nullish(),
   state: z.string().trim().max(20).or(z.literal("")).nullish(),
   postal_code: z.string().trim().max(20).or(z.literal("")).nullish(),
-  allowed_domains: z.array(z.string().trim().toLowerCase().min(1)).default([]),
+  /**
+   * The invitation allowlist: when non-empty, an invite to any other domain is refused at creation
+   * AND at acceptance (`isEmailDomainAllowed`). Shaped as a bare domain because a stored entry is
+   * compared to the email's domain part exactly — "@example.com" or "https://example.com" would
+   * match nobody and so refuse every invitation, which is the worst way for a typo to fail (Q-SET4).
+   */
+  allowed_domains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, "Enter each domain like example.com"),
+    )
+    .default([]),
   operating_hours: z.object({
     start: timeHHMM,
     end: timeHHMM,
@@ -54,14 +70,34 @@ export const orgSettingsFormSchema = z.object({
 });
 export type OrgSettingsForm = z.infer<typeof orgSettingsFormSchema>;
 
-/** An audit log row as the viewer reads it. */
-export interface AuditLog {
-  id: string;
-  org_id: string;
-  actor_id: string | null;
-  action: string;
-  entity: string | null;
-  entity_id: string | null;
-  meta: Record<string, unknown>;
-  created_at: string;
-}
+/**
+ * The two halves of `organizations` that two Settings screens write (SETTINGS-PERMISSIONS-PLAN.md
+ * SP2), each behind its own screen's permission. PICKED from the one schema above, not restated.
+ *
+ * ⚠ Split for more than the permission. Both pages used to send the WHOLE row, each passing the
+ * other's fields "through unchanged" — and the Notifications page did not pass the DOT number or
+ * the address, which the save wrote as null. Saving Notifications erased them (measured
+ * 2026-09-30: production's carrier row held both, one Notifications save from losing them). A
+ * page that can only send its own fields cannot erase anybody else's.
+ *
+ * `allowed_domains` is the Organization screen's. No save wrote it from the initial commit until
+ * the owner ruled Q-SET4 (a), 2026-09-30: it saves, and the page says plainly that it refuses
+ * invitations to other domains.
+ */
+export const orgProfileFormSchema = orgSettingsFormSchema.pick({
+  name: true,
+  allowed_domains: true,
+  dot_number: true,
+  address_line1: true,
+  city: true,
+  state: true,
+  postal_code: true,
+  operating_hours: true,
+});
+export type OrgProfileForm = z.infer<typeof orgProfileFormSchema>;
+export const orgNotificationsFormSchema = orgSettingsFormSchema.pick({
+  notifications_enabled: true,
+  notification_emails: true,
+});
+export type OrgNotificationsForm = z.infer<typeof orgNotificationsFormSchema>;
+

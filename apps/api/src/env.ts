@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { efsEnvFields } from "./envEfs.js";
+import { documentReadingEnvFields } from "./envDocumentReading.js";
+import { dispatchBoardEnvFields } from "./envDispatchBoard.js";
+import { inspectionsEnvFields } from "./envInspections.js";
+import { outboundEnvFields } from "./lib/outboundAllowlist.js";
 import { checkPspEnv } from "./lib/pspEnv.js";
 
 /**
@@ -11,6 +15,10 @@ const EnvSchema = z.object({
   // file-size budget without a waiver. Spread rather than parsed separately: one object, one parse,
   // one error listing everything a deployment is missing.
   ...efsEnvFields,
+  ...outboundEnvFields, // staging recipient guard (RELEASE-TRAIN-PLAN R4)
+  ...documentReadingEnvFields, // the document reader's intake and models (DOCUMENT-READER-PLAN)
+  ...dispatchBoardEnvFields, // the dispatch board's HOS clocks poll (DISPATCH-BOARD-PLAN DB3)
+  ...inspectionsEnvFields, // the FMCSA open-data feed (INSPECTION-CHALLENGE-PLAN IC1)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
   ALLOWED_ORIGINS: z
@@ -41,12 +49,6 @@ const EnvSchema = z.object({
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
-
-  // HazmatGuard extraction (plan H6, D10). Vision models are PINNED in env (not the shipped AI layer's
-  // in-code strings) because a verdict must record the exact model id on every run for reproducibility.
-  // Pass A = a Sonnet-class vision model; Pass B = a Haiku-class model (independent-prompt cross-read).
-  HAZMAT_MODEL_A: z.string().default("claude-sonnet-4-6"),
-  HAZMAT_MODEL_B: z.string().default("claude-haiku-4-5"),
 
   // Samsara telematics (docs/10). Per-org tokens live in integration_credentials; this env var is a
   // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
@@ -115,6 +117,11 @@ const EnvSchema = z.object({
   // (ODOMETER_SOURCE_WINDOW_DAYS), so a skipped tick is repaired by the next one rather than leaving
   // a hole a fleet denominator would silently absorb. 0 disables the tier outright.
   SAMSARA_ODOMETER_SYNC_HOURS: z.coerce.number().min(0).default(24),
+  // The idle engine's collector (IE2, kind `idle_engine`): the trailing three hours every hour, and
+  // the previous two days once a night from inside the same run. 0 disables it outright — it runs in
+  // PARALLEL with today's idle numbers and nothing reads it yet, so turning it off loses nothing a
+  // later nightly run cannot rebuild for the last two days.
+  IDLE_ENGINE_SYNC_MINUTES: z.coerce.number().min(0).default(60),
   // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
   // Set to "false" to disable.
   NIGHTLY_RECONCILE_ENABLED: z
@@ -394,8 +401,13 @@ const EnvSchema = z.object({
    * Hourly, because every resource in the sweep is watermarked or bounded: an hourly pass over a
    * quiet collection asks `updated_after=<an hour ago>` and gets an empty page, so "too often"
    * costs one round trip per resource and "not often enough" costs a report built on yesterday.
+   * ⚠ An enum, not `z.coerce.boolean()` (until 2026-10-04): `Boolean("false")` is true, so setting
+   * the kill switch to "false" switched the collector ON. A typo now fails boot instead.
    */
-  FLEETPAL_SYNC_ENABLED: z.coerce.boolean().default(false),
+  FLEETPAL_SYNC_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   FLEETPAL_SYNC_HOURS: z.coerce.number().min(1).default(1),
 });
 

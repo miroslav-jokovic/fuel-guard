@@ -16,9 +16,9 @@ import type { PacketAdoptionInput } from "@/features/apply/signing/usePacketAdop
  * `import type` only from `usePacketAdoption.ts`: it is erased, so there is no runtime cycle.
  */
 export function usePacketAdoptionPins(
-  input: Pick<PacketAdoptionInput, "stops" | "filedHere" | "outstanding" | "served">,
+  input: Pick<PacketAdoptionInput, "stops" | "filedHere" | "outstanding" | "served" | "initialsWanted">,
 ) {
-  const { stops, filedHere, outstanding, served } = input;
+  const { stops, filedHere, outstanding, served, initialsWanted } = input;
 
   /**
    * Whether this link still has a stop that takes initials, and therefore whether to ask for them.
@@ -32,7 +32,10 @@ export function usePacketAdoptionPins(
    * a mark the server has already pinned — which a different keystroke would get refused for
    * (DR035). See Q-PKT9: the same hazard exists for a resumed SIGNATURE and is not solved here.
    */
-  const needsInitials = computed(() => outstanding.value.some((s) => s.mark === "initials"));
+  // D-AW15: screen 13 asks for the initials with the signature, though no permission takes them.
+  const needsInitials = computed(
+    () => initialsWanted?.value ?? outstanding.value.some((s) => s.mark === "initials"),
+  );
 
   /**
    * Which of the two adopted marks this LINK has already fixed on the server (A4).

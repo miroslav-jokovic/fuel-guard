@@ -46,7 +46,11 @@ on:
       - "scripts/check-waiver-growth.mjs"
 
 concurrency:
-  group: mutation-check-${{ github.ref }}
+  # ⚠ And a group of the SHA on main, not the ref (2026-09-30): with a shared group, a newer PENDING
+  # run cancels an older pending one even with cancel-in-progress false — the same silent
+  # cancellation this block was written against, which ci.yml's header measured on three merges
+  # 19 s apart.
+  group: mutation-check-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # NOT cancel-in-progress (Step 5.4/5.5, found 2026-08-14). On `main` every push shares one group,
   # so a later merge cancelled the in-flight mutation check — and a cancelled run is not a failed
   # run, it is SILENT. Seven merges landed on `main` in one day and completed only because the job
@@ -64,15 +68,24 @@ concurrency:
 
 jobs:
   mutate:
-    runs-on: ubuntu-latest
+    # Same machine switch as ci.yml (CI_RUNNER; its header says why).
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      # Same order as .github/actions/setup, for the same reason: on the Mac, Node 22 must exist before
+      # corepack can be enabled; on GitHub's machines corepack comes first so the pnpm cache can run.
+      - uses: actions/setup-node@v4
+        if: runner.environment == 'self-hosted'
+        with:
+          node-version: 22
 
       - name: Enable Corepack
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm

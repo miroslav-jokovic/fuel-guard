@@ -11,6 +11,7 @@ import type {
   PacketPlacement,
   PartOneFactsView,
   PartOneStatus,
+  SignatureAdoptionsView,
 } from "@silvicom/shared";
 
 /**
@@ -96,13 +97,18 @@ export interface ApplyDraft {
   payload: Record<string, unknown> | null;
   furthestSection: string | null;
   updatedAt: string | null;
-  /** The revision a save must name (C3d1b, 0376). Absent from an API older than C3d1b: no check is asked for. */
-  revision?: number;
+  /** The revision a save must name (C3d1b, 0376). Served on every draft view, locked or not. */
+  revision: number;
   /**
    * A v2 link's Part 1 facts (C3c2c2, Q-AW34) — only ever on the UNLOCK's answer, never on the bundle's
    * draft: the bare link serves booleans (D-APP16). Absent from an API older than C3c2c2 as well.
    */
   partOne?: PartOneFactsView;
+  /**
+   * D-AW14 (C3s3a): wrong answers left before a link the office SENT for signing stops. Only on a wrong
+   * answer on that link; absent on every other link, which keeps D-APP16's no-lockout rule.
+   */
+  attemptsLeft?: number;
 }
 
 /**
@@ -112,8 +118,8 @@ export interface ApplyDraft {
 export interface Released {
   payload: Record<string, unknown>;
   partOne: PartOneFactsView | null;
-  /** The revision the released body is at (C3d1b); null from an API older than it. */
-  revision: number | null;
+  /** The revision the released body is at (C3d1b). */
+  revision: number;
 }
 
 /**
@@ -183,6 +189,8 @@ export interface ApplyInvitation {
    * screen this exists to fix.
    */
   packetAdopted?: { signature: string | null; initials: string | null } | null;
+  /** Screen 13's adopted signature and initials, as typed text (D-AW15, C3s1). Optional for the same reason. */
+  adoptions?: SignatureAdoptionsView;
   /**
    * Whether the date of birth and licence are on file, on the row and in the draft (AF3, D-AF1). A
    * boolean and never the values — D-APP16 keeps a date of birth off the bare link.
@@ -346,12 +354,12 @@ export const saveApplicationDraft = (
   token: string,
   payload: Record<string, unknown>,
   section: string | null,
-  /** C3d1b: the revision this tab holds; null (an API that served none) sends no key, and saves as before. */
-  revision: number | null = null,
+  /** C3d1b: the revision this tab holds; the contract requires it since M2a. */
+  revision: number,
 ): Promise<{ updatedAt: string; revision?: number | null }> =>
   publicFetch<{ updatedAt: string; revision?: number | null }>(`/${token}/draft`, {
     method: "PUT",
-    body: JSON.stringify(revision === null ? { payload, section } : { payload, section, revision }),
+    body: JSON.stringify({ payload, section, revision }),
   });
 
 /** Release a gated draft with the date of birth that is in it (D-APP16). */

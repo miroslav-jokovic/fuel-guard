@@ -271,9 +271,10 @@ const DEFINED: readonly HiringStepDefinition[] = [
   // that I have passed a safety training"* — is true when it is signed. `handbook_marks` refuses a
   // mark until the application is filed (0374, HB022), so the order is the database's too.
   //
-  // ⚠ `owes: "us"` for `application_signed`'s reason: the office opens it at the desk, then the
-  // driver signs its five places, then the office countersigns for the carrier (D-HB3). The fold reads
-  // "opened, driver not finished" as theirs.
+  // ⚠ `owes: "us"` for `application_signed`'s reason: the office sends the envelope at the desk, the
+  // driver signs its five places straight after the application on the same link (D-AW16, C3s4b), then
+  // the office countersigns for the carrier (D-HB3). The fold reads "opened, driver not finished" as
+  // theirs.
   //
   // ⚠ Never in `APPLICATION_RELEASE_ORDER` or `SCREENING_PREREQUISITES` (D-HM10): it is not a
   // permission, and it authorises no vendor call.
@@ -358,7 +359,8 @@ export const APPLICATION_SEND_WARNS_ON: readonly HiringStepKey[] = [
 ];
 
 /**
- * What "Open signing" warns about when it is not done yet (AF5, D-AF6; plan §3.2).
+ * What "Send for signing" (AF5's "Open signing" until C3s3a) warns about when it is not done yet (AF5,
+ * D-AF6; plan §3.2).
  *
  * ⚠ It WARNS and never refuses, like Send: the only refusal is the SQL's (not approved, AI006), and
  * whether the applicant is standing in the office is not something software can check. The list is

@@ -21,7 +21,7 @@ import { getCardV2, getPolicy } from "../lib/efsCardOps.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { loadCardNumber } from "../services/efsCardMirror.js";
 import { step, type StepResult } from "./probe.js";
@@ -127,7 +127,7 @@ export function fuelCardInventoryRouter(): Router {
   router.post(
     "/account-inventory",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const admin = getSupabaseAdmin(env);

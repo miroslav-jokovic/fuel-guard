@@ -121,9 +121,15 @@ describe("the invitation", () => {
     expect(applicationInviteCreateSchema.safeParse({ driver_id: DRIVER_ID, expires_in_days: INVITE_TTL_DAYS_MAX }).success).toBe(true);
   });
 
-  it("defaults to a fortnight rather than forever", () => {
+  /**
+   * Since S2 (Q-AW41) the request carries no default: absent means the CARRIER's lifetime, which the api
+   * reads — a schema default would overrule it. The fortnight is still the product's default, now in
+   * RECRUITING_SETTINGS_DEFAULTS (recruitingSettingsContract.test.ts, "are the shared constants").
+   */
+  it("leaves an absent lifetime absent, for the carrier's setting to fill", () => {
     const parsed = applicationInviteCreateSchema.parse({ driver_id: DRIVER_ID });
-    expect(parsed.expires_in_days).toBe(14);
+    expect(parsed.expires_in_days).toBeUndefined();
+    expect(applicationInviteCreateSchema.parse({ driver_id: DRIVER_ID, expires_in_days: 30 }).expires_in_days).toBe(30);
   });
 });
 

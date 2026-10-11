@@ -81,9 +81,13 @@ vi.mock("@/features/roster/useDriverReconcile", () => ({
     error: ref(null),
   }),
 }));
-vi.mock("@/stores/session", () => ({
-  useSessionStore: () => ({ can: () => true, canView: () => true }),
-}));
+// The real shape (SP5): the roster's qualification links ask the guard's function, which reads the
+// role and the screen answers, so an answer-everything stub can no longer say whether one shows.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 // PageHeader builds a breadcrumb from the live route; it is page chrome, not the table under test.
 vi.mock("@/components/ui/PageHeader.vue", () => ({
   default: {
@@ -234,7 +238,9 @@ afterEach(() => {
 const mountPage = async (at = "/drivers") => {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/drivers", component: { template: "<div/>" } }],
+    // The two pages the roster's cells link to are here because every link asks the router whether
+    // its page opens (SP5) — a route this harness did not declare would read as "nowhere to go".
+    routes: ["/drivers", "/drivers/:id", "/compliance/:id"].map((path) => ({ path, component: { template: "<div/>" } })),
   });
   // Awaited: an unresolved route has no match, and the column picker's first `replace` throws on one.
   await router.push(at);
@@ -272,6 +278,25 @@ describe("DriversPage roster table", () => {
     const table = (await mountPage()).find("table");
     expect(table.exists()).toBe(true);
     expect(table.html()).toMatchSnapshot();
+  });
+
+  /**
+   * SP5 (plan §4b): the qualification file (`/compliance/:id`) is a screen the admin can switch off
+   * for one person apart from the roster. The badge stays; it stops being a link.
+   */
+  it("keeps the qualification badge as a badge, not a link, where the file does not open (SP5)", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    expect((await mountPage()).find('table a[href="/compliance/d-1"]').exists()).toBe(true);
+    session.surfaces = { "safety.driver-qualification": false };
+    try {
+      const table = (await mountPage()).find("table");
+      expect(table.find('a[href="/compliance/d-1"]').exists()).toBe(false);
+      expect(table.text()).toContain("Due 12d");
+    } finally {
+      session.surfaces = null;
+    }
   });
 
   it("renders the archived view unchanged by the R2 extraction", async () => {

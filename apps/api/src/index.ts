@@ -7,11 +7,12 @@ import { startAllSchedulers } from "./schedulers.js";
 import { startRequestMetricsReporter } from "./middleware/requestMetrics.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { sealPlaintextSamsaraTokens } from "./modules/samsara/lib/samsaraToken.js";
+import { installShutdownHandlers } from "./lib/shutdown.js";
 
 const env = loadEnv();
 const app = createApp(env);
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`[Silvicom 360 API] listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
   /**
    * One `[metrics]` line a minute describing what this process served (C7). Started HERE and not in
@@ -35,3 +36,7 @@ app.listen(env.PORT, () => {
     console.log("[api] in-process schedulers disabled (RUN_SCHEDULERS_IN_PROCESS=false) — a dedicated worker service runs them");
   }
 });
+
+// A deploy's SIGTERM: stop taking requests, let running jobs finish inside Railway's draining window,
+// hand back the rest. Without it every deploy killed the job mid-run — see lib/shutdown.ts.
+installShutdownHandlers({ name: "api", beforeDrain: () => server.close() });

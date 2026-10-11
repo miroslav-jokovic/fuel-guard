@@ -1,0 +1,47 @@
+import { parentPort, workerData } from "node:worker_threads";
+import { PaddleOcrService } from "ppu-paddle-ocr";
+import { modelFile, OCR_MODEL_FILES } from "./ocrModels.js";
+
+/**
+ * The OCR engine's thread (pageOcr.ts starts it). Reads run in the API process today
+ * (`JOB_EXECUTION_MODE` is unset on Railway, so `inprocess`), and a page is seconds of CPU — image decoding
+ * and box geometry in JavaScript between the native inferences — so it runs here, off the thread that
+ * answers requests (the sync_hos freeze, #1327, is what a long synchronous job on that thread costs).
+ *
+ * Settings are the library's defaults, as the spike measured them, except the inference thread count,
+ * which is capped so a read cannot take every core from the requests beside it. Pages are recognised one
+ * at a time, in arrival order.
+ */
+
+const { cacheDir } = workerData as { cacheDir: string };
+const ab = (b: Buffer): ArrayBuffer => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+
+const ready = (async () => {
+  const [detection, recognition, charactersDictionary] = await Promise.all([
+    modelFile(OCR_MODEL_FILES.detection, cacheDir),
+    modelFile(OCR_MODEL_FILES.recognition, cacheDir),
+    modelFile(OCR_MODEL_FILES.charactersDictionary, cacheDir),
+  ]);
+  const service = new PaddleOcrService({
+    model: { detection: ab(detection), recognition: ab(recognition), charactersDictionary: ab(charactersDictionary) },
+    session: { intraOpNumThreads: 2 },
+  });
+  await service.initialize();
+  return service;
+})();
+// A failed start is answered on the next page's message; it must not also end the thread as unhandled.
+ready.catch(() => {});
+
+let queue: Promise<unknown> = Promise.resolve();
+parentPort!.on("message", (msg: { id: number; png: Uint8Array }) => {
+  queue = queue.then(async () => {
+    try {
+      const service = await ready;
+      const r = await service.recognize(ab(Buffer.from(msg.png.buffer, msg.png.byteOffset, msg.png.byteLength)));
+      const items = r.lines.flat().map((i) => ({ text: i.text, box: i.box }));
+      parentPort!.postMessage({ id: msg.id, items });
+    } catch (e) {
+      parentPort!.postMessage({ id: msg.id, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+});

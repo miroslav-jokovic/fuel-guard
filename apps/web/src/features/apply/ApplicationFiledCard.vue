@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import { formatDate } from "@/lib/format";
 import type { LinkHandbookStatus } from "@silvicom/shared";
@@ -23,6 +23,12 @@ import { APPLY_COPY } from "./strings";
  * before the packet is signed, so by the time this card is the page the certificate is already filed
  * — and a test recorded later shows up on the next load. Shown only when the link says there is one,
  * so a driver who has not passed is never handed a button that answers "not yet".
+ *
+ * ── THE HANDBOOK LEADS WHILE ITS PLACES ARE LEFT (D-AW16, C3s4b) ──────────────────────────────
+ * The envelope continues past the filing into the handbook, so a driver who has just filed lands on
+ * the handbook's next place — one line saying the application is filed, then the walk — rather than on
+ * a "you are done" card with the rest of the walk below the downloads. Once the places are signed the
+ * card is the filed page again, with the handbook's state at its foot.
  */
 const props = defineProps<{
   token: string;
@@ -30,7 +36,16 @@ const props = defineProps<{
   roadTestCertificate: { testedOn: string } | null;
   /** HANDBOOK-SIGNING-PLAN.md: the handbook is signed on this card, after the application (D-HB1). */
   handbook?: LinkHandbookStatus | null;
+  /** This applicant's packet places — the first part of the envelope's "Place N of M" (D-AW16). */
+  packetPlaces: number;
 }>();
+
+/** The handbook is open and the driver still has places in it: the walk leads the card. */
+const walkingHandbook = computed(() =>
+  Boolean(props.handbook?.openedAt && !props.handbook.driverComplete && !props.handbook.filedAt),
+);
+/** Anything to say about the handbook at the card's foot: signed and awaiting the carrier, or filed. */
+const handbookShown = computed(() => Boolean(props.handbook?.openedAt || props.handbook?.filedAt));
 
 const working = ref(false);
 const failed = ref(false);
@@ -68,7 +83,12 @@ const downloadCertificate = () => openFresh(fetchRoadTestCertificate, certificat
 </script>
 
 <template>
-  <BaseCard>
+  <BaseCard v-if="walkingHandbook && handbook">
+    <p class="text-sm text-ink-muted">{{ APPLY_COPY.handbook.filedThen }}</p>
+    <HandbookSigning class="mt-6" :token="token" :carrier="carrier" :handbook="handbook" :packet-places="packetPlaces" />
+  </BaseCard>
+
+  <BaseCard v-else>
     <h1 class="text-lg font-semibold text-ink">{{ APPLY_COPY.done.heading }}</h1>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.body(carrier) }}</p>
     <p class="mt-2 text-sm text-ink-muted">{{ APPLY_COPY.done.reopen }}</p>
@@ -94,6 +114,13 @@ const downloadCertificate = () => openFresh(fetchRoadTestCertificate, certificat
       <p v-if="certificateFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.done.certificateFailed }}</p>
     </div>
 
-    <HandbookSigning v-if="handbook" :token="token" :carrier="carrier" :handbook="handbook" />
+    <HandbookSigning
+      v-if="handbook && handbookShown"
+      class="mt-8 border-t border-edge pt-6"
+      :token="token"
+      :carrier="carrier"
+      :handbook="handbook"
+      :packet-places="packetPlaces"
+    />
   </BaseCard>
 </template>

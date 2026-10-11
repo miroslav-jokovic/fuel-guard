@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
-import { orgSettingsFormSchema, type OrgSettingsForm } from "@silvicom/shared";
-import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
+import { computed, reactive, ref, watch } from "vue";
+import GatedLink from "@/components/GatedLink.vue";
+import { orgProfileFormSchema } from "@silvicom/shared";
+import { useOrgSettingsQuery, useSaveOrgProfile } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -12,7 +12,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
-const save = useSaveOrgSettings();
+const save = useSaveOrgProfile();
 
 const form = reactive({
   name: "",
@@ -26,8 +26,6 @@ const form = reactive({
   start: "05:00",
   end: "20:00",
   tz: "America/Chicago",
-  notifications_enabled: true,
-  emails: "",
 });
 
 watch(
@@ -47,38 +45,35 @@ watch(
     form.start = form.open24_7 ? "05:00" : oStart; // keep sensible values behind the toggle
     form.end = form.open24_7 ? "20:00" : oEnd;
     form.tz = o.operating_hours?.tz ?? "America/Chicago";
-    form.notifications_enabled = o.notifications_enabled;
-    form.emails = (o.notification_emails ?? []).join(", ");
   },
   { immediate: true },
 );
 
 const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
+// The schema reports a bad entry at `allowed_domains.<index>`; the field is one input, so any of them.
+const domainsError = computed(() =>
+  Object.entries(fieldErr.value).find(([k]) => k.startsWith("allowed_domains"))?.[1],
+);
 
 async function onSave() {
-  const emails = form.emails
-    .split(/[,\s]+/)
-    .map((e) => e.trim())
-    .filter(Boolean);
-  const domains = form.allowedDomains
-    .split(/[,\s]+/)
-    .map((d) => d.trim().toLowerCase())
-    .filter(Boolean);
-  const result = orgSettingsFormSchema.safeParse({
+  // Only this page's own columns (SP2) — Notifications saves its two on its own screen.
+  const result = orgProfileFormSchema.safeParse({
     name: form.name,
     dot_number: form.dotNumber.trim(),
     address_line1: form.addressLine1.trim(),
     city: form.city.trim(),
     state: form.state.trim(),
     postal_code: form.postalCode.trim(),
-    allowed_domains: domains,
+    // Blank means no restriction, sent as [] (Q-SET4) — a stray trailing comma is not a domain.
+    allowed_domains: form.allowedDomains
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => d !== ""),
     // 24/7 is encoded as start === end (the off-hours rule then never fires).
     operating_hours: form.open24_7
       ? { start: "00:00", end: "00:00", tz: form.tz }
       : { start: form.start, end: form.end, tz: form.tz },
-    notifications_enabled: form.notifications_enabled,
-    notification_emails: emails,
   });
   if (!result.success) {
     const m: Record<string, string> = {};
@@ -91,7 +86,7 @@ async function onSave() {
   }
   fieldErr.value = {};
   try {
-    await save.mutateAsync(result.data as OrgSettingsForm);
+    await save.mutateAsync(result.data);
     toast.success("Settings saved");
   } catch (e) {
     toast.error("Could not save settings", e instanceof Error ? e.message : undefined);
@@ -149,11 +144,13 @@ async function onSave() {
           v-slot="{ id }"
           class="mt-4"
           label="Allowed email domains (comma-separated)"
-          hint="Only emails from these domains can be invited. Leave empty to allow any domain."
+          hint="Invitations to any other domain are refused — even ones already sent. Leave empty to allow any domain."
+          :error="domainsError"
         >
           <BaseInput
             :id="id"
             v-model="form.allowedDomains"
+            :invalid="Boolean(domainsError)"
             placeholder="silvicominc.com, example.com — leave blank to allow any domain"
           />
         </FormField>
@@ -195,10 +192,9 @@ async function onSave() {
 
       <p class="text-xs text-ink-muted">
         Looking for alert recipients? They now live in
-        <RouterLink
-          to="/settings/notifications"
-          class="font-medium text-link hover:text-link-hover"
-          >Settings → Notifications</RouterLink
+        <!-- SP5: Organization and Notifications are separate screens since SP1, each turned on per role. -->
+        <GatedLink to="/settings/notifications" class="font-medium text-link hover:text-link-hover"
+          >Settings → Notifications</GatedLink
         >.
       </p>
 

@@ -69,7 +69,7 @@ await db.exec(`
   );
   create table storage.objects (
     id uuid primary key default gen_random_uuid(),
-    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+    bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now()
   );
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(name text)
@@ -934,39 +934,53 @@ ok(
   await wrote(DISPATCHER, ORG, "dispatcher", { safety: "manage" }, TOUCH_IDLE, [ORG]),
 );
 
+// 0300 C put discount rules and route fuel settings under DISPATCH; SP3 (0389) then took the client
+// write away from everyone. Planned fueling is its own screen (Q-SET2), which RLS cannot see
+// (D-SURF4), so the API is the one writer and asks the section AND the screen. A dispatch grant
+// alone therefore writes nothing here any more — not even the admin's, and not a dispatcher given
+// dispatch: manage. The pages still load both tables through PostgREST, so the read stays.
 const NEW_DISCOUNT = `insert into fuel_discount_rules (org_id, brand, cents_off) values ($1, 'p6-brand', 3)`;
-ok(
-  "a claim-less dispatcher writes a discount rule — the 0078 list, now under DISPATCH (0300 C)",
-  await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_DISCOUNT, [ORG]),
-);
-ok(
-  "taking FUEL from the dispatcher changes nothing — the planner's inputs are dispatch's",
-  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "none" }, NEW_DISCOUNT, [ORG]),
-);
-ok(
-  "taking DISPATCH manage from them closes it",
-  !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, NEW_DISCOUNT, [ORG])),
-);
 await db.query(`insert into route_fuel_settings (org_id) values ($1) on conflict (org_id) do nothing`, [ORG]);
 const TOUCH_ROUTE = `update route_fuel_settings set reserve_pct = 21 where org_id = $1`;
 ok(
-  "route fuel settings answer the same dispatch question, both ways",
-  (await wrote(DISPATCHER, ORG, "dispatcher", null, TOUCH_ROUTE, [ORG])) &&
-    !(await wrote(DISPATCHER, ORG, "dispatcher", { dispatch: "view" }, TOUCH_ROUTE, [ORG])),
+  "the fixture is real — the table owner touches the org's route fuel settings",
+  (await db.query(`${TOUCH_ROUTE} returning org_id`, [ORG])).rows.length === 1,
+);
+for (const [who, user, role, sections] of [
+  ["a claim-less dispatcher", DISPATCHER, "dispatcher", null],
+  ["a dispatcher granted dispatch: manage", DISPATCHER, "dispatcher", { dispatch: "manage" }],
+  ["the admin", BOSS, "admin", null],
+]) {
+  ok(
+    `${who} cannot write a discount rule from the client — the API owns it (0389)`,
+    !(await wrote(user, ORG, role, sections, NEW_DISCOUNT, [ORG])),
+  );
+  ok(
+    `${who} cannot touch route fuel settings from the client either (0389)`,
+    !(await wrote(user, ORG, role, sections, TOUCH_ROUTE, [ORG])),
+  );
+}
+ok(
+  "a claim-less dispatcher still READS the org's route fuel settings — the page loads through PostgREST",
+  (await asUserWith(DISPATCHER, ORG, "dispatcher", null, `select org_id from route_fuel_settings where org_id = $1`, [ORG])).rows?.length === 1,
 );
 
 // D. A role that a RESTRICTIVE policy already refuses is dead text in a permissive list (D-PERM12).
 // 0135 closed the driver's PostgREST fill-up (`fuel_tx_driver_insert`: restrictive, `auth_role() <>
 // 'driver'`), so the `driver` 0004 listed in ftxn_insert has been unreachable since; 0300 removes it
-// and the office half is the fuel section's manage set. Both halves are pinned here.
+// and the office half is the fuel section's manage set.
+// 0447 (F02-F04 chunk 12b, Q-F6) then dropped `ftxn_insert` itself: no browser writes a fill, whatever its
+// role or grant. The two cases that proved the policy ADMITTED a writer now prove nobody is admitted —
+// the admin, and a dispatcher whose org grants fuel: manage. The fill-write matrix for every role is in
+// `fuel-ledger-section-gate.test.mjs`.
 const P6_VEHICLE = (await one(
   `insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ($1,'P6-1','diesel',100) returning id`,
   [ORG],
 )).id;
 const NEW_FILL = `insert into fuel_transactions (org_id, vehicle_id, fueled_at, gallons, source) values ($1, $2, now(), 10, 'manual')`;
 ok(
-  "the fixture is real — an admin records a fill-up",
-  await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE]),
+  "not even the admin records a fill-up through PostgREST since 0447 — every fill comes from the API",
+  !(await wrote(BOSS, ORG, "admin", null, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
   "a driver cannot record a fill-up through PostgREST — 0135's closure, which made the listed role dead (D-PERM12)",
@@ -977,8 +991,8 @@ ok(
   !(await wrote(DISPATCHER, ORG, "dispatcher", null, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
-  "…until an org grants them fuel: manage, which now reaches this policy",
-  await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE]),
+  "…nor when an org grants them fuel: manage — there is no write policy for a grant to reach (0447)",
+  !(await wrote(DISPATCHER, ORG, "dispatcher", { fuel: "manage" }, NEW_FILL, [ORG, P6_VEHICLE])),
 );
 ok(
   "and an org that drops its fleet managers to fuel: view is obeyed here too",

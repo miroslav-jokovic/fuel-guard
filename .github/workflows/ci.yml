@@ -24,6 +24,19 @@ name: CI
 # scripts/run-tests.mjs rather than listed here, and the non-api/web unit suites are selected by
 # EXCLUSION, so a package added tomorrow is tested by this workflow without anyone editing it.
 
+# ── Where it runs ─────────────────────────────────────────────────────────────────────────────
+#
+# On GitHub's ubuntu machines. The owner's MacBook was tried through self-hosted runners on
+# 2026-09-30 and reversed the same day: it saved ~nothing end to end (367 s against 393–678 s),
+# because seven jobs on one machine contend for its cores and queue behind other workflows. The
+# repository is public again, so these minutes are free. The measured story is in
+# docs/plans/ci/HANDOFF-2026-09-30-CI-SPEED.md; what actually shortened a merge is the native-android
+# path filter below and require-ci-green accepting the PR's tested tree.
+#
+# The switch it left is harmless and stays: every job says `vars.CI_RUNNER || 'ubuntu-latest'`,
+# and the variable is deleted. Where a step differs by machine it says `runner.os` or
+# `runner.environment` and why, next to it.
+
 on:
   push:
     branches: [main]
@@ -33,8 +46,23 @@ on:
 # mattered finished later than it needed to. Superseded PR runs are cancelled; main runs are NEVER
 # cancelled, because migrate.yml gates production schema changes on the CI run for that exact SHA
 # (.github/actions/require-ci-green) and a cancelled run reads to it as a failed deploy.
+#
+# ⚠ `cancel-in-progress: false` did NOT deliver that, and the group key now does (2026-09-30). A
+# concurrency group holds one RUNNING and one PENDING run; a newer pending run cancels the older
+# pending one whatever cancel-in-progress says. When #1154, #1153 and #1150 merged within 19 s, the
+# middle two main runs were cancelled, and migrate.yml refused migration 0393 on 5255378 with
+# "CI concluded 'cancelled'" while the code expecting it went live. So a push to main gets a group
+# of its own SHA — nothing can supersede it — and only a pull request's runs share a group.
+# ⚠ On the Mac, vitest is capped at 3 workers per job. Its default is one per core, so five jobs
+# sharing 14 cores started ~65 workers: the first run measured a load average of 58 with 0% idle,
+# and eight tests that take under a second on an idle Mac hit vitest's 5 s timeout (the capture
+# parity test: 0.8 s idle). 5 runners × 3 ≈ the 14 cores. Empty on GitHub's machines, where each job
+# has its own four cores and vitest ignores an empty value.
+env:
+  VITEST_MAX_WORKERS: ${{ vars.CI_RUNNER && '3' || '' }}
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -43,7 +71,7 @@ jobs:
   # are ~95s; giving each its own would spend more on runner start-up than the checks themselves
   # cost, and would turn one red X into twenty.
   gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,10 +86,20 @@ jobs:
       - name: Install gitleaks
         env:
           GITLEAKS_VERSION: 8.18.4
+        # The asset is per OS and CPU. Unpacked into this job's own temp dir rather than /usr/local/bin:
+        # on the Mac five runners share one machine, and a shared path is written by whichever job
+        # got there last.
         run: |
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)   asset=linux_x64 ;;
+            macOS-ARM64) asset=darwin_arm64 ;;
+            *) echo "::error::no gitleaks asset for ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_${asset}.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gitleaks" version
 
       # Invoked as plain node, not `pnpm lint:secrets`, so it still runs before the workspace is set
       # up at all — scripts/scan-secrets.mjs imports nothing but node builtins. Same check, same
@@ -114,6 +152,9 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           MIGRATION_ORDERING_BASE: ${{ github.event.pull_request.base.sha }}
+          # The release PR (main → production) is a day of merges: check each one on its own, the unit
+          # it was checked in on its PR (scripts/check-migration-ordering.mjs, THE RELEASE PR).
+          MIGRATION_ORDERING_MERGES_TO: ${{ github.base_ref == 'production' && github.event.pull_request.head.sha || '' }}
         run: node scripts/check-migration-ordering.mjs
 
       # Fleet MPG has ONE definition. Four implementations of the same one landed without anyone
@@ -223,6 +264,8 @@ jobs:
       # sources, then fails if either differs from what was committed. It had existed since the
       # codegen work but was never wired in here, so for its whole life it enforced nothing —
       # including for the *.generated.ts files it was written for (found 2026-08-23, D-DS3).
+      # Since 2026-10-11 it also regenerates the SMS Appendix A dataset from FMCSA's committed
+      # workbook (`scripts/gen-sms-appendix.mjs --check`, INSPECTION-CHALLENGE-PLAN IC3).
       - name: Generated output matches its sources
         run: pnpm lint:codegen
 
@@ -248,6 +291,9 @@ jobs:
       # it was that nobody could tell.
       - name: EFS SOAP operations match the checked-in WSDL
         run: pnpm lint:wsdl
+      # Added in the same PR as the gate (RELEASE-TRAIN-PLAN R5): the rules release.yml ships by.
+      - name: Release-train rules self-test
+        run: pnpm lint:release-train
 
       # Added here in the SAME PR as the gate itself (FLEETPAL-INTEGRATION-PLAN.md F1), because root
       # CLAUDE.md's rule is that a gate in package.json and in neither CI list is not a gate — the
@@ -283,7 +329,7 @@ jobs:
   # These two stay together because the third step needs the second one's output: lint:light-dark
   # reads apps/web/dist, which only exists after a build.
   typecheck-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: ci-test-anon-key
@@ -305,6 +351,28 @@ jobs:
       - name: light-dark() survives minification
         run: pnpm lint:light-dark
 
+      # The first browser tests CI runs (C3d3b1, APPLICATION-FLOW-V2-PLAN.md §6.8): the applicant's page,
+      # BUILT, in Chromium, against a stubbed API — a cut network loses no answers and a cut upload is
+      # sent again from the kept photo. Here because they need `dist`, and this is the only job that
+      # builds. `apps/web/playwright.apply.config.ts` says why they are not in `e2e/` (smoke.yml runs that
+      # folder against production).
+      # GitHub's machines start empty, so Chromium is cached through the Actions cache; the Mac keeps
+      # its own download between runs and an upload/restore round trip would only cost time.
+      - name: Cache Playwright's Chromium
+        if: runner.environment == 'github-hosted'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json') }}
+
+      # `--with-deps` installs Chromium's system libraries with apt, which only exists on Linux; macOS
+      # already has what Chromium needs.
+      - name: Install Chromium
+        run: pnpm --filter @silvicom/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+
+      - name: The applicant's page in a browser
+        run: pnpm --filter @silvicom/web e2e:apply
+
   # ── Unit suites, three ways ───────────────────────────────────────────────────────────────────
   # apps/api (259 files) and apps/web (146) are the two big ones, and they are import-bound rather
   # than assertion-bound: on run 33942529999 api spent 601s importing modules and 105s running
@@ -315,7 +383,7 @@ jobs:
   # apps/api indefinitely (>5 min against an 18s baseline), because suites here rely on a fresh
   # module registry per file. Do not reach for it again without fixing that first.
   test-api:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -325,7 +393,7 @@ jobs:
         run: pnpm --filter @silvicom/api test
 
   test-web:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -342,7 +410,7 @@ jobs:
   # somebody adds the thirteenth its suites would simply never run — the same shape of bug
   # `lint:tests` exists to catch one level down, at the file.
   test-packages:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -355,7 +423,7 @@ jobs:
   # failure it was written to prevent: a matrix that nobody notices stopped running. They now run
   # concurrently WITHIN the job instead, bounded by core count.
   matrices:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       # build-shared stays ON here, and it is not obvious why: `@silvicom/shared` resolves to src
@@ -384,13 +452,81 @@ jobs:
   # GitHub's macOS runners are billed at ten times the Linux rate and an Xcode build of this app is
   # minutes, not seconds; that trade has not been made. Until it is, SCANNER-UPGRADE-PLAN.md §3.4
   # stands: an iOS build on the Mac is a required manual step of every native PR.
+  #
+  # ── It only does the work when something it reads has changed (2026-09-30) ──────────────────────
+  # It was the long pole of every run (362–634 s on ubuntu, five green main runs) and only 7 of the
+  # 159 merges between 2026-09-23 and 09-30 touched anything it reads — none of them apps/driver.
+  # So on a pull request the first step diffs the synthetic merge commit against its first parent
+  # (the base it is tested against: exactly the change this PR would make to main), and every later
+  # step is skipped when none of NATIVE_INPUTS moved.
+  #
+  # The JOB still runs and succeeds; only its steps skip. That is the choice, over a job-level `if:`
+  # with `build` taught to accept `skipped` from this one job: `build` is the required check, and a
+  # required check whose verdict depends on another job's output is one more thing that can be
+  # wrong in the one place a mistake merges. Here `build` is untouched and a skipped job still reads
+  # as a failure, as it always has. Workflow-level `paths:` is not an option at all — it skips the
+  # whole workflow, and a required check that never reports blocks the merge for ever.
+  #
+  # On a push to main it ALWAYS does the full build, deliberately. Main's run is not what a PR
+  # author waits for, so the build costs little there, and it means a path this list forgot is
+  # caught on main at the latest rather than never.
+  #
+  # NATIVE_INPUTS is a written list because it cannot be derived: no manifest names what a prebuild
+  # and two Gradle tasks read. Each entry is here for a reason, and the reason is the maintenance
+  # rule — anything this job starts reading goes on the list in the same PR:
+  #   apps/driver/                  the app, app.config.ts, its config plugins, the capture module
+  #                                 (apps/driver/modules/capture-native) and check-android-manifest.mjs
+  #   packages/capture-engine/      the parity test reads its fixtures/ (capture-native's build.gradle
+  #                                 points `scanner.fixturesDir` there)
+  #   pnpm-lock.yaml, package.json, pnpm-workspace.yaml, .npmrc, .nvmrc
+  #                                 what gets installed, and where: autolinking finds native modules
+  #                                 by walking node_modules, and .npmrc's node-linker=hoisted decides
+  #                                 that layout
+  #   .github/workflows/ci.yml, .github/actions/setup/
+  #                                 this job and its toolchain
+  # NOT on it, on purpose: packages/shared. The driver's JS imports it, but nothing here runs the
+  # driver's JS — app.config.ts imports only node:fs and expo/config — and shared changes with most
+  # contract work, so listing it would give back most of the saving for no coverage.
   native-android:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    env:
+      NATIVE_INPUTS: >-
+        apps/driver/ packages/capture-engine/ pnpm-lock.yaml package.json pnpm-workspace.yaml
+        .npmrc .nvmrc .github/workflows/ci.yml .github/actions/setup/
     steps:
+      # Depth 2 on a pull request is the merge commit plus both its parents, which is all the diff
+      # below needs; a push to main never reads history here.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Did anything this job reads change?
+        id: native
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Push to main: always build."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A failed diff must not read as "nothing changed" — set -e fails the step instead.
+          set -eo pipefail
+          # shellcheck disable=SC2086 # NATIVE_INPUTS is a space-separated list of pathspecs.
+          changed=$(git diff --name-only HEAD^1 HEAD -- $NATIVE_INPUTS)
+          if [ -n "$changed" ]; then
+            echo "Native inputs changed — building:"
+            echo "$changed" | sed 's/^/  /'
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing this job reads changed against $(git rev-parse --short HEAD^1) — skipping the build."
+            echo "native-android: nothing it reads changed; build skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: ./.github/actions/setup
+        if: steps.native.outputs.build == 'true'
 
       - uses: actions/setup-java@v4
+        if: steps.native.outputs.build == 'true'
         with:
           distribution: temurin
           java-version: "17"
@@ -414,7 +550,11 @@ jobs:
       # this action's default is broken until it names its packages. We name the half that still
       # exists. Nothing here needed `tools`: the job prebuilds, compiles `:capture-native` and runs a
       # plain JVM test, and AGP resolves build-tools and platforms by itself.
+      #
+      # Skipped on the Mac: it has an SDK at ANDROID_HOME (set in each runner's .env), and this action
+      # would install cmdline-tools into it from whichever of the five runners got there first.
       - uses: android-actions/setup-android@v3
+        if: steps.native.outputs.build == 'true' && runner.environment == 'github-hosted'
         with:
           packages: platform-tools
 
@@ -427,16 +567,62 @@ jobs:
       # one nobody exercises on a laptop. The only difference the flag makes to this project is that
       # expo-dev-client leaves the plugin list.
       - name: Prebuild the Android project (store variant)
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver
         env:
           APP_VARIANT: store
         run: pnpm exec expo prebuild --platform android --no-install --clean
 
+      # The Mac's ~/.gradle outlives the job, so saving it to the Actions cache would be a round trip
+      # for nothing.
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.native.outputs.build == 'true'
+        with:
+          cache-disabled: ${{ runner.environment == 'self-hosted' }}
 
+      # ⚠ Retried, but ONLY on an NDK that failed to install (2026-09-30). Gradle downloads two NDKs
+      # while it configures the project, on every run: 27.1.12297006, which React Native pins in its
+      # libs.versions.toml, and 27.0.12077973, which is AGP's own default for expo-sqlite (a CMake
+      # build that names no ndkVersion). The runner image has neither. Google's download was corrupt
+      # often enough to matter: `InstallFailedException … Error on ZipFile unknown archive` failed
+      # native-android on 2 of ~14 main builds in three hours (36cad9a, 466875e). The first of those
+      # blocked migration 0393, because require-ci-green waits for main's CI whenever the PR's
+      # tested-tree shortcut does not apply.
+      #
+      # Why it is a retry and not a pre-install: no file names both versions. Only Gradle knows them,
+      # and a list copied here would go stale on the next Expo upgrade without anyone noticing. Why
+      # not a cache either: the two NDKs are ~2 GB, the same order as this repo's whole 10 GB Actions
+      # cache, and a clean download took 9 s.
+      #
+      # So the step retries up to three times, only when the log says an SDK component failed to
+      # install, clearing the SDK's download staging and any NDK folder left half-installed first. Any
+      # other failure (a Kotlin compile error, above all) fails on the first attempt, as before.
+      # This is where the NDKs get installed: this is the first Gradle call, and Gradle configures
+      # every project on it, so the later steps find them on disk.
       - name: Compile the capture module
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
-        run: ./gradlew :capture-native:assembleDebug --no-daemon --console=plain
+        run: |
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          for attempt in 1 2 3; do
+            set +e
+            ./gradlew :capture-native:assembleDebug --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+            status=${PIPESTATUS[0]}
+            set -e
+            [ "$status" -eq 0 ] && exit 0
+            if ! grep -q "InstallFailedException" "$RUNNER_TEMP/gradle.log"; then
+              exit "$status"
+            fi
+            echo "::warning::Attempt ${attempt}: an SDK component failed to install (Google's download) — clearing and retrying."
+            if [ -n "$sdk" ]; then
+              rm -rf "$sdk/.temp" "$sdk/.downloadIntermediates"
+              for d in "$sdk"/ndk/*/; do
+                [ -f "${d}source.properties" ] || rm -rf "$d"
+              done
+            fi
+          done
+          echo "::error::The SDK components Gradle needs failed to install three times."
+          exit 1
 
       # The Android half of D-SCAN9 (plan Step 3.2): CaptureMetrics.kt reproduces
       # packages/capture-engine/fixtures/expected.json on all 24 fixtures. It is a plain JVM test —
@@ -448,6 +634,7 @@ jobs:
       # plan's §3.4 native checklist beside the xcodebuild step. The asymmetry is deliberate and is
       # the reason Android's port is held tighter than iOS's by machinery rather than by memory.
       - name: Check the capture module's metric parity against the reference
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
         run: ./gradlew :capture-native:testDebugUnitTest --no-daemon --console=plain
 
@@ -464,12 +651,14 @@ jobs:
       # plain exec with no ignoreExitValue — with no auth token that is a failed build, not a
       # skipped upload (D-PR11).
       - name: Merge the release manifest
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver/android
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: ./gradlew :app:processReleaseManifest --no-daemon --console=plain
 
       - name: The shipped manifest is what app.config.ts asked for
+        if: steps.native.outputs.build == 'true'
         working-directory: apps/driver
         run: >-
           node scripts/check-android-manifest.mjs
@@ -481,10 +670,24 @@ jobs:
   # "all of CI passed". `if: always()` plus the explicit result check is deliberate — without it a
   # cancelled or skipped dependency would leave this job skipped, and a skipped required check reads
   # to branch protection as nothing at all rather than as a failure.
+  #
+  # It also RECORDS what was proven (2026-09-30). On a pull request, once every job has passed, it
+  # posts a `ci/tested-tree` commit status on the PR head whose description is the git tree of the
+  # merge commit this run tested. When the PR is merged with main unmoved, main's merge commit has
+  # that identical tree, and require-ci-green reads the status to ship a migration or a driver
+  # release without waiting for a second full run of this workflow on main — which proved nothing
+  # new and cost every migration merge 6.5–11 minutes. .github/actions/require-ci-green/tested-tree.sh
+  # has the rules. The status is informational to branch protection: `build` stays the required check.
+  #
+  # Only for a PR from this repository: a fork's token cannot write statuses, and a fork's PR could
+  # never be what a deploy reads anyway, since the gate only ever looks at a merge commit on main.
   build:
     if: always()
     needs: [gates, typecheck-build, test-api, test-web, test-packages, matrices, native-android]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - name: Require every CI job to have succeeded
         env:
@@ -498,3 +701,17 @@ jobs:
             fi
           done
           echo "All CI jobs succeeded."
+
+      # Runs only if the step above passed, so a status is never posted for a red run.
+      - name: Record the tree this run proved green
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          tree=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${GITHUB_SHA}" --jq .tree.sha)
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=success -f context=ci/tested-tree -f description="$tree" -f target_url="$RUN_URL" >/dev/null
+          echo "Recorded ci/tested-tree on ${HEAD_SHA::7}: merge ${GITHUB_SHA::7} has tree $tree"

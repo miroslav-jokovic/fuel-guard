@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia } from "pinia";
@@ -80,10 +80,24 @@ vi.mock("@/composables/useCardAssignments", () => ({
   useCardAssignments: () => ({ data: ref([]) }),
   useSyncCardAssignments: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }),
 }));
-vi.mock("vue-router", () => ({ useRouter: () => ({ push: () => {} }) }));
+vi.mock("vue-router", async (importOriginal) => ({
+  // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
+  // three names it takes from vue-router stay real under this mock.
+  ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
+    await importOriginal<typeof import("vue-router")>(),
+  ),
+  useRouter: () => ({ push: pushed }),
+}));
+// SP5: FillsTab's row click goes to Alerts only where Alerts opens, which `useOpens` answers from the
+// session — the real shape, from `testing/fakeSession`.
+const pushed = vi.hoisted(() => vi.fn());
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: null })), apiDownload: vi.fn() }));
 
-import { vi } from "vitest";
 import SourceRecordsTab from "./SourceRecordsTab.vue";
 import DeclinesTab from "./DeclinesTab.vue";
 import FillsTab from "./FillsTab.vue";
@@ -147,5 +161,47 @@ describe("every tab offers its own list as a file, scoped to what it is showing"
 
   it("puts them on the source-records export", async () => {
     expect(await hrefOf(SourceRecordsTab)).toContain("/api/fueling/exports/source-records.csv?from=2026-08-01&to=2026-08-31&unit=654%2C655");
+  });
+});
+
+/**
+ * SP5 (plan §4b): a flagged fill opens that truck's cases on Alerts — `safety` view — from the Fuel
+ * Log, which is `fuel` view. For a reader Alerts does not open for, the row is not a door: no
+ * pointer, and a click goes nowhere.
+ */
+describe("a flagged fill's row (SP5)", () => {
+  const flagged = { id: "x", vehicle_id: "v1", has_anomaly: true };
+  const table = async () => {
+    const w = mount(FillsTab, {
+      shallow: true,
+      props: { shared: sharedStub() },
+      global: { plugins: [VueQueryPlugin, createPinia()] },
+    });
+    await flushPromises();
+    return w.findComponent({ name: "DataTable" });
+  };
+
+  it("opens the truck's cases on Alerts for a reader Alerts opens for", async () => {
+    pushed.mockClear();
+    const t = await table();
+    expect((t.props("rowClass") as (r: unknown) => string)(flagged)).toBe("cursor-pointer");
+    t.vm.$emit("row-click", flagged);
+    expect(pushed).toHaveBeenCalledWith({ path: "/anomalies", query: { vehicle: "v1" } });
+  });
+
+  it("is not a door for an accountant, who reads fuel and holds no safety", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    session.role = "accountant";
+    try {
+      pushed.mockClear();
+      const t = await table();
+      expect((t.props("rowClass") as (r: unknown) => string)(flagged)).toBe("");
+      t.vm.$emit("row-click", flagged);
+      expect(pushed).not.toHaveBeenCalled();
+    } finally {
+      session.role = "admin";
+    }
   });
 });

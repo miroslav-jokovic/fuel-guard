@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppInput as BaseInput, AppFormField as FormField } from "@silvicom/ui";
-import { canResendApplicationLink, rolesThatManage } from "@silvicom/shared";
+import { canResendApplicationLink } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
 import ApplicationLinkOnce from "@/features/recruitment/ApplicationLinkOnce.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -67,10 +67,9 @@ const resendable = computed(() => {
   return current && canResendApplicationLink(current) ? current : null;
 });
 
-const canInvite = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canInvite = computed(() => session.can("recruitment"));
 
 const email = ref("");
 const link = ref<string | null>(null);

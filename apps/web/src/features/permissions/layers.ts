@@ -1,11 +1,12 @@
 import {
   callerCanManage,
   callerCanView,
+  ACCESS_LABELS,
   type AppSection,
   type SectionAccess,
   type SectionClaim,
-  type SurfaceClaim,
   type UserRole,
+  surfaceStartsOn,
 } from "@silvicom/shared";
 
 /**
@@ -23,90 +24,37 @@ import {
  *
  * So the API sends the layers unmerged (`GET /api/section-access/user/:id`) and this module says
  * which one won. The precedence it applies is D-SURF6's, the same order the server resolves in.
+ *
+ * ⚠ The precedence itself — `sectionCell`, `surfaceCell`, the merged claims and the layer words —
+ * lives in `@silvicom/shared` (`accessLayers.ts`) since SP10 (Q-SET10): the access-review export is
+ * rendered by the API and has to tag each cell exactly as this page does, so the rule moved to the
+ * package both read and is re-exported here unchanged. Edit it there.
  */
-export type AccessLayer = "default" | "role" | "user";
-
-/**
- * The words on a cell's marker, and in the tests that pin them. One word each, because the marker
- * sits beside the control on every row and a two-word tag eleven times over is noise: "Default" is
- * the shipped matrix, "Role" is what this organisation answered for the whole role, "Personal" is
- * this one person's own row.
- */
-export const LAYER_LABELS: Record<AccessLayer, string> = {
-  default: "Default",
-  role: "Role",
-  user: "Personal",
-};
+export {
+  LAYER_LABELS,
+  mergedSectionClaim,
+  mergedSurfaceClaim,
+  sectionCell,
+  surfaceCell,
+  type AccessLayer,
+  type SectionCell,
+  type SurfaceCell,
+} from "@silvicom/shared";
 
 /** The three answers a section takes, in the order the control shows them. */
-export const ACCESS_OPTIONS: ReadonlyArray<{ value: SectionAccess; label: string }> = [
-  { value: "none", label: "None" },
-  { value: "view", label: "View" },
-  { value: "manage", label: "Manage" },
-];
+export const ACCESS_OPTIONS: ReadonlyArray<{ value: SectionAccess; label: string }> = (
+  ["none", "view", "manage"] as const
+).map((value) => ({ value, label: ACCESS_LABELS[value] }));
 export const accessLabel = (a: SectionAccess): string =>
   ACCESS_OPTIONS.find((o) => o.value === a)?.label ?? a;
 
-export interface SectionCell {
-  access: SectionAccess;
-  layer: AccessLayer;
-}
-
 /**
- * One section cell for one MEMBER: shipped default → org role override → this person's override.
- *
- * `undefined` at a layer means that layer said nothing, which is D-PERM4's sparseness — never a
- * denial. Note the middle layer is where a role-level page and a person-level page differ: for a
- * ROLE there are only two layers, because the person's row does not apply to the role.
+ * Where a catalogue entry starts for a role, asked through the same shared function the guard falls
+ * back to, so a cell and the router cannot disagree about "no answer". The entry arrives from the API
+ * rather than from the bundled catalogue — every read brings its own yardstick (`usePermissions.ts`).
  */
-export function sectionCell(
-  shipped: SectionAccess,
-  roleOverride: SectionAccess | undefined,
-  userOverride: SectionAccess | undefined,
-): SectionCell {
-  if (userOverride !== undefined) return { access: userOverride, layer: "user" };
-  if (roleOverride !== undefined) return { access: roleOverride, layer: "role" };
-  return { access: shipped, layer: "default" };
-}
-
-export interface SurfaceCell {
-  allowed: boolean;
-  layer: AccessLayer;
-}
-
-/**
- * One screen cell.
- *
- * ⚠ There is no shipped per-screen default to compare against, and the absence is the design rather
- * than a gap: a screen's shipped answer IS its section gate (D-SURF2), which is asked separately by
- * `sectionReaches` below. What an org's row can do is narrow within that, so "no row anywhere" reads
- * as allowed — the catalogue as it shipped.
- */
-export function surfaceCell(
-  roleOverride: boolean | undefined,
-  userOverride: boolean | undefined,
-): SurfaceCell {
-  if (userOverride !== undefined) return { allowed: userOverride, layer: "user" };
-  if (roleOverride !== undefined) return { allowed: roleOverride, layer: "role" };
-  return { allowed: true, layer: "default" };
-}
-
-/**
- * The claims a MEMBER's preview is drawn from — their own answers over their role's (D-SURF6).
- *
- * The same one-line precedence `surfaceClaimFor` applies server-side. It is written again here
- * because the page is previewing an answer that has not been minted yet: the sidebar it draws is the
- * one the member will get on their next page load (screens) or their next token refresh (sections),
- * and neither has happened at the moment an admin is looking at it.
- */
-export const mergedSectionClaim = (role: SectionClaim, user: SectionClaim): SectionClaim => ({
-  ...role,
-  ...user,
-});
-export const mergedSurfaceClaim = (role: SurfaceClaim, user: SurfaceClaim): SurfaceClaim => ({
-  ...role,
-  ...user,
-});
+export const entryStartsOn = (s: { startsOnFor: UserRole[] | null }, role: UserRole | null): boolean =>
+  surfaceStartsOn({ startsOnFor: s.startsOnFor ?? undefined }, role);
 
 /**
  * Does this principal's SECTION access reach a screen catalogued at `section` × `level`?

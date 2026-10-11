@@ -143,15 +143,18 @@ describe("correlateSignals (multi-signal → one case)", () => {
     expect(c.level).toBe("review");
     expect(c.severity).toBe("medium");
   });
-  it("an overwhelming physical signal (tank space) → critical alert on its own", () => {
+  // How weights combine (overwhelming, two axes, the critical lead) is pinned against fixed weights in
+  // anomalyRules/correlationMechanics.test.ts. Since CF5 no catalog rule pair reaches an alert, so
+  // these cases assert the PRODUCT outcome instead (anomalyRules/approvedFillNotes.test.ts has the rest).
+  it("CF5: more fuel than the tank had room for is a note on its own — no case", () => {
     const c = correlateSignals([sig("tank_space_exceeded", "critical")]);
-    expect(c.level).toBe("alert");
-    expect(c.severity).toBe("critical");
+    expect(c.level).toBe("clear");
+    expect(c.unscoredSignals.map((s) => s.ruleId)).toEqual(["tank_space_exceeded"]);
   });
-  it("two independent axes agreeing → alert", () => {
+  it("CF5: a location signal beside a short tank rise stays a review", () => {
     const c = correlateSignals([sig("location_mismatch"), sig("tank_fill_short")]);
-    expect(c.level).toBe("alert");
-    expect(c.axes.sort()).toEqual(["location", "volume"]);
+    expect(c.level).toBe("review");
+    expect(c.axes).toEqual(["volume"]);
   });
   /**
    * Q-FUI11, answered (a) 2026-09-06: `cumulative_overfuel` is weight 0 and no longer accuses.
@@ -468,7 +471,8 @@ describe("Audit fixes — P-1 (odometer typo can't poison 3 axes) & P-3 (no doub
   it("P-3: implausible_topoff and mpg_deviation share one axis (can't be a 2-axis alert alone)", () => {
     const r = (ruleId: RuleId): RuleResult => ({ ruleId, fired: true, severity: "high", message: "", evidence: {} });
     const c = correlateSignals([r("implausible_topoff"), r("mpg_deviation")]);
-    expect(new Set(c.signals.map((s) => s.axis)).size).toBe(1);
+    // Both lists: since CF5 both rules are notes and sit in `unscoredSignals`.
+    expect(new Set([...c.signals, ...c.unscoredSignals].map((s) => s.axis)).size).toBe(1);
     expect(c.level).not.toBe("alert");
   });
 });
@@ -578,10 +582,10 @@ describe("reefer tank split (Phase 0)", () => {
     expect(out).not.toContain("reefer_overfuel_rate");
   });
 
-  it("reefer_exceeds_capacity correlates on the reefer axis (overwhelming → alert)", () => {
+  it("reefer_exceeds_capacity is a note since CF5 (Q-F10): recorded on the reefer axis, no case", () => {
     const c = correlateSignals([{ ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: "m", evidence: {} }]);
-    expect(c.axes).toContain("reefer");
-    expect(c.level).toBe("alert"); // weight 90 ≥ overwhelming
+    expect(c.unscoredSignals.map((s) => s.axis)).toEqual(["reefer"]);
+    expect(c.level).toBe("clear");
   });
 });
 
@@ -639,10 +643,11 @@ describe("fuel_while_driver_home — TMS (McLeod) driver-home gate (opt-in, corr
     expect(correlateSignals([homeSig()]).level).toBe("clear");
   });
 
-  it("reinforces an independent volume signal into an alert (two axes agree)", () => {
+  it("since CF5 it no longer lifts a short tank rise into an alert — it stays a review", () => {
     const c = correlateSignals([homeSig(), { ruleId: "tank_fill_short", fired: true, severity: "medium", message: "", evidence: {} }]);
-    expect(c.level).toBe("alert");
-    expect(c.axes.sort()).toEqual(["behavior", "volume"]);
+    expect(c.level).toBe("review");
+    expect(c.axes).toEqual(["volume"]);
+    expect(c.unscoredSignals.map((s) => s.ruleId)).toEqual(["fuel_while_driver_home"]);
   });
 });
 
@@ -1244,15 +1249,6 @@ describe("WP2 — explainCaseOutcome (every outcome is explainable, including cl
       explainCaseOutcome("alert", 125, [sig("cumulative_overfuel", "consumption", 75), sig("location_mismatch", "location", 50)]),
     ).toMatch(/independent signal axes/);
   });
-  it("correlateSignals emits the same thresholds it exports (no drift)", () => {
-    const r = (ruleId: RuleId): RuleResult => ({ ruleId, fired: true, severity: "high", message: "", evidence: {} });
-    // weight-90 signal ≥ overwhelming → alert
-    expect(correlateSignals([r("tank_space_exceeded")]).level).toBe("alert");
-    // weight-55 signal < review 60 → clear, but the signal is still present in the assessment
-    const c = correlateSignals([r("odometer_regression")]);
-    expect(c.level).toBe("clear");
-    expect(c.signals).toHaveLength(1);
-  });
 });
 
 // ── WP3/WP3b — card_multi_vehicle: true card identity; learned = evidence-only, manual = ground truth ─
@@ -1486,12 +1482,14 @@ describe("WP-CAP — exceeds_tank_capacity on resolved capacity + confidence tie
     expect(ids(ctx({ txn: txn({ gallons: 150 }) }))).toContain("exceeds_tank_capacity"); // 25% over — fires
   });
 
-  it("the unverified 5–15% band fires the review-grade companion instead (weight 60 → lone review)", () => {
+  it("the unverified 5–15% band fires the companion rule instead, a note since CF5", () => {
     const out = runAllRules(ctx({ txn: txn({ gallons: 137 }) }));
     const unverified = out.find((r) => r.ruleId === "exceeds_capacity_unverified");
     expect(unverified).toBeTruthy();
     expect(unverified!.severity).toBe("medium");
-    expect(correlateSignals(out).level).toBe("review"); // review, never an alert-alone critical
+    // Since CF5 a note (weight 0): the fill is clear and the rule is recorded, not lost.
+    expect(correlateSignals(out).level).toBe("clear");
+    expect(correlateSignals(out).unscoredSignals.map((s) => s.ruleId)).toContain("exceeds_capacity_unverified");
     // Once the sensor verifies the capacity the band disappears — main rule governs at tight tolerance.
     const verified: VehicleView = { ...vehicle, sensorCapacityGal: 122 };
     const v = runAllRules(ctx({ vehicle: verified, txn: txn({ gallons: 137 }) }));

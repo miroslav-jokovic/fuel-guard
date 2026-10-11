@@ -20,7 +20,7 @@ const TOKEN = "t".repeat(43);
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
 const mountCard = (roadTestCertificate: { testedOn: string } | null) =>
-  mount(ApplicationFiledCard, { props: { token: TOKEN, carrier: "Silvicom Inc", roadTestCertificate } });
+  mount(ApplicationFiledCard, { props: { token: TOKEN, carrier: "Silvicom Inc", roadTestCertificate, packetPlaces: 14 } });
 
 const certificateButton = (w: ReturnType<typeof mountCard>) =>
   w.findAll("button").find((b) => b.text() === APPLY_COPY.done.certificate);
@@ -85,5 +85,38 @@ describe("the driver's road-test certificate on the filed card", () => {
 
     expect(openMock).not.toHaveBeenCalled();
     expect(w.text()).toContain(APPLY_COPY.done.certificateFailed);
+  });
+});
+
+/** D-AW16, C3s4b: the envelope carries on into the handbook, so its walk leads the card while places are left. */
+describe("the handbook on the filed card", () => {
+  const handbook = (over: Record<string, unknown> = {}) => ({
+    canOpen: true, openedAt: "2026-09-29T09:00:00Z", driverSigned: [], driverComplete: false, filedAt: null,
+    version: "handbook-test-v1", ...over,
+  });
+  const mountWith = (h: ReturnType<typeof handbook> | null) =>
+    mount(ApplicationFiledCard, {
+      props: { token: TOKEN, carrier: "Silvicom Inc", roadTestCertificate: null, handbook: h, packetPlaces: 14 },
+      global: { stubs: { HandbookSigning: { props: ["packetPlaces"], template: "<div data-handbook :data-packet='packetPlaces' />" } } },
+    });
+
+  it("leads with the handbook's walk, carrying the packet's count, while places are left", () => {
+    const w = mountWith(handbook({ driverSigned: ["h1"] }));
+    expect(w.text()).toContain(APPLY_COPY.handbook.filedThen);
+    expect(w.text()).not.toContain(APPLY_COPY.done.heading);
+    expect(w.find("[data-handbook]").attributes("data-packet")).toBe("14");
+  });
+
+  it("is the filed page again once the driver has signed every place, with the handbook at its foot", () => {
+    const w = mountWith(handbook({ driverComplete: true }));
+    expect(w.text()).toContain(APPLY_COPY.done.heading);
+    expect(w.text()).not.toContain(APPLY_COPY.handbook.filedThen);
+    expect(w.find("[data-handbook]").exists()).toBe(true);
+  });
+
+  it("says nothing about a handbook that is not open", () => {
+    const w = mountWith(handbook({ openedAt: null }));
+    expect(w.text()).toContain(APPLY_COPY.done.heading);
+    expect(w.find("[data-handbook]").exists()).toBe(false);
   });
 });

@@ -250,6 +250,25 @@ export function reportableMpg(period: { mpg: number | null; mpgUsable: boolean }
 }
 
 /**
+ * Tractor fuel cost per mile (FS2, D-FSV4): the price actually paid per gallon ÷ the fleet MPG.
+ *
+ * ── WHY NOT `spend ÷ miles`, WHICH IS WHAT D-FSV4 SAYS IN WORDS ───────────────────────────────
+ * Because the two totals are not about the same trucks. `miles` is summed over the trucks that had
+ * fuel AND a measured distance (the pairing in `fleetMpg.ts`); the spend is every tractor fill in the
+ * range, including the trucks the odometer could not measure and the fills attributed to no truck. A
+ * 90%-measured fleet would read 11% dear, plausibly. Dividing the price by the MPG prices the measured
+ * gallons at what the whole range paid, which is `spend ÷ (gallons × MPG)` — the old Spend trend's
+ * `totalSpend ÷ impliedMiles`, minus the reefer and DEF D-FSV4 moved beside it rather than inside.
+ *
+ * It inherits every refusal: no MPG (coverage under `MIN_MEASURED_SHARE`, an implausible ratio, a
+ * stalled roll-up) means no cost per mile, never one computed from the withheld `ratio`.
+ */
+export function fuelCostPerMile(pricePerGal: number | null, fleet: { mpg: number | null }): number | null {
+  if (pricePerGal == null || fleet.mpg == null || !(fleet.mpg > 0)) return null;
+  return Math.round((pricePerGal / fleet.mpg) * 10_000) / 10_000;
+}
+
+/**
  * ── THE WIRE SHAPE ─────────────────────────────────────────────────────────────────────────────
  * `GET /api/fueling/fleet-mpg` answers with one of these, and it lives HERE rather than in the
  * service that assembles it for the reason CLAUDE.md gives: a contract shared by the API and the web

@@ -2791,3 +2791,9 @@ Append a dated line per merge. Never edit a status column — parallel PRs confl
   it names the load's dispatcher on 95 of 97 person-dispatched ones, against 70 for
   `tractor.dispatcher`. The codes are not logins (`ROMAN` ↔ `romann`, `IVO` ↔ `ivok`), so a fleet →
   dispatcher mapping is needed wherever LM11 links them; question 4 asks whether LME stores one.
+
+- **2026-09-30 — status audit.** The census disagreed with Samsara because `stopped`/`parked` were
+  inferred from fix age and the premise behind it (≤5 s pings while the engine runs) does not hold for
+  a stationary truck: 29 trucks flipped between the two in 2.5 minutes. **D-LM29**: the ECU engine
+  state is collected and becomes the input. Measurements, findings and steps LS1a–LS4 are in
+  `LIVE-MAP-STATUS-AUDIT-2026-09-30.md`.

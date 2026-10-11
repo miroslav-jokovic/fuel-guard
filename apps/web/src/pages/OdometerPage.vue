@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
+import GatedLink from "@/components/GatedLink.vue";
 import { useOdometerMismatches } from "@/features/roster/useOdometerMismatches";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -163,13 +163,14 @@ const columns: DataTableColumn[] = [
       <template #empty>
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
         <p class="mt-1 text-ink-tertiary">
-          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-link hover:text-link-hover">Samsara re-sync / backfill</RouterLink>
-          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-link hover:text-link-hover">Coverage</RouterLink> to see how many fills could be verified.
+          <!-- Both are Settings screens that start off for everyone but the admin (Q-SET2); SP5 makes them text where they do not open. -->
+          If you just deployed the fueling-time fix, run a <GatedLink to="/settings/data" class="text-link hover:text-link-hover">Samsara re-sync / backfill</GatedLink>
+          to re-anchor odometer readings, then check <GatedLink to="/coverage" class="text-link hover:text-link-hover">Coverage</GatedLink> to see how many fills could be verified.
         </p>
       </template>
       <template #cell-fueledAt="{ value }">{{ fmtDate(value) }}</template>
       <template #cell-unit="{ row }">
-        <RouterLink v-if="row.vehicleId" :to="`/vehicles/${row.vehicleId}`" class="text-link hover:text-link-hover">{{ row.unit ?? "—" }}</RouterLink>
+        <GatedLink v-if="row.vehicleId" :to="`/vehicles/${row.vehicleId}`" class="text-link hover:text-link-hover">{{ row.unit ?? "—" }}</GatedLink>
         <span v-else>{{ row.unit ?? "—" }}</span>
       </template>
       <template #cell-entered="{ value }">{{ fmtOdo(value) }}</template>

@@ -34,6 +34,12 @@ export interface ApplicationInvitation {
   /** AF5 (0369): when the office opened packet signing, in person. Optional: absent from an older API. */
   signing_opened_at?: string | null;
   submitted_at: string | null;
+  /**
+   * D-AW14 (C3s3a): the sent sign link's end, and the wrong dates of birth presented on it — five stop
+   * it. Optional: absent from an API older than C3s3a.
+   */
+  sign_link_expires_at?: string | null;
+  unlock_failures?: number;
   /** The handbook's filing — a link's last use (D-AW1, C2e). Optional: absent from an older API. */
   handbook_filed_at?: string | null;
   revoked_at: string | null;
@@ -117,10 +123,16 @@ export function useCreateApplicationInvite() {
     mutationFn: async (input: {
       driverId: string;
       email: string | null;
+      /** This one link's lifetime (Q-AW41). Absent: the carrier's own, which only the api reads. */
+      expiresInDays?: number;
     }): Promise<{ link: string; delivery: ApplicationInviteDelivery }> => {
       const res = await apiFetch<{ link: string; delivery: ApplicationInviteDelivery }>("/api/recruitment/application-invites", {
         method: "POST",
-        body: { driver_id: input.driverId, email: input.email },
+        body: {
+          driver_id: input.driverId,
+          email: input.email,
+          ...(input.expiresInDays === undefined ? {} : { expires_in_days: input.expiresInDays }),
+        },
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the invitation.");
       return res.data;

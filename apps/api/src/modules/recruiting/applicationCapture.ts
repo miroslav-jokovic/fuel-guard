@@ -4,16 +4,17 @@ import {
   APPLICATION_CAPTURES_BUCKET,
   APPLICATION_ONLY_CAPTURE_SLOTS,
   APPLICATION_CAPTURE_DOCUMENT_KIND,
-  APPLICATION_CAPTURE_MARK_SLOT,
   APPLICATION_CAPTURE_PAGE,
   DOCUMENTS_BUCKET,
   applicationCaptureStoragePath,
   documentStoragePath,
+  isPromotedCaptureSlot,
   type ApplicationCaptureConfirm,
   type ApplicationCaptureContentType,
   type ApplicationCaptureSlot,
   type ApplicationCaptureStart,
   type ApplicationCaptureView,
+  type PromotedCaptureSlot,
 } from "@silvicom/shared";
 import {
   ALREADY_SUBMITTED,
@@ -24,7 +25,6 @@ import {
   type IntakeError,
 } from "./applicationIntake.js";
 import { loadCarrierWording } from "./carrierWording.js";
-import { handbookSelfAdoption } from "./handbookSelfAdoption.js";
 import { verifyCaptureBytes } from "./captureVerification.js";
 
 /**
@@ -84,14 +84,7 @@ async function openSession(
   // default made this line a no-op from A4 until 2026-09-13.
   const consent = requireEsignConsent(invitation, await loadCarrierWording(admin, invitation.org_id));
   if (consent) return consent;
-  if (invitation.submitted_at) {
-    // ⚠ WORKAROUND (APPLICATION-FLOW-V2-PLAN.md A-1, C0b; removed by C3s): the ONE staging this refusal
-    // lets through after filing is a signature picture for a handbook that has no packet signature to
-    // borrow — see `handbookSelfAdoption.ts`. The handbook's render reads the slot, so the bytes are used.
-    const selfAdopting =
-      slot === APPLICATION_CAPTURE_MARK_SLOT.signature && (await handbookSelfAdoption(admin, invitation)).pictureOpen;
-    return selfAdopting ? invitation : ALREADY_SUBMITTED;
-  }
+  if (invitation.submitted_at) return ALREADY_SUBMITTED;
   // AF4: the medical certificate and the Social Security card are the application's documents, so
   // they wait for the office to send it. The licence photographs belong to the permissions visit
   // (AF3), and the marks to the ceremonies that stage them, so those stay open from consent onward.
@@ -304,7 +297,11 @@ export async function promoteCaptures(
   const { data, error } = await query;
   if (error) return CAPTURE_PROMOTION_FAILED;
 
-  const rows = (data ?? []) as CaptureRow[];
+  // AW6: the selfie never leaves staging. 0376's filing functions skip it too, but by then it would
+  // already have been copied into the evidence bucket, where no row would ever point at it.
+  const rows = ((data ?? []) as CaptureRow[]).filter(
+    (row): row is CaptureRow & { slot: PromotedCaptureSlot } => isPromotedCaptureSlot(row.slot),
+  );
   const promoted: PromotedCapture[] = [];
   for (const row of rows) {
     // The filed document IS the staged capture, by id. That is what makes promotion exactly-once: a

@@ -67,8 +67,10 @@ export interface EfsCardListResponse {
   cards: EfsCardRow[];
   total: number;
   capabilities: CardCapabilitiesWithScopes;
-  /** The sweep cadence plus a grace margin — see freshness(). Absent on an older API. */
+  /** The ROSTER clock's threshold (status, `syncedAt`) — minutes since 2026-09-30's status poll. */
   staleAfterMinutes?: number;
+  /** The DETAIL clock's threshold (`detailSyncedAt`, override state) — still the daily sweep. */
+  detailStaleAfterMinutes?: number;
 }
 
 export interface EffectiveSection<T> {
@@ -87,6 +89,7 @@ export interface EfsCardDetailResponse {
     document: Record<string, unknown>;
   };
   staleAfterMinutes?: number;
+  detailStaleAfterMinutes?: number;
   effective: {
     infos: EffectiveSection<{ infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }>[];
     limits: EffectiveSection<{

@@ -6,6 +6,7 @@ export {
   sampleNearestTime,
   accumulateGpsFeedPage,
   latestGpsFix,
+  accumulateEngineStateFeedPage,
 } from "./core.js";
 export type {
   SamsaraSample,
@@ -14,6 +15,7 @@ export type {
   FuelingMatch,
   RawGpsPoint,
   GpsFix,
+  EngineStateEvent,
 } from "./core.js";
 export {
   normalizeStateCode,
@@ -140,3 +142,5 @@ export type {
   SamsaraFeedAlertDecision,
   SamsaraFeedAlertPlan,
 } from "./feedAlerts.js";
+export { parseSamsaraDocument, SAMSARA_LOAD_REF_LABEL } from "./documents.js";
+export type { SamsaraDocumentRow, SamsaraDocumentField } from "./documents.js";

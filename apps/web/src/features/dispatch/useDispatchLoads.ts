@@ -80,6 +80,8 @@ export interface DispatchLoad {
   dispatcher_external_id?: string | null;
   /** LR7: McLeod's dispatcher by name, or the McLeod id when the roster has not carried them yet. */
   dispatcher_name?: string | null;
+  /** Q-LMR5: McLeod's customer by name. Null on a manual load, and on a McLeod load until the next sync. */
+  customer_name?: string | null;
 }
 
 /** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */
@@ -204,8 +206,8 @@ export function useLoadEvents(loadId: Ref<string | null>) {
 }
 
 /**
- * The board's queues (LR7): Active (default) · Uncovered · Delivered · All, from the owner's
- * 2026-09-23 list, plus Exceptions — the feed a driver's decline or a timed-out shift still raises,
+ * The board's queues (LR7): In transit (default) · Upcoming · Uncovered · Delivered · All — the owner's
+ * 2026-09-23 list with its Active split in two (DISPATCH-BOARD-PLAN DB5b) — plus Exceptions — the feed a driver's decline or a timed-out shift still raises,
  * which has no load row of its own and so cannot be a filter over the others. Which queue a load sits
  * in is `loadBoardState` in `@silvicom/shared`, the same rule that words its status, so the tab and
  * the badge can never disagree.

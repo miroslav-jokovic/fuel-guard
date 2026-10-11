@@ -1,7 +1,6 @@
 import { computed, onScopeDispose, reactive, ref, type Ref } from "vue";
 import {
   BUNDLED_DEFAULT_CONFIG,
-  type CaptureProvider,
   type RejectionReason,
 } from "@silvicom/capture-engine";
 import {
@@ -14,8 +13,8 @@ import {
 import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
-import { createWebFileProvider } from "./webFileProvider";
-import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
+import { createWebFileProvider, type PickedPhoto, type WebCaptureProvider } from "./webFileProvider";
+import { pickImageFile, pickPhotoFromCamera, uploadAccept } from "./webImageIo";
 
 /**
  * One photograph per slot, from the driver's own phone (A8, D-APP10).
@@ -59,7 +58,7 @@ export type CaptureSlotState = "empty" | "working" | "review" | "done" | "reject
  * D-APP11); `file` is "Upload a photo instead", for a driver whose browser was refused the camera, or who
  * photographed the card earlier. Both go through the same provider and the same gate.
  */
-export type CaptureSource = "camera" | "file";
+export type CaptureSource = "camera" | "file" | "live";
 
 /**
  * Why a slot is `failed`, because the driver's next move differs. `network`: the photograph is still
@@ -98,7 +97,11 @@ export function useApplicationCaptures(
   token: Ref<string>,
   already: Ref<ApplicationCaptureView[]>,
   options: {
-    provider?: CaptureProvider;
+    /**
+     * A WEB provider, because this composable sends bytes and only the provider that issued a page can
+     * produce them (`takeBytes`). Reading them back from the page's URL is what production's CSP refused.
+     */
+    provider?: WebCaptureProvider;
     io?: CaptureIo;
     /**
      * The slots this screen asks for, when it is not all of them (AF3). The identity step takes the
@@ -114,6 +117,12 @@ export function useApplicationCaptures(
     onStaged?: (slot: ApplicationCaptureSlot, original: Blob) => void;
     /** Where a photograph waits for `confirm` (C3d2). Defaults to what `ApplyPage` provides; null keeps none. */
     local?: Ref<LocalCopySpec | null> | null;
+    /**
+     * The live scanner (2026-09-30), for the `live` source: opens it for a slot and resolves with what it
+     * took — or with the camera app's photo, if the driver went there from inside it — or null if closed.
+     * One more PICKER, not a provider: the gate, the downscale and the EXIF strip after it stay one pipeline.
+     */
+    live?: (slot: ApplicationCaptureSlot) => Promise<PickedPhoto | null>;
   } = {},
 ) {
   const local_ = options.local !== undefined ? options.local : injectLocalCopy();
@@ -126,10 +135,21 @@ export function useApplicationCaptures(
    * the downscale and the EXIF strip after it are one pipeline, and two providers would be two of them.
    */
   let source: CaptureSource = "camera";
+  /** The slot the next `scan()` is for — the live scanner frames each photograph its own way. */
+  let target: ApplicationCaptureSlot | null = null;
+  /** Which camera the next `scan()` opens: the front one for the selfie (AW6), the rear for a document. */
+  let facing: "environment" | "user" = "environment";
   const provider =
     options.provider ??
     createWebFileProvider(BUNDLED_DEFAULT_CONFIG, {
-      pick: async () => (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera())),
+      pick: async () => {
+        if (source === "live" && options.live && target) {
+          const got = await options.live(target);
+          picked = got?.file ?? null;
+          return got;
+        }
+        return (picked = await (source === "file" ? pickImageFile(target ? uploadAccept(target) : "image/*") : pickPhotoFromCamera(facing)));
+      },
     });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };
 
@@ -216,6 +236,8 @@ export function useApplicationCaptures(
     /** What the slot showed before, for a picker the driver closes: nothing happened, so nothing changes. */
     const before = local[slot] ? { ...local[slot] } : null;
     source = from;
+    facing = slot === "selfie" ? "user" : "environment";
+    target = slot;
     mark(slot, "working", { source: from });
     try {
       const result = await provider.scan();
@@ -233,7 +255,10 @@ export function useApplicationCaptures(
       }
       const page = result.pages[0];
       const contentType = page ? captureContentType(page.originalOfRecord.mediaType) : null;
-      if (!page || !contentType) {
+      // Taken now, while the page is fresh: `use` sends these bytes and never reads the URL (the header of
+      // `webFileProvider.ts` — reading it back is what production's CSP refused).
+      const blob = page ? provider.takeBytes(page.originalOfRecord.uri) : null;
+      if (!page || !contentType || !blob) {
         if (page) URL.revokeObjectURL(page.originalOfRecord.uri);
         forget(slot);
         mark(slot, "failed", { failure: "network", source: from, pending: false });
@@ -241,7 +266,7 @@ export function useApplicationCaptures(
       }
       // The new photograph REPLACES whatever the slot showed, and that one is revoked on the spot (X6).
       forget(slot);
-      held[slot] = { uri: page.originalOfRecord.uri, integrityHash: page.integrityHash, contentType, original: picked };
+      held[slot] = { uri: page.originalOfRecord.uri, blob, integrityHash: page.integrityHash, contentType, original: picked };
       previews[slot] = page.originalOfRecord.uri;
       mark(slot, "review", { source: from, pending: true });
     } catch {
@@ -265,9 +290,7 @@ export function useApplicationCaptures(
     busy.value = slot;
     mark(slot, "working");
     try {
-      // The provider hands back an object URL rather than the blob; reading it back is how the bytes
-      // are recovered without widening the engine's contract for one consumer.
-      const blob: Blob = photo.blob !== undefined ? photo.blob : await fetch(photo.uri).then((r) => r.blob());
+      const blob = photo.blob;
       // C3d2: on the phone BEFORE the first byte goes, so no cut after this point can lose it. A put that
       // fails (storage blocked) resolves, and the send goes ahead as it did before C3d2.
       const where = spec();
@@ -399,6 +422,10 @@ interface Held {
   original: File | null;
   /** Put back from the phone (C3d2): already kept, so `use` does not write it again. */
   kept?: boolean;
-  /** The bytes themselves, when they are already in hand (a put-back photograph), so `use` need not re-read its own URL. */
-  blob?: Blob;
+  /**
+   * The bytes `use` sends — always in hand, from the provider (`takeBytes`) or from the phone (C3d2).
+   * ⚠ Never recovered by `fetch(uri)`: that is a connection under CSP, and production's `connect-src` has
+   * no `blob:` (2026-09-30, the header of `webFileProvider.ts`).
+   */
+  blob: Blob;
 }

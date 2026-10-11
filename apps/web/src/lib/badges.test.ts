@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stockLevelBadge } from "./badges";
+import { stockLevelBadge, suspendedBadge } from "./badges";
 
 /**
  * `stockLevelBadge` — the stock half of the badge vocabulary (INVENTORY-PLAN.md I4).
@@ -40,5 +40,20 @@ describe("stockLevelBadge", () => {
     // that a zero here does not read as "unset" (`isLowStock`'s own reasoning).
     expect(stockLevelBadge({ quantityOnHand: 0, reorderPoint: 0 })).toEqual({ label: "Out", tone: "danger" });
     expect(stockLevelBadge({ quantityOnHand: 1, reorderPoint: 0 })).toBeNull();
+  });
+});
+
+/**
+ * `suspendedBadge` (Q-SET12, 0393). The absent cases are the ones that matter: an API on the previous
+ * build sends no `suspendedAt`, and that must read as an active member, never as "Suspended".
+ */
+describe("suspendedBadge", () => {
+  it("badges a suspended member", () => {
+    expect(suspendedBadge("2026-09-30T12:00:00Z")).toEqual({ label: "Suspended", tone: "warning" });
+  });
+
+  it("says nothing for an active member, whether the field is null or missing", () => {
+    expect(suspendedBadge(null)).toBeNull();
+    expect(suspendedBadge(undefined)).toBeNull();
   });
 });

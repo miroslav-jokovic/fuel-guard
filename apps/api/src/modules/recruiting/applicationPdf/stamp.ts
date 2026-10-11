@@ -137,8 +137,11 @@ const BAND_TRACKING = 1.6;
  * own printed form, whose sheets have no margin to borrow — AUD-19 measured 3.84pt of clear space
  * above page 12's grid and the same under it. The two bands share their words and their reason; the
  * shape is decided by the paper, and only one of the two papers is ours.
+ *
+ * ⚠ Exported since C3s5 for the handbook's office preview (`handbookPdf.ts`), which is ours too and has
+ * the same margin: one band, drawn one way, on both of our documents.
  */
-function drawBand(doc: PDFKit.PDFDocument, band: string): void {
+export function drawBand(doc: PDFKit.PDFDocument, band: string): void {
   const text = pdfkitText(doc, band.toUpperCase());
   doc.fillColor(MUTED).font("Helvetica-Bold").fontSize(BAND_SIZE);
   // Shrink to fit rather than trusting a constant: the band is a sentence, a longer one runs past the

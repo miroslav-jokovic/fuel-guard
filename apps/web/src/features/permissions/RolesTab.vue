@@ -15,7 +15,7 @@ import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
 import SidebarPreview from "./SidebarPreview.vue";
 import { SECTION_CAVEATS, SECTION_LABELS } from "./labels";
-import { SECTION_SAVE_NOTE, SURFACE_SAVE_NOTE, accessLabel, sectionReaches } from "./layers";
+import { SECTION_SAVE_NOTE, SURFACE_SAVE_NOTE, accessLabel, entryStartsOn, sectionReaches } from "./layers";
 import { CHANGED_TAG, groupScreens, needLabel } from "./rows";
 import {
   useSectionAccessQuery,
@@ -41,6 +41,13 @@ import {
  * measured rather than incidental — RLS reads sections per row and nothing in RLS reads a surface —
  * so each card's header and each toast say what is actually true of the thing that was just saved.
  */
+/**
+ * Every write on this tab is behind the password step-up (SP9, Q-SET8 (a), 2026-09-30). The page owns
+ * the ONE prompt (`useStepUpRetry` in SettingsPermissionsPage.vue) and hands its `holdForStepUp` down,
+ * so a refusal here opens that prompt and the same write re-runs once the password is confirmed —
+ * one prompt per five minutes of editing, whichever tab the admin is on.
+ */
+const props = defineProps<{ holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean }>();
 const toast = useToastStore();
 const modules = useModulesQuery();
 const sections = useSectionAccessQuery();
@@ -115,7 +122,7 @@ const screens = computed(() => {
     return {
       key: s.key,
       label: s.label,
-      allowed: override ?? true,
+      allowed: override ?? entryStartsOn(s, r),
       inherited: false,
       reachable,
       need: needLabel(s),
@@ -142,6 +149,7 @@ async function saveSection(v: { section: AppSection; access: SectionAccess }) {
     await setSection.mutateAsync({ role: role.value, ...v });
     toast.success("Access updated", SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSection(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
@@ -156,12 +164,21 @@ async function saveSurface(v: { surfaceKey: string; allowed: boolean }) {
     await setSurface.mutateAsync({ role: role.value, ...v });
     toast.success("Screens updated", SURFACE_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSurface(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
 
-/** `allowed: true` is inert at the role layer, so writing it is the reset (D-SURF6). */
-const resetSurface = (surfaceKey: string) => saveSurface({ surfaceKey, allowed: true });
+/**
+ * Sending the screen's STARTING value is the reset at this layer: the endpoint compares and deletes
+ * (D-SURF6). That was always `true` until Q-SET2 gave some screens a start of off for some roles.
+ */
+const startsOn = (r: UserRole, surfaceKey: string): boolean => {
+  const entry = surfaces.data.value?.surfaces.find((s) => s.key === surfaceKey);
+  return entry ? entryStartsOn(entry, r) : true;
+};
+const resetSurface = (surfaceKey: string) =>
+  role.value && saveSurface({ surfaceKey, allowed: startsOn(role.value, surfaceKey) });
 
 /**
  * "Reset role" is one write per changed cell, because the API answers one cell at a time and a
@@ -176,10 +193,11 @@ async function resetRole() {
       await setSection.mutateAsync({ role: r, section, access: shipped(r, section) });
     }
     for (const surfaceKey of Object.keys(surfaces.data.value?.overrides[r] ?? {})) {
-      await setSurface.mutateAsync({ role: r, surfaceKey, allowed: true });
+      await setSurface.mutateAsync({ role: r, surfaceKey, allowed: startsOn(r, surfaceKey) });
     }
     toast.success(`${USER_ROLE_LABELS[r]} reset to defaults`, SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => resetRole())) return;
     toast.error("Could not reset that role", (e as Error).message);
   }
 }

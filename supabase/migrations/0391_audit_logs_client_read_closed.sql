@@ -1,0 +1,23 @@
+-- 0391: the browser stops reading `audit_logs` (SETTINGS-PERMISSIONS-PLAN.md SP4, PR 2)
+--
+-- `audit_select` (0004) let a signed-in client read its org's audit rows when `auth_role()` was admin or
+-- auditor. That was a ROLE test standing in for a permission the Permissions page now grants per
+-- screen: a fleet manager given the Audit log opened it to an empty table, and an auditor whose
+-- screen the admin turned off (#1140 starts it off) could still read every row straight through
+-- PostgREST. Since #1145 the Audit log reads through `GET /api/audit/log`, which asks the screen's
+-- own grant — so the policy no longer grants anything the product uses, and still grants something it
+-- should not.
+--
+-- Before writing this, production was re-read (2026-09-30): `audit_logs` has exactly one policy,
+-- `audit_select`, with 0004's predicate. The only client reader was `useAudit.ts`, which #1145
+-- switched to the API; `grep` over apps/web, apps/driver and apps/admin finds no other
+-- `from("audit_logs")`, no view reads the table, and the one function that does (`purge_applicant`)
+-- is security definer. Every writer is the service role or a security-definer trigger.
+--
+-- With no policy left, RLS denies every client role — deny-all is the intended shape (CLAUDE.md): the
+-- API reads with the service role and filters on the caller's org itself. `audit_logs` stays in
+-- RETENTION_FORBIDDEN; this changes who READS it, nothing about what is kept.
+--
+-- Rollback: recreate 0004's `audit_select`.
+
+drop policy if exists audit_select on public.audit_logs;

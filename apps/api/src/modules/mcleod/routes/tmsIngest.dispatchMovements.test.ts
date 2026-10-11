@@ -29,7 +29,7 @@ const boardRow = (over: Record<string, unknown> = {}) => ({
   external_id: "TMS:900", company_id: "TMS", movement_id: "900", ref: "0135527", bol_number: "TL1",
   dispatcher_external_id: "romann", driver_codes: "DKELLY,JSMITH", vehicle_unit: "702", trailer_unit: "536686",
   trailer_type: "R", commodity: "paints", total_miles: 812, external_status: "P", loaded: "L",
-  customer_id: "BATTSOL", weight: 42000, weight_um: "LB", pieces: 24, pallets_how_many: 22, consignee_refno: null,
+  customer_id: "BATTSOL", customer_name: "BATTERY SOLUTIONS LLC", weight: 42000, weight_um: "LB", pieces: 24, pallets_how_many: 22, consignee_refno: null,
   ...over,
 });
 const boardStop = (over: Record<string, unknown> = {}) => ({
@@ -123,7 +123,7 @@ describe("POST /api/tms/dispatch-movements", () => {
     await post({ company_id: "TMS", movements: board() });
     const [m] = rec.writtenRows("mcleod_dispatch_movements");
     expect(Object.keys(m!).sort()).toEqual([
-      "blnum", "closed_at", "commodity", "company_id", "consignee_refno", "customer_id", "dispatcher_user_id",
+      "blnum", "closed_at", "commodity", "company_id", "consignee_refno", "customer_id", "customer_name", "dispatcher_user_id",
       "driver_codes", "last_seen_at", "loaded", "move_distance", "movement_id", "movement_status", "order_id",
       "org_id", "pallets_how_many", "pieces", "tractor_id", "trailer_id", "trailer_type", "weight", "weight_um",
     ]);
@@ -177,14 +177,19 @@ describe("POST /api/tms/dispatch-movements", () => {
     expect(rec.writes()).toHaveLength(0);
   });
 
-  it("refuses a movement missing a field rather than writing null over what McLeod still has", async () => {
-    const rec = seed();
-    holder.client = rec.client;
-    const movements = board();
-    delete movements[0]!.customer_id;
-    const res = await post({ company_id: "TMS", movements });
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(await res.json())).toContain("movements.0.customer_id");
-    expect(rec.writes()).toHaveLength(0);
-  });
+  // customer_name is the connector's newest field (Q-LMR5, 0383): a connector older than it must be refused
+  // by name, not let through to blank the name a newer sync stored.
+  it.each(["customer_id", "customer_name"])(
+    "refuses a movement missing %s rather than writing null over what McLeod still has",
+    async (field) => {
+      const rec = seed();
+      holder.client = rec.client;
+      const movements = board();
+      delete movements[0]![field];
+      const res = await post({ company_id: "TMS", movements });
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(await res.json())).toContain(`movements.0.${field}`);
+      expect(rec.writes()).toHaveLength(0);
+    },
+  );
 });

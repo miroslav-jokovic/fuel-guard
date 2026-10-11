@@ -37,7 +37,7 @@ await db.exec(`
     file_size_limit bigint, allowed_mime_types text[], owner uuid,
     created_at timestamptz default now(), updated_at timestamptz default now());
   create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text,
-    name text, owner uuid, created_at timestamptz default now());
+    name text, owner uuid, owner_id text, created_at timestamptz default now());
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(name text) returns text[] language sql immutable
   as $fn$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]; $fn$;
@@ -62,13 +62,15 @@ const OTHER = await org("Someone else");
 const OFFICE = (await one(`insert into auth.users (email) values ('office@carrier.test') returning id`)).id;
 const DRIVER = (await one(`insert into drivers (org_id, full_name) values ($1, 'Jovana Petrović-Szczepańska') returning id`, [ORG])).id;
 
+// `sent`: the office sent the envelope (`signing_opened_at`), which opens the handbook (D-AW16). It is the
+// ONLY opening since M2b dropped the separate one (`handbook_signing_opened_at/_by`, §8.6 item 5).
 const invitation = async (over = {}) => {
-  const v = { submitted_at: "now()", opened: true, filed: false, expires: "now() + interval '10 days'", ...over };
+  const v = { submitted_at: "now()", sent: true, filed: false, expires: "now() + interval '10 days'", ...over };
   return (await one(
     `insert into application_invitations (org_id, driver_id, token_hash, expires_at, submitted_at,
-       handbook_signing_opened_at, handbook_signing_opened_by, handbook_filed_at)
-     values ($1, $2, md5(random()::text), ${v.expires}, ${v.submitted_at},
-       ${v.opened ? "now()" : "null"}, ${v.opened ? `'${OFFICE}'` : "null"}, ${v.filed ? "now()" : "null"})
+       signing_opened_at, handbook_filed_at)
+     values ($1, $2, md5(random()::text), ${v.expires}, ${v.submitted_at}, ${v.sent ? "now()" : "null"},
+       ${v.filed ? "now()" : "null"})
      returning id`, [ORG, DRIVER])).id;
 };
 
@@ -107,8 +109,11 @@ ok("a representative who has signed nothing can be deleted",
 const LIVE = await invitation();
 ok("a driver mark on a filed application with signing open is accepted", (await mark(LIVE, "h1")) === null);
 ok("the same place twice is refused by the index (23505)", (await mark(LIVE, "h1")) === "23505");
-ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", opened: false }), "h1")) === "HB022");
-ok("before the office opens handbook signing: HB023", (await mark(await invitation({ opened: false }), "h1")) === "HB023");
+ok("before the application is filed: HB022", (await mark(await invitation({ submitted_at: "null", sent: false }), "h1")) === "HB022");
+ok("before the office sends the envelope: HB023", (await mark(await invitation({ sent: false }), "h1")) === "HB023");
+// D-AW16 (0382): the envelope the office SENT opens the handbook — no second press.
+ok("0382: sent for signing but the packet NOT filed — still HB022 (packet first, then handbook)",
+  (await mark(await invitation({ submitted_at: "null" }), "h1")) === "HB022");
 ok("after the handbook is filed: HB024", (await mark(await invitation({ filed: true }), "h1")) === "HB024");
 ok("on an expired link: HB021", (await mark(await invitation({ expires: "now() - interval '1 day'" }), "h1")) === "HB021");
 const REVOKED = await invitation();
@@ -142,14 +147,37 @@ ok("deleting the invitation cannot take its handbook marks with it in silence (H
   (await sqlstate(`delete from application_invitations where id = $1`, [LIVE])) === "HB011");
 
 // ── 5. The invitation's stamps stay in order ─────────────────────────────────────────────────────
-const inv2 = await invitation({ submitted_at: "null", opened: false });
-ok("handbook signing cannot open before the application is filed (23514)",
-  (await sqlstate(`update application_invitations set handbook_signing_opened_at = now(), handbook_signing_opened_by = $2 where id = $1`, [inv2, OFFICE])) === "23514");
-const inv3 = await invitation({ opened: false });
-ok("opening names who opened it (23514 without)",
-  (await sqlstate(`update application_invitations set handbook_signing_opened_at = now() where id = $1`, [inv3])) === "23514");
-ok("the handbook cannot be filed before signing was opened (23514)",
-  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3])) === "23514");
+const inv3 = await invitation({ sent: false });
+// 0388's BEFORE trigger (PC030) answers first on an unsent envelope, so it is switched off for this one
+// statement, rolled back: what is under test here is 0385's CHECK on its own.
+await db.exec("begin");
+await db.exec("alter table application_invitations disable trigger trg_application_invitations_handbook_filed_guard");
+const unsent = await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [inv3]);
+await db.exec("rollback");
+ok("the handbook cannot be filed before the envelope was sent (23514)", unsent === "23514", `got ${unsent}`);
+// 0388: and once it was, only with the packet's carrier lines countersigned and cited (QH2).
+const SENT = await invitation();
+const SENT_APP = (await one(`insert into driver_applications (org_id, driver_id, invitation_id, payload, signed_name)
+  values ($1, $2, $3, '{}', 'Jovana') returning id`, [ORG, DRIVER, SENT])).id;
+ok("…and not before the packet is countersigned (PC030)",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === "PC030");
+const CS = (await one(`insert into application_packet_countersignatures (org_id, invitation_id, application_id,
+  representative_id, recorded_by, placements, source_sha256) values ($1, $2, $3, $4, $5, '{p18c}', repeat('a', 64)) returning id`,
+  [ORG, SENT, SENT_APP, REP, OFFICE])).id;
+ok("…nor while the countersignature cites no document yet (PC030)",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === "PC030");
+const COPY = (await one(`insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
+  values (gen_random_uuid(), $1, 'driver', $2, 'employment_application', $3, 'application/pdf', repeat('b', 64)) returning id`,
+  [ORG, DRIVER, `${ORG}/driver/${DRIVER}/copy.pdf`])).id;
+await db.query(`update application_packet_countersignatures set document_id = $2 where id = $1`, [CS, COPY]);
+ok("…but can be filed once it was sent and its packet countersigned",
+  (await sqlstate(`update application_invitations set handbook_filed_at = now() where id = $1`, [SENT])) === null);
+ok("M2b: the separate opening's columns are gone (§8.6 item 5)",
+  (await one(`select count(*)::int c from information_schema.columns
+              where table_name = 'application_invitations' and column_name like 'handbook_signing_opened%'`)).c === 0);
+ok("0382: 0381's sign-code columns are gone",
+  (await one(`select count(*)::int c from information_schema.columns
+              where table_name = 'application_invitations' and column_name like 'sign_code%'`)).c === 0);
 
 // ── 6. RLS: on, no client policy ─────────────────────────────────────────────────────────────────
 for (const t of ["carrier_representatives", "handbook_marks"]) {

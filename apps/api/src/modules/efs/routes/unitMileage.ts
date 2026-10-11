@@ -5,7 +5,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { enforceCardWriteLimit } from "../../../middleware/cardWriteLimit.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { applyMileageOverride, readUnitMileage } from "../services/efsMileageOverride.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { KILL_SWITCH_REFUSAL } from "./controlRefusal.js";
@@ -43,7 +43,7 @@ export function fuelCardUnitMileageRouter(): Router {
   router.get(
     "/unit-mileage",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.unit-mileage"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const admin = getSupabaseAdmin(env);
@@ -115,7 +115,7 @@ export function fuelCardUnitMileageRouter(): Router {
      * wrong unit or a fat-fingered digit, which is what the vehicle-ownership check and
      * `EFS_MILEAGE_MAX` address. Same reasoning as `card_deactivate`'s recorded no-step-up decision.
      */
-    requireRole("admin"),
+    requireAdminOnly("efs.unit-mileage"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
 

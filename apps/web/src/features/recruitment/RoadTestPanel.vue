@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import {
+  ROAD_TEST_EXAMINER_SECTION,
   ROAD_TEST_ITEMS,
   ROAD_TEST_RATINGS,
   ROAD_TEST_RATING_LABELS,
   ROAD_TEST_TRAILER_LABELS,
   ROAD_TEST_TRAILER_TYPES,
   formatDisplayDate,
+  formatDisplayDateTime,
   roadTestPassed,
+  type RoadTestCertificateCopy,
   type RoadTestItemKey,
   type RoadTestRating,
   type RoadTestTrailerType,
@@ -21,14 +24,15 @@ import {
   AppSegmentedControl,
   AppTextarea,
 } from "@silvicom/ui";
-import FileDropzone from "@/components/ui/FileDropzone.vue";
+import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
+import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
 import {
-  pngDataUrl,
-  useAddRoadTestExaminer,
+  useRecordPaperCopy,
   useRecordRoadTest,
+  useRoadTestCertificateCopies,
   useRoadTestExaminers,
 } from "@/features/recruitment/useRoadTest";
 
@@ -42,18 +46,27 @@ import {
  * BEFORE pressing what the press will produce).
  *
  * ── THE EXAMINER'S SIGNATURE IS ADDED HERE, ONCE (Q-RT2) ──────────────────────────────────────
- * The owner ruled the examiner's signature is added from the dashboard, as he used to sign on paper.
- * With no examiner on file the panel asks for one first; the filed documents then say who applied
- * the signature, so the office's act is visible on the paper.
+ * The owner ruled the examiner's signature is added from the dashboard, as he used to sign on paper,
+ * and on 2026-09-29 that only the admin adds it (`ROAD_TEST_EXAMINER_SECTION`, Q-AW19). With no
+ * examiner on file the panel asks the admin for one first, and tells anybody else who adds one; the filed documents then say who applied
+ * the signature, so the office's act is visible on the paper. The form is `SignatoryAddForm`, the one
+ * Settings → Recruiting also shows (Q-AW42), where an examiner can be added — and retired — before any
+ * driver reaches this step.
+ *
+ * ── THE DRIVER'S COPY (G-10, Q-AW19, owner 2026-09-29) ───────────────────────────────────────
+ * §391.31(g) owes the driver a copy of the certificate. Each certificate on file says whether they have
+ * had it — downloaded from their link (RT4), or handed over on paper, which only the office can say,
+ * so the office says it here. Nothing else reads it: it is not a hire gate, only a fact on file.
  */
 const props = defineProps<{ driverId: string; done: boolean }>();
 
 const toast = useToastStore();
+const session = useSessionStore();
+const canAddExaminer = computed(() => session.can(ROAD_TEST_EXAMINER_SECTION));
 const driverId = computed(() => props.driverId);
 const examinersQ = useRoadTestExaminers();
 const vehiclesQ = useVehiclesQuery();
 const recordsQ = useQualificationRecordsQuery(driverId);
-const addExaminer = useAddRoadTestExaminer();
 const record = useRecordRoadTest(driverId);
 
 const examiners = computed(() => examinersQ.data.value ?? []);
@@ -68,30 +81,31 @@ const TRAILER_OPTIONS = ROAD_TEST_TRAILER_TYPES.map((t) => ({ value: t, label: R
 
 const filed = computed(() => (recordsQ.data.value ?? []).filter((r) => r.kind === "road_test"));
 
-// ── the examiner, when none is on file ─────────────────────────────────────────────────────────
-const examinerForm = reactive({ fullName: "", title: "" });
-const signature = ref<File | null>(null);
-const addingExaminer = ref(false);
-const canAddExaminer = computed(
-  () => examinerForm.fullName.trim().length >= 2 && examinerForm.title.trim().length >= 2 && Boolean(signature.value),
-);
-
-async function saveExaminer(): Promise<void> {
-  if (!signature.value) return;
+// ── the driver's copy of each certificate ──────────────────────────────────────────────────────
+const copiesQ = useRoadTestCertificateCopies(driverId);
+const paperCopy = useRecordPaperCopy(driverId);
+/** Only certificates this product issued are listed; a roster-entered road test has no entry. */
+const copyOf = (recordId: string): RoadTestCertificateCopy | undefined =>
+  (copiesQ.data.value ?? []).find((c) => c.recordId === recordId);
+function howGiven(copy: RoadTestCertificateCopy): string {
+  const ways: string[] = [];
+  if (copy.handedOverAt) ways.push(`paper copy handed over ${formatDisplayDateTime(copy.handedOverAt)}`);
+  if (copy.downloadedAt) ways.push(`downloaded from their link ${formatDisplayDateTime(copy.downloadedAt)}`);
+  return ways.join("; ");
+}
+async function handedPaperCopy(recordId: string): Promise<void> {
   try {
-    const created = await addExaminer.mutateAsync({
-      full_name: examinerForm.fullName.trim(),
-      title: examinerForm.title.trim(),
-      signature_png: await pngDataUrl(signature.value),
-    });
-    toast.success("Examiner added", `${created.full_name}'s signature will print on the road tests they give.`);
-    form.examinerId = created.id;
-    Object.assign(examinerForm, { fullName: "", title: "" });
-    signature.value = null;
-    addingExaminer.value = false;
+    await paperCopy.mutateAsync(recordId);
   } catch (e) {
-    toast.error("Could not add the examiner", e instanceof Error ? e.message : undefined);
+    toast.error("Could not record the copy", e instanceof Error ? e.message : undefined);
   }
+}
+
+// ── the examiner, when none is on file ─────────────────────────────────────────────────────────
+const addingExaminer = ref(false);
+function examinerAdded(examiner: { id: string }): void {
+  form.examinerId = examiner.id;
+  addingExaminer.value = false;
 }
 
 // ── the test ───────────────────────────────────────────────────────────────────────────────────
@@ -155,6 +169,22 @@ const showForm = computed(() => !props.done || adding.value);
         <li v-for="row in filed" :key="row.id" class="text-xs">
           <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
           <span class="text-ink-secondary"> · Passed · {{ row.performed_by }}</span>
+          <template v-if="copyOf(row.id)">
+            <p v-if="copyOf(row.id)!.given" class="mt-0.5 text-ink-secondary" data-testid="copy-given">
+              Copy given: {{ howGiven(copyOf(row.id)!) }}
+            </p>
+            <div v-else class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="text-ink">The driver has not had their copy of this certificate yet.</span>
+              <BaseButton
+                variant="link"
+                size="sm"
+                :disabled="paperCopy.isPending.value"
+                @click="handedPaperCopy(row.id)"
+              >
+                Handed a paper copy
+              </BaseButton>
+            </div>
+          </template>
         </li>
       </ul>
     </div>
@@ -163,35 +193,17 @@ const showForm = computed(() => !props.done || adding.value);
 
     <template v-if="showForm">
       <!-- The examiner first: without one there is nobody to sign the form (Q-RT2). -->
-      <div v-if="examiners.length === 0 || addingExaminer" class="space-y-4 rounded-surface border border-edge p-4">
-        <p class="text-sm font-medium text-ink">Add the examiner</p>
-        <p class="text-xs text-ink-secondary">
-          Their signature prints on every road test they give. Upload a PNG of it — a scan or a photo of
-          them signing on white paper.
-        </p>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Name">
-            <BaseInput :id="id" v-model="examinerForm.fullName" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Title" hint="Printed on the certificate.">
-            <BaseInput :id="id" v-model="examinerForm.title" placeholder="Maintenance manager" />
-          </FormField>
-        </div>
-        <FileDropzone
-          accept=".png"
-          :busy="addExaminer.isPending.value"
-          busy-label="Saving…"
-          :label="signature ? signature.name : 'Drag & drop the signature (PNG)'"
-          hint="PNG only. Stored privately with the carrier's files."
-          @files="signature = $event[0] ?? null"
-        />
-        <div class="flex gap-3">
-          <BaseButton variant="primary" size="sm" :disabled="!canAddExaminer || addExaminer.isPending.value" @click="saveExaminer">
-            Add examiner
-          </BaseButton>
-          <BaseButton v-if="examiners.length > 0" variant="ghost" size="sm" @click="addingExaminer = false">Cancel</BaseButton>
-        </div>
-      </div>
+      <p v-if="examiners.length === 0 && !canAddExaminer && !examinersQ.isLoading.value" class="text-xs text-ink">
+        No road-test examiner is on file. An administrator adds one, with their signature, in
+        Settings → Recruiting.
+      </p>
+      <SignatoryAddForm
+        v-else-if="canAddExaminer && (examiners.length === 0 || addingExaminer)"
+        kind="examiner"
+        :cancellable="examiners.length > 0"
+        @added="examinerAdded"
+        @cancel="addingExaminer = false"
+      />
 
       <div v-if="examiners.length > 0" class="space-y-5">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -211,7 +223,7 @@ const showForm = computed(() => !props.done || adding.value);
             <BaseInput :id="id" v-model="form.miles" type="number" min="1" inputmode="numeric" />
           </FormField>
         </div>
-        <BaseButton v-if="!addingExaminer" variant="link" size="sm" @click="addingExaminer = true">
+        <BaseButton v-if="canAddExaminer && !addingExaminer" variant="link" size="sm" @click="addingExaminer = true">
           Add another examiner
         </BaseButton>
 

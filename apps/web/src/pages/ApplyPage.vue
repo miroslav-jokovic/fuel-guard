@@ -409,12 +409,14 @@ watch(
           </p>
         </BaseCard>
 
-        <div class="flex items-center justify-between gap-4">
+        <!-- Stacked on a phone, the forward act on top: side by side at 44 px (C3d3b2) the two need 380 px
+             of a 342 px column, and at 320 px they overflowed even at 36. -->
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <BaseButton v-if="hub.inTask.value" variant="ghost" @click="hub.leave">{{ APPLY_COPY.hub.backToList }}</BaseButton>
           <BaseButton v-else-if="!wizard.isFirst.value" variant="ghost" @click="wizard.back">
             {{ APPLY_COPY.nav.back }}
           </BaseButton>
-          <span v-else />
+          <span v-else class="hidden sm:block" />
           <BaseButton
             variant="primary"
             :disabled="handingOver || (wizard.isLast.value && wordingNotFinal)"

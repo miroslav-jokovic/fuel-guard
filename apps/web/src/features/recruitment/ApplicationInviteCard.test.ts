@@ -13,7 +13,10 @@ import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.
 const calls: Array<{ path: string; method?: string }> = [];
 const state = vi.hoisted(() => ({ invitations: [] as Array<Record<string, unknown>> }));
 
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ role: "recruiter" }) }));
+vi.mock("@/stores/session", async () => {
+  const { canManageSection } = await import("@silvicom/shared");
+  return { useSessionStore: () => ({ role: "recruiter", can: (s: string) => canManageSection("recruiter", s as never) }) };
+});
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (path: string, init?: { method?: string }) => {
     calls.push({ path, method: init?.method });

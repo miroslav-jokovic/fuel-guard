@@ -191,7 +191,7 @@ function save(): void {
            than a new primitive for one screen. Closed by default: a driver who has nothing more to
            add never opens it. -->
       <details class="rounded-surface bg-surface-muted p-4">
-        <summary class="cursor-pointer text-sm font-medium text-ink">{{ copy.moreAboutJob }}</summary>
+        <summary class="cursor-pointer py-3 text-sm font-medium text-ink">{{ copy.moreAboutJob }}</summary>
         <p class="mt-1 text-xs text-ink-muted">{{ copy.moreAboutJobHint }}</p>
 
         <div class="mt-4 space-y-4">

@@ -4,6 +4,15 @@ import { createRouter, createMemoryHistory } from "vue-router";
 import { analyzePolicyExceptions, type SpendLine } from "@silvicom/shared";
 import { computed, ref } from "vue";
 
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+
+
 // The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
 // the strip has its own; stubbed to "fully covered" so it renders without asserting anything here.
 vi.mock("./usePriceCoverage", async (orig) => {
@@ -17,11 +26,8 @@ vi.mock("./usePriceCoverage", async (orig) => {
   };
 });
 
-import SpendBridgeCard from "./SpendBridgeCard.vue";
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import ExceptionsTab from "./ExceptionsTab.vue";
-import AncillaryCard from "./AncillaryCard.vue";
-import SpendOverviewTab from "./SpendOverviewTab.vue";
 
 /**
  * These tabs are the only place the fuel-spend analytics are ever seen. The functions are covered in
@@ -82,29 +88,6 @@ function eightWeeks(): SpendLine[] {
   return out;
 }
 
-describe("SpendBridgeCard", () => {
-  it("renders the four components and states the residual", () => {
-    const w = mount(SpendBridgeCard, { props: { lines: eightWeeks() } });
-    const t = w.text();
-    expect(t).toContain("Why spend moved");
-    for (const bar of ["More gallons", "The market", "Discount rate", "Where we fuelled"]) expect(t).toContain(bar);
-    expect(t).toMatch(/residual \$0\.00/);
-    expect(t).not.toContain("NaN");
-  });
-
-  it("says what is missing instead of drawing an empty chart", () => {
-    const w = mount(SpendBridgeCard, { props: { lines: eightWeeks().slice(0, 4) } });
-    expect(w.text()).toContain("Not enough history yet");
-    expect(w.text()).not.toContain("NaN");
-  });
-
-  it("reads a compressing discount as market-linked rather than as a repricing", () => {
-    // A rate bar with no context reads as an accusation; the correlation is what stops that.
-    expect(mount(SpendBridgeCard, { props: { lines: eightWeeks() } }).text())
-      .toContain("rack-linked deal");
-  });
-});
-
 describe("DiscountCaptureTab", () => {
   /** Fills carrying a contracted quote, the shape `fuel_spend_lines` returns since 0247. */
   const quoted = (): SpendLine[] =>
@@ -117,7 +100,7 @@ describe("DiscountCaptureTab", () => {
 
   it("compares what was billed against what was quoted, and names the gap", () => {
     const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
-    expect(t).toContain("Billed against contract");
+    expect(t).toContain("Paid vs Pilot quote");
     expect(t).toContain("Quoted / gal");
     expect(t).toContain("Billed / gal");
     expect(t).toMatch(/\$\d+\.\d{3}/); // rates to a tenth of a cent
@@ -129,8 +112,26 @@ describe("DiscountCaptureTab", () => {
     // eightWeeks() carries no contractAmount at all, so nothing is measurable.
     const t = mount(DiscountCaptureTab, { props: { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
     expect(t).toContain("Nothing here can be priced yet");
-    expect(t).not.toContain("Billed against contract");
+    expect(t).not.toContain("Paid vs Pilot quote");
     expect(t).not.toContain("NaN");
+  });
+
+  // SP5 (plan §4b): Truck Stops is `dispatch` view and Fuel spend is `fuel` manage — not the same
+  // set — so the name is a link only where the page opens, and words otherwise.
+  it("names Truck Stops as a link where it opens and as words where it does not (SP5)", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    const props = { lines: eightWeeks(), from: "2026-08-01", to: "2026-08-31" };
+    expect(mount(DiscountCaptureTab, { props, ...withRouter }).find('a[href="/truck-stops"]').exists()).toBe(true);
+    session.surfaces = { "dispatch.truck-stops": false };
+    try {
+      const w = mount(DiscountCaptureTab, { props, ...withRouter });
+      expect(w.find('a[href="/truck-stops"]').exists()).toBe(false);
+      expect(w.text()).toContain("Truck Stops");
+    } finally {
+      session.surfaces = null;
+    }
   });
 
   it("says so when a quote had to be carried forward from the day before", () => {
@@ -318,42 +319,5 @@ describe("saying what is measured", () => {
     }).text();
     expect(t).toContain("Which trucks");
     expect(t).toContain("754");
-  });
-});
-
-describe("AncillaryCard", () => {
-  it("flags a DEF ratio the engines cannot burn", () => {
-    const lines = [
-      fill({ tranDate: "2026-08-17", gallons: 1000, netAmount: 5000, retailAmount: 5600 }),
-      fill({ tranDate: "2026-08-17", gallons: 60, netAmount: 294, retailAmount: 294, product: "def", tank: "none" }),
-    ];
-    const t = mount(AncillaryCard, { props: { lines } }).text();
-    expect(t).toContain("DEF is 6.0% of diesel volume");
-    expect(t).toContain("worth a look");
-  });
-
-  it("says so plainly when the ratio is normal", () => {
-    const lines = [
-      fill({ tranDate: "2026-08-17", gallons: 1000, netAmount: 5000, retailAmount: 5600 }),
-      fill({ tranDate: "2026-08-17", gallons: 25, netAmount: 122, retailAmount: 122, product: "def", tank: "none" }),
-    ];
-    expect(mount(AncillaryCard, { props: { lines } }).text()).toContain("sits inside the 2–3%");
-  });
-});
-
-describe("SpendOverviewTab", () => {
-  it("renders the tiles, the weekly series and the bridge together", () => {
-    const t = mount(SpendOverviewTab, { props: { lines: eightWeeks() } }).text();
-    expect(t).toContain("Paid per gallon");
-    expect(t).toContain("Week by week");
-    expect(t).toContain("Why spend moved");
-    expect(t).toContain("Beyond tractor fuel");
-    expect(t).not.toContain("NaN");
-  });
-
-  it("shows an em dash rather than $0.00 or NaN when a period has no fuel", () => {
-    const t = mount(SpendOverviewTab, { props: { lines: [] } }).text();
-    expect(t).not.toContain("NaN");
-    expect(t).toContain("—");
   });
 });

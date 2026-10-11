@@ -62,6 +62,7 @@ function loadColumns(l: MirroredLoad, syncedAt: string): Record<string, unknown>
     trailer_id: l.trailer_id,
     dispatcher_external_id: l.dispatcher_external_id,
     customer_code: l.customer_code,
+    customer_name: l.customer_name,
     weight_lbs: l.weight_lbs,
     pieces: l.pieces,
     consignee_ref: l.consignee_ref,
@@ -111,7 +112,8 @@ async function writeStops(admin: SupabaseClient, orgId: string, byLoad: Map<stri
       org_id: orgId,
       load_id: loadId,
       ...s,
-      // McLeod knows no carrier photo policy; dispatch sets the slots. The ingest's defaults, unchanged.
+      // McLeod knows no carrier photo policy, and nothing in the office sets it on a McLeod load since LR6
+      // removed editing, so every sync writes the ingest's defaults on the stops it (re)writes.
       required_photos: s.kind === "pickup" ? ["trailer", "bol"] : ["bol"],
     })),
   );

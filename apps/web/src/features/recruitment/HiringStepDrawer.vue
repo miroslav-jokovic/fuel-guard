@@ -16,7 +16,7 @@ import ApplicationInviteCard from "@/features/recruitment/ApplicationInviteCard.
 import AuthorizationsPanel from "@/features/recruitment/AuthorizationsPanel.vue";
 import ApplicantIdentityCorrection from "@/features/recruitment/ApplicantIdentityCorrection.vue";
 import SendApplicationPanel from "@/features/recruitment/SendApplicationPanel.vue";
-import OpenSigningPanel from "@/features/recruitment/OpenSigningPanel.vue";
+import SendForSigningPanel from "@/features/recruitment/SendForSigningPanel.vue";
 import EmploymentHistorySection from "@/features/recruitment/EmploymentHistorySection.vue";
 import EmployerInquirySection from "@/features/recruitment/EmployerInquirySection.vue";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
@@ -27,6 +27,7 @@ import TravelPanel from "@/features/recruitment/TravelPanel.vue";
 import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
 import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
 import EmployerCallsPanel from "@/features/recruitment/EmployerCallsPanel.vue";
+import SelfieCheckPanel from "@/features/recruitment/SelfieCheckPanel.vue";
 import { useAuthorizationsQuery } from "@/features/recruitment/useAuthorizations";
 
 /**
@@ -157,15 +158,17 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
       <template v-else-if="body === 'intake'">
         <p class="text-xs text-ink-secondary">
           Part 1 is the applicant's first visit on their link: identity, phone, address, every licence
-          held in the last three years, and photos of the CDL and the medical card. Their permissions
-          open once it is finished. A link sent before Part 1 existed counts it done once their
-          identity or permissions are in.
+          held in the last three years, photos of the CDL and the medical card, and a photo of
+          themselves. Their permissions open once it is finished. A link sent before Part 1 existed
+          counts it done once their identity or permissions are in.
         </p>
         <ApplicationInviteCard
           :driver-id="driverId"
           :driver-status="driverStatus"
           @review="emit('review', $event)"
         />
+        <!-- AW6 (§6.7): the one thing the office DOES on Part 1 — look at the selfie beside the licence. -->
+        <SelfieCheckPanel :driver-id="driverId" />
       </template>
 
       <template v-else-if="body === 'authorizations'">
@@ -191,8 +194,8 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         :driver-id="driverId"
       />
 
-      <!-- AF5/D-AF3: the packet is signed in the office, on a link the office opens at the desk. -->
-      <OpenSigningPanel
+      <!-- D-AW14 (C3s3a): the packet is signed on the applicant's phone, on a link the office sends from the desk. -->
+      <SendForSigningPanel
         v-else-if="body === 'packet' && invitationId"
         :invitation-id="invitationId"
         :driver-id="driverId"

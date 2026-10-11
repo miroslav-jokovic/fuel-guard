@@ -1,7 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
-import { AUDIT_VERDICTS, CASE_RULE_ID, computeRecallMetrics } from "@silvicom/shared";
+import {
+  AUDIT_LOG_PAGE_SIZE,
+  AUDIT_VERDICTS,
+  CASE_RULE_ID,
+  auditLogCursor,
+  auditLogQuerySchema,
+  computeRecallMetrics,
+  type AuditLog,
+  type AuditLogPage,
+} from "@silvicom/shared";
 import { requireAuth, requireSection, requireOrg } from "../../../middleware/auth.js";
+import { requireSurface } from "../../../middleware/requireSurface.js";
 import { apiError, dbErrorResponse, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
@@ -36,6 +46,54 @@ interface SampledRow {
 export function auditRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  // The Audit log screen (SETTINGS-PERMISSIONS-PLAN.md SP4). It used to read `audit_logs` through
+  // PostgREST, where `audit_select` let only the admin and auditor ROLES see rows — so a fleet manager
+  // the admin gave the screen opened it to an empty table. The screen's grant decides now: the
+  // section, then the screen itself (D-SURF5: only the Audit log reaches this endpoint).
+  //
+  // The service role bypasses RLS, so the org filter below is the whole tenant boundary.
+  // ⚠ No `count`, by Q-SET5: an exact count is a sequential scan of the org's ~5 M rows (the table
+  // is 1.2 GB), and the service role has no statement timeout to stop it — 36.9 s cold, measured.
+  router.get(
+    "/log",
+    requireOrg,
+    requireSection("settings", "view"),
+    requireSurface("admin.settings.audit"),
+    asyncHandler(async (req, res) => {
+      const parsed = auditLogQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid query"));
+        return;
+      }
+      const { action, cursor } = parsed.data;
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      // One more than a page, so the page knows whether there is a next one without counting.
+      let q = admin
+        .from("audit_logs")
+        .select("id, org_id, actor_id, action, entity, entity_id, meta, created_at")
+        .eq("org_id", req.auth!.orgId!)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(AUDIT_LOG_PAGE_SIZE + 1);
+      // A typed `%` or `_` is a character to find, not a wildcard (`\` is ilike's default escape).
+      if (action) q = q.ilike("action", `${action.replace(/[\\%_]/g, "\\$&")}%`);
+      // Both halves were parsed to a timestamp and a uuid, so neither can carry a `,` or `)` into
+      // the filter. Ties on `created_at` are real — one transaction's rows share its `now()`.
+      if (cursor) q = q.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+      const { data, error } = await q;
+      if (error) {
+        dbErrorResponse(res, "audit log read", error, "Could not load the audit log");
+        return;
+      }
+      const batch = (data ?? []) as AuditLog[];
+      const hasNext = batch.length > AUDIT_LOG_PAGE_SIZE;
+      const rows = hasNext ? batch.slice(0, AUDIT_LOG_PAGE_SIZE) : batch;
+      const last = rows.at(-1);
+      const page: AuditLogPage = { rows, hasNext, nextCursor: hasNext && last ? auditLogCursor(last) : null };
+      res.json(page);
+    }),
+  );
 
   // A fresh random sample of cleared, covered fills to review (never the same audited ones twice).
   // ⚠ `settings`, and the section is not obvious from the path. This router backs the Recall audit

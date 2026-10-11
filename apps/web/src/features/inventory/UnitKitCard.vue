@@ -5,6 +5,7 @@ import { type UnitKitDto } from "@silvicom/shared";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useUnitKitQuery } from "./useUnits";
 import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
 
 /**
  * What this truck or trailer is carrying — read only (INVENTORY-PLAN.md I9, D-AVI17).
@@ -25,6 +26,7 @@ import { useSessionStore } from "@/stores/session";
 const props = defineProps<{ kind: "tractor" | "trailer"; unitId: string }>();
 
 const session = useSessionStore();
+const opens = useOpens();
 const maySee = computed(() => session.canView("maintenance"));
 
 const kindRef = computed(() => props.kind);
@@ -67,7 +69,9 @@ const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected 
         Nothing is expected on this unit yet, and it is carrying nothing.
       </p>
 
+      <!-- SP5: the card shows on `maintenance` view; Units (`maintenance.units`) is switchable per person. -->
       <RouterLink
+        v-if="opens({ name: 'unit', params: { kind, id: unitId } })"
         :to="{ name: 'unit', params: { kind, id: unitId } }"
         class="mt-4 inline-block text-sm font-medium text-link hover:text-link-hover"
       >

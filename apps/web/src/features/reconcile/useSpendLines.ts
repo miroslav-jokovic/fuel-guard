@@ -35,7 +35,7 @@
  * off-network rather than as compliant, which is the honest reading: an unidentified site is certainly
  * not a preferred one.
  */
-import type { Ref } from "vue";
+import { toValue, type MaybeRefOrGetter, type Ref } from "vue";
 import { useQuery, keepPreviousData } from "@tanstack/vue-query";
 import type { SpendLine } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
@@ -45,9 +45,15 @@ const PAGE = 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v) || 0);
 const str = (v: unknown): string | null => (v == null ? null : String(v));
 
-export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>) {
+/**
+ * `enabled` is the Q-FSV18 switch: Buy discipline's quote tile reads four database sums (`useContractTotals`)
+ * and only needs these rows once somebody opens the fills behind it, so the page passes the tile's open state
+ * and nothing downloads until then. Omitted, it is always on, as every other caller expects.
+ */
+export function useSpendLinesQuery(filters: Ref<SpendQueryFilters>, enabled: MaybeRefOrGetter<boolean> = true) {
   return useQuery({
     queryKey: ["fuel_spend_lines", filters],
+    enabled: () => toValue(enabled),
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<SpendLine[]> => {

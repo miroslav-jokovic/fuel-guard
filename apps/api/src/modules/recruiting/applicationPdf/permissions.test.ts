@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
+import { postgrestFixture, type FixtureRow } from "../../../testing/postgrestFixture.js";
 import { pdfDrawnLines, pdfDrawnRules, pdfPageTexts, pdfText } from "../../../testing/pdfText.js";
 import { MARGIN } from "../../../lib/pdfDraw.js";
 import { applicationPermissionsPdf, isPermissionsError } from "./permissions.js";
@@ -141,6 +142,7 @@ const seed = (
     application?: unknown;
     draft?: unknown[];
     captures?: unknown[];
+    adoptions?: FixtureRow[];
   } = {},
 ) =>
   createSupabaseRecorder({
@@ -160,6 +162,7 @@ const seed = (
       application_drafts: keyedOnInvitation(over.draft ?? []),
       organizations: [{ name: "Silvicom Inc", legal_address: "1 Dock Rd, Joliet IL" }],
       application_captures: over.captures ?? [],
+      signature_adoptions: postgrestFixture((over.adoptions ?? []) as FixtureRow[]),
       documents: [],
     },
     storage: { download: async () => ({ data: null, error: { message: "none" } }) },
@@ -642,20 +645,24 @@ describe("printing what an applicant has signed", () => {
    * as evidence that failed to record rather than as an act still owed — `certificate.ts`'s own note.
    */
   /**
-   * ⚠ G-13, narrowed for C0b (APPLICATION-FLOW-V2-PLAN.md A-1). A filed application whose packet was
-   * never signed on screen may now stage a signature picture FOR ITS HANDBOOK, after filing. Every
-   * permission here was signed before filing, without that picture on screen — so this document must
-   * not come out wearing it. A picture staged before filing (the permissions ceremony's) still prints.
+   * ⚠ G-13, as D-AW15 answers it (C3s2a). A driver may make a new signature at the packet, which
+   * supersedes the one the permissions were signed with — and this document must go on printing the one
+   * they were signed with, the adoption its OWN rows name, never the newest.
    */
-  it("never draws a signature picture staged after the application was filed", async () => {
-    const filed = { invitation: invitation({ submitted_at: "2026-09-14T16:20:00Z" }), application: CERTIFIED_APPLICATION };
-    const after = seed({ ...filed, captures: [{ id: "cap-late", storage_path: "late.png", captured_at: "2026-09-26T11:00:00Z" }] });
-    await rendered(after);
-    expect(after.storageCalls().filter((c) => c.fn === "download")).toEqual([]);
-
-    const before = seed({ ...filed, captures: [{ id: "cap-early", storage_path: "early.png", captured_at: "2026-09-13T09:00:00Z" }] });
-    await rendered(before);
-    expect(before.storageCalls().filter((c) => c.fn === "download").length).toBeGreaterThan(0);
+  it("draws the adoption the permissions were signed with, not a newer one made at the packet", async () => {
+    const adoptions = [
+      { id: "a1", org_id: ORG, invitation_id: INV, kind: "signature", storage_path: "org/driver/d/a1.png", superseded_by: "a2" },
+      { id: "a2", org_id: ORG, invitation_id: INV, kind: "signature", storage_path: "org/driver/d/a2.png", superseded_by: null },
+    ];
+    const rec = seed({
+      invitation: invitation({ submitted_at: "2026-09-14T16:20:00Z" }),
+      application: CERTIFIED_APPLICATION,
+      authorizations: [grant({ adoption_id: "a1" }), { ...PSP_GRANT, adoption_id: "a1" }],
+      adoptions,
+    });
+    await rendered(rec);
+    const downloads = rec.storageCalls().filter((c) => c.fn === "download").map((c) => c.args[0]);
+    expect(downloads).toEqual(["org/driver/d/a1.png"]);
   });
 
   it("says the application has not been certified while it has not", async () => {

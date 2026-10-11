@@ -1,5 +1,25 @@
 # The read routine, for the carrier's review
 
+> **2026-10-10 — the VM's first update.** [`REQUEST-TO-ALEX-2026-10-10-FLEET.md`](REQUEST-TO-ALEX-2026-10-10-FLEET.md):
+> the roster's tractor statement gains `fleet_id` (the Dispatch board's fleet, DISPATCH-BOARD-PLAN
+> DB1) and `exclude_fueltax` (IP4), both on a table the login already reads, plus a copy-over update
+> of the `connector\` folder. The VM's package dates from 2026-10-07 and had neither. The update zip
+> is `git archive --prefix=connector/ <main>:tools/mcleod-agent` minus `launchd/`, so it never
+> carries `node_modules`, `.env` or a state file.
+
+> **2026-09-29 — the routine reads the customer's name.** Statements 1 and 4 (open loads, and loads
+> that left the board) gain one `LEFT JOIN dbo.customer` on `company_id` AND `id` and one column,
+> `customer.name`, within the column grant Alex ran. Nothing else changed. Per Alex's condition, this
+> file reaches him before the Board VM runs it.
+>
+> **2026-09-29 — every grant has run.** Alex ran the six "not yet run" lines. Checked the same day
+> under `silvicom_dispatch_ro`, encrypted, statement by statement: on LME `customer` reads exactly
+> `id, name, city, state_id, company_id` (never the whole table), and joined on company and id all
+> 132 open orders find one customer each; statements 1–8, 16 and 22–24 run. On `lme_analytics` all
+> sixteen finance and movement tables read and statements 9–21 run (15 in 3.2 s, the slowest). The
+> finance statements are still refused on LME, as agreed: they go there after one analytics night.
+> No INSERT, UPDATE or DELETE anywhere. The script's markers now say "run 2026-09-29".
+>
 > **2026-09-28 — the grants ran, and the check below was wrong.** Alex ran `SILVICOM-GRANTS.sql`,
 > fixing `customer (…, state)` to `state_id`. "Reads exactly the eleven finance tables" counted the
 > finance TABLES, not what the finance STATEMENTS join: 15–18 also read `movement`,

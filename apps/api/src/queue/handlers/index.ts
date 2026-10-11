@@ -2,12 +2,15 @@ import { registerHandler } from "../registry.js";
 import { fleetpalSyncHandler } from "./fleetpal.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
+import { idleEngineHandler } from "./idleEngine.js";
 import { dqBinderHandler } from "./dqBinder.js";
 import { documentDeriveHandler } from "./documentDerive.js";
-import { efsCardSyncHandler } from "./efsCardSync.js";
+import { efsCardStatusHandler, efsCardSyncHandler } from "./efsCardSync.js";
 import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
+import { documentReadHandler } from "./documentRead.js";
+import { documentIntakeHandler } from "./documentIntake.js";
 import {
   backfillHandler,
   patternSweepHandler,
@@ -22,11 +25,16 @@ import {
   syncIdleHandler,
   syncIftaHandler,
   syncOdometerHandler,
+  syncDocumentsHandler,
   syncStatsHandler,
   syncTrailersHandler,
   syncVehiclesHandler,
 } from "./samsara.js";
-import { snapshotDriverWeekHandler, syncDriverScoresHandler } from "./performance.js";
+import {
+  idleEventTwinsHandler,
+  snapshotDriverWeekHandler,
+  syncDriverScoresHandler,
+} from "./performance.js";
 import { nightlyReconcileHandler } from "./nightlyReconcile.js";
 import { financialProjectionHandler } from "./financial.js";
 
@@ -44,8 +52,12 @@ export function registerAllHandlers(): void {
   registerHandler("efs_process_import", efsProcessingHandler);
   // Card mirror sweep. Vendor-calling on the SHARED EFS service account, so kindCaps pins it to 1.
   registerHandler("efs_card_sync", efsCardSyncHandler);
+  // The status poll: same account, same cap of one.
+  registerHandler("efs_card_status", efsCardStatusHandler);
   registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
+  registerHandler("document_read", documentReadHandler);
+  registerHandler("document_intake", documentIntakeHandler);
   registerHandler("rebuild", rebuildHandler);
   registerHandler("backfill", backfillHandler);
   registerHandler("score_import", scoreImportHandler);
@@ -57,14 +69,17 @@ export function registerAllHandlers(): void {
   registerHandler("sync_stats", syncStatsHandler);
   registerHandler("sync_trailers", syncTrailersHandler);
   registerHandler("sync_idle", syncIdleHandler);
+  registerHandler("idle_event_twins", idleEventTwinsHandler);
   registerHandler("sync_ifta", syncIftaHandler);
   registerHandler("sync_odometer", syncOdometerHandler);
+  registerHandler("sync_documents", syncDocumentsHandler);
   registerHandler("sync_hos", syncHosHandler);
   registerHandler("sync_drivers", syncDriversHandler);
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
   registerHandler("data_retention", dataRetentionHandler);
+  registerHandler("idle_engine", idleEngineHandler);
   registerHandler("financial_projection", financialProjectionHandler);
   registerHandler("dq_binder", dqBinderHandler);
   registerHandler("document_derive", documentDeriveHandler);

@@ -1,16 +1,17 @@
 /**
- * The eight pictures the symbol layer draws with (LIVE-MAP-PLAN.md LM8, D-LM7).
+ * The pictures the symbol layer draws with (LIVE-MAP-PLAN.md LM8, D-LM7; shapes D-LM30).
  *
  * ── DRAWN ON A CANVAS RATHER THAN SHIPPED AS FILES ───────────────────────────────────────────────
- * Four states × two shapes, in colours that come from the design tokens and CHANGE WITH THE THEME —
+ * One bitmap per glyph in `liveMapGlyphs.ts`, in colours that come from the design tokens and CHANGE
+ * WITH THE THEME —
  * `--ramp-success-600` and every other ramp is a `light-dark()` pair. A checked-in PNG would be a
  * ninth copy of a colour the token layer already owns and would be wrong in one of the two schemes,
  * which is the failure `lint:tokens-parity` exists to prevent and cannot see inside a binary.
  *
  * ⚠ NOT AN SDF. maplibre can tint a single-channel SDF icon with `icon-color`, which would be one
  * image instead of eight — but an SDF built from a plain alpha mask has soft, haloed edges at these
- * sizes, and a correct distance field for the arrow is real work to produce for no gain. Eight small
- * bitmaps at 48×48 is 9 KB of texture, drawn once per theme.
+ * sizes, and a correct distance field for five silhouettes is real work to produce for no gain. Five
+ * small bitmaps at 60×60 is 70 KB of texture, drawn once per theme.
  *
  * This file is the counterpart of `tokenColor`: it touches the DOM and a 2D context, so it cannot be
  * unit-tested in jsdom. Everything it is asked to decide — which icon a truck gets, which colour a
@@ -18,7 +19,8 @@
  */
 import type maplibregl from "maplibre-gl";
 import { tokenColor } from "@/composables/useMapLibre";
-import { MAP_STATES, STATE_COLOR_CLASS } from "./liveMapLayer";
+import { STATE_COLOR_CLASS, iconId } from "./liveMapLayer";
+import { GLYPHS, GLYPH_NAMES, glyphState, type Glyph } from "./liveMapGlyphs";
 
 /**
  * Marker size in CSS pixels, at pixel ratio 2 (D-LM24, the owner's item 9).
@@ -48,6 +50,14 @@ import { MAP_STATES, STATE_COLOR_CLASS } from "./liveMapLayer";
  */
 const SIZE = 30;
 const RATIO = 2;
+/**
+ * How much of the 30 px the glyph itself takes. The old arrow ran to 26 px edge to edge with its
+ * keyline; this keeps the silhouettes at that size and spends the margin on a shadow, which is what
+ * lifts a marker off a busy basemap instead of a thicker outline flattening it (D-LM30).
+ */
+const GLYPH_PX = 24;
+/** A soft contact shadow. Not a token: it is a property of the marker's depth, not a colour. */
+const SHADOW = "rgba(0, 0, 0, 0.35)";
 
 /** The white keyline. A green dot on a green field is invisible; the ring is what makes it not. */
 const OUTLINE = "rgb(255, 255, 255)";
@@ -66,40 +76,48 @@ function context(): CanvasRenderingContext2D | null {
 }
 
 /**
- * A navigation arrow pointing north at rotation 0, so `icon-rotate` can hand it a compass bearing
- * verbatim. The concave tail is what tells the eye which end is the front at 24 px — an isoceles
- * triangle reads as a diamond at this size and its direction has to be worked out rather than seen.
+ * Draw one glyph from `liveMapGlyphs.ts` — the same path strings the rail renders as SVG.
+ *
+ * The 24-unit glyph box is scaled to `GLYPH_PX`, leaving the rest of the canvas for the keyline and
+ * the drop shadow; a shadow clipped at the bitmap's edge draws as a hard line on one side.
+ *
+ * Order matters and is the glyph's own: an outlined body strokes its white keyline FIRST and then
+ * fills over the inner half of it, so the keyline sits outside the silhouette instead of eating
+ * into a 17-pixel square. The shadow is on the keyline pass only — shadowing every part would put a
+ * shadow INSIDE the parked square around its "P".
  */
-function drawArrow(ctx: CanvasRenderingContext2D, fill: string): void {
-  const r = SIZE / 2 - OUTLINE_WIDTH;
-  ctx.beginPath();
-  ctx.moveTo(0, -r);
-  ctx.lineTo(r * 0.72, r * 0.85);
-  ctx.quadraticCurveTo(0, r * 0.35, -r * 0.72, r * 0.85);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = OUTLINE_WIDTH;
-  ctx.stroke();
+function drawGlyph(ctx: CanvasRenderingContext2D, glyph: Glyph, stateColour: string): void {
+  const k = GLYPH_PX / 24;
+  ctx.scale(k, k);
+  for (const part of glyph.parts) {
+    const path = new Path2D(part.d);
+    const colour = part.paint === "state" ? stateColour : OUTLINE;
+    if (part.outline) {
+      ctx.save();
+      ctx.shadowColor = SHADOW;
+      ctx.shadowBlur = 2.5 / k;
+      ctx.shadowOffsetY = 1 / k;
+      ctx.strokeStyle = OUTLINE;
+      ctx.lineWidth = (OUTLINE_WIDTH * 2) / k;
+      ctx.stroke(path);
+      ctx.restore();
+    }
+    if (part.mode === "fill") {
+      ctx.fillStyle = colour;
+      ctx.fill(path);
+    } else {
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = part.width ?? 2;
+      ctx.lineCap = "round";
+      ctx.stroke(path);
+    }
+  }
 }
 
-/** For a truck whose ping carried no bearing: a dot claims nothing about which way it is facing. */
-function drawDot(ctx: CanvasRenderingContext2D, fill: string): void {
-  const r = SIZE / 2 - OUTLINE_WIDTH - 1;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = OUTLINE;
-  ctx.lineWidth = OUTLINE_WIDTH;
-  ctx.stroke();
-}
-
-function bitmap(draw: (ctx: CanvasRenderingContext2D, fill: string) => void, fill: string): ImageData | null {
+function bitmap(glyph: Glyph, stateColour: string): ImageData | null {
   const ctx = context();
   if (!ctx) return null;
-  draw(ctx, fill);
+  drawGlyph(ctx, glyph, stateColour);
   return ctx.getImageData(0, 0, SIZE * RATIO, SIZE * RATIO);
 }
 
@@ -111,14 +129,11 @@ function bitmap(draw: (ctx: CanvasRenderingContext2D, fill: string) => void, fil
  * wearing light-mode markers with nothing in the console to say so.
  */
 export function installLiveMapIcons(map: maplibregl.Map): void {
-  for (const state of MAP_STATES) {
-    const fill = tokenColor(STATE_COLOR_CLASS[state]);
-    for (const [suffix, draw] of [["arrow", drawArrow], ["dot", drawDot]] as const) {
-      const image = bitmap(draw, fill);
-      if (!image) continue;
-      const id = `live-${state}-${suffix}`;
-      if (map.hasImage(id)) map.updateImage(id, image);
-      else map.addImage(id, image, { pixelRatio: RATIO });
-    }
+  for (const name of GLYPH_NAMES) {
+    const image = bitmap(GLYPHS[name], tokenColor(STATE_COLOR_CLASS[glyphState(name)]));
+    if (!image) continue;
+    const id = iconId(name);
+    if (map.hasImage(id)) map.updateImage(id, image);
+    else map.addImage(id, image, { pixelRatio: RATIO });
   }
 }

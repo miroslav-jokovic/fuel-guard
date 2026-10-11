@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { analyzeCarriedFuel, DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type CarriedFuelFill, type FuelPolicy, type SpendLine } from "@silvicom/shared";
+import { analyzeCarriedFuel, policyGallonCells, DEFAULT_FUEL_POLICY, NO_FUEL_TARGETS, type CarriedFuelFill, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 import BuyDisciplineTab from "./BuyDisciplineTab.vue";
 
 /**
@@ -61,10 +61,10 @@ const FEED: SpendLine[] = [
 ];
 const WINDOW = { from: "2026-07-01", to: "2026-08-31" };
 
-const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean } = {}) =>
-  mount(BuyDisciplineTab, { props: { fills, policy: p, lines: extra.lines ?? [], window: extra.window ?? WINDOW, fleetWide: extra.fleetWide } });
+const mountTab = (fills = legs(), p = policy(), extra: { lines?: SpendLine[]; window?: { from: string; to: string }; fleetWide?: boolean; fillsState?: "ready" | "loading" | "error" } = {}) =>
+  mount(BuyDisciplineTab, { props: { fills, policy: p, cells: policyGallonCells(extra.lines ?? []), window: extra.window ?? WINDOW, fleetWide: extra.fleetWide, fillsState: extra.fillsState } });
 const render = (fills = legs(), p = policy(), extra: Parameters<typeof mountTab>[2] = {}) => mountTab(fills, p, extra).text();
-/** The on-network tile's own sub-line — the headline above it wears `text-danger-700` on its own account. */
+/** The on-network tile's own sub-line — its grade colour is a verdict against a target, and stays. */
 const onNetworkSub = (w: ReturnType<typeof mountTab>) =>
   w.findAll("p").find((el) => /target at least|no target set|fleet target not applied|no tractor fuel/.test(el.text()));
 const usd0 = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -90,10 +90,17 @@ describe("BuyDisciplineTab", () => {
     expect(headline.text()).not.toBe(usd0(report.pumpExcess));
   });
 
+  it("prints the carried-fuel total in plain ink, not as bad news (Q-FSV15 ruling 2, extended 2026-10-04)", () => {
+    expect(analyzeCarriedFuel(legs()).excess).toBeGreaterThan(0); // the case that used to turn red
+    const cls = mountTab().get('[data-testid="carried-usd"]').classes();
+    expect(cls).toContain("text-ink");
+    expect(cls.filter((c) => /^text-(danger|warning|success|caution)/.test(c))).toEqual([]);
+  });
+
   it("calls that headline a floor rather than a cost", () => {
     const t = render();
     expect(t).toContain("at least, over this window");
-    expect(t).toContain("The total is a floor, not an estimate.");
+    expect(t).toContain("which undercounts — so the total is a minimum.");
   });
 
   it("shows the pump-price figure as a comparison, with the reason it is not a saving", () => {
@@ -101,15 +108,60 @@ describe("BuyDisciplineTab", () => {
     // state the diesel came from. Present without that sentence it reads as money left on the table.
     const report = analyzeCarriedFuel(legs());
     const t = render();
-    expect(t).toContain(`On pump price the same legs read ${usd0(report.pumpExcess)}`);
+    expect(t).toContain(`On pump price the same trips read ${usd0(report.pumpExcess)}`);
     expect(t).toContain("the gap is tax the carrier owes wherever it buys");
     expect(t).toContain("Priced on the fuel itself");
   });
 
-  it("says which legs were measured and which were bounded, apart", () => {
-    const t = render();
-    expect(t).toContain("measured from a confirmed tank level");
-    expect(t).toContain("bounded from miles driven");
+  it("says which legs were measured and which were estimated, apart, beside the headline and not behind a click", () => {
+    const report = analyzeCarriedFuel(legs());
+    const line = mountTab().get('[data-testid="carried-basis"]');
+    expect(line.element.closest("details"), "the qualification must not be folded away").toBeNull();
+    const t = line.text();
+    expect(t).toContain(`${report.byBasis.tank_level.pairs} trips measured from a confirmed tank level`);
+    expect(t).toContain(`${report.byBasis.miles_burned.pairs} estimated from`);
+    expect(t).toContain(`${report.findings.length} purchases`);
+  });
+
+  it("labels the purchases in plain words, with the date as MM/DD/YYYY and no two columns sharing a name", () => {
+    const w = mountTab();
+    const heads = w.findAll("thead th").map((h) => h.text().trim()).filter(Boolean);
+    expect(heads).toContain("Gallons bought");
+    expect(heads).toContain("Measured by");
+    expect(new Set(heads).size).toBe(heads.length);
+    const first = analyzeCarriedFuel(legs()).findings[0]!;
+    const [y, m, d] = first.from.date!.split("-");
+    const t = w.text();
+    expect(t).toContain(`${m}/${d}/${y}`);
+    expect(t).not.toContain(first.from.date!);
+    expect(t).toMatch(/Tank reading|Miles driven \(at least\)/);
+    expect(t).not.toContain("miles (floor)");
+  });
+
+  it("puts the purchases before the targets and the method, and the state table behind a click (design verdict E4/E10)", () => {
+    const many = [
+      ...legs(),
+      ...Array.from({ length: 30 }, (_, i) =>
+        fill({ vehicleId: `c${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "CA", gallons: 120, netAmount: 120 * 6.6 })),
+      ...Array.from({ length: 30 }, (_, i) =>
+        fill({ vehicleId: `t${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "TX", gallons: 120, netAmount: 120 * 4.4 })),
+    ];
+    const w = mountTab(many, policy({ avoidStates: ["CA"] }));
+    const t = w.text();
+    expect(t.indexOf("Purchases to review")).toBeLessThan(t.indexOf("How the extra cost is worked out"));
+    expect(t.indexOf("How the extra cost is worked out")).toBeLessThan(t.indexOf("Against your targets"));
+    expect(t.indexOf("Against your targets")).toBeLessThan(t.indexOf("What fuel costs, by state"));
+    // Method and the state table are disclosures, closed until asked for.
+    const details = w.findAll("details");
+    const summaries = details.map((d) => d.get("summary").text());
+    expect(summaries).toEqual(["How the extra cost is worked out", "What fuel costs, by state, with the tax taken out"]);
+    for (const d of details) expect((d.element as HTMLDetailsElement).open).toBe(false);
+    expect(details[0]!.text()).toContain("On pump price the same trips read");
+    expect(details[0]!.text()).toContain("trips between fuel stops");
+    expect(details[1]!.text()).toContain("California");
+    // The headline's dollars are printed once, not again on a card below it.
+    const report = analyzeCarriedFuel(many);
+    expect(t.split(usd0(report.excess)).length - 1).toBe(1);
   });
 
   it("accounts for every leg that produced no finding, by name and by count", () => {
@@ -117,7 +169,7 @@ describe("BuyDisciplineTab", () => {
     // are asserted against the analyzer so the sentence cannot drift into decoration.
     const report = analyzeCarriedFuel(legs());
     const t = render();
-    expect(t).toContain(`Of ${report.pairs.toLocaleString()} legs`);
+    expect(t).toContain(`Of ${report.pairs.toLocaleString()} trips between fuel stops`);
     expect(t).toContain(`${report.sameState.toLocaleString()} stayed inside one`);
     expect(t).toContain(`${report.towardDearer.toLocaleString()} ran from cheaper fuel toward dearer`);
     expect(t).toContain(`Only ${report.noBasis + report.unpriceable} could not be judged at all`);
@@ -164,6 +216,26 @@ describe("BuyDisciplineTab", () => {
     const t = render([]);
     expect(t).toContain("No fuel was carried out of a dearer state in this window.");
     expect(t).not.toContain("NaN");
+  });
+
+  // A pending or failed sequence is not an empty one: "$0 at least" and "0 purchases" are answers. The
+  // targets read their own sums and must stay (verdict E8, 2026-10-04).
+  it("says the fill sequence is loading or failed in place of its figures, and keeps the targets", async () => {
+    for (const [fillsState, say] of [["loading", "Loading the fill sequence…"], ["error", "Couldn't load the fill sequence for this window."]] as const) {
+      const w = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState });
+      const t = w.text();
+      expect(w.get('[data-testid="carried-state"]').text(), fillsState).toBe(say);
+      expect(w.find('[data-testid="carried-basis"]').exists(), fillsState).toBe(false);
+      expect(t, fillsState).not.toContain("$0");
+      expect(t, fillsState).not.toContain("at least, over this window");
+      expect(t, fillsState).not.toContain("No fuel was carried out of a dearer state in this window.");
+      expect(t, fillsState).not.toContain("How the extra cost is worked out");
+      expect(t, fillsState).toContain("On the preferred network");
+      expect(t, fillsState).toContain("90.0%");
+    }
+    const failed = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState: "error" });
+    await failed.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(failed.emitted("retry")).toHaveLength(1);
   });
 
   // ── the targets, graded (C8) ──────────────────────────────────────────────────────────────────
@@ -243,9 +315,22 @@ describe("BuyDisciplineTab", () => {
       expect(t).not.toContain("50 over");
     });
 
-    it("says the discount-capture target cannot be measured rather than inventing a figure", () => {
+    it("says the discount-capture target is not graded here rather than inventing a figure, and does not claim a statement is missing", () => {
       const t = render(legs(), targets({ discountCapturePct: 80 }), { lines: FEED });
-      expect(t).toContain("Discount capture is targeted at least 80% and cannot be measured yet");
+      expect(t).toContain("Discount capture is targeted at least 80%. This page does not grade it");
+      // The old sentence asserted that no vendor statement was on file without looking; posted and
+      // contract prices have come from the kept daily Pilot reports since 0245 (`useSpendLines`).
+      expect(t).not.toContain("only arrives on the vendor's statement");
+    });
+
+    it("grades nothing, and says why, while its inputs are pending or failed", () => {
+      const base = targets({ onNetworkPct: 95, avoidedStateGal: 250 });
+      for (const inputs of ["loading", "error"] as const) {
+        const t = mount(BuyDisciplineTab, { props: { fills: legs(), policy: base, cells: [], window: WINDOW, inputs } }).text();
+        expect(t, inputs).toContain(inputs === "error" ? "nothing is graded here" : "Loading the purchases and settings");
+        expect(t, inputs).not.toContain("no tractor fuel in this window");
+        expect(t, inputs).not.toContain("Gallons in avoided states");
+      }
     });
 
     it("has no ceiling to hold a month to when the policy avoids no state", () => {
@@ -271,5 +356,23 @@ describe("BuyDisciplineTab", () => {
     const t = render(canadian);
     expect(t).not.toContain("NaN");
     expect(t).toContain("No fuel was carried out of a dearer state in this window.");
+  });
+});
+
+describe("BuyDisciplineTab — the findings table's page", () => {
+  const manyTrucks = (n: number) =>
+    Array.from({ length: n }, (_, i) => [
+      fill({ vehicleId: `m${i}`, unit: `9${i}`, fueledAt: "2026-08-10T12:00:00Z", state: "CA", gallons: 150, netAmount: 150 * 6.6 }),
+      fill({ vehicleId: `m${i}`, unit: `9${i}`, fueledAt: "2026-08-11T12:00:00Z", state: "AZ", gallons: 100, netAmount: 100 * 5.2, milesSinceLast: 350, levelBeforePct: 50 }),
+    ]).flat();
+
+  it("returns to page 1 when a narrower pick leaves fewer rows than the page the reader was on", async () => {
+    const w = mountTab(manyTrucks(30));
+    const next = w.findAll("button").find((b) => b.text() === "Next");
+    expect(next, "30 findings should paginate at 25").toBeTruthy();
+    await next!.trigger("click");
+    await w.setProps({ fills: manyTrucks(2) });
+    expect(w.text()).not.toContain("No fuel was carried out of a dearer state in this window.");
+    expect(w.text()).toContain("CA → AZ");
   });
 });

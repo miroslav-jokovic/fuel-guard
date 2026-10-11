@@ -28,8 +28,11 @@ import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
+import FleetLeadLine from "@/features/dashboard/FleetLeadLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { greeting } from "@/lib/greeting";
+import { PAGE_GUTTER_CLASS } from "@/lib/layout";
 import TabWidgets from "@/features/dashboard/TabWidgets.vue";
 import { visibleTabs, initialTab, showsTabStrip } from "@/features/dashboard/dashboardTabs";
 
@@ -151,8 +154,11 @@ const EXPORTS = [
     <!-- ⚠ Not rendered on a workspace tab: the hero plate and the greeting are 200px of scenery in
          front of a surface whose whole complaint was that it is not tall enough. The greeting is a
          property of the DASHBOARD, and on this tab the dashboard is a map. -->
+    <!-- Q-FO6: on the fleet tab the second line is DERIVED — what moved most, what is waiting —
+         and is the static sentence until the comparison exists. `FleetLeadLine` owns the figures. -->
     <PageHeader v-if="!workspace" :title="greetingLine">
-      Here's what's happening with your fleet today.
+      <FleetLeadLine v-if="activeKey === 'fleet'" :range="range" />
+      <template v-else>Here's what's happening with your fleet today.</template>
     </PageHeader>
 
     <!--
@@ -184,7 +190,16 @@ const EXPORTS = [
       Pinned by "keeps the strip after picking the workspace tab, so there is a way back" and
       "keeps the Customize teleport target on the workspace tab" in `DashboardPage.shell.test.ts`.
     -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <!--
+      On the workspace tab the SHELL has dropped its gutter so the map can reach the edges, and this
+      row went with it — flush against the sidebar while Fleet overview's strip sat inside the gutter.
+      So the row takes the shell's own gutter back (and the top gap the shell's `py-6` gives a
+      document), and only the map below it is full-bleed.
+    -->
+    <div
+      class="flex flex-wrap items-center justify-between gap-3"
+      :class="workspace ? [PAGE_GUTTER_CLASS, 'pt-6'] : ''"
+    >
       <AppTabs
         v-if="showsStrip"
         v-model="activeKey"
@@ -200,9 +215,14 @@ const EXPORTS = [
       -->
       <div id="dashboard-actions" class="ml-auto flex flex-wrap items-center gap-2">
         <template v-if="activeKey === 'fleet'">
+          <!-- D-FO8: telematics freshness is a status chip in the control row, not the tab's first
+               full-width card. The three tiers the fleet figures are built from, as before. -->
+          <SamsaraFeedLine variant="chip" :feeds="['stats', 'telematics', 'idle']" />
           <DateRangeFilter v-model:from="from" v-model:to="to" />
 
-          <Menu v-if="session.can('settings') || session.readOnly" as="div" class="relative">
+          <!-- SP5: both exports are `/api/reports/*`, `requireSection("settings", "view")` — ask that, not
+               manage-or-auditor, which missed a role the org granted view and kept one it narrowed. -->
+          <Menu v-if="session.canView('settings')" as="div" class="relative">
             <MenuButton
               :disabled="exporting"
               class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"

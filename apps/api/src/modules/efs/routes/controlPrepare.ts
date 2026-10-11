@@ -13,6 +13,7 @@ import { loadCardControlAccess, type CardScope } from "../services/efsCardContro
 import { loadCardNumber } from "../services/efsCardMirror.js";
 import { getEfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { refusal } from "./controlRefusal.js";
+import { recordCardRefusal } from "./refusalAudit.js";
 
 /**
  * The request-shaped half of every card write: who is asking, may they, and about which card.
@@ -79,6 +80,11 @@ export async function prepare(
   if (!env.EFS_CARD_CONTROL_ENABLED) {
     const [code, message] = refusal("kill_switch", scope);
     res.status(403).json(apiError(code, message));
+    // After the answer, never instead of it: the recorder swallows its own failures (refusalAudit.ts).
+    await recordCardRefusal(() => getSupabaseAdmin(env), {
+      orgId, userId: req.auth!.userId, efsCardId: String(req.params.id),
+      capabilityKey: capabilityKey ?? null, scope, code, blockedBy: "kill_switch",
+    });
     return null;
   }
 
@@ -89,6 +95,12 @@ export async function prepare(
     // and "EFS has not enabled this for your account" send a person to two different places.
     const [code, message] = refusal(access.blockedBy, scope);
     res.status(403).json(apiError(code, message));
+    await recordCardRefusal(() => admin, {
+      orgId, userId: req.auth!.userId, efsCardId: String(req.params.id),
+      capabilityKey: capabilityKey ?? null, scope, code,
+      // `null` with a missing scope means the role may use card control but not THIS action.
+      blockedBy: access.blockedBy ?? "scope",
+    });
     return null;
   }
 

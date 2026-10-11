@@ -10,6 +10,8 @@ import ToastContainer from "@/components/ToastContainer.vue";
 import ErrorBoundary from "@/components/ErrorBoundary.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 import EnvironmentBanner from "@/components/EnvironmentBanner.vue";
+import SkipLink from "@/components/SkipLink.vue";
+import AssistantLauncher from "@/components/assistant/AssistantLauncher.vue";
 import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
 
@@ -51,6 +53,7 @@ watch(() => route.fullPath, () => { applyWide.value = false; });
  * what it would replace. It is left outside deliberately for now and named in the plan's §8.
  */
 const isShopLayout = computed(() => layout.value === "shop");
+const isShellLayout = computed(() => layout.value === undefined);
 </script>
 
 <template>
@@ -59,6 +62,9 @@ const isShopLayout = computed(() => layout.value === "shop");
   <EnvironmentBanner />
   <!-- New-deploy banner: above every layout so it's visible on any page, not just the dashboard. -->
   <UpdateBanner />
+  <!-- First in the tab order, over the banners too; only over the shell, whose sidebar is the block to bypass.
+       The other layouts put at most one control before their content, and a link past one is noise. -->
+  <SkipLink v-if="isShellLayout" />
   <RouterView v-if="isLabLayout" />
   <AuthLayout v-else-if="isAuthLayout">
     <RouterView />
@@ -83,5 +89,9 @@ const isShopLayout = computed(() => layout.value === "shop");
       <RouterView />
     </ErrorBoundary>
   </AppShell>
+  <!-- The assistant's launcher and dock (F21). Here rather than in `AppShell` because it floats over
+       the shell rather than living in it, beside the toasts; it renders only for a signed-in shell
+       page, and only for someone the `ask-ai` surface admits. -->
+  <AssistantLauncher v-if="isShellLayout && session.isAuthenticated" />
   <ToastContainer />
 </template>

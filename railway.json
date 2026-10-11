@@ -26,7 +26,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter ./apps/api start",
+    "startCommand": "node --import tsx apps/api/src/index.ts",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

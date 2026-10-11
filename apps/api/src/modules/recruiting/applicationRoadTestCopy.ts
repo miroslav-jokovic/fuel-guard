@@ -3,6 +3,7 @@ import { DOCUMENTS_BUCKET } from "@silvicom/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { APPLICANT_COPY_TTL_SEC, type ApplicantCopy } from "./applicationCopy.js";
 import { isIntakeError, resolveInvitation, type IntakeError } from "./applicationIntake.js";
+import { CERTIFICATE_DOWNLOADED } from "./roadTestCertificateCopies.js";
 
 /**
  * The driver's copy of their road-test certificate (§391.31(g); `ROAD-TEST-PLAN.md` RT4).
@@ -115,7 +116,7 @@ export async function applicantRoadTestCertificate(
   await writeAudit(admin, {
     orgId: invitation.org_id,
     actorId: null,
-    action: "road_test_certificate_downloaded",
+    action: CERTIFICATE_DOWNLOADED,
     entity: "qualification_records",
     entityId: record.id,
     meta: { invitationId: invitation.id, documentId: record.document_id },

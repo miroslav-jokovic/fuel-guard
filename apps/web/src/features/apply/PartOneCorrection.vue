@@ -13,7 +13,6 @@ import {
   US_JURISDICTION_CODES,
   jurisdictionOptions,
   partOneCorrectionSchema,
-  rolesThatManage,
   type PartOneFactsView,
 } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
@@ -34,7 +33,7 @@ import { useCorrectPartOne } from "./useApplicationReview";
  * answers, the endorsements they declared, and the date of birth, which is corrected beside the
  * permissions as it always was.
  *
- * ⚠ `rolesThatManage("recruitment")`, the test the route applies. A reader sees no button.
+ * ⚠ `session.can("recruitment")`, the test the route applies (`requireSection`). A reader sees no button.
  */
 const props = defineProps<{ invitationId: string; facts: PartOneFactsView }>();
 
@@ -42,7 +41,8 @@ const session = useSessionStore();
 const toast = useToastStore();
 const correct = useCorrectPartOne(toRef(props, "invitationId"));
 
-const canCorrect = computed(() => Boolean(session.role) && rolesThatManage("recruitment").includes(session.role!));
+// SP5: the org's answer (the `sections` claim), which is what the route's `requireSection` reads.
+const canCorrect = computed(() => session.can("recruitment"));
 const JURISDICTIONS = jurisdictionOptions();
 const US_STATES = JURISDICTIONS.filter((j) => US_JURISDICTION_CODES.has(j.value));
 const CLASSES = CDL_CLASSES.map((c) => ({ value: c, label: `Class ${c}` }));

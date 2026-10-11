@@ -1,0 +1,278 @@
+/**
+ * What the Fuel Costs page shows, derived from `GET /api/fueling/report` (FS2, D-FSV1/3/4/5/7).
+ *
+ * Pure, so every word and every comparison on the page is testable without a DOM. It does no fuel
+ * arithmetic of its own: every ratio comes from `fuelReportTotals` (shared, D-FSV6), the MPG and the
+ * cost per mile from the API (D-MPG1), and the only sums here are the grouping of the API's day ×
+ * network × tank rows into days — which `fuelReportTotals` then reads.
+ */
+import { addDays } from "./spendWindow.js";
+import { formatDisplayDate, formatDisplayDayShort } from "../displayDate.js";
+import { fuelReportTotals, type FuelReport, type FuelReportDay, type FuelReportSummary, type FuelReportWindow } from "./reportDays.js";
+import { gal, usd, usd3, wholeUsd } from "./moneyFormat.js";
+
+/** `09/01–09/30` — the shape D-FSV3 names a range in. */
+export const rangeLabel = (w: { from: string; to: string }): string =>
+  `${formatDisplayDayShort(w.from)}–${formatDisplayDayShort(w.to)}`;
+
+/**
+ * The relative change from `prev` to `cur`, or null when there is nothing honest to compare: either
+ * side missing, or a previous range of zero (a change from nothing has no percentage).
+ */
+export function relativeChange(cur: number | null, prev: number | null): number | null {
+  if (cur == null || prev == null || prev === 0) return null;
+  return (cur - prev) / Math.abs(prev);
+}
+
+/** Whether a rise is good or bad news on a card. Neutral cards (miles, gallons) take no tone. */
+type Better = "lower" | "higher" | null;
+
+export interface CostCard {
+  key: string;
+  label: string;
+  /** The industry term, for the hover (finance reader rule: the plain word leads). */
+  term?: string;
+  value: string;
+  /** "+4.2% vs 08/02–08/31", or why there is no figure. */
+  sub: string;
+  /** The previous range's own figure, for the hover — the card states both ranges (D-FSV3). */
+  previous: string;
+  tone: "good" | "bad" | null;
+}
+
+const signed = (share: number): string => `${share > 0 ? "+" : share < 0 ? "−" : "±"}${Math.abs(share * 100).toFixed(1)}%`;
+
+function card(
+  key: string,
+  label: string,
+  cur: number | null,
+  prev: number | null,
+  fmt: (n: number | null) => string,
+  better: Better,
+  prevRange: string,
+  opts: { term?: string; missing?: string } = {},
+): CostCard {
+  const ch = relativeChange(cur, prev);
+  const tone = ch == null || ch === 0 || better == null ? null : (ch < 0) === (better === "lower") ? "good" : "bad";
+  const sub = cur == null
+    ? opts.missing ?? "no figure for this range"
+    : ch == null ? `nothing to compare in ${prevRange}` : `${signed(ch)} vs ${prevRange}`;
+  return { key, label, term: opts.term, value: fmt(cur), sub, previous: `${prevRange}: ${fmt(prev)}`, tone };
+}
+
+const mpgFmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
+const milesFmt = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+
+/**
+ * The trend cards, picked range against the previous range of equal length (D-FSV3). Tractor fuel
+ * only (D-FSV4); reefer is `reeferLine`. Miles, MPG and cost per mile are absent — not dashed — under a
+ * station-side filter, where the page shows the API's sentence instead (D-FSV5).
+ */
+export function costCards(report: FuelReport): CostCard[] {
+  const c = report.current;
+  const p = report.previous;
+  const prevRange = rangeLabel(p);
+  const t = c.totals.tractor;
+  const pt = p.totals.tractor;
+  const cards = [
+    // Dollars move with how much the fleet drove, so a fall is not news and a rise is not bad news on its own
+    // (Q-FSV15 ruling 2): a quieter month would paint green. Price and the quote gap are per gallon, and
+    // MPG and cost per mile are per mile, so those keep a direction.
+    card("spend", "Fuel spend", t.spend, pt.spend, usd, null, prevRange),
+    card("gallons", "Gallons", t.gallons, pt.gallons, gal, null, prevRange),
+    card("price", "Avg price / gal", t.pricePerGal, pt.pricePerGal, usd3, "lower", prevRange),
+  ];
+  if (c.efficiency != null) {
+    const e = c.efficiency;
+    const pe = p.efficiency;
+    // A withheld MPG carries the API's own sentence; cost per mile is withheld for the same reason.
+    const why = e.mpg.reason ?? undefined;
+    cards.push(
+      card("miles", "Miles", e.mpg.miles > 0 ? e.mpg.miles : null, pe && pe.mpg.miles > 0 ? pe.mpg.miles : null, milesFmt, null, prevRange, {
+        term: "Measured odometer distance of the trucks that bought fuel",
+      }),
+      card("mpg", "MPG", e.mpg.mpg, pe?.mpg.mpg ?? null, mpgFmt, "higher", prevRange, { missing: why }),
+      card("cpm", "Cost per mile", e.costPerMile, pe?.costPerMile ?? null, usd3, "lower", prevRange, {
+        term: "Avg price / gal ÷ MPG — tractor fuel only",
+        missing: why,
+      }),
+    );
+  }
+  cards.push(
+    card("quote", "Paid vs Pilot quote", t.paidVsQuote, pt.paidVsQuote, wholeUsd, "lower", prevRange, {
+      term: "Billed against contract: what we paid minus Pilot's quoted price, on the fills Pilot quoted",
+      missing: "no fill in this range had a Pilot quote",
+    }),
+    card("out", "Out of network", c.totals.byNetwork.out.spend, p.totals.byNetwork.out.spend, usd, null, prevRange, {
+      term: `Tractor fuel bought anywhere but ${brandList(report.inNetworkBrands)}`,
+    }),
+  );
+  return cards;
+}
+
+const BRAND_NAMES: Record<string, string> = { pilot: "Pilot", flying_j: "Flying J", one9: "ONE9", loves: "Love's", ta: "TA", petro: "Petro" };
+/** The carrier's network brands in words: "Pilot / Flying J". */
+export const brandList = (brands: readonly string[]): string =>
+  brands.length === 0 ? "no brand" : brands.map((b) => BRAND_NAMES[b] ?? b).join(" / ");
+
+const pct = (share: number): string => `${Math.abs(share * 100).toFixed(1)}%`;
+/** A change that prints as 0.0% is "the same" in words too, or the sentence would say "rose 0.0%". */
+const unmoved = (share: number): boolean => Math.abs(share * 100) < 0.05;
+
+/**
+ * The sentence the Fuel Costs page leads with: how spend moved, and how much of that was gallons and how
+ * much the average price (design verdict 2026-10-03, move 2: "lead with spending, the reason for its
+ * change"). Tractor fuel only, like the cards.
+ *
+ * ── WHY THIS IS NOT A CAUSAL CLAIM ───────────────────────────────────────────────────────────────
+ * Average price is spend ÷ gallons (`fuelReportTotals`), so (1 + spend change) = (1 + gallons change) ×
+ * (1 + price change) exactly: the two parts are arithmetic, not an attribution model. WHY the price moved
+ * (diesel's market, a dearer state, out-of-network fills) is not said here; the network line and the open
+ * findings under it are where the reader goes for that. Nothing in it carries a tone (Q-FSV15 ruling 2:
+ * dollars have no direction), and the PDF's spend band prints the same string.
+ */
+export function spendChangeLine(report: FuelReport): string {
+  const t = report.current.totals.tractor;
+  const pt = report.previous.totals.tractor;
+  const prevRange = rangeLabel(report.previous);
+  if (!(t.spend > 0)) return `No tractor fuel was bought in ${rangeLabel(report.current)}.`;
+  const spend = relativeChange(t.spend, pt.spend);
+  if (spend == null) return `No tractor fuel was bought in ${prevRange}, so there is nothing to compare with.`;
+  const lead = unmoved(spend)
+    ? `Fuel spend was the same as in ${prevRange}`
+    : `Fuel spend ${spend > 0 ? "rose" : "fell"} ${pct(spend)} against ${prevRange}`;
+  const gallons = relativeChange(t.gallons, pt.gallons);
+  const price = relativeChange(t.pricePerGal, pt.pricePerGal);
+  // Spend with no gallons on one side has no price to split it by; say only what moved.
+  if (gallons == null || price == null) return `${lead}.`;
+  const g = unmoved(gallons) ? "the same gallons" : `${pct(gallons)} ${gallons > 0 ? "more" : "fewer"} gallons`;
+  const p = unmoved(price) ? "the same average price" : `an average price ${pct(price)} ${price > 0 ? "higher" : "lower"}`;
+  return `${lead}: ${g}, at ${p}.`;
+}
+
+/** One sentence of where the tractor money went, by network side. Null when nothing was bought. */
+export function networkLine(report: FuelReport): string | null {
+  const n = report.current.totals.byNetwork;
+  const total = report.current.totals.tractor.spend;
+  if (!(total > 0)) return null;
+  const share = (s: FuelReportSummary) => `${Math.round((s.spend / total) * 100)}%`;
+  const parts = [
+    `${usd(n.in.spend)} in network (${share(n.in)})`,
+    `${usd(n.out.spend)} out of network (${share(n.out)})`,
+  ];
+  if (n.unknown.fills > 0) parts.push(`${usd(n.unknown.spend)} at a station we couldn't identify (${share(n.unknown)})`);
+  return `Tractor fuel: ${parts.join(" · ")}.`;
+}
+
+/** Reefer fuel beside the tractor figures, never inside them (D-FSV4). Null when none was bought. */
+export function reeferLine(w: FuelReportWindow): string | null {
+  const r = w.totals.reefer;
+  if (r.fills === 0) return null;
+  return `Reefer fuel, not in the figures above: ${usd(r.spend)} for ${gal(r.gallons)} gal at ${usd3(r.pricePerGal)} / gal.`;
+}
+
+export interface CostDayRow {
+  id: string;
+  day: string;
+  fills: number;
+  gallons: number;
+  spend: number;
+  pricePerGal: number | null;
+  outOfNetwork: number;
+  paidVsQuote: number | null;
+  reefer: number;
+  /** Trailing-7-day MPG (D-FSV5); null under a station filter or when withheld (see `mpgReason`). */
+  mpg: number | null;
+  mpgReason: string | null;
+}
+
+/**
+ * One row per day of the range, NEWEST first, days with no fuel included — a day the fleet bought
+ * nothing is a fact the reader should see, not a gap in the list.
+ */
+export function costDayRows(report: FuelReport): CostDayRow[] {
+  const byDay = new Map<string, FuelReportDay[]>();
+  for (const d of report.current.days) {
+    const list = byDay.get(d.day);
+    if (list) list.push(d);
+    else byDay.set(d.day, [d]);
+  }
+  const trailing = new Map((report.trailingMpg ?? []).map((t) => [t.day, t]));
+  const rows: CostDayRow[] = [];
+  for (let day = report.current.to; day >= report.current.from; day = addDays(day, -1)) {
+    const totals = fuelReportTotals(byDay.get(day) ?? []);
+    const t = trailing.get(day);
+    rows.push({
+      id: day,
+      day,
+      fills: totals.tractor.fills,
+      gallons: totals.tractor.gallons,
+      spend: totals.tractor.spend,
+      pricePerGal: totals.tractor.pricePerGal,
+      outOfNetwork: totals.byNetwork.out.spend,
+      paidVsQuote: totals.tractor.paidVsQuote,
+      reefer: totals.reefer.spend,
+      mpg: t?.mpg ?? null,
+      mpgReason: t == null ? null : t.reason,
+    });
+  }
+  return rows;
+}
+
+/** The day table's column labels, in order — the screen, the CSV and the PDF all read this one list. */
+export function costDayHeaders(withMpg: boolean): string[] {
+  const h = ["Day", "Fills", "Gallons", "Fuel spend", "Avg price / gal", "Out of network", "Paid vs Pilot quote", "Reefer"];
+  if (withMpg) h.push("MPG — previous 7 days");
+  return h;
+}
+
+/**
+ * One day row as the strings every surface prints. A zero out-of-network or reefer figure is blank, not "$0":
+ * a day with none of it is the common case and a column of zeros reads as data.
+ */
+export function costDayCells(r: CostDayRow): string[] {
+  return [
+    formatDisplayDate(r.day),
+    r.fills.toLocaleString("en-US"),
+    gal(r.gallons),
+    usd(r.spend),
+    usd3(r.pricePerGal),
+    r.outOfNetwork > 0 ? usd(r.outOfNetwork) : "",
+    r.paidVsQuote == null ? "" : wholeUsd(r.paidVsQuote),
+    r.reefer > 0 ? usd(r.reefer) : "",
+    r.mpg == null ? "" : r.mpg.toFixed(2),
+  ];
+}
+
+/** The day table as a spreadsheet: same rows, same words, raw numbers. */
+export function costDaysCsv(
+  rows: readonly CostDayRow[],
+  withMpg: boolean,
+): { headers: string[]; rows: (string | number | null)[][] } {
+  const headers = costDayHeaders(withMpg);
+  return {
+    headers,
+    rows: rows.map((r) => {
+      const line: (string | number | null)[] = [
+        formatDisplayDate(r.day), r.fills, r.gallons, r.spend, r.pricePerGal, r.outOfNetwork, r.paidVsQuote, r.reefer,
+      ];
+      if (withMpg) line.push(r.mpg);
+      return line;
+    }),
+  };
+}
+
+/**
+ * How much of the fuel the MPG speaks for — the coverage D-MPG4 makes part of the answer. Null when there is
+ * no measured MPG to qualify. Here, not in the page, so the PDF prints the sentence the screen prints.
+ */
+export function mpgCoverageLine(report: FuelReport): string | null {
+  const m = report.current.efficiency?.mpg;
+  if (!m || m.measuredShare == null) return null;
+  return `MPG and miles cover the ${m.trucksMeasured} trucks with a measured distance — ${Math.round(m.measuredShare * 100)}% of this range's tractor fuel.`;
+}
+
+/** `09/01–09/30 compared with 08/01–08/31, the same number of days just before` — the sentence under the cards. */
+export function comparingLine(report: FuelReport): string {
+  return `${rangeLabel(report.current)} compared with ${rangeLabel(report.previous)}, the same number of days just before`;
+}

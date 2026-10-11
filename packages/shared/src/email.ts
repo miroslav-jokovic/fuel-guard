@@ -307,7 +307,8 @@ export function renderApplicationLinkResentEmail(
  *
  * So the email says what is true: the application has been read and approved, nothing they filled
  * in is lost, and the carrier will contact them about the visit where they sign it. The sign link is
- * minted by the office's Open signing, on the office's screen (`applicationOpenSigning.ts`).
+ * minted by the office's Send for signing during that visit, and goes to their phone by email and text
+ * (D-AW14, `applicationSendForSigning.ts`).
  *
  * ── THE VOICE ─────────────────────────────────────────────────────────────────────────────────
  * The carrier's name first, as every applicant-facing template in this file does. "Approved" means
@@ -321,7 +322,8 @@ export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
     `<div style="font-family:system-ui,sans-serif;color:#111">`
     + `<h2 style="margin:0 0 8px">${esc(carrier)} has read and approved your application</h2>`
     + `<p style="color:#555">You sign it in their office. ${esc(carrier)} will contact you about `
-    + `coming in — the road test and orientation happen on the same visit.</p>`
+    + `coming in — the road test and orientation happen on the same visit — and sends a link to your `
+    + `phone to sign it while you are there.</p>`
     + `<p style="color:#555">Nothing you filled in has been lost, and anything ${esc(carrier)} `
     + `corrected is marked for you before you sign.</p>`
     + `<p style="color:#aaa;font-size:12px">There is nothing to do on your application link until `
@@ -330,10 +332,42 @@ export function renderApplicationApprovedEmail(carrier: string): RenderedEmail {
   const text =
     `${carrier} has read and approved your application.\n\n`
     + `You sign it in their office. ${carrier} will contact you about coming in — the road test and `
-    + `orientation happen on the same visit.\n\n`
+    + `orientation happen on the same visit — and sends a link to your phone to sign it while you are `
+    + `there.\n\n`
     + `Nothing you filled in has been lost, and anything ${carrier} corrected is marked for you before `
     + `you sign.\n\n`
     + `There is nothing to do on your application link until then.`;
+  return { subject, html, text };
+}
+
+/**
+ * The sign link, sent by the office while the driver is there (D-AW14, C3s3a).
+ *
+ * A fourth sibling, because it says a fourth thing: *sign it now, on this phone, and this link is short-
+ * lived*. It names the hours, and the date of birth it will ask for — a driver told "confirm your date of
+ * birth" by a page they did not expect stops there. It does not say how many tries: the page says that
+ * when it matters, and an email listing the guard's limits is the wrong place to publish them.
+ */
+export function renderSigningLinkEmail(carrier: string, signUrl: string, hours: number): RenderedEmail {
+  const subject = `Sign your ${carrier} driver application`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">`
+    + `<h2 style="margin:0 0 8px">${esc(carrier)} has sent your application to sign</h2>`
+    + `<p style="color:#555">Open it on your phone. It asks for your date of birth first, then shows `
+    + `each place to sign, one at a time.</p>`
+    + `<p style="margin:20px 0"><a href="${esc(signUrl)}" style="background:#4f46e5;color:#fff;`
+    + `padding:10px 16px;border-radius:6px;text-decoration:none">Sign my application →</a></p>`
+    + `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your `
+    + `browser:<br>${esc(signUrl)}</p>`
+    + `<p style="color:#aaa;font-size:12px">This link is yours alone and stops working in ${hours} hours. `
+    + `Any signing link sent before it no longer works.</p>`
+    + `</div>`;
+  const text =
+    `${carrier} has sent your application to sign.\n\n`
+    + `Open it on your phone. It asks for your date of birth first, then shows each place to sign, one at `
+    + `a time:\n${signUrl}\n\n`
+    + `This link is yours alone and stops working in ${hours} hours. Any signing link sent before it no `
+    + `longer works.`;
   return { subject, html, text };
 }
 

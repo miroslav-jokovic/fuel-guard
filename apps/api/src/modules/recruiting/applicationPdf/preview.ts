@@ -138,6 +138,7 @@ export async function applicationPreviewPdf(
   orgId: string,
   invitationId: string,
   audience: PreviewAudience = {},
+  now: Date = new Date(),
 ): Promise<ApplicationPreview | PreviewError> {
   const { data } = await admin
     .from("application_invitations")
@@ -193,17 +194,27 @@ export async function applicationPreviewPdf(
      */
     application: payload as DriverApplication,
     /**
-     * ⚠ Empty rather than today's date. `certifiedAt` is page 1's `Date:` and it is the date the
-     * applicant CERTIFIED — server-stamped, never invented (D-APP9). Nobody has certified anything
-     * here, and `date("")` draws nothing, so the line stays blank like the signature above it. A
-     * preview that dated page 1 would be a document asserting an act that has not happened.
+     * ⚠ TODAY, since C3s5 — the owner's D-AW17: *"all places … prefilled properly. We can review these
+     * documents prefilled."* Until then this was empty, on the argument that page 1's `Date:` is the
+     * day the applicant CERTIFIED (D-APP9) and a dated preview asserts an act not yet done. The ruling
+     * answers that argument rather than overlooking it: page 1 is signed on the walk it is read on
+     * (D-AW14 — the driver reads this copy on their phone at the desk and certifies minutes later), so
+     * today is the date the filing will carry, and the office's copy is under a DRAFT band that says
+     * nothing is certified. The FILED date is still stamped by the server at certification and never
+     * read from here. A UTC calendar day, as `packetDraw.ts`'s `date` prints every instant.
+     *
+     * ⚠ Page 1 ONLY. The date beside each signature stays blank until its mark exists
+     * (`markSides`): that one is the day THAT place was signed, and D-AW17 did not ask for it.
      */
-    certifiedAt: "",
+    certifiedAt: now.toISOString().slice(0, 10),
     /**
      * ⚠ The one line of this module that could forge something, kept empty for `preview.test.ts`'s
-     * *"signs nothing"*. This is page 22's `Driver name Print`, drawn beside the signature lines;
-     * the applicant's own name is two fields away in the payload, and printing it here would put a
-     * name where a signature belongs on a document nobody has signed.
+     * *"signs nothing"*: it is the MARK. D-AW17's "p22 printed name" needs nothing from it — every
+     * printed-name line reads the payload's name since AUD-18 (`packetFieldValues.ts`, `fullName`), so
+     * the preview already prints them, and page 22's own line is withdrawn (D-PKT19). Measured
+     * 2026-09-29 by rendering one payload as this preview and as a filing and diffing the text of every
+     * page: the ONLY words the filing had and the preview lacked were dates (page 1's, and one beside
+     * each signature) — no name.
      */
     signedName: "",
     // ⚠ Null for the OFFICE, and both would be ignored anyway — A3 made a picture follow the MARKS,

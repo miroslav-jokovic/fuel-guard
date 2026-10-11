@@ -8,13 +8,12 @@ import {
   type CalendarDay,
   dayRangeInstants,
   todayInZone,
-  shiftDay,
+  idleWindow,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE = 1000;
-const WINDOW_DAYS = 30;
 
 /** Date window for the idle views. Both bounds optional; unset `from` defaults to the last 30 days. */
 export interface IdleDateFilter {
@@ -62,8 +61,7 @@ export function useIdleScores(filters: Ref<IdleDateFilter>) {
     queryKey: ["idle_scores", filters, zone],
     queryFn: async (): Promise<IdleSummary> => {
       const f = toValue(filters);
-      const toDay = f.to ?? todayInZone(new Date(), zone.value);
-      const fromDay = f.from ?? shiftDay(toDay, -WINDOW_DAYS);
+      const { from: fromDay, to: toDay } = idleWindow(f, todayInZone(new Date(), zone.value));
       const { start: fromIso, endExclusive } = dayRangeInstants(fromDay, toDay, zone.value);
       const rows: IdleRow[] = [];
       for (let offset = 0; ; offset += PAGE) {

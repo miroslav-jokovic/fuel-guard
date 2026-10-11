@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { PERMISSION_SIGNATURE_BOX, PERMISSION_SIGNATURE_DESTINATION } from "@silvicom/shared";
+import { PERMISSION_SIGNATURE_BOX, PERMISSION_SIGNATURE_DESTINATION, formatDisplayDate } from "@silvicom/shared";
 import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import {
@@ -42,10 +42,15 @@ const invitation = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const seed = (over: { invitation?: Record<string, unknown> | null } = {}): SupabaseRecorder =>
+const ADOPTED = "Jovana Petrović-Szczepańska";
+
+const seed = (over: { invitation?: Record<string, unknown> | null; adopted?: string | null } = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       application_invitations: over.invitation === null ? [] : [invitation(over.invitation)],
+      // Screen 13's adoption (D-AW15), which the next permission is signed with — none on a legacy link.
+      signature_adoptions: over.adopted ? [{ id: "ad-1", typed_text: over.adopted }] : [],
+      driver_authorizations: [],
       organizations: [{ name: "Silvicom Inc", legal_address: "1301 Armitage Ave, Melrose Park IL" }],
       org_disclosures: [],
     },
@@ -170,6 +175,31 @@ describe("the permission the applicant is about to sign", () => {
       expect(gap).toBeLessThan(15);
     },
   );
+
+  /**
+   * D-AW17 (C3s5): the unsigned copy reads as it will print once signed — the adopted name on the
+   * printed-name rule and today's date — with the box itself still empty.
+   */
+  it("prefills the printed name and today's date, and leaves the signature box empty", async () => {
+    holder.client = seed({ adopted: ADOPTED }).client;
+    const pdf = await bytes(await get("fcra_disclosure"));
+    const lines = await pdfDrawnLines(pdf);
+    const today = formatDisplayDate(new Date().toISOString().slice(0, 10), "");
+    const named = lines.filter((l) => l.text.includes(ADOPTED));
+    // Once, on the printed-name rule: a second copy would be a name in the signature box.
+    expect(named).toHaveLength(1);
+    const caption = lines.find((l) => l.page === named[0]!.page && l.text === "Printed name")!;
+    expect(caption.y - named[0]!.y).toBeGreaterThan(0);
+    expect(caption.y - named[0]!.y).toBeLessThan(20);
+    expect(lines.some((l) => l.text === today)).toBe(true);
+  });
+
+  it("prefills the date and no name on a link with no adoption, rather than guessing one", async () => {
+    holder.client = seed().client;
+    const text = flat(await pdfText(await bytes(await get("fcra_disclosure"))));
+    expect(text).toContain(formatDisplayDate(new Date().toISOString().slice(0, 10), ""));
+    expect(text).not.toContain(ADOPTED);
+  });
 
   it("refuses before the consent to transact electronically, as a conflict", async () => {
     holder.client = seed({ invitation: { consented_at: null } }).client;

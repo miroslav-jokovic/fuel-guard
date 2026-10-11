@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * When each EFS feed last delivered (FUEL-T5 / A7).
  *
  * ── WHY THIS IS NOT THE EXISTING `/efs-soap/config` ROUTE ──────────────────────────────────────
- * That one is `requireRole("admin")` and returns the whole integration — endpoint, username, TLS
+ * That one is admin-only (`requireAdminOnly("efs.connection")`) and returns the whole integration — endpoint, username, TLS
  * material metadata, cursors. The people who need this fact are the ones reading Transactions and
  * Rejections, which is `rolesThatCanView("fuel")` — an accountant or an auditor looking at a short
  * list needs to know whether it is short because nothing happened or because nothing arrived. Reusing

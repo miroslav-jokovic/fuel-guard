@@ -46,6 +46,16 @@ vi.mock("@/features/jobs/useJob", () => ({
   }),
 }));
 
+// The real shape (SP5): the fuel cards ask `session.can("fuel")`, their endpoints' own gate.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+const { __session: session } = (await import("@/stores/session")) as unknown as {
+  __session: import("@/testing/fakeSession").FakeSession;
+};
+
 import DataSyncPage from "./DataSyncPage.vue";
 
 const status = (o: Record<string, unknown> = {}) => ({
@@ -73,6 +83,8 @@ const coverage = (o: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  session.role = "admin";
+  session.sections = null;
   fetched.value = status();
   fetched.ok = true;
   coverageFetched.value = coverage();
@@ -180,5 +192,37 @@ describe("DataSyncPage — the telematics-history card", () => {
     coverageFetched.ok = false;
     const t = (await mountPage()).text();
     expect(t).toContain("Could not read telematics coverage");
+  });
+});
+
+/**
+ * SP5 (plan §4b): the three fuel cards — Import EFS reports, Reconcile fuel with telematics, Rebuild
+ * anomalies — post to `/api/transactions/*`, which is `requireSection("fuel")`, manage. The page is a
+ * `settings` screen, a different set: before SP5 they showed to anybody on it and a press came back
+ * 403. And "Re-check all history" (`{ full: true }`) was held to the admin although the endpoint asks
+ * only fuel manage.
+ */
+describe("DataSyncPage — the fuel cards ask their endpoint's gate (SP5)", () => {
+  const FUEL = ["Import EFS reports", "Reconcile fuel with telematics", "Rebuild anomalies", "Repair fuel data"];
+  const cards = (w: Awaited<ReturnType<typeof mountPage>>) =>
+    w.findAll("job-action-card-stub").map((c) => c.attributes("title"));
+
+  it("shows all four to a caller who manages fuel", async () => {
+    expect(cards(await mountPage())).toEqual(expect.arrayContaining(FUEL));
+  });
+
+  it("shows none of them to a settings manager whose org narrowed fuel to view", async () => {
+    session.role = "fleet_manager";
+    session.sections = { settings: "manage", fuel: "view" };
+    const shown = cards(await mountPage());
+    for (const t of FUEL) expect(shown).not.toContain(t);
+  });
+
+  it("offers the full re-check to a fuel manager who is not the admin", async () => {
+    session.role = "fleet_manager";
+    session.sections = { settings: "manage", fuel: "manage" };
+    const w = await mountPage();
+    const reconcile = w.findAll("job-action-card-stub").find((c) => c.attributes("title") === "Reconcile fuel with telematics");
+    expect(reconcile?.attributes("secondarylabel") ?? reconcile?.attributes("secondary-label")).toBe("Re-check all history");
   });
 });

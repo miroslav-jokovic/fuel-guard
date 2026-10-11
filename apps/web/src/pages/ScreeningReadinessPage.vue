@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { screeningFieldLabel, rolesThatManage, type ScreeningRow } from "@silvicom/shared";
+import { screeningFieldLabel, type ScreeningRow } from "@silvicom/shared";
 import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -13,6 +13,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
+import GatedLink from "@/components/GatedLink.vue";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";
 import {
@@ -44,10 +45,9 @@ const qc = useQueryClient();
 const readinessQ = useScreeningReadinessQuery();
 const save = useUpdateDriverProfile();
 
-const canEdit = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canEdit = computed(() => session.can("recruitment"));
 
 const filter = ref("all");
 const search = ref("");
@@ -174,9 +174,10 @@ const columns: DataTableColumn[] = [
         empty-text="No active drivers or applicants yet."
       >
         <template #cell-name="{ row }">
-          <RouterLink :to="`/drivers/${row.driverId}`" class="font-medium text-ink hover:underline">
+          <!-- SP5: a recruitment page naming a roster record — a name where the roster does not open. -->
+          <GatedLink :to="`/drivers/${row.driverId}`" class="font-medium text-ink hover:underline" plain-class="font-medium text-ink">
             {{ row.name }}
-          </RouterLink>
+          </GatedLink>
         </template>
         <template #cell-status="{ row }">
           <span class="text-ink-muted">{{ row.status }}</span>

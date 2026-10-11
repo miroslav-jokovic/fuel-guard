@@ -5,6 +5,7 @@ import { enqueueJob } from "./enqueue.js";
 import { dispatchJob } from "./dispatch.js";
 import { backoffSeconds, executeJob } from "./worker.js";
 import type { JobContext, QueueDriver, QueueJob } from "./types.js";
+import { drainJobs, resetShutdownStateForTests, SHUTDOWN_RELEASED_ERROR } from "../lib/shutdown.js";
 
 /** In-memory QueueDriver recording every call — exercises the queue mechanics without a database. */
 function fakeDriver(overrides: Partial<QueueDriver> = {}) {
@@ -113,6 +114,25 @@ describe("queue — executeJob", () => {
     const { driver, calls } = fakeDriver();
     await executeJob(driver, ctx, job(), execOpts);
     expect(calls.progress).toEqual([{ id: "job-1", done: 5 }]);
+  });
+
+  it("at shutdown, hands a running job back with no backoff and never completes it afterwards", async () => {
+    let finish: () => void = () => undefined;
+    registerHandler("efs_ingest", () => new Promise((resolve) => {
+      finish = () => resolve({ found: 3 });
+    }));
+    const { driver, calls } = fakeDriver();
+    const running = executeJob(driver, ctx, job(), execOpts);
+    try {
+      expect((await drainJobs(0)).released).toEqual(["efs_ingest job-1"]);
+      expect(calls.failed).toEqual([{ id: "job-1", error: SHUTDOWN_RELEASED_ERROR, retry: true, backoff: 0 }]);
+      finish();
+      expect(await running).toBe("failed");
+      expect(calls.completed).toHaveLength(0);
+      expect(calls.failed).toHaveLength(1);
+    } finally {
+      resetShutdownStateForTests();
+    }
   });
 });
 

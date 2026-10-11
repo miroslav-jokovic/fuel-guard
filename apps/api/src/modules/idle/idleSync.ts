@@ -7,6 +7,8 @@ import {
   estimateIdleGallons,
   matchAssignmentAt,
   mergeOperatorAssignments,
+  idleEventKey,
+  dedupeIdleEventsByKey,
   type IdleThresholds,
   type AssignmentInterval,
 } from "@silvicom/shared";
@@ -52,15 +54,17 @@ async function recentEfsPricePerGal(
 /**
  * Pull Samsara idling events over the trailing window, attribute each to our vehicle + driver, classify it
  * (productive / justified / discretionary / brief), and upsert into idle_events. Idempotent on
- * (org_id, samsara_event_id). Driver comes from the event's `operator.id` (Samsara driver id) → our driver by
+ * (org_id, samsara_event_id), and one row per event whatever spelling arrives (org_id, event_key — 0398). Driver comes from the event's `operator.id` (Samsara driver id) → our driver by
  * samsara_driver_id; unattributed when Samsara had no driver assigned.
  */
 type IdlingFetcher = (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
 
 /**
- * Pull /idling/events in bounded time chunks and de-dupe by eventUuid. A single 30-day fleet-wide window makes
- * Samsara time out (504) / error (500); ~7-day windows answer reliably. De-duping by eventUuid means an
- * overlapping chunk edge — or an injected fetcher that ignores the window (tests) — never double-counts.
+ * Pull /idling/events in bounded time chunks and de-dupe by EVENT KEY. A single 30-day fleet-wide window makes
+ * Samsara time out (504) / error (500); ~7-day windows answer reliably. De-duping means an overlapping chunk
+ * edge — or an injected fetcher that ignores the window (tests) — never double-counts. It is by `idleEventKey`,
+ * not by eventUuid, because Samsara sends one event under two spellings of its id (I0, measured 2026-10-01:
+ * 58,143 stored pairs); the real-UUID spelling is the one kept.
  */
 async function fetchIdleEventsChunked(fetchIdling: IdlingFetcher, startMs: number, endMs: number) {
   const CHUNK_MS = IDLE_FETCH_CHUNK_DAYS * 86_400_000;
@@ -70,9 +74,51 @@ async function fetchIdleEventsChunked(fetchIdling: IdlingFetcher, startMs: numbe
     const chunk = await fetchIdling(new Date(s).toISOString(), new Date(e).toISOString());
     if (Array.isArray(chunk.data)) rawData.push(...chunk.data);
   }
-  const byUuid = new Map<string, ReturnType<typeof parseIdlingEvents>[number]>();
-  for (const ev of parseIdlingEvents({ data: rawData })) byUuid.set(ev.eventUuid, ev);
-  return [...byUuid.values()];
+  return dedupeIdleEventsByKey(parseIdlingEvents({ data: rawData }), (ev) => ev.eventUuid);
+}
+
+const KEY_LOOKUP_CHUNK = 200;
+
+/**
+ * Point each row at the stored row of the same event, so the upsert on (org_id, samsara_event_id) updates it
+ * rather than inserting a twin under the other spelling — Samsara may send only the spelling we did NOT store.
+ *
+ * Only once every stored row carries a key. Until the twin clean-up (idleEventTwins.ts) has keyed the rows
+ * written before I0, a stored row's key is null: a lookup cannot find it, and writing the key on the incoming
+ * row would collide with the twin the clean-up is about to key. So in that state the key is left null and the
+ * clean-up — which runs before this sync in every scheduler cycle — removes whatever twin this pass adds.
+ */
+async function keyIdleEventRows<R extends { samsara_event_id: string; event_key?: string | null }>(
+  admin: SupabaseClient,
+  orgId: string,
+  rows: R[],
+): Promise<R[]> {
+  const { data: unkeyed, error } = await admin
+    .from("idle_events")
+    .select("id")
+    .eq("org_id", orgId)
+    .is("event_key", null)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if ((unkeyed ?? []).length > 0) return rows.map((r) => ({ ...r, event_key: null }));
+
+  const keys = rows.map((r) => idleEventKey(r.samsara_event_id));
+  const storedIdByKey = new Map<string, string>();
+  for (let i = 0; i < keys.length; i += KEY_LOOKUP_CHUNK) {
+    const { data, error: e } = await admin
+      .from("idle_events")
+      .select("samsara_event_id, event_key")
+      .eq("org_id", orgId)
+      .in("event_key", keys.slice(i, i + KEY_LOOKUP_CHUNK));
+    if (e) throw new Error(e.message);
+    for (const s of (data ?? []) as { samsara_event_id: string; event_key: string }[])
+      storedIdByKey.set(s.event_key, s.samsara_event_id);
+  }
+  return rows.map((r, i) => ({
+    ...r,
+    samsara_event_id: storedIdByKey.get(keys[i]!) ?? r.samsara_event_id,
+    event_key: keys[i]!,
+  }));
 }
 
 type ParsedIdleEvent = ReturnType<typeof parseIdlingEvents>[number];
@@ -314,7 +360,7 @@ export async function syncIdleEvents(
     }
   }
 
-  const rows = buildIdleEventRows(
+  const built = buildIdleEventRows(
     events,
     orgId,
     vehBySamsara,
@@ -325,6 +371,7 @@ export async function syncIdleEvents(
     thresholds,
     fuelPrice,
   );
+  const rows = await keyIdleEventRows(admin, orgId, built);
 
   let upserted = 0;
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import AppIcon from "./AppIcon.vue";
 import { CalendarIcon, XMarkIcon } from "../icons";
+import { useTouchTargets } from "../touchTargets";
 
 /**
  * The one date control. Not exported from the barrel — `AppDateField`, `AppDateTimeField` and
@@ -135,8 +136,13 @@ function onChange(next: string | null) {
   emit("update:modelValue", next ?? "");
 }
 
+/**
+ * Inside a thumb-pressed layout (`touchTargets.ts`) the input is 44 px like `AppInput`'s, and its two
+ * buttons are 44 px wide with it: at 390 px on `/apply` the calendar button measured 36×36 (C3d3b2).
+ */
+const touchTargets = useTouchTargets();
 const INPUT_CLASS =
-  "block h-9 w-full rounded-control border-0 bg-surface px-3 text-base text-ink ring-1 ring-inset placeholder:text-ink-disabled focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-disabled sm:text-sm";
+  "block w-full rounded-control border-0 bg-surface px-3 text-base text-ink ring-1 ring-inset placeholder:text-ink-disabled focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-disabled sm:text-sm";
 </script>
 
 <template>
@@ -153,6 +159,7 @@ const INPUT_CLASS =
     auto-apply
     teleport
     :input-attrs="{ clearable: false }"
+    :ui="touchTargets ? { menu: 'app-date-touch' } : undefined"
     @update:model-value="onChange"
   >
     <template
@@ -166,7 +173,8 @@ const INPUT_CLASS =
           :placeholder="placeholder"
           :class="[
             INPUT_CLASS,
-            shown ? 'pr-16' : 'pr-9',
+            touchTargets ? 'h-11' : 'h-9',
+            touchTargets ? (shown ? 'pr-24' : 'pr-11') : shown ? 'pr-16' : 'pr-9',
             invalid ? 'ring-danger-600 focus:ring-danger-600' : 'ring-edge-control focus:ring-focus-ring',
           ]"
           autocomplete="off"
@@ -197,7 +205,8 @@ const INPUT_CLASS =
         <button
           v-if="shown && !disabled"
           type="button"
-          class="absolute inset-y-0 right-9 flex w-7 items-center justify-center rounded-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          class="absolute inset-y-0 flex items-center justify-center rounded-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          :class="touchTargets ? 'right-11 w-11' : 'right-9 w-7'"
           :aria-label="`Clear ${noun}`"
           @mousedown.prevent
           @click="onClear"
@@ -207,7 +216,8 @@ const INPUT_CLASS =
         <button
           type="button"
           :disabled="disabled"
-          class="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-ink-disabled"
+          class="absolute inset-y-0 right-0 flex items-center justify-center rounded-r-control text-ink-tertiary hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-ink-disabled"
+          :class="touchTargets ? 'w-11' : 'w-9'"
           aria-haspopup="dialog"
           :aria-expanded="isMenuOpen"
           :aria-label="`Choose a ${noun}`"
@@ -220,3 +230,25 @@ const INPUT_CLASS =
     </template>
   </VueDatePicker>
 </template>
+
+<!-- Unscoped: the calendar is TELEPORTED to <body>, outside this component and outside the layout that
+     provides the floor, so only a class on the menu itself can carry it. -->
+<style>
+/*
+ * The calendar under a thumb-pressed layout (`touchTargets.ts`, C3d3b2). Measured at 390 px on
+ * `/apply`: day cells 35×35 and the month arrows 25×25 — the library's defaults, set as these
+ * variables. 44 px each. Seven 44 px columns are 308 px, and the menu measured 326 wide on a 320 px
+ * phone with its 260 px minimum gone, so its sides come in from 8 px to 4: 308 + 8 + 2 of border.
+ *
+ * ⚠ Two classes, not one: the library sets the same variables on `.dp--menu`, and a single class of
+ * equal weight would win or lose on stylesheet order.
+ */
+.dp--menu.app-date-touch {
+  --dp-cell-size: 44px;
+  --dp-button-height: 44px;
+  --dp-month-year-row-height: 44px;
+  --dp-month-year-row-button-size: 44px;
+  --dp-menu-padding: 6px 4px;
+  --dp-menu-min-width: 0;
+}
+</style>

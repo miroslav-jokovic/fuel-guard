@@ -31,7 +31,11 @@ export const applicationInviteCreateSchema = z.object({
   driver_id: z.uuid(),
   /** Where the link is being sent, recorded so a recruiter can see who was invited. */
   email: z.email().max(200).nullish(),
-  expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).default(INVITE_TTL_DAYS_DEFAULT),
+  /**
+   * This one link's lifetime, overriding the carrier's (Q-AW41). No default here since S2: absent means
+   * "the carrier's setting", which only the api can read — a `.default(14)` would silently override it.
+   */
+  expires_in_days: z.coerce.number().int().min(1).max(INVITE_TTL_DAYS_MAX).optional(),
 });
 export type ApplicationInviteCreate = z.infer<typeof applicationInviteCreateSchema>;
 
@@ -155,11 +159,11 @@ export const applicationDraftSaveSchema = z.object({
    * 0 for no draft yet. A save carrying a stale one is refused 409 `draft_revision_conflict`, so a tab or
    * a replayed device copy can never write over a newer save — another tab's, or the office's correction.
    *
-   * ⚠ Optional for one reason only: a page loaded before C3d1b deployed sends none, and refusing it would
-   * stop that driver's autosave mid-form. Absent keeps today's last-writer-wins save (0376's 5-argument
-   * `save_application_draft`); M2 drops that signature and this becomes required in the same merge.
+   * Required since M2a (§8.6 item 3). It was optional while a page loaded before C3d1b might still be
+   * open and send none; every page since reads it from the bundle, which always serves one. With no
+   * caller left, 0376's 5-argument `save_application_draft` is dropped by M2b.
    */
-  revision: z.number().int().min(0).optional(),
+  revision: z.number().int().min(0),
 });
 export type ApplicationDraftSave = z.infer<typeof applicationDraftSaveSchema>;
 

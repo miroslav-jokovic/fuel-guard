@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   HANDBOOK_CARRIER_PLACEMENT_ID,
   HANDBOOK_PLACEMENTS,
-  INVITE_TTL_DAYS_DEFAULT,
   handbookPlacementById,
   handbookStatus,
   type OfficeHandbookStatus,
@@ -14,16 +13,26 @@ import { carrierOf, signatureMarkBytes } from "./applicationPdf/sources.js";
 import { handbookPdf, type HandbookMarkPrint } from "./applicationPdf/handbook/handbookPdf.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import { representativeForPrint } from "./representatives.js";
+import { countersignPacket, isPacketCountersignError } from "./packetCountersign.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The driver handbook, signed on screen — the office's half (HANDBOOK-SIGNING-PLAN.md HB3; D-HB1..5).
  *
  * ── THE ORDER, AND WHO HOLDS IT ───────────────────────────────────────────────────────────────
- * The application is filed → the office OPENS handbook signing at the desk → the driver signs its five
- * places on their link (`handbookCeremony.ts`) → the office COUNTERSIGNS for the carrier with a
- * Representative → the signed PDF is filed with one `qualification_records` row of kind `handbook`,
- * and the invitation is stamped filed. 0374's guard holds the same order in the database (HB022..HB024),
- * so these checks are the cheap early refusals and never the only ones.
+ * The office sends the envelope (Send for signing, D-AW14) → the driver signs the packet's places and
+ * files the application → the driver signs the handbook's five places on the same link, straight on
+ * (`handbookCeremony.ts`, D-AW16) → the office COUNTERSIGNS for the carrier with a Representative → the
+ * signed PDF is filed with one `qualification_records` row of kind `handbook`, and the invitation is
+ * stamped filed. 0374's guard, as 0382 left it, holds the same order in the database (HB022..HB024), so
+ * these checks are the cheap early refusals and never the only ones.
+ *
+ * ── THE ENVELOPE OPENS THE HANDBOOK (C3s4b) ───────────────────────────────────────────────────
+ * Until C3s4b the office opened the handbook with a second press at the desk, which stamped
+ * `handbook_signing_opened_at`. The envelope's own stamp, `signing_opened_at`, opens it now: 0382 lets
+ * HB023 accept it, and it is on every filed invitation, because `record_packet_mark` refuses the
+ * packet's first place until it is set (DR036, 0369). Measured 2026-09-29: no invitation in production
+ * had the old stamp, so nothing reads it here any more and M2 drops the two columns (plan §8.6 item 5).
  *
  * ⚠ The service role bypasses RLS: every read below filters on `org_id` itself.
  */
@@ -38,6 +47,7 @@ export interface HandbookError {
     | "representative_not_found"
     | "link_expired"
     | "handbook_changed"
+    | "packet_changed"
     | "filing_in_progress"
     | "storage_failed"
     | "insert_failed";
@@ -57,15 +67,20 @@ export const isHandbookError = (v: unknown): v is HandbookError =>
 interface HandbookInvitation {
   id: string;
   submitted_at: string | null;
-  handbook_signing_opened_at: string | null;
+  /** The envelope the office sent (0369), which opens the handbook too (D-AW16, 0382). */
+  signing_opened_at: string | null;
   handbook_filed_at: string | null;
   expires_at: string;
 }
 
-const INVITATION_COLS = "id, submitted_at, handbook_signing_opened_at, handbook_filed_at, expires_at";
+const INVITATION_COLS = "id, submitted_at, signing_opened_at, handbook_filed_at, expires_at";
 
-/** The driver's newest live invitation — the one the checklist reads (`applicantChecklist.ts`). */
-async function currentInvitation(admin: SupabaseClient, orgId: string, driverId: string): Promise<HandbookInvitation | null> {
+/**
+ * The driver's newest live invitation — the one the checklist reads (`applicantChecklist.ts`). Exported
+ * for the office's handbook preview (`handbookPreview.ts`), which must preview the invitation this
+ * module will file.
+ */
+export async function currentInvitation(admin: SupabaseClient, orgId: string, driverId: string): Promise<HandbookInvitation | null> {
   const { data } = await admin
     .from("application_invitations")
     .select(INVITATION_COLS)
@@ -98,7 +113,7 @@ export async function driverHandbookStatus(
   return {
     ...handbookStatus({
       submittedAt: inv.submitted_at,
-      openedAt: inv.handbook_signing_opened_at,
+      openedAt: inv.signing_opened_at,
       filedAt: inv.handbook_filed_at,
       signedPlacementIds: await handbookPlacesSigned(admin, orgId, inv.id),
     }),
@@ -107,36 +122,40 @@ export async function driverHandbookStatus(
 }
 
 /**
- * The link's new expiry for a handbook press: `max(expires_at, now + INVITE_TTL_DAYS_DEFAULT)` —
- * 0232's rule, the same one 0365/0369 apply in SQL: an extension never SHORTENS a link. Null when the
- * link already outlives the window, so nothing is written or audited.
+ * The link's new expiry for a handbook press: `max(expires_at, now + days)`, `days` being the carrier's
+ * link lifetime (Q-AW41) — 0232's rule, the same one 0365/0369 apply in SQL: an extension never SHORTENS
+ * a link. Null when the link already outlives the window, so nothing is written or audited.
  */
-export function handbookLinkExpiry(expiresAt: string, now: Date): string | null {
-  const floor = new Date(now.getTime() + INVITE_TTL_DAYS_DEFAULT * 86_400_000);
+export function handbookLinkExpiry(expiresAt: string, now: Date, days: number): string | null {
+  const floor = new Date(now.getTime() + days * 86_400_000);
   return Date.parse(expiresAt) >= floor.getTime() ? null : floor.toISOString();
 }
 
 /**
- * The office opens handbook signing, at the desk — and every press, the first or a later one, keeps
- * the driver's link alive for another `INVITE_TTL_DAYS_DEFAULT` days (APPLICATION-FLOW-V2-PLAN.md A-2).
+ * The office keeps the driver's link alive for another of the carrier's link lifetimes, while the
+ * handbook is still to be signed or countersigned (APPLICATION-FLOW-V2-PLAN.md A-2, Q-AW41).
  *
- * ⚠ WHY THE EXTENSION SITS ABOVE THE "ALREADY OPENED" RETURN. 0374's guard refuses every handbook
- * mark once `expires_at <= now()` (HB021) — the driver's five places AND the office's countersignature
- * — and all three existing extenders (0232, 0365, 0369) skip a filed invitation, which a handbook's
- * invitation always is. So nothing else revives the link. Until 2026-09-26 this function returned early
- * for an opened handbook BEFORE any write, and `d61557dc` (filed 09-14, opened 2026-09-25 20:08) would
- * have lapsed at 2026-09-28 18:00 UTC with no button in the product that could save it. The drawer
- * now shows the link's expiry once signing is open, with "Extend the driver's link" — this same route.
+ * ── WHY THIS OUTLIVED THE OPENING IT USED TO RIDE ON (C3s4b) ───────────────────────────────────
+ * It was half of "Open handbook signing" — every press of that button, the first or a later one, also
+ * extended the link. C3s4b retires the opening (the envelope opens the handbook, D-AW16) and keeps
+ * this half, because nothing else can do it. 0374's guard refuses every handbook mark once
+ * `expires_at <= now()` (HB021) — the driver's five places AND the office's countersignature — and all
+ * three existing extenders (0232, 0365, 0369) skip a filed invitation, which a handbook's invitation
+ * always is. Send for signing's own extension (0369, the same lifetime from the press) covers the walk
+ * the driver makes that morning; it does not cover an office that countersigns weeks later, and Send for
+ * signing refuses a filed application, so it cannot be pressed again to do so. `d61557dc` was the case
+ * that found it (filed 09-14, opened 2026-09-25 20:08, due to lapse 2026-09-28 18:00 UTC with no button
+ * in the product that could save it).
  *
- * Opening itself stays idempotent: a second press never re-stamps who opened it.
+ * The office sees the link's end in the drawer (`OfficeHandbookStatus.linkExpiresAt`) and presses
+ * "Extend the driver's link" — this.
  */
-export async function openHandbookSigning(
+export async function extendHandbookLink(
   admin: SupabaseClient,
   orgId: string,
-  userId: string,
   driverId: string,
   now: Date = new Date(),
-): Promise<{ invitationId: string; openedAt: string; expiresAt: string; extended: boolean } | HandbookError> {
+): Promise<{ invitationId: string; expiresAt: string; extended: boolean } | HandbookError> {
   const inv = await currentInvitation(admin, orgId, driverId);
   if (!inv) return { code: "not_found", message: "This applicant has no application on file." };
   if (!inv.submitted_at) {
@@ -144,7 +163,7 @@ export async function openHandbookSigning(
   }
   if (inv.handbook_filed_at) return { code: "already_filed", message: "The handbook is already signed and filed." };
 
-  const newExpiry = handbookLinkExpiry(inv.expires_at, now);
+  const newExpiry = handbookLinkExpiry(inv.expires_at, now, (await recruitingSettings(admin, orgId)).invite_ttl_days);
   if (newExpiry) {
     const { error } = await admin
       .from("application_invitations")
@@ -154,19 +173,7 @@ export async function openHandbookSigning(
       .is("handbook_filed_at", null);
     if (error) return { code: "insert_failed", message: "Could not extend the driver's link." };
   }
-  const expiresAt = newExpiry ?? inv.expires_at;
-  const extended = newExpiry !== null;
-
-  if (inv.handbook_signing_opened_at) return { invitationId: inv.id, openedAt: inv.handbook_signing_opened_at, expiresAt, extended };
-  const openedAt = now.toISOString();
-  const { error } = await admin
-    .from("application_invitations")
-    .update({ handbook_signing_opened_at: openedAt, handbook_signing_opened_by: userId })
-    .eq("org_id", orgId)
-    .eq("id", inv.id)
-    .is("handbook_signing_opened_at", null);
-  if (error) return { code: "insert_failed", message: "Could not open handbook signing." };
-  return { invitationId: inv.id, openedAt, expiresAt, extended };
+  return { invitationId: inv.id, expiresAt: newExpiry ?? inv.expires_at, extended: newExpiry !== null };
 }
 
 /** The marks as the renderer takes them, by place. */
@@ -270,13 +277,14 @@ export async function countersignHandbook(
   role: string | null,
   driverId: string,
   representativeId: string,
-): Promise<{ documentId: string; recordId: string } | HandbookError> {
+): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
   const inv = await currentInvitation(admin, orgId, driverId);
   if (!inv) return { code: "not_found", message: "This applicant has no application on file." };
   if (inv.handbook_filed_at) return { code: "already_filed", message: "The handbook is already signed and filed." };
-  if (!inv.handbook_signing_opened_at) return { code: "not_opened", message: "Open handbook signing first." };
+  // Unreachable on a filed invitation (DR036), and kept as the cheap twin of HB023.
+  if (!inv.signing_opened_at) return { code: "not_opened", message: "The application was never sent for signing." };
   const signed = await handbookPlacesSigned(admin, orgId, inv.id);
-  if (!handbookStatus({ submittedAt: inv.submitted_at, openedAt: inv.handbook_signing_opened_at, filedAt: null, signedPlacementIds: signed }).driverComplete) {
+  if (!handbookStatus({ submittedAt: inv.submitted_at, openedAt: inv.signing_opened_at, filedAt: null, signedPlacementIds: signed }).driverComplete) {
     return { code: "driver_not_finished", message: "The driver has not signed every place yet." };
   }
   // A-6: file only a handbook every place of which was signed under the text that will be printed.
@@ -348,17 +356,24 @@ async function fileCountersignedHandbook(
   driverId: string,
   invitationId: string,
   chosen: { id: string; fullName: string; title: string; signature: Buffer | null },
-): Promise<{ documentId: string; recordId: string } | HandbookError> {
-  const made = await carrierMark(admin, orgId, userId, invitationId, chosen);
+): Promise<{ documentId: string; recordId: string; packetDocumentId: string } | HandbookError> {
+  // Q-HB1 (D-HB7): the packet's four carrier lines first, in the same press and by the same
+  // Representative. On a retry the packet's row keeps the Representative it recorded, and `h4c` is
+  // signed by that one, so one press can never put two people's names on the carrier's side.
+  const packet = await countersignPacket(admin, orgId, userId, role, driverId, invitationId, chosen);
+  if (isPacketCountersignError(packet)) return packet.code === "link_expired" ? HANDBOOK_LINK_EXPIRED : packet;
+  const signer = packet.representative;
+
+  const made = await carrierMark(admin, orgId, userId, invitationId, signer);
   if (isHandbookError(made)) return made;
-  const rep = made.representativeId === chosen.id ? chosen : await representativeForPrint(admin, orgId, made.representativeId);
+  const rep = made.representativeId === signer.id ? signer : await representativeForPrint(admin, orgId, made.representativeId);
   if (!rep) return { code: "representative_not_found", message: "That representative is not on file." };
 
   const [{ marks }, facts, carrier, driverSignature, appliedBy] = await Promise.all([
     handbookMarksForPrint(admin, orgId, invitationId),
     handbookPrintFacts(admin, orgId, driverId, invitationId),
     carrierOf(admin, orgId),
-    signatureMarkBytes(admin, orgId, invitationId, "signature"),
+    signatureMarkBytes(admin, orgId, invitationId, "signature", "handbook"),
     displayNameFor(admin, userId, orgId, role),
   ]);
   const pdf = await handbookPdf({
@@ -407,5 +422,5 @@ async function fileCountersignedHandbook(
     .eq("org_id", orgId)
     .eq("id", invitationId)
     .is("handbook_filed_at", null);
-  return { documentId: filed.documentId, recordId };
+  return { documentId: filed.documentId, recordId, packetDocumentId: packet.documentId };
 }

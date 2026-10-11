@@ -17,6 +17,7 @@ import AssetTypesDrawer from "@/features/inventory/AssetTypesDrawer.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery, useAssetTypesQuery } from "@/features/inventory/useAssets";
 import { BADGE_BASE, assetStatusBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
 
 /**
  * Assets — everything the shop owns that has an identity (INVENTORY-PLAN.md I8).
@@ -56,6 +57,7 @@ import { useSessionStore } from "@/stores/session";
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
+const opens = useOpens();
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -114,7 +116,10 @@ watch(creating, (open) => {
         <BaseButton v-if="session.can('maintenance')" @click="typesOpen = true">
           <AppIcon :icon="Cog6ToothIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Asset kinds
         </BaseButton>
-        <BaseButton v-if="session.can('maintenance')" to="/shop/labels">
+        <!-- SP5: shown when Labels opens. It is `maintenance` view and answers to the shop home's screen
+             (`maintenance.repair-spend`, D-SURF8), which is switchable per person apart from this page —
+             not `maintenance` manage, which hid it from a viewer the Labels page admits. -->
+        <BaseButton v-if="opens('/shop/labels')" to="/shop/labels">
           <AppIcon :icon="ScanIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Labels
         </BaseButton>
         <BaseButton v-if="session.can('maintenance')" variant="primary" @click="creating = true">

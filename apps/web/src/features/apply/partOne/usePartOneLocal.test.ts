@@ -96,6 +96,43 @@ describe("a reload before screen 7", () => {
     expect(third.flow.answers.cdl.endorsements).toEqual(["N"]);
   });
 
+  /**
+   * C3d3b1, found by the browser test: a stream of changes each sooner than the debounce never wrote the
+   * copy, and a reload at screen 7 reopened Part 1 empty. A screen passed is written at once — read here at
+   * 50 ms, inside the 300 ms pause, where only an immediate write can have landed.
+   */
+  it("writes the copy the moment a screen is passed, not after the pause", async () => {
+    const first = page();
+    await first.flow.restored;
+    typeScreens3to6(first.flow);
+    await first.flow.next();
+    await first.flow.next();
+    await new Promise((r) => setTimeout(r, 50));
+    const copy = await readHeld(KEY, new Date());
+    expect(copy?.passed).toEqual(["about", "address"]);
+    expect(copy?.answers.city).toBe("Joliet");
+    first.close();
+  });
+
+  it("writes a box typed mid-screen at once when the phone is put away, and when the page goes", async () => {
+    const first = page();
+    await first.flow.restored;
+    first.flow.answers.phone = "7082365732";
+    await Promise.resolve();
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await readHeld(KEY, new Date()))?.answers.phone).toBe("7082365732");
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+
+    first.flow.answers.phone = "7082365733";
+    await Promise.resolve();
+    window.dispatchEvent(new Event("pagehide"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect((await readHeld(KEY, new Date()))?.answers.phone).toBe("7082365733");
+    first.close();
+  });
+
   it("keeps a box typed mid-screen, before any Continue", async () => {
     const first = page();
     await first.flow.restored;

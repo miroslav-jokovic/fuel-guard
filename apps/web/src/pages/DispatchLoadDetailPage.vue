@@ -168,9 +168,19 @@ function markBroken(id: string) {
         </div>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+          <div v-if="load.customer_name"><dt class="text-ink-tertiary">Customer</dt><dd class="text-ink">{{ load.customer_name }}</dd></div>
           <div v-if="load.source === 'tms'"><dt class="text-ink-tertiary">Dispatcher</dt><dd class="text-ink">{{ load.dispatcher_name ?? "—" }}</dd></div>
           <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
-          <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>
+          <div>
+            <dt class="text-ink-tertiary">Truck</dt>
+            <!-- DISPATCH-BOARD-PLAN D-DB6 point 4: the truck opens on the Dispatch board, its drawer open. -->
+            <dd class="text-ink">
+              <RouterLink v-if="load.vehicle_unit" :to="{ name: 'assignments', query: { truck: load.vehicle_unit } }" class="text-link hover:text-link-hover">
+                {{ load.vehicle_unit }}
+              </RouterLink>
+              <template v-else>—</template>
+            </dd>
+          </div>
           <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
           <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
           <div v-if="load.source === 'tms'" class="col-span-2" data-testid="dispatch-state"><dt class="text-ink-tertiary">Dispatch</dt><dd class="text-ink">{{ dispatchHeadline(load.dispatches[0]) }}</dd><dd v-if="load.dispatches[0]?.outcomeReason" class="text-xs text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</dd></div>

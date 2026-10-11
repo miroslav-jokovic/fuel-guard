@@ -227,6 +227,7 @@ export function mapDispatchMovement(row, stopRows) {
     trailer_type: row.trailer_type ? String(row.trailer_type).trim() || null : null,
     commodity: row.commodity ?? null,
     customer_id: row.customer_id ?? null,
+    customer_name: row.customer_name ?? null,
     weight,
     // A unit only means something beside a weight; McLeod fills weight_um on unweighed orders too.
     weight_um: weight == null ? null : (row.weight_um ?? null),
@@ -379,19 +380,4 @@ export function loadHash(load) {
         ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])]))
         : v;
   return createHash("sha256").update(JSON.stringify(canon(load))).digest("hex").slice(0, 32);
-}
-
-/**
- * Split a board against what was last posted: the loads to post (new or changed), and the movement
- * ids we hold open that are no longer on the board — the input to the close read.
- */
-export function planLoadPosts(boardLoads, posted) {
-  const changed = [];
-  const onBoard = new Set();
-  for (const load of boardLoads) {
-    onBoard.add(load.external_id);
-    if (posted[load.external_id] !== loadHash(load)) changed.push(load);
-  }
-  const leftBoard = Object.keys(posted).filter((id) => !onBoard.has(id));
-  return { changed, leftBoard };
 }

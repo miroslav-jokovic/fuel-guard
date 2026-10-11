@@ -17,8 +17,19 @@ const DAILY_MS = 24 * 60 * 60 * 1000;
 // 75 since D-FIN7: never shorter than the agent's sweep window (75, D-FIN4), or a row the sweep can
 // still change lands in staging and waits for a manual full run before it is projected.
 const PROJECTION_DAYS = 75;
+// D-FS3: where gl_ledger's live table starts.
+const FULL_FROM = "2024-01-01";
 
 const ymd = (d: Date): string => d.toISOString().slice(0, 10);
+
+/** The one projection window — the nightly scheduler and a queued `financial_projection` job both use
+ *  it, so a repair run cannot project less than the night does. `full` is the D-FS3 backfill. */
+export function projectionWindow(now: Date, full = false): { from: string; to: string } {
+  return {
+    from: full ? FULL_FROM : ymd(new Date(now.getTime() - PROJECTION_DAYS * DAILY_MS)),
+    to: ymd(new Date(now.getTime() + DAILY_MS)),
+  };
+}
 
 export function startFinancialProjectionScheduler(env: Env): void {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
@@ -31,8 +42,7 @@ export function startFinancialProjectionScheduler(env: Env): void {
       const admin = getSupabaseAdmin(env);
       const { data, error } = await admin.from("organizations").select("id");
       if (error) throw new Error(error.message);
-      const to = ymd(new Date(Date.now() + DAILY_MS));
-      const from = ymd(new Date(Date.now() - PROJECTION_DAYS * DAILY_MS));
+      const { from, to } = projectionWindow(new Date());
       // Sequential and independently guarded — one carrier's bad staging must not stop the next.
       for (const org of (data ?? []) as { id: string }[]) {
         try {

@@ -22,6 +22,11 @@
  *   3. A SURFACE WHOSE LEVEL EXCEEDS ITS SECTION. `level: "manage"` on a section no role manages is
  *      a dead entry; a `parent` that names no surface breaks D-SURF8's inheritance silently.
  *
+ *   4. A DIRECTORY SCREEN OR A STARTING DEFAULT THAT CANNOT DO WHAT IT SAYS (SP1). A `reachedFrom`
+ *      naming no nav surface is a screen with no door; a `startsOnFor` on a screen nobody can answer
+ *      for (a child, or a non-section gate) is a default that is really a lock, and one naming a
+ *      role that does not exist silently starts off for everybody.
+ *
  * It PARSES the catalogue's own literal rather than importing it, for the reason every other gate in
  * this repo does: a gate that needs the workspace built cannot run before the build. Parse failure
  * IS failure — a detector that silently matches nothing is worse than no detector.
@@ -88,9 +93,14 @@ export function surfaces(src) {
       path: line.match(/path:\s*"([^"]*)"/)?.[1],
       group: line.match(/group:\s*"([^"]+)"/)?.[1],
       parent: line.match(/parent:\s*"([^"]+)"/)?.[1] ?? null,
+      reachedFrom: line.match(/reachedFrom:\s*"([^"]+)"/)?.[1] ?? null,
+      // `null` when absent — which is not the same as `[]`, "starts off for every editable role".
+      startsOnFor: /startsOnFor:/.test(line)
+        ? [...(line.match(/startsOnFor:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1])
+        : null,
       section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
       level: /gate:\s*manage\(/.test(line) ? "manage" : /gate:\s*section\(/.test(line) ? "view" : null,
-      kind: /gate:\s*ALWAYS/.test(line) ? "always" : /gate:\s*STAFF/.test(line) ? "staff" : /gate:\s*ADMIN/.test(line) ? "admin" : "section",
+      kind: /gate:\s*ALWAYS/.test(line) ? "always" : /gate:\s*STAFF/.test(line) ? "staff" : /gate:\s*ADMIN/.test(line) ? "admin" : /gate:\s*directory\(/.test(line) ? "directory" : "section",
     });
   }
   if (out.length < 20) throw new Error(`SURFACES parse found only ${out.length} entries — parser or literal shape changed; fix together`);
@@ -121,18 +131,11 @@ function matrix(src) {
  * thing with extra steps.
  */
 const UNCATALOGUED_WAIVERS = {
-  // A ROLE test, not a section question. D-PERM7 makes the `admin` section ungrantable, so there is
-  // no matrix cell these could ever read — `requiresAdmin` is the only honest gate for them.
-  "/settings/org": "requiresAdmin — role test, no section to read",
-  "/settings/notifications": "requiresAdmin — role test",
-  "/settings/thresholds": "requiresAdmin — role test",
-  "/settings/driver-performance": "requiresAdmin — role test",
-  "/settings/fuel-planning": "requiresAdmin — role test",
-  "/settings/efs-soap": "requiresAdmin — role test",
-  "/settings/card-control": "requiresAdmin — role test",
-  "/settings/permissions": "requiresAdmin — role test; it is the page that EDITS the matrix",
-  // admin OR the read-only reviewer — an intersection the section matrix cannot express.
-  "/settings/audit": "requiresAuditAccess — admin or readOnly, not a section",
+  // ⚠ Nine `/settings/*` routes were waived here until SP1 (SETTINGS-PERMISSIONS-PLAN.md) as "a role
+  // test, no section to read". The owner ruled every one of them a permission on 2026-09-30
+  // (Q-SET1..3), so each is a catalogued surface now — the four kept admin-only by an `ADMIN` gate,
+  // the rest by a section plus `startsOnFor`. A waiver here is a screen an admin cannot be offered.
+  //
   // Not a permission surface: the guard sends every driver here before any section check runs, and
   // it is the one page a driver may see.
   "/use-the-app": "the driver redirect; reached BEFORE any section gate, by construction",
@@ -159,16 +162,32 @@ export function requireSurfaceKeys(files) {
   return out;
 }
 
-export function findViolations({ cat, icons, routes, sections, authRoutes = null, apiGates = null }) {
+export function findViolations({ cat, icons, routes, sections, roles = null, authRoutes = null, apiGates = null }) {
   const errors = [];
   const keys = new Set(cat.map((s) => s.key));
-  const navKeys = new Set(cat.filter((s) => !s.parent).map((s) => s.key));
+  const navKeys = new Set(cat.filter((s) => !s.parent && !s.reachedFrom).map((s) => s.key));
 
   for (const s of cat) {
     if (!routes.has(s.path))
       errors.push(`surface "${s.key}" has path ${s.path}, which is not a declared route — a permission that grants nothing.`);
     if (s.parent && !keys.has(s.parent))
       errors.push(`surface "${s.key}" names parent "${s.parent}", which is not a surface (D-SURF8 inheritance would silently do nothing).`);
+    if (s.reachedFrom && !navKeys.has(s.reachedFrom))
+      errors.push(`surface "${s.key}" is reachedFrom "${s.reachedFrom}", which is not a sidebar surface — a screen with no door.`);
+    // The owner's "hide Settings too" (2026-09-30): a directory is shown when a screen behind it is,
+    // so a screen reached from a plain sidebar entry would be a door that opens by a different rule
+    // from the one on the card — and a directory nothing names is an entry nobody, the admin
+    // included, can ever see.
+    if (s.reachedFrom && navKeys.has(s.reachedFrom) && cat.find((d) => d.key === s.reachedFrom)?.kind !== "directory")
+      errors.push(`surface "${s.key}" is reachedFrom "${s.reachedFrom}", which is not a directory() gate — its door would not follow its grant.`);
+    if (s.kind === "directory" && !cat.some((c) => c.reachedFrom === s.key))
+      errors.push(`surface "${s.key}" is a directory that no screen is reachedFrom — it can never be shown.`);
+    if (s.reachedFrom && s.parent)
+      errors.push(`surface "${s.key}" has both a parent and reachedFrom — it either shares a grant (D-SURF8) or has its own, not both.`);
+    if (s.startsOnFor && (s.parent || s.kind !== "section"))
+      errors.push(`surface "${s.key}" has startsOnFor but nobody can answer for it (a child, or a non-section gate) — a default no admin could change is a lock.`);
+    for (const r of s.startsOnFor ?? [])
+      if (roles && !roles.has(r)) errors.push(`surface "${s.key}" starts on for "${r}", which is not a UserRole — it would start off for everybody.`);
     if (s.kind === "section") {
       const roles = sections[s.section];
       if (!roles) errors.push(`surface "${s.key}" gates on section "${s.section}", which is not in SECTION_ACCESS.`);
@@ -234,7 +253,8 @@ export function widgets(src) {
       tab: line.match(/tab:\s*"([^"]+)"/)?.[1] ?? null,
       section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
       module: line.match(/module:\s*"([^"]+)"/)?.[1] ?? null,
-      span: line.match(/span:\s*"([^"]+)"/)?.[1] ?? null,
+      // A column count (`span: 5`) or the one word `"workspace"` — v3 made the width a number (Q-FO3).
+      span: (() => { const m = line.match(/span:\s*(?:"([^"]+)"|(\d+))/); return m ? (m[1] ?? Number(m[2])) : null; })(),
       defaultFor: [...(line.match(/defaultFor:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]),
     });
   }
@@ -279,8 +299,8 @@ export function findWidgetViolations({ list, components, tabs, sections, roles, 
     if (w.module && !modules.has(w.module)) errors.push(`widget "${w.key}" needs module "${w.module}", which is not a ModuleKey.`);
     // 5. and it must render into a tab that exists
     if (w.tab && !tabs.has(w.tab)) errors.push(`widget "${w.key}" renders into tab "${w.tab}", which is not in DASHBOARD_TABS.`);
-    if (w.span && !["full", "half", "workspace"].includes(w.span))
-      errors.push(`widget "${w.key}" has span "${w.span}" — only full|half|workspace lay out.`);
+    if (w.span != null && w.span !== "workspace" && !(Number.isInteger(w.span) && w.span >= 1 && w.span <= 12))
+      errors.push(`widget "${w.key}" has span "${w.span}" — only 1–12 columns or workspace lay out.`);
   }
   /**
    * 6. D-DR24: a `workspace` widget IS its tab, so it cannot share one.
@@ -314,10 +334,19 @@ function selfTest() {
     [[{ key: "a", path: "/real", kind: "section", section: "ghost", level: "manage" }], new Set(["a"]), /no role manages/],
     [[{ key: "a", path: "/real", kind: "staff" }], new Set(), /has no icon/],
     [[{ key: "a", path: "/real", kind: "staff" }], new Set(["a", "stale"]), /split has drifted/],
+    // SP1's four: a directory with no door, both kinds of link, a default nobody could change, and
+    // a default naming a role that does not exist.
+    [[{ key: "a", path: "/real", kind: "staff", reachedFrom: "missing" }], new Set(), /a screen with no door/],
+    [[{ key: "p", path: "/parent", kind: "staff" }, { key: "a", path: "/real", kind: "staff", parent: "p", reachedFrom: "p" }], new Set(["p"]), /not both/],
+    [[{ key: "a", path: "/real", kind: "admin", startsOnFor: [] }], new Set(["a"]), /is a lock/],
+    [[{ key: "a", path: "/real", kind: "section", section: "fuel", level: "view", startsOnFor: ["wizard"] }], new Set(["a"]), /not a UserRole/],
+    // The directory's two: a screen behind a plain entry, and a directory with nothing behind it.
+    [[{ key: "d", path: "/real", kind: "staff" }, { key: "a", path: "/real", kind: "staff", reachedFrom: "d" }], new Set(["d"]), /not a directory\(\) gate/],
+    [[{ key: "d", path: "/real", kind: "directory" }], new Set(["d"]), /can never be shown/],
   ];
   const fails = [];
   for (const [cat, icons, expected] of cases) {
-    const found = findViolations({ cat, icons, routes, sections });
+    const found = findViolations({ cat, icons, routes, sections, roles: new Set(["admin", "auditor"]) });
     if (!found.some((e) => expected.test(e))) fails.push(`detector did not fire for ${expected}: got ${JSON.stringify(found)}`);
   }
   // The two route-coverage detectors, which need the extra argument.
@@ -329,7 +358,10 @@ function selfTest() {
     fails.push(`detector did not fire for an uncatalogued authenticated route: ${JSON.stringify(uncat)}`);
   const stale = findViolations({
     cat: [{ key: "a", path: "/real", kind: "staff" }], icons: new Set(["a"]), routes, sections,
-    authRoutes: ["/real", ...Object.keys(UNCATALOGUED_WAIVERS).slice(0, 1)],
+    // No waived path among the authenticated routes, so every waiver is stale. It used to keep the
+    // first waiver live and expect the REST to fire, which stopped proving anything when SP1 left
+    // exactly one.
+    authRoutes: ["/real"],
   });
   if (!stale.some((e) => /no longer an authenticated route/.test(e)))
     fails.push(`detector did not fire for a stale waiver: ${JSON.stringify(stale)}`);
@@ -349,7 +381,7 @@ function selfTest() {
     fails.push(`detector did not fire for a redundant waiver: ${JSON.stringify(redundant)}`);
 
   // ── D-DW4: the widget detectors, each proven to fire ──────────────────────────────────────────
-  const wBase = { key: "t.w", tab: "fleet", section: "fuel", module: null, span: "half", defaultFor: [] };
+  const wBase = { key: "t.w", tab: "fleet", section: "fuel", module: null, span: 6, defaultFor: [] };
   const wEnv = { tabs: new Set(["fleet"]), sections, roles: new Set(["admin"]), modules: new Set(["dispatch"]) };
   const wCases = [
     [[wBase], new Set(), /has no component/],
@@ -357,7 +389,8 @@ function selfTest() {
     [[{ ...wBase, defaultFor: ["wizard"] }], new Set(["t.w"]), /not a UserRole/],
     [[{ ...wBase, module: "teleport" }], new Set(["t.w"]), /not a ModuleKey/],
     [[{ ...wBase, tab: "nowhere" }], new Set(["t.w"]), /not in DASHBOARD_TABS/],
-    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only full\|half\|workspace/],
+    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only 1–12 columns or workspace/],
+    [[{ ...wBase, span: 13 }], new Set(["t.w"]), /only 1–12 columns or workspace/],
     // D-DR24: a workspace sharing its tab, and two workspaces on one tab. Both render nothing and
     // say nothing, which is exactly the class of defect this file exists for.
     [[{ ...wBase, key: "t.ws", span: "workspace" }, wBase], new Set(["t.w", "t.ws"]), /would never render/],
@@ -372,10 +405,14 @@ function selfTest() {
   const wClean = findWidgetViolations({ list: [wBase], components: new Set(["t.w"]), ...wEnv });
   if (wClean.length) fails.push(`false positive on a clean widget catalogue: ${JSON.stringify(wClean)}`);
 
-  // A clean catalogue must produce nothing — a gate that always fires is a gate nobody keeps.
+  // A clean catalogue must produce nothing — a gate that always fires is a gate nobody keeps. It
+  // carries a directory screen with a starting default, so SP1's detectors are held to that too.
   const clean = findViolations({
-    cat: [{ key: "a", path: "/real", kind: "section", section: "fuel", level: "manage" }],
-    icons: new Set(["a"]), routes, sections,
+    cat: [
+      { key: "a", path: "/real", kind: "directory" },
+      { key: "b", path: "/parent", kind: "section", section: "fuel", level: "view", reachedFrom: "a", startsOnFor: ["auditor"] },
+    ],
+    icons: new Set(["a"]), routes, sections, roles: new Set(["admin", "auditor"]),
   });
   if (clean.length) fails.push(`false positive on a clean catalogue: ${JSON.stringify(clean)}`);
   return fails;
@@ -384,7 +421,7 @@ function selfTest() {
 if (process.argv.includes("--self-test")) {
   const fails = selfTest();
   if (fails.length) { for (const f of fails) console.error(`✗ self-test: ${f}`); process.exit(1); }
-  console.log("✓ surfaces self-test — all nineteen detectors fire, and none fires on a clean catalogue.");
+  console.log("✓ surfaces self-test — all twenty-six detectors fire, and none fires on a clean catalogue.");
   process.exit(0);
 }
 
@@ -417,7 +454,7 @@ const roles = stringArray(readFileSync(CONSTANTS, "utf8"), "USER_ROLES");
 const modules = stringArray(readFileSync(ENTITLEMENTS, "utf8"), "MODULE_KEYS");
 
 const errors = [
-  ...findViolations({ cat, icons, routes, sections, authRoutes, apiGates }),
+  ...findViolations({ cat, icons, routes, sections, roles, authRoutes, apiGates }),
   ...findWidgetViolations({ list: widgetList, components: widgetComponents, tabs, sections, roles, modules }),
 ];
 if (errors.length) {
@@ -426,7 +463,8 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(
-  `✓ surfaces ok — ${cat.length} surfaces (${cat.filter((s) => !s.parent).length} in the sidebar, ` +
+  `✓ surfaces ok — ${cat.length} surfaces (${cat.filter((s) => !s.parent && !s.reachedFrom).length} in the sidebar, ` +
+    `${cat.filter((s) => s.reachedFrom).length} reached from a directory, ` +
     `${cat.filter((s) => s.parent).length} detail routes) all resolve to real routes; ` +
     `${icons.size} icons match the nav surfaces exactly; ` +
     `all ${authRoutes.length} authenticated routes are catalogued or waived; ` +

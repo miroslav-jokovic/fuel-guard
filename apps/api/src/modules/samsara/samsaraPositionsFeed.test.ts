@@ -100,6 +100,47 @@ describe("the live-map positions tier", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  // D-LM29. The two halves travel together when a page carries both, and apart when it does not —
+  // the engine-only row is the parked truck the census used to guess about from fix age.
+  it("carries the newest ECU engine state beside the fix, and alone for a truck that sent no GPS", async () => {
+    const { fetcher } = scriptedFeed([
+      page(
+        [
+          {
+            id: "sv-1",
+            gps: [gps({ time: at(4), speedMilesPerHour: 0 })],
+            engineStates: [{ time: at(1), value: "On" }, { time: at(3), value: "Idle" }],
+          },
+          { id: "sv-2", engineStates: [{ time: at(2), value: "Off" }] },
+        ],
+        "c2",
+      ),
+    ]);
+    const rec = recorder([TRUCK, TRUCK_2]);
+    const r = await syncVehiclePositionsFromSamsara(rec.client, env, ORG, { fetcher });
+
+    const rows = rpcRows(rec)!.p_rows;
+    expect(rows.find((x) => x.vehicle_id === "veh-1")).toMatchObject({
+      sampled_at: at(4),
+      engine_state: "Idle",
+      engine_state_at: at(3),
+    });
+    expect(rows.find((x) => x.vehicle_id === "veh-2")).toEqual({
+      vehicle_id: "veh-2",
+      engine_state: "Off",
+      engine_state_at: at(2),
+    });
+    expect(r.engineStates).toBe(2);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("writes an engine-only tick — a page with no GPS at all is still news", async () => {
+    const { fetcher } = scriptedFeed([page([{ id: "sv-1", engineStates: [{ time: at(9), value: "Off" }] }], "c2")]);
+    const rec = recorder([TRUCK]);
+    await syncVehiclePositionsFromSamsara(rec.client, env, ORG, { fetcher });
+    expect(rpcRows(rec)?.p_rows).toEqual([{ vehicle_id: "veh-1", engine_state: "Off", engine_state_at: at(9) }]);
+  });
+
   // The failure a per-page reducer produces, and the reason the walk accumulates before it reduces.
   it("keeps the newest fix when it arrived on an EARLIER page than an older one", async () => {
     const { fetcher } = scriptedFeed([

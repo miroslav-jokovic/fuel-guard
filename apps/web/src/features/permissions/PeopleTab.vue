@@ -22,6 +22,7 @@ import {
   mergedSectionClaim,
   mergedSurfaceClaim,
   sectionCell,
+  entryStartsOn,
   sectionReaches,
   surfaceCell,
 } from "./layers";
@@ -54,6 +55,13 @@ import {
  * Nobody is selected until the admin picks someone: an org can have hundreds of members, and the
  * two per-member reads are not fetched speculatively.
  */
+/**
+ * Every write on this tab is behind the password step-up (SP9, Q-SET8 (a), 2026-09-30). The page owns
+ * the ONE prompt (`useStepUpRetry` in SettingsPermissionsPage.vue) and hands its `holdForStepUp` down,
+ * so a refusal here opens that prompt and the same write re-runs once the password is confirmed —
+ * one prompt per five minutes of editing, whichever tab the admin is on.
+ */
+const props = defineProps<{ holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean }>();
 const toast = useToastStore();
 const modules = useModulesQuery();
 const members = useMembersQuery();
@@ -124,8 +132,9 @@ const screens = computed(() => {
   const data = memberSurfaces.data.value;
   if (!data) return { groups: [], unlisted: [] };
   return groupScreens(data.surfaces, (s) => {
-    const cell = surfaceCell(data.roleOverrides[s.key], data.userOverrides[s.key]);
-    const roleAnswer = data.roleOverrides[s.key] ?? true;
+    const startsOn = entryStartsOn(s, data.role);
+    const cell = surfaceCell(data.roleOverrides[s.key], data.userOverrides[s.key], startsOn);
+    const roleAnswer = data.roleOverrides[s.key] ?? startsOn;
     return {
       key: s.key,
       label: s.label,
@@ -146,6 +155,7 @@ async function saveSection(v: { section: AppSection; access: SectionAccess | nul
     await setSection.mutateAsync({ userId: selected.value, ...v });
     toast.success("Access updated", SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSection(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
@@ -156,6 +166,7 @@ async function saveSurface(v: { surfaceKey: string; allowed: boolean | null }) {
     await setSurface.mutateAsync({ userId: selected.value, ...v });
     toast.success("Screens updated", SURFACE_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => saveSurface(v))) return;
     toast.error("Could not save that change", (e as Error).message);
   }
 }
@@ -173,6 +184,7 @@ async function followRoleEverywhere() {
     }
     toast.success("Following their role everywhere", SECTION_SAVE_NOTE);
   } catch (e) {
+    if (props.holdForStepUp(e, () => followRoleEverywhere())) return;
     toast.error("Could not reset that person", (e as Error).message);
   }
 }

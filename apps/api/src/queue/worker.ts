@@ -4,6 +4,7 @@ import type { Env } from "../env.js";
 import type { JobKind } from "../modules/org/index.js";
 import { pgQueueDriver } from "./pgDriver.js";
 import { getHandler, registeredKinds } from "./registry.js";
+import { isShuttingDown, SHUTDOWN_RELEASED_ERROR, trackJob } from "../lib/shutdown.js";
 import type { JobContext, QueueDriver, QueueJob } from "./types.js";
 
 /**
@@ -57,8 +58,23 @@ export async function executeJob(
         if (renewFailures >= 2) leaseLost = true;
       });
   }, opts.renewEveryMs);
+  // Shutdown hands an unfinished job back to the queue with no backoff, so another worker (or the
+  // next deploy) runs it at once instead of waiting out the lease (lib/shutdown.ts).
+  let released = false;
+  let settle: () => void = () => undefined;
+  const untrack = trackJob(job.id, {
+    kind: job.kind,
+    settled: new Promise<void>((resolve) => {
+      settle = resolve;
+    }),
+    release: async () => {
+      released = true;
+      await driver.fail(job.id, SHUTDOWN_RELEASED_ERROR, true, 0);
+    },
+  });
   try {
     const stats = await handler(ctx, job, (done, total) => driver.progress(job.id, done, total));
+    if (released) return "failed";
     if (leaseLost) {
       // Do not complete a job after ownership was lost. Its lease expiry/reclaimer will make it retryable;
       // completing here could overwrite a newer worker's state.
@@ -68,10 +84,13 @@ export async function executeJob(
     await driver.complete(job.id, stats ?? {});
     return "done";
   } catch (e) {
+    if (released) return "failed";
     await driver.fail(job.id, e instanceof Error ? e.message : String(e), true, backoffSeconds(job.attempts));
     return "failed";
   } finally {
     clearInterval(renew);
+    untrack();
+    settle();
   }
 }
 
@@ -108,7 +127,7 @@ export function startQueueWorker(admin: SupabaseClient, env: Env, opts: QueueWor
 
   async function loop(): Promise<void> {
     const kinds = opts.kinds ?? registeredKinds();
-    while (!stopped) {
+    while (!stopped && !isShuttingDown()) {
       let job: QueueJob | null = null;
       try {
         job = await driver.claim(workerId, kinds, leaseSeconds, caps);

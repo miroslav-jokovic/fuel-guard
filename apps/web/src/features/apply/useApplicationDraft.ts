@@ -1,5 +1,5 @@
 import { computed, ref, watch, onScopeDispose, type Ref } from "vue";
-import type { LocalCopySpec } from "./deviceCopies";
+import { debouncedCopy, type LocalCopySpec } from "./deviceCopies";
 import { fromDraftPayload, toDraftPayload, type ApplicationDraft } from "./draft";
 import { DRAFT_COPY_VERSION, clearDraftCopy, draftExpiry, readDraftCopy, replayVerdict, writeDraftCopy } from "./draftLocal";
 import { APPLY_COPY } from "./strings";
@@ -55,17 +55,19 @@ export function useApplicationDraft(
   options: {
     enabled: Ref<boolean>;
     section?: Ref<string | null>;
-    /** The revision last read or saved; null (an API from before C3d1b) sends none. The caller sets it on restore. */
-    revision?: Ref<number | null>;
+    /**
+     * The revision last read or saved. The caller sets it on restore; null until then, and no save goes
+     * out while it is null — a save must name the revision it was typed on (required since M2a).
+     */
+    revision: Ref<number | null>;
     /** Where the device copy lives; null keeps none. */
     local?: Ref<LocalCopySpec | null>;
-  } = { enabled: ref(true) },
+  },
 ) {
   const state = ref<DraftSaveState>("idle");
   const savedAt = ref<string | null>(null);
   const notice = ref<DraftReplayNotice>(null);
-  const revision = options.revision ?? ref<number | null>(null);
-  let copyTimer: ReturnType<typeof setTimeout> | null = null;
+  const revision = options.revision;
   /**
    * Counts changes. A save may delete the phone's copy only if nothing changed after it was SENT — not
    * merely if no second save was asked for yet: a change typed while it was in flight is on the phone
@@ -85,42 +87,40 @@ export function useApplicationDraft(
       timer = null;
     }
   };
-  const clearCopyTimer = (): void => {
-    if (copyTimer !== null) clearTimeout(copyTimer);
-    copyTimer = null;
-  };
+  // Written 300 ms after the last change, and at once when the page is hidden or closed (C3d3b1).
+  const copyWriter = debouncedCopy(() => {
+    const spec = options.local?.value;
+    if (!spec || state.value === "conflict") return;
+    const now = new Date();
+    void writeDraftCopy({
+      key: spec.key,
+      version: DRAFT_COPY_VERSION,
+      // ⚠ Through JSON: `toDraftPayload` hands back the form's own reactive arrays, and IndexedDB cannot
+      // clone a Proxy — the put throws, the store resolves (as it must), and nothing is ever kept.
+      payload: JSON.parse(JSON.stringify(toDraftPayload(draft))) as Record<string, unknown>,
+      section: options.section?.value ?? null,
+      baseRevision: revision.value,
+      savedAt: now.toISOString(),
+      expiresAt: draftExpiry(now, spec.linkExpiresAt),
+    });
+  }, COPY_DEBOUNCE_MS);
 
   /** Put the form on the phone, stamped with the revision it was typed on. */
   function keepCopy(): void {
-    const spec = options.local?.value;
-    clearCopyTimer();
-    if (!spec || state.value === "conflict") return;
-    copyTimer = setTimeout(() => {
-      copyTimer = null;
-      const now = new Date();
-      void writeDraftCopy({
-        key: spec.key,
-        version: DRAFT_COPY_VERSION,
-        // ⚠ Through JSON: `toDraftPayload` hands back the form's own reactive arrays, and IndexedDB cannot
-        // clone a Proxy — the put throws, the store resolves (as it must), and nothing is ever kept.
-        payload: JSON.parse(JSON.stringify(toDraftPayload(draft))) as Record<string, unknown>,
-        section: options.section?.value ?? null,
-        baseRevision: revision.value,
-        savedAt: now.toISOString(),
-        expiresAt: draftExpiry(now, spec.linkExpiresAt),
-      });
-    }, COPY_DEBOUNCE_MS);
+    copyWriter.cancel();
+    if (!options.local?.value || state.value === "conflict") return;
+    copyWriter.schedule();
   }
 
   function dropCopy(): void {
     const spec = options.local?.value;
-    clearCopyTimer();
+    copyWriter.cancel();
     if (spec) void clearDraftCopy(spec.key);
   }
 
   async function flush(): Promise<void> {
     timer = null;
-    if (!options.enabled.value || !token.value || state.value === "conflict") return;
+    if (!options.enabled.value || !token.value || state.value === "conflict" || revision.value === null) return;
     if (inFlight) {
       dirtyWhileSaving = true;
       return;
@@ -174,13 +174,18 @@ export function useApplicationDraft(
   // Deep, because every field the driver touches lives inside this one reactive object.
   watch(() => draft, schedule, { deep: true });
 
-  /** Section changes save at once (subject to the floor) — leaving a section is a real checkpoint. */
-  if (options.section) watch(options.section, schedule);
+  /**
+   * Section changes save at once (subject to the floor) — leaving a section is a real checkpoint — and put
+   * the form on the phone at once rather than after the copy's pause (C3d3b1, `debouncedCopy`).
+   */
+  if (options.section) {
+    watch(options.section, () => {
+      schedule();
+      if (options.enabled.value && options.local?.value && state.value !== "conflict") copyWriter.now();
+    });
+  }
 
-  onScopeDispose(() => {
-    clear();
-    clearCopyTimer();
-  });
+  onScopeDispose(clear);
 
   /**
    * On arrival, after the restore (and after the date-of-birth unlock, D-APP16): a copy the last visit

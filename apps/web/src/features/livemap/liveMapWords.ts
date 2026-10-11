@@ -13,7 +13,7 @@
  * one response (`fuelMetric`), so nothing here reads a clock.
  */
 import { secondsSince } from "@silvicom/shared";
-import type { LiveMapBoard, LiveMapScope, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapLoadRoute, LiveMapScope, LiveMapStop, LiveMapVehicle } from "@silvicom/shared";
 
 /**
  * A fix's age in words (D-LM10 — shown per truck, never hidden behind the marker).
@@ -200,10 +200,64 @@ export function boardSummarySentence({ shown, total, scope, pollSeconds }: Board
  */
 export function offlineBoundSentence(bounds: LiveMapBoard["bounds"]): string {
   const minutes = Math.round(bounds.offlineBoundSeconds / 60);
-  return `No fix for over ${minutes} min`;
+  // D-LM29: offline is a truck last reported RUNNING that went silent. A switched-off truck going
+  // quiet is parked, however long ago, so "no fix for N min" alone would describe the old rule.
+  return `Engine last reported on, no signal for over ${minutes} min`;
 }
 
-/** The same, for the `stopped`/`parked` seam, which is a cadence rather than a stopwatch (D-LM9b). */
+/**
+ * The same, for the `stopped`/`parked` seam. Since D-LM29 the ECU's engine state decides it and the
+ * ping-rate bound is only the fallback for a truck the ECU has not reported on — so the sentence
+ * leads with the engine and names the bound as what it now is.
+ */
 export function engineOnBoundSentence(bounds: LiveMapBoard["bounds"]): string {
-  return `Not moving, heard from within ${bounds.engineOnBoundSeconds}s`;
+  return `Not moving, engine running (no engine report: heard from within ${bounds.engineOnBoundSeconds}s)`;
+}
+
+/** The parked half of the seam, which had no sentence at all: a stopped truck's opposite. */
+export function parkedSentence(): string {
+  return "Engine off — however long ago; a switched-off truck going quiet is not a lost signal";
+}
+
+/**
+ * The ECU's engine state in the card's words (D-LM29). `Idle` and `On` both read "Running": the
+ * difference between them is whether the wheels turn, which the card's Speed row already says, and
+ * the word `idle` stays off this surface for D-LM9's reason — the `idle` module owns the judgement
+ * that word carries. Null when the feed has not reported one; the card shows a dash, never "Off".
+ */
+export function engineWords(state: LiveMapVehicle["engineState"] | undefined): string | null {
+  if (state === "On" || state === "Idle") return "Running";
+  if (state === "Off") return "Off";
+  return null;
+}
+
+/**
+ * A stop's address on one line (TRUCK-CARD-ROUTE-PLAN D-TC2): street, then "City, ST 54301". Each part
+ * is left out when McLeod has none rather than printed as a gap; null when there is nothing at all, so
+ * the card shows the place name alone instead of an empty line.
+ */
+export function stopAddress(stop: Pick<LiveMapStop, "addressLine" | "city" | "state" | "postalCode">): string | null {
+  const region = [stop.state, stop.postalCode].filter(Boolean).join(" ");
+  const place = [stop.city, region].filter(Boolean).join(", ");
+  return [stop.addressLine, place].filter(Boolean).join(", ") || null;
+}
+
+/**
+ * What the card says under a drawn route (TRUCK-CARD-ROUTE-PLAN D-TC3/D-TC4): one summary line, then
+ * each caveat the answer carries, in the order a dispatcher acts on them. Nothing is said for the
+ * ordinary case beyond the summary.
+ */
+export function routeWords(route: LiveMapLoadRoute): { summary: string; notes: string[] } {
+  const stops = route.fuelStops.length;
+  const summary = [
+    `${Math.round(route.distanceMiles).toLocaleString("en-US")} mi`,
+    `about ${route.durationHours < 10 ? route.durationHours.toFixed(1) : Math.round(route.durationHours)} h driving`,
+    `${stops} fuel ${stops === 1 ? "stop" : "stops"}`,
+  ].join(" · ");
+  const notes: string[] = [];
+  if (route.offRouteMiles == null) notes.push("No position for this truck, so the whole route is shown ahead.");
+  else if (!route.truckOnRoute) notes.push(`Truck is ${Math.round(route.offRouteMiles)} mi off this route; fuel stops are planned from the pickup.`);
+  if (route.hazmatNotApplied) notes.push("Hazmat load: this route does not yet avoid hazmat-restricted roads.");
+  if (route.fuelNote) notes.push(route.fuelNote);
+  return { summary, notes };
 }

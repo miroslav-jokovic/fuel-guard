@@ -127,12 +127,15 @@ export async function writeStops(
 ): Promise<void> {
   if (entries.length === 0) return;
   const loadIds = entries.map((e) => e.loadId);
-  await admin
+  // Checked since 2026-09-28: an unchecked delete that failed left the old pending stops in place, and
+  // the insert below then collided with them on (load_id, seq) or duplicated the route.
+  const { error: delErr } = await admin
     .from("load_stops")
     .delete()
     .in("load_id", loadIds)
     .eq("org_id", orgId)
     .eq("status", "pending");
+  if (delErr) throw new Error(`[tms-loads] could not clear pending stops: ${delErr.message}`);
 
   const rows = entries.flatMap((e) =>
     e.stops.map((s) => ({

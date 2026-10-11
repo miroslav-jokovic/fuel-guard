@@ -221,6 +221,7 @@ describe("a text that carries the link", () => {
   it.each([
     ["application_sent", "Your driver application is ready"],
     ["nudge", "Your driver application is saved"],
+    ["signing_link", "Sign your driver application here"],
   ] as const)("sends %s with a link minted now, on the text token, the pair matching", async (template, words) => {
     const rec = seed();
     let rotatedBeforeSend = false;
@@ -289,6 +290,35 @@ describe("a text that carries the link", () => {
   it("counts one the rotation refused as cancelled, not failed", async () => {
     const rec = seed({ outbox: [queued("application_sent")], rotated: false });
     expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toEqual({ sent: 0, failed: 0, cancelled: 1, deferred: 0 });
+    expect(sms.fn).not.toHaveBeenCalled();
+  });
+
+  /**
+   * D-AW14 (C3s3a): a queued sign link is worth sending only while its send is. ⚠ The stop matters most:
+   * the drain mints a FRESH text token, so a text sent after five wrong dates of birth would reopen the
+   * door the stop closed.
+   */
+  const signing = (over: Record<string, unknown> = {}) => ({
+    id: "inv-1", org_id: ORG, submitted_at: null, review_requested_at: "2027-01-10T10:00:00Z",
+    approved_at: "2027-01-11T10:00:00Z", sign_link_expires_at: "2027-01-14T10:00:00Z", unlock_failures: 0, ...over,
+  });
+
+  it("drains a queued sign link while its send is live — approved is its whole point, not a reason to cancel", async () => {
+    const rec = seed({ outbox: [queued("signing_link")], invitations: [signing()] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 1, cancelled: 0 });
+    expect(String(sms.fn.mock.calls[0]![1].body)).toContain("This link works for 72 hours.");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it.each([
+    ["stopped by five wrong dates of birth", { unlock_failures: 5 }],
+    ["past its 72 hours", { sign_link_expires_at: "2027-01-12T15:59:59Z" }],
+    ["filed", { submitted_at: "2027-01-12T10:00:00Z" }],
+    ["never sent for signing", { sign_link_expires_at: null }],
+  ])("cancels a queued sign link whose send was %s, minting nothing", async (_label, moved) => {
+    const rec = seed({ outbox: [queued("signing_link")], invitations: [signing(moved)] });
+    expect(await drainSmsOutboxForOrg(rec.client, env, ORG, OPEN)).toMatchObject({ sent: 0, cancelled: 1 });
+    expect(rotation(rec)).toBeUndefined();
     expect(sms.fn).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,7 @@
 import { getEfsSoapCredentials } from "../../modules/efs/services/efsSoapCredentials.js";
 import { syncEfsCards } from "../../modules/efs/services/efsCardMirror.js";
+import { pollEfsCardStatus } from "../../modules/efs/services/efsCardStatusPoll.js";
+import { sendCardStatusSummary } from "../../modules/efs/services/cardStatusSummary.js";
 import { resolveUnresolvedMutations } from "../../modules/efs/services/efsCardUnresolved.js";
 import type { JobHandler } from "../types.js";
 
@@ -65,3 +67,35 @@ export const efsCardSyncHandler: JobHandler = async (ctx, job) => {
   // Spread into a plain record: JobHandler's return type is the ledger's `stats` jsonb.
   return { ...result, unresolved: { ...unresolved, errors: unresolved.errors.slice(0, 5) } };
 };
+
+/**
+ * The status poll (EFS audit, 2026-09-30) — see `efsCardStatusPoll.ts`. Idempotent for the same
+ * reason the sweep is: every write is keyed on the card, and a re-run re-reads the vendor. Throws
+ * only when the roster itself could not be read, so a vendor outage shows as failed runs rather than
+ * as a clean ledger over a page that stopped updating.
+ */
+export const efsCardStatusHandler: JobHandler = async (ctx, job) => {
+  const creds = await getEfsSoapCredentials(ctx.admin, ctx.env, job.org_id);
+  if (!creds || !creds.enabled) return { status: "skipped", reason: "efs_soap_disabled" };
+  const result = await pollEfsCardStatus(ctx.admin, ctx.env, creds);
+  if (result.cardsSeen > 0 && result.failed >= result.cardsSeen) {
+    throw new Error(`[efs-cards] org ${job.org_id}: status poll wrote nothing — ${result.errors.slice(0, 3).join("; ")}`);
+  }
+  if (result.statusChanges > 0 || result.newCards > 0 || result.failed > 0) {
+    console.log(
+      `[efs-cards] org ${job.org_id}: status poll — ${result.statusChanges} changed ` +
+        `(${result.externalChanges} outside Silvicom 360${result.refused ? ", HELD by the ratio guard" : ""}), ` +
+        `${result.newCards} new, ${result.failed} failed`,
+    );
+  }
+  // The daily summary (Q-F3, chunk 3b) rides the poll rather than a scheduler of its own. Its own
+  // failure must not mark a poll that worked as failed: the next poll, five minutes on, tries again.
+  let summary: Record<string, unknown> | null = null;
+  try {
+    summary = { ...(await sendCardStatusSummary(ctx.admin, job.org_id, new Date())) };
+  } catch (error) {
+    console.error(`[efs-cards] org ${job.org_id}: card status summary — ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return { ...result, errors: result.errors.slice(0, 5), summary };
+};
+

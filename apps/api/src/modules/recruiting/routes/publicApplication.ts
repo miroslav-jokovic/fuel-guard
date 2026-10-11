@@ -18,6 +18,7 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { requestReview } from "../applicationHandoff.js";
 import { publicApplicationCaptureRouter } from "./publicApplicationCapture.js";
+import { publicApplicationAdoptionRouter } from "./publicApplicationAdoption.js";
 import { publicApplicationDocumentsRouter } from "./publicApplicationDocuments.js";
 import { publicApplicationSmsRouter } from "./publicApplicationSms.js";
 import { publicApplicationScreenEventsRouter } from "./publicApplicationScreenEvents.js";
@@ -215,10 +216,11 @@ export function publicApplicationRouter(): Router {
   /**
    * Release a gated draft to the person who typed it (D-APP16).
    *
-   * A wrong date of birth is not an error: it returns the same locked view a plain read returns, and
-   * changes nothing about the invitation. There is no attempt counter and no lockout — a driver
-   * mistyping their own birthday must not need a support call, and the throttle that actually stops
-   * guessing is the rate limiter this route already sits behind.
+   * A wrong date of birth is not an error: it returns the same locked view a plain read returns. On the
+   * invited link there is no attempt counter and no lockout — a driver mistyping their own birthday must
+   * not need a support call, and the rate limiter this route sits behind stops guessing. On a link the
+   * office SENT for signing the view says how many tries are left, and the fifth wrong answer stops it:
+   * 410, because only the holder of a live link reaches it (D-AW14, `signLinkUnlock.ts`).
    */
   router.post(
     "/:token/unlock",
@@ -230,7 +232,8 @@ export function publicApplicationRouter(): Router {
         (res.locals.body as ApplicationDraftUnlock).date_of_birth, new Date(),
       );
       if (isIntakeError(result)) {
-        res.status(result.code === "invalid_link" ? 404 : 500).json(apiError(result.code, result.message));
+        const status = result.code === "invalid_link" ? 404 : result.code === "sign_link_locked" ? 410 : 500;
+        res.status(status).json(apiError(result.code, result.message));
         return;
       }
       res.json({ draft: result });
@@ -288,6 +291,10 @@ export function publicApplicationRouter(): Router {
                 || result.code === "identity_missing"
                 // D-AW2: on a v2 link Part 1 comes first, for the same reason.
                 || result.code === "intake_incomplete"
+                // D-AW15: the name is not the adopted one — the page takes the driver back to adopt —
+                // or the permissions were started with another adoption (C3s2a, `documentAdoption.ts`).
+                || result.code === "adoption_name_mismatch"
+                || result.code === "adoption_changed_mid_document"
               ? 409
               : 500;
         res.status(status).json(apiError(result.code, result.message));
@@ -332,6 +339,9 @@ export function publicApplicationRouter(): Router {
                 || result.code === "packet_mark_not_their_capacity"
                 // A-5: the text moved under a half-signed packet — the state of the world, not the request.
                 || result.code === "packet_text_changed"
+                // D-AW15 (C3s2a): the adopted mark, not this name — or not the one this packet started with.
+                || result.code === "adoption_name_mismatch"
+                || result.code === "adoption_changed_mid_document"
                 || result.code === "esign_consent_required"
               ? 409
               // A stop that is not the driver's is a bad request rather than a conflict: nothing
@@ -352,6 +362,9 @@ export function publicApplicationRouter(): Router {
   // The photograph slots, in their own module (500-line budget). Mounted at this router's root, so
   // the paths are unchanged.
   router.use(publicApplicationCaptureRouter());
+
+  // Screen 13, the adopted signature and initials (D-AW15, C3s1), in its own module for the same reason.
+  router.use(publicApplicationAdoptionRouter());
 
   // What this link hands back as a DOCUMENT, in its own module for the same reason. C1's reading
   // copy of the unsigned packet belongs beside the filed copy, not here.

@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
-import type { LiveMapBoard, LiveMapVehicle } from "@silvicom/shared";
+import type { LiveMapBoard, LiveMapLoadRoute, LiveMapVehicle } from "@silvicom/shared";
 import {
   boardSummarySentence,
   engineOnBoundSentence,
+  engineWords,
   formatAge,
   fuelMetric,
   offlineBoundSentence,
   rowMetric,
+  routeWords,
+  stopAddress,
 } from "./liveMapWords";
 
 /**
@@ -33,6 +36,8 @@ const vehicle = (o: Partial<LiveMapVehicle> = {}): LiveMapVehicle => ({
   },
   state: "moving",
   ageSeconds: 5,
+  engineState: null,
+  inShop: false,
   fuel: { percent: 68, at: "2026-09-15T17:58:00.000Z" },
   load: null,
   ...o,
@@ -217,7 +222,7 @@ describe("offlineBoundSentence", () => {
       offlineBoundSeconds: 1_800,
       fuelFreshSeconds: 900,
     };
-    expect(offlineBoundSentence(bounds)).toBe("No fix for over 30 min");
+    expect(offlineBoundSentence(bounds)).toBe("Engine last reported on, no signal for over 30 min");
   });
 
   /**
@@ -232,6 +237,59 @@ describe("offlineBoundSentence", () => {
       offlineBoundSeconds: 900,
       fuelFreshSeconds: 900,
     };
-    expect(engineOnBoundSentence(bounds)).toBe("Not moving, heard from within 45s");
+    expect(engineOnBoundSentence(bounds)).toBe(
+      "Not moving, engine running (no engine report: heard from within 45s)",
+    );
+  });
+});
+
+describe("engineWords", () => {
+  it("says Running for both of the ECU's running states, and never the word idle (D-LM9)", () => {
+    expect(engineWords("On")).toBe("Running");
+    expect(engineWords("Idle")).toBe("Running");
+  });
+  it("says Off for Off, and nothing at all when the feed has not reported — absent is not Off", () => {
+    expect(engineWords("Off")).toBe("Off");
+    expect(engineWords(null)).toBeNull();
+    expect(engineWords(undefined)).toBeNull();
+  });
+});
+
+describe("stopAddress", () => {
+  it("writes street, city, state and ZIP on one line", () => {
+    expect(stopAddress({ addressLine: "1 Main St", city: "Green Bay", state: "WI", postalCode: "54301" })).toBe("1 Main St, Green Bay, WI 54301");
+  });
+
+  it("leaves out what McLeod does not have, without a gap", () => {
+    expect(stopAddress({ addressLine: null, city: "Green Bay", state: "WI", postalCode: null })).toBe("Green Bay, WI");
+    expect(stopAddress({ addressLine: "1 Main St", city: null, state: null, postalCode: null })).toBe("1 Main St");
+  });
+
+  it("is null when there is no address at all, so the card shows the place name alone", () => {
+    expect(stopAddress({ addressLine: null, city: null, state: null, postalCode: null })).toBeNull();
+    expect(stopAddress({ addressLine: "", city: undefined as never, state: null })).toBeNull();
+  });
+});
+
+describe("routeWords (TRUCK-CARD-ROUTE-PLAN D-TC3)", () => {
+  const route = (o: Partial<LiveMapLoadRoute> = {}): LiveMapLoadRoute => ({
+    loadId: "l1", covered: [], ahead: [], distanceMiles: 1234.4, durationHours: 21.6, truckOnRoute: true,
+    coveredMiles: 300, offRouteMiles: 0.1, fuelStops: [], fuelNote: null, hazmatNotApplied: false, ...o,
+  });
+
+  it("sums the route up on one line, and says nothing more in the ordinary case", () => {
+    expect(routeWords(route())).toEqual({ summary: "1,234 mi · about 22 h driving · 0 fuel stops", notes: [] });
+    expect(routeWords(route({ durationHours: 6.25 })).summary).toContain("about 6.3 h driving");
+  });
+
+  it("says when the truck is off the route, has no position, or carries hazmat, and passes the fuel note on", () => {
+    expect(routeWords(route({ truckOnRoute: false, offRouteMiles: 42.4 })).notes).toEqual([
+      "Truck is 42 mi off this route; fuel stops are planned from the pickup.",
+    ]);
+    expect(routeWords(route({ truckOnRoute: false, offRouteMiles: null })).notes[0]).toMatch(/^No position for this truck/);
+    expect(routeWords(route({ hazmatNotApplied: true, fuelNote: "No fuel stop needed to reach the delivery." })).notes).toEqual([
+      "Hazmat load: this route does not yet avoid hazmat-restricted roads.",
+      "No fuel stop needed to reach the delivery.",
+    ]);
   });
 });

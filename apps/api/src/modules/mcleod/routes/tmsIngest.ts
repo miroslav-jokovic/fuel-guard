@@ -22,6 +22,7 @@ import { ingestDispatchMovements } from "../dispatchMovementIngest.js";
 import { projectDispatchMovements } from "../dispatchProjection.js";
 import { ingestDrivers, ingestVehicles, ingestTrailers } from "../rosterIngest.js";
 import { reconcileAbsentFromTms, retireFromTms } from "../rosterRetire.js";
+import { runFleetParity, type ParitySummary } from "../fleetParity.js";
 import { isTmsRosterMaster } from "../rosterMastery.js";
 import { stampRosterRead } from "../tmsIngest.js";
 import type { RosterMode } from "../rosterIngest.js";
@@ -69,10 +70,11 @@ async function refuseUnlessRosterMaster(
  */
 export function tmsIngestRouter(): Router {
   const router = Router();
-  router.use(json({ limit: "8mb" }));
 
-  // Authenticate every request by ingest token → org. One generic 401 (no token vs bad token are
-  // indistinguishable) so the endpoint leaks nothing about which tokens exist.
+  // Authenticate every request by ingest token → org, BEFORE the body is read: the token is a header,
+  // and parsing up to 8 MB for a caller who has not proved who it is was work for nobody (audit
+  // 2026-09-28). The body parser is mounted right after this middleware. One generic 401 (no token vs
+  // bad token are indistinguishable) so the endpoint leaks nothing about which tokens exist.
   router.use(
     asyncHandler(async (req, res, next) => {
       const header = req.header("authorization") ?? "";
@@ -92,6 +94,8 @@ export function tmsIngestRouter(): Router {
       next();
     }),
   );
+  // A real board is ~200 KB (131 movements, measured 2026-09-28); 8 MB is a 500-movement batch with room.
+  router.use(json({ limit: "8mb" }));
 
   // ── financial staging (P3.2): settlements + AP vouchers ──────────────────────────────────────
   registerTmsFinancialRoutes(router);
@@ -188,8 +192,19 @@ export function tmsIngestRouter(): Router {
         return;
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      await stampRosterRead(admin, req.tms!.orgId, parsed.data.counts);
-      res.json({ ok: true });
+      const orgId = req.tms!.orgId;
+      // The fleet-parity check (FL2, D-FL2) rides on the read it audits. It never fails the
+      // checkpoint: the stamp says McLeod was read, and a parity error must not make a healthy sweep
+      // look stopped — it is stored as the reason the check did not run.
+      let parity: ParitySummary;
+      try {
+        parity = await runFleetParity(admin, orgId, parsed.data);
+      } catch (e) {
+        console.error(`[fleet-parity] org ${orgId}: ${(e as Error).message}`);
+        parity = { checked: false, reason: (e as Error).message };
+      }
+      await stampRosterRead(admin, orgId, parsed.data.counts, parity);
+      res.json({ ok: true, parity: parity.checked ? { findings: parity.findings.length, known: parity.known.length } : parity });
     }),
   );
 
@@ -297,9 +312,11 @@ export function tmsIngestRouter(): Router {
 
   /**
    * The raw dispatch mirror (LOADS-MIRROR-PLAN.md LR3): each movement on the board, and each one the
-   * close read asked about, exactly as McLeod states it, into `mcleod_dispatch_*`. Beside `/loads`, not
-   * instead of it — the load feed keeps the product running until LR4's projection reads from here,
-   * and LR8 compares the two for a week before the old blob is retired.
+   * close read asked about, exactly as McLeod states it, into `mcleod_dispatch_*`, then projected onto
+   * `loads` in the same request (LR4, below). The connector posts only here since LR4b; `/loads` above is
+   * the pre-mirror feed, still mounted until LR8 retires it with `load_external_payloads`. ⚠ Both
+   * write the same `loads` rows (same `company:movement` key), so nothing may post to `/loads` while
+   * the mirror runs; the Board VM's connector cannot (it has no code path to it).
    */
   router.post(
     "/dispatch-movements",

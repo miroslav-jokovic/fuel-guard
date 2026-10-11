@@ -15,7 +15,9 @@ test("unauthenticated users are redirected to login", async ({ page }) => {
 test("the login form is present", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByLabel("Email")).toBeVisible();
-  await expect(page.getByLabel("Password")).toBeVisible();
+  // Exact: the password field's "Show password" button is also labelled with the word, and a partial
+  // match finds both — which failed every production smoke run until 2026-09-28 (strict mode, 2 elements).
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 

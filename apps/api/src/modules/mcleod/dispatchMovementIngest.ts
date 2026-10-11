@@ -97,6 +97,7 @@ export async function ingestDispatchMovements(
       trailer_type: m.trailer_type,
       commodity: m.commodity,
       customer_id: m.customer_id,
+      customer_name: m.customer_name,
       weight: m.weight,
       weight_um: m.weight_um,
       pieces: m.pieces,

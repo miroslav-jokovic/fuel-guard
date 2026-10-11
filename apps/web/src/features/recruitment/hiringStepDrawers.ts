@@ -46,9 +46,10 @@ export type HiringDrawerBody =
   /** `ApplicationInviteCard` — the invitation, its state, and the resend/revoke acts. */
   | "invitation"
   /**
-   * Part 1 (§7, D-AW1): the applicant's first visit, on their link. Nothing for the office to perform
-   * here until C3 builds the Part 1 review — so the body says what Part 1 collects and opens the same
-   * invitation card, whose resend and state are the office's only levers on a step that is theirs.
+   * Part 1 (§7, D-AW1): the applicant's first visit, on their link. The body says what Part 1 collects
+   * and opens the same invitation card, whose resend and state are the office's levers on a step that
+   * is theirs — and, since AW6, the selfie beside the licence photo for the office to read
+   * (`SelfieCheckPanel`), which is the one act the office performs on Part 1.
    */
   | "intake"
   /** `TravelPanel` (D-AW7): record the trip, refused until every step before travel is done. */
@@ -109,8 +110,8 @@ export type HiringDrawerBody =
    */
   | "handbook"
   /**
-   * The packet's signing ceremony. Since AF5 (D-AF3) the office OPENS it here, at the desk, and the
-   * applicant signs on the link that press hands back (`OpenSigningPanel`).
+   * The packet's signing ceremony. Since C3s3a (D-AW14) the office SENDS it from here, at the desk, and
+   * the applicant signs on their own phone, on the link that went by email and text (`SendForSigningPanel`).
    */
   | "packet"
   /**

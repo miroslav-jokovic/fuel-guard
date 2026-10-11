@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { stepUpHeaders } from "../../../testing/stepUp.js";
 
 /**
  * Deleting an invitation (2026-09-02).
@@ -27,7 +28,11 @@ const USER = "user-1";
 
 let rec: SupabaseRecorder;
 vi.mock("../../../lib/supabaseAdmin.js", () => ({ getSupabaseAdmin: () => rec.client }));
-vi.mock("../../../lib/appLocals.js", () => ({ getAppLocals: () => ({ env: { MAIL_PROVIDER: "none" } }) }));
+// SP9: the key the step-up token is verified against — the same one `stepUpHeaders` mints under.
+vi.mock("../../../lib/appLocals.js", async () => {
+  const { STEP_UP_TEST_KEY } = await import("../../../testing/stepUp.js");
+  return { getAppLocals: () => ({ env: { MAIL_PROVIDER: "none", SECRETS_ENCRYPTION_KEY: STEP_UP_TEST_KEY } }) };
+});
 vi.mock("../../../middleware/auth.js", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     req.auth = { userId: USER, orgId: ORG, role: "admin", email: "admin@example.test" };
@@ -43,7 +48,7 @@ vi.mock("../../../lib/audit.js", () => ({ writeAudit: vi.fn(async () => undefine
 const { invitesRouter } = await import("./invites.js");
 const { writeAudit } = await import("../../../lib/audit.js");
 
-async function del(id: string): Promise<{ status: number }> {
+async function del(id: string, stepUp = true): Promise<{ status: number }> {
   const app = express();
   app.use(express.json());
   app.use("/api/invites", invitesRouter());
@@ -53,6 +58,7 @@ async function del(id: string): Promise<{ status: number }> {
   try {
     const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/invites/${id}`, {
       method: "DELETE",
+      headers: stepUp ? stepUpHeaders(USER, ORG) : {},
     });
     return { status: res.status };
   } finally {
@@ -60,23 +66,23 @@ async function del(id: string): Promise<{ status: number }> {
   }
 }
 
-const seed = (status: string) =>
+const seed = (status: string, rpc: unknown = status) =>
   createSupabaseRecorder({
     tables: {
       invites: [{ id: "inv-1", email: "george@example.test", role: "technician", status }],
     },
+    rpc: { invite_delete: rpc },
   });
+const deleteCalls = () => rec.rpcs().filter((r) => r.fn === "invite_delete");
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("DELETE /api/invites/:id", () => {
-  it("deletes a revoked invitation, scoped to the caller's org", async () => {
+  it("deletes a revoked invitation through invite_delete, scoped to the caller's org", async () => {
     rec = seed("revoked");
     expect((await del("inv-1")).status).toBe(200);
-    const deletes = rec.writes().filter((q) => q.write?.method === "delete");
-    expect(deletes).toHaveLength(1);
-    expect(deletes[0]!.filters()).toContainEqual({ col: "org_id", val: ORG });
-    expect(deletes[0]!.filters()).toContainEqual({ col: "id", val: "inv-1" });
+    expect(deleteCalls()).toEqual([{ fn: "invite_delete", args: { p_org_id: ORG, p_invite_id: "inv-1", p_actor: USER } }]);
+    expect(rec.writes()).toHaveLength(0);
     expectOrgScoped(rec, ORG);
   });
 
@@ -92,32 +98,49 @@ describe("DELETE /api/invites/:id", () => {
   it("refuses a PENDING invitation, and says revoking is the step that disables the link", async () => {
     rec = seed("pending");
     expect((await del("inv-1")).status).toBe(409);
-    expect(rec.writes().filter((q) => q.write?.method === "delete")).toHaveLength(0);
+    expect(deleteCalls()).toHaveLength(0);
   });
 
   it("refuses an ACCEPTED one — it is the provenance of a membership that exists", async () => {
     rec = seed("accepted");
     expect((await del("inv-1")).status).toBe(409);
-    expect(rec.writes().filter((q) => q.write?.method === "delete")).toHaveLength(0);
+    expect(deleteCalls()).toHaveLength(0);
   });
 
   it("is a 404 for an id belonging to nobody, without deleting anything", async () => {
     rec = createSupabaseRecorder({ tables: { invites: [] } });
     expect((await del("nope")).status).toBe(404);
-    expect(rec.writes().filter((q) => q.write?.method === "delete")).toHaveLength(0);
+    expect(deleteCalls()).toHaveLength(0);
   });
 
-  it("audits the deletion carrying what the row held, because nothing else will", async () => {
+  /**
+   * SP8: the audit row carrying the whole invite is written INSIDE `invite_delete`'s transaction, so
+   * the route writes none — two would be the double record Q-SET7 (a)'s transaction replaced.
+   */
+  it("writes no audit row of its own — the function's transaction carries what the row held", async () => {
     rec = seed("revoked");
     await del("inv-1");
-    expect(writeAudit).toHaveBeenCalledTimes(1);
-    const arg = vi.mocked(writeAudit).mock.calls[0]![1];
-    expect(arg.action).toBe("invite.deleted");
-    expect(arg.orgId).toBe(ORG);
-    expect(arg.meta).toMatchObject({
-      email: "george@example.test",
-      role: "technician",
-      status: "revoked",
-    });
+    expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("answers 409 invalid_status when the function refuses the status under its lock (AM020)", async () => {
+    // The read saw `revoked`; a resend landed before the delete took its lock.
+    rec = seed("revoked", { error: { code: "AM020", message: "invite is pending" } });
+    expect((await del("inv-1")).status).toBe(409);
+  });
+
+  it("answers 404 when the function finds nothing to delete", async () => {
+    rec = seed("revoked", null);
+    expect((await del("inv-1")).status).toBe(404);
+  });
+});
+
+describe("SP9 · deleting an invitation needs the password again (Q-SET8 (a))", () => {
+  it("without a step-up token answers 403 and asks the function for nothing", async () => {
+    rec = seed("revoked");
+    expect((await del("inv-1", false)).status).toBe(403);
+    expect(deleteCalls()).toEqual([]);
+    expect(rec.writes()).toEqual([]);
+    expect(writeAudit).not.toHaveBeenCalled();
   });
 });

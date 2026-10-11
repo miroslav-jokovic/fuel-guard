@@ -45,7 +45,7 @@ export { PART_ONE_SCREENS, type PartOneScreen };
 /** The screens whose answers wait for screen 7 on a link that has not begun (see the header). */
 export const HELD_UNTIL_SCREENING: readonly PartOneScreen[] = ["about", "address", "licence", "otherLicences"];
 
-export const PHOTO_SCREENS = ["cdl_front", "cdl_back", "medical_card"] as const;
+export const PHOTO_SCREENS = ["cdl_front", "cdl_back", "medical_card", "selfie"] as const;
 export type PhotoScreen = (typeof PHOTO_SCREENS)[number];
 export const isPhotoScreen = (s: PartOneScreen): s is PhotoScreen =>
   (PHOTO_SCREENS as readonly string[]).includes(s);
@@ -74,6 +74,13 @@ export interface PartOneAnswers {
   dot_tested_6m: boolean | null;
   dot_random_12m: boolean | null;
   medical_card_pending: boolean;
+  /**
+   * "I can't take a photo of myself" (AW6, §6.7: a selfie is "never a hard block" — the office checks
+   * the driver against their licence in person instead). Held in the page only: nothing on the server
+   * records it, because the missing photo already says it, and the office's drawer reads a Part 1
+   * finished without one as exactly that.
+   */
+  selfie_skipped: boolean;
 }
 
 export const emptyPartOneAnswers = (): PartOneAnswers => ({
@@ -92,6 +99,7 @@ export const emptyPartOneAnswers = (): PartOneAnswers => ({
   dot_tested_6m: null,
   dot_random_12m: null,
   medical_card_pending: false,
+  selfie_skipped: false,
 });
 
 export type ScreenErrors = Record<string, string>;
@@ -260,13 +268,22 @@ export function firstWrite(a: PartOneAnswers): PartOneWrite[] {
 const hasCapture = (captures: readonly ApplicationCaptureView[], slot: string): boolean =>
   captures.some((c) => c.slot === slot);
 
-/** Is this photo screen satisfied — a capture on file, or (medical card only) "I don't have one yet"? */
+/** What a photo screen accepts in place of the photo: "I don't have one yet", "I can't take one". */
+export interface PhotoDeclarations {
+  medical_card_pending?: boolean;
+  selfie_skipped?: boolean;
+}
+
+/** Is this photo screen satisfied — a capture on file, or the screen's own "instead" answer? */
 export function photoDone(
   screen: PhotoScreen,
   captures: readonly ApplicationCaptureView[],
-  medicalCardPending: boolean,
+  declared: PhotoDeclarations,
 ): boolean {
-  return hasCapture(captures, screen) || (screen === "medical_card" && medicalCardPending);
+  if (hasCapture(captures, screen)) return true;
+  if (screen === "medical_card") return declared.medical_card_pending === true;
+  if (screen === "selfie") return declared.selfie_skipped === true;
+  return false;
 }
 
 /**
@@ -279,13 +296,17 @@ export function resumeScreen(
   identityComplete: boolean,
   captures: readonly ApplicationCaptureView[],
 ): PartOneScreen {
+  const declared: PhotoDeclarations = { medical_card_pending: status.medicalCardPending };
   for (const screen of ["cdl_front", "cdl_back"] as const) {
-    if (!photoDone(screen, captures, status.medicalCardPending)) return screen;
+    if (!photoDone(screen, captures, declared)) return screen;
   }
   if (!status.screening || !status.contact || !identityComplete) return "about";
   if (!status.address) return "address";
   if (!status.licences) return "licence";
-  if (!photoDone("medical_card", captures, status.medicalCardPending)) return "medical_card";
+  if (!photoDone("medical_card", captures, declared)) return "medical_card";
+  // AW6: "I can't take one" is not stored (see `selfie_skipped`), so a returning driver without a selfie
+  // meets the screen again — and the same tick-box, one press from where they were.
+  if (!photoDone("selfie", captures, declared)) return "selfie";
   return "rights";
 }
 

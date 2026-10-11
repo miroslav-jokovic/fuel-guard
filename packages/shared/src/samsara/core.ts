@@ -2,6 +2,7 @@
 import { parseAsUtcMs } from "./location.js";
 import type { StatsFeedPage } from "./statsFeed.js";
 import { STOPPED_SPEED_MPH } from "../livemap.js";
+import type { EngineState } from "../idleSessions.js";
 
 const METERS_PER_MILE = 1609.344;
 export const metersToMiles = (m: number): number => Math.round((m / METERS_PER_MILE) * 10) / 10;
@@ -280,6 +281,54 @@ export function latestGpsFix(fixes: readonly GpsFix[]): GpsFix | null {
     bestMs = t;
   }
   return best;
+}
+
+// ── The live map's engine state: is the engine running RIGHT NOW (D-LM29) ────────────────────────
+
+/**
+ * One ECU engine event, as the positions feed reports it. The value is Samsara's spelling verbatim —
+ * the same `On | Idle | Off` enum `idleSessions.ts` reads from `engineStates` history — because 0393
+ * stores it verbatim and `deriveVehicleState` is the one place that translates it.
+ */
+export interface EngineStateEvent {
+  time: string;
+  value: EngineState;
+}
+
+/**
+ * Merge one feed page's `engineStates` into an accumulator keyed by Samsara vehicle id, keeping only
+ * the NEWEST event per truck.
+ *
+ * Unlike `accumulateGpsFeedPage` this can reduce as it goes: an engine event has nothing but a time
+ * and a value, so "newest across every page" is a running max and needs no second pass. A value
+ * outside the enum is dropped rather than guessed — `"Running"` is not `On`, and 0393's check would
+ * refuse it anyway, a tick later and less legibly.
+ *
+ * ⚠ The feed shape, like the GPS parser: `engineStates` is an ARRAY here, and a truck whose engine
+ * has not changed since the cursor is simply absent from the page. That absence is NOT "Off" — it is
+ * "no news", and the stored state stands.
+ */
+export function accumulateEngineStateFeedPage(
+  page: StatsFeedPage,
+  into: Map<string, EngineStateEvent>,
+): Map<string, EngineStateEvent> {
+  const rows = Array.isArray(page.data)
+    ? (page.data as { id?: string | number; engineStates?: unknown }[])
+    : [];
+  for (const v of rows) {
+    if (v?.id == null || !Array.isArray(v.engineStates)) continue;
+    const key = String(v.id);
+    for (const e of v.engineStates as { time?: unknown; value?: unknown }[]) {
+      if (!e || typeof e.time !== "string") continue;
+      const t = Date.parse(e.time);
+      if (!Number.isFinite(t)) continue;
+      if (e.value !== "On" && e.value !== "Idle" && e.value !== "Off") continue;
+      const held = into.get(key);
+      // `>=` so a tie goes to the event seen last, the same deterministic rule as `latestGpsFix`.
+      if (!held || t >= Date.parse(held.time)) into.set(key, { time: e.time, value: e.value });
+    }
+  }
+  return into;
 }
 
 /** The Samsara sample closest in time to `targetIso`, within `windowMin` minutes. Null if none. */

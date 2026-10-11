@@ -17,7 +17,12 @@
  * camera app or a picked file, through a file input. The web provider said `expo_camera` until C3b2a
  * (APPLICATION-FLOW-V2-PLAN.md §6.6.7), which named an app the applicant never had.
  */
-export type CaptureMode = "system_scanner" | "raw_capture" | "expo_camera" | "web_file_input";
+/**
+ * `web_file_input`: the phone's camera app or a picked file, through a file input. `web_live_camera`: a
+ * frame of the in-page camera (the applicant page's licence scanner, 2026-09-30). Neither is sent to a server
+ * that enumerates modes — the hazmat register's list (`hazmatApi.ts`, migration 0133) is the driver app's.
+ */
+export type CaptureMode = "system_scanner" | "raw_capture" | "expo_camera" | "web_file_input" | "web_live_camera";
 
 export interface ImageRef {
   /** Local file URI (file://…) or an opaque handle the owning provider understands. */

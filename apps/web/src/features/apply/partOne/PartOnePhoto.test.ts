@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import type { CaptureProvider, CapturedPage } from "@silvicom/capture-engine";
-import type { ApplicationCaptureView } from "@silvicom/shared";
+import type { CapturedPage } from "@silvicom/capture-engine";
+import type { WebCaptureProvider } from "@/features/apply/capture/webFileProvider";
+import { APPLICATION_CAPTURE_KEEP_DAYS, type ApplicationCaptureView } from "@silvicom/shared";
 import PartOnePhoto from "./PartOnePhoto.vue";
 import { APPLY_COPY } from "@/features/apply/strings";
 
@@ -29,9 +30,10 @@ vi.mock("@/features/apply/capture/webImageIo", async (importOriginal) => ({
   },
 }));
 vi.mock("@/features/apply/capture/webFileProvider", () => ({
-  createWebFileProvider: (_c: unknown, options: { pick: () => Promise<File | null> }): CaptureProvider => ({
+  createWebFileProvider: (_c: unknown, options: { pick: () => Promise<File | null> }): WebCaptureProvider => ({
     id: "t",
     version: "0",
+    takeBytes: () => new Blob(["x"], { type: "image/webp" }),
     isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
     scan: async () => {
       await options.pick();
@@ -64,7 +66,9 @@ beforeEach(() => {
   net.calls = [];
   net.confirm = null;
   net.source = [];
-  vi.stubGlobal("fetch", vi.fn(async () => ({ blob: async () => new Blob(["x"], { type: "image/webp" }) })));
+  // ⚠ `fetch` refuses, as production's CSP does for a `blob:` URL (no `blob:` in `connect-src`, 2026-09-30): a
+  // photograph must reach the upload as the bytes its provider handed over (`takeBytes`), never read back.
+  vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -76,12 +80,12 @@ const copy = APPLY_COPY.partOne.photo;
 const ANSWERS = { medical_card_pending: false } as never;
 
 const mountPhoto = (
-  props: { captures?: ApplicationCaptureView[]; photo?: "cdl_front" | "cdl_back" | "medical_card"; desktop?: boolean } = {},
+  props: { captures?: ApplicationCaptureView[]; photo?: "cdl_front" | "cdl_back" | "medical_card" | "selfie"; desktop?: boolean; answers?: object } = {},
 ) =>
   mount(PartOnePhoto, {
     props: {
       token: "t", carrier: "Silvicom Inc", photo: props.photo ?? "cdl_front", captures: props.captures ?? [],
-      errors: {}, answers: ANSWERS, desktop: props.desktop ?? false,
+      errors: {}, answers: (props.answers ?? ANSWERS) as never, desktop: props.desktop ?? false,
     },
     // The handoff has its own test (PartOneHandoff.test.ts); here only WHEN it shows is asserted.
     global: { stubs: { PartOneHandoff: { template: "<div data-test='handoff' />" } } },
@@ -214,5 +218,52 @@ describe("on a computer (§6.6.6)", () => {
     expect(shown(w)).toBe(false);
     const filed = mountPhoto({ desktop: true, captures: [{ slot: "cdl_front", contentType: "image/webp", bytes: 1, capturedAt: "2026-09-20T00:00:00Z" }] });
     expect(shown(filed)).toBe(false);
+  });
+});
+
+/**
+ * Screen 11, the selfie (AW6, §6.7): the same screen with the front camera, an oval, the why before the
+ * button, and "I can't take one" — the medical card's "I don't have one yet" pattern.
+ */
+describe("the selfie screen", () => {
+  it("says why and for how long before the camera opens, in the carrier's name", () => {
+    const w = mountPhoto({ photo: "selfie", answers: { selfie_skipped: false } });
+    const why = w.find("[data-selfie-why]");
+    expect(why.text()).toBe(copy.selfie.why("Silvicom Inc", APPLICATION_CAPTURE_KEEP_DAYS));
+    expect(why.text()).toContain("no face-recognition software");
+    expect(why.text()).toContain(`deleted ${APPLICATION_CAPTURE_KEEP_DAYS} days`);
+    expect(w.text()).toContain(copy.selfie.howTo);
+    expect(w.text()).not.toContain(copy.howTo);
+    expect(w.find("figure").classes()).toContain("rounded-full");
+    expect(w.find("figcaption").text()).toBe(copy.selfie.outline);
+  });
+
+  it("offers I can't take one, and says what happens instead once it is ticked", async () => {
+    const answers = { selfie_skipped: false };
+    const w = mountPhoto({ photo: "selfie", answers });
+    expect(w.text()).toContain(copy.selfie.cannot);
+    expect(w.text()).not.toContain(copy.selfie.cannotHint);
+    await w.setProps({ answers: { selfie_skipped: true } as never });
+    expect(w.text()).toContain(copy.selfie.cannotHint);
+  });
+
+  it("does not offer it once a selfie is on file, and never on a document's screen", () => {
+    const filed = mountPhoto({
+      photo: "selfie", answers: { selfie_skipped: false },
+      captures: [{ slot: "selfie", contentType: "image/webp", bytes: 1, capturedAt: "2026-09-27T14:00:00Z" }],
+    });
+    expect(filed.text()).not.toContain(copy.selfie.cannot);
+    expect(filed.text()).toContain(copy.selfie.receivedEarlier);
+    expect(mountPhoto().text()).not.toContain(copy.selfie.cannot);
+    expect(mountPhoto().find("[data-selfie-why]").exists()).toBe(false);
+  });
+
+  it("asks a face, not a card, to be checked before it is sent", async () => {
+    const w = mountPhoto({ photo: "selfie", answers: { selfie_skipped: false } });
+    await button(w, copy.take).trigger("click");
+    await flushPromises();
+    expect(w.text()).toContain(copy.selfie.check);
+    expect(w.text()).not.toContain(copy.check);
+    expect(w.find("figure").classes()).toContain("rounded-surface");
   });
 });

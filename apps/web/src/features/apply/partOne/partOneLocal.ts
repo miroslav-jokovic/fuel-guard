@@ -1,5 +1,5 @@
-import { onScopeDispose, watch, type Ref } from "vue";
-import { copyExpiry, deleteCopy, isLive, putCopy, readCopy, type LocalCopySpec } from "../deviceCopies";
+import { watch, type Ref } from "vue";
+import { copyExpiry, debouncedCopy, deleteCopy, isLive, putCopy, readCopy, type LocalCopySpec } from "../deviceCopies";
 import { HELD_UNTIL_SCREENING, type PartOneAnswers, type PartOneScreen, type PrefilledField } from "./partOneScreens";
 
 export type { LocalCopySpec } from "../deviceCopies";
@@ -119,12 +119,21 @@ export function useHeldCopy(opts: {
   const now = opts.now ?? (() => new Date());
   if (!spec) return { ready: Promise.resolve(false) };
 
-  let timer: ReturnType<typeof setTimeout> | null = null;
   let restoring = true;
-  const stop = (): void => {
-    if (timer !== null) clearTimeout(timer);
-    timer = null;
-  };
+  // Written 300 ms after the last change, and at once when the page is hidden or closed (C3d3b1).
+  const writer = debouncedCopy(() => {
+    const part = heldPart(answers);
+    if (!typedAny(part)) return;
+    void writeHeld({
+      key: spec.key,
+      version: HELD_COPY_VERSION,
+      answers: part,
+      passed: HELD_UNTIL_SCREENING.filter((s) => held.has(s)),
+      fromLicence: [...fromLicence.value],
+      savedAt: now().toISOString(),
+      expiresAt: heldExpiry(now(), spec.linkExpiresAt),
+    });
+  }, WRITE_DEBOUNCE_MS);
 
   async function restore(): Promise<boolean> {
     // The server holds screens 3–6 once §40.25(j) is on file; a copy on the device is then only a risk.
@@ -141,32 +150,23 @@ export function useHeldCopy(opts: {
     return true;
   }
 
+  /** A screen passed is written at once; a keystroke waits for the next pause (`debouncedCopy`). */
+  let heldSize = held.size;
   function save(): void {
-    stop();
+    writer.cancel();
+    const passedOne = held.size > heldSize;
+    heldSize = held.size;
     if (restoring || begun.value) return;
-    timer = setTimeout(() => {
-      timer = null;
-      const part = heldPart(answers);
-      if (!typedAny(part)) return;
-      void writeHeld({
-        key: spec!.key,
-        version: HELD_COPY_VERSION,
-        answers: part,
-        passed: HELD_UNTIL_SCREENING.filter((s) => held.has(s)),
-        fromLicence: [...fromLicence.value],
-        savedAt: now().toISOString(),
-        expiresAt: heldExpiry(now(), spec!.linkExpiresAt),
-      });
-    }, WRITE_DEBOUNCE_MS);
+    if (passedOne) writer.now();
+    else writer.schedule();
   }
 
   watch(() => [heldPart(answers), [...held], fromLicence.value], save, { deep: true });
   watch(begun, (isBegun) => {
     if (!isBegun) return;
-    stop();
+    writer.cancel();
     void clearHeld(spec.key);
   });
-  onScopeDispose(stop);
 
   const ready = restore().finally(() => {
     restoring = false;

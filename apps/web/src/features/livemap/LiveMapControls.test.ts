@@ -35,11 +35,19 @@ afterEach(() => {
 describe("the live map's control rail", () => {
   it("keeps the basemaps behind a button rather than in a permanent row (D-LM22)", () => {
     render("satellite");
-    // Nothing is open, so the two basemaps the reader is NOT on are not on the canvas at all…
+    // Nothing is open, so none of the basemaps is on the canvas as text at all…
     expect(entries()).toEqual([]);
-    // …but the one they ARE on is still named, which is what the row used to tell them.
-    expect(document.body.textContent).toContain("Satellite");
     expect(document.body.textContent).not.toContain("Terrain");
+  });
+
+  // Owner, 2026-09-30: the trigger is the map icon alone. The active basemap stays NAMED — to a
+  // screen reader and on hover — because hiding the row was the ask, not hiding which one is on.
+  it("draws the trigger as an icon, and still names the active basemap to a reader and on hover", () => {
+    render("satellite");
+    const trigger = document.body.querySelector('[aria-label="Basemap: Satellite"]');
+    expect(trigger).not.toBeNull();
+    expect(trigger!.textContent?.trim()).toBe("");
+    expect(trigger!.querySelector('[title="Basemap: Satellite"]')).not.toBeNull();
   });
 
   it("offers the three basemaps our HERE plan actually serves, once opened", async () => {

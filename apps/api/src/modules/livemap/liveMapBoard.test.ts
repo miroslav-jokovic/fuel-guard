@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
-import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
+import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
+import { IN_LIST_CHUNK } from "../../lib/paging.js";
 
 const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NOW = new Date("2026-09-15T18:00:00.000Z");
@@ -107,6 +108,61 @@ describe("the live map board", () => {
     expect(b.vehicles[0]!.load).toMatchObject({ id: "load-1", ref: "L-4417", status: "in_transit" });
     // The next stop is the first one NOT already worked — a completed pickup is behind the truck.
     expect(b.vehicles[0]!.load!.nextStop).toMatchObject({ seq: 2, kind: "dropoff", city: "Green Bay" });
+  });
+
+  /**
+   * The load's two ends on the truck card (TRUCK-CARD-ROUTE-PLAN D-TC2): the first pickup and the last
+   * delivery by `seq`, whatever order the rows arrive in — the Loads board's `boardStops`, so the two
+   * surfaces cannot name a different pickup — with McLeod's place name and the street address.
+   */
+  it("names the load's first pickup and last delivery by sequence, with addresses", async () => {
+    const stop = (seq: number, kind: string, location_name: string, address_line: string) => ({
+      load_id: "load-1", seq, kind, name: `ours-${seq}`, location_name, address_line, city: "City", state: "WI",
+      postal_code: `5430${seq}`, appointment_start: null, appointment_end: null, status: "pending", external_status: "A",
+    });
+    const stops = [
+      stop(4, "dropoff", "Final DC", "4 Last Rd"),
+      stop(2, "pickup", "Second shipper", "2 Mid St"),
+      stop(1, "pickup", "First shipper", "1 Main St"),
+      stop(3, "dropoff", "Interim DC", "3 Mid Ave"),
+    ];
+    for (const order of [stops, [...stops].reverse()]) {
+      const b = await board(recorder({
+        loads: [{ id: "load-1", vehicle_id: "veh-1", ref: "L-1", status: "in_transit" }],
+        stops: order,
+      }));
+      const load = b.vehicles[0]!.load!;
+      expect(load.pickup).toMatchObject({ seq: 1, name: "First shipper", addressLine: "1 Main St", postalCode: "54301" });
+      expect(load.delivery).toMatchObject({ seq: 4, name: "Final DC", addressLine: "4 Last Rd", postalCode: "54304" });
+      expect(load.extraStops).toBe(2);
+    }
+  });
+
+  it("reads stops for many loads in chunks of ids, each truck keeping its own pickup", async () => {
+    const n = 2 * IN_LIST_CHUNK + 3;
+    const ids = Array.from({ length: n }, (_, i) => i);
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicle_positions: { data: ids.map((i) => position({ vehicle_id: `veh-${i}` })) },
+        vehicles: { data: ids.map((i) => vehicle({ id: `veh-${i}`, unit_number: String(1000 + i), assigned_driver_id: null })) },
+        drivers: { data: [] },
+        loads: { data: ids.map((i) => ({ id: `load-${i}`, vehicle_id: `veh-${i}`, ref: `L-${i}`, status: "in_transit" })) },
+        // A function of the query: the recorder applies no filters, so a flat list would hand every
+        // chunk every stop and hide a chunk that lost its ids.
+        load_stops: (q: RecordedQuery) =>
+          (q.filters().find((f) => f.col === "load_id")!.val as string[]).map((loadId) => ({
+            load_id: loadId, seq: 1, kind: "pickup", name: `pickup of ${loadId}`, location_name: null, address_line: null,
+            city: null, state: null, postal_code: null, appointment_start: null, appointment_end: null, status: "pending",
+          })),
+      },
+    });
+    const b = await board(rec);
+    expectOrgScoped(rec, ORG);
+    const reads = rec.forTable("load_stops");
+    expect(reads).toHaveLength(3);
+    for (const q of reads) expect((q.filters().find((f) => f.col === "load_id")!.val as string[]).length).toBeLessThanOrEqual(IN_LIST_CHUNK);
+    expect(b.vehicles).toHaveLength(n);
+    for (const v of b.vehicles) expect(v.load!.pickup!.name).toBe(`pickup of ${v.load!.id}`);
   });
 
   it("reports no next stop when every stop is behind the truck", async () => {
@@ -255,15 +311,61 @@ describe("the live map board", () => {
   // query with every row. So the assertions above prove the board's ASSEMBLY and prove nothing about
   // its WHERE clauses; dropping the status filter entirely would leave all of them green. These two
   // read the recorded filters directly, which is the only way to pin a predicate with this fake.
-  it("asks `loads` only for statuses that mean the load is on a truck now", async () => {
-    const rec = recorder({ loads: [{ id: "l", vehicle_id: "veh-1", ref: null, status: "in_transit" }] });
-    await board(rec);
-    const q = rec.forTable("loads")[0]!;
-    const statuses = q.ops.find((o) => o.method === "in" && o.args[0] === "status")?.args[1];
-    expect(statuses).toEqual(["accepted", "in_transit"]);
-    // A draft or offered load is not what a truck is doing, and delivered/canceled are finished.
-    expect(statuses).not.toContain("draft");
-    expect(statuses).not.toContain("delivered");
+  it("asks `loads` for the statuses some source can mean 'on a truck', and nothing finished or unsent", () => {
+    // Pinned against the recorded filter, since the recorder applies none. The per-source rule itself
+    // is applied in TypeScript after the read (`isLoadOnTruck`), and the next tests prove THAT.
+    const rec = recorder({ loads: [{ id: "l", vehicle_id: "veh-1", ref: null, status: "in_transit", source: "tms" }] });
+    return board(rec).then(() => {
+      const q = rec.forTable("loads")[0]!;
+      const statuses = q.ops.find((o) => o.method === "in" && o.args[0] === "status")?.args[1] as string[];
+      expect([...statuses].sort()).toEqual(["accepted", "approved", "in_transit"]);
+      expect(statuses).not.toContain("pending_approval");
+      expect(statuses).not.toContain("delivered");
+    });
+  });
+
+  // ── 2026-09-28: McLeod loads on the map (D-MCC12, "draw only P") ──────────────────────────────────
+  // Before this, the map drew `accepted`/`in_transit` only. A McLeod load never becomes `accepted`, so a
+  // truck McLeod had planned a load onto, with nothing departed yet (`approved`), showed no load.
+  describe("which loads a truck carries", () => {
+    const truckLoad = (o: Record<string, unknown>) => ({ id: "load-1", vehicle_id: "veh-1", ref: "0001", source: "tms", external_status: "P", ...o });
+
+    it("draws a McLeod load McLeod has planned but not started", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "approved" })] }));
+      expect(b.vehicles[0]!.load).toMatchObject({ id: "load-1", status: "approved", source: "tms", externalStatus: "P" });
+    });
+
+    it("does not draw an office-approved load that did not come from McLeod: nobody released it to a driver", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "approved", source: "manual", external_status: null })] }));
+      expect(b.vehicles[0]!.load).toBeNull();
+    });
+
+    it("never draws McLeod's A, even with a truck on it", async () => {
+      const b = await board(recorder({ loads: [truckLoad({ status: "pending_approval", external_status: "A" })] }));
+      expect(b.vehicles[0]!.load).toBeNull();
+    });
+
+    it("shows the load under way when a truck holds two, whichever order the rows arrive in", async () => {
+      const current = truckLoad({ id: "load-now", ref: "0009", status: "in_transit" });
+      const next = truckLoad({ id: "load-next", ref: "0001", status: "approved" });
+      for (const loads of [[current, next], [next, current]]) {
+        const b = await board(recorder({ loads }));
+        expect(b.vehicles[0]!.load!.id).toBe("load-now");
+      }
+    });
+
+    it("names as next stop the first one McLeod has not departed, not the pickup it left", async () => {
+      const stopRow = (seq: number, external_status: string, name: string) => ({
+        load_id: "load-1", seq, kind: seq === 1 ? "pickup" : "dropoff", name, city: null, state: null,
+        appointment_start: null, appointment_end: null, status: "pending", external_status,
+      });
+      const b = await board(recorder({
+        loads: [truckLoad({ status: "in_transit" })],
+        // Out of sequence on purpose: the answer must come from `seq`, not from row order.
+        stops: [stopRow(3, "A", "Final"), stopRow(1, "D", "Shipper"), stopRow(2, "A", "Consignee")],
+      }));
+      expect(b.vehicles[0]!.load!.nextStop).toMatchObject({ seq: 2, name: "Consignee" });
+    });
   });
 
   it("asks `drivers` only for the ids its own vehicles named", async () => {
@@ -307,5 +409,58 @@ describe("the live map board", () => {
     expect(b.vehicles).toEqual([]);
     expect(b.scope).toBe("all");
     expect(b.generatedAt).toBe(NOW.toISOString());
+  });
+});
+
+// D-LM29 / LS3, the 2026-09-30 status audit.
+describe("the live map board — engine state, the shop, and trucks it cannot draw", () => {
+  it("derives state from the ECU engine state and serves it", async () => {
+    const rec = recorder({
+      positions: [
+        position({ vehicle_id: "veh-1", speed_mph: 0, sampled_at: agoSec(21 * 86400), engine_state: "Off" }),
+        position({ vehicle_id: "veh-2", speed_mph: 0, sampled_at: agoSec(4000), engine_state: "Idle" }),
+        position({ vehicle_id: "veh-3", speed_mph: 0, sampled_at: agoSec(200), engine_state: "Idle" }),
+      ],
+      vehicles: [vehicle(), vehicle({ id: "veh-2", unit_number: "1208" }), vehicle({ id: "veh-3", unit_number: "1209" })],
+    });
+    const b = await board(rec);
+    const byId = new Map(b.vehicles.map((v) => [v.vehicleId, v]));
+    // Off three weeks ago is parked — the sold-awaiting-pickup truck, not a lost signal.
+    expect(byId.get("veh-1")).toMatchObject({ state: "parked", engineState: "Off" });
+    // Last reported running and silent for over an hour: THAT is offline.
+    expect(byId.get("veh-2")).toMatchObject({ state: "offline", engineState: "Idle" });
+    // Running, pinging slowly: stopped, where the ping-rate rule said parked.
+    expect(byId.get("veh-3")).toMatchObject({ state: "stopped", engineState: "Idle" });
+  });
+
+  it("serves a null engine state as null, never as Off", async () => {
+    const b = await board(recorder({ positions: [position({ engine_state: null })] }));
+    expect(b.vehicles[0]!.engineState).toBeNull();
+  });
+
+  it("keeps a shop truck on the board and says it is in the shop (Q-LM8a)", async () => {
+    const b = await board(recorder({ vehicles: [vehicle({ status: "maintenance" })] }));
+    expect(b.vehicles).toHaveLength(1);
+    expect(b.vehicles[0]!.inShop).toBe(true);
+    const active = await board(recorder());
+    expect(active.vehicles[0]!.inShop).toBe(false);
+  });
+
+  it("names the fleet's trucks with no position instead of dropping them silently, retired excluded", async () => {
+    const rec = recorder({
+      positions: [position()],
+      vehicles: [
+        vehicle(),
+        vehicle({ id: "veh-813", unit_number: "813" }),
+        vehicle({ id: "veh-797", unit_number: "797" }),
+        vehicle({ id: "veh-old", unit_number: "501", status: "retired" }),
+      ],
+    });
+    const b = await board(rec);
+    expect(b.untracked).toEqual([
+      { vehicleId: "veh-797", unitNumber: "797" },
+      { vehicleId: "veh-813", unitNumber: "813" },
+    ]);
+    expectOrgScoped(rec, ORG);
   });
 });

@@ -133,7 +133,17 @@ export interface StorageReconcileResult extends StorageReconcilePlan {
  */
 export async function reconcileBucketOrphans(
   admin: SupabaseClient,
-  source: { bucket: string; table: string; label: string; deferredColumn?: string },
+  source: {
+    bucket: string;
+    table: string;
+    label: string;
+    deferredColumn?: string;
+    /**
+     * Further tables whose `storage_path` names an object in the same bucket. A bucket indexed by two
+     * tables and swept against one would have the other's objects deleted as orphans after the grace.
+     */
+    alsoIndexedBy?: readonly string[];
+  },
   opts: { apply?: boolean; nowIso?: string } = {},
 ): Promise<StorageReconcileResult> {
   // `deferredColumn` names a SECOND path column on the same row whose object may not exist yet. It
@@ -143,6 +153,12 @@ export async function reconcileBucketOrphans(
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Array<Record<string, string | null>>;
   const rowPaths = rows.map((r) => r.storage_path as string);
+  for (const table of source.alsoIndexedBy ?? []) {
+    const { data: more, error: moreError } = await admin.from(table).select("storage_path");
+    // Thrown, never skipped: an index that could not be read would make its objects look orphaned.
+    if (moreError) throw new Error(moreError.message);
+    rowPaths.push(...((more ?? []) as Array<{ storage_path: string }>).map((r) => r.storage_path));
+  }
   const deferred: DeferredPath[] = source.deferredColumn
     ? rows.flatMap((r) => {
         const path = r[source.deferredColumn as string];
@@ -248,6 +264,12 @@ export function reconcileLoadPhotoOrphans(
  * the failure mode it can cause is "we kept bytes we could have deleted", never "we deleted
  * evidence".
  *
+ * ⚠ **TWO TABLES INDEX THIS BUCKET SINCE C3s1** (APPLICATION-FLOW-V2-PLAN.md D-AW15). A driver's
+ * adopted signature and initials are PNGs here with a `signature_adoptions` row and, deliberately, no
+ * `documents` row — an adopted mark is not a qualification-file document. Swept against `documents`
+ * alone, every adoption would have been deleted 24 hours after it was made, and the permissions signed
+ * with it would have printed the typed name from then on.
+ *
  * DERIVATIVES NEED NO SPECIAL CASE. A thumb or a normalized render is its own `documents` row with
  * its own `storage_path` (plan B1/B2), so it appears in the same `select storage_path` this reads.
  * A derivative whose row is gone is an orphan like any other.
@@ -256,5 +278,9 @@ export function reconcileComplianceDocOrphans(
   admin: SupabaseClient,
   opts: { apply?: boolean; nowIso?: string } = {},
 ): Promise<StorageReconcileResult> {
-  return reconcileBucketOrphans(admin, { bucket: "compliance-docs", table: "documents", label: "documents" }, opts);
+  return reconcileBucketOrphans(
+    admin,
+    { bucket: "compliance-docs", table: "documents", label: "documents", alsoIndexedBy: ["signature_adoptions"] },
+    opts,
+  );
 }

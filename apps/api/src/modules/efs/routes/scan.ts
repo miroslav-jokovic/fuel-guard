@@ -7,7 +7,7 @@ import { documentShape, parseCardDocument } from "../lib/efsCardXml.js";
 import { unmodelledCardFields } from "../lib/efsCardFields.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 
 /**
  * `POST /api/fuel-cards/config-scan` — what vocabulary does this account actually emit? (Step 4.4)
@@ -50,7 +50,7 @@ export function fuelCardConfigScanRouter(): Router {
   router.post(
     "/config-scan",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const admin = getSupabaseAdmin(env);

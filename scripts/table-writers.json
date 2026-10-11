@@ -16,14 +16,17 @@
     "apps/api/src/modules/recruiting/applicationReview.ts"
   ],
   "application_intakes": [
-    "apps/api/src/modules/recruiting/applicantIntake.ts"
+    "apps/api/src/modules/recruiting/applicantIntake.ts",
+    "apps/api/src/modules/recruiting/applicantSelfie.ts"
   ],
   "application_invitations": [
     "apps/api/src/modules/recruiting/applicationHandoff.ts",
     "apps/api/src/modules/recruiting/applicationLink.ts",
     "apps/api/src/modules/recruiting/applicationReview.ts",
+    "apps/api/src/modules/recruiting/applicationSendForSigning.ts",
     "apps/api/src/modules/recruiting/handbookSigning.ts",
-    "apps/api/src/modules/recruiting/routes/applicationInvites.ts"
+    "apps/api/src/modules/recruiting/routes/applicationInvites.ts",
+    "apps/api/src/modules/recruiting/signLinkUnlock.ts"
   ],
   "asset_types": [
     "apps/api/src/modules/maintenance/inventory/assetTypes.ts"
@@ -31,6 +34,10 @@
   "audit_logs": [
     "apps/admin-api/src/lib/impersonation.ts",
     "apps/api/src/lib/audit.ts"
+  ],
+  "card_fraud_incidents": [
+    "apps/api/src/modules/anomalies/assignAnomalies.ts",
+    "apps/api/src/modules/anomalies/transitionCardFraudIncident.ts"
   ],
   "case_pattern_reports": [
     "apps/api/src/modules/anomalies/entityRisk.ts"
@@ -43,9 +50,27 @@
     "apps/api/src/modules/efs/services/efsIngestReject.ts",
     "apps/api/src/modules/fuel/declineDriverResolution.ts"
   ],
+  "declined_txn_scores": [
+    "apps/api/src/modules/anomalies/declinedScoring.ts"
+  ],
   "device_push_tokens": [
     "apps/api/src/modules/messaging/notify.ts",
     "apps/api/src/modules/messaging/routes/notifications.ts"
+  ],
+  "document_page_classes": [
+    "apps/api/src/modules/document-reading/read/classifyPages.ts"
+  ],
+  "document_pages": [
+    "apps/api/src/modules/document-reading/intake/intake.ts"
+  ],
+  "document_read_reviews": [
+    "apps/api/src/modules/document-reading/read/requests.ts"
+  ],
+  "document_reads": [
+    "apps/api/src/modules/document-reading/read/requests.ts"
+  ],
+  "document_sources": [
+    "apps/api/src/modules/document-reading/intake/intake.ts"
   ],
   "documents": [
     "apps/api/src/modules/evidence/compliance.ts",
@@ -86,6 +111,9 @@
   ],
   "driver_time_off": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
+  ],
+  "driver_hos_clocks": [
+    "apps/api/src/modules/samsara/hosClocksFeed.ts"
   ],
   "driver_vehicle_assignments": [
     "apps/api/src/modules/idle/idleSync.ts",
@@ -162,6 +190,9 @@
   "fleetpal_webhook_deliveries": [
     "apps/api/src/modules/fleetpal/deliveries.ts"
   ],
+  "fmcsa_fetch_runs": [
+    "apps/api/src/modules/inspections/feed/store.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
@@ -194,6 +225,9 @@
     "apps/api/src/modules/posted-prices/postedPriceIngest.ts",
     "apps/api/src/modules/posted-prices/roadRangerIngest.ts"
   ],
+  "fuel_recon_run_rows": [
+    "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
+  ],
   "fuel_recon_runs": [
     "apps/api/src/modules/fuel-spend/fuelReconRun.ts"
   ],
@@ -223,8 +257,7 @@
     "apps/api/src/modules/fuel/driverAttribution.ts",
     "apps/api/src/modules/fuel/fillWeather.ts",
     "apps/api/src/modules/fuel/fuelStationResolve.ts",
-    "apps/api/src/modules/org/routes/audit.ts",
-    "apps/web/src/features/fuel/useCreateFillUp.ts"
+    "apps/api/src/modules/org/routes/audit.ts"
   ],
   "geocode_cache": [
     "apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
@@ -262,6 +295,12 @@
   "idle_telemetry_windows": [
     "apps/api/src/modules/idle/idleTelemetrySync.ts"
   ],
+  "ifta_fuel_receipt_uploads": [
+    "apps/api/src/modules/ifta/uploadedReceipts.ts"
+  ],
+  "ifta_fuel_receipts": [
+    "apps/api/src/modules/ifta/uploadedReceipts.ts"
+  ],
   "import_rows": [
     "apps/api/src/modules/efs/services/efsIngestRejects.ts"
   ],
@@ -281,8 +320,7 @@
     "apps/api/src/modules/maintenance/inventory/tagIssuance.ts"
   ],
   "invites": [
-    "apps/api/src/modules/org/inviteRedemption.ts",
-    "apps/api/src/modules/org/routes/invites.ts"
+    "apps/api/src/modules/org/inviteRedemption.ts"
   ],
   "jobs": [
     "apps/api/src/modules/org/jobs.ts"
@@ -300,6 +338,9 @@
   ],
   "load_external_payloads": [
     "apps/api/src/modules/mcleod/tmsLoadIngestWriters.ts"
+  ],
+  "load_stop_eta_predictions": [
+    "apps/api/src/modules/loads/etaPredictions.ts"
   ],
   "load_stops": [
     "apps/api/src/modules/loads/mirrorLoads.ts",
@@ -324,6 +365,9 @@
   "mcleod_deductions": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "mcleod_fuel_tax_receipts": [
+    "apps/api/src/modules/mcleod/fuelTaxReceipts.ts"
+  ],
   "mcleod_gl_accounts": [
     "apps/api/src/modules/mcleod/ledgerControlIngest.ts"
   ],
@@ -345,7 +389,6 @@
   ],
   "memberships": [
     "apps/api/src/modules/org/inviteRedemption.ts",
-    "apps/api/src/modules/org/routes/members.ts",
     "apps/api/src/modules/roster/driverCredentials.ts"
   ],
   "message_reports": [
@@ -377,15 +420,9 @@
   "org_modules": [
     "apps/admin-api/src/lib/orgs.ts"
   ],
-  "org_role_surface_access": [
-    "apps/api/src/modules/org/routes/surfaceAccess.ts"
-  ],
-  "org_section_access": [
-    "apps/api/src/modules/org/routes/sectionAccess.ts"
-  ],
   "organizations": [
     "apps/api/src/modules/org/digestScheduler.ts",
-    "apps/web/src/composables/useOrgSettings.ts"
+    "apps/api/src/modules/org/routes/orgSettings.ts"
   ],
   "part_stock": [
     "apps/api/src/modules/maintenance/inventory/stockSettings.ts",
@@ -405,8 +442,14 @@
   "platform_admins": [
     "apps/admin-api/src/lib/platformAdmins.ts"
   ],
+  "platform_alert_recipients": [
+    "apps/admin-api/src/lib/alertRecipients.ts"
+  ],
   "platform_audit_log": [
     "apps/admin-api/src/lib/audit.ts"
+  ],
+  "platform_release_approvals": [
+    "apps/admin-api/src/lib/releaseApproval.ts"
   ],
   "psp_requests": [
     "apps/api/src/modules/psp/pspOrder.ts"
@@ -418,7 +461,7 @@
   ],
   "route_fuel_settings": [
     "apps/api/src/modules/posted-prices/routes/networks.ts",
-    "apps/web/src/composables/useRouteFuelSettings.ts"
+    "apps/api/src/modules/routing/routeFuelSettings.ts"
   ],
   "route_geometries": [
     "apps/api/src/modules/routing/routeGeometry.ts"
@@ -431,6 +474,9 @@
   ],
   "samsara_ifta_fetches": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
+  ],
+  "samsara_documents": [
+    "apps/api/src/modules/samsara/samsaraDocumentsSync.ts"
   ],
   "samsara_ifta_jurisdiction_miles": [
     "apps/api/src/modules/samsara/samsaraIftaSync.ts"
@@ -466,7 +512,12 @@
     "apps/api/src/modules/messaging/messages.ts"
   ],
   "tms_dispatchers": [
+    "apps/api/src/modules/mcleod/dispatchLinks.ts",
     "apps/api/src/modules/mcleod/tmsDispatcherIngest.ts"
+  ],
+  "tms_fleets": [
+    "apps/api/src/modules/mcleod/dispatchLinks.ts",
+    "apps/api/src/modules/mcleod/fleetCodes.ts"
   ],
   "tms_movements": [
     "apps/api/src/modules/mcleod/tmsIngest.ts"
@@ -484,11 +535,8 @@
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/org/routes/members.ts"
   ],
-  "user_section_access": [
-    "apps/api/src/modules/org/routes/sectionAccess.ts"
-  ],
-  "user_surface_access": [
-    "apps/api/src/modules/org/routes/surfaceAccess.ts"
+  "vehicle_fuel_tax_exclusions": [
+    "apps/api/src/modules/ifta/fuelTaxExclusion.ts"
   ],
   "vehicle_engine_days": [
     "apps/api/src/modules/idle/idleCapabilitySync.ts"
@@ -506,6 +554,7 @@
     "apps/api/src/modules/anomalies/scoring/persist.ts",
     "apps/api/src/modules/idle/idleCapabilitySync.ts",
     "apps/api/src/modules/roster/equipmentInspection.ts",
+    "apps/api/src/modules/roster/vehicleFleetCodes.ts",
     "apps/api/src/modules/samsara/samsaraVehicleSync.ts",
     "apps/web/src/composables/useDrivers.ts",
     "apps/web/src/composables/useVehicles.ts",
@@ -515,8 +564,14 @@
     "apps/api/src/modules/idle/idleSessionWeather.ts",
     "apps/api/src/modules/idle/weatherBackfill.ts"
   ],
+  "recruiting_settings": [
+    "apps/api/src/modules/recruiting/recruitingSettings.ts"
+  ],
   "road_test_examiners": [
     "apps/api/src/modules/recruiting/roadTest.ts"
+  ],
+  "application_packet_countersignatures": [
+    "apps/api/src/modules/recruiting/packetCountersign.ts"
   ],
   "handbook_marks": [
     "apps/api/src/modules/recruiting/handbookCeremony.ts",

@@ -22,6 +22,7 @@ export interface RawDispatchMovement {
   trailer_type: string | null;
   commodity: string | null;
   customer_id: string | null;
+  customer_name: string | null;
   weight: number | string | null;
   weight_um: string | null;
   pieces: number | null;
@@ -90,6 +91,7 @@ export interface ProjectedLoad {
   trailer_unit: string | null;
   dispatcher_external_id: string | null;
   customer_code: string | null;
+  customer_name: string | null;
   weight_lbs: number | null;
   pieces: number | null;
   consignee_ref: string | null;
@@ -101,6 +103,18 @@ export interface ProjectedLoad {
 export type ProjectionOutcome =
   | { ok: true; load: ProjectedLoad; notes: string[] }
   | { ok: false; movement_id: string; reason: string };
+
+/**
+ * Whether McLeod has the truck gone from a stop. `stop.status` takes two values on the open board, `A`
+ * and `D`. Measured on live `lme` 2026-09-28 (96 `P` movements, 253 stops): all 97 `D` stops carry
+ * `actual_departure` and none of the 156 `A` stops does. Five `A` stops carry an arrival: the truck is
+ * AT that stop, which is not behind it. No movement had a `D` stop after a stop that was not `D`.
+ * So `D` is "departed", and it is the one definition read by both the projection (in transit = a stop
+ * departed) and the live map (next stop = the first not departed, `nextStopOnRoute`).
+ */
+export function mcleodStopDeparted(stopStatus: string | null | undefined): boolean {
+  return (stopStatus ?? "").trim() === "D";
+}
 
 /**
  * McLeod movement status → our status (D-LMR7: status is McLeod's, the Dispatch act is separate).
@@ -119,7 +133,7 @@ export function projectMcleodStatus(movementStatus: string | null, stopStatuses:
     case "A":
       return "pending_approval";
     case "P":
-      return stopStatuses.some((s) => (s ?? "").trim() === "D") ? "in_transit" : "approved";
+      return stopStatuses.some(mcleodStopDeparted) ? "in_transit" : "approved";
     case "D":
       return "delivered";
     case "V":
@@ -164,20 +178,30 @@ function stopName(s: RawDispatchStop): string {
 export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatchStop[]): ProjectionOutcome {
   const status = projectMcleodStatus(m.movement_status, stops.map((s) => s.status));
   if (!m.order_id) return { ok: false, movement_id: m.movement_id, reason: "no order attached" };
+  // A stop's number is its identity on our side (`load_stops` is unique on load + seq), so a movement
+  // whose stops lack McLeod's sequence, or repeat one, cannot be stored. Refused HERE, one movement at a
+  // time: it used to fall back to the stop's position, which can collide with another stop's real number
+  // and fail the whole batch's stop write, every cycle. Never seen — 0 null, 0 repeated in 72,633 TMS
+  // stops over the year to 2026-09-28 — which is why it must be said by name if it ever happens.
+  const numbered = stops.flatMap((s) => (s.movement_sequence == null ? [] : [{ ...s, movement_sequence: s.movement_sequence }]));
+  // One test covers both: a missing number leaves fewer distinct numbers than stops, and so does a repeat.
+  if (new Set(numbered.map((s) => s.movement_sequence)).size !== stops.length) {
+    return { ok: false, movement_id: m.movement_id, reason: "stop sequence missing or repeated" };
+  }
   if (!status) return { ok: false, movement_id: m.movement_id, reason: `unknown McLeod status '${m.movement_status ?? ""}'` };
 
   const notes: string[] = [];
-  const ordered = [...stops].sort((a, b) => (a.movement_sequence ?? 0) - (b.movement_sequence ?? 0));
+  const ordered = [...numbered].sort((a, b) => a.movement_sequence - b.movement_sequence);
   const projected: ProjectedStop[] = [];
-  ordered.forEach((s, i) => {
+  ordered.forEach((s) => {
     const kind = STOP_KIND[(s.stop_type ?? "").trim()];
     if (!kind) {
-      notes.push(`movement ${m.movement_id}: stop ${s.movement_sequence ?? i + 1} type '${s.stop_type ?? ""}' kept in raw, not drawn`);
+      notes.push(`movement ${m.movement_id}: stop ${s.movement_sequence} type '${s.stop_type ?? ""}' kept in raw, not drawn`);
       return;
     }
     projected.push({
       // McLeod's own sequence, so a stop keeps its number across syncs even when a VA sits between.
-      seq: s.movement_sequence ?? i + 1,
+      seq: s.movement_sequence,
       kind,
       name: stopName(s),
       address_line: s.address,
@@ -218,6 +242,7 @@ export function projectMcleodMovement(m: RawDispatchMovement, stops: RawDispatch
       trailer_unit: m.trailer_id,
       dispatcher_external_id: m.dispatcher_user_id,
       customer_code: m.customer_id,
+      customer_name: m.customer_name,
       weight_lbs: projectWeightLbs(m.weight, m.weight_um),
       // Same reading as weight (D-LMR8): McLeod's 0 pieces is "not entered" — the one zero-weight order
       // on the 2026-09-24 board carried 0 pieces too, and zero-weight orders carry pieces on 2 of 8,526.

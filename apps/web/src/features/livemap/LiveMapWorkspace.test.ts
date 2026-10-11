@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
 import { createRouter, createMemoryHistory } from "vue-router";
 import type { LiveMapBoard } from "@silvicom/shared";
+
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
+
 
 /**
  * The full-bleed live-map workspace (DR5 §4, relaid out by D-DR25).
@@ -32,6 +41,7 @@ const BOARD: LiveMapBoard = {
   scopeReason: "Showing every truck: loads carry no dispatcher yet.",
   bounds: { stoppedSpeedMph: 3, engineOnBoundSeconds: 900, offlineBoundSeconds: 5400, fuelFreshSeconds: 900 },
   truncated: false,
+  untracked: [],
   vehicles: [
     {
       vehicleId: "veh-1",
@@ -39,6 +49,8 @@ const BOARD: LiveMapBoard = {
       driver: { id: "drv-1", name: "Jordan Ellis" },
       state: "moving",
       ageSeconds: 12,
+      engineState: null,
+      inShop: false,
       load: null,
       fuel: { percent: 68, at: "2026-09-16T11:58:00.000Z" },
       position: {
@@ -69,6 +81,18 @@ vi.mock("./useLiveMapBoard", () => ({
   LIVE_MAP_QUERY_KEY: ["livemap", "positions"],
   useLiveMapBoard: () => board,
 }));
+
+/** The route query, faked like the board: it records which load it was asked for (D-TC7). */
+const routeAsked = vi.hoisted(() => ({ loadId: null as { value: string | null } | null }));
+vi.mock("@/composables/useLoadRoute", async () => {
+  const { ref } = await import("vue");
+  return {
+    useLoadRoute: (loadId: { value: string | null }) => {
+      routeAsked.loadId = loadId;
+      return { data: ref(null), error: ref(null), isFetching: ref(false) };
+    },
+  };
+});
 
 const stub = { template: "<div />" };
 
@@ -107,12 +131,12 @@ const router = createRouter({
   ],
 });
 
-async function mountWorkspace() {
+async function mountWorkspace(at = "/live-map") {
   // Fresh module graph per case: the panel state is a module-level singleton by design, so a toggle
   // in one case would otherwise be the starting state of the next.
   vi.resetModules();
   const { default: LiveMapWorkspace } = await import("./LiveMapWorkspace.vue");
-  await router.push("/live-map");
+  await router.push(at);
   await router.isReady();
   return mount(LiveMapWorkspace, {
     global: {
@@ -178,6 +202,36 @@ describe("LiveMapWorkspace (DR5)", () => {
    * The census IS the status filter (D-DR25): the counts used to be stated twice, once in a "Fleet
    * status" panel and once inside the Status dropdown's option labels. Pressing one filters.
    */
+  /**
+   * The owner cleared a status filter by reloading the page (2026-09-30): pressing a tile again did
+   * clear it, but nothing said so, and the map did not follow the list. "All" is the way back, and
+   * the canvas is handed the full fleet again on the click — not on the next poll.
+   */
+  it("returns to every truck from the All button, and hands the map the whole fleet again", async () => {
+    board.data.value = {
+      ...BOARD,
+      vehicles: [
+        BOARD.vehicles[0]!,
+        { ...BOARD.vehicles[0]!, vehicleId: "veh-2", unitNumber: "48", state: "parked" },
+      ],
+    };
+    const wrapper = await mountWorkspace();
+    const button = (label: string) => wrapper.findAll("button").find((b) => b.text().startsWith(label))!;
+    const drawn = () => (wrapper.findComponent({ name: "LiveMapCanvas" }).props("vehicles") as unknown[]).length;
+
+    expect(button("All trucks").attributes("aria-pressed")).toBe("true");
+    expect(drawn()).toBe(2);
+
+    await button("Parked").trigger("click");
+    expect(button("All trucks").attributes("aria-pressed")).toBe("false");
+    expect(drawn()).toBe(1);
+
+    await button("All trucks").trigger("click");
+    expect(button("All trucks").attributes("aria-pressed")).toBe("true");
+    expect(button("Parked").attributes("aria-pressed")).toBe("false");
+    expect(drawn()).toBe(2);
+  });
+
   it("filters from the census button rather than from a second control that repeats it", async () => {
     const wrapper = await mountWorkspace();
     const moving = wrapper.findAll("button").find((b) => b.text().startsWith("Moving"));
@@ -231,8 +285,10 @@ describe("LiveMapWorkspace (DR5)", () => {
     expect(details.get("summary").text()).toBe("1 truck in the fleet · refreshes every 5s");
     expect(details.text()).toContain(BOARD.scopeReason);
     // Read from `bounds`, which this board deliberately sets to something other than production's.
-    expect(details.text()).toContain("No fix for over 90 min");
-    expect(details.text()).toContain("Not moving, heard from within 900s");
+    expect(details.text()).toContain("no signal for over 90 min");
+    expect(details.text()).toContain("heard from within 900s");
+    // D-LM29 gave parked a sentence of its own: engine off, whatever the age.
+    expect(details.text()).toContain("Engine off");
   });
 
   /**
@@ -319,5 +375,79 @@ describe("LiveMapWorkspace (DR5)", () => {
     await wrapper.findComponent({ name: "LiveMapCanvas" }).vm.$emit("select", "veh-1");
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[aria-label="Unit 47"]').exists()).toBe(true);
+  });
+  /**
+   * D-TC7: the route toggle. One route at a time, asked for only when turned on, and cleared whenever
+   * the selection moves — a line left under a truck the card no longer describes is unaccountable.
+   */
+  it("asks for the selected load's route only when its toggle is on, and closes it only when asked (D-TC7)", async () => {
+    const second = { ...BOARD.vehicles[0]!, vehicleId: "veh-2", unitNumber: "52", load: { id: "load-2", ref: "0002", status: "in_transit", nextStop: null } };
+    board.data.value = {
+      ...BOARD,
+      vehicles: [{ ...BOARD.vehicles[0]!, load: { id: "load-1", ref: "0001", status: "in_transit", nextStop: null } }, second],
+    };
+    try {
+      const wrapper = await mountWorkspace();
+      const canvas = wrapper.findComponent({ name: "LiveMapCanvas" });
+      const asked = () => routeAsked.loadId?.value ?? null;
+      const toggle = () => wrapper.find('[aria-label="Show route"], [aria-label="Hide route"]');
+      const bar = () => wrapper.find('[role="status"]');
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBeNull();
+      expect(bar().exists()).toBe(false);
+
+      // On from the card's icon; off from it again.
+      expect(toggle().attributes("aria-pressed")).toBe("false");
+      await toggle().trigger("click");
+      expect(asked()).toBe("load-1");
+      expect(toggle().attributes("aria-pressed")).toBe("true");
+      expect(bar().text()).toContain("Route · Unit 47 · Load 0001");
+      await toggle().trigger("click");
+      expect(asked()).toBeNull();
+
+      // Closing the card or clicking empty map — the gesture a fuel-stop click used to be mistaken
+      // for — leaves the route and its bar on screen.
+      await toggle().trigger("click");
+      await canvas.vm.$emit("select", null);
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBe("load-1");
+      expect(bar().exists()).toBe(true);
+
+      // Re-selecting the same truck keeps it; choosing another truck replaces it.
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBe("load-1");
+      await canvas.vm.$emit("select", "veh-2");
+      await wrapper.vm.$nextTick();
+      expect(asked()).toBeNull();
+
+      // The bar closes it from anywhere.
+      await canvas.vm.$emit("select", "veh-1");
+      await wrapper.vm.$nextTick();
+      await toggle().trigger("click");
+      await canvas.vm.$emit("select", null);
+      await wrapper.vm.$nextTick();
+      await bar().findAll("button").find((b) => b.text() === "Hide route")!.trigger("click");
+      expect(asked()).toBeNull();
+      expect(bar().exists()).toBe(false);
+    } finally {
+      board.data.value = BOARD;
+    }
+  });
+
+  // The Dispatch board drawer's "On the map" (DISPATCH-BOARD-PLAN DB6): `?truck=<unit>`.
+  it("opens on the truck the URL names, then drops the parameter so the reader's next choice is theirs", async () => {
+    const wrapper = await mountWorkspace("/?tab=dispatch&truck=47");
+    await flushPromises();
+    expect(wrapper.findComponent(canvasStub).props("selectedId")).toBe("veh-1");
+    expect(router.currentRoute.value.query).toEqual({ tab: "dispatch" });
+  });
+
+  it("drops a unit the board does not carry and opens on the fleet, as it would without one", async () => {
+    const wrapper = await mountWorkspace("/?tab=dispatch&truck=999");
+    await flushPromises();
+    expect(wrapper.findComponent(canvasStub).props("selectedId")).toBeNull();
+    expect(router.currentRoute.value.query).toEqual({ tab: "dispatch" });
   });
 });

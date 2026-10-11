@@ -1,10 +1,23 @@
 import type { RouteRecordRaw } from "vue-router";
 
 /**
- * Settings, and the org-level configuration that lives under it. Several of these carry
- * `requiresAdmin` or `requiresAuditAccess`; the guard in `../index.ts` is what enforces them.
+ * Settings, and the org-level configuration that lives under it.
+ *
+ * Every route here is a surface in `surfaceCatalogue.ts` since SP1 (SETTINGS-PERMISSIONS-PLAN.md),
+ * and the guard in `../index.ts` reads its gate from there. `requiresAdmin` stays only on the four
+ * screens Q-SET1 keeps admin-only — Users, Permissions, Card control, EFS integration — where the
+ * catalogue's `ADMIN` gate says the same; the rest are permissions an admin can give per role or
+ * per person, and start off for everyone who could not open them before (Q-SET2).
  */
 export const settingsRoutes: RouteRecordRaw[] = [
+  {
+    // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2). No section meta: `admin.settings.mcleod-fleets`
+    // in the surface catalogue says `settings: view`, and the guard reads it from there.
+    path: "/settings/mcleod-fleets",
+    name: "mcleod-fleets-settings",
+    component: () => import("@/pages/McleodFleetsSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "McLeod fleets", parent: "/settings" },
+  },
   {
     path: "/settings/card-control",
     name: "card-control-settings",
@@ -47,12 +60,22 @@ export const settingsRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Permissions", parent: "/settings" },
   },
   {
+    // R1 (APPLICATION-FLOW-V2-PLAN.md, Q-AW42): the carrier's Representatives and road-test examiners.
+    // No section meta: `admin.recruiting` in the surface catalogue says `recruitment: view`, and the
+    // guard reads it — so a recruiter, who holds `settings: none`, still reaches it by URL. It lives
+    // under Settings (a card there, no sidebar entry — owner's ruling 2026-09-28), so its crumb is
+    // Settings like its neighbours'.
+    path: "/settings/recruiting",
+    name: "recruiting-settings",
+    component: () => import("@/pages/SettingsRecruitingPage.vue"),
+    meta: { requiresAuth: true, title: "Recruiting", parent: "/settings" },
+  },
+  {
     path: "/settings/thresholds",
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Anomaly Thresholds",
       parent: "/settings",
     },
@@ -63,16 +86,17 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/DriverPerformanceSettingsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Driver Performance",
       parent: "/settings",
     },
   },
   {
     // Driver-app control plane (hardening plan Phase 5, D-PM6). `roster` and not `settings`: this
-    // console decides what DRIVERS see, and its API half gates on rolesThatManage("roster")
-    // (driverAppSettings.ts) — the route now asks the same question the endpoint answers.
-    // (admin + fleet_manager) — org-wide app policy is fleet management, not org administration.
+    // console decides what DRIVERS see. The catalogue gates the screen on `roster: manage`, and its
+    // API half (driverAppSettings.ts) asks the same question with `requireSection("roster")` for the
+    // org settings and the closure queue — the ORG's matrix, not the shipped one. The per-driver
+    // exceptions tab writes through `requireSection("dispatch")` instead, a separate section (SP5
+    // corrected this comment, which named `rolesThatManage("roster")` and "admin + fleet_manager").
     path: "/settings/driver-app",
     name: "driver-app-settings",
     component: () => import("@/pages/DriverAppSettingsPage.vue"),
@@ -84,7 +108,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/FuelPlanningSettingsPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
       title: "Planned Fueling",
       parent: "/settings",
     },
@@ -107,16 +130,27 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/settings/fleetpal",
+    name: "fleetpal-settings",
+    component: () => import("@/pages/FleetpalSettingsPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "FleetPal Integration",
+      parent: "/settings",
+    },
+  },
+  {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Organization", parent: "/settings" },
+    meta: { requiresAuth: true, title: "Organization", parent: "/settings" },
   },
   {
     path: "/settings/notifications",
     name: "notifications",
     component: () => import("@/pages/NotificationsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Notifications", parent: "/settings" },
+    meta: { requiresAuth: true, title: "Notifications", parent: "/settings" },
   },
   {
     path: "/settings/audit",
@@ -124,7 +158,6 @@ export const settingsRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/AuditPage.vue"),
     meta: {
       requiresAuth: true,
-      requiresAuditAccess: true,
       title: "Audit Log",
       parent: "/settings",
     },

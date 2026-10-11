@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { pdfPageCount, pdfPageTexts, pdfText } from "../../../../testing/pdfText.js";
+import { signingPlaceDestination } from "@silvicom/shared";
+import { pdfDrawnRules, pdfPageCount, pdfPageTexts, pdfText } from "../../../../testing/pdfText.js";
+import { pdfDestinations } from "../../../../testing/pdfDestinations.js";
 import { handbookPdf, type HandbookDocumentInput } from "./handbookPdf.js";
 import { HANDBOOK_BLOCKS, HANDBOOK_VERSION } from "./handbookText.js";
 
@@ -93,5 +95,33 @@ describe("the reading copy", () => {
   it("draws exactly the places signed so far", async () => {
     const text = await pdfText(await handbookPdf(input({ marks: all(["h1"]), countersign: null })));
     expect(text.match(/09\/25\/2026/g)).toHaveLength(1);
+  });
+
+  /**
+   * D-HB12: every place is named inside the PDF, on the page it was drawn on, over its own rule — so the
+   * walk opens that page and tags that line. ⚠ Checked against the RULES the renderer stroked, not
+   * against the renderer's own arithmetic: a destination one page off would still be a FitR.
+   */
+  it("names every signing place, as a FitR box sitting on its own signature rule", async () => {
+    const pdf = await handbookPdf(input({ marks: new Map(), countersign: null }));
+    const dests = await pdfDestinations(pdf);
+    const rules = await pdfDrawnRules(pdf);
+    const places = HANDBOOK_BLOCKS.filter((b) => b.k === "sign").map((b) => b.id);
+    expect(places.sort()).toEqual(["h1", "h2", "h3", "h4", "h4c", "h5"]);
+    const pages = new Set<number>();
+    for (const id of places) {
+      const d = dests.get(signingPlaceDestination(id));
+      expect(d, id).toBeDefined();
+      expect(d!.kind).toBe("FitR");
+      const [left, bottom, right, top] = d!.args as [number, number, number, number];
+      expect(right - left, id).toBeGreaterThan(150);
+      expect(top - bottom, id).toBeCloseTo(28, 0);
+      // The rule is stroked `bottom` up from the foot, i.e. 792 - bottom down from the top.
+      const onRule = rules.some((r) => r.page === d!.page - 1 && Math.abs(r.y - (792 - bottom)) < 0.6);
+      expect(onRule, `${id}'s box does not sit on a rule on page ${d!.page}`).toBe(true);
+      pages.add(d!.page);
+    }
+    // The five places are spread through the handbook, not piled on one page.
+    expect(pages.size).toBeGreaterThan(2);
   });
 });

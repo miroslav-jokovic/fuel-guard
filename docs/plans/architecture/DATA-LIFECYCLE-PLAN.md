@@ -612,7 +612,7 @@ trustworthy document in the repo.
 
 ## 7. Open questions — owner rulings required
 
-**Q1 — the 4.7M existing `audit_logs` rows. RULED (a) by the owner 2026-09-22 — leave them; L7 partitions around them.** `D-LIFE4` stops the noise; it does not decide what
+**Q1 — the 4.7M existing `audit_logs` rows. RULED (a) by the owner 2026-09-22 — leave them; L7 partitions around them. ⚠ REOPENED and RE-RULED (b) 2026-09-30 — archive them, then drop them with L7; see §8 of that date.** `D-LIFE4` stops the noise; it does not decide what
 happens to 924k/week of already-written actor-less `vehicle.update` rows. Candidates:
 (a) leave them, partition around them, let them age out of the hot set — **recommended**, it decides
 nothing irreversible and L7 delivers the working-set benefit anyway; (b) migrate them to `sync_runs`
@@ -936,7 +936,7 @@ which does not exist; (c) accept drift: bound the cascade, re-sync history only 
 rebuild. **Recommendation: (c)**, pending the `verdict_hash` measurement in §8's 2026-09-22 entry for
 #971 — it is what the live path already does, and it makes the import path agree with it.
 
-**Q9 — where does a PLATFORM alarm go? OPENED 2026-09-22 by L6; must be answered before L7.**
+**Q9 — where does a PLATFORM alarm go? OPENED 2026-09-22 by L6; must be answered before L7. ANSWERED 2026-10-05:** to the platform owners' list in Settings → Alert recipients (`platform_alert_recipients`, 0427, chosen for the release summary under RELEASE-TRAIN Q-REL4), pushed by `.github/workflows/platform-health.yml` every 15 minutes from outside the API and database (a variant of (a) that also covers "the API itself is down", which (a) could not). It pages a non-ok `maintenance.state`, a schema drift, or an unreachable `/api/version` on the second sighting in a row, once, by email and SMS, and sends the recovery. L7 is no longer blocked on Q9. Original question follows.
 Every alarm in this repo today notifies an org's office through `notify()` + email to the users who
 manage a section — `fuelSweepFreshness.ts`, `samsaraFeedAlarm.ts`, D-FIN3. That is right for "your
 numbers are stale" and wrong for "the database's partition maintenance stopped": no carrier's office
@@ -950,6 +950,48 @@ judge, L8); (b) an external uptime monitor on `/api/version`'s `ok` — no code,
 it only sees what `ok` folds in; (c) surface it in the admin console — pull-only, the same blind spot.
 **Recommendation: (a)**, built with L8's growth judge as its first two consumers, and (b) on top if
 the owner already has a monitor.
+
+**Q10 — may an audit row record a changed column's VALUES? OPENED 2026-09-30 by 0390.** 0390 records
+which columns an UPDATE changed (`meta.changed`, names only). The next step, `{from, to}` per column,
+is what an enterprise audit trail usually holds. Here it would copy values that sit behind other
+permissions into a table with no per-column permission: the driver's date of birth, address, phone,
+CDL number and pay rate, and the truck's purchase cost and insurance policy. Anyone granted the Audit
+log would then read them. Candidates: (a) names only, permanently; (b) values for columns classified
+non-sensitive, with the classification declared per column in `scripts/table-modules.json` (the
+registry L1 extended) and enforced by a gate, so a new column defaults to names-only; (c) values for
+everything. **Recommendation: (b)**, but only once someone asks for a value the names cannot answer.
+Until then (a) holds at no cost. (c) is ruled out by the permission model, not by preference.
+
+**Q11 — may `notification_events` be pruned, given its rows are the alert schedulers' dedupe ledger? OPENED 2026-10-05 by 0430; RULED (b) by the owner the same day.**
+The table has no rule (`table-modules.json`: "Retention unruled — L9") and grows with every alert
+fan-out: ~2,100 rows in 30 days to seven office people, 590 in the busiest inbox, 146 of them from the
+09-30 card status poll alone. The obvious "keep 90 days" is unsafe as written, because the rows are not
+only an inbox: `dqAlertScheduler.sentKeys`, `fuelSweepFreshness.alreadySent` and `financialFreshness`
+read past `dedupe_key`s to decide what is NEW, and the unique index `uq_notification_dedupe` is the
+idempotency guarantee. Delete a row and its alert re-arms — an expiry already reported would be
+reported again on the next run. 0430 cleared the bell with a per-user `dismissed_at` stamp for exactly
+this reason, rather than a delete.
+Candidates: (a) prune only rows whose `dedupe_key` encodes an instance that cannot recur (a job id, a
+day, an hour — `card_status_changed:…:<hour>`, `fuel:stale:…:<day>`), keyed by category, and never the
+`dq:%` keys; (b) move dedupe out of the inbox into its own narrow ledger (`org_id, dedupe_key,
+first_sent_at`) so the inbox can be pruned freely; (c) leave it unbounded. **Recommendation: (b)** —
+it is the honest split (an inbox and an idempotency ledger have opposite lifecycles, the same argument
+D-LIFE4 made for `audit_logs`), and it also retires a second defect: `sentKeys` reads every `dq:%` key
+with no limit, so past 1,000 rows PostgREST truncates it and the scheduler re-sends. (a) is cheaper
+but leaves that defect and needs a per-category list kept in step with every new alert.
+**As built:** 0432 adds `notification_dedupe_keys` (per recipient, backfilled with each key's first
+send time; RLS on, no policies) and `emit_notification` claims a key there before writing an event.
+`notification_keys_sent()` answers the schedulers in one array, and all three read it through
+`keysAlreadySent()` in `messaging`. `notification_events` takes a 90-day rule in the SAME merge as
+those readers, so a revert takes both; the ledger is pinned in `RETENTION_FORBIDDEN`.
+Found on the way and fixed with it: the DQ threshold key carried no expiry date, so a renewed
+document was never alerted on again at the same threshold. The key now carries `goodUntil`; an
+old-format key still counts when first sent within 91 days (the current cycle), so the change
+re-alerts nothing. That transition code can go after 2027-01-05.
+Left open: a SUPPRESSED emit (module off, muted, quiet hours) claims no key, as before, so a
+scheduler whose every recipient is suppressed sees its finding as new on every run and emails the
+office each time. Zero `notification_preferences` rows on 2026-10-05, so it cannot fire today; it
+becomes real the day the first person mutes a category.
 
 ## 8. Progress log
 
@@ -1610,3 +1652,41 @@ Append dated lines at the END. Never edit a row above (see `plan-progress-log-no
   uncoerced, `maintenance` not published.
   ⚠ Still a PULL surface: `ok` going false is only heard if something watches it. Q9 is open and
   blocks L7.
+- **2026-09-30 — Q1 reopened and re-ruled (b): archive, then drop** (owner: *"proceed as proposed"*,
+  after SETTINGS-PERMISSIONS-PLAN.md SP4 measured what the Audit log's exact count cost). The fact that
+  changed the answer, measured in production: **all 5,059,909** pre-0352 `vehicle.update` /
+  `driver.update` rows with no actor carry **`meta = '{}'`**. They record that some column on an
+  entity changed at an instant, and neither who changed it nor what changed. They cannot answer any
+  question a regulator, auditor or carrier would ask, so they are not evidence. Q1 (a) was ruled
+  before anyone had looked at `meta`. The rest of the table is ~5,000 real rows: 538 `vehicle.update`
+  and 3 `driver.update` with an actor, and every other action. `audit_logs` is 1,231 MB of a
+  4,125 MB database. Since 0352 the table grows 40–110 rows/day, down from 125–180 k.
+  **How (b) is carried out, folded into L7:** Merge A creates the partitioned table. The drain copies
+  only rows that are not `(action in ('vehicle.update','driver.update') and actor_id is null and
+  meta = '{}' and created_at < '2026-09-23')`. Before the swap, the excluded rows are exported as
+  gzip JSONL to Supabase Storage with a row count and sha256 recorded here. The old table is then
+  dropped, not DELETEd. Dropping frees the 1.2 GB at once, where a 5 M-row DELETE would leave the
+  file at full size until a table-locking VACUUM FULL. It is a deliberate, audited service-role act
+  run by the owner, and remains subject to `RETENTION_FORBIDDEN`: it is not a side effect of any job.
+  **Two more items came out of the same research.** (1) `audit_row_change()` writes `meta = '{}'` on
+  every UPDATE today too, so even a real human edit does not record which field changed. Next: record
+  the changed columns, with their old and new values, in `meta`, minus the ignored columns and
+  `updated_at`. That work is ungated and goes first. (2) A retention window for the hot partitions,
+  with older months exported to Storage before detaching, is a separate ruling for after L7. The
+  regulated records are kept in their own append-only tables, not in this log.
+  ⚠ **L7 is still blocked by Q9** (where a platform alarm goes). Its recommendation (a),
+  `PLATFORM_ALERT_EMAIL`, is unruled.
+- **2026-09-30 — 0390: an audited UPDATE records which columns changed.** `audit_row_change()` never
+  wrote `meta`, so every update row read `{}`. It now writes `{"changed": [...]}`: the non-ignored
+  columns, sorted, never `updated_at`. INSERT and DELETE keep `{}`. Names only, because values would
+  copy roster and ownership data past its permission (Q10, opened). 0352's filtering is unchanged, and
+  the triggers are not recreated. `audit-telemetry-ignored.test.mjs` gains four cases: two names
+  sorted; telemetry in the same statement not named; a date of birth named and its value absent; an
+  insert keeping `{}`. Six mutants, all killed, bytes sha256-restored.
+- 2026-10-05 — Q9, half answered by the release train: a platform alert channel now EXISTS — table
+  `platform_alert_recipients` (0427), kept in the console's Settings, read by
+  `scripts/release-notify.mjs` (email always, SMS for failures). What Q9 still needs before L7 is the
+  PUSH: a check that sends `lifecycle_maintenance_health()` going non-`ok` to that list. Recommendation
+  (a) is unchanged, except its `PLATFORM_ALERT_EMAIL` env var is superseded by the table.
+- 2026-10-05 — Q11 opened: `notification_events` retention is blocked on its dedupe role (found while fixing the bell's Mark all read, 0430). No rule added.
+- 2026-10-05 — Q11 ruled (b) and built: 0432 (ledger), then the readers + the 90-day `notification_events` rule in one merge. DQ renewal key fixed alongside.

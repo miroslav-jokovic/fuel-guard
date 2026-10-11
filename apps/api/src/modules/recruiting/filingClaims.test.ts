@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ROAD_TEST_ITEM_KEYS } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { postgrestFixture } from "../../testing/postgrestFixture.js";
 import { countersignHandbook, isHandbookError } from "./handbookSigning.js";
 import { HANDBOOK_VERSION } from "./applicationPdf/handbook/handbookText.js";
 import { recordRoadTest } from "./roadTest.js";
+
+// Q-HB1: the packet's countersignature runs first in the same press and has its own tests
+// (`packetCountersign.test.ts`). Here it succeeds and hands back the Representative it was given, so
+// these stay about the handbook.
+vi.mock("./packetCountersign.js", async (original) => ({
+  ...(await original<typeof import("./packetCountersign.js")>()),
+  countersignPacket: vi.fn(async (...args: unknown[]) => ({ representative: args[6], documentId: "doc-packet" })),
+}));
 
 /**
  * A-10 (C2c): a filing that is pressed twice files once. The handbook claims
@@ -36,7 +44,7 @@ describe("the handbook countersign claims before it files", () => {
           // The claim is a conditional UPDATE: losing it is an update that matched no row.
           if (q.write?.method === "update" && over.claimWon === false) return [];
           return [{
-            id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: "2026-09-25T11:00:00Z",
+            id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: "2026-09-25T09:00:00Z",
             handbook_filed_at: null, expires_at: "2099-01-01T00:00:00.000Z",
           }];
         },

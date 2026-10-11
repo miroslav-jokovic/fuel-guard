@@ -3,8 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   HIRING_PHASE_LABELS,
-  canWriteDriverLifecycle,
-  rolesThatManage,
+  canPurgeApplicant,
   type HiringPhase,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
@@ -32,6 +31,7 @@ import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
+import PurgeApplicantDrawer from "@/features/recruitment/PurgeApplicantDrawer.vue";
 import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
 
 /**
@@ -193,7 +193,10 @@ function openApplicant(id: string): void {
  * blocks. They see everything else on this board.
  */
 const session = useSessionStore();
-const canHire = computed(() => canWriteDriverLifecycle(session.role));
+// SP5: `roster: manage` from the ORG's matrix — the gate `POST /api/recruitment/hire` now reads
+// (`requireSection("roster")`). `canWriteDriverLifecycle` was the same predicate on the SHIPPED
+// matrix, so an org's grant or narrowing of the roster section never reached the button.
+const canHire = computed(() => session.can("roster"));
 const hiring = ref<PipelineApplicant | null>(null);
 
 /**
@@ -201,16 +204,23 @@ const hiring = ref<PipelineApplicant | null>(null);
  *
  * It lived only inside a driver's Employment tab, which meant somebody had to be created as a
  * driver under Fleet before they could be invited to become one. Hiring is gated harder (0213
- * refuses a recruiter's status change in a trigger, so `canHire` is `canWriteDriverLifecycle`);
+ * refuses a recruiter's status change in a trigger, so `canHire` is `roster: manage`);
  * inviting is recruitment's own work and takes the section gate.
  */
-const canInvite = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canInvite = computed(() => session.can("recruitment"));
 const inviting = ref(false);
 
 const archiving = ref<PipelineApplicant | null>(null);
+
+/**
+ * Q-AW40: an admin may delete an applicant outright — offered on the ARCHIVED view only. Archiving is
+ * the reversible step and deleting the irreversible one, so the second is reached through the first;
+ * the api refuses a purge of an un-archived applicant (`not_archived`), so the rule is one rule.
+ */
+const canPurge = computed(() => canPurgeApplicant(session.role));
+const purging = ref<PipelineApplicant | null>(null);
 const archiveDriver = useArchiveDriver();
 const toast = useToastStore();
 
@@ -393,13 +403,16 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         </template>
 
         <template #actions="{ row }">
-          <KebabMenu v-if="canHire || canInvite">
+          <KebabMenu v-if="canHire || canInvite || (canPurge && showArchived)">
             <BaseButton v-if="canHire && !showArchived" class="kebab-item" @click="hiring = row">Hire…</BaseButton>
             <BaseButton v-if="canInvite && !showArchived" class="kebab-item" @click="archiving = row">
               Archive…
             </BaseButton>
             <BaseButton v-if="canInvite && showArchived" class="kebab-item" @click="setArchived(row, false)">
               Restore
+            </BaseButton>
+            <BaseButton v-if="canPurge && showArchived" class="kebab-item kebab-item-danger" @click="purging = row">
+              Delete permanently…
             </BaseButton>
           </KebabMenu>
         </template>
@@ -416,6 +429,8 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
       @close="archiving = null"
       @confirm="archiving && setArchived(archiving, true)"
     />
+
+    <PurgeApplicantDrawer :applicant="purging" @close="purging = null" />
 
     <InviteApplicantDrawer
       :open="inviting"

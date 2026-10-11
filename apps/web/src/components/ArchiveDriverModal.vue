@@ -9,8 +9,9 @@ import BaseModal from "@/components/ui/BaseModal.vue";
  * Because "archive" is the word a user has learned means DELETE in most products, and the one thing
  * this dialog has to do is say what actually happens: the row stops appearing in one list, and
  * nothing else changes. `drivers` is in `RETENTION_FORBIDDEN` (D-BD12) and 0235 refuses the DELETE
- * for everybody including the service role, so there is no destructive version of this button to be
- * confused with. Stating that is worth an extra click.
+ * for everybody including the service role. Since Q-AW40 there IS a destructive version for an
+ * applicant never hired — an admin's "Delete permanently…" (0380, `PurgeApplicantDrawer`), offered
+ * only on the Archived view — which makes saying that THIS one changes nothing more worth the click.
  *
  * ── AND WHY IT IS SHARED BETWEEN TWO PAGES ────────────────────────────────────────────────────
  * `DriversPage` and `RecruitmentPage` archive the same table for two different lists. Two copies of

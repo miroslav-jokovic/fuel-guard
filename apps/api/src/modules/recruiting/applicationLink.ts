@@ -1,15 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  INVITE_TTL_DAYS_DEFAULT,
   canResendApplicationLink,
   renderApplicationInviteEmail,
   renderApplicationLinkResentEmail,
+  stoppedBeforeLinkExpires,
 } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { writeAudit } from "../../lib/audit.js";
 import { mintInvitationToken } from "./applicationIntake.js";
 import { mintIntakeRow } from "./applicantIntake.js";
 import { carrierName, deliverApplicationMail, type ApplicationInviteDelivery } from "./applicationMail.js";
+import { recruitingSettings } from "./recruitingSettings.js";
 
 /**
  * The office's hold on an applicant's link (C2e: Q-AX5, Q-AX6).
@@ -52,7 +53,7 @@ export const isApplicationLinkError = (v: unknown): v is ApplicationLinkError =>
 
 // ⚠ ONE string literal, as the route's own `INVITE_COLS` explains.
 export const INVITE_COLS =
-  "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, handbook_filed_at, revoked_at, created_at";
+  "id, driver_id, email, expires_at, consented_at, intake_completed_at, releases_completed_at, application_sent_at, review_requested_at, approved_at, signing_opened_at, submitted_at, handbook_filed_at, revoked_at, created_at, sign_link_expires_at, unlock_failures";
 
 const applyLink = (env: Env, token: string): string => `${env.WEB_APP_URL}/apply/${token}`;
 
@@ -75,9 +76,24 @@ async function applicantOf(admin: SupabaseClient, orgId: string, driverId: strin
   return { email: row.email };
 }
 
+/** Q-AW51: the override would expire the link before the office's alert could fire. */
+export const linkShorterThanDelay = (hours: number): ApplicationLinkError => ({
+  status: 422,
+  code: "link_shorter_than_delay",
+  message: `This link would expire before the driver counts as stopped (after ${hours} hours), so the office would never be told. Make it last longer, or leave it blank for the carrier's setting.`,
+});
+
 /**
  * A new invitation (H5) — moved here from the route unchanged in behaviour, because "send the link
  * again" needs it too when the current one is finished.
+ *
+ * `days` is the invite drawer's override for this one link; absent, the carrier's own lifetime
+ * (Q-AW41, `recruitingSettings`) — never a constant, which would quietly overrule the carrier.
+ *
+ * ⚠ An override is refused when the link would die before its driver counts as stopped (Q-AW51, ruled
+ * (a) by the owner 2026-09-29): the reminder sweep skips an expired invitation, so the office would
+ * never be told this applicant stopped — Q-AW50's defect on one invitation. The same rule the settings
+ * contract holds (`stoppedBeforeLinkExpires`), checked before anything is written.
  *
  * ⚠ Sending never decides whether the invitation exists: the row and the audit are committed before
  * the mailer is touched, and a refused send is reported rather than raised (the route's header).
@@ -90,8 +106,12 @@ export async function createApplicationInvite(
   const applicant = await applicantOf(admin, input.orgId, input.driverId);
   if (isApplicationLinkError(applicant)) return applicant;
 
+  const settings = await recruitingSettings(admin, input.orgId);
+  if (input.days !== undefined && !stoppedBeforeLinkExpires(input.days, settings.reminder_after_hours)) {
+    return linkShorterThanDelay(settings.reminder_after_hours);
+  }
   const { token, hash } = mintInvitationToken();
-  const days = input.days ?? INVITE_TTL_DAYS_DEFAULT;
+  const days = input.days ?? settings.invite_ttl_days;
   const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
   const { data, error } = await admin
     .from("application_invitations")
@@ -136,8 +156,8 @@ export async function createApplicationInvite(
 }
 
 /**
- * The same invitation, a new link (Q-AX5): rotate the hash and keep the link alive for another
- * `INVITE_TTL_DAYS_DEFAULT` days — never shortening it (0232's rule, as the handbook's extension).
+ * The same invitation, a new link (Q-AX5): rotate the hash and keep the link alive for another of the
+ * carrier's link lifetimes (Q-AW41) — never shortening it (0232's rule, as the handbook's extension).
  *
  * The UPDATE is conditional on the invitation still being re-sendable, so a revoke or a handbook filing
  * that lands between the read and the write is honoured rather than overwritten.
@@ -149,7 +169,8 @@ async function resendOnInvitation(
   now: Date,
 ): Promise<ApplicationLinkResult | ApplicationLinkError> {
   const { invitation } = input;
-  const floor = new Date(now.getTime() + INVITE_TTL_DAYS_DEFAULT * 86_400_000);
+  const { invite_ttl_days: ttl } = await recruitingSettings(admin, input.orgId);
+  const floor = new Date(now.getTime() + ttl * 86_400_000);
   const expiresAt = Date.parse(invitation.expires_at) > floor.getTime() ? invitation.expires_at : floor.toISOString();
   const { token, hash } = mintInvitationToken();
   const { data, error } = await admin

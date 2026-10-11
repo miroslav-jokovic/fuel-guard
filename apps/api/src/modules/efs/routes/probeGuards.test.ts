@@ -5,6 +5,7 @@ import { cardRefHmac } from "../services/efsCardMirror.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { assertOrgOwnsCard, assertProbeAllowed, resolveProbeCredentials, resolveReadOnlyScanCredentials } from "./probeGuards.js";
+import { seal, secretAad } from "../../../lib/secretBox.js";
 
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
@@ -138,8 +139,8 @@ describe("resolveReadOnlyScanCredentials", () => {
     environment: "production",
     endpoint_url: "https://ws.efsllc.com/axis2/services/CardManagementWS/",
     soap_username: "user",
-    soap_password: "legacy-password",
-    soap_password_sealed: null,
+    soap_password: "",
+    soap_password_sealed: seal(env, "legacy-password", secretAad(ORG, "efs_soap_password.v1")),
     account_id: null,
     posted_last_cursor: null,
     rejected_last_cursor: null,

@@ -32,10 +32,7 @@ const WEB_SRC = path.join(process.cwd(), "src");
  * detector that quietly skips what it cannot parse is worse than no detector (`check-surfaces.mjs`
  * records the same reasoning about its own parser).
  */
-const FROM_SCRIPT: Record<string, string[]> = {
-  // `barCount` switches on the open tab — three labels, one per tab.
-  "pages/FuelReconciliationPage.vue": ["fills", "fills in sequence", "statements"],
-};
+const FROM_SCRIPT: Record<string, string[]> = {};
 
 interface Scan {
   labels: Set<string>;
@@ -106,17 +103,20 @@ const EXPECTED: Record<string, string> = {
   applicants: "applicant",
   cards: "card",
   changes: "change",
+  // FS3: Pilot invoices — one recorded invoice check per row.
+  checks: "check",
   contractors: "contractor",
+  // FS2: Fuel Costs — one row per day of the range.
+  days: "day",
   declines: "decline",
   dispatchers: "dispatcher",
   drivers: "driver",
   entries: "entry",
-  events: "event",
+  // DB-UX 2026-10-10: the Loads page's Exceptions tab keeps the toolbar, so it counts its rows.
+  exceptions: "exception",
   files: "file",
   "fill-ups": "fill-up",
-  fills: "fill",
   "fills in sequence": "fill in sequence",
-  findings: "finding",
   inspections: "inspection",
   inspectors: "inspector",
   invoices: "invoice",
@@ -124,17 +124,19 @@ const EXPECTED: Record<string, string> = {
   // I10's label screen counts what the RUN will produce, not what is ticked: "selected" is an
   // adjective and has no singular a person would say, which is the smell this table exists to catch.
   labels: "label",
+  // FS3: a saved check's bill lines, on the invoice check page.
+  lines: "line",
   loads: "load",
   parts: "part",
   plans: "plan",
+  // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.
+  problems: "problem",
   readings: "reading",
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.
   results: "result",
-  rows: "row",
   "segments loaded": "segment loaded",
   shelves: "shelf",
-  statements: "statement",
   trailers: "trailer",
   transactions: "transaction",
   "truck stops": "truck stop",

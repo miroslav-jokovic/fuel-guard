@@ -4,12 +4,12 @@ import {
   employerResponseDocumentSchema,
   inquiryAttemptSchema,
   inquiryOutcomeSchema,
-  rolesThatManage,
+  USER_ROLES,
   type EmployerResponseDocument,
   type InquiryAttempt,
   type InquiryOutcomeUpdate,
 } from "@silvicom/shared";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireRole, requireSection } from "../../../middleware/auth.js";
 import { loadInquiryQueue } from "../inquiryQueue.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
@@ -45,9 +45,15 @@ export function recruitmentInquiriesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canInvestigate = requireRole(
-    ...rolesThatManage("recruitment").filter(canReadInvestigationHistory),
-  );
+  // The INTERSECTION as two gates, exactly as the PSP routes hold it (psp.ts): the section half is the
+  // ORG's answer, the reader half is §391.23(k)(2)'s and stays a role test (D-PERM9). Until SP11 this
+  // was one list, `rolesThatManage("recruitment").filter(...)`, computed once from the SHIPPED matrix —
+  // so a recruiter whose org took Recruitment away still read former employers' answers here. Same
+  // three roles under the shipped matrix: admin, safety_manager, recruiter.
+  const canInvestigate = [
+    requireSection("recruitment"),
+    requireRole(...USER_ROLES.filter(canReadInvestigationHistory)),
+  ];
 
   /**
    * The fleet-wide queue (E5): every file with §391.23 work left, closest to its own deadline first.

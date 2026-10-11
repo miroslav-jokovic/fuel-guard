@@ -1,0 +1,492 @@
+name: Release
+
+# Production ships once a night, from a `production` branch only this workflow moves
+# (RELEASE-TRAIN-PLAN R5: D-REL2, D-REL5–D-REL9, D-REL12). `main` keeps merging all day and feeds
+# staging; nothing reaches production until this runs.
+#
+# ── MODES ────────────────────────────────────────────────────────────────────────────────────────
+#   nightly   cron, 01:07 CDT / 00:07 CST, Central Monday–Friday (= Sunday–Thursday NIGHTS, D-REL7).
+#             Ships the commit the owner APPROVED on the open release PR (main → production) that
+#             release-candidate.yml opened at 18:00 — the review's own commit, not main's head, so a
+#             merge landing after the approval rides the next train. No approval, no release.
+#   hotfix    dispatch, any hour (D-REL8). Ships `sha`, which must descend from production (branch
+#             `hotfix/<topic>` off the current production tag, CI green on its PR), then opens the PR
+#             that merges production back into main.
+#   rollback  dispatch (D-REL9). Moves production back to `tag`. Never reverses a migration.
+#   init      dispatch: creates `production` at the commit production serves now (read from both
+#             hosts' /api/version, never typed in), or fast-forwards it there if it fell behind.
+#
+# ── DORMANT UNTIL CUTOVER ────────────────────────────────────────────────────────────────────────
+# Until the repository variable RELEASE_TRAIN is `on`, every run is a REHEARSAL: it plans, writes the
+# notes and runs `supabase db push --dry-run`, and pushes, tags and deploys nothing. Railway's
+# production services still follow main until the owner switches them, so a real push here before
+# that would be a second, competing deploy path. The cutover checklist is in the plan, R5.
+#
+# ── ORDER (D-REL6), each step gating the next ────────────────────────────────────────────────────
+#   CI green for the commit → migrations → production fast-forwarded (Railway deploys) → both hosts
+#   verified at that commit and schema → smoke → driver OTA if the driver changed → tag + GitHub
+#   release with the notes. Migrations go FIRST, so for the deploy minutes new schema serves old
+#   code, never the reverse — the direction every migration is already written to survive.
+#
+# RELEASE_FREEZE=true (repository variable, D-REL12) makes the nightly run exit green with "frozen".
+# Hotfix and rollback ignore it: a freeze is for routine change, not for repairs.
+#
+# Secrets: SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD (as migrate.yml);
+# RELEASE_DEPLOY_KEY — the private half of a WRITE deploy key on this repository, and the only actor
+# the `production` ruleset lets move the branch. A deploy key reaches this one repository and
+# nothing else; the admin's personal token first planned here would have reached every repository
+# the admin owns, from a secret any workflow on main can read (2026-10-04, at cutover).
+#
+# ── HARDENING (2026-10-05) ───────────────────────────────────────────────────────────────────────
+#   Retry      a second cron at 01:37 CT. GitHub delays scheduled runs (the first night's 01:07 ran at
+#              01:53) and may drop one under load; the retry ships an approved release a dropped run
+#              missed, and finds "production already at" when the first run shipped. Its skips are
+#              silent, so a night yields one summary, not two.
+#   Backups    a nightly release refuses to start unless production's newest COMPLETED backup is under
+#              26 h old (daily physical backups land ~03:40 CT; PITR is off, measured 2026-10-05). A
+#              release is the moment a restore is most likely to be needed; a dead backup schedule is
+#              found here, not in the middle of one. A hotfix only warns: it is the repair.
+#   Rollback   a nightly or hotfix release that deploys but fails verify or smoke moves production
+#              back to the previous commit, verifies THAT, and pages. Migrations stay (D-REL9): old
+#              code on new schema is the direction every migration is written to survive.
+#   Summary    every outcome is an email to the owners; a failure or rollback also a text
+#              (scripts/release-notify.mjs, Q-REL4). Rehearsals send nothing.
+#
+# Who approves: a review by a human with ADMIN permission on this repository, OR an approval in the
+# production console by an active platform owner (D-REL14, table 0440) — the newer of the two wins.
+# Cutover step 1 lets github-actions open the release PR, and that same setting lets it approve one;
+# a bot approval must never be a go signal. `scripts/release-train.mjs approval` decides.
+
+on:
+  schedule:
+    - cron: "7 6 * * 1-5"
+    # The retry (header: HARDENING). Keep it the SECOND entry: the plan step tells them apart by it.
+    - cron: "37 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "nightly | hotfix | rollback | init"
+        type: choice
+        options: [nightly, hotfix, rollback, init]
+        default: nightly
+      sha:
+        description: "hotfix: the commit to ship (must descend from production)"
+        required: false
+        default: ""
+      tag:
+        description: "rollback: the release tag to return to, e.g. v2026.10.06"
+        required: false
+        default: ""
+      reason:
+        description: "hotfix / rollback: why (recorded in the release and the summary)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Rehearse only: plan and report, change nothing"
+        type: boolean
+        default: false
+
+# One release at a time, and a queued one is never cancelled: it may be the rollback.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ship: ${{ steps.plan.outputs.ship }}
+      dry: ${{ steps.plan.outputs.dry }}
+      mode: ${{ steps.plan.outputs.mode }}
+      sha: ${{ steps.plan.outputs.sha }}
+      before: ${{ steps.plan.outputs.before }}
+      tag: ${{ steps.plan.outputs.tag }}
+      driver: ${{ steps.plan.outputs.driver }}
+      reason: ${{ steps.plan.outputs.reason }}
+      notify_skip: ${{ steps.plan.outputs.notify_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Decide what ships
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # D-REL14: the console's approvals live in production's database (0440).
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          MODE: ${{ inputs.mode || 'nightly' }}
+          INPUT_SHA: ${{ inputs.sha }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REASON: ${{ inputs.reason }}
+          DRY_INPUT: ${{ inputs.dry_run && 'true' || 'false' }}
+          TRAIN: ${{ vars.RELEASE_TRAIN }}
+          FREEZE: ${{ vars.RELEASE_FREEZE }}
+          API_URL: ${{ vars.API_URL }}
+          WEB_URL: ${{ vars.WEB_URL }}
+          IS_RETRY: ${{ github.event.schedule == '37 6 * * 1-5' && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+          stop() { say "$1"; out ship false; out reason "$1"; exit 0; }
+          # A skip the owners hear about (no approval, frozen) — once a night, from the first run only.
+          skip() { [ "$IS_RETRY" = "true" ] || out notify_skip true; stop "$1"; }
+
+          dry=false
+          if [ "$DRY_INPUT" = "true" ]; then dry=true; fi
+          # init is exempt: creating the branch deploys nothing until Railway follows it, and the
+          # cutover needs the branch BEFORE the train is switched on.
+          if [ "$TRAIN" != "on" ] && [ "$MODE" != "init" ]; then dry=true; say "🎭 **Rehearsal** — RELEASE_TRAIN is not \`on\`, so nothing is pushed, migrated, tagged or deployed."; fi
+          out dry "$dry"; out mode "$MODE"
+
+          case "$MODE" in hotfix|rollback) [ -n "$REASON" ] || { echo "::error::$MODE needs a reason."; exit 1; } ;; esac
+
+          before=""
+          if git rev-parse -q --verify origin/production >/dev/null; then before=$(git rev-parse origin/production); fi
+
+          if [ "$MODE" = "init" ]; then
+            # Both hosts must serve the same commit, read twice 60 s apart: a deploy in flight shows
+            # as disagreement. The first init (2026-10-04) read the API between a merge's build and
+            # its going live, and created production one merge behind what production then served.
+            served() {
+              a=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.commit // empty' || true)
+              w=$(curl -sS --max-time 15 "${WEB_URL%/}/api/version" | jq -r '.commit // empty' || true)
+              [ -n "$a" ] && [ "$a" = "$w" ] && echo "$a"
+            }
+            s1=$(served || true); sleep 60; s2=$(served || true)
+            if [ -z "$s1" ] || [ "$s1" != "$s2" ]; then
+              echo "::error::Production is mid-deploy or its hosts disagree (api/web: ${s1:-?} then ${s2:-?}). Re-run when both serve one commit."; exit 1
+            fi
+            sha="$s2"
+            git cat-file -e "$sha^{commit}" || { echo "::error::Production serves $sha, which is not in this repository."; exit 1; }
+            git merge-base --is-ancestor "$sha" origin/main || { echo "::error::Production serves $sha, which is not on main."; exit 1; }
+            if [ -n "$before" ]; then
+              [ "$before" != "$sha" ] || stop "✓ \`production\` is at \`${sha::7}\`, the commit production serves — in sync."
+              # Re-sync moves FORWARD only. Production serving something older than the branch means a
+              # rollback or a failed deploy, which a person must look at, not this job.
+              git merge-base --is-ancestor "$before" "$sha" || { echo "::error::Production serves ${sha::7}, which is not ahead of the production branch ${before::7}. Refusing to rewind."; exit 1; }
+              say "Re-sync \`production\` \`${before::7}\` → \`${sha::7}\`, the commit both hosts serve."
+            else
+              say "Initialise \`production\` at \`${sha::7}\`, the commit both hosts serve."
+            fi
+            out sha "$sha"; out before "$before"; out tag ""; out driver no; out ship true; exit 0
+          fi
+
+          if [ "$MODE" = "nightly" ]; then
+            [ "$FREEZE" != "true" ] || skip "🧊 Frozen (RELEASE_FREEZE=true) — no release tonight."
+            if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$(node scripts/release-train.mjs night)" != "release" ]; then
+              stop "😴 Not a release night (D-REL7: Sunday–Thursday nights only)."
+            fi
+            pr=$(gh pr list --base production --head main --state open --json number --jq '.[0].number // empty')
+            sha="" via="" approver=""
+            if [ -n "$pr" ]; then
+              # The newer of a repository ADMIN's GitHub review and an active platform owner's console
+              # approval (D-REL5 + D-REL14); anyone else's approval is ignored.
+              signal=$(node scripts/release-train.mjs approval "$pr")
+              read -r sha via approver <<< "$signal" || true
+              # The approved commit must be main's: a review pinned to anything else is not a release.
+              if [ -n "$sha" ] && ! git merge-base --is-ancestor "$sha" origin/main; then
+                echo "::error::The approved commit ${sha::7} is not on main."; exit 1
+              fi
+            fi
+            if [ -z "$sha" ]; then
+              [ "$dry" = "true" ] || skip "⏭ No approved release PR${pr:+ (#$pr is open, not approved)} — today's work rides the next train (D-REL5)."
+              sha=$(git rev-parse origin/main)
+              say "Rehearsing with main's head \`${sha::7}\`; a real run ships only an approved release PR's commit."
+            else
+              say "Release PR #$pr approved by ${approver} (${via}) at \`${sha::7}\`."
+            fi
+          elif [ "$MODE" = "hotfix" ]; then
+            sha=$(git rev-parse --verify "${INPUT_SHA}^{commit}") || { echo "::error::sha '$INPUT_SHA' is not a commit here."; exit 1; }
+          else
+            [ -n "$INPUT_TAG" ] || { echo "::error::rollback needs a tag."; exit 1; }
+            sha=$(git rev-parse --verify "refs/tags/${INPUT_TAG}^{commit}") || { echo "::error::No tag $INPUT_TAG."; exit 1; }
+          fi
+
+          if [ -z "$before" ] && [ "$dry" != "true" ]; then
+            echo "::error::There is no production branch. Run this workflow once with mode=init (cutover step)."; exit 1
+          fi
+          # A rehearsal before cutover compares against what production SERVES, so its notes are
+          # exactly what the first real release would ship.
+          if [ -z "$before" ]; then
+            before=$(curl -sS --max-time 15 "${API_URL%/}/api/version" | jq -r '.commit // empty' || true)
+            [ -n "$before" ] && git cat-file -e "$before^{commit}" 2>/dev/null || before=""
+            [ -z "$before" ] || say "No \`production\` branch yet — rehearsing against \`${before::7}\`, the commit production serves."
+          fi
+          if [ -n "$before" ] && [ "$sha" = "$before" ]; then stop "✓ Production is already at \`${sha::7}\` — nothing to ship."; fi
+          # Nightly and hotfix only ever move production FORWARD; only rollback rewinds it.
+          if [ -n "$before" ] && [ "$MODE" != "rollback" ] && ! git merge-base --is-ancestor "$before" "$sha"; then
+            echo "::error::\`${sha::7}\` does not descend from production \`${before::7}\`. A hotfix branches from the production tag; a nightly release needs production merged back into main first."; exit 1
+          fi
+
+          tag=""
+          if [ "$MODE" != "rollback" ]; then mapfile -t tags < <(git tag -l 'v*'); tag=$(node scripts/release-train.mjs tag "${tags[@]}"); fi
+          out sha "$sha"; out before "$before"; out tag "$tag"
+          out driver "$(node scripts/release-train.mjs driver-changed "$before" "$sha")"
+          say "**${MODE}** → \`${sha::7}\`${tag:+ as \`$tag\`}${REASON:+ — $REASON}"
+          out ship true
+
+      - name: Release notes
+        if: steps.plan.outputs.ship == 'true' && steps.plan.outputs.mode != 'init'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release-train.mjs notes "${{ steps.plan.outputs.before }}" "${{ steps.plan.outputs.sha }}" > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.ship == 'true' && steps.plan.outputs.mode != 'init'
+        with:
+          name: release-notes
+          path: notes.md
+
+  ship:
+    needs: plan
+    if: needs.plan.outputs.ship == 'true'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: read
+      statuses: read
+    env:
+      SHA: ${{ needs.plan.outputs.sha }}
+      BEFORE: ${{ needs.plan.outputs.before }}
+      DRY: ${{ needs.plan.outputs.dry }}
+      MODE: ${{ needs.plan.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
+          # SSH with the deploy key when present; a rehearsal without it falls back to the read token.
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Require CI green for this commit
+        if: needs.plan.outputs.mode != 'init'
+        uses: ./.github/actions/require-ci-green
+        with:
+          sha: ${{ needs.plan.outputs.sha }}
+
+      - name: Assert the secrets exist
+        run: |
+          missing=()
+          [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && missing+=(SUPABASE_ACCESS_TOKEN)
+          [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ] && missing+=(SUPABASE_PROJECT_REF)
+          [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ] && missing+=(SUPABASE_DB_PASSWORD)
+          if [ "$DRY" != "true" ] && [ -z "${{ secrets.RELEASE_DEPLOY_KEY }}" ]; then missing+=(RELEASE_DEPLOY_KEY); fi
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} — nothing was released."
+            exit 1
+          fi
+
+      # Header: HARDENING — Backups. Read from Supabase's management API with the token migrations use.
+      - name: Require a recent production backup
+        if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          body=$(curl -sS --max-time 20 -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${REF}/database/backups" || echo '{}')
+          if [ "$(echo "$body" | jq -r '.pitr_enabled // false')" = "true" ]; then echo "✓ Point-in-time recovery is on."; exit 0; fi
+          latest=$(echo "$body" | jq -r '[.backups[]? | select(.status == "COMPLETED") | .inserted_at] | max // empty')
+          age_h=$([ -n "$latest" ] && echo $(( ( $(date +%s) - $(date -d "$latest" +%s) ) / 3600 )) || echo none)
+          if [ "$age_h" != "none" ] && [ "$age_h" -lt 26 ]; then
+            echo "✓ Newest production backup completed ${latest} (${age_h} h ago)."
+            echo "Backup: newest completed ${latest} (${age_h} h ago); PITR off." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          msg="No completed production backup in the last 26 h (newest: ${latest:-none})."
+          if [ "$MODE" = "hotfix" ]; then echo "::warning::${msg} Shipping anyway: a hotfix is the repair."; exit 0; fi
+          echo "::error::${msg} Nothing was released. Check Supabase → Database → Backups, then re-run."
+          exit 1
+
+      # Same CLI pin as migrate.yml. A rollback never touches the schema (D-REL9), and init ships nothing.
+      - uses: supabase/setup-cli@v1
+        if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
+        with:
+          version: 2.109.0
+      - name: Apply migrations to production (before the code)
+        if: needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+          if [ "$DRY" = "true" ]; then supabase db push --dry-run; else supabase db push; fi
+          supabase migration list --linked | tail -5
+
+      - name: Move production to the release
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            rollback) cmd=(git push --force-with-lease="production:${BEFORE}" origin "${SHA}:refs/heads/production") ;;
+            init)     cmd=(git push origin "${SHA}:refs/heads/production") ;;
+            *)        cmd=(git push origin "${SHA}:refs/heads/production") ;;  # a fast-forward, or it is refused
+          esac
+          if [ "$DRY" = "true" ]; then echo "would run: ${cmd[*]}"; exit 0; fi
+          "${cmd[@]}"
+          echo "✓ production → \`${SHA::7}\` (${MODE})" >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    needs: [plan, ship]
+    if: needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
+    uses: ./.github/workflows/deploy-verify.yml
+    with:
+      sha: ${{ needs.plan.outputs.sha }}
+      before: ${{ needs.plan.outputs.before }}
+      target: production
+      rollback: ${{ needs.plan.outputs.mode == 'rollback' }}
+
+  smoke:
+    needs: [plan, verify]
+    uses: ./.github/workflows/smoke.yml
+    with:
+      from_release: true
+
+  publish:
+    needs: [plan, smoke]
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ needs.plan.outputs.sha }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      MODE: ${{ needs.plan.outputs.mode }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.mode != 'rollback'
+        with:
+          name: release-notes
+
+      # driver-ota.yml, run from the production branch, is the one driver lane: it publishes the JS
+      # update and dispatches the APK build itself when the native fingerprint moved.
+      - name: Driver app update
+        if: needs.plan.outputs.driver == 'yes' && needs.plan.outputs.mode != 'rollback'
+        run: gh workflow run driver-ota.yml --ref production -f message="${TAG}"
+
+      - name: Tag and publish the release
+        if: needs.plan.outputs.mode != 'rollback'
+        run: |
+          [ -z "$REASON" ] || printf '\n**Reason (%s):** %s\n' "$MODE" "$REASON" >> notes.md
+          gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file notes.md
+          echo "✓ released \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # D-REL8: a hotfix is on production and not yet on main; the next nightly release would refuse
+      # to fast-forward until it is. Opened here so it cannot be forgotten.
+      - name: Merge the hotfix back into main
+        if: needs.plan.outputs.mode == 'hotfix'
+        run: |
+          gh pr create --base main --head production --title "Back-merge hotfix ${TAG} into main" \
+            --body "Hotfix \`${TAG}\` shipped to production: ${REASON}. Merge so the next nightly release fast-forwards."
+
+      - name: Record the rollback
+        if: needs.plan.outputs.mode == 'rollback'
+        run: echo "↩ production rolled back to \`${SHA::7}\` — ${REASON}. Migrations were NOT reversed (D-REL9)." >> "$GITHUB_STEP_SUMMARY"
+
+  # Header: HARDENING — Rollback. Only for a release that DEPLOYED (ship succeeded) and then failed its
+  # checks; a failure before the push left production where it was, and needs no rollback.
+  auto-rollback:
+    needs: [plan, ship, verify, smoke]
+    if: >-
+      always() && needs.plan.outputs.dry != 'true' && needs.ship.result == 'success' &&
+      (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'hotfix') &&
+      needs.plan.outputs.before != '' &&
+      (needs.verify.result == 'failure' || needs.smoke.result == 'failure')
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    env:
+      SHA: ${{ needs.plan.outputs.sha }}
+      BEFORE: ${{ needs.plan.outputs.before }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+      - name: Move production back to the previous commit
+        run: |
+          set -euo pipefail
+          # The lease names the release commit: if anything else moved production since, refuse.
+          git push --force-with-lease="production:${SHA}" origin "${BEFORE}:refs/heads/production"
+          echo "↩ production → \`${BEFORE::7}\` (automatic, after \`${SHA::7}\` failed its checks)" >> "$GITHUB_STEP_SUMMARY"
+
+  verify-rollback:
+    needs: [plan, auto-rollback]
+    if: always() && needs.auto-rollback.result == 'success'
+    uses: ./.github/workflows/deploy-verify.yml
+    with:
+      sha: ${{ needs.plan.outputs.before }}
+      before: ${{ needs.plan.outputs.sha }}
+      target: production
+      rollback: true
+
+  # Header: HARDENING — Summary. Runs whatever happened above, and decides which message that was.
+  notify:
+    needs: [plan, ship, verify, smoke, publish, auto-rollback, verify-rollback]
+    if: always() && needs.plan.outputs.dry != 'true' && needs.plan.outputs.mode != 'init'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: release-notes
+      - name: Which outcome
+        id: outcome
+        env:
+          PLAN: ${{ needs.plan.result }}
+          SHIP_DECIDED: ${{ needs.plan.outputs.ship }}
+          NOTIFY_SKIP: ${{ needs.plan.outputs.notify_skip }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          SHIP: ${{ needs.ship.result }}
+          VERIFY: ${{ needs.verify.result }}
+          SMOKE: ${{ needs.smoke.result }}
+          PUBLISH: ${{ needs.publish.result }}
+          ROLLBACK: ${{ needs.auto-rollback.result }}
+          VERIFY_ROLLBACK: ${{ needs.verify-rollback.result }}
+        run: |
+          node scripts/release-notify.mjs outcome | tee -a "$GITHUB_OUTPUT"
+      - name: Send the summary
+        if: steps.outcome.outputs.kind != ''
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          BEFORE: ${{ needs.plan.outputs.before }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          REASON: ${{ inputs.reason }}
+          DETAIL: ${{ steps.outcome.outputs.kind == 'skipped' && needs.plan.outputs.reason || steps.outcome.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTES_FILE: notes.md
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          RELEASE_NOTIFY_EMAILS: ${{ secrets.RELEASE_NOTIFY_EMAILS }}
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_FROM: ${{ secrets.TELNYX_FROM }}
+          RELEASE_NOTIFY_PHONES: ${{ secrets.RELEASE_NOTIFY_PHONES }}
+          # Recipients live in the console (0427); these two read them from production's database.
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/release-notify.mjs "${{ steps.outcome.outputs.kind }}"

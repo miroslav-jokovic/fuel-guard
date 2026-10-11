@@ -1,6 +1,7 @@
-import { HANDBOOK_CARRIER_PLACEMENT_ID, maskedSsn } from "@silvicom/shared";
+import { HANDBOOK_CARRIER_PLACEMENT_ID, maskedSsn, signingPlaceDestination } from "@silvicom/shared";
 import { CONTENT_WIDTH, INK, MARGIN, MUTED, PAGE_HEIGHT, RULE, newDrawing, pdfkitText } from "../../../../lib/pdfDraw.js";
 import { date } from "../packet/packetDraw.js";
+import { drawBand } from "../stamp.js";
 import { HANDBOOK_BLOCKS, HANDBOOK_VERSION, type HandbookBlock, type HandbookRun } from "./handbookText.js";
 
 /**
@@ -44,6 +45,11 @@ export interface HandbookDocumentInput {
   driverSignature: Buffer | null;
   /** Set once the office has countersigned; `appliedBy` is the office user who applied it (D-HB3). */
   countersign: (HandbookRepresentativePrint & { appliedBy: string }) | null;
+  /**
+   * The words across the head of every sheet, or null (D-AW17, C3s5). Only the office's preview sets it:
+   * the driver's reading copy and the filed handbook carry none, for `PreviewAudience.band`'s reason.
+   */
+  band?: string | null;
 }
 
 const BODY = 10;
@@ -230,6 +236,20 @@ function keepWithSignature(doc: PDFKit.PDFDocument, at: number): void {
   ensureRoom(doc, height + signBlockHeight(doc, sign));
 }
 
+/**
+ * Name this place's box inside the PDF, so the signing walk can open its page and tag it (D-HB12,
+ * `signingPlaceDestination`).
+ *
+ * ⚠ The handbook is flowed text: which page a place lands on is only known HERE, as it is drawn, which
+ * is the whole reason the page cannot be looked up anywhere else. ⚠ `FitR` wants PDF user space
+ * (origin bottom-left) and pdfkit converts only `XYZ`, so the flip is done here. The box is the
+ * signature's own: from the picture's top (`signatureLine` draws it from `y - 4`) to its rule (`y + 24`).
+ */
+function markPlace(doc: PDFKit.PDFDocument, placementId: string, x: number, y: number, width: number): void {
+  const h = doc.page.height;
+  doc.addNamedDestination(signingPlaceDestination(placementId), "FitR", x, h - (y + 24), x + width, h - (y - 4));
+}
+
 /** A signature place: its fields two to a row, each row kept whole. */
 function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign" }>, input: HandbookDocumentInput): void {
   const carrier = b.id === HANDBOOK_CARRIER_PLACEMENT_ID;
@@ -243,6 +263,7 @@ function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign
     b.fields.slice(r * 2, r * 2 + 2).forEach((f, i) => {
       const x = MARGIN + i * (colW + 24);
       if (f.field === "signature") {
+        markPlace(doc, b.id, x, y, colW);
         const picture = carrier ? (input.countersign?.signature ?? null) : input.driverSignature;
         signatureLine(doc, x, y, colW, f.label, mark ? picture : null, mark?.signedName ?? null);
       } else if (f.field === "name") {
@@ -269,11 +290,15 @@ function signBlock(doc: PDFKit.PDFDocument, b: Extract<HandbookBlock, { k: "sign
   doc.moveDown(0.4);
 }
 
-/** Every page: which document, which text version, and page x of y — stamped once the count is known. */
-function footers(doc: PDFKit.PDFDocument, carrier: string): void {
+/**
+ * Every page: which document, which text version, and page x of y — stamped once the count is known —
+ * and the office preview's band, in the top margin, on the same pass.
+ */
+function footers(doc: PDFKit.PDFDocument, carrier: string, band: string | null): void {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    if (band) drawBand(doc, band);
     // ⚠ The footer sits below the bottom margin, and pdfkit answers text drawn there by adding a page
     // — measured: 11 pages of handbook became 22, each footer alone on a sheet of its own. Lifting the
     // margin for the stamp is what lets it write there.
@@ -298,7 +323,7 @@ export async function handbookPdf(input: HandbookDocumentInput): Promise<Buffer>
     else if (b.k === "gap") doc.moveDown(0.5);
     else doc.addPage();
   }
-  footers(doc, input.carrier.name);
+  footers(doc, input.carrier.name, input.band ?? null);
   doc.end();
   return done;
 }

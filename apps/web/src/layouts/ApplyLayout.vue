@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { provideTouchTargets } from "@silvicom/ui";
 import AppLogo from "@/components/AppLogo.vue";
 
 /**
@@ -32,6 +33,14 @@ import AppLogo from "@/components/AppLogo.vue";
  * header pinned at 768px above a 1152px document reads as a misalignment rather than a choice.
  */
 defineProps<{ carrier: string | null; wide?: boolean }>();
+
+/**
+ * ── EVERY CONTROL UNDER THIS LAYOUT IS 44 CSS PX (C3d3b2) ──────────────────────────────────────
+ * §6.8's bar for `/apply` (Q-AW20), stated once here rather than as `size="touch"` at each control:
+ * the primitives read it (`@silvicom/ui`'s `touchTargets.ts`). This layout is `/apply/:token`'s and no
+ * other route's, so the office keeps its density. `e2e-apply/tapTargets.spec.ts` measures the result.
+ */
+provideTouchTargets();
 </script>
 
 <template>

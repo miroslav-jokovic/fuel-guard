@@ -86,7 +86,8 @@ export function usableEmail(raw) {
   return /\.[a-z]{2,4}$/i.test(v) ? v : null; // at the limit: only if it still ends in a TLD
 }
 
-const MAP = {
+/** Exported for the tests only: the vendor-letter → neutral-fact mapping is the thing worth pinning. */
+export const MAP = {
   drivers: (r) => ({
     external_id: s(r.external_id),
     company_id: s(r.company_id),
@@ -141,6 +142,19 @@ const MAP = {
            * instead of `active` — still in the fleet, still inspected, still on the map.
            */
           in_shop: s(r.tractor_status) === "S",
+          /**
+           * McLeod's fuel-tax exclusion, sent as the FACT. `Y` excludes; `N` includes. A blank or any
+           * other letter sends nothing (undefined) rather than a guess — Silvicom 360 treats an absent
+           * fact as "unknown" and never closes an exclusion period on it.
+           */
+          fuel_tax_excluded: s(r.exclude_fueltax) === "Y" ? true : s(r.exclude_fueltax) === "N" ? false : undefined,
+          /**
+           * The truck's home fleet code, verbatim ('VINNIEV'). Unlike a status letter it is not
+           * translated: it is a NAME the carrier chose, and Silvicom 360 maps it to a dispatcher only
+           * through a link an office confirms (tms_fleets). `null` = McLeod puts the truck in no
+           * fleet; absent (undefined) = this query did not read the column, which must never clear one.
+           */
+          fleet_code: "fleet_id" in r ? s(r.fleet_id) : undefined,
           make: s(r.make),
           model: s(r.model),
           year: year(r.model_year),
@@ -220,6 +234,18 @@ export function loadState(path) {
 }
 export function saveState(path, state) {
   writeFileSync(path, JSON.stringify(state, null, 2));
+}
+
+/**
+ * Record what the roster sweep sent — never under a dry run. The state file is the list of rows the
+ * NEXT sweep will treat as already sent, so a dry run that saved it (as `--roster --dry-run` did until
+ * 2026-09-28) told the real sweep sharing that file that changes it had only printed were delivered, and
+ * the real sweep skipped them for good. Returns whether it wrote.
+ */
+export function persistRosterState(path, state, { dryRun, save = saveState }) {
+  if (dryRun) return false;
+  save(path, state);
+  return true;
 }
 
 /**

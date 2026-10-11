@@ -15,7 +15,7 @@ import { egressAddress } from "../../../lib/egressAddress.js";
 import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../../lib/audit.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
 
 /**
@@ -102,7 +102,7 @@ export function fuelCardProbeRouter(): Router {
     requireOrg,
     // Admin only. It dials the vendor five times on a rate-paced shared account, and the answer is an
     // operations fact rather than anything a fleet manager acts on.
-    requireRole("admin"),
+    requireAdminOnly("efs.connection"),
     asyncHandler(async (req, res) => {
       const { env } = getAppLocals(req);
       const admin = getSupabaseAdmin(env);

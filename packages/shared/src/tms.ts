@@ -301,6 +301,24 @@ export const tmsVehicleInputSchema = z.object({
    * why the derivation treats absent and false alike: "no evidence of a shop" is not "in a shop".
    */
   in_shop: z.boolean().nullish(),
+  /**
+   * Has the carrier left this truck OUT of its fuel-tax (IFTA) reporting? A neutral fact for the same
+   * reason as `in_shop`: McLeod spells it `tractor.exclude_fueltax = 'Y'`, and that letter stops at
+   * `roster.mjs`. It decides whether a leased-on owner-operator's miles and fuel belong in the carrier's
+   * return (IFTA-PRECISION-PLAN D-IP2); `recordFuelTaxExclusion` turns it into dated periods (0433).
+   *
+   * Absent when the agent did not read the column — and absent is NOT "not excluded": an older agent
+   * must never close a period it could not see.
+   */
+  fuel_tax_excluded: z.boolean().nullish(),
+  /**
+   * The truck's home fleet in the TMS, verbatim ('VINNIEV', 'KANE', '1'): which dispatcher's group
+   * OWNS it, as opposed to the load's dispatcher, who is MOVING it today (DISPATCH-BOARD-PLAN D-DB1).
+   * Not translated, because it is a name the carrier chose; an office links each code to a dispatcher
+   * (`tms_fleets`). `null` = the TMS puts the truck in no fleet; absent = the agent did not read the
+   * column, which must never clear a code the sweep recorded before.
+   */
+  fleet_code: z.string().trim().min(1).max(32).nullish(),
 });
 export type TmsVehicleInput = z.infer<typeof tmsVehicleInputSchema>;
 
@@ -443,6 +461,12 @@ export const tmsRosterCheckpointSchema = z.object({
     vehicles: z.number().int().min(0),
     trailers: z.number().int().min(0),
   }),
+  /** McLeod's FULL active tractor and trailer lists, as read this sweep (FL2, Q-FL7). The sweep
+   *  routes POST only rows that changed, so without these the API could never see a unit missing on
+   *  one side or a row that drifted. Optional: an agent from before FL2 sends counts only, and the
+   *  parity check says it was not run rather than reading absence as an empty fleet. */
+  tractors: z.array(tmsVehicleInputSchema).max(1000).optional(),
+  trailers: z.array(tmsTrailerInputSchema).max(1000).optional(),
 });
 export type TmsRosterCheckpoint = z.infer<typeof tmsRosterCheckpointSchema>;
 

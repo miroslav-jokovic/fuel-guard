@@ -8,6 +8,14 @@ import { createSupabaseRecorder, type SupabaseRecorder } from "../../../testing/
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { HANDBOOK_VERSION } from "../applicationPdf/handbook/handbookText.js";
 
+// Q-HB1: the packet's countersignature runs first in the same press and has its own tests
+// (`packetCountersign.test.ts`). Here it succeeds and hands back the Representative it was given, so
+// these stay about the handbook.
+vi.mock("../packetCountersign.js", async (original) => ({
+  ...(await original<typeof import("../packetCountersign.js")>()),
+  countersignPacket: vi.fn(async (...args: unknown[]) => ({ representative: args[6], documentId: "doc-packet" })),
+}));
+
 /**
  * The handbook's office doors (HANDBOOK-SIGNING-PLAN.md HB3), through the mount. The services are
  * pinned in `representatives.test.ts` and `handbookSigning.test.ts`; what only this can see is the
@@ -41,7 +49,7 @@ const seed = (over: Record<string, unknown> = {}): SupabaseRecorder =>
   createSupabaseRecorder({
     tables: {
       carrier_representatives: [{ id: REP, full_name: "Miroslav Jokovic", title: "Safety manager", created_at: "t" }],
-      application_invitations: [{ id: "inv-1", submitted_at: null, handbook_signing_opened_at: null, handbook_filed_at: null }],
+      application_invitations: [{ id: "inv-1", submitted_at: null, signing_opened_at: null, handbook_filed_at: null }],
       handbook_marks: [],
       audit_logs: [],
       ...over,
@@ -95,43 +103,75 @@ describe("the Representatives (D-HB3)", () => {
   });
 });
 
+describe("the office's handbook preview (D-AW17, C3s5)", () => {
+  it("streams the prefilled handbook as a PDF, and is refused to a role that cannot see recruitment", async () => {
+    holder.client = seed({
+      drivers: [{ full_name: "Susan Godfrey" }], driver_applications: [], organizations: [{ name: "Silvicom Inc", legal_address: null }],
+      application_captures: [], signature_adoptions: [],
+    }).client;
+    const res = await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "recruiter");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
+    expect((await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "dispatcher")).status).toBe(403);
+  });
+
+  it("answers 409 once the handbook is filed", async () => {
+    holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "t", signing_opened_at: "t", handbook_filed_at: "t" }] }).client;
+    const res = await send("GET", `/applicants/${DRIVER}/handbook/preview.pdf`, "recruiter");
+    expect(res.status).toBe(409);
+  });
+});
+
 describe("the handbook's two office acts", () => {
-  it("answers 409 to Open before the application is filed", async () => {
+  it("answers 409 to Extend before the application is filed", async () => {
     holder.client = seed().client;
-    const res = await send("POST", `/applicants/${DRIVER}/handbook/open`, "recruiter");
+    const res = await send("POST", `/applicants/${DRIVER}/handbook/extend`, "recruiter");
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("application_not_filed");
   });
 
-  it("opens a filed application's handbook and audits who opened it", async () => {
-    const rec = seed({ application_invitations: [{ id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: null, handbook_filed_at: null }] });
-    holder.client = rec.client;
-    const res = await send("POST", `/applicants/${DRIVER}/handbook/open`, "recruiter");
-    expect(res.status).toBe(200);
-    expect(rec.writtenRows("audit_logs")[0]).toMatchObject({ action: "compliance.handbook_signing_opened", actor_id: "u-recruiter" });
-  });
-
-  it("extends an opened handbook's link on a second press, and audits the invitation and the new expiry only (A-2)", async () => {
+  it("extends a filed application's link, and audits the invitation and the new expiry only (A-2)", async () => {
     const rec = seed({
       application_invitations: [{
-        id: INV, submitted_at: "2026-09-14T10:00:00Z", handbook_signing_opened_at: "2026-09-25T20:08:00Z",
+        id: INV, submitted_at: "2026-09-14T10:00:00Z", signing_opened_at: "2026-09-14T09:00:00Z",
         handbook_filed_at: null, expires_at: "2026-09-28T18:00:00.000Z",
       }],
     });
     holder.client = rec.client;
-    const res = await send("POST", `/applicants/${DRIVER}/handbook/open`, "recruiter");
+    const res = await send("POST", `/applicants/${DRIVER}/handbook/extend`, "recruiter");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { expiresAt: string; extended: boolean };
     expect(body.extended).toBe(true);
-    const extended = rec.writtenRows("audit_logs").find((a) => a.action === "recruiting.handbook_link_extended");
-    expect(extended).toMatchObject({ entity: "application_invitations", entity_id: INV, meta: { expiresAt: body.expiresAt } });
-    expect(Object.keys(extended!.meta as object)).toEqual(["expiresAt"]);
+    const audits = rec.writtenRows("audit_logs");
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ action: "recruiting.handbook_link_extended", entity: "application_invitations", entity_id: INV, meta: { expiresAt: body.expiresAt } });
+    expect(Object.keys(audits[0]!.meta as object)).toEqual(["expiresAt"]);
+  });
+
+  it("audits nothing when the link already outlives the window", async () => {
+    const rec = seed({
+      application_invitations: [{
+        id: INV, submitted_at: "2026-09-14T10:00:00Z", signing_opened_at: "2026-09-14T09:00:00Z",
+        handbook_filed_at: null, expires_at: "2099-01-01T00:00:00.000Z",
+      }],
+    });
+    holder.client = rec.client;
+    const res = await send("POST", `/applicants/${DRIVER}/handbook/extend`, "recruiter");
+    expect(res.status).toBe(200);
+    expect(rec.writtenRows("audit_logs")).toHaveLength(0);
+  });
+
+  it("no longer answers the retired opening (C3s4b)", async () => {
+    holder.client = seed().client;
+    const res = await send("POST", `/applicants/${DRIVER}/handbook/open`, "recruiter");
+    expect(res.status).toBe(404);
   });
 
   it("answers 409 link_expired, with words, when the carrier's mark meets a lapsed link (HB021)", async () => {
     holder.client = seed({
       application_invitations: [{
-        id: INV, submitted_at: "2026-09-14T10:00:00Z", handbook_signing_opened_at: "2026-09-25T20:08:00Z",
+        id: INV, submitted_at: "2026-09-14T10:00:00Z", signing_opened_at: "2026-09-14T09:00:00Z",
         handbook_filed_at: null, expires_at: "2026-09-20T00:00:00.000Z",
       }],
       handbook_marks: (q: { write: boolean }) =>
@@ -146,8 +186,8 @@ describe("the handbook's two office acts", () => {
     expect(error.message).toContain("Extend the driver's link");
   });
 
-  it("answers 409 to Countersign before signing was opened", async () => {
-    holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", handbook_signing_opened_at: null, handbook_filed_at: null }] }).client;
+  it("answers 409 to Countersign on an application never sent for signing", async () => {
+    holder.client = seed({ application_invitations: [{ id: "inv-1", submitted_at: "2026-09-25T10:00:00Z", signing_opened_at: null, handbook_filed_at: null }] }).client;
     const res = await send("POST", `/applicants/${DRIVER}/handbook/countersign`, "admin", { representative_id: REP });
     expect(res.status).toBe(409);
   });

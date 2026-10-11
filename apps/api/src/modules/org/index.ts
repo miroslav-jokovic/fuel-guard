@@ -17,12 +17,16 @@ export { publicPasswordResetRouter } from "./routes/publicPasswordReset.js";
 export { memberPasswordResetRouter } from "./routes/memberPasswordReset.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
-export { usersWhoManage } from "./memberLookup.js";
+export { usersWhoManage, lookupMemberRole, listOfficeMembers, type OfficeMember } from "./memberLookup.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
+export { orgSettingsRouter } from "./routes/orgSettings.js";
 export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";
+export { pageViewsRouter } from "./routes/pageViews.js";
 export { auditRouter } from "./routes/audit.js";
 export { sectionAccessRouter, toOverrides } from "./routes/sectionAccess.js";
 export { surfaceAccessRouter, toSurfaceOverrides, surfaceClaimFor } from "./routes/surfaceAccess.js";
+// SP10 (Q-SET10): who has access, and the access-review export — reads the two routers' tables.
+export { accessReviewRouter } from "./routes/accessReview.js";
 // The carrier's own identity, read by any module rendering a filing that must name it (0282).
 export { carrierCityStateZip, getCarrierIdentity } from "./carrierIdentity.js";
 export type { CarrierIdentity } from "./carrierIdentity.js";

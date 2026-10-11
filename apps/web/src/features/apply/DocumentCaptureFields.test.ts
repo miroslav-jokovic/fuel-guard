@@ -12,6 +12,7 @@ const confirm = vi.hoisted(() => ({ fail: null as null | Error }));
 vi.mock("@/features/apply/capture/webFileProvider", () => ({
   createWebFileProvider: () => ({
     id: "t", version: "0", cancel: () => {},
+    takeBytes: () => new Blob(["x"], { type: "image/webp" }),
     isSupported: async () => ({ supported: true, camera: true, docScanner: false, ocr: false }),
     scan: async () => ({
       ok: true,
@@ -29,7 +30,9 @@ vi.mock("@/features/apply/useApplication", async (importOriginal) => ({
 }));
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => ({ blob: async () => new Blob(["x"], { type: "image/webp" }) })));
+  // ⚠ `fetch` refuses, as production's CSP does for a `blob:` URL (no `blob:` in `connect-src`, 2026-09-30): a
+  // photograph must reach the upload as the bytes its provider handed over (`takeBytes`), never read back.
+  vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 });
 

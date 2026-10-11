@@ -11,13 +11,13 @@ import { parseAamvaBarcode, type AamvaLicence } from "@silvicom/shared";
  *
  * The decoder is loaded on the first call, not before (`licenceBarcodeReader.ts` says why).
  */
-export type Pdf417Reader = (photo: Blob) => Promise<string[]>;
+export type Pdf417Reader = (photo: Blob | ImageData) => Promise<string[]>;
 
 const loadReader = async (): Promise<Pdf417Reader> =>
   (await import("./licenceBarcodeReader")).readPdf417Texts;
 
 export async function readLicenceBarcode(
-  photo: Blob,
+  photo: Blob | ImageData,
   load: () => Promise<Pdf417Reader> = loadReader,
 ): Promise<AamvaLicence | null> {
   try {

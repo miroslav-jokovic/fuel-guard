@@ -3,6 +3,13 @@
 Fleet fuel-security and compliance SaaS for trucking carriers. pnpm monorepo, ESM everywhere,
 Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` for React Native).
 
+<!-- Maintainers: this file loads into every session, so it holds rules, not their history. Each
+measurement that used to live here has a canonical home (docs/MIGRATION-DISCIPLINE.md for the
+deploy window, ci.yml's comments for CI timings, scripts/graphify-update.sh for the SQL grammar);
+numbers copied into this file went stale for weeks before (CI "~3 min" outlived the truth). Keep
+each rule's gate name and one line of why; link the rest. Block HTML comments like this one are
+stripped before Claude reads the file. -->
+
 ## Package map
 
 - `apps/api` — Express 5 API + background worker + schedulers. Serves the built web SPA. Deploys to
@@ -22,38 +29,61 @@ Node >= 22, TypeScript run via tsx (no compile step except `@silvicom/shared` fo
 - `pnpm test` — unit suites AND every `supabase/tests/*.test.mjs` matrix, unconditionally. Matrices are
   auto-discovered and must print a `RESULT` line; a silent matrix fails.
 - `pnpm typecheck` · `pnpm lint` · `pnpm build` (mostly `tsc --noEmit`).
-- `pnpm verify:live` — answers "why don't I see my changes?": compares git HEAD + highest migration
-  against the deployed `GET /api/version`.
+- `pnpm verify:live` — answers "why don't I see my changes?": compares a deployed `GET /api/version`
+  (commit, release tag, migration) with the git ref that host follows. Production trails main BY
+  DESIGN until the next release, so it takes a target: no argument = production vs
+  `origin/production`, `staging` = staging vs `origin/main` (a merge shows there in minutes), a URL =
+  that host vs your HEAD. Production's release tag (`v2026.10.05`, D-REL10) is also in the web
+  account menu and the driver app's build card.
 - The full gate list lives in root `package.json` — every `lint:*` script is documented by its
-  sibling `"//lint:*"` comment key. CI runs 28 of them by name, all in the `gates` job
-  (`.github/workflows/ci.yml`); the rest are chained onto one of those and run without a workflow
-  edit. **A gate that is in `package.json` and in neither list is not a gate** — four of them were
-  in exactly that position until 2026-09-05, and `lint:wsdl` had been crashing on a stale path for
-  ten days without anybody being able to notice. Adding a gate means adding it here, or chaining it
-  onto a neighbour and saying so in its `"//lint:*"` comment.
-- CI is **seven parallel jobs**, not one: `gates`, `typecheck-build`, `test-api`, `test-web`,
-  `test-packages`, `matrices`, `native-android` — plus a do-nothing `build` job that aggregates them,
-  and which must keep that name because main's branch protection requires a check called exactly
-  `build`. `native-android` prebuilds the Android project, compiles the capture module's Kotlin
-  (nothing else in CI does) and runs its metric-parity unit test. **There is no iOS job** — macOS
-  runners bill at ~10× Linux — so Swift is compiled and its parity checked by hand, per
-  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4. A green
-  run is ~3 minutes (measured 2026-09-05; it was 15.7 before the split). Put a new gate in `gates`;
-  put anything needing `apps/web/dist` in `typecheck-build`, which is the only job that builds.
+  sibling `"//lint:*"` comment key. CI runs most of them by name in the `gates` job
+  (`.github/workflows/ci.yml`); the rest are chained onto one of those. **A gate that is in
+  `package.json` and in neither list is not a gate** — `lint:wsdl` once crashed on a stale path for
+  ten days without anybody being able to notice. Adding a gate means adding it to `ci.yml` in the
+  same PR, or chaining it onto a neighbour and saying so in its `"//lint:*"` comment.
+- CI is **seven parallel jobs**: `gates`, `typecheck-build`, `test-api`, `test-web`, `test-packages`,
+  `matrices`, `native-android` — plus a do-nothing `build` job that aggregates them and must keep
+  that name, because main's branch protection requires a check called exactly `build`. Put a new
+  gate in `gates`; put anything needing `apps/web/dist` in `typecheck-build`, the only job that builds.
+- `native-android` compiles the capture module's Kotlin (nothing else does) and runs its
+  metric-parity test. On a PR it skips unless one of its `NATIVE_INPUTS` changed — anything the job
+  starts reading goes on that list in the same PR; on main it always builds. **There is no iOS job**
+  (macOS runners bill ~10× Linux): Swift is compiled and checked by hand, per
+  `docs/plans/drivers-app/SCANNER-UPGRADE-PLAN.md` §3.4.
+- **A merge does not wait for main's CI when main's tree is the one the PR tested.** `build` posts a
+  `ci/tested-tree` status on the PR head, and `require-ci-green` (migrate, driver-ota/android/store)
+  accepts it when main's merge commit has that exact tree — else it polls main's run. Rules in
+  `.github/actions/require-ci-green/tested-tree.sh`. `deploy-verify` passes pushes that touch only
+  paths `railway.json`'s `watchPatterns` exclude, and a host serving a later main commit. A push to
+  main verifies the STAGING hosts (`STAGING_*` variables); `release.yml` calls it for production.
+  Every push-triggered production job (`migrate`, `driver-ota`, `driver-android`, smoke) skips while
+  the repository variable `RELEASE_TRAIN` is `on`; deleting that variable is half of the undo.
+- **Browser tests run in `typecheck-build`**: `pnpm --filter @silvicom/web e2e:apply` runs
+  `apps/web/e2e-apply/` — the applicant's page, built, in Chromium, against a stubbed API
+  (`e2e-apply/stubApi.ts`, raw JSON). They are the ONLY Playwright specs CI runs: `apps/web/e2e/` is
+  `smoke.yml`'s, against production after a deploy, so a stubbed spec must never go there. Locally:
+  build `dist` first (CI's placeholder `VITE_SUPABASE_*` values), then run `e2e:apply`.
 
 ## Hard rules (each one is machine-enforced; the gate is named)
 
 - Schema changes ONLY as the next-numbered file in `supabase/migrations/` (`lint:migrations`). Never
-  edit an applied migration. `migrate.yml` auto-applies to production Supabase on merge to main,
-  gated on CI green — a merged migration IS a deployed migration.
-- ...but NOT an immediately deployed one. Railway serves a merge ~3 min in while `migrate.yml` waits
-  for CI green, so **a merge can be served against the previous schema**. A column and its first
-  reader ship in two separate merges (`lint:migration-ordering`); new tables are exempt, renames need
-  the four-step dance. Measured, and the outage it cost, in `docs/MIGRATION-DISCIPLINE.md`
-  §the-deploy-window. **The window was 9m10s and is now 2m44s** — measured on migration 0316,
-  2026-09-05, after CI went from 15.7 to ~3 minutes — which makes the RULE more important, not
-  less: a gap that short cannot be watched for. It will not go much lower by speeding up CI;
-  `migrate.yml` itself accounts for ~2 of the 5 minutes from merge to schema applied.
+  edit an applied migration. **A merge deploys to STAGING; a release deploys to PRODUCTION** (the
+  release train, live since 2026-10-04 — `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`):
+  - On merge to main, `migrate.yml`'s `migrate-staging` job applies the migration to the staging
+    database and Railway `uat` serves the code. Production does not move.
+  - Production moves only through `release.yml`: at 01:07 CT, Sunday–Thursday nights, it ships the
+    commit the owner approved on the open `main → production` release PR — migrations FIRST, then
+    the code. A merged migration is a released migration by the next morning at the earliest, and
+    never if nobody approves. Hotfix and rollback are `release.yml` dispatch modes; never move the
+    `production` branch or Railway's production triggers by hand (a ruleset refuses even an admin).
+  - The nightly `schema-drift.yml` fails when production's schema differs from what the migrations
+    build — fix with the next migration, never by hand on either database.
+- ...and code still meets the other side's schema. On staging, Railway serves a merge in minutes
+  and `migrate-staging` may apply its schema before OR after that; in a release, new schema serves
+  OLD code for the deploy minutes. So a column and its first reader ship in two separate merges
+  (`lint:migration-ordering`), and a column is dropped only a release after its last reader is gone;
+  new tables are exempt, renames need the four-step dance. Measurements and the outage it cost:
+  `docs/MIGRATION-DISCIPLINE.md` §the-deploy-window.
 - Every new table gets `enable row level security` (`check-rls.mjs`). No client policies = deny-all
   on purpose, that's fine.
 - Never `.upsert()` with a partial payload (`lint:upserts`) — Postgres checks NOT NULL before conflict
@@ -79,12 +109,12 @@ placed on the wrong page because the right page's permission check says no, a se
 because the first one is inconvenient to reach, a value copied instead of derived.
 
 Each one is individually cheap and locally defensible. That is the problem — they are only visible
-in aggregate, and by then the product reads as "overcomplicated for no reason". Worked example, so
-this is not an abstraction: `session.canManage` is one global boolean standing in for the whole
-section × role matrix the API and the database already model correctly. Because a recruiter fails it,
-recruiting UI was placed on the driver page; because that page then held four regulations, it grew
-six tabs; because six tabs hide gaps, the whole surface felt wrong. Three reasonable local decisions,
-one unusable result. (`docs/plans/roster/DRIVER-ROSTER-PLAN.md` §2.3 has the measurements.)
+in aggregate, and by then the product reads as "overcomplicated for no reason". Worked example:
+`session.canManage` is one global boolean standing in for the whole section × role matrix the API
+and the database already model correctly. Because a recruiter fails it, recruiting UI was placed on
+the driver page; because that page then held four regulations, it grew six tabs; because six tabs
+hide gaps, the whole surface felt wrong. Three reasonable local decisions, one unusable result.
+(`docs/plans/roster/DRIVER-ROSTER-PLAN.md` §2.3 has the measurements.)
 
 So, when the honest fix is out of scope:
 
@@ -108,41 +138,32 @@ So, when the honest fix is out of scope:
   service, a table, or a feature. The product is Silvicom 360; "FuelGuard" in code predates the
   rename step and is expected until it lands.
 - Branches: `claude/<topic>`; PRs to `main`. Commit messages are one descriptive sentence in the
-  style of `git log` (they read as a narrative, not conventional-commit tags).
+  style of `git log` (they read as a narrative, not conventional-commit tags). A PR's TITLE is its
+  line in the release notes, so write it for an office reader; its body follows the four headings of
+  `.github/pull_request_template.md` (what changes for a user, migration and risk, how to check it on
+  staging, tests) — `gh pr create --body-file` skips the template, so write them in. The `area:`
+  label is applied from the files by `pr-area.yml` (rules: `AREAS` in `scripts/release-train.mjs`).
 - Background work runs in the worker (`WORKER_ROLE=scheduler|consumer|both`); schedulers must run in
   exactly ONE process fleet-wide — never add one without checking `docs/WORKER-DEPLOYMENT.md`.
-  `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service that is never given it runs them:
-  production is two services from one `railway.json`, and `@fleetguard/web` ran the whole scheduler
-  set alongside `@fleetguard/api` until 2026-09-05 for exactly that reason. `api` owns them (it is
-  the WEX-whitelisted host); every other service from that file gets `false` before its first
-  deploy. No gate can see a Railway variable — `docs/DEPLOYMENT.md` has the log check.
+  `RUN_SCHEDULERS_IN_PROCESS` defaults to **true**, so a service never given it runs them: `api`
+  owns them (it is the WEX-whitelisted host), and every other service from `railway.json` gets
+  `false` before its first deploy. No gate can see a Railway variable — `docs/DEPLOYMENT.md` has
+  the log check.
 
 ## graphify
 
-A knowledge graph of this repo at `graphify-out/` — 30,065 nodes, 62,858 edges, 1,427 communities,
-built from AST only at no API cost. Two `PreToolUse` hooks in `.claude/settings.json` say so on
-every Read/Grep.
+A knowledge graph of this repo lives at `graphify-out/` (gitignored; a fresh clone runs
+`pnpm graph:update` once, ~30s). A `PreToolUse` hook points at it on reads and grep-like searches.
 
 - For codebase questions, `graphify query "<question>"` first; `graphify path "<A>" "<B>"` for a
   relationship, `graphify explain "<concept>"` for one concept, `graphify affected "<X>"` for the
-  blast radius of a change. They return a scoped subgraph, far smaller than `GRAPH_REPORT.md` or a
-  repo-wide grep. Read `GRAPH_REPORT.md` only for broad architecture review.
+  blast radius of a change. Read `GRAPH_REPORT.md` only for broad architecture review.
 - ⚠ **It is a map, not the territory.** Verify anything load-bearing at the call site, and be most
   careful with a NEGATIVE — "there is no such function" is the answer a stale or partial graph
   gives confidently and wrongly.
-- ⚠ **`built_at_commit` is NOT a staleness check, and reading it as one is the trap.** Measured
-  2026-09-14: it is the HEAD of the last build that CHANGED TOPOLOGY. Merge a docs-only PR, or edit
-  a function body, and graphify correctly leaves the graph untouched and the stamp behind — the
-  graph is current, the stamp is not. So `built_at_commit != HEAD` means "nothing structural has
-  landed since", not "out of date", and comparing the two produces a false alarm on most commits.
-  When in doubt just run `pnpm graph:update`: it is idempotent, ~30s, and no-ops when there is
-  nothing to do.
-- **Rebuild with `pnpm graph:update`, never a bare `graphify update .`** — `.git/hooks/post-commit`
-  and `post-merge` already run it in the background, so it is usually current. ⚠ The reason for the
-  wrapper is in `scripts/graphify-update.sh`: `tree_sitter_sql` is an OPTIONAL extra, and a
-  graphify without it silently drops every `.sql` file — all 351 migrations, 1,144 nodes — leaving
-  a graph of this repo with no schema in it, announced only by a warning nobody reads. The script
-  exits non-zero rather than let that pass.
-- ⚠ `graphify-out/` is **gitignored on purpose**: `graph.json` is 37 MB and is rewritten on every
-  code change, and this repo's `.git` is already 275 MB. A fresh clone runs `pnpm graph:update`
-  once (~30s).
+- ⚠ **`built_at_commit` is NOT a staleness check.** It is the HEAD of the last build that CHANGED
+  TOPOLOGY, so it trails HEAD after every docs-only or body-only commit while the graph is current.
+  When in doubt run `pnpm graph:update`: idempotent, ~30s, a no-op when nothing changed.
+- **Rebuild with `pnpm graph:update`, never a bare `graphify update .`** — a graphify without the
+  optional `tree_sitter_sql` grammar silently drops every migration; the wrapper refuses to let
+  that pass (`scripts/graphify-update.sh`). `post-commit`/`post-merge` git hooks already run it.

@@ -51,7 +51,11 @@ export function requireSurface(key: string) {
     void (async () => {
       try {
         const role = (req.auth?.role ?? null) as UserRole | null;
-        const claim = await surfaceClaimFor(admin, orgId, role);
+        // The caller's own id, so their PERSONAL answers apply here as they do in `/api/me` (D-SURF6).
+        // Without it this read the role layer alone: a member the admin had turned a screen off for
+        // still passed the API gate, and one the admin had turned a screen ON for — the only way a
+        // single person gets a screen that starts off (Q-SET2) — would be refused by it.
+        const claim = await surfaceClaimFor(admin, orgId, role, req.auth?.userId ?? null);
         if (!surfaceAllowed(surface, role, req.auth?.sections ?? null, claim)) {
           res.status(403).json(apiError("surface_denied", `Your organisation has not given your role access to ${surface.label}.`));
           return;

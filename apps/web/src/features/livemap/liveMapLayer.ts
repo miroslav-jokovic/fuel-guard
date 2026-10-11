@@ -22,6 +22,13 @@
  * decoration on it.
  */
 import type { LiveMapVehicle, VehicleMapState } from "@silvicom/shared";
+import {
+  GLYPHS,
+  GLYPH_NAMES,
+  SELECTED_DRAW_ORDER,
+  STATE_DRAW_ORDER,
+  type GlyphName,
+} from "./liveMapGlyphs";
 
 /**
  * The four states, in the order a dispatcher reads them: what is working, down to what we have lost
@@ -93,32 +100,47 @@ export const STATE_LABEL: Record<VehicleMapState, string> = {
 };
 
 /**
- * Which picture a truck gets: an arrow when we know which way it is pointing, a dot when we do not.
+ * Which glyph a truck gets (D-LM30): the state's own silhouette, and for a MOVING truck the arrow
+ * when we know which way it is pointing and a dot when we do not.
  *
  * ⚠ THE DOT IS NOT DEAD CODE, even though production has 0 rows with a null heading today (measured
  * 2026-09-16, 199 of 199 carried one). The contract admits null — `LiveMapPosition.headingDegrees` is
  * `number | null` because a ping may arrive without a bearing — and the failure mode if this branch
  * did not exist is silent and wrong rather than loud: `icon-rotate` would receive 0 and every
  * bearing-less truck would claim, in a picture, to be driving north.
+ *
+ * Only a moving truck can have an arrow at all. Before D-LM30 every state drew one, so a truck parked
+ * since Friday pointed at Friday's bearing — a direction of travel for a truck that is not travelling.
  */
-export function iconNameFor(vehicle: LiveMapVehicle): string {
-  const shape = vehicle.position.headingDegrees == null ? "dot" : "arrow";
-  return `live-${vehicle.state}-${shape}`;
+export function glyphFor(vehicle: LiveMapVehicle): GlyphName {
+  if (vehicle.state !== "moving") return vehicle.state;
+  return vehicle.position.headingDegrees == null ? "moving-dot" : "moving-arrow";
 }
 
-/** Every icon the layer can ask for. The panel pre-registers all eight; a missing one is a blank. */
-export const ICON_NAMES: readonly string[] = MAP_STATES.flatMap((state) => [
-  `live-${state}-arrow`,
-  `live-${state}-dot`,
-]);
+/** The maplibre image id a glyph is registered under. One spelling, used by both sides. */
+export function iconId(glyph: GlyphName): string {
+  return `live-${glyph}`;
+}
+
+export function iconNameFor(vehicle: LiveMapVehicle): string {
+  return iconId(glyphFor(vehicle));
+}
+
+/** Every icon the layer can ask for. The panel pre-registers each one; a missing one is a blank. */
+export const ICON_NAMES: readonly string[] = GLYPH_NAMES.map(iconId);
 
 export interface LiveMapFeatureProperties {
   id: string;
   unit: string;
   state: VehicleMapState;
   icon: string;
-  /** Degrees clockwise from north. 0 for a bearing-less truck, which draws a dot and does not rotate. */
+  /**
+   * Degrees clockwise from north, for the ARROW only. Every other glyph gets 0 — it is drawn upright
+   * because it does not claim a direction (D-LM30), and a bearing-less truck has none to give.
+   */
   heading: number;
+  /** `symbol-sort-key`: higher draws on top, so a moving truck is never buried under a parked one. */
+  sortKey: number;
   /** Drawn on top of everything else and given a ring — see the panel's `selected` layer. */
   selected: boolean;
 }
@@ -161,6 +183,7 @@ export function toFeatureCollection(
       const lat = place?.lat ?? v.position.lat;
       const lng = place?.lng ?? v.position.lng;
       const heading = place ? place.heading : v.position.headingDegrees;
+      const glyph = glyphFor(v);
       return {
         type: "Feature",
         // A numeric feature id, because maplibre's `setFeatureState` requires one. Index is stable
@@ -170,8 +193,9 @@ export function toFeatureCollection(
           id: v.vehicleId,
           unit: v.unitNumber,
           state: v.state,
-          icon: iconNameFor(v),
-          heading: heading ?? 0,
+          icon: iconId(glyph),
+          heading: GLYPHS[glyph].rotates ? (heading ?? 0) : 0,
+          sortKey: v.vehicleId === selectedId ? SELECTED_DRAW_ORDER : STATE_DRAW_ORDER[v.state],
           selected: v.vehicleId === selectedId,
         },
         geometry: { type: "Point", coordinates: [lng, lat] },

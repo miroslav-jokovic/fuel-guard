@@ -6,6 +6,9 @@ import {
 } from "@silvicom/ui/icons";
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
+import GatedLink from "@/components/GatedLink.vue";
+import { useSessionStore } from "@/stores/session";
+import { useOpens } from "@/composables/useOpens";
 import { dayRangeInstants, shiftDay, todayInZone } from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
@@ -21,6 +24,13 @@ import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const toast = useToastStore();
+/**
+ * SP5 (plan §4b). Reports is `settings` VIEW; "Send digest now" is `POST /api/reports/digest`,
+ * `requireSection("settings")` — manage — so a viewer's press came back 403. The two links go to
+ * pages with gates of their own (Recall audit, a Settings screen; Odometer, `equipment` view).
+ */
+const session = useSessionStore();
+const opens = useOpens();
 
 /*
  * D-PREC6: `iso()` was `d.toISOString().slice(0, 10)`, a UTC day, so this page's default window
@@ -196,7 +206,7 @@ async function sendDigest() {
             <span class="text-xs text-ink-tertiary">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
           </template>
           <span v-else class="text-ink-tertiary">not yet audited</span>
-          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-link hover:text-link-hover">Review cleared fills →</RouterLink>
+          <RouterLink v-if="opens('/recall-audit')" to="/recall-audit" class="ml-auto text-xs font-medium text-link hover:text-link-hover">Review cleared fills →</RouterLink>
         </div>
         <p class="mt-3 text-xs text-ink-tertiary">
           Precision and recall are both measured, not asserted — intervals widen on small samples. Recall is
@@ -224,7 +234,7 @@ async function sendDigest() {
         <h2 class="text-sm font-semibold text-ink">Weekly theft digest</h2>
         <p class="text-sm text-ink-muted">An AI summary of the week's risks, emailed to your notification recipients. Sends automatically each week — or send one now.</p>
       </div>
-      <BaseButton variant="primary" class="shrink-0" :disabled="sendingDigest" @click="sendDigest">
+      <BaseButton v-if="session.can('settings')" variant="primary" class="shrink-0" :disabled="sendingDigest" @click="sendDigest">
         {{ sendingDigest ? "Sending…" : "Send digest now" }}
       </BaseButton>
     </BaseCard>
@@ -244,7 +254,7 @@ async function sendDigest() {
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-sm font-semibold text-ink">Odometer accuracy</h3>
-          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-link hover:text-link-hover">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
+          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <GatedLink to="/odometer" class="font-medium text-link hover:text-link-hover">Odometer Mismatches</GatedLink> for the fill-by-fill list.</p>
         </div>
         <div class="flex items-center gap-2">
           <AppSelect v-model="by" :options="[{ value: 'driver', label: 'By driver' }, { value: 'vehicle', label: 'By vehicle' }]" class="w-36" />

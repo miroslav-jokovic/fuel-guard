@@ -1,5 +1,7 @@
 import { renderInviteEmail } from "@silvicom/shared";
 import { makeSender } from "../../lib/mailer.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 
 /**
@@ -52,4 +54,28 @@ export async function deliverInvite(
     text: mail.text,
   });
   return { sent, link, reason: sent ? null : "send_failed" };
+}
+
+/**
+ * The second, separate row an invitation's delivery writes (SP8). The grant itself — `invite.created`
+ * or `invite.resent` — is recorded inside the 0395 function's transaction; the email is sent after
+ * that commits, because it cannot be rolled back, so whether it went is a fact of its own. Best
+ * effort: `writeAudit` logs a failure, and a missing delivery row loses nothing the grant row holds.
+ */
+export async function auditDelivery(
+  admin: SupabaseClient,
+  orgId: string,
+  actorId: string,
+  inviteId: string,
+  email: string,
+  delivery: InviteDelivery,
+): Promise<void> {
+  await writeAudit(admin, {
+    orgId,
+    actorId,
+    action: "invite.delivered",
+    entity: "invites",
+    entityId: inviteId,
+    meta: { email, emailSent: delivery.sent, reason: delivery.reason },
+  });
 }

@@ -88,7 +88,16 @@ const VEHICLE_IDENTITY = `
       -- Distribution within P4, 2026-09-22:
       -- A 148 · V 16 · I 15 · S 12 · null 2. The S reading is the owner's and is corroborated by
       -- behaviour rather than by a labelfile this login can reach (§1.3, assumption A1, Q-2).
-      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')   AS tractor_status`;
+      NULLIF(LTRIM(RTRIM(t.tractor_status)), '')   AS tractor_status,
+      -- McLeod's own switch for leaving a tractor out of its fuel-tax (IFTA) module. Measured on the
+      -- live database 2026-10-05: N on every tractor, active or retired. roster.mjs turns it into the
+      -- neutral fuel_tax_excluded fact (IFTA-PRECISION-PLAN IP4).
+      NULLIF(LTRIM(RTRIM(t.exclude_fueltax)), '')  AS exclude_fueltax,
+      -- The truck's home fleet: who OWNS it, not who is moving it today (that is the load's
+      -- dispatcher_user_id). Measured on live lme 2026-10-09: every one of the 159 running tractors
+      -- carries one of 14 named fleets (VINNIEV, KANE, ...), the parked and shop pool carries '1',
+      -- and 43 reservations carry none. Sent verbatim as fleet_code (DISPATCH-BOARD-PLAN DB1).
+      NULLIF(LTRIM(RTRIM(t.fleet_id)), '')         AS fleet_id`;
 
 const TRAILER_MATCH = `
       LTRIM(RTRIM(r.id))                         AS external_id,
@@ -824,6 +833,32 @@ export const OFFICE_SETTLEMENT_LINES = `
        AND g.transaction_date >= @windowStart
        AND g.transaction_date <  @windowEnd`;
 
+/**
+ * Fuel receipts keyed BY HAND into McLeod's fuel-tax (IFTA) module — cash, or a driver's own card
+ * (IFTA-PRECISION-PLAN IP6). `fuel_tax_history` holds three sources: X = trip miles, O = the EFS card
+ * import (the same gallons FUEL_PURCHASES reads), and F = these. Only F is read: O would re-send the
+ * card fills EFS already gives Silvicom 360 directly.
+ *
+ * Measured on lme_analytics 2026-10-05: 1,255 F rows ever, ~70 a quarter, every one with a tractor and
+ * a state, none voided, ids unique. They are keyed in a batch the first week after a quarter closes,
+ * so the window here is the caller's (two years, re-read nightly — see the sweep), not the 75-day one.
+ */
+export const FUEL_TAX_RECEIPTS = `
+    SELECT
+      LTRIM(RTRIM(f.id))                                  AS external_id,
+      LTRIM(RTRIM(f.company_id))                          AS company_id,
+      NULLIF(LTRIM(RTRIM(f.tractor_id)), '')              AS tractor_unit,
+      UPPER(NULLIF(LTRIM(RTRIM(f.state)), ''))            AS jurisdiction,
+      CONVERT(varchar(10), f.source_date, 23)             AS receipt_date,
+      f.fuel_volume                                       AS gallons,
+      CONVERT(varchar(19), f.process_date, 126)           AS processed_at,
+      CASE WHEN f.void_date IS NULL THEN 0 ELSE 1 END     AS is_void
+      FROM dbo.fuel_tax_history AS f
+     WHERE f.company_id = @companyId
+       AND f.source = 'F'
+       AND f.source_date >= @windowStart
+       AND f.source_date <  @windowEnd`;
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // Billing — P3.3, the earnings side (unblocked by recon F1/F2, answered 2026-08-27)
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -976,7 +1011,10 @@ const DISPATCH_LOADS_SELECT = `
       NULLIF(LTRIM(RTRIM(o.weight_um)), '')                  AS weight_um,
       o.pieces                                               AS pieces,
       o.pallets_how_many                                     AS pallets_how_many,
-      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno
+      NULLIF(LTRIM(RTRIM(o.consignee_refno)), '')            AS consignee_refno,
+      -- The customer's name (Q-LMR5), joined on company AND id: customer ids repeat across companies,
+      -- and on id alone the 130 open movements of 2026-09-29 returned 238 rows. On both, one each.
+      NULLIF(LTRIM(RTRIM(cu.name)), '')                      AS customer_name
       FROM dbo.movement AS m
       LEFT JOIN dbo.users AS u
         ON u.id = m.dispatcher_user_id AND u.company_id = m.company_id
@@ -984,6 +1022,8 @@ const DISPATCH_LOADS_SELECT = `
         ON mo.movement_id = m.id AND mo.company_id = m.company_id
       LEFT JOIN dbo.orders AS o
         ON o.id = mo.order_id AND o.company_id = mo.company_id
+      LEFT JOIN dbo.customer AS cu
+        ON cu.id = o.customer_id AND cu.company_id = o.company_id
       LEFT JOIN dbo.continuity AS ct
         ON ct.movement_id = m.id AND ct.company_id = m.company_id AND ct.equipment_type_id = 'T'
       LEFT JOIN dbo.continuity AS cl

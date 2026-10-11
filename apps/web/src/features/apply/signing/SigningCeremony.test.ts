@@ -15,7 +15,9 @@ import { APPLY_COPY } from "@/features/apply/strings";
  * no box falls back to its words and a plain button, so nobody is ever left without a way to sign.
  */
 
-const signed = vi.hoisted(() => ({ fn: vi.fn(), report: vi.fn() }));
+const signed = vi.hoisted(() => ({ fn: vi.fn(), report: vi.fn(), adopt: vi.fn() }));
+// Screen 13's own request, apart from the screen reports that share `publicFetch` (C3s1).
+vi.mock("@/features/apply/signing/adoptMark", () => ({ adoptMark: signed.adopt }));
 vi.mock("@/features/apply/useApplication", () => ({
   signRelease: signed.fn,
   publicFetch: signed.report,
@@ -75,11 +77,26 @@ const click = async (w: ReturnType<typeof mountIt>, text: string) => {
   await flushPromises();
 };
 
-/** Through the adoption and its confirm step, as an applicant would. */
+/** Through the adoption and its confirm step, as an applicant would: the name, then the initials. */
+/**
+ * Type both marks, then wait for "Use this" to light up. ⚠ Waited for, not flushed once: the button
+ * holds while the styled marks are still being drawn (`PacketMarkStyles`'s `rendering`), and the first
+ * test in the file pays for the faces' cold import — one `flushPromises` was a timing guess that
+ * failed the moment the button started waiting.
+ */
+async function typeMarks(w: ReturnType<typeof mountIt>): Promise<void> {
+  const [name, initials] = w.findAll("input");
+  await name!.setValue("Susan Godfrey");
+  await initials!.setValue("SG");
+  await vi.waitFor(async () => {
+    await flushPromises();
+    const use = w.findAll("button").find((b) => b.text() === APPLY_COPY.permissions.adoption.adoptAction);
+    expect(use?.attributes("disabled")).toBeUndefined();
+  });
+}
+
 async function adopt(w: ReturnType<typeof mountIt>): Promise<void> {
-  const name = w.find("input");
-  await name.setValue("Susan Godfrey");
-  await flushPromises();
+  await typeMarks(w);
   await click(w, APPLY_COPY.permissions.adoption.adoptAction);
   await click(w, APPLY_COPY.permissions.adoption.confirmAction);
 }
@@ -96,6 +113,27 @@ describe("the permissions, as documents", () => {
     const text = mountIt().text();
     expect(text).toContain("needs you to sign 6 permissions");
     expect(text).not.toMatch(/places on their own form/);
+  });
+
+  /** Screen 13 (D-AW15, C3s1): the initials are adopted here too, once, for the application's pages. */
+  it("adopts the signature AND the initials, and says where the initials are kept", async () => {
+    const w = mountIt();
+    const copy = APPLY_COPY.permissions.adoption;
+    expect(w.text()).toContain(copy.adoptHeadingWithInitials);
+    expect(w.text()).toContain(copy.initialsLabel);
+    await typeMarks(w);
+    await click(w, copy.adoptAction);
+    // The packet's sentence names pages off its stops; this screen has none, and must not say "undefined".
+    expect(w.text()).toContain(copy.confirmInitialsWhere([]));
+    expect(w.text()).not.toContain("undefined");
+  });
+
+  it("will not start without the initials", async () => {
+    const w = mountIt();
+    await w.findAll("input")[0]!.setValue("Susan Godfrey");
+    await flushPromises();
+    const start = w.findAll("button").find((b) => b.text() === APPLY_COPY.permissions.adoption.adoptAction)!;
+    expect(start.attributes("disabled")).toBeDefined();
   });
 
   it("shows the first permission as its PDF, and puts the Sign here tag on the box it names", async () => {

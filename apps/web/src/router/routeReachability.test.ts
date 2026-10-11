@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { NAV_SURFACES } from "@silvicom/shared";
+import { NAV_SURFACES, SURFACES } from "@silvicom/shared";
+import { SETTINGS_CARDS } from "@/lib/settingsCards";
 
 /**
  * Fitness function — every page a person can reach is a page something LINKS to (R8).
@@ -114,8 +115,18 @@ const corpus = sourceFiles(WEB_SRC)
 const quoted = (needle: string) =>
   corpus.includes(`"${needle}"`) || corpus.includes(`'${needle}'`) || corpus.includes(`\`${needle}\``);
 
-/** Paths the sidebar renders. Read from the catalogue `lib/nav.ts` reads, never a copy of it. */
-const navPaths = new Set(NAV_SURFACES.map((s) => s.path));
+/**
+ * Paths the sidebar renders. Read from the catalogue `lib/nav.ts` reads, never a copy of it.
+ *
+ * Plus the Settings directory's cards, for the sidebar's reason a second time (SP1): the page builds
+ * each link from the card's surface key, so `/settings/org` no longer appears as a literal anywhere
+ * in this app. Only KEYS that have a card count — a catalogued screen with no card is exactly the
+ * orphan this file exists to find.
+ */
+const navPaths = new Set([
+  ...NAV_SURFACES.map((s) => s.path),
+  ...SETTINGS_CARDS.flatMap((c) => SURFACES.filter((s) => s.key === c.key).map((s) => s.path)),
+]);
 
 describe("every page is reachable from somewhere", () => {
   const declared = declaredRoutes();

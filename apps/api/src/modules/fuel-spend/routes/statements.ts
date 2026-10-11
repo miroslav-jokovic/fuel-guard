@@ -7,6 +7,9 @@ import { writeAudit } from "../../../lib/audit.js";
 import { type StatementWord } from "@silvicom/shared";
 import { ingestFuelStatement, STATEMENT_BUCKET } from "../fuelStatementIngest.js";
 import { runFuelReconciliation } from "../fuelReconRun.js";
+import { listReconRuns, readReconRun } from "../reconRunRead.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Statement + reconciliation routes — moved here from routes/fueling/networks.ts at the P1.6
  *  split (2026-08-27): fuel_statements, fuel_recon_runs and the statement bucket are this
@@ -104,26 +107,52 @@ export function registerStatementRoutes(router: Router): void {
     }),
   );
 
-  /** The runs we hold, newest period first. Superseded ones are history, not a finding to act on. */
+  /**
+   * The saved checks, newest period first, paged (FS3). Superseded ones are history, not a finding to
+   * act on, and are not listed. This read used to stop at `.limit(100)` and say nothing; `total` lets
+   * the Pilot invoices page say how many there are and page past any cap.
+   */
   router.get(
     "/recon-runs",
     requireOrg,
     requireSection("fuel", "view"),
     asyncHandler(async (req, res) => {
-      const env = getAppLocals(req).env;
-      const admin = getSupabaseAdmin(env);
-      const { data, error } = await admin
-        .from("fuel_recon_runs")
-        .select("id, source_kind, source_filename, invoice_no, period_start, period_end, tie_out_gated, tie_out_notes, matcher_version, summary, unmatchable_lines, created_at")
-        .eq("org_id", req.auth!.orgId!)
-        .is("superseded_by", null)
-        .order("period_start", { ascending: false })
-        .limit(100);
-      if (error) {
-        dbErrorResponse(res, "fuel_recon_runs read", error, "Could not load your reconciliations");
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const r = await listReconRuns(admin, req.auth!.orgId!, {
+        limit: Number(req.query.limit) || 25,
+        offset: Number(req.query.offset) || 0,
+      });
+      if (!r.ok) {
+        dbErrorResponse(res, "fuel_recon_runs read", r.error, "Could not load your invoice checks");
         return;
       }
-      res.json({ ok: true, runs: data ?? [] });
+      res.json({ ok: true, ...r.page });
+    }),
+  );
+
+  /** One saved check and the lines it recorded, read back as written (FS3). */
+  router.get(
+    "/recon-runs/:id",
+    requireOrg,
+    requireSection("fuel", "view"),
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id);
+      // Not a uuid is not a run: Postgres would answer 22P02 and the reader would see a 500.
+      if (!UUID_RE.test(id)) {
+        res.status(404).json(apiError("not_found", "No invoice check with that id."));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const r = await readReconRun(admin, req.auth!.orgId!, id);
+      if (!r.ok) {
+        dbErrorResponse(res, "fuel_recon_runs read", r.error, "Could not load that invoice check");
+        return;
+      }
+      if (!r.detail) {
+        res.status(404).json(apiError("not_found", "No invoice check with that id."));
+        return;
+      }
+      res.json({ ok: true, ...r.detail });
     }),
   );
 

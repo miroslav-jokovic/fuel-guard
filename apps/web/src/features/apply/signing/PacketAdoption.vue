@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   AppButton as BaseButton,
   AppInput as BaseInput,
@@ -8,11 +8,12 @@ import {
 } from "@silvicom/ui";
 import type { PacketMarkKind } from "@silvicom/shared";
 import type { AdoptionCeremony, AdoptionCopy } from "@/features/apply/signing/adoptionCeremony";
-import SignaturePad from "@/features/apply/signing/SignaturePad.vue";
+import SignaturePad from "@/components/SignaturePad.vue";
 import PacketMarkStyles from "@/features/apply/signing/PacketMarkStyles.vue";
 import PacketMarkUpload from "@/features/apply/signing/PacketMarkUpload.vue";
 import { markRequiredFor, type AdoptedMarkStyle } from "@/features/apply/signing/usePacketAdoption";
 import { APPLY_COPY } from "@/features/apply/strings";
+import { HANDBOOK_PLACES } from "@/features/apply/signing/envelope";
 
 /**
  * The three screens BEFORE the walk: a resumed link's pinned marks, the adoption form, and A4's
@@ -125,6 +126,13 @@ const initialsMarkReady = computed(
     || !ceremony.value.needsInitials.value
     || ceremony.value.initialsBlob.value !== null,
 );
+/**
+ * A styled mark still being drawn (`PacketMarkStyles`'s `rendering`). ⚠ `markReady` lets a styled tab
+ * through with no picture, on purpose — a rasteriser that cannot draw must not stop the walk — so
+ * without this a press before the font arrived was read as that failure and nothing was sent. Waiting
+ * is what separates "not drawn yet" from "could not be drawn".
+ */
+const markRendering = ref(false);
 /** ⚠ The same length the composable enforces, and the same reason: one initial is a real one. */
 const initialsReady = computed(
   () => !ceremony.value.needsInitials.value || ceremony.value.adoptedInitials.value.trim().length >= 1,
@@ -168,9 +176,11 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
     v-if="ceremony.state.value === 'adopting' && ceremony.alreadyAdopted.value"
     class="mx-auto w-full max-w-3xl space-y-4"
   >
+    <!-- D-AW15 (C3s2a): the link's adoption, OFFERED — "use it", or make a new one — until a place
+         on this document carries it; after that it is the resumed walk's, pinned. -->
     <div>
-      <h2 class="text-lg font-semibold text-ink">{{ copy.resumedHeading }}</h2>
-      <p class="mt-2 text-sm text-ink-muted">{{ copy.resumedBody }}</p>
+      <h2 class="text-lg font-semibold text-ink">{{ ceremony.canRemake.value ? copy.adoptedHeading : copy.resumedHeading }}</h2>
+      <p class="mt-2 text-sm text-ink-muted">{{ ceremony.canRemake.value ? copy.adoptedBody : copy.resumedBody }}</p>
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
         {{ copy.resumed(ceremony.collected.value.length) }}
       </p>
@@ -206,9 +216,10 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       <p v-else class="signature-preview text-2xl text-ink">{{ ceremony.adoptedInitials.value }}</p>
     </div>
 
-    <div class="flex justify-end">
+    <div class="flex flex-wrap justify-end gap-2">
+      <BaseButton v-if="ceremony.canRemake.value" variant="secondary" @click="ceremony.remake">{{ copy.remakeAction }}</BaseButton>
       <BaseButton variant="primary" :disabled="ceremony.working.value" @click="adoptAndStart">
-        {{ ceremony.working.value ? copy.working : copy.resumedAction }}
+        {{ ceremony.working.value ? copy.working : ceremony.canRemake.value ? copy.adoptedAction : copy.resumedAction }}
       </BaseButton>
     </div>
   </section>
@@ -223,7 +234,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
            only the first ("Give your signature once below — then we take you to each place"). Shown
            on a form whose signature field is disabled, it points at the one thing they cannot do. -->
       <p class="mt-2 text-sm text-ink-muted">
-        {{ reopenedToChange ? copy.changeIntro : copy.adoptIntro(carrier, ceremony.total.value) }}
+        {{ reopenedToChange ? copy.changeIntro : copy.adoptIntro(carrier, ceremony.total.value, HANDBOOK_PLACES) }}
       </p>
       <!-- A resumed link says so, rather than silently opening part-way through. -->
       <p v-if="ceremony.collected.value.length" class="mt-2 text-sm text-ink-secondary">
@@ -287,6 +298,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       :initials="ceremony.needsInitials.value ? ceremony.adoptedInitials.value : ''"
       @change="ceremony.markBlob.value = $event"
       @initials-change="ceremony.initialsBlob.value = $event"
+      @rendering="markRendering = $event"
     />
 
     <!-- ⚠ The pad's OWN label and hint are replaced rather than a second line printed above it. Its
@@ -297,6 +309,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       <SignaturePad
         :label="copy.drawLabel"
         :hint="copy.drawHint"
+        :clear-label="copy.drawClear"
         @change="ceremony.markBlob.value = $event"
       />
       <p v-if="!markReady" class="text-sm text-ink-secondary">{{ copy.drawNeeded }}</p>
@@ -309,6 +322,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
         <SignaturePad
           :label="copy.drawInitialsLabel"
           :hint="copy.drawInitialsHint"
+          :clear-label="copy.drawClear"
           @change="ceremony.initialsBlob.value = $event"
         />
         <p v-if="!initialsMarkReady" class="text-sm text-ink-secondary">
@@ -340,6 +354,7 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
             || !initialsReady
             || !markReady
             || !initialsMarkReady
+            || markRendering
         "
         @click="adoptAndStart"
       >
@@ -430,7 +445,8 @@ const reopenedToChange = computed(() => ceremony.value.pinnedKinds.value.size > 
       {{ copy.initialsFailed }}
     </p>
 
-    <div class="flex justify-end gap-2">
+    <!-- Wraps: at 320 px the two did not fit on one line and "Change" was pushed off the card (C3d3b2). -->
+    <div class="flex flex-wrap justify-end gap-2">
       <BaseButton variant="secondary" @click="ceremony.reopen">{{ copy.confirmChange }}</BaseButton>
       <BaseButton variant="primary" @click="ceremony.confirm">{{ copy.confirmAction }}</BaseButton>
     </div>

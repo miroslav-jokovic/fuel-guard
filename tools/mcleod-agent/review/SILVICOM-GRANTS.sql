@@ -1,5 +1,5 @@
 -- ========================================================================================
--- Silvicom 360 - grants for silvicom_dispatch_ro (2026-09-25, corrected 2026-09-28)
+-- Silvicom 360 - grants for silvicom_dispatch_ro (2026-09-25, corrected 2026-09-28, all run 2026-09-29)
 --
 -- SELECT only. No INSERT, UPDATE, DELETE, EXECUTE or schema permission, and no SHOWPLAN.
 --
@@ -25,7 +25,22 @@
 --     read movement, movement_order, orders, stop and users. On LME the login already has
 --     them; on lme_analytics it did not, so those four statements were refused there. Five
 --     lines, Part 2, marked below.
--- Only the lines marked "not yet run" are new; running the whole file again is harmless.
+-- 2026-09-29: Alex ran those six lines. Checked the same day under silvicom_dispatch_ro,
+-- encrypted: on LME the customer join matches on company_id (132 open orders, one customer
+-- each) and statements 1-8, 16 and 22-24 run; on lme_analytics all sixteen tables read and
+-- statements 9-21 run, 15 to 18 included. Still no write permission anywhere.
+-- Nothing in this file is waiting to be run; running the whole file again is harmless.
+--
+-- 2026-10-05 - WAITING TO BE RUN: one table, fuel_tax_history (the IFTA fuel-tax history), on
+-- both databases. The new statement "FUEL RECEIPTS KEYED BY HAND" reads only its source F rows -
+-- the cash and own-card receipts the office keys in - and no personal data. Two lines, marked
+-- below in Part 2 and Part 3.
+--
+-- 2026-10-10 - WAITING TO BE RUN: one table, voucher_dist (the AP voucher distribution lines),
+-- on both databases. The voucher header carries the payables account; the expense account each
+-- bill was coded to (repairs, tolls, office bills) is on these lines. No statement reads it yet:
+-- its columns are checked against the database first, and the statement comes for review
+-- before it runs. Two lines, marked below in Part 2 and Part 3.
 -- ========================================================================================
 
 
@@ -40,7 +55,7 @@ GRANT SELECT ON dbo.reference_number TO silvicom_dispatch_ro;
 -- customer: only these columns. No credit, billing or contact fields.
 GRANT SELECT ON dbo.customer (id, name, city, state_id) TO silvicom_dispatch_ro;
 
--- Added 2026-09-28, not yet run: company_id, so the customer join can match the company.
+-- Added 2026-09-28, run 2026-09-29: company_id, so the customer join can match the company.
 GRANT SELECT ON dbo.customer (company_id) TO silvicom_dispatch_ro;
 GO
 
@@ -66,13 +81,35 @@ GRANT SELECT ON dbo.fuel_detail      TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.fuel_detail_hist TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.equipment_item   TO silvicom_dispatch_ro;
 
--- Added 2026-09-28, not yet run. The same five tables the login already reads on LME, and
+-- Added 2026-09-28, run 2026-09-29. The same five tables the login already reads on LME, and
 -- only needed here, on lme_analytics: statements 15 to 18 join them.
 GRANT SELECT ON dbo.movement         TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.movement_order   TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.orders           TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.stop             TO silvicom_dispatch_ro;
 GRANT SELECT ON dbo.users            TO silvicom_dispatch_ro;
+
+-- Added 2026-10-05, NOT YET RUN: the fuel-tax history, for "FUEL RECEIPTS KEYED BY HAND".
+GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
+
+-- Added 2026-10-10, NOT YET RUN: the AP distribution lines, for the expense account of each bill.
+GRANT SELECT ON dbo.voucher_dist     TO silvicom_dispatch_ro;
+GO
+
+
+-- ----------------------------------------------------------------------------------------
+-- PART 3 - FUEL-TAX HISTORY AND AP DISTRIBUTION LINES ON LME (added 2026-10-05 and 2026-10-10, NOT YET RUN)
+-- The same one table on the live database, so the hand-keyed receipts are read from the
+-- books as they are today rather than from the analytics copy's last restore.
+-- ----------------------------------------------------------------------------------------
+USE lme;
+GO
+
+GRANT SELECT ON dbo.fuel_tax_history TO silvicom_dispatch_ro;
+
+-- Added 2026-10-10, NOT YET RUN: the same AP distribution lines on the live database, so the
+-- nightly finance read sees a bill the day it is entered.
+GRANT SELECT ON dbo.voucher_dist     TO silvicom_dispatch_ro;
 GO
 
 
@@ -88,7 +125,8 @@ SELECT t.name AS table_name,
  WHERE t.name IN ('reference_number', 'gl_ledger', 'gl_ledger_hist', 'gl_account',
                   'billing_history', 'drs_settle_hist', 'drs_deduct_hist', 'voucher',
                   'voucher_hist', 'fuel_detail', 'fuel_detail_hist', 'equipment_item',
-                  'movement', 'movement_order', 'orders', 'stop', 'users');
+                  'movement', 'movement_order', 'orders', 'stop', 'users', 'fuel_tax_history',
+                  'voucher_dist');
 -- customer is granted by column, so it is checked by column: all five should show 1.
 SELECT HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'company_id', 'COLUMN') AS customer_company_id,
        HAS_PERMS_BY_NAME('dbo.customer', 'OBJECT', 'SELECT', 'id', 'COLUMN')       AS customer_id,

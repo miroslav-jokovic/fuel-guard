@@ -106,6 +106,54 @@ describe("deriveVehicleState", () => {
   });
 });
 
+/**
+ * D-LM29 — the ECU's engine state decides between `stopped` and `parked`, and between `parked` and
+ * `offline`. Production, 2026-09-30: 29 trucks flipped between the first two in 2.5 minutes under the
+ * ping-rate rule, and 42 of 48 `offline` trucks were ones Samsara calls "Off".
+ */
+describe("deriveVehicleState with an engine state", () => {
+  const withEngine = (age: number, speed: number | null, engineState: "On" | "Idle" | "Off" | null) =>
+    deriveVehicleState({ sampledAt: agoSec(age), speedMph: speed, engineState }, NOW);
+
+  it("is stopped when the ECU says the engine runs, however slowly the truck is pinging", () => {
+    expect(withEngine(200, 0, "Idle")).toBe("stopped");
+    expect(withEngine(200, 0, "On")).toBe("stopped");
+  });
+
+  it("is parked when the ECU says off, even on a fix seconds old", () => {
+    expect(withEngine(3, 0, "Off")).toBe("parked");
+  });
+
+  // The change that moves the weekend yard, the shop and the sold-awaiting-pickup trucks out of
+  // `offline`: a switched-off truck going quiet is the engine being off, not the signal being lost.
+  it("is parked, not offline, when the engine is off and the truck went quiet days ago", () => {
+    expect(withEngine(OFFLINE_BOUND_SECONDS + 1, 0, "Off")).toBe("parked");
+    expect(withEngine(21 * 86400, null, "Off")).toBe("parked");
+  });
+
+  it("is offline when the engine was last reported RUNNING and the truck has gone silent", () => {
+    expect(withEngine(OFFLINE_BOUND_SECONDS + 1, 0, "Idle")).toBe("offline");
+    expect(withEngine(OFFLINE_BOUND_SECONDS + 1, 62, "On")).toBe("offline");
+  });
+
+  // Two stats, two clocks: right after a start the newest GPS can be ahead of the newest engine event.
+  it("lets a moving speed on a FRESH fix outrank a stale Off", () => {
+    expect(withEngine(5, 55, "Off")).toBe("moving");
+    expect(withEngine(OFFLINE_BOUND_SECONDS + 1, 55, "Off")).toBe("parked");
+  });
+
+  it("falls back to the ping-rate inference when the ECU has said nothing — absent is not Off", () => {
+    expect(withEngine(5, 0, null)).toBe("stopped");
+    expect(withEngine(240, 0, null)).toBe("parked");
+    expect(withEngine(OFFLINE_BOUND_SECONDS + 1, 0, null)).toBe("offline");
+  });
+
+  it("still calls a moving truck moving whatever the engine says", () => {
+    expect(withEngine(5, 62, "On")).toBe("moving");
+    expect(withEngine(5, 62, "Idle")).toBe("moving");
+  });
+});
+
 describe("lerp", () => {
   it("interpolates and clamps, so a late frame cannot overshoot the target", () => {
     expect(lerp(0, 10, 0.5)).toBe(5);

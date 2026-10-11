@@ -121,6 +121,10 @@ export const efsEnvFields = {
   // changes it, and spending the shared service account's rate budget on data that has not moved is
   // exactly the "excessive polling" the EFS guide warns can get an account suspended (p11).
   EFS_CARD_SYNC_HOURS: z.coerce.number().min(1).max(168).default(24),
+  // How often card STATUS is polled — one getCardSummaries call for the whole fleet, plus a getCardv2
+  // only for a card whose status moved (efsCardStatusPoll.ts). Five minutes is 288 calls a day,
+  // against ~1,440 for the posted-transaction poller. 0 turns the poll off and the mirror is daily.
+  EFS_CARD_STATUS_POLL_MINUTES: z.coerce.number().int().min(0).max(1440).default(5),
   // Per-card getCardv2 calls per sweep. The roster (one call) is always complete; this bounds the
   // DEPTH pass, which is one paced request per card and would otherwise run for minutes on a large
   // fleet. Cards catch up across runs.

@@ -17,6 +17,19 @@ import { STEP_UP_TOKEN_HEADER, verifyStepUpToken } from "../lib/stepUpToken.js";
  * card control, granting or revoking approvers, an override above CARD_OVERRIDE_STEP_UP_ABOVE_USES uses,
  * and any prompts change that removes the driver-ID record.
  *
+ * Also required for every access change (SP9, SETTINGS-PERMISSIONS-PLAN.md §4b; owner ruled Q-SET8 (a)
+ * on 2026-09-30): each write on the Permissions page (section-access and surface-access, role layer and
+ * per-user layer), each write on the Users page (re-role, rename, remove, revoke, suspend, reinstate,
+ * password reset) and each write on invites (create, resend, revoke, delete). The reasoning is the card
+ * control reasoning turned inward: a stolen admin session that can edit the matrix can hand itself, or
+ * an accomplice's account, every other capability in the product — card control included — without
+ * ever meeting this gate. The cost is one password prompt per five minutes of editing, which an admin
+ * reorganising access pays once.
+ *
+ * NOT required for the reads behind those pages, for the invitee's own `POST /api/invites/accept` or
+ * the public redeem route (the invitee has no admin password to give, and the link is their proof),
+ * nor for `POST /api/invites/mail-test`, which mails the caller's own address and changes no access.
+ *
  * NOT required for a plain lock or unlock. That is the safety action you want frictionless at 2am
  * when a truck has been broken into, and it is fully reversible. A control that makes the emergency
  * response slower has a cost measured in stolen fuel, and it buys nothing an attacker could not get

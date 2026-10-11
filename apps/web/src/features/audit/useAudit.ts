@@ -1,51 +1,31 @@
 import { type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import type { AuditLog } from "@silvicom/shared";
-import { supabase } from "@/lib/supabase";
+import type { AuditLogPage } from "@silvicom/shared";
+import { apiFetch } from "@/lib/api";
 
 export interface AuditFilters {
   action?: string;
 }
 
-export interface AuditPage {
-  rows: AuditLog[];
-  total: number;
-  hasNext: boolean;
-  nextCursor: string | null;
-}
-
-const PAGE_SIZE = 50;
-
-/** Audit log (RLS limits reads to admin + auditor), paged by stable created_at/id cursor. */
+/**
+ * The Audit log, a page at a time by a stable created_at/id cursor (`GET /api/audit/log`).
+ *
+ * Through the API since SP4, not PostgREST: the Audit log screen's grant decides who reads, where
+ * RLS used to let only the admin and auditor ROLES see a row — and showed anyone else the admin
+ * granted the screen an empty table. No total (Q-SET5); the page learns only whether there is more.
+ */
 export function useAuditQuery(filters: Ref<AuditFilters>, cursor: Ref<string | null>) {
   return useQuery({
     queryKey: ["audit_logs", filters, cursor],
-    queryFn: async (): Promise<AuditPage> => {
+    queryFn: async (): Promise<AuditLogPage> => {
       const f = toValue(filters);
       const after = toValue(cursor);
-      let q = supabase
-        .from("audit_logs")
-        .select("id, org_id, actor_id, action, entity, entity_id, meta, created_at", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(PAGE_SIZE + 1);
-      if (f.action) q = q.ilike("action", `${f.action}%`);
-      if (after) {
-        const [createdAt, id] = after.split("|");
-        if (createdAt && id) q = q.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`);
-      }
-      const { data, error, count } = await q;
-      if (error) throw new Error(error.message);
-      const batch = (data ?? []) as AuditLog[];
-      const hasNext = batch.length > PAGE_SIZE;
-      const rows = hasNext ? batch.slice(0, PAGE_SIZE) : batch;
-      const last = rows.at(-1);
-      return {
-        rows,
-        total: count ?? rows.length,
-        hasNext,
-        nextCursor: hasNext && last ? `${last.created_at}|${last.id}` : null,
-      };
+      const q = new URLSearchParams();
+      if (f.action) q.set("action", f.action);
+      if (after) q.set("cursor", after);
+      const r = await apiFetch<AuditLogPage>(`/api/audit/log?${q}`);
+      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the audit log");
+      return r.data;
     },
   });
 }

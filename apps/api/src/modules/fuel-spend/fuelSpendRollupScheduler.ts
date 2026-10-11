@@ -3,6 +3,7 @@ import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { buildFuelSpendRollup } from "./fuelSpendRollup.js";
 import { runFuelPolicyScanForWindow } from "./fuelPolicyScan.js";
+import { runFuelContractScan } from "./fuelContractScan.js";
 import { resolveFuelTransactionStations } from "../fuel/index.js";
 import { markFuelSweepComplete, startJob, startJobHeartbeat, finishJob, JobConflictError } from "../org/index.js";
 import { runFuelSweepFreshnessOnce, FUEL_SWEEP_JOB_KIND } from "./fuelSweepFreshness.js";
@@ -124,6 +125,22 @@ async function sweepOneOrg(
           `(${scan.inserted} new, ${scan.refreshed} refreshed, ${scan.closed} closed)`,
       );
     }
+  }
+
+  /*
+   * The contract scan follows it on the sweep's own window (Q-FSV15 ruling 4): a fill's overbilling is
+   * measured against its own quote, so unlike the policy scan it needs no calendar month. It files only
+   * what `MIN_CONTRACT_OVERBILL_USD` says is worth a person's time and closes only `contract_variance`.
+   */
+  const contract = await runFuelContractScan(admin, orgId, from, to);
+  if (contract.error) {
+    scansFailed += 1;
+    console.error(`[fuel-spend] org ${orgId}: contract scan ${from}..${to} failed: ${contract.error}`);
+  } else if (contract.filed > 0 || contract.closed > 0) {
+    console.log(
+      `[fuel-spend] org ${orgId}: contract ${from}..${to} — ${contract.filed} finding(s) ` +
+        `(${contract.inserted} new, ${contract.refreshed} refreshed, ${contract.closed} closed)`,
+    );
   }
 
   return { stationsResolved: st.resolved, written: r.written, deleted: r.deleted, rejectedIntervals: r.rejectedIntervals, unattributedFills: r.unattributedFills, scansFailed };

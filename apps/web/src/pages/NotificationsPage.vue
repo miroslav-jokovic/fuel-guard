@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { orgSettingsFormSchema, type OrgSettingsForm } from "@silvicom/shared";
-import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
+import { orgNotificationsFormSchema } from "@silvicom/shared";
+import { useOrgSettingsQuery, useSaveOrgNotifications } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -11,7 +11,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
-const save = useSaveOrgSettings();
+const save = useSaveOrgNotifications();
 
 const form = reactive({
   notifications_enabled: true,
@@ -32,14 +32,11 @@ const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
 
 async function onSave() {
-  const o = data.value;
-  if (!o) return;
+  if (!data.value) return;
   const emails = form.emails.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
-  // Pass the org's other settings through unchanged — this page only edits the notification fields.
-  const result = orgSettingsFormSchema.safeParse({
-    name: o.name,
-    allowed_domains: o.allowed_domains ?? [],
-    operating_hours: o.operating_hours,
+  // Only this page's two fields go (SP2). It used to send the whole row, passing the rest "through
+  // unchanged" — except the DOT number and the address, which it left out and the save then nulled.
+  const result = orgNotificationsFormSchema.safeParse({
     notifications_enabled: form.notifications_enabled,
     notification_emails: emails,
   });
@@ -54,7 +51,7 @@ async function onSave() {
   }
   fieldErr.value = {};
   try {
-    await save.mutateAsync(result.data as OrgSettingsForm);
+    await save.mutateAsync(result.data);
     toast.success("Notification settings saved");
   } catch (e) {
     toast.error("Could not save notifications", e instanceof Error ? e.message : undefined);
@@ -64,17 +61,25 @@ async function onSave() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
-    <PageHeader description="Choose who receives high- and critical-risk anomaly notifications." />
+    <PageHeader description="Turn the carrier's alerts on or off, and choose who is emailed." />
     <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Anomaly alerts</h3>
+        <!-- Q-AW52 (owner, 2026-09-29): this ONE switch (`organizations.notifications_enabled`) is read by
+             every carrier alert, not only the anomaly emails it used to name — so turning it off to stop
+             those silenced the rest without saying so. The list is each reader of the column in
+             apps/api (grep `notifications_enabled`); a new reader adds its line here. -->
+        <h3 class="text-base font-semibold text-ink">The carrier's alerts</h3>
         <p class="mt-1 text-xs text-ink-muted">
-          Who gets emailed when the detection engine flags a high or critical anomaly.
+          One switch for all of them. Off, none of these is sent: high and critical anomalies, drivers who
+          stopped part-way through an application, driver qualification expirations, the weekly digest,
+          fuel and finance data that has stopped arriving, a stalled Samsara feed and its fuel events, and
+          an EFS certificate about to expire. An EFS certificate that has already expired is emailed even
+          when this is off, because the EFS connection stops working with it.
         </p>
         <div class="mt-4">
           <BaseCheckbox v-model="form.notifications_enabled">
-            Email recipients when high/critical anomalies are detected
+            Send the carrier's alerts
           </BaseCheckbox>
         </div>
         <FormField

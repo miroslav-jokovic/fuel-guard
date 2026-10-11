@@ -116,4 +116,50 @@ describe("snapshotSettledWeeks", () => {
     // neighbouring tenant's frozen weeks would silently suppress this org's payouts.
     expectOrgScoped(rec, ORG, { exempt: ["organizations"] }); // org row, keyed by `id` (see above)
   });
+  // The idle_events twin clean-up (plan I0). Weeks frozen while Samsara's twinned idle events were stored
+  // scored idle at double; the owner ruled they are re-frozen. Only those: a week frozen BEFORE the first
+  // twin was written, or whose window ends before the first twinned event, is a clean ledger row.
+  describe("refreeze", () => {
+    const frozenLedger = [
+      { week_start: "2026-07-13", settled_at: "2026-07-23T10:00:00Z" }, // frozen after the first twin
+      { week_start: "2026-07-06", settled_at: "2026-07-14T10:00:00Z" }, // frozen before it
+      { week_start: "2026-06-29", settled_at: "2026-07-07T10:00:00Z" },
+    ];
+    const recorder = () =>
+      createSupabaseRecorder({
+        tables: {
+          driver_performance_settings: { data: settingsRow },
+          organizations: { data: { operating_hours: { tz: "America/Chicago" } } },
+          driver_performance_weeks: frozenLedger,
+          idle_events: [],
+          drivers: [],
+          driver_scores: scoresForWeek,
+        },
+      });
+
+    it("re-freezes a frozen week only when it was frozen after the first twin AND reaches a twinned event", async () => {
+      const rec = recorder();
+      const res = await snapshotSettledWeeks(rec.client, env, ORG, {
+        nowMs: NOW,
+        maxWeeks: 3,
+        refreeze: { windowFromIso: "2026-07-01T00:00:00Z", settledSinceIso: "2026-07-22T00:00:00Z" },
+      });
+      expect(res.weeksFrozen).toEqual(["2026-07-13"]);
+      expect(new Set(rec.writtenRows("driver_performance_weeks").map((r) => r.week_start))).toEqual(
+        new Set(["2026-07-13"]),
+      );
+      expectOrgScoped(rec, ORG, { exempt: ["organizations", "drivers"] });
+    });
+
+    it("leaves a week alone when its window ends before the first twinned event", async () => {
+      const rec = recorder();
+      const res = await snapshotSettledWeeks(rec.client, env, ORG, {
+        nowMs: NOW,
+        maxWeeks: 3,
+        refreeze: { windowFromIso: "2026-07-21T00:00:00Z", settledSinceIso: "2026-07-01T00:00:00Z" },
+      });
+      expect(res.weeksFrozen).toEqual([]);
+      expect(rec.writtenRows("driver_performance_weeks")).toHaveLength(0);
+    });
+  });
 });

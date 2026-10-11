@@ -15,7 +15,6 @@ import {
   APPLICANT_DISPOSITION_LABELS,
   currentDisposition,
   isCarrierDecision,
-  rolesThatManage,
   type ApplicantDispositionOutcome,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
@@ -50,10 +49,9 @@ const dispositionsQ = useDispositionsQuery(computed(() => props.driverId));
 const record = useRecordDisposition();
 
 /** Recruitment manage — the same population that can send the invitation this decision ends. */
-const canDecide = computed(() => {
-  const role = session.role;
-  return Boolean(role) && rolesThatManage("recruitment").includes(role!);
-});
+// SP5: the ORG'S answer (the `sections` claim), the one `requireSection("recruitment")` reads — not
+// the shipped matrix, which an org's grant or narrowing of the section never reached.
+const canDecide = computed(() => session.can("recruitment"));
 
 /**
  * ⚠ Hidden for a driver who is not an applicant, matching the endpoint's own refusal. Ending an

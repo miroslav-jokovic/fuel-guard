@@ -8,6 +8,7 @@ import { createApp } from "../../../app.js";
 import { loadEnv } from "../../../env.js";
 import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
+import { seal, secretAad } from "../../../lib/secretBox.js";
 
 /**
  * Step 2.7 — what a READ-ONLY entitlement probe is allowed to change.
@@ -55,8 +56,8 @@ const CREDENTIALS = {
   environment: "sandbox",
   endpoint_url: ENDPOINT,
   soap_username: "user",
-  soap_password: "pass",
-  soap_password_sealed: null,
+  soap_password: "",
+  soap_password_sealed: seal(env, "pass", secretAad(ORG, "efs_soap_password.v1")),
   account_id: null,
   posted_last_cursor: null, rejected_last_cursor: null,
   posted_last_polled_at: null, rejected_last_polled_at: null,

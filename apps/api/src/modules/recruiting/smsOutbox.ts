@@ -9,7 +9,10 @@ import {
   smsApplicationReminder,
   smsDrugTestSite,
   smsOptInConfirmation,
+  smsSigningLink,
   smsZonesFor,
+  SIGN_LINK_UNLOCK_LIMIT,
+  SIGN_LINK_LIFETIME_HOURS,
   type DrugTestSiteParams,
   type SmsHoldReason,
 } from "@silvicom/shared";
@@ -43,19 +46,25 @@ import { isSuppressed } from "./smsSuppressions.js";
  * invitation's TEXT token (`rotate_invitation_sms_token`, 0378), which the resolver accepts as a third
  * door. The email's link and the office's screen are untouched; the previous text's link dies, which is
  * what the words have always said. Rotate first, then send, for 0232's reason: a failure between the two
- * costs a text, never a link that does not work yet. `signing_link` is not here yet: the sign link is
- * minted by the office in person (D-AF3), and C3s decides how it reaches the phone.
+ * costs a text, never a link that does not work yet.
+ *
+ * `signing_link` (D-AW14, C3s3a) rides the same text token. The office's Send for signing sends it with
+ * the driver in the office, so it nearly always goes at once; queued, it is still worth sending only
+ * while the sent link is (`stillWanted`), and the resolver ends the text door with the sign door at the
+ * send's 72 hours (`isSentSignDoor`).
  *
  * ⚠ Every query org-filters itself. The drain reads each org's queue in turn (`runSmsOutboxOnce`),
  * never the whole table, and a delivery receipt — which names no org — finds its row by the
  * provider's message id and writes back through that row's own org.
  */
 
-export const SMS_TEMPLATES = ["consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge"] as const;
+export const SMS_TEMPLATES = [
+  "consent_confirm", "application_approved", "drug_test_site", "application_sent", "nudge", "signing_link",
+] as const;
 export type SmsTemplate = (typeof SMS_TEMPLATES)[number];
 
 /** The templates whose words carry the applicant's link — minted at send time, never stored. */
-export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge"]);
+export const LINK_TEMPLATES: ReadonlySet<SmsTemplate> = new Set<SmsTemplate>(["application_sent", "nudge", "signing_link"]);
 
 /** 0376's reasons; `other` is the approval notice, which the CHECK has no word of its own for. */
 const REASON: Record<SmsTemplate, string> = {
@@ -64,6 +73,7 @@ const REASON: Record<SmsTemplate, string> = {
   drug_test_site: "drug_test_site",
   application_sent: "application_sent",
   nudge: "nudge",
+  signing_link: "signing_link",
 };
 
 /**
@@ -126,6 +136,7 @@ async function render(
   if (template === "application_approved") return smsApplicationApproved(carrier);
   if (template === "application_sent") return smsApplicationReady(carrier, String(link));
   if (template === "nudge") return smsApplicationReminder(carrier, String(link));
+  if (template === "signing_link") return smsSigningLink(carrier, String(link), SIGN_LINK_LIFETIME_HOURS);
   const zone = await readCarrierZone(admin, orgId);
   const label = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
     .formatToParts(new Date(String(params.window_start)))
@@ -250,7 +261,10 @@ export async function sendOrQueueSms(admin: SupabaseClient, env: Env, message: S
  *   · "your application is ready" and the reminder (Q-AW29) — not once the applicant has handed the
  *     application over, had it approved, or filed it overnight: a reminder to somebody waiting on the
  *     office is A1's defect, and "fill it in here" to somebody who has is noise. A revoked or lapsed
- *     invitation is refused by the rotation itself (`mintTextLink`).
+ *     invitation is refused by the rotation itself (`mintTextLink`);
+ *   · the sign link (C3s3a) — only while the send it belongs to is live: not filed, inside its 72 hours,
+ *     and not stopped by five wrong dates of birth. ⚠ The last is the one that matters: the drain mints a
+ *     FRESH text token, so a queued text sent after the stop would reopen the door the stop closed.
  */
 async function stillWanted(
   admin: SupabaseClient,
@@ -258,10 +272,12 @@ async function stillWanted(
   template: SmsTemplate,
   params: Record<string, unknown>,
   invitationId: string | null,
+  now: Date,
 ): Promise<boolean> {
   if (template === "drug_test_site") return drugTestStillLive(admin, orgId, String(params.appointment_id ?? ""));
   if (!LINK_TEMPLATES.has(template)) return true;
   if (!invitationId) return false;
+  if (template === "signing_link") return signingStillLive(admin, orgId, invitationId, now);
   const { data } = await admin
     .from("application_invitations")
     .select("submitted_at, review_requested_at, approved_at")
@@ -270,6 +286,18 @@ async function stillWanted(
     .maybeSingle();
   const inv = data as { submitted_at: string | null; review_requested_at: string | null; approved_at: string | null } | null;
   return inv !== null && !inv.submitted_at && !inv.review_requested_at && !inv.approved_at;
+}
+
+async function signingStillLive(admin: SupabaseClient, orgId: string, invitationId: string, now: Date): Promise<boolean> {
+  const { data } = await admin
+    .from("application_invitations")
+    .select("submitted_at, sign_link_expires_at, unlock_failures")
+    .eq("org_id", orgId)
+    .eq("id", invitationId)
+    .maybeSingle();
+  const inv = data as { submitted_at: string | null; sign_link_expires_at: string | null; unlock_failures: number } | null;
+  return inv !== null && !inv.submitted_at && inv.sign_link_expires_at !== null
+    && Date.parse(inv.sign_link_expires_at) > now.getTime() && inv.unlock_failures < SIGN_LINK_UNLOCK_LIMIT;
 }
 
 /** How many due rows one org's drain takes per run: 0376's claim bound (§8.5 C2). */
@@ -320,7 +348,7 @@ export async function drainSmsOutboxForOrg(admin: SupabaseClient, env: Env, orgI
       out.cancelled += 1;
       continue;
     }
-    if (!(await stillWanted(admin, orgId, row.template, row.params, row.invitation_id))) {
+    if (!(await stillWanted(admin, orgId, row.template, row.params, row.invitation_id, now))) {
       await set(row.id, { status: "cancelled", last_error: "what it announced was cancelled while queued" });
       out.cancelled += 1;
       continue;

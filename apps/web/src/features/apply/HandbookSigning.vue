@@ -1,101 +1,95 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { HANDBOOK_PLACEMENTS, type HandbookPlacementId, type LinkHandbookStatus } from "@silvicom/shared";
+import { HANDBOOK_PLACEMENTS, type LinkHandbookStatus } from "@silvicom/shared";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import PacketAdoption from "@/features/apply/signing/PacketAdoption.vue";
-import PermissionDocumentView from "@/features/apply/signing/PermissionDocumentView.vue";
-import { useHandbookAdoption } from "@/features/apply/signing/useHandbookAdoption";
+import PlaceWalk from "@/features/apply/signing/PlaceWalk.vue";
+import { envelopePlaces, handbookPlaceNumber } from "@/features/apply/signing/envelope";
 import { publicFetch } from "./useApplication";
 import { useApplyScreen } from "./useScreenEvents";
 import { APPLY_COPY } from "./strings";
 
 /**
- * The driver handbook, signed on the applicant's own link (HANDBOOK-SIGNING-PLAN.md HB4; D-HB1).
+ * The driver handbook, signed on the applicant's own link (HANDBOOK-SIGNING-PLAN.md HB4; D-HB1) — the
+ * last places of the envelope's walk (D-AW16, C3s4b).
  *
- * ── WHAT IT SHOWS, AND WHEN ───────────────────────────────────────────────────────────────────
- * Nothing until the application is filed (the link's `handbook` is null). Then, until the office
- * opens it, where it happens and a button to look again — never a poll, because several drivers in
- * one office share one address and the intake's bucket is 20 a minute. Once open: the carrier's
- * handbook, every page, from the same viewer the permissions use, and its five places, signed one at
- * a time with the signature the driver adopted for the application (the server applies it; nothing is
- * typed here). Once filed: their signed copy.
+ * ── ONE PLACE AT A TIME, ON ITS PAGE — THE PACKET'S WALK, NOT A COPY OF IT (D-HB12) ──────────
+ * Until C3s4b this was a flat list of five buttons; C3s4b made it one place at a time but still showed
+ * the whole handbook stacked, on the reasoning that flowed text has no fixed page per place. That was
+ * true of the TEXT and not of the document: the renderer knows the page as it draws each line, and
+ * since D-HB12 (owner, 2026-09-29: *"we need this to be same on Application and Handbook"*) it writes
+ * each place into the PDF (`sign:<id>`). So the handbook is walked by `PlaceWalk`, the packet's own
+ * component: the place's page opened, the Sign here tag on its line, the rail, "Take me back". The
+ * count still continues the packet's ("Place 15 of 19", `envelope.ts`).
  *
- * ⚠ The document is re-read after each place, by version in the address, so the driver sees their
- * signature land where they signed. Those reads ride the ceremony's per-link bucket.
+ * ⚠ **The current place is derived, never a cursor** — the first driver place neither the server nor
+ * this tab has signed, the packet walk's rule and for its reason: the bundle is refetched on focus, and
+ * a stored index would step over a place the moment the list it points into changed
+ * ([[a-cursor-into-a-refetched-list-strands-the-walk]]).
  *
- * ── ⚠ WORKAROUND: A HANDBOOK THAT ADOPTS ITS OWN SIGNATURE (A-1, C0b; removed by C3s) ─────────────
- * When the server says `adoption.required` — the application was filed before its packet was signed
- * on screen, so there is no adopted signature to borrow — the places wait behind the packet's own
- * adoption screens, and the first place carries the typed name. See `useHandbookAdoption.ts`.
+ * ⚠ The document is fetched again by `PlaceWalk`'s rule — when the page on screen holds a place
+ * signed since — the packet's rule, so the two cannot disagree about when a signature appears.
+ *
+ * Each place is signed with the signature the driver adopted on screen 13 (D-AW15) — the server applies
+ * it; nothing is typed here. Once every place is signed the office countersigns, and once it is filed
+ * this is their signed copy.
  */
-const props = defineProps<{ token: string; carrier: string; handbook: LinkHandbookStatus }>();
+const props = defineProps<{
+  token: string;
+  carrier: string;
+  handbook: LinkHandbookStatus;
+  /** This applicant's packet places, all signed by now — the first part of the envelope's count. */
+  packetPlaces: number;
+}>();
 
-// A screen of its own while the places are being signed; before the office opens it and after, it is
-// part of the filed page (`filed`, AW14).
-useApplyScreen(() => (props.handbook.openedAt && !props.handbook.driverComplete ? "handbook" : null));
-
+const copy = APPLY_COPY.handbook;
 const qc = useQueryClient();
 const places = HANDBOOK_PLACEMENTS.filter((p) => p.party === "driver");
-const signed = computed(() => new Set<string>(props.handbook.driverSigned));
-const busy = ref<HandbookPlacementId | null>(null);
+/** The rail's shape: a handbook place's page is only known once the document says (`PlaceWalk`). */
+const railPlaces = places.map((p) => ({ id: p.id, page: null, what: p.what }));
+/** Places this tab signed that the served status may not carry yet. */
+const signedHere = ref<Set<string>>(new Set());
+const signed = computed(() => new Set<string>([...props.handbook.driverSigned, ...signedHere.value]));
+const current = computed(() => places.find((p) => !signed.value.has(p.id)) ?? null);
+
+// A screen of its own while places are left; after that it is part of the filed page (`filed`, AW14).
+useApplyScreen(() => (current.value && !props.handbook.filedAt ? "handbook" : null));
+
+const working = ref(false);
 const failed = ref(false);
 const unreadable = ref(false);
-const checking = ref(false);
+const docSrc = computed(() => `/api/public/application/${props.token}/handbook.pdf`);
 const downloadFailed = ref(false);
-/** The server's own sentence for a refusal the driver can act on (adopt first), else the generic one. */
+/** The server's own sentence for a refusal the driver can act on, else the generic one. */
 const failedMessage = ref<string | null>(null);
 
-const selfAdopting = computed(() => props.handbook.adoption?.required === true);
-const adoption = useHandbookAdoption(computed(() => props.token), computed(() => props.handbook));
-const adopting = computed(() => selfAdopting.value && (adoption.state.value === "adopting" || adoption.state.value === "confirming"));
 
-/** The signature picture's object URL, for the confirm screen — `SigningCeremony.vue`'s idiom. */
-const drawnUrl = ref<string | null>(null);
-watch(
-  () => adoption.markBlob.value,
-  (blob) => {
-    if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-    drawnUrl.value = blob ? URL.createObjectURL(blob) : null;
-  },
-  { immediate: true },
-);
-onBeforeUnmount(() => {
-  if (drawnUrl.value) URL.revokeObjectURL(drawnUrl.value);
-});
-
-// The count of signed places is in the address, so the viewer's `:key` reloads after each one.
-const src = computed(() => `/api/public/application/${props.token}/handbook.pdf?v=${props.handbook.driverSigned.length}`);
-
-const refresh = (): Promise<void> => qc.invalidateQueries({ queryKey: ["apply", props.token] });
-
-async function checkAgain(): Promise<void> {
-  checking.value = true;
-  try {
-    await refresh();
-  } finally {
-    checking.value = false;
-  }
-}
-
-async function sign(id: HandbookPlacementId): Promise<void> {
-  busy.value = id;
+async function sign(): Promise<void> {
+  const place = current.value;
+  if (!place || working.value) return;
+  working.value = true;
   failed.value = false;
   failedMessage.value = null;
   try {
-    // The typed name rides every place while self-adopting; the server reads it on the first only.
-    const signedName = selfAdopting.value ? { signed_name: adoption.adoptedName.value.trim() } : {};
     await publicFetch(`/${props.token}/handbook/mark`, {
       method: "POST",
       // A-6: the text this page shows; the server refuses a place read under another one.
-      body: JSON.stringify({ placement_id: id, esign_consent: true, handbook_version: props.handbook.version, ...signedName }),
+      body: JSON.stringify({ placement_id: place.id, esign_consent: true, handbook_version: props.handbook.version }),
     });
-    await refresh();
+    signedHere.value = new Set(signedHere.value).add(place.id);
+    await qc.invalidateQueries({ queryKey: ["apply", props.token] });
   } catch (e) {
-    failed.value = true;
-    if ((e as { code?: string }).code === "handbook_adopt_signature_first") failedMessage.value = (e as Error).message;
+    const code = (e as { code?: string }).code;
+    if (code === "handbook_place_already_signed") {
+      // A double tap, or the link open twice: the place is signed, so move on (the packet walk's rule).
+      signedHere.value = new Set(signedHere.value).add(place.id);
+    } else {
+      failed.value = true;
+      // The signature changed partway through the handbook (C3s2a): the server's own sentence says what to do.
+      if (code === "adoption_changed_mid_document") failedMessage.value = (e as Error).message;
+    }
   } finally {
-    busy.value = null;
+    working.value = false;
   }
 }
 
@@ -114,60 +108,49 @@ async function download(): Promise<void> {
 </script>
 
 <template>
-  <section class="mt-8 space-y-4 border-t border-edge pt-6">
-    <h2 class="text-base font-semibold text-ink">{{ APPLY_COPY.handbook.heading }}</h2>
-
+  <section class="space-y-4">
     <template v-if="handbook.filedAt">
-      <p class="text-sm text-ink-muted">{{ APPLY_COPY.handbook.filed }}</p>
-      <BaseButton variant="secondary" @click="download">{{ APPLY_COPY.handbook.download }}</BaseButton>
-      <p v-if="downloadFailed" class="text-sm text-ink-secondary">{{ APPLY_COPY.handbook.downloadFailed }}</p>
+      <h2 class="text-base font-semibold text-ink">{{ copy.heading }}</h2>
+      <p class="text-sm text-ink-muted">{{ copy.filed }}</p>
+      <BaseButton variant="secondary" @click="download">{{ copy.download }}</BaseButton>
+      <p v-if="downloadFailed" class="text-sm text-ink-secondary">{{ copy.downloadFailed }}</p>
     </template>
 
-    <template v-else-if="!handbook.openedAt">
-      <p class="text-sm text-ink-muted">{{ APPLY_COPY.handbook.waiting(carrier) }}</p>
-      <BaseButton variant="secondary" :disabled="checking" @click="checkAgain">
-        {{ checking ? APPLY_COPY.handbook.checking : APPLY_COPY.handbook.checkAgain }}
-      </BaseButton>
-    </template>
+    <PlaceWalk
+      v-else-if="current"
+      :src="docSrc"
+      :label="copy.documentLabel"
+      :places="railPlaces"
+      scope="in the handbook"
+      :current-id="current.id"
+      :signed-ids="signed"
+      :tag-label="copy.sign"
+      :working-label="copy.signing"
+      :working="working"
+      @sign="sign"
+      @failed="unreadable = true"
+    >
+      <template #header>
+        <div class="flex items-baseline justify-between gap-4">
+          <h2 class="text-base font-semibold text-ink">{{ copy.heading }}</h2>
+          <span class="text-xs text-ink-muted">
+            {{ copy.place(handbookPlaceNumber(packetPlaces, signed.size), envelopePlaces(packetPlaces)) }}
+          </span>
+        </div>
+        <p class="text-sm text-ink-muted">{{ copy.intro }}</p>
+      </template>
+      <p v-if="unreadable" class="text-sm text-ink-secondary">{{ copy.unavailable }}</p>
 
-    <PacketAdoption
-      v-else-if="adopting"
-      :ceremony="adoption"
-      :carrier="carrier"
-      :stops="[]"
-      :copy="APPLY_COPY.handbook.adoption"
-      :drawn-url="drawnUrl"
-      :initials-url="null"
-    />
+      <!-- The carrier's own sentence for this place, and the only thing being agreed to here. -->
+      <p class="rounded-surface bg-surface-muted p-4 text-base text-ink">{{ current.what }}</p>
+      <p class="text-sm text-ink-muted">{{ copy.applying }}</p>
+
+      <p v-if="failed" class="text-sm text-ink-secondary">{{ failedMessage ?? copy.signFailed }}</p>
+    </PlaceWalk>
 
     <template v-else>
-      <p class="text-sm text-ink-muted">{{ selfAdopting ? APPLY_COPY.handbook.introOwnSignature : APPLY_COPY.handbook.intro }}</p>
-      <PermissionDocumentView
-        v-if="!unreadable"
-        :key="src"
-        :src="src"
-        :label="APPLY_COPY.handbook.documentLabel"
-        @failed="unreadable = true"
-      />
-      <p v-else class="text-sm text-ink-secondary">{{ APPLY_COPY.handbook.unavailable }}</p>
-
-      <p class="text-sm font-medium text-ink">
-        {{ APPLY_COPY.handbook.progress(handbook.driverSigned.length, places.length) }}
-      </p>
-      <ol class="divide-y divide-edge border-y border-edge">
-        <li v-for="(place, i) in places" :key="place.id" class="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-          <div>
-            <p class="text-xs text-ink-muted">{{ APPLY_COPY.handbook.place(i + 1, places.length) }}</p>
-            <p class="text-sm text-ink">{{ place.what }}</p>
-          </div>
-          <span v-if="signed.has(place.id)" class="text-sm text-ink-secondary">{{ APPLY_COPY.handbook.signed }}</span>
-          <BaseButton v-else variant="primary" size="sm" :disabled="busy !== null" @click="sign(place.id)">
-            {{ busy === place.id ? APPLY_COPY.handbook.signing : APPLY_COPY.handbook.sign }}
-          </BaseButton>
-        </li>
-      </ol>
-      <p v-if="failed" class="text-sm text-ink-secondary">{{ failedMessage ?? APPLY_COPY.handbook.signFailed }}</p>
-      <p v-if="handbook.driverComplete" class="text-sm text-ink">{{ APPLY_COPY.handbook.allSigned(carrier) }}</p>
+      <h2 class="text-base font-semibold text-ink">{{ copy.heading }}</h2>
+      <p class="text-sm text-ink">{{ copy.allSigned(carrier) }}</p>
     </template>
   </section>
 </template>

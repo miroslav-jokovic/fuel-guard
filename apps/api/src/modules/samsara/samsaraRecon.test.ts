@@ -256,3 +256,33 @@ describe("reconcileWithSamsara — tank measured against the RESOLVED capacity",
     expect(recon!.tankPctBefore).toBe(20); // the raw levels are still recorded — only the volume is unknown
   });
 });
+
+describe("reconcileWithSamsara — truckAtReportedTime (CF1, where the truck was when the card was used)", () => {
+  const input = {
+    vehicleId: "v1",
+    samsaraVehicleId: "sv1",
+    city: "Dallas",
+    state: "TX",
+    locationName: "Loves Dallas",
+    gallons: null,
+    vehicle: null,
+  };
+  // The station 20 mi north of the 14:00 Dallas sample (~0.29° of latitude).
+  const northOfDallas = async () => ({ lat: 33.07, lng: -96.8, precision: "site" as const });
+
+  it("is the GPS sample nearest the reported instant, with the sample's own time and the miles to the station", async () => {
+    const recon = await reconcileWithSamsara(admin, env, "org1", { ...input, fueledAt: "2026-06-30T14:08:00Z", preciseTime: true }, async () => rawStats, northOfDallas);
+    expect(recon!.truckAtReportedTime).toMatchObject({ at: "2026-06-30T14:00:00Z", city: "Dallas", state: "TX" });
+    expect(recon!.truckAtReportedTime!.milesToStation).toBeCloseTo(20, 0);
+  });
+
+  it("is null on a date-only row — the reported instant is a noon sentinel, not a time the card was used", async () => {
+    const recon = await reconcileWithSamsara(admin, env, "org1", { ...input, fueledAt: "2026-06-30T14:08:00Z", preciseTime: false }, async () => rawStats, northOfDallas);
+    expect(recon!.truckAtReportedTime).toBeNull();
+  });
+
+  it("is null when no sample is within 30 minutes of the reported instant — not measured", async () => {
+    const recon = await reconcileWithSamsara(admin, env, "org1", { ...input, fueledAt: "2026-06-30T15:10:00Z", preciseTime: true }, async () => rawStats, northOfDallas);
+    expect(recon!.truckAtReportedTime).toBeNull();
+  });
+});

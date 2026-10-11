@@ -10,8 +10,12 @@
   .kebab-item:disabled {
     @apply cursor-not-allowed text-ink-tertiary;
   }
+  /* `!` because a <KebabMenu> item is an AppButton, whose variant sets its own text colour as a
+     UTILITY — and a utility outranks anything in @layer components. Without it no danger item in the
+     app was red (measured 2026-09-28 on the Recruitment board's "Delete permanently…"); the same loss
+     LiveMapControls.vue records for a brand tint. */
   .kebab-item-danger {
-    @apply text-danger-600;
+    @apply !text-danger-600;
   }
 }
 

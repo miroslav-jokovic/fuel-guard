@@ -17,6 +17,7 @@ import { isAnalyzing } from "@/features/hazmat/useHazmatLoads";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import { formatDateTime } from "@/lib/format";
+import { useOpens } from "@/composables/useOpens";
 
 interface HazmatPanelRecord {
   id: string;
@@ -164,7 +165,14 @@ async function submitAndAnalyze() {
   }
 }
 
-const workspaceTo = computed(() => (record.value ? `/hazmat/loads/${record.value.id}` : null));
+// SP5 (plan §4b): this panel sits on a LOAD (`dispatch` view); the workspace and the review queue are
+// `hazmat` view. Each button shows only where its page opens, so a dispatcher without hazmat is not
+// handed two doors the guard answers with the dashboard.
+const opens = useOpens();
+const workspaceTo = computed(() => {
+  const to = record.value ? `/hazmat/loads/${record.value.id}` : null;
+  return to && opens(to) ? to : null;
+});
 // A packet only exists once the engine has run; before that there is nothing to defend with.
 const hasPacket = computed(() => record.value != null && record.value.latest_run_at != null);
 const packet = useDefensePacket();
@@ -269,7 +277,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
         >
           {{ busy ? "Working…" : record.status === "draft" ? "Submit & analyze" : "Analyze" }}
         </BaseButton>
-        <BaseButton v-if="record.status === 'needs_review'" variant="soft" size="sm" to="/hazmat/review">
+        <BaseButton v-if="record.status === 'needs_review' && opens('/hazmat/review')" variant="soft" size="sm" to="/hazmat/review">
           Open review queue
         </BaseButton>
         <BaseButton

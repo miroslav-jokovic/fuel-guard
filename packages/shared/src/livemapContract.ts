@@ -13,6 +13,7 @@
  * dispatch one (the LM-F ruling, applied at the source rather than hidden in a component).
  */
 import type { VehicleMapState } from "./livemap.js";
+import type { EngineState } from "./idleSessions.js";
 
 /** Where a truck is, exactly as `vehicle_positions` holds it. */
 export interface LiveMapPosition {
@@ -72,6 +73,12 @@ export interface LiveMapStop {
   appointmentStart: string | null;
   appointmentEnd: string | null;
   status: string | null;
+  /**
+   * Street and postal code (TRUCK-CARD-ROUTE-PLAN D-TC2), so the card can show the load's two ends as
+   * addresses. Optional for the same reason as `source` below: the web and api deploy separately.
+   */
+  addressLine?: string | null;
+  postalCode?: string | null;
 }
 
 export interface LiveMapLoad {
@@ -79,8 +86,28 @@ export interface LiveMapLoad {
   /** The carrier's own reference, which is what a dispatcher says out loud. */
   ref: string | null;
   status: string;
-  /** The earliest stop still to be worked. Null when every stop is done or none was recorded. */
+  /**
+   * Where the load came from (`tms` = McLeod) and McLeod's own movement code, so the map words the
+   * status with `loadBoardState`, exactly as the Loads board does. Optional because the web and api
+   * services deploy separately: a map served against an api from before 2026-09-28 gets neither, and
+   * still has a word for the status.
+   */
+  source?: string | null;
+  externalStatus?: string | null;
+  /**
+   * The first stop not behind the truck (`nextStopOnRoute`): neither finished in the driver app nor
+   * departed in McLeod. Null when every stop is behind it or none was recorded.
+   */
   nextStop: LiveMapStop | null;
+  /**
+   * The load's two ends (D-TC2): the first pickup and the last delivery by McLeod's sequence, chosen by
+   * `boardStops` — the Loads board's own rule, so the two surfaces cannot name a different pickup.
+   * `extraStops` counts the stops between and beside them. Optional: an api from before 2026-10-09
+   * sends none, and the card then shows the next stop alone, as it did.
+   */
+  pickup?: LiveMapStop | null;
+  delivery?: LiveMapStop | null;
+  extraStops?: number;
 }
 
 export interface LiveMapVehicle {
@@ -91,6 +118,17 @@ export interface LiveMapVehicle {
   position: LiveMapPosition;
   /** `deriveVehicleState`, computed once here so the map and any other reader cannot disagree. */
   state: VehicleMapState;
+  /**
+   * The ECU's own engine state behind `state` (D-LM29), Samsara's spelling. Null when the feed has
+   * not reported one, in which case `state` fell back to the ping-rate inference.
+   */
+  engineState: EngineState | null;
+  /**
+   * The roster has this truck in the shop (`vehicles.status = 'maintenance'`, McLeod's `S`). It stays
+   * on the board — Q-LM8a ruled a dispatcher wants to see a shop truck on a map — but it is said, so a
+   * truck parked for 40 days at the shop is not read as a truck that went missing (LS3).
+   */
+  inShop: boolean;
   /** Age of the FIX in seconds. D-LM10 — shown per truck, never hidden behind the marker. */
   ageSeconds: number;
   /**
@@ -101,7 +139,10 @@ export interface LiveMapVehicle {
    * than an hour apart on the two (2026-09-17).
    */
   fuel: LiveMapFuel | null;
-  /** Null for every truck until LM12 turns the loads feed on. That is normal, not an error. */
+  /**
+   * The load this truck is hauling now (`isLoadOnTruck`: for McLeod, movement `P`, D-MCC12), or null.
+   * Null on every truck until the Board VM's first sync, which is normal, not an error.
+   */
   load: LiveMapLoad | null;
 }
 
@@ -133,6 +174,11 @@ export interface LiveMapBounds {
   fuelFreshSeconds: number;
 }
 
+export interface LiveMapUntracked {
+  vehicleId: string;
+  unitNumber: string;
+}
+
 export interface LiveMapBoard {
   /** The instant every `state` and `ageSeconds` was computed against. One clock for the whole board. */
   generatedAt: string;
@@ -142,9 +188,72 @@ export interface LiveMapBoard {
   bounds: LiveMapBounds;
   vehicles: LiveMapVehicle[];
   /**
+   * Trucks in the fleet the board CANNOT draw: not retired, but no position has ever been stored —
+   * in practice a truck with no Samsara gateway fitted yet (LS3; 12 of 193 on 2026-09-22). They were
+   * silently absent from the census before; a count that is short without saying so is the thing the
+   * owner compared against Samsara and found wrong.
+   */
+  untracked: LiveMapUntracked[];
+  /**
    * PostgREST caps every response at 1,000 rows regardless of `.limit()`, and this fleet is ~200 — so
    * this is false today and is here because the day it is true, a board that silently dropped a
    * quarter of the fleet would look exactly like a board with fewer trucks on it.
    */
   truncated: boolean;
+}
+
+/** A fuel stop the planner chose on the part of a load's route still ahead (TRUCK-CARD-ROUTE-PLAN D-TC4). */
+export interface LiveMapRouteFuelStop {
+  name: string | null;
+  brand: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  exit: string | null;
+  lat: number;
+  lng: number;
+  /** Miles ahead of the truck (or of the pickup, when the truck is off the route). */
+  milesAhead: number;
+}
+
+/** One end of a load's route: where its first or last stop is, and what McLeod calls the place. */
+export interface LiveMapRouteEnd {
+  lat: number;
+  lng: number;
+  name: string | null;
+  /** `pickup` or `dropoff`, as the stop records it. */
+  kind: string | null;
+}
+
+/**
+ * `GET /api/livemap/loads/:id/route` (D-TC3, D-TC6): the load's route pickup → delivery, split where the
+ * truck stands on it, and the fuel stops the planner places on the part ahead. No prices: the map is
+ * `dispatch` view, and money is another section's (LM-F).
+ */
+export interface LiveMapLoadRoute {
+  loadId: string;
+  /** Already driven: start → the truck's point on the line. Empty when the truck is off the route. */
+  covered: { lat: number; lng: number }[];
+  /** Still ahead: the truck's point → delivery. The whole line when the truck is off it. */
+  ahead: { lat: number; lng: number }[];
+  /** The whole route, pickup → delivery. */
+  distanceMiles: number;
+  durationHours: number;
+  /** Where the truck is against the line. `offRouteMiles` is null when there is no position for it. */
+  truckOnRoute: boolean;
+  coveredMiles: number;
+  offRouteMiles: number | null;
+  fuelStops: LiveMapRouteFuelStop[];
+  /**
+   * The route's two ends as McLeod locates them — the first and last stop by sequence, not the line's
+   * snapped ends — for the start and end pins (2026-10-09, the owner's "pins like Google Maps").
+   * Optional: an api from before them sends neither, and the map draws the line without pins.
+   */
+  start?: LiveMapRouteEnd;
+  end?: LiveMapRouteEnd;
+  /** Why there are no fuel stops, or what the planner had to do — one sentence, or null. */
+  fuelNote: string | null;
+  /** A hazmat-marked load routed WITHOUT hazmat restrictions: no cleared record supplies its classes yet. */
+  hazmatNotApplied: boolean;
 }

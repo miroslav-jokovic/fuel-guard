@@ -11,7 +11,7 @@ import { apiError, asyncHandler } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { credentialIdentityHash, efsEndpointHost } from "../services/efsSoapCredentialIdentity.js";
-import { requireAuth, requireOrg, requireRole } from "../../../middleware/auth.js";
+import { requireAuth, requireOrg, requireAdminOnly } from "../../../middleware/auth.js";
 import { requireFreshAuth } from "../../../middleware/requireFreshAuth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
 import { runRealChangeSteps, runStep, type ProbeStep } from "./writeProbeRealChange.js";
@@ -88,7 +88,7 @@ export function fuelCardWriteProbeRouter(): Router {
   router.post(
     "/write-check",
     requireOrg,
-    requireRole("admin"),
+    requireAdminOnly("efs.card-control"),
     // Step-up: this is the single most consequential button in the product.
     requireFreshAuth(),
     asyncHandler(async (req, res) => {

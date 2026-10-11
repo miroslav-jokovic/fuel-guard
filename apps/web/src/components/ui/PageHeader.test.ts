@@ -1,8 +1,16 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import axe from "axe-core";
 import PageHeader from "./PageHeader.vue";
+
+// SP5: the links here ask the router guard's own function (`useOpens`), which reads the session. The
+// real shape, from `testing/fakeSession`; the admin opens everything unless a test says otherwise.
+vi.mock("@/stores/session", async () => {
+  const { fakeSession } = await import("@/testing/fakeSession");
+  const s = fakeSession("admin");
+  return { useSessionStore: () => s, __session: s };
+});
 
 /**
  * The breadcrumb half of `PageHeader` (G2, UI-GAPS-PLAN.md). The walk itself is covered by
@@ -122,6 +130,28 @@ describe("PageHeader breadcrumbs (G2)", () => {
     const current = nav.find("[aria-current='page']");
     expect(current.text()).toBe("Hazmat Load");
     expect(current.find("a").exists()).toBe(false);
+  });
+
+  /**
+   * SP5 (plan §4b): a crumb whose page the guard would refuse is TEXT. The trail still says where the
+   * page sits; it just stops offering a door that bounces to the dashboard. `/settings` opens for an
+   * admin and, since Q-SET2, for nobody else until a screen behind it is turned on.
+   */
+  it("renders a crumb whose page does not open for the reader as text, not a link", async () => {
+    const { __session: session } = (await import("@/stores/session")) as unknown as {
+      __session: import("@/testing/fakeSession").FakeSession;
+    };
+    let w = await mountAt("/settings/audit");
+    expect(w.find("nav[aria-label='Breadcrumb']").findAll("a").map((a) => a.attributes("href"))).toEqual(["/settings"]);
+    session.role = "fleet_manager";
+    try {
+      w = await mountAt("/settings/audit");
+      const nav = w.find("nav[aria-label='Breadcrumb']");
+      expect(nav.findAll("a")).toHaveLength(0);
+      expect(nav.text()).toContain("Settings");
+    } finally {
+      session.role = "admin";
+    }
   });
 
   it("a top-level page shows no trail at all — the h1 below already says it", async () => {
