@@ -420,3 +420,19 @@ about three merges.
 - **2026-10-10 — IC0.** Plan written. Downloaded 14 official documents to `docs/regulatory/fmcsa/`
   (manifest with sha256). Verified the six open-data datasets, eCFR point-in-time, and Samsara's
   history endpoints. All measurements in §0 were taken today. No code yet.
+- **2026-10-11 — IC1, first half (the raw feed).** Migration 0457: `fmcsa_fetch_runs` and
+  `fmcsa_raw_rows`, both append-only and RETENTION_FORBIDDEN, written through one function,
+  `fmcsa_snapshot_record`. Collector `apps/api/src/modules/inspections/feed/`, on a daily
+  scheduler, `FMCSA_FEED_HOURS`. **Changed from §4.1:** each run takes a full snapshot, and there is
+  no `change_date` watermark. A watermark cannot see a deleted row, and D-IC2 depends on seeing
+  deletions. Our whole record is small enough to fetch in full every day. Live run, 2026-10-11, no
+  database writes:
+  - 30 requests in about 7 s, every natural key unique.
+  - Rows: 1,393 inspections, 1,422 violations, 2,763 units, 21 citations, 953 SMS inspections and
+    741 SMS violations. The inspection snapshot is about 2 MB, and PostgREST accepted a 2.5 MB body.
+  - **The child files lag the parent.** The inspection file was republished 2026-10-11 10:51Z with
+    3 new inspections. The violation and unit files were last republished 2026-10-10. The SMS files
+    were last republished 2026-09-13. The projector (IC1b) must therefore treat "an inspection with
+    no units yet" as normal for a day, not as an error.
+  - Not yet built: the `roadside_*` projections, `sms_violation_definitions`, and the freshness alert
+    from §4.1. These are IC1b.

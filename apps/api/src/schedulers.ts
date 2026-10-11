@@ -22,6 +22,7 @@ import { startFinancialProjectionScheduler, startFinancialFreshnessScheduler } f
 import { startFleetpalScheduler } from "./modules/fleetpal/index.js";
 import { startSmsOutboxScheduler } from "./modules/recruiting/index.js";
 import { startBoardEtaRecorder } from "./modules/livemap/index.js";
+import { startFmcsaFeedScheduler } from "./modules/inspections/index.js";
 import { startInprocessJobDrain } from "./queue/inprocessDrain.js";
 
 /**
@@ -66,5 +67,6 @@ export function startAllSchedulers(env: Env): void {
   startFleetpalScheduler(env); // hourly per-org FleetPal sweep (F8); OFF unless FLEETPAL_SYNC_ENABLED
   startSmsOutboxScheduler(env); // A-11/C2d: five-minutely drain of texts queued for their recipient's civil hours
   startBoardEtaRecorder(env); // DB7: hourly sample of the dispatch board's ETAs, scored later against arrivals
+  startFmcsaFeedScheduler(env); // IC1 (0457): daily snapshot of FMCSA's public record of our roadside inspections
   startFinancialFreshnessScheduler(env); // D-FIN3: six-hourly — a stale McLeod financial sweep or a failed finance job becomes a finding in the office inbox + one email
 }

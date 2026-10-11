@@ -61,6 +61,9 @@ const MODULE_SECTIONS = {
   // door onto a credential and a watermark (D-FP1, D-SEP1).
   fleetpal: null,
   psp: "safety",
+  // Roadside inspections and DataQs challenges (INSPECTION-CHALLENGE-PLAN D-IC12). Its first two tables
+  // (0457) are deny-all collector staging; the safety section is the one its future endpoints gate on.
+  inspections: "safety",
   org: "admin",
   // `fleet` split into `roster` + `equipment` on 2026-08-30 (D-ROS12, DRIVER-ROSTER-PLAN R0a), so
   // every module that used to point at it had to be re-pointed deliberately rather than by search

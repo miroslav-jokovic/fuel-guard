@@ -871,6 +871,28 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "fmcsa_fetch_runs": {
+      "module": "inspections",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 12,
+        "why": "one row per dataset per daily FMCSA feed run (0457, INSPECTION-CHALLENGE-PLAN IC1): 6/day per carrier, budget allows a retry day. Kept: the feed's freshness and failure history; pinned in RETENTION_FORBIDDEN."
+      }
+    },
+    "fmcsa_raw_rows": {
+      "module": "inspections",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "FMCSA open-data records versioned on change (0457, D-IC2): a ~7,000-row backfill once, then new inspections (1,390 in 3 years, ~1.3/day, ~5 rows each across the six datasets) plus republished changes and vanishes. Kept: a vanish is the DataQs outcome signal; RETENTION_FORBIDDEN."
+      }
+    },
     "fuel_cards": {
       "module": "fuel",
       "layer": "core",
