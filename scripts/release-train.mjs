@@ -79,7 +79,7 @@ export const AREAS = [
   { id: "drivers", title: "Drivers, hiring and compliance",
     api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections"],
     web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal"],
-    packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards"],
+    packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
     plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
     api: ["loads", "livemap", "samsara", "messaging"], web: ["dispatch", "livemap", "messages"],

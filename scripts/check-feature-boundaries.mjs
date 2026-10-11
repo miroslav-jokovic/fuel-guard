@@ -431,6 +431,9 @@ const PURE_PACKAGES = [
   ["packages/hazmat-data", ["@silvicom/", "@/", "@hazmat/engine"], "hazmat packages must stay dependency-free — D3/G5"],
   ["packages/hazmat-placards", ["@silvicom/", "@/", "@hazmat/data"], "hazmat packages must stay dependency-free — D3/G5"],
   ["packages/qr", ["@silvicom/", "@/", "@hazmat/"], "@silvicom/qr must stay dependency-free of the workspace — D-INV16"],
+  // The SMS calculator (INSPECTION-CHALLENGE-PLAN IC3, D-IC6/D-IC9): its numbers are compared with FMCSA's to the
+  // point, so nothing app-side may leak into it.
+  ["packages/sms-engine", ["@silvicom/", "@/", "@hazmat/"], "@silvicom/sms-engine must stay dependency-free of the workspace — D-IC9"],
 ];
 
 /** Pure so the self-test can plant a synthetic file without touching the tree. */
@@ -482,6 +485,7 @@ const DETERMINISM_RULES = [
 const DETERMINISTIC_PACKAGES = [
   ["packages/hazmat-engine/src", "@hazmat/engine"],
   ["packages/qr/src", "@silvicom/qr"],
+  ["packages/sms-engine/src", "@silvicom/sms-engine"], // D-IC9: the measurement date is an argument, never a clock
 ];
 
 /** Pure so the self-test can plant synthetic source without writing a file into the tree. */
