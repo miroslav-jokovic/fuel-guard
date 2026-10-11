@@ -192,6 +192,13 @@ export const RETENTION_FORBIDDEN = [
   "hazmat_documents", "document_sources", "document_read_reviews", "document_page_classes", // + the reader's bytes and labels: the same papers (0448/0449, D-DR9)
   "document_assemblies", "document_assembly_pages", // + which photos made one shipping paper (0454, D-DR14)
   /**
+   * FMCSA's public record of our roadside inspections, version by version (0457, INSPECTION-CHALLENGE-
+   * PLAN D-IC2). A violation that vanishes after a DataQs request was granted is how the engine learns
+   * the request worked; a pruned version is a "before" no outcome can be read against, and FMCSA keeps
+   * only three years itself, so after that nothing anywhere can reproduce it.
+   */
+  "fmcsa_fetch_runs", "fmcsa_raw_rows",
+  /**
    * The driver's account-closure request (0330, D-PR8).
    *
    * ── THE ONE ENTRY ON THIS LIST THAT INVERTS ITS OWN SUBJECT ───────────────────────────────────

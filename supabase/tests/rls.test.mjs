@@ -2330,6 +2330,14 @@ async function main() {
         `r as (insert into document_reads (org_id, assembly_id, profile, profile_version) select '${org}', id, 'shipping_document', 'rls' from a returning id) ` +
         `insert into document_read_reviews (org_id, read_id, field_path, action, actor, consumer) ` +
         `select '${org}', r.id, 'identity.bolNumber', 'confirmed', u.id, 'hazmat_calculator' from r, u`,
+      // 0457: a present version carries its payload and hash (`fmcsa_raw_rows_payload_iff_present`) and
+      // names its run through the composite `(fetch_run_id, org_id)` FK — a cross-column rule plus a
+      // composite parent, neither of which the generic synthesiser can build, so the run is made inline.
+      fmcsa_raw_rows: (org) =>
+        `with r as (insert into fmcsa_fetch_runs (org_id, dataset, dot_number, started_at, outcome, complete) ` +
+        `values ('${org}', 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id) ` +
+        `insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256) ` +
+        `select '${org}', id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

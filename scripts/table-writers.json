@@ -190,6 +190,9 @@
   "fleetpal_webhook_deliveries": [
     "apps/api/src/modules/fleetpal/deliveries.ts"
   ],
+  "fmcsa_fetch_runs": [
+    "apps/api/src/modules/inspections/feed/store.ts"
+  ],
   "fuel_cards": [
     "apps/api/src/modules/fuel/cardAssignments.ts"
   ],
