@@ -21,6 +21,19 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+// 0458's projection seeds share one chain: run → raw row → inspection (→ unit). Each is a CTE prefix
+// that the seed closes with its own final statement.
+const rsRaw = (org) =>
+  `with r as (insert into fmcsa_fetch_runs (org_id, dataset, dot_number, started_at, outcome, complete) ` +
+  `values ('${org}', 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id), ` +
+  `raw as (insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256) ` +
+  `select '${org}', id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r returning id),`;
+const rsInsp = (org) =>
+  `i as (insert into roadside_inspections (org_id, fmcsa_inspection_id, raw_row_id) ` +
+  `select '${org}', (random() * 1e12)::bigint, id from raw returning id)`;
+const rsUnit = (org) =>
+  `u as (insert into roadside_inspection_units (org_id, inspection_id, fmcsa_unit_id, raw_row_id, match_method) ` +
+  `select '${org}', i.id, (random() * 1e12)::bigint, raw.id, 'none' from i, raw returning id)`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
 const read = (rel) => readFileSync(join(SUPA, rel), "utf8");
@@ -2338,6 +2351,18 @@ async function main() {
         `values ('${org}', 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id) ` +
         `insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256) ` +
         `select '${org}', id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r`,
+      // 0458: every projection row names the raw version it came from (`raw_row_id` → fmcsa_raw_rows, whose
+      // payload/kind rule the generic synthesiser cannot satisfy), and the three children name their
+      // inspection, unit or violation through composite (id, org_id) FKs. So the chain is built inline:
+      // a run, a raw row, then the parents each child needs.
+      roadside_inspections: (org) => `${rsRaw(org)} ${rsInsp(org)} select 1`,
+      roadside_inspection_units: (org) => `${rsRaw(org)} ${rsInsp(org)}, ${rsUnit(org)} select 1`,
+      roadside_violations: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, vi as (insert into roadside_violations (org_id, inspection_id, fmcsa_violation_id, raw_row_id) ` +
+        `select '${org}', i.id, 1, raw.id from i, raw returning id) select 1`,
+      roadside_citations: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, ci as (insert into roadside_citations (org_id, inspection_id, natural_key, raw_row_id) ` +
+        `select '${org}', i.id, 'rls', raw.id from i, raw returning id) select 1`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the

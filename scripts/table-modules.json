@@ -1949,6 +1949,50 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "roadside_citations": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "court results projected from fmcsa_raw_rows (0458, IC1b): 21 in 3 years. Rebuildable from the raw store; kept because IC4's cases will point at it."
+      }
+    },
+    "roadside_inspection_units": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "inspected units projected from fmcsa_raw_rows and matched to vehicles/trailers (0458, IC1b): 2,763 in 3 years (~2.5/day). Rebuildable; kept because cases point at it."
+      }
+    },
+    "roadside_inspections": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "FMCSA roadside inspections projected from fmcsa_raw_rows (0458, IC1b): 1,390 in 3 years (~1.3/day). Rebuildable from the raw store; kept, a vanished one is marked, never deleted."
+      }
+    },
+    "roadside_violations": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "violations projected from fmcsa_raw_rows (0458, IC1b): 1,422 in 3 years (~1.3/day). Rebuildable; kept because IC4's cases will point at it."
+      }
+    },
     "route_fuel_settings": {
       "module": "routing",
       "layer": "core",
