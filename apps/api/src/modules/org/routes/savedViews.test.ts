@@ -75,6 +75,18 @@ describe("saved views API", () => {
     expect(filters).toContainEqual({ col: "table_id", val: "roster.drivers" });
   });
 
+  it("accepts the dispatch board's views (0452) under their own table id", async () => {
+    const status = await withServer(async (base) => {
+      const res = await fetch(`${base}/api/saved-views`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ table_id: "dispatch.board", name: "Late, by risk", query: "queue=late&sort=onTime" }),
+      });
+      return res.status;
+    });
+    expect(status).toBe(204);
+  });
+
   it("refuses a table it does not know, rather than querying for it", async () => {
     const status = await withServer(async (base) => {
       const res = await fetch(`${base}/api/saved-views?table=roster.unicorns`);

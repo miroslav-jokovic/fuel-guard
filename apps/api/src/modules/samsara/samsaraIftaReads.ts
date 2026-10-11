@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { metersToMiles } from "@silvicom/shared";
+import { metersToMiles, type IftaTruckStateMilesRaw } from "@silvicom/shared";
 
 /**
  * The collector's read interface over its own IFTA mileage staging (D-SEP1 — nothing outside
@@ -148,4 +148,49 @@ export async function readJurisdictionVehicleMiles(
     totalMeters: v.total,
     months: v.months.size,
   }));
+}
+
+/**
+ * Every truck's miles in every jurisdiction over the given months, summed per (truck, jurisdiction):
+ * the miles grid of the IFTA return export (IFTA-PRECISION-PLAN IP9). The same rows
+ * `ifta_period_jurisdictions` (0256) sums with no predicate beyond org, year and month, so the grid's
+ * column totals are the ledger's miles. Summed per `vehicle_id` for the reason the drill-down above
+ * gives (one row per DEVICE since 0357/0358). Volume, measured 2026-10-05: ~2,600 (truck,
+ * jurisdiction) rows a quarter, a few pages.
+ */
+export async function readQuarterTruckStateMiles(
+  admin: SupabaseClient,
+  orgId: string,
+  year: number,
+  months: number[],
+): Promise<IftaTruckStateMilesRaw[]> {
+  const by = new Map<string, IftaTruckStateMilesRaw>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from("samsara_ifta_jurisdiction_miles")
+      .select("vehicle_id, jurisdiction, taxable_meters, total_meters")
+      .eq("org_id", orgId)
+      .eq("period_year", year)
+      .in("period_month", months)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`samsara_ifta_jurisdiction_miles read failed: ${error.message}`);
+    const rows = (data ?? []) as Array<{
+      vehicle_id: string;
+      jurisdiction: string;
+      taxable_meters: number | string;
+      total_meters: number | string;
+    }>;
+    for (const r of rows) {
+      const jurisdiction = r.jurisdiction.trim().toUpperCase();
+      const key = `${r.vehicle_id}|${jurisdiction}`;
+      const a = by.get(key) ?? { vehicleId: r.vehicle_id, jurisdiction, taxableMeters: 0, totalMeters: 0 };
+      a.taxableMeters += Number(r.taxable_meters);
+      a.totalMeters += Number(r.total_meters);
+      by.set(key, a);
+    }
+    if (rows.length < PAGE) break;
+  }
+  return [...by.values()];
 }

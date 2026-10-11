@@ -40,21 +40,22 @@ describe("the board's queues (LR7)", () => {
   const load = (status: string, extra: Record<string, unknown> = {}) =>
     ({ status, source: "tms", stops: [], ...extra }) as unknown as DispatchLoad;
 
-  it("opens on Active and offers the owner's four queues plus Exceptions, with no approval queue", () => {
-    expect(QUEUE_TABS.map((t) => t.value)).toEqual(["active", "uncovered", "delivered", "all", "exceptions"]);
+  it("opens on In transit and offers In transit, Upcoming, Uncovered, Delivered, All and Exceptions, with no approval queue", () => {
+    expect(QUEUE_TABS.map((t) => t.value)).toEqual(["in_transit", "upcoming", "uncovered", "delivered", "all", "exceptions"]);
     expect(QUEUE_TABS.map((t) => t.label).join(" ")).not.toMatch(/approv/i);
   });
 
-  it("files a load where the shared rule words it: an A with driver and truck is Active, without is Uncovered", () => {
-    expect(inQueue(load("pending_approval", { driver_id: "d", vehicle_id: "v" }), "active")).toBe(true);
+  it("files a load where the shared rule words it: an A with driver and truck is Upcoming, without is Uncovered", () => {
+    expect(inQueue(load("pending_approval", { driver_id: "d", vehicle_id: "v" }), "upcoming")).toBe(true);
     expect(inQueue(load("pending_approval", { driver_id: "d" }), "uncovered")).toBe(true);
-    expect(inQueue(load("in_transit"), "active")).toBe(true);
+    expect(inQueue(load("in_transit"), "in_transit")).toBe(true);
+    expect(inQueue(load("in_transit"), "upcoming")).toBe(false);
     expect(inQueue(load("delivered"), "delivered")).toBe(true);
   });
 
   it("keeps a canceled load in All only", () => {
     const voided = load("canceled");
-    expect(["active", "uncovered", "delivered"].some((q) => inQueue(voided, q as never))).toBe(false);
+    expect(["in_transit", "upcoming", "uncovered", "delivered"].some((q) => inQueue(voided, q as never))).toBe(false);
     expect(inQueue(voided, "all")).toBe(true);
   });
 });

@@ -43,6 +43,14 @@ Plan, decisions and the cutover record: `docs/plans/ship-pipeline/RELEASE-TRAIN-
 | — rollback does not verify | nothing more is automatic | email **+ text**: "act now" — run `mode=rollback` with the last tag, or roll back the Railway deploy |
 | 01:37 CT | retry: ships an approved release a delayed or dropped 01:07 run missed; otherwise silent | — |
 
+**Approving is done in either of two places** (D-REL14): a review on the release PR by a repository
+admin, or **platform console → Settings → Tonight's release** by an active platform owner, who
+types an authenticator code there (table `platform_release_approvals`, 0440). Only the PRODUCTION
+console can approve; the uat one says so. The console approves the commit the notes describe (the
+`release-candidate-sha` line in the PR body), and `release.yml` takes the newer of the two signals.
+The 18:00 email links to the console when the repository variable `CONSOLE_URL` is set. If the
+console's approvals cannot be read at 01:07, the run warns and GitHub reviews alone decide.
+
 The summary is sent from the workflow straight to Brevo and Telnyx (`scripts/release-notify.mjs`),
 never through our API — the message that matters most is the one saying the API is broken.
 
@@ -208,6 +216,17 @@ once. It depends on two things no gate can see:
 
 To check it worked, the old deployment's log should end with
 `[shutdown] api: SIGTERM — … waiting up to 35s` and then `N finished, M released`.
+
+## EFS feed older than 2 hours: who is told, and what to check
+
+**Who:** every member with `accounting: manage` gets "EFS transactions not updated in N hours" in
+the bell (a warning; critical after 6 h), and the org's notification emails get one message. It
+comes from `financialFreshness.ts`, which fires once the last successful `efs_soap_posted` run is
+over an hour old (the poll runs every minute). It checks only every 6 hours and says it once a day,
+so a 2-hour gap can go unannounced for up to 6 more hours. **Check:** Settings → Data & sync, the
+EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleetguard/api` for
+`efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
+runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
 
 ## One-time Railway setup (makes the files above authoritative)
 

@@ -81,6 +81,14 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
    */
   { table: "sms_outbox", column: "driver_id", orgScoped: true },
   { table: "sms_suppressions", column: "driver_id", orgScoped: true },
+  /*
+   * The driver a received document was matched to by its sender's phone or address (0448, D-DR12).
+   * Mechanical: a match is the roster's guess, not a signature, so it follows the surviving record.
+   * 0448's guard freezes every other column of the row for exactly this move. ⚠ `on delete set null`,
+   * like `sms_suppressions` — a missing entry would not abort a merge; it would silently send the
+   * duplicate's documents back to the Unmatched list.
+   */
+  { table: "document_sources", column: "matched_driver_id", orgScoped: true },
 ];
 
 /** Atomically fold a duplicate driver into the canonical one. One rpc = one transaction — the

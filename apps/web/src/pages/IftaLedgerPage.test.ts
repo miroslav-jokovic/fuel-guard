@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { computed, ref } from "vue";
+import { createPinia, setActivePinia } from "pinia";
 import { computeIftaPosition, tieOutMiles, type IftaFuelPurchase, type IftaJurisdictionMiles } from "@silvicom/shared";
 import { metersFromMiles } from "@silvicom/shared";
 import type { IftaPeriodData } from "@/features/ifta/useIftaPeriod";
@@ -42,6 +43,12 @@ vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
   };
 });
 
+const download = vi.fn(async (_path: string, _filename: string) => {});
+vi.mock("@/lib/api", async (orig) => ({
+  ...(await orig<typeof import("@/lib/api")>()),
+  apiDownload: (path: string, filename: string) => download(path, filename),
+}));
+
 import IftaLedgerPage from "./IftaLedgerPage.vue";
 
 const miles = (jurisdiction: string, taxableMiles: number): IftaJurisdictionMiles => ({
@@ -64,6 +71,7 @@ function healthy(over: Partial<IftaPeriodData> = {}): IftaPeriodData {
     },
     samsaraTaxPaidLiters: 0,
     neverFetched: false,
+    receipts: { jurisdictions: [], sources: [], duplicatesDropped: 0, duplicateGallons: 0, unmatched: 0, unmatchedUnits: [] },
     ...over,
   };
 }
@@ -79,6 +87,7 @@ function fuelHole(): IftaPeriodData {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia()); // the export buttons' failure toast
   period.value = healthy();
   loading.value = false;
   errored.value = false;
@@ -121,6 +130,37 @@ describe("IftaLedgerPage", () => {
     const t = (await mountPage()).w.text();
     expect(t).toContain("Fleet MPG used");
     expect(t).toContain("7.00");
+  });
+
+  // ── McLeod's hand-keyed receipts (IP6) ─────────────────────────────────────────────────────────
+  it("says gallons bought are card fills only while the quarter has no driver-paid receipts", async () => {
+    const { w } = await mountPage();
+    expect(w.find('[data-testid="receipt-line"]').text()).toContain("No driver-paid receipts for this quarter yet");
+    expect(w.text()).not.toContain("from driver-paid receipts");
+  });
+
+  it("shows how much of a state's gallons bought came from receipts, and accounts for the ones left out", async () => {
+    const position = computeIftaPosition(
+      [miles("TX", 35_000), miles("CA", 35_000)],
+      [bought("TX", 9_600), { ...bought("TX", 400), source: "mcleod_receipt" }],
+      "2026-05-15",
+    );
+    period.value = healthy({
+      position,
+      receipts: {
+        jurisdictions: [{ jurisdiction: "TX", gallons: 400, receipts: 3 }],
+        sources: [{ source: "fuel_app", receipts: 1, gallons: 150 }, { source: "mcleod", receipts: 2, gallons: 250 }],
+        duplicatesDropped: 2, duplicateGallons: 160, unmatched: 1, unmatchedUnits: ["999"],
+      },
+    });
+    const { w } = await mountPage();
+    const tx = w.findAll("tbody tr").find((tr) => tr.text().includes("Texas"))!;
+    expect(tx.text()).toContain("10,000");
+    expect(tx.text()).toContain("incl. 400 gal from driver-paid receipts");
+    const line = w.find('[data-testid="receipt-line"]').text();
+    expect(line).toContain("include 400 gal from 3 driver-paid receipts (1 uploaded from the fuel app, 2 keyed in McLeod)");
+    expect(line).toContain("2 more matched a card fill");
+    expect(line).toContain("McLeod unit 999");
   });
 
   it("says nothing alarming about a quarter that hangs together", async () => {
@@ -208,6 +248,20 @@ describe("IftaLedgerPage", () => {
     errored.value = true;
     period.value = null;
     expect((await mountPage()).w.text()).toContain("Couldn't load this quarter");
+  });
+
+  // ── the return as a file (IP9) ──────────────────────────────────────────────────────────────────
+  it("exports the quarter the page is showing, as Excel and as PDF", async () => {
+    download.mockClear();
+    const { w } = await mountPage("?q=2026-Q1");
+    expect(w.find('[data-testid="export-ifta-xlsx"]').text()).toContain("Q1 2026");
+    await w.find('[data-testid="export-ifta-xlsx"] button').trigger("click");
+    await w.find('[data-testid="export-ifta-pdf"] button').trigger("click");
+    await flushPromises();
+    expect(download.mock.calls).toEqual([
+      ["/api/ifta/return.xlsx?year=2026&quarter=1", "ifta-return-2026-Q1.xlsx"],
+      ["/api/ifta/return.pdf?year=2026&quarter=1", "ifta-return-2026-Q1.pdf"],
+    ]);
   });
 
   // ── a row opens the trucks behind it ──────────────────────────────────────────────────────────

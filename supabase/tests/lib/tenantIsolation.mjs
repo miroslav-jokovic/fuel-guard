@@ -40,6 +40,7 @@ const NO_ORG_COLUMN = {
   platform_admins: "platform control-plane authority, service-role only (0070)",
   platform_alert_recipients: "who hears a platform alarm (release outcome), service-role only (0426)",
   platform_audit_log: "platform-wide control-plane audit trail, service-role only (0071)",
+  platform_release_approvals: "the owner's console approval of a release, service-role only (0440)",
   route_geometries: "global geographic route cache shared across organizations (0059)",
   vehicle_make_model_catalog:
     "global reference data — what a VIN body code, a VIN manufacturer code or a spelling names — " +
@@ -209,9 +210,22 @@ function jsonbFromCheck(meta, table, col) {
 }
 
 /** A minimal, constraint-satisfying literal for one column. */
+const FORMAT_PINNED = {
+  "ifta_fuel_receipt_uploads.file_sha256": "repeat('a', 64)", // check (file_sha256 ~ '^[0-9a-f]{64}$')
+  "ifta_fuel_receipts.jurisdiction": "'TX'", // check (jurisdiction ~ '^[A-Z]{2}$')
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  "document_sources.sha256": "(md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text))", // check (sha256 ~ '^[0-9a-f]{64}$') (0448)
+  "document_pages.original_sha256": "repeat('a', 64)", // same format check (0448)
+};
+
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
   if (c.col === "card_last4") return "'0000'";
+  // Regex CHECKs `literalFromCheck` cannot read a literal out of, pinned the way `card_last4` is (0436).
+  if (FORMAT_PINNED[`${table}.${c.col}`]) return FORMAT_PINNED[`${table}.${c.col}`];
   if (c.typtype === "e") {
     const labels = meta.enumOf.get(c.typname) ?? [];
     if (labels.length) return `'${labels[0]}'`;

@@ -31,6 +31,12 @@ export interface CardRefusal {
   code: string;
   /** Which gate said no — `not_promoted`, `kill_switch`, `fresh_document`… */
   blockedBy: string | null;
+  /**
+   * What the gate saw, when that is the diagnosis. Since 2026-10-08 a `card_state_changed` refusal
+   * carries the PATHS that moved (never values) — the one refusal whose cause is a fact about the
+   * vendor's document rather than about this product's configuration.
+   */
+  evidence?: Record<string, unknown>;
 }
 
 export async function recordCardRefusal(getAdmin: () => SupabaseClient, refusal: CardRefusal): Promise<void> {
@@ -46,6 +52,7 @@ export async function recordCardRefusal(getAdmin: () => SupabaseClient, refusal:
         scope: refusal.scope,
         code: refusal.code,
         blockedBy: refusal.blockedBy,
+        ...(refusal.evidence ?? {}),
       },
     });
   } catch (e) {
