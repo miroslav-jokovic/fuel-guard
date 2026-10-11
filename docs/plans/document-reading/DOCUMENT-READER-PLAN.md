@@ -660,6 +660,77 @@ corpus' photographed pages, choosing on the wrong-quad rate first and size secon
 
 ---
 
+## 7B. Precision by agreement — the system checks the model (owner, 2026-10-11)
+
+The owner's instruction: *"we should not rely on the model to do all the work … make this as close to 100 %
+precision as we can"*. This section is how. It does not replace §4 or Phase 2; it orders them, names the
+independent witnesses, and states what each one has been measured to catch.
+
+### 7B.1 What the research says (sources current to 2026-10-11)
+
+| # | Finding | Source | What we take from it |
+|---|---|---|---|
+| P1 | On **real regulated documents scored per field** (RealDocBench, 581 docs incl. bills of lading), open-source OCR models score far below a frontier VLM: Chandra-2 86.2 %, olmOCR-2 79.5 %, Docling 71.2 %, dots.ocr 70.6 %, PaddleOCR-VL 59.6 %; Claude Opus 4.8 93.0 %. The best system overall reached 96 % — nothing reaches 100 % alone. | RealDocBench, arXiv 2606.07401 (Jun 2026) | Swapping the model for an open-source OCR model would LOWER field precision. No single reader is the answer. |
+| P2 | The leaderboards that put small OCR models first (OmniDocBench v1.6: TeleOCR 96.9, PaddleOCR-VL-1.6 96.3, MinerU2.5-Pro 95.8, GLM-OCR 95.2) score academic pages by text similarity, and say so; PaddleOCR-VL needs a GPU (vLLM unsupported on CPU). | Docsumo / Roboflow summaries (Sep–Oct 2026); PaddleOCR-VL-1.6 docs | A high OmniDocBench score is not a BOL field score; a GPU service is a new host we do not run. |
+| P3 | A **confidence engine that fuses cross-call disagreement + OCR value-region confidence + image quality + layout** reaches 99.1 % accuracy on the 80 % of fields it accepts (DocILE invoices); OCR value-region confidence is its single most important feature, and two different calls disagreeing is the largest single gain — 18 pp above self-consistency. | ExtractConf, arXiv 2606.24420 (2026) | The route to ~100 % on what is ACCEPTED is independent witnesses + routing the rest to a person — exactly D-DR17. |
+| P4 | In OCR→LLM pipelines the OCR step, not the LLM, is the accuracy ceiling (84–85 % across LLMs); errors are 0/O-type character confusions on identifiers. | arXiv 2509.04469 | OCR is a WITNESS for identifiers, never the only reader. |
+| P5 | PP-OCRv5 (Apache-2.0) runs on CPU through ONNX Runtime in Node (`@gutenye/ocr-node`, `ppu-paddle-ocr`); text lines + boxes + per-line confidence; server models ~85 MB, `onnxruntime-node` ~258 MB native. | gutenye/ocr, ppu-paddle-ocr (2026) | A character-level witness can run inside our worker with no GPU and no new service — at an image-size cost (Q-DR22). |
+
+### 7B.2 Measured on our own papers (2026-10-11, the ten office BOLs, 17 hazmat lines, three readers)
+
+Not yet against labels (Step 0.3); judged against the paper by eye where readers disagreed.
+
+| Check | Catches | Measured |
+|---|---|---|
+| **HMT consistency** — the line's UN/NA id must be `UN|NA` + 4 digits, exist in the HMT (`@silvicom/hazmat-data`, 2,479 entries), and carry the read class and PG on the same row | an id that is not an id; a class/PG that does not belong to the id | Haiku 5.5 wrote the shipper's product codes (5607540…) as the UN number on all 5 lines of 0135071 → **5 of 5 flagged**; Sonnet 4.6 and 5.5: 0 flagged, 0 wrong |
+| **Two readers must agree** | a plausible wrong value the table cannot see | Sonnet 4.6 read **9 drums where the paper says 6** (0132900) and **3,808 lb where it says 3,806** (0135071); Haiku 5.5 and Sonnet 5.5 read 6 and 3,806 → both caught as disagreements. BOL number disagreed on 4 of 10 papers (several numbers printed) → all four would be *Check*. |
+
+So with today's readers, every wrong value we saw would have been stopped by one of the two checks, and no
+check flagged a correct value. Ten papers prove the mechanism, not the rate; the rate is §8's, on labels.
+
+### 7B.3 Decisions
+
+**D-DR19 — A field is *Read* only when independent witnesses agree; the model is one witness.** The
+witnesses, in the order they are built: (1) the HMT and the profile's format rules (deterministic);
+(2) a second model read by a different model (Phase 2.1/2.2); (3) the born-digital text layer where it
+exists (D-DR3, 2.7); (4) a character-level OCR witness over the field's region (Q-DR22); (5) the order
+(McLeod) and arithmetic readers (§4.4–4.5). Any disagreement, or a critical field with fewer than two
+agreeing witnesses, is *Check* — shown, never silently accepted. Critical fields are the ones the
+placard depends on: UN/NA id, hazard class, PG, gross weight, package count, RQ/marine-pollutant marks.
+
+**D-DR20 — The reading model is locked to Sonnet 4.6 (owner, 2026-10-11: "if Sonnet 4.6 is more precise
+we will lock it").** Against Haiku 5.5 on 7B.2 it is: 0 vs 5 wrong UN ids. `DOC_READ_MODEL_A` gets its own
+default `claude-sonnet-4-6`, no longer falling through `HAZMAT_MODEL_A`, so a hazmat-pin change cannot move
+the reader. Haiku 5.5 stays the page classifier (P2, 24/24). Sonnet 5.5 made no error on 7B.2 and is the
+recommended second reader (Q-DR23), not a replacement for the lock.
+
+**D-DR21 — No open-source OCR model replaces the reader** (P1, P2). Open-source OCR enters only as a witness
+(P3–P5), and only after it is measured to add agreement the second model read does not.
+
+### 7B.4 Build order (inserted before N4; N4 continues after)
+
+| Step | What | New dependency | Done when |
+|---|---|---|---|
+| A1 | Lock `DOC_READ_MODEL_A` = Sonnet 4.6 (D-DR20) | — | a hazmat-pin change leaves the reader's model unchanged (test) |
+| A2 | `hazmatLineChecks` — HMT + format consistency per line, a pure function over `@silvicom/hazmat-data`; result into each line's FieldEvidence | — | the 7B.2 five are flagged; no correct line of the ten is |
+| A3 | Second read (Phase 2.1/2.2): pass B by a different model, aligned by key; disagreement → *Check* | — | 7B.2's two count/weight errors are *Check* |
+| A4 | Text-layer witness for born-digital PDFs (2.7) | — | — |
+| A5 | OCR witness spike: PP-OCRv5 in the worker over the 184 corpus photos + 12 office pages; keep only if it turns *Check*s into correct *Read*s or catches what A2+A3 miss | onnxruntime-node + PP-OCRv5 (Q-DR22) | measured either way, written here |
+| A6 | Score all of it on the labelled corpus (§8): false-accept on critical fields = the number that must be ~0 | — | the table, with counts |
+
+### 7B.5 Open questions
+
+**Q-DR22 — May the worker carry an OCR engine?** PP-OCRv5 via `onnxruntime-node`: Apache-2.0/MIT, CPU-only,
+~258 MB native runtime + ~85 MB models in the worker image. *Default:* not installed; A5's spike runs in a
+scratch folder outside the repo first. *Recommendation:* approve the spike; decide the image cost on its
+numbers. (The 2026-10-11 attempt to install spike libraries was refused by the permission system — the owner
+must allow it.)
+
+**Q-DR23 — Which model is the second reader?** *Default:* `HAZMAT_MODEL_B` (Haiku 4.5). *Recommendation:*
+Sonnet 5.5 — on 7B.2 it agreed with the paper everywhere we could check, and a second reader as strong as the
+first is what makes agreement meaningful (P3); Haiku 4.5 failed P2's orientation test outright. Cost: a
+second Sonnet-class read per BOL.
+
 ## 8. Measurement — the four numbers
 
 Unchanged from the old plan §5 (field accuracy, false-accept rate, yield, cost per page), now computed by
@@ -1158,3 +1229,11 @@ Append dated lines at the end; never edit a row above.
   pin, `DOC_CLASSIFY_MODEL`, default `claude-haiku-5-5`, sized to the model's own tier (≈ 5.4 k input
   tokens a page). Q-DR19 is answered (a), by this measurement; (b) "let the reader cope" was not run.
   Fourteen mutants killed. Next: N4 (P3 rectify after its spike, P5 quality gate, P6 duplicates, P7 order).
+- **2026-10-11 (§7B, precision by agreement)** — Owner: don't rely on the model alone; get as close to 100 %
+  as possible; lock Sonnet 4.6 if it is the more precise. Researched current open-source OCR (RealDocBench,
+  OmniDocBench v1.6, ExtractConf, PP-OCRv5-in-Node): open-source OCR models alone score 59–86 % per field on
+  real regulated documents against a frontier VLM's 93 %, so they become witnesses, not the reader (D-DR21).
+  Measured on the ten office BOLs: the HMT check flags all 5 of Haiku 5.5's wrong UN ids and nothing correct;
+  two-reader disagreement catches Sonnet 4.6's two count/weight misreads. Recorded D-DR19 (Read = witnesses
+  agree), D-DR20 (reader locked to Sonnet 4.6), D-DR21, build order A1–A6, Q-DR22 (OCR engine in the worker),
+  Q-DR23 (second reader; recommend Sonnet 5.5). Next: A1 + A2.
