@@ -732,6 +732,17 @@ Sonnet 5.5 — on 7B.2 it agreed with the paper everywhere we could check, and a
 first is what makes agreement meaningful (P3); Haiku 4.5 failed P2's orientation test outright. Cost: a
 second Sonnet-class read per BOL.
 
+**Q-DR24 — Where does a weight-only line's §172.202(a)(5) quantity come from?** Since profile 1.2.0 a line's
+weight column is read into `grossWeightLb` ONLY, and `quantity` holds a volume or mass printed in the
+description (one printed number, one field — the readers split 6 papers in 10 when told to copy it). Both
+readers already left `quantity` null on weight-only lines before 1.2.0, so nothing moves today, but two
+consumers read `quantity` alone: `paperQuantityPresent` (`hazmat-engine/src/bol`) would answer *missing* for a
+line whose total is printed as its gross weight — which §172.202(a)(5) allows ("by mass … net or gross") — and
+the calculator's prefill (N6) needs a quantity for the engine. *Default:* unchanged until N6. *Recommendation:*
+both DERIVE it from `grossWeightLb` (lb) when `quantity` is null — the audit passing with a "weight_printed"
+reason and its own words in `bolFindingCatalogue.ts`, the prefill filling quantity with the weight in lb —
+rather than asking the model to write the number twice.
+
 ## 8. Measurement — the four numbers
 
 Unchanged from the old plan §5 (field accuracy, false-accept rate, yield, cost per page), now computed by
@@ -1308,4 +1319,19 @@ Append dated lines at the end; never edit a row above.
   policy), `ppu-paddle-ocr` + `ppu-ocv` (opencv.js) under 30 MB; `@napi-rs/canvas` and `sharp` were already there.
   Twenty-five mutants killed (rowWitness 10, shippingEvidence 5, ocrModels 3, pageOcr 3, executeRead 4).
   Next: the field-description tightening (count vs quantity, what belongs in marks), then A6 on labels.
+- **2026-10-11 (§7B — field descriptions, profile 1.2.0; final wording NOT yet measured)** — The profile's
+  line fields now say what belongs in each, so each printed thing has one field: `psn` (without its trailing
+  separator), `quantity` (a volume or mass in the description, never the weight column, never a count),
+  `grossWeightLb` (the weight column, in pounds), `packageCount` (the number with the package type),
+  `packaging` (type with count), `marks` (regulatory notations only — not product, item, SDS, ERG, ERS,
+  reference or customer numbers). Profile 1.1.0 → 1.2.0 (the wire schema changed; the schema hash is in the
+  cache key already). The hazmat extractor is unaffected: it sends its own hand-written schema (vision.ts).
+  **Measured live, ten office BOLs, Sonnet 4.6 + Sonnet 5.5, same counting both runs** (a field counts when
+  both readers gave evidence and not both null): baseline (1.1.0) engine fields 145 agree / 18 disagree — 13
+  of the 18 `marks` (product codes 5607540…, ERS/ERG numbers, KC-568, "SDS Attached"), one sack count in
+  `quantity`, one trailing comma in `psn`, one count read by one reader only, and the known 3,808 vs 3,806 lb.
+  First wording ("a weight column counts" in `quantity`): marks disagreements 13 → 1, but the readers then
+  split on copying the weight into `quantity` (6 papers) — 161 agree / 20 disagree. The wording was changed
+  to make the weight column `grossWeightLb`'s alone (Q-DR24). **Its re-run could not be made: the API
+  account's credit balance ran out mid-session (400 "credit balance is too low").** Not merged until measured.
 
