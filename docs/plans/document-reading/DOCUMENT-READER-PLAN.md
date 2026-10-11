@@ -860,6 +860,8 @@ the rotation recorded beside the class in `document_page_classes` so a reviewer 
 the pages stage — a new native dependency. *Default until answered:* (b). *Recommendation:* (a) — one
 call, one ledger, and an override path that already exists for the class; measure (b) against it on
 the labelled corpus first, since a reader that copes would make (a) unnecessary.
+**ANSWERED 2026-10-11: (a), built** — measured live on the office samples (24/24 with Haiku 5.5 at its
+own tier; Haiku 4.5, pass B's default, 13/24, so the classifier has its own pin). Progress log, same date.
 
 ---
 
@@ -1138,3 +1140,21 @@ Append dated lines at the end; never edit a row above.
   way (Q-DR19 (a)). Nullable with no default — a verdict that did not look must not claim 0. Matrix
   `document-reader-tables` 88 checks (five new); three mutants killed. Next: the classifier itself,
   writing and reading the column, in its own merge.
+- **2026-10-11 (P2 part 2, classify + orient — Q-DR19 (a) built)** — Every page a read is given now has
+  a verdict before anything is read: pages with none go to the classifier (`model/classifyPage.ts`), one
+  call per page, closed `PAGE_CLASSES` + clockwise `PAGE_ROTATIONS`, written to `document_page_classes`
+  as the classifier's row (model, `page-class-1.0.0`, rotation). Once ever per page: a later read, and the
+  review screen, use the stored verdict, and a dispatcher's override is a newer row. Only pages of the
+  profile's classes are read (a placard photo is left out without anyone unticking it); a page the
+  classifier cannot answer is still read. Each read page is sent turned by its verdict — a lossless
+  right-angle turn of the original, then the one resample (D-DR15/16) — and the turn joins the cache
+  key's page term. Classification is model spend, so the budget is asked first, and its tokens are the
+  read's (no second usage path). It runs inside the read, not at intake, until P7 proposes assemblies.
+  **Measured live, 2026-10-11**, the ten office BOLs (12 pages), each page as stored and turned a quarter
+  counter-clockwise (24 answers; the one page scanned sideways, 0132900, needs 270): Haiku 4.5 — 13/24
+  on rotation (2 of the 12 turned pages; the sideways page missed); Haiku 5.5, Sonnet 4.6, Sonnet 5.5 —
+  24/24; Haiku 5.5 at the STANDARD tier instead of its own high tier — 23/24, and its miss would have
+  turned a page upside down. Classes: no page classed `other` by any model. So the classifier has its own
+  pin, `DOC_CLASSIFY_MODEL`, default `claude-haiku-5-5`, sized to the model's own tier (≈ 5.4 k input
+  tokens a page). Q-DR19 is answered (a), by this measurement; (b) "let the reader cope" was not run.
+  Fourteen mutants killed. Next: N4 (P3 rectify after its spike, P5 quality gate, P6 duplicates, P7 order).

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENT_PROFILES, withinBudget, type DocumentProfileId, type ReadFailureCode } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, withinBudget, type DocumentProfileId, type PageRotation, type ReadFailureCode } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { readModels } from "../model/models.js";
 import { readPages, SEND_RULE_VERSION, type ModelClient, type PageImage } from "../model/readPages.js";
@@ -10,13 +10,14 @@ import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
 import { sentCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { READ_PROMPTS } from "./prompts.js";
+import { classifyPages, currentVerdicts, type PageVerdict } from "./classifyPages.js";
 import { reviewEpoch, targetOfRow, targetPages, type ReadTarget, type TargetPage } from "./readTarget.js";
 import { DOCUMENT_BUCKET } from "../storage.js";
 
 /**
  * One document read, end to end (Step 1.6): the body of the `document_read` queue job.
  *
- *   gate → pages → integrity → cache → budget → model → one terminal transition
+ *   gate → pages → classify + orient (P2) → integrity → cache → budget → model → one terminal transition
  *
  * Every outcome is written by `document_read_transition` (0448/0451) and nothing else, so a read ends
  * `done` with its document or `failed` with a READ_FAILURES code — never a silently empty form (§4 item
@@ -28,9 +29,10 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  * What it does NOT do yet, each its own step: pass B and the field ledger (Phase 2 — the read records
  * `evidence: []` and only pass A's model, because nothing would read pass B's answer until key
  * alignment, 2.2, lands); the usability gate (`unusable_image`, which needs the shared capture metrics
- * on the page row); and the page classifier (1.5). Until 1.5 a page with NO class is read: an unknown
- * page is not a known non-BOL, and refusing it would make every read before the classifier a
- * `no_readable_page`. A page someone has classed outside the profile's classes is never read.
+ * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
+ * read only when its class is one the profile reads; a page the classifier could not answer is still
+ * read — an unknown page is not a known non-BOL. Each read page is sent turned upright by its verdict's
+ * rotation (Q-DR19 (a)), and the turn is part of the cache key.
  *
  * Every query names the org: the service role bypasses RLS (apps/api/CLAUDE.md), and the RPCs match on
  * (id, org) so a wrong org finds nothing.
@@ -48,7 +50,7 @@ export type ReadGateFor = (admin: SupabaseClient, orgId: string, profile: Docume
 export interface ReadDeps {
   client: ModelClient;
   gateFor: ReadGateFor;
-  env: Pick<Env, "DOC_READ_MODEL_A" | "DOC_READ_MODEL_B" | "HAZMAT_MODEL_A" | "HAZMAT_MODEL_B">;
+  env: Pick<Env, "DOC_READ_MODEL_A" | "DOC_READ_MODEL_B" | "HAZMAT_MODEL_A" | "HAZMAT_MODEL_B" | "DOC_CLASSIFY_MODEL">;
   /** The month the budget is counted in — injectable so a test does not depend on the clock. */
   now?: () => Date;
 }
@@ -99,15 +101,11 @@ function profileSchemaHash(profile: DocumentProfileId): string {
 }
 
 /** The pages this profile reads, in document order (see the header for the unclassified rule). */
-async function readablePages(admin: SupabaseClient, orgId: string, pages: readonly PageRow[], profile: DocumentProfileId): Promise<PageRow[]> {
-  if (pages.length === 0) return [];
-  const { data: classes, error: cErr } = await admin.rpc("document_page_current_class", { p_org: orgId, p_pages: pages.map((p) => p.id) });
-  if (cErr) throw new Error(`document_page_current_class: ${cErr.message}`);
-  const classOf = new Map(((classes ?? []) as { page_id: string; page_class: string }[]).map((c) => [c.page_id, c.page_class]));
+function readablePages(pages: readonly PageRow[], verdicts: ReadonlyMap<string, PageVerdict>, profile: DocumentProfileId): PageRow[] {
   const reads: readonly string[] = DOCUMENT_PROFILES[profile].readsPageClasses;
   return pages.filter((p) => {
-    const c = classOf.get(p.id);
-    return c === undefined || reads.includes(c);
+    const v = verdicts.get(p.id);
+    return v === undefined || reads.includes(v.pageClass);
   });
 }
 
@@ -115,7 +113,12 @@ async function readablePages(admin: SupabaseClient, orgId: string, pages: readon
  * Download each page's original, verify it, and derive the copy the model reads — sized once, from the
  * original, to the model's resolution tier (D-DR16), so the API never resizes it again.
  */
-async function loadImages(admin: SupabaseClient, pages: readonly PageRow[], model: string): Promise<PageImage[] | "integrity_mismatch"> {
+async function loadImages(
+  admin: SupabaseClient,
+  pages: readonly PageRow[],
+  model: string,
+  rotationOf: (pageId: string) => PageRotation,
+): Promise<PageImage[] | "integrity_mismatch"> {
   const limits = sendLimitsFor(model, pages.length);
   const images: PageImage[] = [];
   for (const p of pages) {
@@ -124,7 +127,7 @@ async function loadImages(admin: SupabaseClient, pages: readonly PageRow[], mode
     if (error || !blob) return "integrity_mismatch";
     const png = Buffer.from(await blob.arrayBuffer());
     if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return "integrity_mismatch";
-    const sent = await sentCopyOf(png, limits);
+    const sent = await sentCopyOf(png, limits, rotationOf(p.id));
     images.push({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType });
   }
   return images;
@@ -214,10 +217,28 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
 
   const target: ReadTarget = targetOfRow(read);
   const given = await targetPages<PageColumns>(admin, orgId, target, "original_path, original_sha256, normaliser_version");
-  const pages = await readablePages(admin, orgId, given, read.profile);
-  if (pages.length === 0) return fail("no_readable_page");
-  const images = await loadImages(admin, pages, models[0]!);
-  if (images === "integrity_mismatch") return fail("integrity_mismatch");
+
+  // P2 (§7A.3): every page given gets a verdict before anything is read — a class, and which way is up.
+  // Only pages with none are sent to the classifier, once ever; that is model spend, so the budget is
+  // asked first. Its tokens are this read's, whatever the read's outcome.
+  const verdicts = await currentVerdicts(admin, orgId, given.map((p) => p.id));
+  const unclassified = given.filter((p) => !verdicts.has(p.id));
+  const spent = { input: 0, output: 0 };
+  const spend = (u: { input: number; output: number }) => ({ input: spent.input + u.input, output: spent.output + u.output });
+  if (unclassified.length > 0) {
+    const used = await tokensUsedThisMonth(admin, orgId, deps.now?.() ?? new Date());
+    if (!withinBudget(used, gate.monthlyTokenBudget)) return fail("budget_exhausted");
+    const c = await classifyPages(admin, orgId, unclassified, deps.env.DOC_CLASSIFY_MODEL, deps.client);
+    for (const [id, v] of c.verdicts) verdicts.set(id, v);
+    spent.input = c.inputTokens;
+    spent.output = c.outputTokens;
+  }
+  const rotationOf = (id: string): PageRotation => verdicts.get(id)?.rotation ?? 0;
+
+  const pages = readablePages(given, verdicts, read.profile);
+  if (pages.length === 0) return fail("no_readable_page", spent.input, spent.output);
+  const images = await loadImages(admin, pages, models[0]!, rotationOf);
+  if (images === "integrity_mismatch") return fail("integrity_mismatch", spent.input, spent.output);
 
   versions.cacheKey = readCacheKey({
     profileVersion: profile.version,
@@ -225,21 +246,22 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     promptVersion: prompt.version,
     schemaHash: versions.schemaHash,
     acceptanceRule: ACCEPTANCE_RULE_VERSION,
-    pages: pages.map((p) => ({ sha256: p.original_sha256, normaliserVersion: p.normaliser_version })),
+    pages: pages.map((p) => ({ sha256: p.original_sha256, normaliserVersion: p.normaliser_version, rotation: rotationOf(p.id) })),
     sendRule: SEND_RULE_VERSION,
     reviewEpoch: await reviewEpoch(admin, orgId, given),
   });
   const cached = await cachedResult(admin, orgId, readId, versions.cacheKey);
   // D17's order: a cache hit spends nothing, so it needs no budget to authorise it.
-  if (cached !== undefined) return done(cached, true, 0, 0, pages.length);
+  if (cached !== undefined) return done(cached, true, spent.input, spent.output, pages.length);
 
   const used = await tokensUsedThisMonth(admin, orgId, deps.now?.() ?? new Date());
-  if (!withinBudget(used, gate.monthlyTokenBudget)) return fail("budget_exhausted");
+  if (!withinBudget(used + spent.input + spent.output, gate.monthlyTokenBudget)) return fail("budget_exhausted", spent.input, spent.output);
 
   const input = { profile: read.profile, pages: images, model: models[0]!, prompt };
   const res = "sections" in profile && profile.sections?.length ? await readSections(input, deps.client) : await readPages(input, deps.client);
-  if (res.kind === "ok") return done(res.document, false, res.usage.input, res.usage.output, pages.length);
-  return fail(res.kind, res.usage.input, res.usage.output);
+  const total = spend(res.usage);
+  if (res.kind === "ok") return done(res.document, false, total.input, total.output, pages.length);
+  return fail(res.kind, total.input, total.output);
 }
 
 /** The read the queue gave up on: its last attempt ended on a transient model error (0451). */

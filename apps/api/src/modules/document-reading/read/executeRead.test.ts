@@ -12,14 +12,16 @@ import { TIER_LIMITS } from "../model/visionTier.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { executeRead, failUnavailableRead, type ReadGate } from "./executeRead.js";
 import { READ_PROMPTS } from "./prompts.js";
+import { CLASSIFY_PROMPT } from "../model/classifyPage.js";
 
 /** Step 1.6 — one read, end to end, against the recorder: every outcome is one transition. */
 const ORG = "org-1";
 const READ = "read-1";
 const SOURCE = "source-1";
 const PROFILE = DOCUMENT_PROFILES.shipping_document;
-const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A?: string; DOC_READ_MODEL_B?: string } = {
+const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A?: string; DOC_READ_MODEL_B?: string; DOC_CLASSIFY_MODEL: string } = {
   HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: undefined, DOC_READ_MODEL_B: undefined,
+  DOC_CLASSIFY_MODEL: "claude-haiku-5-5",
 };
 
 async function png(shade: number): Promise<Buffer> {
@@ -32,6 +34,8 @@ interface World {
   profileVersion?: string;
   pages?: { id: string; page_number: number; path: string; bytes: Buffer; recordedSha?: string }[];
   classes?: Record<string, string>;
+  /** The current verdict's rotation for a classed page (0456); absent = not answered. */
+  rotations?: Record<string, number>;
   cached?: unknown;
   reviews?: number;
   used?: number;
@@ -41,6 +45,11 @@ interface World {
   env?: Partial<typeof ENV>;
   /** The read names an assembly of these page ids, in this order, instead of the source (0455). */
   assembly?: string[];
+  /**
+   * The classifier's answer for a page with no verdict yet (P2), by page id; a page absent here is
+   * answered `bol`, upright. A function lets a test make the classifier refuse.
+   */
+  classifier?: Record<string, { pageClass: string; rotation: string }> | ((pageId: string) => Anthropic.Message);
 }
 
 function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -77,7 +86,7 @@ async function world(w: World = {}) {
       org_usage_month: w.used === undefined ? [] : [{ input_tokens: w.used, output_tokens: 0 }],
     },
     rpc: (fn) => (fn === "document_page_current_class"
-      ? Object.entries(w.classes ?? {}).map(([page_id, page_class]) => ({ page_id, page_class }))
+      ? Object.entries(w.classes ?? {}).map(([page_id, page_class]) => ({ page_id, page_class, rotation: w.rotations?.[page_id] ?? null }))
       : null),
     storage: {
       download: (path: string) => {
@@ -87,8 +96,28 @@ async function world(w: World = {}) {
       },
     },
   });
+  // Read requests and classifier requests are told apart by the system prompt; the classifier is asked
+  // about pages in document order, so its n-th request is about the n-th unclassified page.
   const requests: Anthropic.MessageCreateParamsNonStreaming[] = [];
-  const client: ModelClient = { messages: { create: async (req) => (requests.push(req), (w.model ?? (() => message()))()) } };
+  const classifyRequests: Anthropic.MessageCreateParamsNonStreaming[] = [];
+  const unclassified = pages.filter((p) => !(w.classes ?? {})[p.id]).map((p) => p.id);
+  const classifierAnswer = (pageId: string): Anthropic.Message => {
+    if (typeof w.classifier === "function") return w.classifier(pageId);
+    const a = w.classifier?.[pageId] ?? { pageClass: "bol", rotation: "0" };
+    return message({ content: [{ type: "text", text: JSON.stringify(a), citations: null }], usage: { input_tokens: 500, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } as Partial<Anthropic.Message>);
+  };
+  const client: ModelClient = {
+    messages: {
+      create: async (req) => {
+        if (req.system === CLASSIFY_PROMPT.system) {
+          classifyRequests.push(req);
+          return classifierAnswer(unclassified[classifyRequests.length - 1]!);
+        }
+        requests.push(req);
+        return (w.model ?? (() => message()))();
+      },
+    },
+  };
   const gates: string[] = [];
   const deps = {
     client,
@@ -98,12 +127,12 @@ async function world(w: World = {}) {
   };
   const run = () => executeRead(rec.client, ORG, READ, deps);
   const transitions = () => rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => r.args as Record<string, unknown>);
-  return { rec, run, requests, transitions, pages, gates };
+  return { rec, run, requests, classifyRequests, transitions, pages, gates };
 }
 
 describe("executeRead — a read that reaches the model", () => {
   it("reads an assembly's pages in the assembly's order, not their page numbers, and keys the cache on that order", async () => {
-    const w = await world({ assembly: ["p2", "p1"] });
+    const w = await world({ assembly: ["p2", "p1"], classes: { p1: "bol", p2: "bol" } });
     expect(await w.run()).toMatchObject({ outcome: "done", pages: 2 });
     expect(w.rec.storageCalls().map((c) => c.args[0])).toEqual(["o/2.png", "o/1.png"]);
     expect(w.rec.forTable("document_assembly_pages")[0]!.filters()).toContainEqual({ col: "assembly_id", val: "assembly-1" });
@@ -112,13 +141,13 @@ describe("executeRead — a read that reaches the model", () => {
       profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
       schemaHash: combinedSchemaHash(sectionWireSchemas("shipping_document").map((s) => [s.name, s.hash] as const)),
       acceptanceRule: ACCEPTANCE_RULE_VERSION,
-      pages: [p2!, p1!].map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0" })),
+      pages: [p2!, p1!].map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0", rotation: 0 })),
       sendRule: SEND_RULE_VERSION, reviewEpoch: 0,
     }));
     expectOrgScoped(w.rec, ORG);
   });
 
-  it("reads every page that is classed for the profile or not yet classed, and ends done with the merged document", async () => {
+  it("classifies the page with no verdict first, reads every page classed for the profile, and ends done with both spends", async () => {
     const extra = { id: "p3", page_number: 3, path: "o/3.png", bytes: await png(50) };
     const w = await world({
       pages: [
@@ -129,7 +158,15 @@ describe("executeRead — a read that reaches the model", () => {
       classes: { p1: "bol", p3: "placard" },
     });
     const r = await w.run();
-    expect(r).toEqual({ outcome: "done", cacheHit: false, inputTokens: 9000, outputTokens: 1200, pages: 2 });
+    // 9,000 / 1,200 for the three section reads, plus 500 / 20 for classifying p2, the one page with no verdict.
+    expect(r).toEqual({ outcome: "done", cacheHit: false, inputTokens: 9500, outputTokens: 1220, pages: 2 });
+    expect(w.classifyRequests).toHaveLength(1);
+    // The classifier's own pin (DOC_CLASSIFY_MODEL), never the reader's or pass B's.
+    expect(w.classifyRequests[0]!.model).toBe("claude-haiku-5-5");
+    expect(w.rec.writtenRows("document_page_classes")).toEqual([{
+      org_id: ORG, page_id: "p2", page_class: "bol", set_by: "classifier", model: "claude-sonnet-4-6",
+      prompt_version: CLASSIFY_PROMPT.version, rotation: 0,
+    }]);
     // Three section requests (Q-DR11), each carrying pages 1 and 2 — never the placard.
     expect(w.requests).toHaveLength(3);
     for (const req of w.requests) {
@@ -137,6 +174,7 @@ describe("executeRead — a read that reaches the model", () => {
       expect(images).toHaveLength(2);
     }
     expect(w.rec.storageCalls().map((c) => [c.bucket, c.fn, c.args[0]])).toEqual([
+      ["document-intake", "download", "o/2.png"], // the classifier's look at p2
       ["document-intake", "download", "o/1.png"],
       ["document-intake", "download", "o/2.png"],
     ]);
@@ -145,7 +183,7 @@ describe("executeRead — a read that reaches the model", () => {
     expect(done).toMatchObject({
       p_org: ORG, p_read: READ, p_to: "done", p_result: PROFILE.empty(), p_evidence: [],
       p_models: ["claude-sonnet-4-6"], p_prompt_version: READ_PROMPTS.shipping_document.version,
-      p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION, p_input_tokens: 9000, p_output_tokens: 1200,
+      p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION, p_input_tokens: 9500, p_output_tokens: 1220,
     });
     expect(w.transitions()).toHaveLength(2);
   });
@@ -159,7 +197,7 @@ describe("executeRead — a read that reaches the model", () => {
     expect(done.p_cache_key).toBe(readCacheKey({
       profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
       schemaHash: hash, acceptanceRule: ACCEPTANCE_RULE_VERSION,
-      pages: w.pages.map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0" })), sendRule: SEND_RULE_VERSION, reviewEpoch: 3,
+      pages: w.pages.map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0", rotation: 0 })), sendRule: SEND_RULE_VERSION, reviewEpoch: 3,
     }));
   });
 
@@ -204,7 +242,7 @@ describe("executeRead — a read that reaches the model", () => {
   });
 
   it("ends failed with the section's code and the tokens it spent when the model refuses", async () => {
-    const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }) });
+    const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }), classes: { p1: "bol", p2: "bol" } });
     expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 9000, outputTokens: 1200 });
     expect(w.transitions()[1]).toMatchObject({ p_to: "failed", p_failure_code: "refusal", p_input_tokens: 9000 });
   });
@@ -213,6 +251,65 @@ describe("executeRead — a read that reaches the model", () => {
     const w = await world({ model: () => { throw new Anthropic.RateLimitError(429, undefined, "rate limited", new Headers()); } });
     await expect(w.run()).rejects.toBeInstanceOf(TransientModelError);
     expect(w.transitions().map((t) => t.p_to)).toEqual(["reading"]);
+  });
+});
+
+describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
+  it("leaves out a page the classifier calls a placard, and sends a sideways page turned upright", async () => {
+    const landscape = await sharp({ create: { width: 60, height: 40, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+    const w = await world({
+      pages: [
+        { id: "p1", page_number: 1, path: "o/1.png", bytes: landscape },
+        { id: "p2", page_number: 2, path: "o/2.png", bytes: await png(90) },
+      ],
+      classifier: { p1: { pageClass: "bol", rotation: "90" }, p2: { pageClass: "placard", rotation: "0" } },
+    });
+    expect(await w.run()).toMatchObject({ outcome: "done", pages: 1 });
+    expect(w.classifyRequests).toHaveLength(2);
+    // One page reached the reader, and it is the BOL page turned a quarter clockwise: 60×40 became 40×60.
+    const content = w.requests[0]!.messages[0]!.content as { type: string; source?: { data: string } }[];
+    const images = content.filter((c) => c.type === "image");
+    expect(images).toHaveLength(1);
+    const meta = await sharp(Buffer.from(images[0]!.source!.data, "base64")).metadata();
+    expect(`${meta.width}x${meta.height}`).toBe("40x60");
+    expect(w.rec.writtenRows("document_page_classes").map((r) => [r.page_id, r.page_class, r.rotation]))
+      .toEqual([["p1", "bol", 90], ["p2", "placard", 0]]);
+  });
+
+  it("asks no classifier about a page that already has a verdict, and turns it by that verdict's rotation", async () => {
+    const landscape = await sharp({ create: { width: 60, height: 40, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+    const w = await world({ pages: [{ id: "p1", page_number: 1, path: "o/1.png", bytes: landscape }], classes: { p1: "bol" }, rotations: { p1: 270 } });
+    await w.run();
+    expect(w.classifyRequests).toEqual([]);
+    expect(w.rec.writtenRows("document_page_classes")).toEqual([]);
+    const img = (w.requests[0]!.messages[0]!.content as { type: string; source?: { data: string } }[]).find((c) => c.type === "image")!;
+    const meta = await sharp(Buffer.from(img.source!.data, "base64")).metadata();
+    expect(`${meta.width}x${meta.height}`).toBe("40x60");
+  });
+
+  it("still reads a page the classifier could not answer, writing no verdict for it", async () => {
+    const w = await world({ classifier: () => message({ stop_reason: "refusal", content: [] }) });
+    expect(await w.run()).toMatchObject({ outcome: "done", pages: 2 });
+    expect(w.rec.writtenRows("document_page_classes")).toEqual([]);
+  });
+
+  it("keys the cache on each read page's turn, so the same bytes turned are another read", async () => {
+    const turned = await world({ classifier: { p1: { pageClass: "bol", rotation: "180" } } });
+    const upright = await world();
+    await turned.run();
+    await upright.run();
+    expect(turned.transitions()[1]!.p_cache_key).not.toBe(upright.transitions()[1]!.p_cache_key);
+  });
+
+  it("asks the budget before classifying, and spends nothing on a page when it is used up", async () => {
+    const w = await world({ used: 500_000, gate: { open: true, monthlyTokenBudget: 500_000 } });
+    expect(await w.run()).toMatchObject({ outcome: "failed", code: "budget_exhausted", inputTokens: 0 });
+    expect(w.classifyRequests).toEqual([]);
+  });
+
+  it("counts a refused read's classification tokens too: the model was asked", async () => {
+    const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }) });
+    expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 10_000, outputTokens: 1240 });
   });
 });
 
@@ -257,7 +354,7 @@ describe("executeRead — a read that ends before the model", () => {
 
   it("replays a finished read with the same cache key, spending nothing and asking no budget (D17's order)", async () => {
     const cached = { identity: { bolNumber: "123" } };
-    const w = await world({ cached, used: 10_000_000, gate: { open: true, monthlyTokenBudget: 1 } });
+    const w = await world({ cached, used: 10_000_000, gate: { open: true, monthlyTokenBudget: 1 }, classes: { p1: "bol", p2: "bol" } });
     expect(await w.run()).toEqual({ outcome: "done", cacheHit: true, inputTokens: 0, outputTokens: 0, pages: 2 });
     expect(w.transitions()[1]).toMatchObject({ p_to: "done", p_result: cached, p_input_tokens: 0, p_output_tokens: 0 });
     expect(w.requests).toEqual([]);

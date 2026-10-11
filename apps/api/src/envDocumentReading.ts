@@ -21,6 +21,13 @@ export const documentReadingEnvFields = {
   // exactly the models it reads with today. Resolved in `modules/document-reading/model/models.ts`.
   DOC_READ_MODEL_A: z.string().min(1).optional(),
   DOC_READ_MODEL_B: z.string().min(1).optional(),
+  // Layer 1 P2's page classifier (§7A.3, Q-DR19 (a)): what a page is and which way is up, one call per
+  // page. Its own pin, not pass B's, because the default pass-B model failed the orientation half when
+  // measured live on 2026-10-11 against the ten office BOLs (12 pages, each sent as stored and turned a
+  // quarter counter-clockwise): Haiku 4.5 answered 2 of the 12 turned pages and missed the one page
+  // scanned sideways; Haiku 5.5, Sonnet 4.6 and Sonnet 5.5 answered all 24. Haiku 5.5 is the cheapest of
+  // the three. A deployment may pin another; the verdict row records the model that answered.
+  DOC_CLASSIFY_MODEL: z.string().min(1).default("claude-haiku-5-5"),
 
   // Driver documents (0445, Step 0.1): BOL photos, delivery copies and call forms drivers submit in
   // Samsara's app. Fifteen minutes, because a dispatcher reading a BOL into the hazmat calculator is

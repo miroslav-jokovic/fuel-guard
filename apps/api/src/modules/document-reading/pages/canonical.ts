@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
-import type { Bbox } from "@silvicom/shared";
+import type { Bbox, PageRotation } from "@silvicom/shared";
 import { resizedSize, type TierLimits } from "../model/visionTier.js";
 
 /**
@@ -117,7 +117,11 @@ export async function workingCopyOf(originalPng: Buffer): Promise<CanonicalPage[
  * re-encoded unchanged, never enlarged. Lossless WebP, the working copy's encoder — no second lossy
  * generation (§7A R3).
  */
-export async function sentCopyOf(originalPng: Buffer, limits: TierLimits): Promise<CanonicalPage["working"]> {
+export async function sentCopyOf(originalPng: Buffer, limits: TierLimits, rotation: PageRotation = 0): Promise<CanonicalPage["working"]> {
+  // A right-angle turn moves pixels without resampling them (D-DR15: geometry only), so it is done first
+  // and losslessly, and the one resample below sizes the page as it will be read — a turned letter page
+  // is sized as landscape, not as the portrait it was stored as.
+  if (rotation !== 0) originalPng = await sharp(originalPng).rotate(rotation).png().toBuffer();
   const meta = await sharp(originalPng).metadata();
   if (!meta.width || !meta.height) throw new Error("sentCopyOf: the original has no dimensions");
   const size = resizedSize(meta.width, meta.height, limits);

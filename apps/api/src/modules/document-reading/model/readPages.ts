@@ -157,7 +157,7 @@ export function isTransient(err: unknown): err is APIError {
   return false;
 }
 
-function usageOf(resp: Anthropic.Message): ReadUsage {
+export function usageOf(resp: Anthropic.Message): ReadUsage {
   return {
     input: resp.usage.input_tokens,
     output: resp.usage.output_tokens,

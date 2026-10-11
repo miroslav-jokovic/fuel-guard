@@ -11,7 +11,8 @@ import { createHash } from "node:crypto";
  *   promptVersion      the profile prompt's version (prompts.ts).
  *   schemaHash         the wire schema(s) sent — for a sectioned profile, the combined hash.
  *   acceptanceRule     the acceptance rule's version (Phase 2; `ACCEPTANCE_RULE_VERSION` until then).
- *   pages              each page READ, in order: its original's sha256 and the normaliser that made it.
+ *   pages              each page READ, in order: its original's sha256, the normaliser that made it, and
+ *                      the clockwise turn it was sent at (P2, 0456) — the same bytes turned are another page.
  *   sendRule           how the pages were sized and framed in the request (`SEND_RULE_VERSION`, D-DR16):
  *                      the same pages sent at another size are another read.
  *   reviewEpoch        how many reviews the source's reads hold. F-EX10: once a person has corrected a
@@ -29,7 +30,7 @@ export interface CacheKeyInput {
   promptVersion: string;
   schemaHash: string;
   acceptanceRule: string;
-  pages: readonly { sha256: string; normaliserVersion: string }[];
+  pages: readonly { sha256: string; normaliserVersion: string; rotation: number }[];
   sendRule: string;
   reviewEpoch: number;
 }
@@ -41,7 +42,7 @@ export function readCacheKey(k: CacheKeyInput): string {
     `prompt=${k.promptVersion}`,
     `schema=${k.schemaHash}`,
     `rule=${k.acceptanceRule}`,
-    `pages=${k.pages.map((p) => `${p.sha256}@${p.normaliserVersion}`).join(",")}`,
+    `pages=${k.pages.map((p) => `${p.sha256}@${p.normaliserVersion}@r${p.rotation}`).join(",")}`,
     `send=${k.sendRule}`,
     `reviews=${k.reviewEpoch}`,
   ];
