@@ -13,6 +13,7 @@ import type { Env } from "../../env.js";
 import { smsConfigured } from "../../lib/sms.js";
 import { organizationTimezone } from "../idle/index.js";
 import { returnToDutyBlocked } from "../recruiting/index.js";
+import { chunks } from "../../lib/paging.js";
 import type { DispatchResult } from "./dispatchLoads/shared.js";
 
 /**
@@ -211,15 +212,22 @@ export async function dispatchesByLoad(
 ): Promise<Map<string, LoadDispatchSummary[]>> {
   const out = new Map<string, LoadDispatchSummary[]>();
   if (loadIds.length === 0) return out;
-  const { data, error } = await admin
-    .from("load_dispatches")
-    .select("id, load_id, driver_id, sent_at, channel, outcome, outcome_reason, drivers(full_name)")
-    .eq("org_id", orgId)
-    .in("load_id", loadIds)
-    .order("sent_at", { ascending: false })
-    .order("id", { ascending: false });
-  if (error) throw new Error(error.message);
-  for (const r of (data ?? []) as {
+  // In id chunks (IN_LIST_CHUNK): the board passes every McLeod load, and one `.in()` over 454 of them
+  // overflowed Node 22's header limit — this read threw "fetch failed" and took the Loads board down
+  // (2026-10-09). Each chunk is newest-first by itself, and a load's dispatches all sit in one chunk.
+  const rows: unknown[] = [];
+  for (const ids of chunks(loadIds)) {
+    const { data, error } = await admin
+      .from("load_dispatches")
+      .select("id, load_id, driver_id, sent_at, channel, outcome, outcome_reason, drivers(full_name)")
+      .eq("org_id", orgId)
+      .in("load_id", ids)
+      .order("sent_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+  }
+  for (const r of rows as {
     id: string;
     load_id: string;
     driver_id: string;

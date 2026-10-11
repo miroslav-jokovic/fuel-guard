@@ -80,6 +80,7 @@
 "platform_admins",
 "platform_alert_recipients",
 "platform_audit_log",
+"platform_release_approvals",
 "psp_requests",
 "qualification_records",
 "route_fuel_settings",
@@ -95,5 +96,6 @@
 "user_profiles",
 "user_section_access",
 "user_surface_access",
+"vehicle_fuel_tax_exclusions",
 "vehicle_positions"
 ]

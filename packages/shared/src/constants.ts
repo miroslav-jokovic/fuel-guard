@@ -215,12 +215,23 @@ export const ANOMALY_DISPOSITIONS = [
 ] as const;
 export type AnomalyDisposition = (typeof ANOMALY_DISPOSITIONS)[number];
 
+/**
+ * The disposition the detection reset gives every open case before the start date (migration 0439,
+ * D-CF9, Q-CF1 (a)). It is NOT a reviewer's verdict, so it is not in ANOMALY_DISPOSITIONS: a reviewer
+ * is never offered it, the transition schema refuses it, and the precision measure (which counts the
+ * four verdicts by name) leaves it out. A row can still carry it, so the label below must know it.
+ */
+export const RETIRED_DISPOSITION = "retired_reset_2026_10" as const;
+/** Any disposition a stored case can carry: a reviewer's verdict, or the reset's. */
+export type CaseDisposition = AnomalyDisposition | typeof RETIRED_DISPOSITION;
+
 /** Human labels for dispositions (UI + reports). */
-export const DISPOSITION_LABELS: Record<AnomalyDisposition, string> = {
+export const DISPOSITION_LABELS: Record<CaseDisposition, string> = {
   confirmed: "Confirmed issue",
   false_positive: "False alarm",
   benign_explained: "Legitimate, explained",
   inconclusive: "Inconclusive",
+  [RETIRED_DISPOSITION]: "Closed at the reset",
 };
 
 /**

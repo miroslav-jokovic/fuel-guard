@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsDriverInput, TmsVehicleInput, TmsTrailerInput } from "@silvicom/shared";
-import { deriveFullName, TMS_CLAIMABLE_SOURCES } from "@silvicom/shared";
+import { deriveFullName, TMS_CLAIMABLE_SOURCES, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
 import { driverPatch, vehiclePatch, trailerPatch } from "./rosterFields.js";
 import { recordSyncedCredentials } from "../evidence/index.js";
+import { recordFuelTaxExclusion } from "../ifta/index.js";
+import { recordFleetCodes, type FleetPlacement } from "./fleetCodes.js";
 import {
   makeDriverMatcher,
   makeAssetMatcher,
@@ -108,6 +110,12 @@ export interface RosterIngestResult {
   /** `externalId:kind` for credentials that could not be filed. Counted, never thrown — one bad
    *  credential must not strand the rest of the roster mid-sweep. */
   credentialFailures: string[];
+  /** vehicles: fuel-tax exclusion periods opened or closed this run (0433). Zero on almost every
+   *  sweep — the fact changes when the carrier flips McLeod's switch, which it had never done as of
+   *  2026-10-05. */
+  fuelTaxExclusionChanges?: number;
+  /** vehicles: trucks whose McLeod home fleet changed this run (DISPATCH-BOARD-PLAN DB1, 0450). */
+  fleetCodeChanges?: number;
 }
 
 const empty = (): RosterIngestResult => ({
@@ -378,6 +386,7 @@ export async function ingestVehicles(
   orgId: string,
   rows: TmsVehicleInput[],
   mode: RosterMode = "link",
+  now: Date = new Date(),
 ): Promise<RosterIngestResult> {
   const out = empty();
   out.received = rows.length;
@@ -385,6 +394,9 @@ export async function ingestVehicles(
   const sourceOf = provenanceLookup(candidates);
   const inspectionOwned = inspectionOwnedLookup(candidates);
   const matcher = makeAssetMatcher(candidates, vehicleUnitKey);
+  // One carrier day for the whole sweep, so every exclusion change it records carries the same date.
+  const day = todayInZone(now, DEFAULT_ORG_TIMEZONE);
+  const fleets: FleetPlacement[] = [];
   for (const r of rows) {
     const outcome = matcher.match({ external_id: r.external_id, vin: r.vin, unit_number: r.unit_number });
     const patch = writesIdentity(mode) ? vehiclePatch(r) : null;
@@ -398,10 +410,42 @@ export async function ingestVehicles(
     // literal beside a derivation is the copy-with-a-delay-fuse this repo's register is named for.
     const insert = mode === "create" ? { ...patch, unit_number: unit, tank_capacity_gal: 0 } : null;
     const before = out.created;
-    await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
+    const ambiguousBefore = out.ambiguous.length;
+    const written = await applyOutcome(admin, orgId, "vehicles", r.external_id, r.company_id, outcome, out, patch, sourceOf, inspectionOwned, insert, WRITES[mode]);
     // Only a truck that was actually inserted needs finishing — a matched one already has its capacity.
     if (out.created > before) out.needsCompletion.push(unit);
+
+    /**
+     * McLeod's fuel-tax exclusion, as dated periods (IFTA-PRECISION-PLAN IP4, 0433).
+     *
+     * Recorded for every truck this sweep placed — INCLUDING one whose identity the office owns
+     * (`skippedOwned`). The ownership rule above is about who may rewrite a truck's make, plate and
+     * VIN; this is a different fact, from McLeod's fuel-tax module, about whether the carrier reports
+     * the truck in its IFTA return, and the office editing a plate does not make McLeod wrong about it.
+     * Not in link mode (it writes links only), not on an ambiguous or failed link, and never on an
+     * absent fact: `undefined` is "the agent did not read it", which must not close an open period.
+     */
+    const placed = written ?? (outcome.kind === "linked" || outcome.kind === "matched" ? outcome.id : null);
+    if (
+      WRITES[mode] && writesIdentity(mode) && placed &&
+      out.ambiguous.length === ambiguousBefore && typeof r.fuel_tax_excluded === "boolean"
+    ) {
+      const change = await recordFuelTaxExclusion(admin, orgId, placed, r.fuel_tax_excluded, day);
+      if (change) out.fuelTaxExclusionChanges = (out.fuelTaxExclusionChanges ?? 0) + 1;
+    }
+    // The home fleet, under the same gate as the fuel-tax fact and for the same reason: not identity,
+    // so recorded for an office-owned truck too; never on an ABSENT fact (an older agent), which
+    // must not clear a code. `null` is a fact — McLeod puts the truck in no fleet — and does clear it.
+    if (
+      WRITES[mode] && writesIdentity(mode) && placed &&
+      out.ambiguous.length === ambiguousBefore && r.fleet_code !== undefined
+    ) {
+      fleets.push({ vehicleId: placed, code: r.fleet_code });
+    }
   }
+  // One read and a write per changed code for the whole sweep, never a statement per truck. The roster
+  // is McLeod's by construction (it writes `mcleod_tractor_id`), so the provider is too.
+  if (fleets.length > 0) out.fleetCodeChanges = await recordFleetCodes(admin, orgId, "mcleod", fleets);
   return out;
 }
 

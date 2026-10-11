@@ -33,7 +33,7 @@ const point = (month: string, revenue: number, expenses: number, miles: number |
 });
 const trend = (): FleetTrendResponse => ({
   points: [point("2026-05", 4_390_379.55, 3_979_134.98, 1_563_003), point("2026-06", 5_107_789.04, 3_634_060.11, 1_574_109), point("2026-07", 4_828_189.24, 4_058_143.38, 1_552_337)],
-  missing: [], rated: 3, monthsRequested: ["2026-05", "2026-06", "2026-07"], monthsPartial: [],
+  missing: [], rated: 3, monthsRequested: ["2026-05", "2026-06", "2026-07"], monthsPartial: [], ledgerReason: null,
 });
 
 const mountIt = (period: ReportPeriod = periodForMonth("2026-07"), r = report(), t: FleetTrendResponse | null = trend()) =>

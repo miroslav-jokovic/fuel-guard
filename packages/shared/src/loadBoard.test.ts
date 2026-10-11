@@ -10,18 +10,18 @@ const tms = (status: string, extra: Record<string, unknown> = {}) =>
   loadBoardState({ status: status as never, source: "tms", ...extra });
 
 describe("loadBoardState", () => {
-  it("reads McLeod's P under way as In transit, on the Active queue", () => {
+  it("reads McLeod's P under way as In transit, on the In transit queue", () => {
     expect(tms("in_transit", { external_status: "P" })).toEqual({
-      queue: "active",
+      queue: "in_transit",
       label: "In transit",
       tone: "brand",
       mcleodWords: "McLeod status P (planned)",
     });
   });
 
-  it("calls an A with a driver AND a truck Planned, and keeps it with the working loads", () => {
+  it("calls an A with a driver AND a truck Planned, and puts it on Upcoming with the working loads", () => {
     const s = tms("pending_approval", { external_status: "A", driver_id: "d", vehicle_id: "v" });
-    expect(s).toMatchObject({ queue: "active", label: "Planned" });
+    expect(s).toMatchObject({ queue: "upcoming", label: "Planned" });
   });
 
   it.each([
@@ -32,8 +32,15 @@ describe("loadBoardState", () => {
     expect(tms("pending_approval", { external_status: "A", ...extra })).toMatchObject({ queue: "uncovered", label: "Uncovered" });
   });
 
-  it("reads a P with nothing done (approved) as Planned", () => {
-    expect(tms("approved", { external_status: "P" })).toMatchObject({ queue: "active", label: "Planned" });
+  it("reads a P with nothing done (approved) as Planned, on Upcoming", () => {
+    expect(tms("approved", { external_status: "P" })).toMatchObject({ queue: "upcoming", label: "Planned" });
+  });
+
+  it("puts a load a driver took in the app but has not started on Upcoming, not In transit", () => {
+    const app = (status: string) => loadBoardState({ status: status as never, source: "manual" });
+    expect(app("accepted")).toMatchObject({ queue: "upcoming" });
+    expect(app("offered")).toMatchObject({ queue: "upcoming" });
+    expect(app("in_transit")).toMatchObject({ queue: "in_transit" });
   });
 
   it("puts a delivered load on Delivered and a voided one in All only", () => {

@@ -132,7 +132,12 @@ export const APPLY_PART_ONE_COPY = {
       reading: "Reading the barcode on your licence…",
       readFilled: "We read your licence's barcode and filled in some of the next screens. Check each answer before you continue.",
       readNothing: "The barcode could not be read. That's fine — you'll type your details on the next screens.",
-      medical_card: { heading: "Photo of your medical card", hint: "Your DOT medical examiner's certificate.", outline: "Your medical card" },
+      medical_card: {
+        heading: "Photo of your medical card",
+        // A clinic usually emails the certificate as a PDF, and "Upload" takes one (`uploadAccept`).
+        hint: "Your DOT medical examiner's certificate. If the clinic emailed it to you, upload the PDF.",
+        outline: "Your medical card",
+      },
       /**
        * Screen 11 (AW6, §6.7). The why comes in the same breath as the ask (the house rule above): a face
        * is the most personal thing Part 1 asks for, and the three promises are the ones Q-AW5 (a) keeps —

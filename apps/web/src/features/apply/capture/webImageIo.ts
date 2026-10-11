@@ -5,6 +5,8 @@
  * the decision — is this photograph good enough to upload? — is pure and must be testable without a
  * camera, a canvas or a GPU. The default implementation is browser-only; a test passes its own.
  */
+import type { ApplicationCaptureSlot } from "@silvicom/shared";
+import { loadPdfjs } from "../signing/pdfDocument";
 
 export interface DecodedImage {
   width: number;
@@ -45,6 +47,7 @@ export interface WebImageIo {
  */
 export const browserImageIo: WebImageIo = {
   async decode(file: File): Promise<DecodedImage> {
+    if (isPdf(file)) return decodePdf(file);
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
     return {
       width: bitmap.width,
@@ -88,6 +91,69 @@ export const browserImageIo: WebImageIo = {
     return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
   },
 };
+
+/**
+ * What "Upload a photo instead" lets a driver choose (2026-10-07).
+ *
+ * A document may be a PDF, because that is how a medical examiner's certificate usually reaches a
+ * driver: the clinic emails it. Until 2026-10-07 the picker offered images only, so a driver holding
+ * their certificate as a PDF could not choose it at all — and one who got it past the picker was told
+ * "Something went wrong with the camera". Production had never received a medical card (zero
+ * `medical_card` rows in `application_captures` on 2026-10-07): both test applications ended on
+ * "I don't have one yet", one after four and a half minutes on the screen.
+ *
+ * The selfie stays an image: a face is the one slot no file the driver already has can stand in for.
+ */
+export function uploadAccept(slot: ApplicationCaptureSlot): string {
+  return slot === "selfie" ? "image/*" : "image/*,application/pdf";
+}
+
+const isPdf = (file: File): boolean => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+
+/**
+ * How large a PDF's first page is drawn: its long edge, in pixels — a letter page at 200 dpi, the
+ * resolution a scanner is usually set to.
+ *
+ * ⚠ So the resolution gate passes every PDF, and that is honest rather than a hole: the gate asks
+ * whether a CAMERA caught enough detail, and a PDF has no camera. A blurry scan inside one is drawn
+ * as blurry as it is, and "Use this photo / Choose another photo" shows it large before anything is sent.
+ */
+export const PDF_RENDER_LONG_EDGE_PX = 2200;
+
+/**
+ * The first page of a PDF as a picture, so it enters the SAME pipeline as a photograph — downscale,
+ * WebP, hash, gate, server re-check — and the office receives the same kind of file whichever button
+ * the driver pressed. Only the first page: a medical examiner's certificate is one page, and the
+ * preview shows exactly which page is sent. pdfjs is already the link's PDF engine (`pdfDocument.ts`),
+ * imported here only when a PDF is chosen.
+ */
+async function decodePdf(file: File): Promise<DecodedImage> {
+  const pdfjs = await loadPdfjs();
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  try {
+    const page = await (await task.promise).getPage(1);
+    const natural = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: PDF_RENDER_LONG_EDGE_PX / Math.max(natural.width, natural.height) });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("This browser cannot process the file.");
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      source: canvas,
+      // A page at this size is ~19 MB of pixels; shrinking the canvas is how a browser lets go of them.
+      close: () => {
+        canvas.width = 0;
+        canvas.height = 0;
+      },
+    };
+  } finally {
+    void task.destroy();
+  }
+}
 
 /**
  * Open the phone's camera and hand back one photograph.

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { TruckIcon, XMarkIcon } from "@silvicom/ui/icons";
 import type { LiveMapVehicle } from "@silvicom/shared";
@@ -8,6 +9,7 @@ import { boardSummarySentence } from "./liveMapWords";
 import LiveMapCanvas from "./LiveMapCanvas.vue";
 import LiveMapRail from "./LiveMapRail.vue";
 import LiveMapVehicleFacts from "./LiveMapVehicleFacts.vue";
+import { useLoadRoute } from "@/composables/useLoadRoute";
 import { useLiveMapView } from "./useLiveMapView";
 import { LIVE_MAP_POLL_MS } from "./useLiveMapBoard";
 
@@ -77,6 +79,43 @@ const pollSeconds = Math.round(LIVE_MAP_POLL_MS / 1000);
 const canvas = ref<InstanceType<typeof LiveMapCanvas> | null>(null);
 
 /**
+ * The route on the map (TRUCK-CARD-ROUTE-PLAN D-TC7, revised 2026-10-09): one at a time, and closed
+ * ONLY by a gesture that means "close the route".
+ *
+ * ⚠ It used to follow the selection — any change cleared it. But a click on a fuel stop reached the
+ * map's "empty map clears the selection" handler (see `isMarkerClick`), so opening a fuel stop closed
+ * the route the owner was reading; and closing the card took the route with it. Now:
+ *   · the card's route icon and its "Hide route", and the map's own route bar, close it;
+ *   · selecting a DIFFERENT truck replaces it (one route, never one for a truck nobody chose);
+ *   · closing the card or clicking empty map does NOT: the route bar stays on screen, naming the
+ *     truck and load, so the line is always accounted for and always one click from gone.
+ */
+type RouteOn = { loadId: string; vehicleId: string; unitNumber: string; ref: string | null };
+const routeOn = ref<RouteOn | null>(null);
+const routeLoadId = computed(() => routeOn.value?.loadId ?? null);
+const routeQuery = useLoadRoute(routeLoadId);
+watch(selectedId, (id) => {
+  if (id != null && id !== routeOn.value?.vehicleId) routeOn.value = null;
+});
+function toggleRoute(): void {
+  const v = selected.value;
+  if (!v?.load || routeOn.value?.loadId === v.load.id) {
+    routeOn.value = null;
+    return;
+  }
+  routeOn.value = { loadId: v.load.id, vehicleId: v.vehicleId, unitNumber: v.unitNumber, ref: v.load.ref };
+}
+function hideRoute(): void {
+  routeOn.value = null;
+}
+const routeCard = computed(() => ({
+  shown: routeOn.value != null && routeOn.value.loadId === selected.value?.load?.id,
+  pending: routeQuery.isFetching.value && !routeQuery.data.value,
+  error: routeQuery.error.value?.message ?? null,
+  data: routeQuery.data.value ?? null,
+}));
+
+/**
  * The truck card's own element, handed to the canvas so its marker popover can show it (D-LM28).
  */
 const cardEl = ref<HTMLElement | null>(null);
@@ -134,6 +173,31 @@ function select(vehicle: LiveMapVehicle): void {
   railOpen.value = false;
 }
 
+/**
+ * `?truck=<unit>` — the Dispatch board drawer's "On the map" (DISPATCH-BOARD-PLAN DB6). The unit number,
+ * not the vehicle id, because it is the key the board's own `?truck=` uses and the one a person can read.
+ *
+ * ⚠ CONSUMED, NOT KEPT. Once the board has loaded, the truck is selected and the parameter dropped
+ * (`replace`, so Back returns to the board): a selection the reader then changes on the map must not
+ * leave a URL naming a different truck, and a reload must not snap the view back. A unit the board does
+ * not carry (no position, retired) is dropped the same way — the map opens on the fleet, as it would.
+ * Before the map has loaded, `flyTo` cannot move it; the canvas's first framing prefers the selected
+ * truck to the whole fleet for exactly this arrival.
+ */
+const route = useRoute();
+const router = useRouter();
+watch(
+  [() => route.query.truck, () => board.data.value],
+  ([truck, data]) => {
+    if (typeof truck !== "string" || !truck || !data) return;
+    const vehicle = data.vehicles.find((v) => v.unitNumber === truck);
+    if (vehicle) select(vehicle);
+    const { truck: _consumed, ...rest } = route.query;
+    void router.replace({ query: rest });
+  },
+  { immediate: true },
+);
+
 /** The rail's width is part of the map's box at `lg`, so the canvas has to re-measure when it moves. */
 const railVisible = computed(() => railOpen.value);
 watch(railVisible, async () => {
@@ -183,6 +247,7 @@ watch(railVisible, async () => {
         :generated-at="board.data.value.generatedAt"
         :selected-id="selectedId"
         :card-el="cardEl"
+        :route="routeOn ? routeCard.data : null"
         @select="selectedId = $event"
         @viewport="onViewport"
       />
@@ -254,6 +319,23 @@ watch(railVisible, async () => {
       </div>
 
       <!--
+        The route bar (D-TC7, 2026-10-09): while a route is drawn, it says whose it is and closes it,
+        whether or not the card is open — the one control a route can always be closed from.
+        ⚠ TOP-CENTRE for the reasons the strip above records (the bottom edge is the attribution's
+        and goes under the fold on a phone); below `lg` it sits under that strip, not on it.
+      -->
+      <div
+        v-if="routeOn"
+        class="map-panel absolute left-1/2 top-16 z-sticky flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-3 px-3 py-1.5 lg:top-3"
+        role="status"
+      >
+        <p class="truncate text-xs text-ink">
+          Route · Unit {{ routeOn.unitNumber }}<template v-if="routeOn.ref"> · Load {{ routeOn.ref }}</template>
+        </p>
+        <BaseButton variant="link" size="sm" @click="hideRoute">Hide route</BaseButton>
+      </div>
+
+      <!--
         The selected truck (D-LM28). This element is rendered HERE and drawn over its own marker:
         `LiveMapCanvas` hands it to a `maplibregl.Popup`, which moves the node into the map. It is
         always in the tree — `v-if` is on its CONTENTS — because an element that comes and goes
@@ -306,7 +388,13 @@ watch(railVisible, async () => {
           </div>
           <!-- `board.data.value` is non-null here: `selected` resolves against the board, so there is
                no card without one. -->
-          <LiveMapVehicleFacts :vehicle="selected" :board="board.data.value!" density="compact" />
+          <LiveMapVehicleFacts
+            :vehicle="selected"
+            :board="board.data.value!"
+            density="compact"
+            :route="routeCard"
+            @toggle-route="toggleRoute"
+          />
         </template>
       </div>
     </div>

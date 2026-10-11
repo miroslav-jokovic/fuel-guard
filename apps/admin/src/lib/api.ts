@@ -115,3 +115,33 @@ export interface AlertRecipient {
   label: string | null;
   createdAt: string;
 }
+
+/** Tonight's release PR (main → production), read from GitHub by admin-api (D-REL14). */
+export interface ReleaseCandidate {
+  number: number;
+  url: string;
+  title: string;
+  notes: string;
+  /** What an approval here ships: the commit the notes describe. */
+  shipsSha: string;
+  /** False for a PR body written before D-REL14: the head may hold merges the notes do not list. */
+  pinnedByNotes: boolean;
+  headSha: string;
+  updatedAt: string;
+}
+
+/** A live console approval of a release PR (0440). */
+export interface ReleaseApproval {
+  id: string;
+  prNumber: number;
+  commitSha: string;
+  approvedBy: string | null;
+  approvedAt: string;
+}
+
+export interface ReleaseState {
+  candidate: ReleaseCandidate | null;
+  approvals: ReleaseApproval[];
+  /** Only the production console writes the database release.yml reads. */
+  canApprove: boolean;
+}

@@ -2190,3 +2190,28 @@ Append dated lines at the END.
     card give legible photos, the selfie preview is mirrored and the saved photo is not, lock and unlock resumes
     the camera, and the flashlight and buzz work on Android. Then `select count(*) from application_captures`
     (0 on 2026-09-30), which also proves the upload fix.
+
+- **2026-10-07 — taking a photo and uploading one, made the same (owner: "uploading image and taking picture
+  has no difference in flow and final result"; "medical card upload in test there was some issue").** No migration.
+  · **What production showed:** `application_captures` held no `medical_card` row, ever. Both test applications
+    (an iPhone's JPEGs on 2026-10-01 03:37 UTC, an Android's WebPs at 20:27 UTC) stored the CDL's two sides and then
+    ended on "I don't have one yet" (`medical_card_pending = true`) — the Android one after 4½ minutes on the
+    screen, with a reload in the middle (`application_screen_events`: left 20:32:09, back 20:33:07). The cause on
+    that phone cannot be read from the server; what the browser does with each source can, and was measured.
+  · **Measured, in Chromium under production's CSP, on the medical card screen:** the scanner, the camera app and an
+    upload all reach the office as WebP at a 1568 px long edge through the same three calls. What differed:
+    "Upload a photo instead" offered images only, so a certificate the clinic emailed as a PDF could not be chosen;
+    a PDF or an iPhone HEIC forced past the picker said "Something went wrong with the camera"; a small upload was
+    told to "Move closer".
+  · **Changed:** a document's upload (CDL sides, medical card — on the screen and inside the scanner) now accepts a
+    PDF (`uploadAccept`), and its first page is drawn by the link's own pdfjs at 2200 px and enters the same pipeline
+    as a photo, so the office receives a picture either way. The selfie stays images only. The medical card's hint
+    says a PDF works. `PROVIDER_ERROR` and `RESOLUTION_TOO_LOW` are worded true for every source.
+  · **Still different, on purpose:** the scanner cuts its photo to the outline and a camera-app or uploaded file is
+    sent whole — finding a page's edges in a picture the scanner did not frame is Q-AW53 (a), still not built. An
+    Android tab discarded while the camera app is open loses that photo (it is kept on the phone only from "Use this
+    photo", C3d2); the scanner keeps the driver in the page and avoids it, which is the case for it.
+  · **Checks:** `uploadParity.spec.ts` (a PDF is sent as its letter-shaped first page; the three sources send the same
+    type at the same long edge; an unreadable file is not blamed on the camera) and two unit tests for the accept
+    list. Mutation: no PDF decode, image-only accept and the old copy each fail one spec; all killed, `dist` rebuilt
+    before each.

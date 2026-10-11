@@ -1,10 +1,13 @@
 import { CASE_RULE_ID } from "./anomalyRules/cases.js";
-import { sectionOfFinding, type FindingKind } from "./findingAssignment.js";
+import { CARD_FRAUD_KIND, sectionOfFinding, type FindingKind } from "./findingAssignment.js";
 import {
   ANOMALY_QUEUE_STATE,
   EXCEPTION_QUEUE_STATE,
+  INCIDENT_QUEUE_STATE,
   closeOfAnomaly,
   closeOfException,
+  closeOfIncident,
+  type CardFraudIncidentStatus,
   type FindingRow,
 } from "./findingQueue.js";
 import { FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKind } from "./fuelSpend/exceptions.js";
@@ -43,6 +46,20 @@ export interface ExceptionFindingRow {
   unit_number?: string | null;
   assigned_to?: string | null;
   first_seen_at?: string | null;
+}
+
+/** `card_fraud_incidents`, likewise (0438). */
+export interface IncidentFindingRow {
+  id: string;
+  status: CardFraudIncidentStatus;
+  disposition?: AnomalyDisposition | null;
+  card_ref: string;
+  opened_at: string;
+  attempt_count: number;
+  fuel_taken?: boolean | null;
+  places?: Array<{ city?: string | null; state?: string | null }> | null;
+  assigned_to?: string | null;
+  unit_number?: string | null;
 }
 
 /** PostgREST hands `numeric` back as a string; null and unparseable both mean "no number". */
@@ -100,6 +117,36 @@ export function findingFromException(row: ExceptionFindingRow): FindingRow {
     assignedTo: row.assigned_to ?? null,
     openedAt: row.first_seen_at ?? null,
     close: closeOfException(row.status, num(row.credited_amount)),
+  };
+}
+
+/**
+ * A card-fraud incident as a finding (CF2).
+ *
+ * The card is named by its last four only: `card_ref` can hold the full card number (0438, `cardFraudKey`),
+ * and a list row is not a place for one. The place is the FIRST place the card was tried, where the
+ * incident opened; the drawer (8c3) shows every place. `amountUsd` is null for the same reason as a
+ * theft case's: an incident is about where a card was used, and it has no face value.
+ */
+export function findingFromIncident(row: IncidentFindingRow): FindingRow {
+  const kind = CARD_FRAUD_KIND as FindingKind;
+  const last4 = row.card_ref.replace(/\D/g, "").slice(-4) || "????";
+  const first = row.places?.[0];
+  const where = [first?.city, first?.state].filter(Boolean).join(", ");
+  const tries = row.attempt_count === 1 ? "tried once" : `tried ${row.attempt_count} times`;
+  return {
+    id: row.id,
+    source: "incident",
+    kind,
+    section: sectionOfFinding(kind),
+    queueState: INCIDENT_QUEUE_STATE[row.status],
+    occurredOn: row.opened_at.slice(0, 10),
+    unitNumber: row.unit_number ?? null,
+    summary: `Card ••••${last4} ${tries}${where ? ` in ${where}` : ""}${row.fuel_taken ? ", fuel taken" : ""}`,
+    amountUsd: null,
+    assignedTo: row.assigned_to ?? null,
+    openedAt: row.opened_at,
+    close: closeOfIncident(row.status, row.disposition ?? null),
   };
 }
 
