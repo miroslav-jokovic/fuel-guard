@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assignFindings, MAX_ASSIGN_BATCH } from "./findingsAssign.js";
+import { assignFindings, findingRefsFrom, MAX_ASSIGN_BATCH } from "./findingsAssign.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 
 /**
@@ -15,17 +15,20 @@ const E1 = "11111111-1111-4111-8111-111111111111";
 const A1 = "22222222-2222-4222-8222-222222222222";
 const USER = "33333333-3333-4333-8333-333333333333";
 
-const seed = (o: { exceptions?: unknown[]; anomalies?: unknown[]; role?: string | null } = {}) =>
+const I1 = "44444444-4444-4444-8444-444444444444";
+const seed = (o: { exceptions?: unknown[]; anomalies?: unknown[]; incidents?: unknown[]; role?: string | null } = {}) =>
   createSupabaseRecorder({
     tables: {
       fuel_exceptions: o.exceptions ?? [{ id: E1, kind: "off_network_premium" }],
       anomalies: o.anomalies ?? [{ id: A1 }],
+      card_fraud_incidents: o.incidents ?? [{ id: I1 }],
       memberships: o.role === null ? [] : [{ role: o.role ?? "admin" }],
     },
   });
 
 const money = { source: "exception" as const, id: E1 };
 const theft = { source: "anomaly" as const, id: A1 };
+const card = { source: "incident" as const, id: I1 };
 
 describe("assigning findings", () => {
   it("assigns across both tables in one act, and stays org-scoped", async () => {
@@ -35,6 +38,29 @@ describe("assigning findings", () => {
     expect(rec.writtenRows("fuel_exceptions")[0]).toEqual({ assigned_to: USER });
     expect(rec.writtenRows("anomalies")[0]).toEqual({ assigned_to: USER });
     expectOrgScoped(rec, ORG);
+  });
+
+  // Chunk 8c1, Q-F11 (a): an incident is a fuel finding, written through the anomalies module.
+  it("assigns a card-fraud incident with a money finding, both fuel, and stays org-scoped", async () => {
+    const rec = seed({ role: "fleet_manager" });
+    const r = await assignFindings(rec.client, ORG, "actor", "admin", USER, [money, card]);
+    expect(r).toEqual({ ok: true, assigned: 2 });
+    expect(rec.writtenRows("card_fraud_incidents")[0]).toEqual({ assigned_to: USER });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("refuses a safety manager assigning an incident, which is fuel's", async () => {
+    const rec = seed();
+    const r = await assignFindings(rec.client, ORG, "actor", "safety_manager", USER, [card]);
+    expect(r.ok).toBe(false);
+    expect(rec.writtenRows("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  it("refuses an incident id that is not in the caller's org", async () => {
+    const rec = seed({ incidents: [] });
+    const r = await assignFindings(rec.client, ORG, "actor", "admin", USER, [card]);
+    expect(r).toMatchObject({ ok: false, code: "not_found" });
+    expect(rec.writtenRows("card_fraud_incidents")).toHaveLength(0);
   });
 
   it("unassigns when handed nothing, rather than refusing", async () => {
@@ -113,5 +139,15 @@ describe("assigning findings", () => {
     const r = await assignFindings(rec.client, ORG, "actor", "admin", USER, many);
     expect(r).toMatchObject({ ok: false, code: "too_many" });
     expect(rec.writes()).toHaveLength(0);
+  });
+});
+
+describe("the refs an assign request may name", () => {
+  it("keeps the three sources, incidents included (chunk 8c1)", () => {
+    expect(findingRefsFrom([money, theft, card])).toEqual([money, theft, card]);
+  });
+  it("drops an unknown source, an inherited key, a bad id and a non-list", () => {
+    expect(findingRefsFrom([{ source: "toString", id: E1 }, { source: "vehicle", id: E1 }, { source: "incident", id: "x" }, null])).toEqual([]);
+    expect(findingRefsFrom("nope")).toEqual([]);
   });
 });

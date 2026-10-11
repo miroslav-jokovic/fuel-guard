@@ -213,6 +213,11 @@ ok(
   "an unknown table_id is refused, so the table cannot fill with rows no surface lists",
   await refused(INS, [ACTOR, ORG, "roster.unicorns", "X", "q=1"]),
 );
+// 0452: the Dispatch board is the second table with views. Its id is admitted; anything else still is not.
+ok(
+  "the dispatch board's views are admitted beside the roster's (0452)",
+  !(await refused(INS, [ACTOR, ORG, "dispatch.board", "Late in my fleet", "queue=late&scope=mine"])),
+);
 ok("a blank name is refused", await refused(INS, [ACTOR, ORG, "roster.drivers", "   ", "q=1"]));
 ok("an over-long query is refused", await refused(INS, [ACTOR, ORG, "roster.drivers", "Long", "x".repeat(2001)]));
 

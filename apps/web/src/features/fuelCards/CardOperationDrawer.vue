@@ -25,7 +25,7 @@ import {
   resolveCapability, capabilityBlockedBy, statusRows, toOperationCard,
   allowedInfoIdsFrom, allowedLimitsFrom, missingEditableInfoIds, unwritableStatusLabel,
 } from "./cardOperations";
-import { seedDraftFor } from "./operationDrafts";
+import { rebaseDraft, seedDraftFor } from "./operationDrafts";
 import { newIdempotencyKey, type CardMutationOutcome } from "./useCardControl";
 import { useOperationDispatch } from "./useOperationDispatch";
 
@@ -329,10 +329,12 @@ function handleFailure(error: unknown): void {
   handleOperationFailure(error, {
     stepUp: (reason) => { stepUpFor.value = reason; },
     cardMoved: (version, live) => {
+      const before = seedDraftFor(props.operation, activeStatus.value, activePrompts.value, allowedInfoIds.value);
       activeVersion.value = version;
       activePrompts.value = live.infos;
       activeStatus.value = live.status ?? props.status;
-      draft.value = seedDraftFor(props.operation, live.status ?? props.status, live.infos, allowedInfoIds.value);
+      const after = seedDraftFor(props.operation, activeStatus.value, live.infos, allowedInfoIds.value);
+      draft.value = rebaseDraft(draft.value, before, after);
       committed.value = null;
     },
     abandon: () => { committed.value = null; },

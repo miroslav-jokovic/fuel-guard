@@ -86,13 +86,13 @@ const numFields: { key: string; label: string }[] = [
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
-    <PageHeader description="Tune the anomaly engine. Changes apply to future scoring only — they do not rewrite history." />
+    <PageHeader description="Set the limits that decide when a fill is flagged. Changes apply to new fills only; fills already checked keep their result." />
 
     <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
 
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Thresholds</h3>
+        <h3 class="text-base font-semibold text-ink">Limits</h3>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-for="f in numFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
             <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
@@ -101,8 +101,8 @@ const numFields: { key: string; label: string }[] = [
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Disabled rules</h3>
-        <p class="mt-1 text-xs text-ink-muted">Checked rules are turned off (everything else stays on).</p>
+        <h3 class="text-base font-semibold text-ink">Checks turned off</h3>
+        <p class="mt-1 text-xs text-ink-muted">A ticked check is turned off. Every other check stays on.</p>
         <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <BaseCheckbox
             v-for="r in RULE_IDS"
@@ -122,17 +122,17 @@ const numFields: { key: string; label: string }[] = [
         <h3 class="text-base font-semibold text-ink">AI verification</h3>
         <div class="mt-3">
           <BaseCheckbox v-model="(form.ai_verification_enabled as boolean)">
-            Enable Claude AI verification on flagged transactions
+            Ask AI for a second opinion on flagged fills
           </BaseCheckbox>
         </div>
-        <FormField v-slot="{ id }" class="mt-4 max-w-xs" label="Monthly token budget (optional)">
+        <FormField v-slot="{ id }" class="mt-4 max-w-xs" label="Monthly AI usage limit, in tokens (optional)">
           <BaseInput :id="id" v-model="(form.ai_monthly_token_budget as string)" inputmode="numeric" />
         </FormField>
       </BaseCard>
 
       <div class="flex items-center gap-3">
         <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save thresholds" }}
+          {{ save.isPending.value ? "Saving…" : "Save" }}
         </BaseButton>
       </div>
     </form>

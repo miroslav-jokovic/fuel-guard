@@ -1,8 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { asyncHandler } from "../../lib/http.js";
+import { getAppLocals } from "../../lib/appLocals.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireSection } from "../../middleware/auth.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
-import { ActionRefusalError } from "./services/efsCardControlErrors.js";
+import { ActionRefusalError, CardControlError } from "./services/efsCardControlErrors.js";
 import {
   badRequest,
   controlErrorResponse,
@@ -100,7 +102,15 @@ function refuseRosterOnlyVersion(req: Request, res: Response): boolean {
 async function handle(capability: MountedCapability, req: Request, res: Response): Promise<void> {
   const { contract } = capability;
 
-  if (refuseRosterOnlyVersion(req, res)) return;
+  if (refuseRosterOnlyVersion(req, res)) {
+    // The other 409 that opens no ledger row — recorded for the same reason as `card_moved` below.
+    const { env } = getAppLocals(req);
+    await recordCardRefusal(() => getSupabaseAdmin(env), {
+      orgId: req.auth!.orgId!, userId: req.auth!.userId, efsCardId: String(req.params.id),
+      capabilityKey: contract.key, scope: contract.scope, code: "card_never_read", blockedBy: "never_read",
+    });
+    return;
+  }
 
   const accepted = capability.accept(req.body ?? {});
   if (!accepted.ok) { badRequest(res, accepted.error); return; }
@@ -152,5 +162,17 @@ async function run(
       return;
     }
     controlErrorResponse(res, error);
+    /**
+     * The plan-time version refusal, recorded since 2026-10-08. It opens no ledger row, so until
+     * now it left NOTHING behind — the ••••7962 grant that morning was found only through Railway's
+     * HTTP log. The pre-write re-read's refusal carries a `mutationId` and is already on the ledger.
+     */
+    if (error instanceof CardControlError && error.code === "card_state_changed" && !error.detail?.mutationId) {
+      await recordCardRefusal(() => ctx.admin, {
+        orgId: ctx.orgId, userId: ctx.userId, efsCardId, capabilityKey: contract.key,
+        scope: contract.scope, code: error.code, blockedBy: "card_moved",
+        evidence: { movedFields: error.detail?.movedFields ?? null, mirrorWasExpected: error.detail?.mirrorWasExpected ?? null },
+      });
+    }
   }
 }

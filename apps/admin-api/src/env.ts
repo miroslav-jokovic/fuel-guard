@@ -21,6 +21,13 @@ const EnvSchema = z.object({
   // Absolute path to the built admin SPA to serve (single-service deploy for the platform plane).
   ADMIN_DIST: z.string().optional(),
 
+  // Tonight's release (D-REL14). Railway sets RAILWAY_GIT_BRANCH on a git deploy; only the console
+  // that follows `production` writes the database release.yml reads, so only it may approve.
+  RAILWAY_GIT_BRANCH: z.string().optional(),
+  GITHUB_REPOSITORY: z.string().default("miroslav-jokovic/fuel-guard"),
+  // Optional: lifts GitHub's anonymous rate limit on the release PR read. Read-only scope is enough.
+  GITHUB_TOKEN: z.string().optional(),
+
   // Stripe (Phase 2) — kept optional so Phase 0 boots without them.
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),

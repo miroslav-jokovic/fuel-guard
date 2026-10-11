@@ -12,6 +12,7 @@
  * one figure, not two that happen to agree.
  */
 import { milesFromMeters } from "../smartFueling/units.js";
+import type { IftaReceiptRaw } from "./receipts.js";
 
 /** One truck's miles in `GET /api/ifta/period/jurisdiction`. Units are Samsara's, unconverted. */
 export interface IftaJurisdictionTruckRaw {
@@ -29,13 +30,19 @@ export interface IftaJurisdictionFillRaw {
   id: string;
   /** Null for a fill no truck is attached to. It is in the ledger's total, so it is kept. */
   vehicleId: string | null;
-  fueledAt: string;
+  /** Null on a receipt keyed in McLeod, which has a date and no time of day. */
+  fueledAt: string | null;
   /** Station-local date — the basis the quarter is cut on (0247). */
   businessDate: string | null;
   gallons: number;
   pricePerGal: number | null;
   totalCost: number | null;
   location: string | null;
+  /**
+   * Absent on a card fill. `mcleod_receipt`: keyed by hand in McLeod (IP6) — no price, station or time.
+   * `uploaded_receipt`: a driver-paid fill the office uploaded (IP8), with whatever its file carried.
+   */
+  source?: "card" | "mcleod_receipt" | "uploaded_receipt";
 }
 
 export interface IftaJurisdictionTrucksResponse {
@@ -46,6 +53,10 @@ export interface IftaJurisdictionTrucksResponse {
   fills: IftaJurisdictionFillRaw[];
   /** Unit numbers for trucks that bought fuel here but reported no miles here. */
   units: Record<string, string | null>;
+  /** Receipts for this jurisdiction — keyed in McLeod (IP6) and uploaded (IP8) — duplicates already dropped. */
+  receipts?: IftaReceiptRaw[];
+  /** How many receipts the duplicate rule dropped — said on the page, never silent. */
+  receiptDuplicates?: number;
 }
 
 export interface IftaJurisdictionTruck {
@@ -69,7 +80,11 @@ export interface IftaJurisdictionTrucks {
   totalMiles: number;
   gallonsBought: number;
   spent: number;
+  /** Card fills only; receipts are counted in `receiptCount`. */
   fillCount: number;
+  /** Receipts (keyed in McLeod or uploaded), and their gallons — both already inside `gallonsBought`. */
+  receiptCount: number;
+  receiptGallons: number;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -82,16 +97,36 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
  */
 export function iftaJurisdictionTrucks(
   raw: IftaJurisdictionTruckRaw[],
-  fills: IftaJurisdictionFillRaw[] = [],
+  cardFills: IftaJurisdictionFillRaw[] = [],
   units: Record<string, string | null> = {},
+  receipts: IftaReceiptRaw[] = [],
 ): IftaJurisdictionTrucks {
+  // A receipt joins its truck's fills as a row of its own kind, so a truck whose only fuel here was
+  // keyed in McLeod — unit 512, every quarter — is a truck that bought fuel here. One McLeod unit
+  // matches none of our trucks: it goes on the no-truck row, its unit named, because its gallons are
+  // in the ledger row's total too.
+  const fills: IftaJurisdictionFillRaw[] = [
+    ...cardFills,
+    ...receipts.map((r) => ({
+      id: `receipt:${r.source}:${r.externalId}`,
+      vehicleId: r.vehicleId,
+      fueledAt: null,
+      businessDate: r.receiptDate,
+      gallons: r.gallons,
+      pricePerGal: r.pricePerGal ?? null,
+      totalCost: r.totalCost ?? null,
+      location: r.vehicleId ? (r.location ?? null) : `McLeod unit ${r.unitAsFiled}, matched to no truck`,
+      source: r.source === "mcleod" ? ("mcleod_receipt" as const) : ("uploaded_receipt" as const),
+    })),
+  ];
   const taxable = raw.reduce((acc, t) => acc + milesFromMeters(t.taxableMeters), 0);
   const total = raw.reduce((acc, t) => acc + milesFromMeters(t.totalMeters), 0);
 
   const fillsBy = new Map<string | null, IftaJurisdictionFillRaw[]>();
   for (const f of fills) fillsBy.set(f.vehicleId, [...(fillsBy.get(f.vehicleId) ?? []), f]);
   const fuelOf = (id: string | null) => {
-    const list = [...(fillsBy.get(id) ?? [])].sort((a, b) => b.fueledAt.localeCompare(a.fueledAt));
+    const when = (f: IftaJurisdictionFillRaw) => f.fueledAt ?? f.businessDate ?? "";
+    const list = [...(fillsBy.get(id) ?? [])].sort((a, b) => when(b).localeCompare(when(a)));
     return {
       fills: list,
       gallonsBought: r1(list.reduce((acc, f) => acc + f.gallons, 0)),
@@ -141,6 +176,8 @@ export function iftaJurisdictionTrucks(
     totalMiles: Math.round(total),
     gallonsBought: r1(fills.reduce((acc, f) => acc + f.gallons, 0)),
     spent: r2(fills.reduce((acc, f) => acc + (f.totalCost ?? 0), 0)),
-    fillCount: fills.length,
+    fillCount: cardFills.length,
+    receiptCount: receipts.length,
+    receiptGallons: r1(receipts.reduce((acc, r) => acc + r.gallons, 0)),
   };
 }

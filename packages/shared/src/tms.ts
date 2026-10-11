@@ -311,6 +311,14 @@ export const tmsVehicleInputSchema = z.object({
    * must never close a period it could not see.
    */
   fuel_tax_excluded: z.boolean().nullish(),
+  /**
+   * The truck's home fleet in the TMS, verbatim ('VINNIEV', 'KANE', '1'): which dispatcher's group
+   * OWNS it, as opposed to the load's dispatcher, who is MOVING it today (DISPATCH-BOARD-PLAN D-DB1).
+   * Not translated, because it is a name the carrier chose; an office links each code to a dispatcher
+   * (`tms_fleets`). `null` = the TMS puts the truck in no fleet; absent = the agent did not read the
+   * column, which must never clear a code the sweep recorded before.
+   */
+  fleet_code: z.string().trim().min(1).max(32).nullish(),
 });
 export type TmsVehicleInput = z.infer<typeof tmsVehicleInputSchema>;
 

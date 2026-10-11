@@ -17,8 +17,10 @@ import { orgsToSync, runOrgTier, startTier } from "./lib/tierRunner.js";
 import { runSamsaraFeedAlarm } from "./samsaraFeedAlarm.js";
 import { samsaraFeedCadences } from "./samsaraFeedHealth.js";
 import { dispatchJob } from "../../queue/dispatch.js";
-import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+import { syncIftaMonths } from "./samsaraIftaSync.js";
 import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
+import { startDocumentsTier } from "./samsaraDocumentsSync.js";
+import { startHosClocksTier } from "./hosClocksFeed.js";
 
 /**
  * Tier 5 — PER-FILL TELEMATICS (SAM-S3, D-SAM1). The tier that stops the collection hole growing.
@@ -283,17 +285,8 @@ function startIftaTier(env: Env): void {
   startTier(env, "ifta", 180_000, env.SAMSARA_IFTA_SYNC_HOURS * 3_600_000, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_ifta", async () => {
-        const months = monthsToSync(new Date());
-        const per: Record<string, number> = {};
-        let rows = 0;
-        let unmapped = 0;
-        for (const { year, month } of months) {
-          const r = await syncIftaMilesForMonth(admin, env, orgId, year, month);
-          per[`${month} ${year}`] = r.rows;
-          rows += r.rows;
-          unmapped = Math.max(unmapped, r.unmappedVehicles);
-        }
-        return { months: per, rows, unmappedVehicles: unmapped };
+        const r = await syncIftaMonths(admin, env, orgId);
+        return { months: r.months, rows: r.rows, unmappedVehicles: r.unmappedVehicles, notReady: r.notReady };
       });
     }
   });
@@ -448,9 +441,11 @@ export function startSamsaraScheduler(env: Env): void {
   startPerformanceTier(env);
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
   if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
+  if (env.SAMSARA_DOCUMENTS_SYNC_MINUTES > 0) startDocumentsTier(env);
   if (env.IDLE_ENGINE_SYNC_MINUTES > 0) startIdleEngineTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   if (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0) startPositionsTier(env);
+  if (env.SAMSARA_HOS_CLOCKS_SYNC_MINUTES > 0) startHosClocksTier(env);
   startRetentionTier(env);
   // Reads what the tiers above recorded and says so when one of them has stopped delivering.
   startFeedAlarmTier(env);

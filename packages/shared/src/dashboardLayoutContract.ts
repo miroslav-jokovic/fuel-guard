@@ -89,6 +89,29 @@ export interface StoredDashboardLayout {
  * comment on `defaultFor` carries the argument. A wrong answer here shows or withholds a widget the
  * gates had already ruled on; it cannot leak one.
  */
+/**
+ * Does this stored row refer to NOTHING this caller could be offered today?
+ *
+ * ── Q-FO4, ruled (b) on 2026-10-06: A ROW THAT NAMES ONLY VANISHED CARDS IS A RESET ─────────────
+ * Fleet overview v3 replaced nine widget keys with six. Under the rule below alone, a reader who had
+ * arranged the old tab would have kept their row — every key in it inert — and the resolver would
+ * have rendered `[]` kept plus every new card as "untouched", which is the role default anyway but
+ * with one difference: a card they had HIDDEN would stay hidden only if its key survived, and none
+ * did. The honest reading of a row that mentions nothing on today's catalogue is "this person has
+ * never arranged THIS tab", and that is what the resolver now does, so `TabWidgets` can say so once
+ * instead of pretending the arrangement carried over. A one-to-many migration (hero → fuel +
+ * efficiency + attention) would have been a guess dressed as continuity.
+ *
+ * ⚠ Checked against `allowed`, never the whole catalogue, so a row that names only cards this
+ * caller's gates refuse is ALSO a reset for them — the alternative would resolve to the same
+ * default and then hide the note, for no reason a reader could see.
+ */
+export function layoutNamesNothingHere(allowed: readonly DashboardWidget[], stored: StoredDashboardLayout): boolean {
+  if (stored.widgetKeys.length === 0 && stored.hiddenKeys.length === 0) return false;
+  const here = new Set(allowed.map((w) => w.key));
+  return ![...stored.widgetKeys, ...stored.hiddenKeys].some((k) => here.has(k));
+}
+
 export function inDefaultLayout(widget: DashboardWidget, role: UserRole | null): boolean {
   if (!widget.defaultFor) return true;
   return role !== null && widget.defaultFor.includes(role);
@@ -111,7 +134,7 @@ export function resolveDashboardLayout(
   role: UserRole | null,
   stored: StoredDashboardLayout | null,
 ): DashboardWidget[] {
-  if (!stored) return allowed.filter((w) => inDefaultLayout(w, role));
+  if (!stored || layoutNamesNothingHere(allowed, stored)) return allowed.filter((w) => inDefaultLayout(w, role));
 
   const byKey = new Map(allowed.map((w) => [w.key, w]));
   const kept: DashboardWidget[] = [];

@@ -144,7 +144,7 @@ const exposed = (await all(
       and p.prorettype <> 'trigger'::regtype
       and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))
     order by 1`));
-// Name-only surfaces (Q-DA3, 0436). Definer so a roster gate on the table cannot blank them; each
+// Name-only surfaces (Q-DA3, 0461). Definer so a roster gate on the table cannot blank them; each
 // takes no org argument, scopes by the caller's JWT, and returns names only. Its own matrix
 // (driver-names.test.mjs) pins that contract.
 const NAME_SURFACES = ["driver_names"];

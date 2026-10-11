@@ -63,6 +63,21 @@ const WAIVERS = new Map([
   // writes it behind PUT /api/recruitment/settings. Pinned for the schema-only S1 (0379) only.
   // application_packet_countersignatures (0387, HANDBOOK-SIGNING-PLAN.md QH0) never needed an entry:
   // the migration's own `purge_applicant` deletes from it, which this gate counts as a reference.
+  //
+  // DOCUMENT-READER-PLAN.md Step 1.2 (0448) ships the reader's tables schema-only, ahead of the module
+  // that writes them; `document_reads` needs no entry because 0448's own `document_read_transition`
+  // updates it. Each leaves in the merge that ships its writer: the intake (Step 1.6 routes, 3.2 Samsara
+  // copy) for sources, the normalisation stage (Step 1.3) for pages, the review route (Step 1.6) for reviews.
+  // `document_pages` and `document_read_reviews` left with Step 1.6's read (executeRead.ts), which READS
+  // both — a reference by this gate's definition; their writers are the intake and the review route.
+  // `document_sources` left on 2026-10-10 with Step 1.6b: intake/intake.ts inserts it from the
+  // `document_intake` job behind POST /api/documents/sources/:id/complete. That was the last of 0448's.
+  // document_page_classes (0449, Q-DR12) left on 2026-10-11 with P2: read/classifyPages.ts writes the
+  // classifier's verdict (class + rotation, 0456) for every page a read is given that has none.
+  //
+  // tms_fleets and driver_hos_clocks (0450, DISPATCH-BOARD-PLAN.md wave 1) left it in wave 2, the merge after
+  // their schema: mcleod/fleetCodes.ts seeds the first from the roster sweep, samsara/hosClocksFeed.ts
+  // writes the second from the clocks poll.
 ]);
 
 const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();

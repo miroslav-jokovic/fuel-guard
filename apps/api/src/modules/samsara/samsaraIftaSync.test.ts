@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { parseIftaVehicleReport, type RawIftaResponse } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
-import { isProvisionalMonth, monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+import { isProvisionalMonth, monthsToSync, syncIftaMilesForMonth, syncIftaMonths } from "./samsaraIftaSync.js";
+import { IftaPeriodNotReadyError, iftaRequestError } from "./lib/samsaraIfta.js";
+import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 
 /**
  * The server side of the IFTA pull. Its parsing is tested in `packages/shared`; what is only testable
@@ -196,5 +198,113 @@ describe("monthsToSync", () => {
       { year: 2025, month: "November" },
       { year: 2025, month: "October" },
     ]);
+  });
+});
+
+describe("iftaRequestError — reading Samsara's refusal", () => {
+  // Captured from production 2026-10-07: the month in progress, refused.
+  const STILL_PROCESSING = JSON.stringify({
+    message: "IFTA data may still be processing. Please request data prior to 2026-10-01",
+    requestId: "jwtmrqbb-xwgbpqev",
+  });
+
+  it("calls a month Samsara is still processing NOT READY, carrying the date Samsara named", () => {
+    const e = iftaRequestError(400, STILL_PROCESSING, 2026, "October");
+    expect(e).toBeInstanceOf(IftaPeriodNotReadyError);
+    expect((e as IftaPeriodNotReadyError).availableBefore).toBe("2026-10-01");
+  });
+
+  it("keeps the same answer for a month that starts AFTER the stated date", () => {
+    expect(iftaRequestError(400, STILL_PROCESSING, 2026, "November")).toBeInstanceOf(IftaPeriodNotReadyError);
+  });
+
+  it("refuses the label for a month Samsara says it already serves — the answer contradicts itself", () => {
+    // September starts before 2026-10-01, so 'still processing' cannot be the reason it was refused.
+    const e = iftaRequestError(400, STILL_PROCESSING, 2026, "September");
+    expect(e).not.toBeInstanceOf(IftaPeriodNotReadyError);
+    expect(e.message).toBe(
+      "Samsara IFTA API 400 for September 2026: IFTA data may still be processing. Please request data prior to 2026-10-01",
+    );
+  });
+
+  it("never classifies another status, or another 400, as not ready", () => {
+    expect(iftaRequestError(500, STILL_PROCESSING, 2026, "October")).not.toBeInstanceOf(IftaPeriodNotReadyError);
+    const bad = iftaRequestError(400, JSON.stringify({ message: "Invalid month" }), 2026, "October");
+    expect(bad).not.toBeInstanceOf(IftaPeriodNotReadyError);
+    expect(bad.message).toBe("Samsara IFTA API 400 for October 2026: Invalid month");
+  });
+
+  it("reports the status alone when the body is not Samsara's JSON", () => {
+    expect(iftaRequestError(502, "<html>Bad Gateway</html>", 2026, "October").message).toBe(
+      "Samsara IFTA API 502 for October 2026",
+    );
+  });
+});
+
+describe("syncIftaMonths — one run, shared by the scheduler and the queue", () => {
+  /**
+   * Incident 2026-10-01: on the 1st–3rd of every month Samsara refuses the newest completed month, and
+   * the scheduler's own copy of this loop threw on it — 68 failed runs for September, 180 for August,
+   * the IFTA feed `failing`, and July and August never refreshed behind it.
+   */
+  const OCT_1 = new Date("2026-10-01T00:03:00Z");
+  const notReady = (year: number, month: string) =>
+    iftaRequestError(
+      400,
+      JSON.stringify({ message: "IFTA data may still be processing. Please request data prior to 2026-09-01" }),
+      year,
+      month,
+    );
+
+  const runMonths = (fetcher: (year: number, month: string) => Promise<ReturnType<typeof report>>) => {
+    const rec = seed();
+    const asked: string[] = [];
+    const result = syncIftaMonths(rec.client, ENV, ORG, {
+      now: OCT_1,
+      fetcherOverride: async (year, month) => {
+        asked.push(`${month} ${year}`);
+        return fetcher(year, month);
+      },
+    });
+    return { rec, asked, result };
+  };
+
+  it("skips the month Samsara is still processing and syncs the settled months behind it", async () => {
+    const { rec, asked, result } = runMonths(async (year, month) => {
+      if (month === "September") throw notReady(year, month);
+      return report(TWO_TRUCKS);
+    });
+    const r = await result;
+    expect(asked).toEqual(["September 2026", "August 2026", "July 2026"]);
+    expect(r.notReady).toEqual(["September 2026"]);
+    expect(Object.keys(r.months)).toEqual(["August 2026", "July 2026"]);
+    expect(r.rows).toBe(6);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("still fails the run on a real error — after writing every month it could", async () => {
+    const { asked, result } = runMonths(async (_year, month) => {
+      if (month === "August") throw new Error("Samsara IFTA API 500 for August 2026");
+      return report(TWO_TRUCKS);
+    });
+    await expect(result).rejects.toThrow(
+      "IFTA sync failed for August 2026: Samsara IFTA API 500 for August 2026 (written: September 2026, July 2026)",
+    );
+    expect(asked).toEqual(["September 2026", "August 2026", "July 2026"]);
+  });
+
+  it("does not hide a real failure behind a not-ready month", async () => {
+    const { result } = runMonths(async (year, month) => {
+      if (month === "September") throw notReady(year, month);
+      throw new Error(`Samsara IFTA API 503 for ${month} ${year}`);
+    });
+    await expect(result).rejects.toThrow("IFTA sync failed for August 2026");
+  });
+
+  it("lets a missing token through untouched, so each caller reports it once as skipped", async () => {
+    const { result } = runMonths(async () => {
+      throw new NoSamsaraTokenError();
+    });
+    await expect(result).rejects.toBeInstanceOf(NoSamsaraTokenError);
   });
 });

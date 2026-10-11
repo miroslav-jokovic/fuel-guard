@@ -77,7 +77,7 @@ vi.mock("@/features/fuel/useEfsData", () => ({
   },
   useDeclinedTransactions: (f: { value: EfsFilters }) => {
     seen.declined = f;
-    return listOf({ id: "d1", unit: "654", declined_at: "2026-08-15T14:00:00Z", error_code: "51", state: "TX" });
+    return listOf({ id: "d1", unit: "654", declined_at: "2026-08-15T14:00:00Z", error_code: "19", error_description: "LIMIT EXCEEDED|CASH ADVANCE|2400 IN4886423923|CheckItems|", state: "TX" });
   },
   useEfsFacets: () => ({ data: ref(undefined) }),
   useEfsRowCoverage: () => ({ data: ref(null) }),
@@ -88,7 +88,7 @@ vi.mock("@/composables/useFuelLog", () => ({
     seen.fuel = f;
     return listOf({ id: "f1", vehicle_id: "v-654", driver_id: null, fueled_at: "2026-08-15T14:00:00Z", gallons: 100, has_anomaly: false, case_level: "clear", case_score: 0, case_signals: [], case_gates: null });
   },
-  useFuelRangeTotals: () => ({ data: ref(null) }),
+  useFuelRangeTotals: () => ({ data: ref(null), isError: ref(false), isPlaceholderData: ref(false) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({
@@ -136,9 +136,6 @@ beforeEach(async () => {
   await asRole("admin");
 });
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("FuelLogPage — three views of one week's fuel, under one window (D-FUI1)", () => {
   it("opens on Fills, and names the three tabs", async () => {
     const { w } = await mountAt("/fuel-log");
@@ -183,12 +180,15 @@ describe("FuelLogPage — three views of one week's fuel, under one window (D-FU
    * the three pages that existed before it.
    */
   it("keeps every column each page had", async () => {
+    // Plus Amount, added on purpose in F02-F04 chunk 11b (AUDIT.md N6): a fill row had no dollar figure.
     expect(headers((await mountAt("/fuel-log")).w)).toEqual([
-      "Vehicle", "When", "Driver", "Odometer", "Miles", "Gallons", "$/gal", "MPG", "Status",
+      "Vehicle", "When", "Driver", "Odometer", "Miles", "Gallons", "$/gal", "Amount", "MPG", "Status",
     ]);
+    // "Error" and "Description" renamed "Code" and "Reason" in chunk 14b (W7): the cell now says the
+    // reason in plain words, with EFS's own text in the hover.
     expect(headers((await mountAt("/fuel-log?tab=declines")).w)).toEqual([
       "Unit", "Risk", "Date / Time", "Card #", "Invoice", "Driver", "Location", "City", "State",
-      "Error", "Description", "Policy",
+      "Code", "Reason", "Policy",
     ]);
     expect(headers((await mountAt("/fuel-log?tab=source")).w)).toEqual([
       "Unit", "Tran Date", "Time", "Card #", "Invoice", "Driver", "Odometer", "Location", "City",
@@ -312,4 +312,41 @@ describe("FuelLogPage — absorbing two gated pages does not widen who can read 
       expect(headers(w), role).toContain("Risk");
     }
   });
+});
+
+/**
+ * F02-F04 chunk 14b (AUDIT.md W3, W7). A decline reads as a reason, and the tabs say where their rows
+ * come from: EFS sends both feeds every few minutes, and nobody has uploaded a report since the
+ * poller replaced the upload.
+ */
+describe("the Fuel Log's words — declines as reasons, feeds as fetched (W3, W7)", () => {
+  const RAW = "LIMIT EXCEEDED|CASH ADVANCE|2400 IN4886423923|CheckItems|";
+
+  beforeEach(() => asRole("admin"));
+
+  it("shows a decline's reason in plain words, with EFS's own text in the hover", async () => {
+    const { w } = await mountAt("/fuel-log?tab=declines");
+    const cell = w.findAll("td span").find((s) => s.text() === "Limit reached: cash advance");
+    expect(cell, "the plain reason is in the Reason column").toBeTruthy();
+    expect(cell!.attributes("title")).toBe(RAW);
+    expect(w.findAll("td").map((td) => td.text())).not.toContain(RAW);
+  });
+
+  it("opens a decline with the reason first and EFS's text beneath it, for whoever has no hover", async () => {
+    const { w } = await mountAt("/fuel-log?tab=declines");
+    await w.find("tbody tr").trigger("click");
+    await flushPromises();
+    const drawer = document.body.textContent ?? "";
+    expect(drawer).toContain("Limit reached: cash advance");
+    expect(drawer).toContain(`EFS: ${RAW}`);
+    w.unmount();
+  });
+
+  for (const tab of ["fills", "declines", "source"]) {
+    it(`describes the ${tab} tab without an upload nobody makes, or the word anomaly`, async () => {
+      const { w } = await mountAt(`/fuel-log?tab=${tab}`);
+      expect(w.text()).not.toMatch(/upload/i);
+      expect(w.text()).not.toMatch(/anomal/i);
+    });
+  }
 });

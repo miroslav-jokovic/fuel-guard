@@ -68,6 +68,21 @@ export const ANOMALY_QUEUE_STATE: Record<AnomalyStatus, FindingQueueState> = {
   superseded: "closed",
 };
 
+/**
+ * A card-fraud incident's statuses (0438's CHECK, the words 0034 gave `anomalies`). An incident has no
+ * `superseded`: nothing re-scores it away, a person closes it.
+ */
+export const CARD_FRAUD_INCIDENT_STATUSES = ["open", "investigating", "resolved", "dismissed"] as const;
+export type CardFraudIncidentStatus = (typeof CARD_FRAUD_INCIDENT_STATUSES)[number];
+
+/** Total over `CARD_FRAUD_INCIDENT_STATUSES`, as the two maps beside it. */
+export const INCIDENT_QUEUE_STATE: Record<CardFraudIncidentStatus, FindingQueueState> = {
+  open: "open",
+  investigating: "investigating",
+  resolved: "closed",
+  dismissed: "closed",
+};
+
 /** Total over `FUEL_EXCEPTION_STATUSES`, for the same reason. */
 export const EXCEPTION_QUEUE_STATE: Record<FuelExceptionStatus, FindingQueueState> = {
   open: "open",
@@ -91,6 +106,9 @@ export const anomalyStatusesIn = (state: FindingQueueState): AnomalyStatus[] =>
 export const exceptionStatusesIn = (state: FindingQueueState): FuelExceptionStatus[] =>
   FUEL_EXCEPTION_STATUSES.filter((s) => EXCEPTION_QUEUE_STATE[s] === state);
 
+export const incidentStatusesIn = (state: FindingQueueState): CardFraudIncidentStatus[] =>
+  CARD_FRAUD_INCIDENT_STATUSES.filter((s) => INCIDENT_QUEUE_STATE[s] === state);
+
 /**
  * How a finding was closed — a discriminated union, never a flattened enum (D-FUI7).
  *
@@ -99,7 +117,7 @@ export const exceptionStatusesIn = (state: FindingQueueState): FuelExceptionStat
  * "did we get it back", and a reingest answers "it stopped being a finding and nobody decided".
  */
 export type FindingClose =
-  /** An anomaly. The accuracy programme's ground truth; carries no money and never will. */
+  /** An anomaly or a card-fraud incident: was the flag right. Carries no money and never will. */
   | { via: "disposition"; disposition: AnomalyDisposition }
   /** A fuel exception. `amountUsd` is null when the outcome is a decision not to pursue. */
   | { via: "money"; outcome: "credited" | "dismissed"; amountUsd: number | null }
@@ -163,6 +181,26 @@ export function closeOfException(
 }
 
 /**
+ * The close of a card-fraud incident, or null while it is open. A disposition arm only, as an anomaly's:
+ * an incident is an accusation about a card's use, not a line to bill back, and it has no reingest.
+ * 0438 requires a disposition on every closed incident, so the `inconclusive` fallback is never reached
+ * on a valid row; it is there so a bad row reads as "undetermined" rather than as a verdict.
+ */
+export function closeOfIncident(
+  status: CardFraudIncidentStatus,
+  disposition: AnomalyDisposition | null,
+): Extract<FindingClose, { via: "disposition" }> | null {
+  switch (status) {
+    case "open":
+    case "investigating":
+      return null;
+    case "resolved":
+    case "dismissed":
+      return { via: "disposition", disposition: disposition ?? "inconclusive" };
+  }
+}
+
+/**
  * The single row shape both producers satisfy (C7a element iii, given a consumer by C7b).
  *
  * ── WHY `amountUsd` IS ON THE ROW AND THE OUTCOME IS NOT ────────────────────────────────────────
@@ -199,7 +237,7 @@ export interface FindingRow {
   close: FindingClose | null;
 }
 
-export type FindingSource = "anomaly" | "exception";
+export type FindingSource = "anomaly" | "exception" | "incident";
 
 /** How old a finding is, in whole days, or null when it never recorded when it opened. */
 export function findingAgeDays(row: Pick<FindingRow, "openedAt">, now: Date): number | null {

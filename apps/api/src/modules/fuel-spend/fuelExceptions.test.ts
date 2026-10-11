@@ -73,7 +73,8 @@ describe("moveException", () => {
 });
 
 describe("exceptionTotals", () => {
-  it("reports identified, claimed and recovered apart — never one number", async () => {
+  // 9b: the claim from open to paid, never one number (E3). The arithmetic is `disputeTotals` in shared.
+  it("reports can be disputed, disputed and credited back apart", async () => {
     const rec = createSupabaseRecorder({
       tables: {
         fuel_exceptions: [
@@ -85,26 +86,18 @@ describe("exceptionTotals", () => {
       },
     });
     const t = await exceptionTotals(rec.client, ORG);
-    expect(t.identified).toBe(1942.11);
-    // Claimed is what was taken to the vendor: disputed plus credited.
-    expect(t.claimed).toBe(800);
-    // Recovered is what came BACK, which is not what was claimed.
-    expect(t.recovered).toBe(275);
-    expect(t.openLines).toBe(2); // open + disputed; dismissed and credited are settled
+    expect(t.canDispute).toEqual({ count: 1, claims: 1, amount: 242.11 });
+    expect(t.disputed).toEqual({ count: 1, amount: 500 });
+    // What came BACK, which is not what was claimed.
+    expect(t.creditedBack).toEqual({ count: 1, amount: 275 });
   });
 
-  it("keeps the kinds of money apart, because they must not be added", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        fuel_exceptions: [
-          { status: "open", amount_kind: "overbilled", amount: 100, credited_amount: null },
-          { status: "open", amount_kind: "unbilled", amount: 900, credited_amount: null },
-        ],
-      },
-    });
-    const t = await exceptionTotals(rec.client, ORG) as { byKind: Record<string, { identified: number }> };
-    expect(t.byKind.overbilled!.identified).toBe(100);
-    expect(t.byKind.unbilled!.identified).toBe(900);
+  it("reads only the queue's kinds, never the buying habits", async () => {
+    const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
+    await exceptionTotals(rec.client, ORG);
+    const kinds = rec.forTable("fuel_exceptions")[0]!.filters().find((f) => f.col === "kind")!.val as string[];
+    expect(kinds).not.toContain("avoided_state_premium");
+    expect(kinds).toContain("contract_variance");
   });
 
   it("scopes to one organization", async () => {
@@ -174,6 +167,9 @@ describe("the tiles take the same scope as the rows (FUEL-P3)", () => {
   it("leaves status and kind out, because the tiles are defined across them", async () => {
     const rec = createSupabaseRecorder({ tables: { fuel_exceptions: [] } });
     await exceptionTotals(rec.client, ORG, { from: "2026-08-01" });
-    expect(rec.forTable("fuel_exceptions")[0]!.filters().some((f) => f.col === "status" || f.col === "kind")).toBe(false);
+    const filters = rec.forTable("fuel_exceptions")[0]!.filters();
+    expect(filters.some((f) => f.col === "status")).toBe(false);
+    // The one kind narrowing is the queue's own (9b): the buying habits left it, and no caller narrows further.
+    expect(filters.filter((f) => f.col === "kind")).toEqual([{ col: "kind", val: expect.not.arrayContaining(["off_network_premium"]) }]);
   });
 });

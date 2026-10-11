@@ -21,9 +21,9 @@ import { registerAllHandlers } from "./queue/handlers/index.js";
 import { accessReviewRouter, invitesRouter, memberPasswordResetRouter, publicInvitesRouter, publicPasswordResetRouter, sectionAccessRouter, surfaceAccessRouter, surfaceClaimFor } from "./modules/org/index.js";
 import { displayNameFor } from "./lib/memberLabels.js";
 import { membersRouter } from "./modules/org/index.js";
-import { dashboardLayoutRouter, orgSettingsRouter, savedViewsRouter } from "./modules/org/index.js";
+import { dashboardLayoutRouter, orgSettingsRouter, pageViewsRouter, savedViewsRouter } from "./modules/org/index.js";
 import { transactionsRouter } from "./modules/fuel/index.js";
-import { anomaliesRouter } from "./modules/anomalies/index.js";
+import { anomaliesRouter, cardFraudIncidentsRouter } from "./modules/anomalies/index.js";
 import { reportsRouter, aiRouter, dashboardRouter } from "./modules/insights/index.js";
 import { iftaRouter } from "./modules/ifta/index.js";
 import { accountingRouter } from "./modules/accounting/index.js";
@@ -53,16 +53,15 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { samsaraWebhookBootWarning } from "./modules/samsara/index.js";
 import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { jobsRouter } from "./modules/org/index.js";
+import { documentsRouter } from "./modules/document-reading/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
-import { hazmatRouter } from "./modules/hazmat/index.js";
-import { publicHazmatRouter } from "./modules/hazmat/index.js";
+import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
 import { driverAppSettingsRouter } from "./modules/driver-app/index.js";
 import { meRouter } from "./modules/driver-app/index.js";
-import { meHazmatRouter } from "./modules/hazmat/index.js";
 import { notificationsRouter } from "./modules/messaging/index.js";
 import { messagesRouter } from "./modules/messaging/index.js";
 import { rosterDriversRouter } from "./modules/roster/index.js";
@@ -236,6 +235,8 @@ function mountApiRouters(app: Express, env: Env): void {
   // The caller's own Dashboard arrangement (LM10, D-DW3). A preference, not a permission, so it sits
   // beside saved views rather than beside the two access routers above: no role gate, no audit row.
   app.use("/api/dashboard-layout", dashboardLayoutRouter());
+  // Screens opened per role and day, no person attached (X1, 0435); same no-gate shape as the layout.
+  app.use("/api/page-views", pageViewsRouter());
   // The fleet Dashboard's own figures (queue item 5 step 3), beside the arrangement above: ten
   // browser reads become one call. Mounted AFTER the longer prefix, the /api/me precedent.
   app.use("/api/dashboard", dashboardRouter());
@@ -257,6 +258,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
+  app.use("/api/card-fraud-incidents", cardFraudIncidentsRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/ifta", iftaRouter());
   mountFinanceRouters(app);
@@ -290,6 +292,7 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());
+  app.use("/api/documents", documentsRouter()); // the document reader (DOCUMENT-READER-PLAN Step 1.6b)
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
   // A receiver that fails closed is indistinguishable from one nobody is calling — both are silence.
