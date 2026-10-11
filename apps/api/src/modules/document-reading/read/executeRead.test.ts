@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { DOCUMENT_PROFILES, printedHazmatLineSchema } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, printedHazmatLineSchema, readersAgree } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
 import { combinedSchemaHash, sectionWireSchemas } from "../model/readSections.js";
@@ -19,8 +19,8 @@ const ORG = "org-1";
 const READ = "read-1";
 const SOURCE = "source-1";
 const PROFILE = DOCUMENT_PROFILES.shipping_document;
-const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A: string; DOC_READ_MODEL_B?: string; DOC_CLASSIFY_MODEL: string } = {
-  HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: "claude-sonnet-4-6", DOC_READ_MODEL_B: undefined,
+const ENV: { HAZMAT_MODEL_A: string; HAZMAT_MODEL_B: string; DOC_READ_MODEL_A: string; DOC_READ_MODEL_B: string; DOC_CLASSIFY_MODEL: string } = {
+  HAZMAT_MODEL_A: "claude-sonnet-4-6", HAZMAT_MODEL_B: "claude-haiku-4-5", DOC_READ_MODEL_A: "claude-sonnet-4-6", DOC_READ_MODEL_B: "claude-sonnet-5-5",
   DOC_CLASSIFY_MODEL: "claude-haiku-5-5",
 };
 
@@ -37,6 +37,9 @@ interface World {
   /** The current verdict's rotation for a classed page (0456); absent = not answered. */
   rotations?: Record<string, number>;
   cached?: unknown;
+  cachedEvidence?: unknown[];
+  /** Per-model documents: each section request is answered with that model's document's slice. */
+  documents?: Record<string, unknown>;
   reviews?: number;
   used?: number;
   gate?: ReadGate;
@@ -62,6 +65,13 @@ function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
   } as Anthropic.Message;
 }
 
+/** The part of `doc` a section's wire schema asks for: its properties, recursively through objects. */
+function sliceBySchema(doc: unknown, schema: unknown): unknown {
+  const props = (schema as { properties?: Record<string, unknown> }).properties;
+  if (!props || doc === null || typeof doc !== "object" || Array.isArray(doc)) return doc;
+  return Object.fromEntries(Object.entries(props).map(([k, sub]) => [k, sliceBySchema((doc as Record<string, unknown>)[k], sub)]));
+}
+
 async function world(w: World = {}) {
   const pages = w.pages ?? [
     { id: "p1", page_number: 1, path: "o/1.png", bytes: await png(200) },
@@ -73,7 +83,7 @@ async function world(w: World = {}) {
     tables: {
       document_reads: (q) => {
         // The cache lookup excludes this read with `.neq("id", READ)`, so it is told apart first.
-        if (isCache(q)) return w.cached === undefined ? [] : [{ id: "older", result: w.cached }];
+        if (isCache(q)) return w.cached === undefined ? [] : [{ id: "older", result: w.cached, evidence: w.cachedEvidence ?? [] }];
         if (isRow(q)) return [{ id: READ, source_id: w.assembly ? null : SOURCE, assembly_id: w.assembly ? "assembly-1" : null, profile: "shipping_document", profile_version: w.profileVersion ?? PROFILE.version, status: w.status ?? "queued" }];
         return [{ id: READ }, { id: "older" }];
       },
@@ -114,6 +124,10 @@ async function world(w: World = {}) {
           return classifierAnswer(unclassified[classifyRequests.length - 1]!);
         }
         requests.push(req);
+        if (w.documents?.[req.model]) {
+          const slice = sliceBySchema(w.documents[req.model], (req.output_config as { format: { schema: unknown } }).format.schema);
+          return message({ content: [{ type: "text", text: JSON.stringify(slice), citations: null }] } as Partial<Anthropic.Message>);
+        }
         return (w.model ?? (() => message()))();
       },
     },
@@ -138,7 +152,7 @@ describe("executeRead — a read that reaches the model", () => {
     expect(w.rec.forTable("document_assembly_pages")[0]!.filters()).toContainEqual({ col: "assembly_id", val: "assembly-1" });
     const [p1, p2] = w.pages;
     expect(w.transitions()[1]!.p_cache_key).toBe(readCacheKey({
-      profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
+      profileVersion: PROFILE.version, models: ["claude-sonnet-4-6", "claude-sonnet-5-5"], promptVersion: READ_PROMPTS.shipping_document.version,
       schemaHash: combinedSchemaHash(sectionWireSchemas("shipping_document").map((s) => [s.name, s.hash] as const)),
       acceptanceRule: ACCEPTANCE_RULE_VERSION,
       pages: [p2!, p1!].map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0", rotation: 0 })),
@@ -158,8 +172,9 @@ describe("executeRead — a read that reaches the model", () => {
       classes: { p1: "bol", p3: "placard" },
     });
     const r = await w.run();
-    // 9,000 / 1,200 for the three section reads, plus 500 / 20 for classifying p2, the one page with no verdict.
-    expect(r).toEqual({ outcome: "done", cacheHit: false, inputTokens: 9500, outputTokens: 1220, pages: 2 });
+    // 18,000 / 2,400 for three section reads by each of two readers, plus 500 / 20 for classifying p2, the
+    // one page with no verdict.
+    expect(r).toEqual({ outcome: "done", cacheHit: false, inputTokens: 18_500, outputTokens: 2420, pages: 2 });
     expect(w.classifyRequests).toHaveLength(1);
     // The classifier's own pin (DOC_CLASSIFY_MODEL), never the reader's or pass B's.
     expect(w.classifyRequests[0]!.model).toBe("claude-haiku-5-5");
@@ -167,8 +182,9 @@ describe("executeRead — a read that reaches the model", () => {
       org_id: ORG, page_id: "p2", page_class: "bol", set_by: "classifier", model: "claude-sonnet-4-6",
       prompt_version: CLASSIFY_PROMPT.version, rotation: 0,
     }]);
-    // Three section requests (Q-DR11), each carrying pages 1 and 2 — never the placard.
-    expect(w.requests).toHaveLength(3);
+    // Three section requests (Q-DR11) by pass A, then the same three by pass B, each carrying pages 1 and 2 —
+    // never the placard.
+    expect(w.requests.map((r) => r.model)).toEqual([...Array(3).fill("claude-sonnet-4-6"), ...Array(3).fill("claude-sonnet-5-5")]);
     for (const req of w.requests) {
       const images = (req.messages[0]!.content as { type: string }[]).filter((c) => c.type === "image");
       expect(images).toHaveLength(2);
@@ -181,9 +197,9 @@ describe("executeRead — a read that reaches the model", () => {
     const [reading, done] = w.transitions();
     expect(reading).toMatchObject({ p_org: ORG, p_read: READ, p_to: "reading" });
     expect(done).toMatchObject({
-      p_org: ORG, p_read: READ, p_to: "done", p_result: PROFILE.empty(), p_evidence: [],
-      p_models: ["claude-sonnet-4-6"], p_prompt_version: READ_PROMPTS.shipping_document.version,
-      p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION, p_input_tokens: 9500, p_output_tokens: 1220,
+      p_org: ORG, p_read: READ, p_to: "done", p_result: PROFILE.empty(), p_evidence: expect.any(Array),
+      p_models: ["claude-sonnet-4-6", "claude-sonnet-5-5"], p_prompt_version: READ_PROMPTS.shipping_document.version,
+      p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION, p_input_tokens: 18_500, p_output_tokens: 2420,
     });
     expect(w.transitions()).toHaveLength(2);
   });
@@ -195,7 +211,7 @@ describe("executeRead — a read that reaches the model", () => {
     const hash = combinedSchemaHash(sectionWireSchemas("shipping_document").map((s) => [s.name, s.hash] as const));
     expect(done.p_schema_hash).toBe(hash);
     expect(done.p_cache_key).toBe(readCacheKey({
-      profileVersion: PROFILE.version, models: ["claude-sonnet-4-6"], promptVersion: READ_PROMPTS.shipping_document.version,
+      profileVersion: PROFILE.version, models: ["claude-sonnet-4-6", "claude-sonnet-5-5"], promptVersion: READ_PROMPTS.shipping_document.version,
       schemaHash: hash, acceptanceRule: ACCEPTANCE_RULE_VERSION,
       pages: w.pages.map((p) => ({ sha256: sha(p.bytes), normaliserVersion: "1.0.0", rotation: 0 })), sendRule: SEND_RULE_VERSION, reviewEpoch: 3,
     }));
@@ -313,26 +329,52 @@ describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
   });
 });
 
-describe("executeRead — evidence (§7B A2)", () => {
-  // A fresh read and a cache hit end through the same `done`, so the evidence is asserted on a replayed
-  // document — which also proves a replay carries today's rule rather than the cached read's.
-  it("records the table's verdict on each hazmat line of the finished document, every judged field Check", async () => {
-    const empty = PROFILE.empty();
-    const bad = printedHazmatLineSchema.parse({ idText: "5607540", psn: "PAINT", hazardClass: "3", pg: "III" });
-    const cached = { ...empty, hazmat: { ...empty.hazmat, lines: [bad] } };
-    const w = await world({ cached, classes: { p1: "bol", p2: "bol" } });
-    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
+describe("executeRead — evidence (§7B A2 + A3)", () => {
+  const empty = PROFILE.empty();
+  const withLine = (over: Record<string, unknown>) =>
+    ({ ...empty, hazmat: { ...empty.hazmat, lines: [printedHazmatLineSchema.parse({ idText: "UN2735", psn: "Amines, liquid, corrosive, n.o.s.", hazardClass: "8", pg: "II", ...over })] } });
+
+  it("asks the second reader, records both readers' values and the table, and returns pass A's document", async () => {
+    // 0132900 (§7B.2): Sonnet 4.6 read 9 drums, the paper and Sonnet 5.5 say 6.
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, documents: {
+      "claude-sonnet-4-6": withLine({ packageCount: 9 }),
+      "claude-sonnet-5-5": withLine({ packageCount: 6 }),
+    } });
+    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: false });
     const done = w.transitions()[1]!;
-    expect(done).toMatchObject({ p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION });
-    const ev = done.p_evidence as { path: string; status: string; sources: { reader: string; value: unknown }[] }[];
-    expect(ev.map((e) => e.path)).toEqual(["hazmat.lines[0].idText", "hazmat.lines[0].psn", "hazmat.lines[0].hazardClass", "hazmat.lines[0].pg"]);
-    expect(ev.every((e) => e.status === "check")).toBe(true);
-    // A read that records evidence names the rule that produced it — never "none", the version that means
-    // "no evidence" — and every field carries the same rule as the read, so a cached read made under the
-    // evidence-less rule is never replayed as if it had been judged.
+    expect((done.p_result as typeof empty).hazmat.lines[0]!.packageCount).toBe(9);
+    const ev = done.p_evidence as { path: string; status: string; ruleVersion: string; sources: { reader: string; value: unknown }[] }[];
+    const count = ev.find((e) => e.path === "hazmat.lines[0].packageCount")!;
+    expect(count.sources.map((s) => [s.reader, s.value])).toEqual([["passA", 9], ["passB", 6]]);
+    expect(readersAgree(count as never)).toBe(false);
+    expect(ev.find((e) => e.path === "hazmat.lines[0].idText")!.sources.map((s) => s.reader)).toEqual(["passA", "passB", "table"]);
+    expect(ev.some((e) => e.status === "read")).toBe(false);
+    // Evidence names the rule that made it — never "none" — and the read carries the same rule.
     expect(done.p_acceptance_rule_version).not.toBe("none");
-    expect(new Set(ev.map((e) => (e as unknown as { ruleVersion: string }).ruleVersion))).toEqual(new Set([done.p_acceptance_rule_version]));
-    expect(ev[0]!.sources.find((s) => s.reader === "table")!.value).toMatchObject({ consistent: false });
+    expect(new Set(ev.map((e) => e.ruleVersion))).toEqual(new Set([done.p_acceptance_rule_version]));
+  });
+
+  it("finishes on pass A's document with one reader's evidence when pass B refuses, counting both spends", async () => {
+    let n = 0;
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, model: () => (++n > 3 ? message({ stop_reason: "refusal", content: [] }) : message()) });
+    expect(await w.run()).toMatchObject({ outcome: "done", inputTokens: 18_000 });
+    const ev = w.transitions()[1]!.p_evidence as { sources: { reader: string }[] }[];
+    expect(ev.length).toBeGreaterThan(0);
+    expect(ev.every((e) => !e.sources.some((s) => s.reader === "passB"))).toBe(true);
+  });
+
+  it("does not pay for pass B when pass A fails", async () => {
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, model: () => message({ stop_reason: "refusal", content: [] }) });
+    expect(await w.run()).toMatchObject({ outcome: "failed", code: "refusal" });
+    expect(w.requests.every((r) => r.model === "claude-sonnet-4-6")).toBe(true);
+  });
+
+  it("replays a cache hit's own evidence with its result", async () => {
+    const stored = [{ path: "identity.bolNumber", value: "68275", status: "check", sources: [], ruleVersion: ACCEPTANCE_RULE_VERSION }];
+    const w = await world({ cached: withLine({}), cachedEvidence: stored, classes: { p1: "bol", p2: "bol" } });
+    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
+    expect(w.transitions()[1]!.p_evidence).toEqual(stored);
+    expect(w.requests).toEqual([]);
   });
 });
 

@@ -23,7 +23,10 @@ export const documentReadingEnvFields = {
   // through HAZMAT_MODEL_A, so a change to the hazmat extractor's pin cannot move the reader. Measured on the
   // ten office BOLs (DOCUMENT-READER-PLAN §7B.2): 0 wrong UN ids against Haiku 5.5's 5.
   DOC_READ_MODEL_A: z.string().min(1).default("claude-sonnet-4-6"),
-  DOC_READ_MODEL_B: z.string().min(1).optional(),
+  // Q-DR23 (owner, 2026-10-11): the second reader is Sonnet 5.5 — its own default, like pass A's. It
+  // matched the paper on every value checked on the office BOLs (§7B.2), and a second reader as strong as
+  // the first is what makes agreement mean something (§7B.1 P3).
+  DOC_READ_MODEL_B: z.string().min(1).default("claude-sonnet-5-5"),
   // Layer 1 P2's page classifier (§7A.3, Q-DR19 (a)): what a page is and which way is up, one call per
   // page. Its own pin, not pass B's, because the default pass-B model failed the orientation half when
   // measured live on 2026-10-11 against the ten office BOLs (12 pages, each sent as stored and turned a

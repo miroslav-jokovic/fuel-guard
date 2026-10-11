@@ -720,13 +720,14 @@ recommended second reader (Q-DR23), not a replacement for the lock.
 
 ### 7B.5 Open questions
 
-**Q-DR22 — May the worker carry an OCR engine?** PP-OCRv5 via `onnxruntime-node`: Apache-2.0/MIT, CPU-only,
+**Q-DR22 — ANSWERED 2026-10-11 (owner: install it and test) — spike run, see the progress log: keep it, as a
+ROW-BOUND witness on counts and weights.** *Original question:* May the worker carry an OCR engine? PP-OCRv5 via `onnxruntime-node`: Apache-2.0/MIT, CPU-only,
 ~258 MB native runtime + ~85 MB models in the worker image. *Default:* not installed; A5's spike runs in a
 scratch folder outside the repo first. *Recommendation:* approve the spike; decide the image cost on its
 numbers. (The 2026-10-11 attempt to install spike libraries was refused by the permission system — the owner
 must allow it.)
 
-**Q-DR23 — Which model is the second reader?** *Default:* `HAZMAT_MODEL_B` (Haiku 4.5). *Recommendation:*
+**Q-DR23 — ANSWERED 2026-10-11 (owner): Sonnet 5.5, built in A3.** *Original question:* Which model is the second reader? *Default:* `HAZMAT_MODEL_B` (Haiku 4.5). *Recommendation:*
 Sonnet 5.5 — on 7B.2 it agreed with the paper everywhere we could check, and a second reader as strong as the
 first is what makes agreement meaningful (P3); Haiku 4.5 failed P2's orientation test outright. Cost: a
 second Sonnet-class read per BOL.
@@ -1246,3 +1247,36 @@ Append dated lines at the end; never edit a row above.
   (cache key: reads made without evidence are not replayed). The test is §7B.2's measurement kept: all five
   product-code lines refused, all seven correctly read office lines consistent, a class contradiction refused.
   Six mutants killed. Next: A3, the second reader (Q-DR23).
+- **2026-10-11 (§7B A3 — the second reader, and A5's OCR spike)** — Owner: second reader Sonnet 5.5;
+  install the OCR engine and test it.
+  **A3 built.** `DOC_READ_MODEL_B` defaults to `claude-sonnet-5-5` on its own (Q-DR23). A read runs pass A
+  (the document) then pass B on the same pages — B only when A succeeded, so a refusal is not paid twice; B
+  failing leaves one reader's evidence, never a failed read. B's hazmat lines are matched to A's by the id's
+  digits, nth to nth (`evidence/alignLines.ts`, D-EXR5 — never by index); a line only B saw is shown after A's.
+  Every field records passA, passB and, on id/PSN/class/PG, the table (`evidence/shippingEvidence.ts`);
+  `readersAgree`/`valuesAgree` in the shared contract are the one comparison (case, spacing, a thousands comma;
+  nothing fuzzy). Status: `not_read` where both read nothing, otherwise `check` — agreement is recorded, and a
+  field reaches *Read* only by graduation (D-DR5, owner switch, off). A cache hit replays its own evidence.
+  Rule "2"; both models in the cache key; tokens of both passes counted. Eleven mutants killed.
+  **Measured live on the ten office BOLs (Sonnet 4.6 + Sonnet 5.5):** engine fields 135 agreed (20 of them the
+  table refused), 30 disagreed; standard fields 198 agreed, 74 disagreed. Of the 30 engine disagreements only
+  two are the same printed value read two ways — 9 vs 6 drums (0132900) and 3,808 vs 3,806 lb (0135071), both
+  §7B.2's known errors, both now shown — plus one packaging code ("331HA1" vs "31HA1"). The rest are the two
+  models FILING the same text differently: a drum count in `quantity` vs `packageCount`, product codes, ERG and
+  SDS numbers in `marks` or not. That is the next precision lever: tighten the profile's field descriptions so
+  the models have one place for each printed thing (§7B's "make the model think less"). The table's refusals
+  were the SHIPPER's: "Hydrochloric acid solution" and "Environmentally Hazardous Substances" are not
+  §172.101 proper shipping names — exactly what the paper audit (§5) must report, so the verdict's reason
+  feeds §5, not only the field's status.
+  **A5 OCR spike (scratch folder, nothing in the repo).** `@gutenye/ocr-node` 1.4.9 crashes inside its bundled
+  opencv.js on Node 26. `ppu-paddle-ocr` 6.6.1 + `onnxruntime-node` runs on CPU. On the 12 office pages
+  (fax-quality CCITT scans): PP-OCRv5 server ~5.6 s/page and its text held 35 of 49 true values; **PP-OCRv6
+  medium ~3.8 s/page, 45 of 49**. Both return nothing on the sideways page until P2 turns it (then 0.83
+  confidence). As a whole-page "is the value printed anywhere" witness it would wrongly CONFIRM the wrong 9
+  drums (a "9" is printed elsewhere — class 9) and the product codes (printed, just not ids). As a ROW-BOUND
+  witness — the value must be on the printed row of the line's UN id — it confirmed 27 of 32 true counts and
+  weights and REJECTED both wrong values (9 drums, 3,808 lb). Size: `onnxruntime-node` 287 MB (all platforms;
+  Linux alone is smaller) plus the model files. Verdict: keep, as a row-bound witness for counts and weights;
+  the identifying fields stay the table's and the readers'.
+  Next: A5 build (row-bound OCR witness in the worker), then the field-description tightening, then A6 scoring
+  on labels.
