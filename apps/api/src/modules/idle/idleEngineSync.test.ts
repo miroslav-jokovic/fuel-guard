@@ -145,6 +145,69 @@ describe("syncIdleEngine — what it carries in", () => {
     expect(hours.filter((h) => h.vehicle_id === "v661").every((h) => h.no_data_sec === 3600)).toBe(true);
   });
 
+  describe("carry-in: a truck whose fetch has flips but none at or before its start (649, 2026-10-03)", () => {
+    // Hourly at 14:20Z: window 11:00Z–14:00Z, fetch from 24 h before it. 649 idled from 09/29 and its only
+    // flip inside the fetch is the 12:30Z Off.
+    const FETCH_START = "2026-10-01T11:00:00.000Z";
+    const series = {
+      s650: {
+        engineStates: [
+          // An older Off: the state at the fetch's start is the LAST flip before it, not the first.
+          { time: "2026-09-25T08:00:00Z", value: "Off" },
+          { time: "2026-09-29T20:00:00Z", value: "Idle" },
+          { time: "2026-10-02T12:30:00Z", value: "Off" },
+        ],
+        // Parked: a fix every five minutes (a fix holds ten), from before the window to the run.
+        gps: Array.from({ length: 43 }, (_, i) => ({
+          time: iso(Date.parse("2026-10-02T10:50:00Z") + i * 300_000), speedMilesPerHour: 0, latitude: 41.5, longitude: -88.1,
+        })),
+      },
+    };
+    const hoursOf = (rec: ReturnType<typeof recorder>, vid: string) =>
+      (writes(rec).flatMap((w) => w.p_hours as { vehicle_id: string; hour_start: string; stopped_running_sec: number; brief_stop_sec: number; engine_off_sec: number; no_data_sec: number }[]))
+        .filter((h) => h.vehicle_id === vid)
+        .sort((a, b) => a.hour_start.localeCompare(b.hour_start));
+
+    it("reads the truck's own engine history back 30 days, alone, and runs the engine until the Off", async () => {
+      const rec = recorder();
+      const s = samsara(series);
+      const r = await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: s.history, snapshotFetcher: noSnapshot });
+      const carry = s.calls.filter((c) => c.types.length === 1 && c.types[0] === "engineStates");
+      // 661 has no flip and no snapshot at all, so it is asked too; it has nothing to find and stays unknown.
+      expect(carry).toEqual([{ ids: ["s650", "s661"], types: ["engineStates"], start: "2026-09-01T11:00:00.000Z", end: FETCH_START }]);
+      const [h11, h12, h13] = hoursOf(rec, "v650");
+      expect(h11).toMatchObject({ stopped_running_sec: 3600, no_data_sec: 0 });
+      expect(h12!.stopped_running_sec + h12!.brief_stop_sec).toBe(1800);
+      expect(h12).toMatchObject({ engine_off_sec: 1800, no_data_sec: 0 });
+      expect(h13).toMatchObject({ engine_off_sec: 3600, no_data_sec: 0 });
+      expect(r).toMatchObject({ carriedIn: 1, carryInMissing: 1 });
+      expect(hoursOf(rec, "v661").every((h) => h.no_data_sec === 3600)).toBe(true);
+    });
+
+    it("an incomplete carry-in read leaves the span unknown rather than guessing", async () => {
+      const rec = recorder();
+      const s = samsara(series);
+      const partial: StatsHistoryFetcher = async (ids, types, start, end) => {
+        const out = await s.history(ids, types, start, end);
+        return types.length === 1 && types[0] === "engineStates" ? { ...out, complete: false } : out;
+      };
+      const r = await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: partial, snapshotFetcher: noSnapshot });
+      const [h11, h12] = hoursOf(rec, "v650");
+      expect(h11).toMatchObject({ no_data_sec: 3600 });
+      expect(h12).toMatchObject({ no_data_sec: 1800, engine_off_sec: 1800 });
+      expect(r).toMatchObject({ carriedIn: 0 });
+    });
+
+    it("a truck with a flip in its fetch before the window needs no carry-in and is not read again", async () => {
+      const rec = recorder();
+      // 10:00Z is inside the fetch (from 10/01 11:00Z) and before the window (11:00Z).
+      const s = samsara({ s650: { ...series.s650, engineStates: [{ time: "2026-10-02T10:00:00Z", value: "Idle" }, ...series.s650.engineStates.slice(2)] } });
+      await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: s.history, snapshotFetcher: noSnapshot });
+      expect(s.calls.filter((c) => c.types.length === 1 && c.types[0] === "engineStates" && c.ids.includes("s650"))).toEqual([]);
+      expect(hoursOf(rec, "v650")[0]).toMatchObject({ stopped_running_sec: 3600, no_data_sec: 0 });
+    });
+  });
+
   it("the park threshold comes from idle_settings", async () => {
     // A seven-minute park: a stop row at the default five minutes, brief at ten.
     const gps = [
@@ -205,6 +268,32 @@ describe("syncIdleEngine — the duty split (IE3)", () => {
     const park = stops.find((x) => (x as unknown as { vehicle_id: string }).vehicle_id === "v650")!;
     expect(park.running_sec).toBeGreaterThan(0);
     expect(park).toMatchObject({ running_rest_sec: park.running_sec, running_on_duty_sec: 0, running_excluded_sec: 0, running_unknown_sec: 0 });
+  });
+
+  it("a park running past the last logbook sync is written NOT measured, not unknown", async () => {
+    // The logs end at 13:00Z (the sync closed the segment there); the park runs on until the 14:20Z run.
+    const rec = recorder({
+      assignments: [{ vehicle_samsara_id: "s650", driver_samsara_id: "sd1", start_at: "2026-10-01T00:00:00Z", end_at: null }],
+      hos: [{ driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "off_duty", started_at: "2026-10-01T00:00:00Z", ended_at: "2026-10-02T13:00:00Z" }],
+    });
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const park = writes(rec).flatMap((w) => w.p_stops as Record<string, unknown>[]).find((x) => x.vehicle_id === "v650")!;
+    expect(park.running_sec).toBeGreaterThan(0);
+    expect(park).toMatchObject({ running_rest_sec: null, running_on_duty_sec: null, running_excluded_sec: null, running_unknown_sec: null });
+  });
+
+  it("the horizon is the LATEST log, not the earliest: logs closed at the run's own instant measure the park", async () => {
+    // Off duty until 11:00Z, then sleeper until the sync closed it at 14:20Z — the run's instant.
+    const rec = recorder({
+      assignments: [{ vehicle_samsara_id: "s650", driver_samsara_id: "sd1", start_at: "2026-10-01T00:00:00Z", end_at: null }],
+      hos: [
+        { driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "off_duty", started_at: "2026-10-01T00:00:00Z", ended_at: "2026-10-02T11:00:00Z" },
+        { driver_id: null, samsara_driver_id: "sd1", vehicle_id: null, status: "sleeper", started_at: "2026-10-02T11:00:00Z", ended_at: "2026-10-02T14:20:00Z" },
+      ],
+    });
+    await syncIdleEngine(rec.client as never, env, ORG, { nowMs: MORNING, historyFetcher: samsara(parkedAllWindow).history, snapshotFetcher: noSnapshot });
+    const park = writes(rec).flatMap((w) => w.p_stops as Record<string, unknown>[]).find((x) => x.vehicle_id === "v650")!;
+    expect(park).toMatchObject({ running_rest_sec: park.running_sec, running_unknown_sec: 0 });
   });
 
   it("a truck with no duty at all has its running time unknown — measured, never null", async () => {

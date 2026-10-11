@@ -199,8 +199,9 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   partitions (installed, migration 0360) ≈ 270k rows / 40 MB. Daily totals + stops: kept (≈ 12 MB/yr
   + park-session volume). Each table declares its `lifecycle` block (`lint:table-lifecycle`).
 - **D-IE9 — Prove before switching.** Run in parallel ≥ 14 days. Gate: per truck-day, our running
-  hours within **±3%** of the ECU engine-hours delta, and stopped-running within ±5% of
-  `vehicle_engine_days.idle_sec`, on ≥ 95% of truck-days. Disagreements listed by truck.
+  hours within **±3%** of the ECU engine-hours delta, on ≥ 95% of truck-days. Disagreements listed by truck.
+  Stopped running against `vehicle_engine_days.idle_sec` (±5%) is shown beside it and does not judge (§4 Q-IE17:
+  Samsara starts its idle 2–3 minutes into a stop, so the comparison can only fail one way).
 - **D-IE10 — Retire what never answered.** Learned envelope, optimized envelope, `optimized_cycling`
   mode and — after D-IE9 passes — Samsara `/idling/events` ingestion (`idle_events`, 131 MB).
 
@@ -244,6 +245,16 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
   park's running seconds up to **50%** of its duration are not avoidable; everything above is.
   The engine measures the real distribution on the battery-APU cohort and the owner revisits 50%
   with it.
+  **Revisited 2026-10-03 (owner: "proceed as proposed"): 50% STAYS, re-measured on a fixed trigger.** Measured over 3
+  mild days (§7): battery-APU parks ≥ 4 h at 20–85 °F run the engine p10 0.005% · p25 0.5% · p50 1.9% · p75 8.6% · p90
+  22% of the park; 10 of 123 run over half (mostly whole-night idles: 807 ×3, 765 ×2, 731 ×2). So 50% never binds for
+  the compliant majority and forgives half of an all-night idle. Not moved now, because every long battery-APU park so
+  far is 40 °F or warmer (production 2026-10-03: 142 parks at 40–85 °F, 31 above 85 °F, **0 at 20–40 °F**), and the
+  cold nights are where a battery APU runs out and the engine legitimately starts. **Re-measure when BOTH hold:** on or
+  after 2026-11-02 (30 days of data), and at least 50 battery-APU parks ≥ 4 h at 20–40 °F from at least 10 trucks
+  (precision comes from trucks, the Q-IE14 lesson). Then report the same quartiles split at 40 °F, and recommend a
+  share (or a share by temperature). The share stays a code constant (`DEFAULT_IDLE_AVOIDABLE_SETTINGS.batteryApuShare`)
+  until a ruling asks for a carrier to tune it: a column + control then, in two merges.
 - **Q-IE4 — 727: no APU** (same as its batch).
 - **Q-IE5..7 — decided in IE1, owner delegated ("analyze and provide best solution", 2026-10-02):**
   - **Q-IE5 — 719–722 are not declared from behaviour.** D-IE7 forbids behaviour setting `has_apu`, and
@@ -325,6 +336,176 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
     whose equipment is undeclared or "other" is UNJUDGED, not guessed. An unknown temperature exempts nothing.
   - **Q-IE13 — a park belongs to the local day it STARTED on, whole.** Cutting an overnight park at midnight
     would halve its Q-IE3 allowance on each side, because the allowance is a share of the park's own duration.
+  - **Q-IE14 — how the owner accepts the learned burn rate (D-IE5), OPEN, not blocking.** IE4 learns per declared
+    equipment × ambient band and SHOWS it beside the configured `idle_gal_per_hour` (Idling page, under "How idle is
+    scored"); the engine's `/engine/avoidable` carries both prices (`money` and `money.learned`). Nothing on a page is
+    priced at the learned rate yet, because the engine's figures are not on a page until IE5. Candidates:
+    (a) at IE5, a stored choice `idle_settings.idle_burn_source` = `configured` | `learned` (default `configured`), an
+    admin "Use measured rates" control on the panel, and the engine's money reads it; (b) the owner copies one fleet
+    figure into `idle_gal_per_hour` by hand — loses the per-cohort, per-temperature rates D-IE5 asked for, and is a copy
+    of a derived value. **Recommendation: (a), built with IE5** — a column with no visible effect before then would be
+    a switch that changes nothing on screen. Measured 10/02: fleet ≈ 0.78 gal/h against the configured 0.80, so the
+    switch moves idle dollars by about 3%, not by a factor.
+    **Building (a), owner 2026-10-03: "implement as recommended".** Since corrected: the learned fleet rate is 0.653, not
+    ~0.78 (the 10/03 research pass, §7), so the switch moves idle gallons and dollars by about −18%, not 3%. Column
+    `idle_burn_source` is migration 0420; its reader is the next merge. **The control lives on the Idling page**, beside
+    the learned table, writable by the same safety-manage roles that adopt the comfort band (0300): the setting decides
+    what a CARRIER's own idle is priced at, `idle_settings` is that carrier's table, and the platform console has no
+    cross-tenant write. Q-FSV17 step 3 therefore moves only the parity gate (a release control) to the console; the
+    burn-rate table stays in the office as the evidence a manager reads before flipping. The default stays
+    `configured`; changing it for any carrier is the owner's call, never a migration's.
+  - **Q-IE15 — running past the duty logs' horizon is NOT MEASURED, not "unknown" (decided 2026-10-02, evidence in
+    §7).** The logbook sync (`sync_hos`, driver-score tier) runs every `SAMSARA_DRIVER_SCORE_SYNC_HOURS` = 6 h from
+    the process's boot; the idle engine runs hourly. So the newest hours of every park had no log yet, were stored
+    as `unknown`, and D-IE4 rule 5 booked them avoidable ("no log"). Now a park with running time past the latest
+    stored log (the sync closes in-progress segments at its own instant, so that IS the last sync) is written with
+    the split null — the reader counts it as unmeasured — and the nightly re-write measures it once the logs are in
+    (`IDLE_ENGINE_VERSION` `ie3-v2`). A day is fully measured by its second nightly, as D-IE8 already said ("final
+    at 72 h"). Not chosen: running `sync_hos` hourly (six times the HOS fetches, for figures nobody reads before the
+    nightly) or measuring the split only in the nightly (an open park would have none all day).
+  - **Q-IE16 — how D-IE9 is judged, and IE5 split in two (decided 2026-10-03).** D-IE9 gave the tolerances and the bar;
+    these are the parts it did not name. (a) **Final** = a day the collector will not rewrite: on or before the local
+    day the latest FINISHED nightly started on (its `stats.from`), read from the jobs ledger, not a fixed lag. (b)
+    **Whole** days only: all 24 of our hour rows. (c) **Running** (driving + stopped running + brief) is judged against
+    the ECU delta only when the counter has a delta in all 24 hours, and **stopped running** (stopped running + brief,
+    since Samsara's idle includes short stops) against `vehicle_engine_days.idle_sec` when Samsara has the day. (d)
+    Either check is judged only when EITHER side shows ≥ 1 h — the ECU counter steps in 180 s, so ±3% of less than an
+    hour is inside one step — and a zero on the reference side fails. (e) A truck-day judged on neither is not
+    counted. **IE5 is IE5a** (the gate, its route and the Idling panel; switches nothing) **and IE5b** (the switch:
+    the Idling page and driver scores read the engine, plus Q-IE14's burn-rate choice), built once IE5a says `pass`.
+    With the 10/03 nightly rewriting 10/01 and 10/02 whole, 14 final days are 10/01–10/14, final after the 10/16
+    nightly: IE5b is ~10/16 at the earliest.
+  - **Q-IE17 — the stopped-running check fails by direction, not by noise (RULED 2026-10-03: (a) then (b) —
+    measured, ours is right, the gate judges running only; evidence in §7).** First final
+    day (10/01, §7): running vs the ECU passed 121 of 125 judged truck-days; stopped running vs Samsara's
+    `idle_sec` passed 25 of 128, and on 127 of the 128 ours is the HIGHER figure (median +20%, quartiles +6% /
+    +58%; fleet 846 h vs 761 h, +11%). Both sides see the same engine: Samsara drive + idle = 1,908 h, ours
+    driving + stopped = 1,883 h, ECU 1,885 h. Samsara books ~110 h of it as driving that our motion call (D-IE1,
+    3 mph, 60 s debounce) books as stopped. The excess is only weakly tied to the number of stops (r = 0.28,
+    ~8 min per stop on average), so it is not simply an onset delay on Samsara's side; its cause is not yet
+    measured. As ruled, the gate cannot pass (it needs 95%); a 14-day wait will not change a one-way gap.
+    Candidates: (a) **keep ±5% per truck-day** and find out which side is right first — sample a few of the worst
+    trucks' parks hour by hour against the gateway's speed, then either fix our motion call or rule; (b) **judge
+    only running vs the ECU** (the one check with ground truth) and show the stopped gap as information, since
+    D-IE1 already chose our motion call over Samsara's; (c) widen or re-shape the stopped check (truck's 14-day
+    total, or a bound on the fleet bias). Recommendation: **(a) then (b)** — the gap is money (+11% avoidable
+    idle against today's figures, and in driver scores at IE5b), so name the side that is wrong before the gate
+    stops looking at it. **Owner, 2026-10-03: "proceed as proposed."** (a) answered by the gateway's GPS: ours is
+    right (§7); (b) built: D-IE9's gate is running vs the ECU, ±3%, 95%, 14 days; stopped running vs Samsara is
+    computed and shown, never judged, and only against a Samsara day that covers the whole local day.
+  - **Q-IE18 — the ECU's engine-seconds counter also runs with the engine off (decided 2026-10-03).** The four
+    running misses on 10/01 (774, 808, 786, 805, all ours LOW) are the reference, not us: on each, `obdEngineSeconds`
+    rose across a long span the engine states call OFF while the fuel counter stood still (774: +34,380 s over
+    10 h 11 min with 219 s of running and one 500 mL step). The classifier spread that rise along the few running
+    minutes at either end — 15,062 engine seconds in 774's 00:00Z hour. Decided: an engine-seconds counter cannot
+    count more than the engine ran, so a pair of readings rising past running + 360 s (two 180 s steps of lag) makes
+    every instant inside it unknown; an hour touching it has no ECU figure (`ENGINE_SECONDS_RATE`, classifier
+    `ie3-v3`) and its day is not judged on running, as Q-IE16(c) already rules for an hour without a delta. Fuel
+    is untouched. Not chosen: capping the hour at our running time (makes the reference agree with us by
+    construction) or arbitrating by fuel (500 mL steps are too coarse to tell 3 minutes from 10). Cost, replayed
+    on 10/01: 7 of 125 running-judged truck-days become unjudged, all in units 774–808 — one purchase batch, so
+    likely their ECU counts key-on time; the rest 118 / 118 agree. 10/01 is already final and keeps its ie3-v2 rows
+    (121 / 125); 10/02 onward is rewritten by the nightly.
+
+  - **Q-FSV14 — "Export report" is a different document from the screen it sits on (DECIDED (a), owner, 2026-10-03: "proceed as suggested"; BUILT 2026-10-03 — step FS-PDF).**
+    Found by the 2026-10-03 design audit (`DESIGN-IS-2026-10-03/`, E6) and confirmed at the call site: the
+    button asks `GET /api/fueling/spend-report.pdf` for `from`, `to`, `grain=week` and `vehicles` only
+    (`FuelCostsPage.vue`, `routes/spend.ts`). State, location and network never reach it, and it renders the
+    legacy `fuel_spend_days` weekly report, comparing the last two complete buckets, while the screen compares
+    the whole selected window with the equal-length window before it. A filtered view therefore exports a wider
+    report under the same button. Not a one-line fix: the rollup carries no station dimension, so the honest
+    repair is a renderer over the SAME `fuelReport` the screen reads. Candidates: (a) **render the PDF from
+    `fuelReport.ts`** with every filter and the screen's comparison (new document layout; the legacy report is
+    retired or kept for the weekly email); (b) **disable the button while a state, location or network filter is
+    active** and say why — cheap, but it removes the export exactly when it is wanted; (c) leave it and label it
+    "weekly report, ignores filters". Recommendation: **(a)** — (b) and (c) ship a known mismatch and are
+    workarounds in the CLAUDE.md sense. Nothing is built on this until the owner rules.
+  - **Q-FSV15 — four decisions the 2026-10-03 verdict needs before the UX track can finish (RULED 1–4, owner "proceed as suggested", 2026-10-03; the ordinary-user test stays open).**
+    (1) **Who owns the savings strip** that §3 promises for FS2 and `FuelCostsPage.vue` still does not render,
+    and what it may sum: the verdict says buying difference, quote variance, coaching and equipment
+    opportunity must stay separate and unsummed. (2) **Lower spend is painted green** (`fuelCostView.ts`),
+    including when the fleet simply drove less; candidates are neutral for spend, or green only beside flat
+    gallons. (3) **Where the idle-engine rollout checks live** — `IdleEngineParityPanel` shows 14-day
+    thresholds to office staff who can act on none of them; candidates are an administrator-only view, or
+    hidden until IE5b. (4) **What "review" means for a finding** — the verdict wants each opportunity to
+    continue into an existing workflow (`contract_variance` findings are still unwired, handoff 62); the
+    owner, status and evidence model has to be chosen first. Also owed: five ordinary-user task sessions
+    (verdict §"Release acceptance"), with pass criteria set after the first round.
+    **Rulings, with their evidence:**
+    (1) **The savings strip is built from the findings ledger, not from sums.** It lives on Fuel Costs (owner:
+    FS2's page), shows one row per KIND of open fuel finding with its count, dollars and age, and each row opens
+    the findings inbox filtered to that kind with the page's dates and trucks. Nothing is added across kinds
+    (overlap: the same fill can be an off-network premium and a quote gap). Idle and equipment rows join only at
+    IE5b, because today's Idling dollars still price with the configured rate. It needs a per-kind aggregate the
+    findings summary does not have (it returns an open count and the quarter's recovered dollars only), so it is
+    its own step, **FS-STRIP**. BUILT 2026-10-03: `GET /api/fueling/findings/opportunities` (fuel-section gated, paged past
+    PostgREST's 1,000 cap, the inbox's own open states, dates and trucks), `summariseOpportunities` in shared, and
+    `FuelOpportunitiesStrip` under the cards. It shows whatever the ledger holds today, so it is useful before the
+    contract producer's first night, and gains `contract_variance` rows once that has run.
+    (2) **Dollars carry no direction. DONE.** Fuel spend and Out of network spend are neutral (`fuelCostView.ts`);
+    price per gallon, the quote gap, MPG and cost per mile keep theirs, being per unit of work.
+    (3) **The rollout checks leave the office view for the platform console** (`apps/admin`), as step **IE-ADMIN**.
+    Read from the code: `/api/idle/engine/parity` and `/burn-rates` are gated `safety:view`, the same as the
+    whole Idling page, so the app has no "administrators only" notion for them, and a `session.can(...)` test in
+    the page would be a stand-in for one (CLAUDE.md, "no workarounds"). Until the console view exists the panel
+    stays behind "How idle is scored", in the plain words shipped in part 2. NOT BUILT.
+    (4) **"Review" is the findings inbox, and the missing producer is now wired. DONE in code.** Assign, status,
+    evidence and credit already exist there. `contract_variance` had no producer; `fuelContractScan.ts` now files
+    it nightly on the sweep's window with its own close scope. **Floor $5 a fill**, from production over 90 days
+    to 2026-10-03: 3,899 quoted fills; 1,476 billed above quote by any amount, 205 by $1 or more, 122 by $5 or
+    more, 38 by $25 or more; net across all 3,899 is only +$588, since over- and under-billing offset. At $5 the
+    queue gains about 1.4 findings a day. The floor is `MIN_CONTRACT_OVERBILL_USD`; moving it is a one-line
+    change. The first run files the sweep's trailing fortnight only. Merging deploys it.
+    Still open under Q-FSV15: the five ordinary-user task sessions. They need people, not code; the verdict
+    asks for the pass criteria to be set with the owner after the first round.
+
+  - **Q-FSV16 — Buy discipline's two sums should not cost nine seconds (OPEN, owner/engineering, 2026-10-03).** The
+    on-network share and the avoided-state gallons are sums over `fuel_spend_lines`, but the page downloads all 5,866
+    rows in six sequential pages (1.5 s each under RLS) to add them up in the browser. Candidates: (a) **a SQL
+    aggregate** returning those figures (brand totals and gallons by state and month) in one call — the page keeps the
+    row-level `fuel_spend_lines` read only for the quote card's drill-down, behind its toggle; (b) cache the feed
+    longer (it is 5 min now) — hides the cost, keeps it; (c) leave it. Recommendation **(a)**, following
+    "SQL returns a measurement, TS owns the verdict": SQL sums, `gradePolicyTargets` still compares. A new function, so
+    its reader ships in a separate merge from it (`lint:migration-ordering`). Not started.
+
+  - **Q-FSV17 — IE-ADMIN, designed (OPEN for the owner's go; 2026-10-03).** Refines Q-FSV15 ruling 3 with what reading the
+    platform console's code and plan (`docs/plans/ADMIN-DASHBOARD.md` §7.6, §10, §15) showed. The console is per-customer
+    with its own staff identity (`platform_admins`), MFA (`requireAAL2`), an audited cross-tenant DAL and a route-auth
+    fitness test; it has Phases 0–1 (customers, orgs, impersonation) and **no ops module** — §7.6 "Errors & repairs: job
+    health" is Phase 3 and unbuilt. So the engine-rollout view is the first resident of that module, not a page bolted on.
+    **Scope:** a read-only `GET /admin/orgs/:id/idle-engine` (parity gate + learned burn rates) behind the full platform
+    chain, written to `platform_audit_log` as a cross-tenant read; a page under the customer detail. `idleParityReport` and
+    `IDLE_PARITY` already live in `@silvicom/shared`, so the verdict is not duplicated; the admin service needs its own
+    DB reader (it cannot import `apps/api`, `lint:boundaries`), about one file of reads plus tests.
+    **Order, because the owner reads the office panel today to watch the IE5b gate:** (1) build the console view and the
+    route-auth coverage; (2) the owner confirms it shows the same gate as the office panel for the same org and night;
+    (3) only then remove `IdleBurnRatesPanel`/`IdleEngineParityPanel` from `IdlingPage` and gate `/api/idle/engine/parity`
+    to a platform-only caller or retire it — never both views absent. **Open for the owner:** whether the nightly IE check
+    (the session's scheduled read) keeps using the office endpoint or moves to the console's; and whether any carrier
+    manager should ever see the gate (recommendation: no, it is a release control). Not started; ~1 PR for (1), ~1 for (3).
+    **Ruled 2026-10-03 (owner: "proceed as proposed and suggested"):** (i) no carrier manager ever sees the gate — it is
+    a release control, so after step (3) it lives on the console only. (ii) The nightly check reads NEITHER endpoint: it
+    reads the database and runs the same shared functions (`idleParityDays` → `idleParityFinalThrough` →
+    `idleParityReport`), the recipe in §7, so it needs no browser session, no platform MFA and no service key, and it
+    cannot disagree with either page because both pages call the same functions. Step (2) still waits on the owner's
+    first console sign-in (`platform_admins.user_id` NULL, no MFA factor, `platform_audit_log` empty on 10/03).
+    **Narrowed 2026-10-03 by Q-IE14's control:** step (3) removes `IdleEngineParityPanel` and narrows `/engine/parity` only.
+    `IdleBurnRatesPanel` and `/engine/burn-rates` stay in the office, because the carrier's "use measured rates" switch
+    sits beside them and a manager should see the rates before choosing them (§4 Q-IE14).
+
+  - **Q-FSV18 — the quote card's tile is also a sum over every spend line (OPEN, owner/engineering, 2026-10-03).** Found
+    while building Q-FSV16's reader: Q-FSV16 said the row-level `fuel_spend_lines` read could move "behind the quote
+    card's toggle", but `DiscountCaptureCard` computes its HEADLINE (net over/under contract, and the share of fuel
+    priced) from `analyzeContractCapture(lines)` outside the toggle, so moving the read behind it would blank the tile
+    until someone clicked it — hiding the cost, not removing it. What shipped instead: the grades read
+    `fuel_policy_gallons` and no longer wait for the rows; the card keeps its own read and its own "Loading the
+    purchases…" line, so it still takes the old ~9 s, but the page no longer shows empty grades for them. Candidates:
+    (a) **a second SQL aggregate** for the tile — contract and net totals over lines that have a quote, plus the priced
+    share of fuel — with `analyzeContractCapture`'s rules (null is not zero, a line with no quote is unmeasured) kept in
+    TS beside it; the row read stays behind the toggle for the fills list. A new migration, reader in a later merge.
+    (b) leave the card as it is: its 9 s is on a card below the fold, labelled while loading. (c) page the rows in
+    parallel instead of in sequence — hides the cost, keeps it. Recommendation **(a)**, but it is the owner's to call
+    because the tile's figure is the one the carrier reads as "billed against contract". Not started.
 
 ## 5. Words (D-FSV7)
 
@@ -360,7 +541,7 @@ purchase batch (make, model, model year, purchase date). Behaviour column = shar
 | **FS3** | Pilot invoices page (D-FSV8); first real statement through it (`db139445F.pdf`). | — | no |
 | **IE6** | Retire Samsara idling-events ingestion + dead envelope machinery (D-IE10). | IE5 | yes (drops) |
 
-All questions are answered; nothing in the queue is blocked on the owner.
+IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 is ruled.
 
 ---
 
@@ -824,3 +1005,349 @@ All questions are answered; nothing in the queue is blocked on the owner.
   cell's rate already IS the prior, so `idleBurnRateFor`'s learned/unbanded guards could not change an output).
   Next: merge 2 — the reader, `GET /api/idle/engine/burn-rates`, learned money beside configured money on
   `/engine/avoidable`, and the Idling page's side-by-side.
+- **2026-10-02** — **IE4 merge 2 of 2 (the reader; no migration).** `idleBurnRates.ts` reads 0409 over the last 60
+  days, files each truck's rows under its DECLARED equipment (retired trucks included) and folds them with
+  `learnIdleBurnRates`; `GET /api/idle/engine/burn-rates` (safety: view) returns the table beside the configured rate
+  (`resolveIdleCostBasis`) and the 0.72 prior. `/engine/avoidable` gains `money.learned`: the same avoidable and
+  equipment-opportunity seconds priced park by park at the truck's cohort × the park's band (`idleBurnRateFor`),
+  same price. The Idling page shows the table under "How idle is scored" (`IdleBurnRatesPanel`), saying which
+  rate the page's dollars use. Nothing on a page is re-priced: how the owner accepts the switch is §4 Q-IE14.
+  Tests: `idleBurnRates.test.ts` (4), `idleEngineAvoidable.test.ts` (+1), `routes/idle.test.ts` (+2),
+  `IdleBurnRatesPanel.test.ts` (4). Mutation: API 14/14, web 9/9 killed.
+- **2026-10-02** — **IE4 DONE and served.** #1217 merged (850f426); Railway serves it from 20:17:20Z with schema
+  0409 current (`verify:live` ✓); `/api/idle/engine/burn-rates` answers 401 unauthenticated (mounted).
+- **2026-10-02** — **The IE3 "unknown" share is the logbook sync's lag, not the attribution (Q-IE15).** Measured at
+  00:27Z 10/03 (production, SELECT): 399 `ie3-v1` parks, 291.6 running hours, **138.4 h (47%) unknown**. By
+  measure time: parks whose logs were complete when the collector measured them (ended before the last `sync_hos`
+  at 20:50:54Z, measured after it) — 129 parks, 75.2 h, **6% unknown**; measured before that sync — 5%; parks
+  running past it — 229 parks, 195.0 h, **68% unknown**. 0 of 5,046 recent `hos_duty_segments` rows are open; the
+  latest end is the last sync to the second. The driver-score tier last ran 20:19–20:56Z: its 6-hour timer
+  restarted with the 20:17Z deploy, so nothing had stalled. Q-IE3's battery-APU distribution therefore waits for
+  the nightlies: only 3 long battery-APU parks had complete logs tonight. Fix: `ie3-v2` (Q-IE15). Tests:
+  `classify.test.ts` (+4), `idleEngineSync.test.ts` (+2). Mutation: 7/7 killed, one after a second fixture
+  segment (the horizon is the LATEST log, not the earliest). **For the 10/03 nightly check:** expect
+  `ie3-v2` rows; a null split is now right for a park still running past the last log sync, and "unknown" should
+  be a small share (≈ 5–6%) of the measured parks' running time.
+- **2026-10-03** — **IE5a: the D-IE9 gate (no migration).** Shared `idleEngine/parity.ts` (`judgeIdleParityDay`,
+  `idleParityReport`, `idleParityFinalThrough`; thresholds `IDLE_PARITY`), rules per §4 Q-IE16.
+  `idleEngineParity.ts` reads `idle_engine_days` through the final day, `vehicle_engine_days` for the same days and
+  the latest finished nightly; `GET /api/idle/engine/parity` (safety: view). The Idling page shows it under "How
+  idle is scored" (`IdleEngineParityPanel`): still checking / not agreeing yet / ready to switch, days finished,
+  the share (floored, so 94.97% never reads 95%), and every truck that disagreed with its worst signed misses.
+  Nothing switches. Tests: `parity.test.ts` (14), `idleEngineParity.test.ts` (6), `routes/idle.test.ts` (+2),
+  `IdleEngineParityPanel.test.ts` (7). Mutation: gate 20/20, reader 9/10 (the survivor drops `Number()` on a
+  bigint that JavaScript arithmetic coerces anyway — no output can change), panel 7/7; three killed only after a
+  fixture was added (the ECU-side hour, an org east of UTC, a share of 94.97%).
+- **2026-10-03** — **Nightly check, the engine's first (production, SELECT, read ~13:00Z).** (a) IE2: the nightly
+  ran 07:05Z, `done`, `from` 2026-10-01T05:00Z, 0 incomplete batches; every hourly since 10/02 12:00Z `done` (the
+  one `failed` row, 10/02 19:19Z, is a lease reclaimed across the IE3 deploy); no truck has two open parks.
+  (b) IE3: all 1,501 parks are `ie3-v2`; 1,380 measured, unknown 84.8 h of 1,476.1 h measured running = **5.7%**.
+  The 121 parks with a null split (515.3 h running) all ran past the 02:07Z `sync_hos` and were measured before
+  the next one at 08:34Z (earliest ended 02:11Z) — exactly the Q-IE15 rule; tonight's nightly measures them.
+  (c) IE5a: final through **10/01** (the nightly's `from` day; 10/02 becomes final with the 10/04 nightly — the
+  handoff's "10/01 and 10/02 final" was wrong, the rule was right). 10/01 and 10/02 both hold all 24 hour rows
+  for 192 trucks (the nightly rewrote them whole); 10/03 has 7. Gate: 1 day of 14, **134 truck-days judged, 31
+  pass (23%)**, not `pass`. Running vs ECU **121 / 125**; the four misses are all ours LOW (808 −17%, 774 −19%,
+  786 −5.3%, 805 −3.5%). Stopped running vs Samsara **25 / 128** (43 within 10%, 62 within 20%), ours higher on
+  127 — the gate cannot pass as ruled; the evidence and the choice are §4 **Q-IE17**, open for the owner.
+  Worst stopped misses: 767 +1160%, 680 +173%, 701 +93%, 748 +86%, 736 +62%.
+- **2026-10-03** — **Design-audit fixes, part 1 (branch `claude/fuel-ux-honest-scope`, not yet merged).** From
+  `DESIGN-IS-2026-10-03/03-verdict.md`, each confirmed at the call site before it was changed and each pinned by
+  a test that fails when the fix is removed: Buy discipline's Trucks filter now reaches the fill sequence (it
+  reached only the brand cards); Fuel Costs opens Buy discipline on the same days and trucks, and says when a
+  state, location or network filter cannot travel; the findings table returns to page 1 when its rows shrink;
+  Buy discipline says "couldn't load / loading" instead of "no tractor fuel", "no target set" and "no fill
+  matched a quote" while the feed or the settings are pending or failed; the "none is on file" statement about
+  vendor statements is gone (quotes have come from the kept daily Pilot reports since 0245); the Last 7/30/90
+  presets are 7/30/90 dates, matching `windowDays`. Still open: the live "867 fills beside no tractor fuel"
+  contradiction (cause unestablished — the new states will name it on the next signed-in view); the PDF
+  (Q-FSV14); the word changes; and Q-FSV15.
+- **2026-10-03** — **Q-IE17 (a): which side is right — ours, by the gateway's GPS.** Read-only probe of Samsara's
+  `stats/history` (`engineStates`, `gps`) for 10/01 local, on a 5-second grid, against the stored rows. (1) The
+  six judged truck-days whose `vehicle_engine_days` row covers less than the local day carry 12.9 h of the
+  81.2 h excess: `aggregateEngineDays` counts a state until the NEXT sample, so a truck still idling at the last
+  sync has that stretch missing (775: 15.4 h covered, 1.2 h idle stored; Samsara's own states say 9.8 h, ours
+  10.5 h). (2) On the 122 whole days, Samsara labels the engine "On" (driving) while the GPS reads under 3 mph for
+  60 s or more for **77.3 h** — more than the 68.3 h excess; 1.1 h of it in one 67-minute park on 767 at 0 mph,
+  0 m moved, with no state change. Counting those minutes as Samsara's idle, **89 of 122** days agree within 5%
+  (24 as stored) and 106 within 10%. (3) Why: across 307 On→Idle flips on 40 trucks, Samsara turns a stop into
+  "Idle" **2–3 minutes after the last moving fix** (none under 60 s; p10 124 s, median 166 s, p75 546 s, p90
+  1,673 s). The truck is standing with the engine on through those minutes; Samsara books them as driving.
+  Never the reverse: 0.0 h of "Idle" while moving. Probe scripts in the session scratchpad, not the repo.
+- **2026-10-03** — **Q-IE17 (b) built: the gate judges running vs the ECU only.** `judgeIdleParityDay` judges a
+  truck-day only when running is judgeable, and its verdict is running's; stopped running is still computed and
+  listed per truck ("Idling vs Samsara"). The reader compares a Samsara day only when `coverage_sec` reaches our
+  hour count for that local day. On 10/01 that is **121 of 125** truck-days agreeing (96.8%); the four misses are
+  ours low (808 −17%, 774 −19%, 786 −5.3%, 805 −3.5%) — the next look, before IE5b. Tests: `parity.test.ts` (14),
+  `idleEngineParity.test.ts` (+1), `IdleEngineParityPanel.test.ts` (7, two rewritten). Mutation: 6/6 killed.
+- **2026-10-03** — **Q-IE18: the four running misses are the ECU counter running with the engine off.** Raw
+  Samsara `stats/history` (GET) for 10/01: the stored 15,062 s in 774's 00:00Z hour is 1,080 s by the counter's
+  own readings; replaying the nightly for 774 alone reproduced 15,062 (so not the batch fetch). Counter rises past
+  the running time between two readings, fuel in brackets: 774 +34,380 s / 219 s (+500 mL), 808 +4,500 s / 147 s
+  (0), 805 +2,880 s / 14 s (0), 786 three spans +2,160 s / 395 s (0–500 mL). Fix per §4 Q-IE18 (`ie3-v3`).
+  Replayed over all 125 running-judged trucks for 10/01 with the fix: 118 judged, **118 pass**, 0 fail, 7 unjudged
+  (785, 802, 808, 774, 786, 777, 805). Tests: `classify.test.ts` (+3, version bumped). Mutation: 8/8 killed, one
+  after a fixture whose bad pair spans the hour's START.
+- **2026-10-03** — **Q-FSV14 decided (a); FS-PDF is its own step, not started.** The owner took the recommendation:
+  the PDF is rendered from `fuelReport.ts` with every screen filter and the screen's whole-window comparison.
+  Sized from the code: the current document is `fuelSpendReport*.ts` (about seven files — charts, table, policy,
+  sections, flow, theme, draw) built on the legacy weekly `SpendPeriod` model, so this is a new layout over the
+  report's cards, daily table, reefer line and coverage notes, not a parameter added to the endpoint. Acceptance
+  when it is built: the PDF's figures equal the screen's for the same filters (a test that renders both from one
+  fixture), state/location/network appear in its scope line, and it is rasterised and LOOKED at with a long
+  fixture before merge (a text collision is invisible to a unit test). Until then the button exports the legacy
+  report and Q-FSV14 stays a known mismatch. Word changes shipped in the part-2 PR (plain words).
+- **2026-10-03** — **Q-FSV15 ruled (1)–(4); two built.** Spend and Out of network cards lost their green/red (a
+  quieter month no longer reads as success). The contract-variance producer is wired: `fuelContractScan.ts`,
+  `CONTRACT_EXCEPTION_KINDS`, `MIN_CONTRACT_OVERBILL_USD = 5`, called from the rollup sweep after the policy scan;
+  a failed scan counts in the job row's `scansFailed`. Production read for the floor is in §4 Q-FSV15 (122 fills in
+  90 days at $5). Not built: FS-STRIP (needs a per-kind findings aggregate), IE-ADMIN (platform-console view of the
+  parity and burn-rate checks), FS-PDF (Q-FSV14). Before merging this: the first sweep after deploy files the
+  trailing fortnight's overbilled fills (about 20) into the fuel inbox that people read.
+- **2026-10-03** — **FS-STRIP built** (branch `claude/fuel-ux-strip`, stacked on the contract producer). Fuel Costs now
+  lists the open fuel findings one row per kind with count, dollars, oldest date and a link into the inbox on the same
+  dates and trucks; no total, with the reason printed under it. A first draft answered `null` to a caller without the
+  fuel section, copying `/findings/summary`; `routeGateLedger.test.ts` refused the open route, and the exact fix was
+  to gate the route by the fuel section (the Costs page already is) and delete the unreachable branch. Not built:
+  idle and equipment rows (IE5b), IE-ADMIN, FS-PDF.
+- **2026-10-03** — **FS-PDF built** (branch `claude/fuel-ux-pdf`, stacked on FS-STRIP). `GET /api/fueling/report.pdf`
+  renders the Fuel Costs screen as a document: the screen's query string, validated by the screen's own parser
+  (`parseReportQuery`, extracted from `/report`), the same `readFuelReport`, and the screen's strings (`costCards`,
+  `costDayCells`, `comparingLine`, `mpgCoverageLine`, `networkLine`, `reeferLine`, moved from `apps/web` into
+  `@silvicom/shared` so there is one copy). State, location and network are on the letterhead and in the export
+  button's scope line; under a station filter the document drops miles/MPG/cost-per-mile and prints the same
+  sentence the screen does. Audited as `export.generated`. Tests: the PDF's text equals the screen's strings for
+  the same recorder seed (`routes/report.test.ts`, real renderer), each filter reaches the renderer, a bad value is
+  refused as the screen's report refuses it, widths pinned; rasterised and read at 90 days (4 pages) and under a
+  station filter. Looking caught three things no assertion did: labels truncated to `09/30/20...` and `OUT OF
+  NETW...` (so the table gained an opt-in `wrapHeader`), `GALLONS` breaking mid-word, and a header drawn 8pt off
+  its values in every non-first left-aligned column (fixed for all tables; the older document had it too).
+  The older `GET /api/fueling/spend-report.pdf` is unchanged and no longer used by this page; it still has its
+  other callers (`fuelSectionRoles.test.ts`, `fuel/routes/exports.ts`). Not done: running it against production
+  data. The first real export should be opened and read against the screen before the button is announced.
+- **2026-10-03** — **The "867 fills beside no tractor fuel" contradiction is explained, and it was two defects.**
+  Measured on production, read-only, as a signed-in admin (role `authenticated`, the real `org_id` and `user_role`
+  claims, RLS on, 8 s `statement_timeout` as the browser has): `fuel_buy_fills` returns **6,484 rows** for the 90-day
+  window and `fuel_spend_lines` 5,866. (1) **`useBuyFillsQuery` made one unpaged call**, and PostgREST caps a response at
+  1,000, so Buy discipline analysed the first 1,000 rows of a function ordered `vehicle_id, fueled_at`: every fill of
+  roughly the first sixth of the fleet and none of the rest. "867 fills" and "$4,462" were the in-window part of that
+  slice; the real floor is not known and will be several times larger. Fixed: `readAllBuyFillRows` pages by `range`, throws
+  on a failed page. (2) **"No tractor fuel in this window"** came from the spend-lines feed still loading: six sequential
+  pages, each re-running a function that takes 1.5 s under RLS (0.25 s as the service role, which is what made it look
+  fast), so ~9 s in which `lines` was `[]` and read as an answer. Already fixed by the `inputs` state in part 1; not a
+  timeout (each request is well inside 8 s). Not fixed, and worth a decision: the 9 s itself. Paging cannot be made
+  parallel without a stable cursor, so the durable answer is a server-side aggregate for the two cards that need only
+  sums (on-network share, avoided-state gallons) — Q-FSV16 below. The other web RPC reads were counted and fit one page
+  today: price coverage 368 (a year), miles inputs 204, EFS facets 520, decline facets 487 (EFS facets is the nearest to
+  the cap).
+  A trap in the method, kept so it is not repeated: a first probe with only an `org_id` claim returned 0 rows
+  for both functions and for `vehicles`, which looked like a damning result and was an artefact — the restrictive
+  `vehicles_driver_scope` policy reads `auth_role()` from the `user_role` claim, and `NULL <> 'driver'` is NULL, which
+  denies. A faithful RLS probe needs `user_role` as well as `org_id`.
+- **2026-10-03** — **Close-out of the design-audit programme.** Built and in review: PRs #1228, #1229, #1232, #1233, #1236, #1237
+  (see each description). Open and owned: Q-FSV16 (the 9 s Buy discipline load, SQL aggregate), Q-FSV17 (IE-ADMIN, designed
+  above), the ordinary-user task test (`UX-TASK-TEST-PROTOCOL.md`, needs people), idle and equipment rows in the savings
+  strip (wait for IE5b, which waits on Q-IE17/Q-IE14). Nothing here is on a critical path of the others except the merge
+  order of the stack.
+- **2026-10-03** IE-ADMIN step (1) of Q-FSV17, the console's read: `GET /admin/orgs/:id/idle-engine` (apps/admin-api)
+  serves the parity gate and the learned burn rates for one customer, behind the full platform chain (any platform
+  role, read-only included), audited as `idle_engine.view`; 404 for an unknown org audits nothing. Decided under the
+  working rule (owner's go was still open; this step is additive, reads only, and removes nothing): the two open
+  sub-questions only bear on step (3) and stay open. No copy of the gate: the columns, the row-to-day pairing with
+  Samsara's whole-day rule (`idleParityDays`), the view shape (`IdleEngineParityView`, previously declared twice, in
+  apps/api and apps/web), 0409's call window (`idleBurnInputsArgs`) and the paging helpers moved into
+  `@silvicom/shared`; the office reader calls the same functions, so the two views agree by construction. The
+  configured rate is `pickIdleCostBasis` over settings alone (the truck-stop median moves only the price). Mutation
+  pass: 14/15 killed; the survivor (dropping the reader's `day ≤ finalThrough` bound) is a no-op, since
+  `judgeIdleParityDay` already refuses non-final days. Next: the console page under the customer detail, then step
+  (2), the owner comparing it with the office panel on the same night.
+- **2026-10-03** IE-ADMIN step (1), the console page: Customers → a customer → "Idle engine checks" → `/customers/:id/idle-engine`
+  (apps/admin) lays out the gate (stage badge, finished days of 14, final-through, agreeing share floored like the office
+  panel, idling vs Samsara shown not judged, the org's timezone), the trucks that did not match, and the learned burn
+  rates beside the configured rate. The stage word is now `idleParityStage` in shared, read by this page and the office
+  panel alike. Seen rendered (preview build, stubbed API, fake aal2 session). Step (1) is complete with this; step (2) is
+  the owner opening both on the same night — the 10/04 nightly is the first one where both show 2 final days.
+- **2026-10-03** — **Q-FSV16, step 1 of 2 (the function; migration 0416, no reader yet).** `fuel_policy_gallons(p_from,
+  p_to, p_vehicles, p_org)` returns tractor gallons by month, brand and state, read through `fuel_spend_lines` so the
+  org scope, the station-local business date and the one-quote-per-fill rule are inherited and not restated. It carries
+  no policy: `gradePolicyTargets` still decides which brand is on-network and which state is avoided. An unresolved
+  station arrives as its own null-brand row, because TS counts it off-network and reports `unresolvedPct` from it.
+  Matrix `fuel-policy-gallons.test.mjs` (23), ruler = the raw `fuel_spend_lines` rows summed in JS. Mutation: 8/8
+  killed (tractor filter, gallons > 0, net amount, brand folded away, null brand dropped, org not passed through,
+  month shifted, anon grant). **Step 2, a separate later merge** (`lint:migration-ordering`): `useBuyFillsQuery`'s
+  sibling reads this once, feeds `gradePolicyTargets` one synthetic line per cell (`tranDate` = the month's first day),
+  and `useSpendLinesQuery` moves behind the quote card's toggle. Not started; it waits for 0416 to be applied.
+- **2026-10-03** — **Q-FSV16, step 2 of 2 (the reader; migration 0416 applied, verified in `pg_proc`).** Production check
+  first, read-only as a signed-in admin (rolled back), 90 days to 2026-10-03: `fuel_policy_gallons` returned **393
+  cells**, the raw `fuel_spend_lines` rows grouped separately gave 393, **0 cells differ**, 679,255.580 gallons on both
+  sides, 5,654 fills counted of 5,852 rows (the rest are reefer, zero-gallon or no-cost, which `isTractorFuel` drops).
+  Timing: the aggregate took **1.5 s**, one raw run 1.8 s — not the 0.25 s service-role figure; the saving is that the
+  browser ran `fuel_spend_lines` six times (once per page) and now runs it once. `gradePolicyTargets` became
+  `gradePolicyCells(policyGallonCells(lines))`, so the arithmetic is one copy and its existing 11 tests pass unchanged;
+  +4 pin that grouping cannot move a grade and that a null-brand cell counts off-network. New `usePolicyGallons`
+  (pages, no `p_org`, numeric gallons) with 4 tests; the page's grades wait for it and the settings only. Mutation: 9/10
+  killed across page, hook and shared; the survivor (dropping `l.month == null ||`) is a no-op — a null month only
+  makes a Map key nothing reads. The plan's "behind the toggle" did not hold: §4 **Q-FSV18**.
+- **2026-10-03** — **Q-FSV18 ruled (a) by the owner; step 1 of 2 (the function; migration 0418, no reader yet).**
+  `fuel_contract_totals(p_from, p_to, p_vehicles, p_org)` returns the four sums the quote tile is made of — measured
+  lines, their billed and contract dollars, and the billed dollars of in-scope fills with no quote — read through
+  `fuel_spend_lines`. It decides nothing: the per-gallon tolerance, the sign and the wording stay in
+  `analyzeContractCapture`. A fill with no quote adds to `unmeasured_paid` and nothing else (null is not zero). Always
+  one row, zeros over an empty window. Matrix `fuel-contract-totals.test.mjs` (22), ruler = the raw rows summed in JS by
+  the TS rules. Mutation: 10/10 killed — one survived first (`sum` without `coalesce` on an empty window) because the
+  test read `Number(null)` as 0; the assertion now checks for null before converting. **Step 2, a separate later merge:**
+  the tile reads this once through a shared helper that also feeds `analyzeContractCapture` (one copy of the net-variance
+  and priced-share formulas), and the row read moves behind the tile's toggle, where the fills list is the only thing
+  that needs rows. Not started; it waits for 0418 to be applied.
+- **2026-10-03** — **Q-FSV18, step 2 of 2 (the reader; migration 0418 applied, verified in `pg_proc`).** Production
+  check first, read-only as a signed-in admin (rolled back), 90 days to 2026-10-03: `fuel_contract_totals` returned one
+  row that equals the raw `fuel_spend_lines` rows summed separately on every figure — **3,754 measured fills, $2,442,173.23
+  billed against $2,441,594.70 expected (net +$578.53), 1,902 unmeasured fills, $1,077,332.78 unmeasured, 69.39% of billed
+  dollars priced.** Timing: the aggregate took **1.7 s**, one raw run 2.3 s; the saving is one run of `fuel_spend_lines`
+  instead of six. `contractHeadline(totals)` in `@silvicom/shared` is now the ONE formula for the tile's net variance and
+  priced share, and `analyzeContractCapture` calls it, so the existing 17 tests pass unchanged and +4 pin that the two routes
+  print the same tile. The tile reads `useContractTotals`; `useSpendLinesQuery` takes an `enabled` switch and the page passes the
+  tile's open state, so **the rows download only when the fills are opened** — the plan's original "behind the toggle", now
+  true. A slow or failed row feed no longer touches the tile or the grades; inside the opened fills it says so. Tests: page
+  (+4), `useContractTotals` (5), `useSpendLinesEnabled` (2). Mutation: 15/15 killed, one first survivor was a no-op (dropping
+  the explicit no-row throw, since `row.measured_lines` on `undefined` throws anyway) and its real counterpart — defaulting a
+  missing row to zeros — fails the test. **Q-FSV18 closed**; §4's Q-FSV16/Q-FSV18 are both done once this merges.
+
+- **2026-10-03** Contract findings only against a same-day quote (research pass on Q-FSV15 ruling 4's assumptions).
+  `quote_stale_days` (0405: `bday − obs`) is 1 when a fill's day had no Pilot report and yesterday's was used. Over 90
+  days: same-day quote, 3,109 fills, ≥5¢/gal over 29 vs under 11, interquartile within $0.0005/gal (real, lopsided);
+  day-old quote, 790 fills, 89 over vs 84 under, p5/p95 −$0.20/+$0.22 per gal (symmetric: the overnight move). Of the
+  $2,424 the $5 floor would file, $1,940 (80%) was on day-old quotes. `contractFindings` now files only `staleDays === 0`;
+  the $5 floor stays. Expected queue: ~30 fills / 90 days (≈0.3 a day) instead of 122. Shipped before the scan's first
+  run (10/04 ~08:05Z), so the inbox never holds the noise.
+- **2026-10-03** Collector carry-in (research pass on "a day is final" and the D-IE9 gate's coverage). On 10/01, 17 truck-days
+  had over an hour of `no_data`; for 11 Samsara's `vehicle_engine_days` covered the gap. 649 idled from before 09/30
+  05:00Z to 10/02 13:36Z (Samsara 24.0 h idle on 10/01, 13.6 h on 10/02) and was stored as 37.9 h `no_data`, 0 h running:
+  its only flip inside the fetch was the 13:36 Off, and the snapshot seed only applies to a truck with no flip at all.
+  The gate could not see it — an hour with no engine state has no engine-seconds delta, so the day is unjudged, not
+  failed. Fix: when nothing in a truck's fetch fixes its state at the first instant written, its own `engineStates`
+  history is read up to 30 days back and the last flip before the fetch seeds it; an incomplete read or no flip keeps
+  `no_data`. Job stats gain `carriedIn` / `carryInMissing`. 10/01 is final and keeps its rows; 10/02 is rewritten by the
+  10/04 nightly with this live if it merges first.
+- **2026-10-03** Q-IE14 research — the learned burn rate was measured wrong, and the 50-hour bar measures nothing about
+  precision. (1) Bias: the fuel counter reads every 6–12 min and is spread over RUNNING time, so the reading pair that
+  straddles an arrival or departure books driving fuel into the park. Over 1,603 parks, fuel = 0.666 gal/h × hours +
+  ~350 mL per park (R² 0.93); per-park pooling reads 1.39 gal/h on parks under 10 min, 0.68 over 4 h, and 0.749 on
+  battery-APU trucks against a 0.546 slope. Interior idle hours (whole idle hour, neighbours with no driving) read
+  0.658 (no APU, 941 h, 67 trucks); idle hours beside a drive 0.700 — two independent methods agree within 1.2%.
+  So the fleet's idle burn is ~0.66 gal/h in 32–90 °F, and `idle_gal_per_hour` 0.80 prices idle ~21% high.
+  (2) Precision: trucks inside one cell run 0.36–3.8 gal/h on the per-park method, so hours do not make a cell
+  precise — trucks do. Clustered by truck, the battery-APU 50–75 °F cell held 180 h at ±19% (95%). Step 1 shipped as
+  migration **0419** `idle_engine_burn_hours` (interior hours per truck × band; no reader). Step 2 (next merge): the
+  learner reads 0419, and a cell is learned at ≥ 5 trucks and a 95% interval within ±10%, clustered by truck; today
+  that admits no-APU 50–75 °F (0.665 ±8%, 47 trucks) and 75–90 °F (0.662 ±7%, 53 trucks) only.
+- **2026-10-03** D-IE9 gate, two corrections from the research pass. (1) The running tolerance is ±3% or one 180 s
+  counter step, whichever is wider — under 1.67 h ±3% is narrower than the counter reads (no judged day was there yet).
+  (2) COVERAGE: a final whole day where Samsara's record covers the whole day and ours has ≥ 1 h of `no_data` is judged
+  and FAILS, whatever running says — 649's 37.6 h were invisible to the gate because a day with no engine state has no
+  engine-seconds delta either. On production: 10/01 (final) has 9 such days (579, 642, 649, 692, 707, 727, 735, 750, 789),
+  so it reads 118 of 127 (92.9%) instead of 118 of 118; 10/02 (provisional) has 5, most of them the engine-off trucks the
+  collector carry-in (#1248) turns from unknown into off. Both panels gain a "Days with data missing" column.
+- **2026-10-03** Q-IE14 step 2 (the reader of 0419): the learner reads interior hours; a level is believed at ≥ 5 trucks and
+  a 95% interval within ±10%, clustered by truck; an unlearned cell reads its cohort, else the fleet, else the prior,
+  and says which (`source`, worded once in `IDLE_BURN_SOURCE_LABELS` for both panels). The real learner run locally on
+  production's exported 0419 rows: no APU 50–75 °F 0.665 ±8.0% (47 trucks), 75–90 °F 0.662 ±7.4% (53) — learned; no-APU
+  cohort 0.658 ±6.9%; fleet 0.653 ±6.8% (81 trucks, 1,018 h); battery-APU cells (10 trucks, ±23%) read the fleet's
+  0.653. The configured `idle_gal_per_hour` (0.80) is unchanged; whether money moves to the learned table is Q-IE14's
+  setting, the next step.
+- **2026-10-03** Q-IE14 step 3 (the switch's column) and 0409 retired. Migration **0420** adds `idle_settings.idle_burn_source`
+  (`configured` | `learned`, NOT NULL, default `configured`, so no figure moves); **0421** drops 0409's
+  `idle_engine_burn_inputs`, unread since #1252 (Railway's api, web and platform-console all served 5a08dee when it was
+  written). Production read first: one `idle_settings` row (0.80 gal/h, $4.000), columns as 0044 wrote them. What the
+  switch would move, the real `idleStopVerdict` and learner from `packages/shared/dist` run on production's exported parks
+  and 0419 rows: avoidable idle 10/01 46.8 → 38.5 gal (−17.6%), 10/02 38.4 → 31.6 gal (−17.8%); the equipment opportunity
+  10/01 337.9 → 280.1 gal, 10/02 345.8 → 286.9 gal — dollars by the same share at either price. Of the avoidable hours
+  over 09/30–10/03, 70.4 h are battery-APU trucks priced at the fleet's 0.653 (their cells are not believed), 60.3 h no-APU
+  at the learned 0.662–0.665. **Where the control lives (decided, recorded in §4 Q-IE14):** the Idling page, not the
+  console — `idle_settings` is the carrier's table under safety-manage RLS (0300) and the console has no cross-tenant
+  write; so Q-FSV17 step 3 removes the parity GATE from the office page, while the burn-rate table stays there as the
+  carrier's evidence for the switch beside it. The reader (engine money + the control) follows once information_schema
+  on production shows the column.
+- **2026-10-03** 0420 and 0421 applied (`migrate.yml` on 2f9b0a7 success; production information_schema shows
+  `idle_settings.idle_burn_source`, pg_proc no longer holds `idle_engine_burn_inputs`). Q-IE14 step 4, the reader: the
+  engine's `/engine/avoidable` money carries `pricing` and `applied` (the chosen side; both sides stay in the answer),
+  `/engine/burn-rates` and the console's view report the choice, and the Idling page's burn-rate panel offers "Rate for
+  the new idle measurement" to roles that manage safety (`session.can("safety")`, the matrix 0300's write policy reads)
+  and states it to everyone else, saying it changes no figure on the page until IE5b. `idleBurnPricing` reads anything
+  but `learned` as `configured`; a failed read of the choice is an error, never a silent `configured`. Production stays
+  `configured`; the dollar effect of `learned` is the −17.6% / −17.8% above, for the owner to weigh.
+- **2026-10-03** Owner: "proceed as proposed and suggested". Q-IE3: 50% stays; re-measure trigger written into §4
+  (on/after 11/02 AND ≥ 50 battery-APU parks ≥ 4 h at 20–40 °F from ≥ 10 trucks; today 0). Q-FSV17: the gate is never
+  shown to a carrier manager; the nightly check reads the database through the shared functions, not either endpoint;
+  step (2) waits on the owner's console sign-in. Q-IE14: production stays `configured` — none of the proposals was to
+  flip it, and the switch moves no figure on any page until IE5b, so it is asked as its own explicit question before IE5b.
+- **2026-10-03** Design verdict move 2, the Fuel Costs layout: the page leads with spend and one sentence splitting its
+  change into gallons and average price (`spendChangeLine`, shared; spend = gallons × price, so the split is arithmetic,
+  not a causal claim, and names no reason for the price), beside the open findings ranked by dollars; the other seven
+  cards follow under "The figures behind it", every figure and comparison kept. The PDF's spend band prints the same
+  sentence. No migration, no API change. Tests: shared +4, page +1, PDF +1 assertion; mutation 11/11 killed. Seen
+  rendered at 1440 and 390 px (preview build, stubbed report) and the PDF rasterised. Still open under move 2: idle and
+  equipment rows in the findings list (wait for IE5b).
+- **2026-10-03** Design verdict E3, the Idling Trucks table: thirteen columns became seven — truck, avoidable cost and hours,
+  "Needs an APU" cost and hours (renamed from "Reducible cost" to match the card above it), idle %, data completeness — so
+  both costs are on screen at 1440 px. The time split (engine, driving, idling, off-duty and on-duty idling) and the learned
+  capability open under each truck (row click or the chevron, `aria-expanded`); nothing was removed. Rows keep
+  `computeIdleBreakdown`'s largest-avoidable-first order. First mounted test of the page (4); mutation 10/10 killed. Seen
+  rendered at 1440 and 390 px (preview build, stubbed rollup rows). Not touched: the Drivers and Truck capability tabs, and
+  the red/amber dollar tones on the Idling cards (Q-FSV15 ruling 2 made dollars neutral on Fuel Costs only; whether it
+  extends here is a V4 question).
+- **2026-10-03** Design verdict E4/E10, Buy discipline results first: the tab opens on the headline with ONE sentence that
+  keeps the material qualification in view (purchases, gallons still in the tank, trips measured vs estimated from miles
+  and that the estimate undercounts, so the total is a minimum), then the purchases to review, then "How the extra cost is
+  worked out" (closed: the proof-by-next-fill sentence, pump vs fuel price, the trips that produced nothing), the targets,
+  the unlisted-dear-state sentence, and "What fuel costs, by state" (closed). The four-card row went: one card repeated the
+  headline's dollars, and its other three figures are in the headline sentence or the method panel. Purchases table: date
+  as MM/DD/YYYY (was ISO), "Gallons bought" (two columns were both "Bought"), "Measured by" with "Tank reading" / "Miles
+  driven (at least)". Nothing deleted; `<details>` keeps closed text findable by the browser's search. Tests +3, two
+  rewordings; mutation 11/11 killed. Seen rendered at 1440 px (preview build, stubbed RPCs).
+- **2026-10-03** Design verdict move 4, coverage and freshness beside each Idling estimate. Each money card now says what
+  it counts and why the rest are out ("Counts 180 of 187 trucks; 7 with too little data are left out" / "From 150 of 187
+  trucks: the ones with rest idle an APU would carry. 4 seen for under half the range are left out"), and how it was
+  priced: the burn rate, the BLENDED day price the total actually carries, and how many calendar days had no day price and
+  fell back to the cost basis, named by source. The old line printed the fallback basis ("$5.87/gal · live truck-stop
+  prices") as if every dollar were charged at it, which they are not (`avoidableCostByDay` prices per day). Beside the
+  "Showing" chip: "Idle data through MM/DD/YYYY" (latest day with coverage among listed trucks) and that the table's
+  filters do not narrow the cards (audit copy note 9). Shared: `FleetIdleVerdict` gains `thinTrucks`, `throughDay`,
+  `avoidablePricing`, `reduciblePricing` (new `idleTotals.ts`, split out to keep `idleBreakdown.ts` at 499 lines); the
+  API's `readFleetIdleVerdict` returns them too and reads nothing new. Tests: shared +7, web +6; mutation 26/26 killed
+  (one first survivor, a day that added nothing being counted, was a fixture with no zero-idle day; that case is now a
+  test). Seen rendered at 1440 and 390 px. The red/amber dollar tones are untouched (owner's question).
+- **2026-10-04** — **Verdict E8, the Idling page's states and semantics.** The tab strip was hand-rolled buttons with
+  no tab roles; it is now `AppTabs` (labelled tablist, roving tabindex, arrow keys), and each panel is a `tabpanel`
+  named by its tab. "Data completeness" and "How idle is scored" carry `aria-expanded` and point at the region they
+  open; the second keeps its name while open (it read "Hide", which names no region). The Truck capability table now
+  shows its read's loading and failure (with Retry); before, a pending or failed read said "No trucks match", and
+  neither a tab count nor the result count above a table shows until its read has answered (a failed read is not
+  zero trucks). Tests: web +5 mounted cases; mutation 20/20 killed. Seen rendered at 1440 and 390 px, keyboard
+  included. #1259 re-checked the same morning: both `platform_admins` rows still unlinked, no MFA, empty
+  `platform_audit_log` — still held.
+- **2026-10-04** — **Q-FSV15 ruling 2 extended to Idling, and the verdict's engineering checks (V5's half that needs no
+  people).** Owner: "proceed as suggested" — the Avoidable idle and Needs an APU totals lose their red/amber; a total
+  says how much, not whether it is good news. The state sweep (protocol §"Also checked", run on a dev-bypass build at
+  1366 and 390 px) found four defects, fixed here: (1) Idling's default "last 30 days" read 31 dates in all four idle
+  readers (`today - 30`, the off-by-one the picker's presets lost on 10/03); now one shared `idleWindow` /
+  `IDLE_DEFAULT_WINDOW_DAYS` and `lastDaysStart`. (2) Fuel Costs and Buy discipline took "today" from UTC, so from
+  19:00 Central the default 90 days ended on a day not yet begun and the future-date clamp let it; now the carrier's
+  clock (D-PREC6), and `useFuelReport` reads `isDefaultWindow` instead of recomputing it. (3) Both filter bars said
+  "0 days" / "0 fills in sequence" while their read was pending or failed; no count until it answers. (4) A failed
+  fill sequence hid Buy discipline's targets and showed "$0 at least" while pending; the fills' parts now say
+  loading/failed in place (with a working Retry) and the targets, which read their own sums, stay. Passed unchanged:
+  keyboard reaches and fires Export report (48 Tabs, 40 of them the sidebar — no skip link, noted); the PDF request
+  carries `states`/`networks` and the button's scope says "filtered stations"; spend is in the first 390 px screen;
+  a failed findings strip says "Couldn't load". Mutation 21/21 killed. Still owed: the five sessions, and a
+  signed-in look on production. Not changed, for the owner: Buy discipline's carried-fuel dollars stay red when
+  above zero (ruling 2 named Fuel Costs; say if it extends).
+- **2026-10-04** — **The two calls left open by the state sweep, decided** (owner: "decide with best solutions").
+  (1) **Buy discipline's carried-fuel total is plain ink** — Q-FSV15 ruling 2's line is that a TOTAL carries no
+  direction and a verdict does; the targets keep their met/short colour, and the quote card keeps its caution tone,
+  which flags thin coverage and not money. (2) **A "Skip to main content" link, app-wide** (WCAG 2.4.1): first in the
+  tab order over the app shell, whose ~40-entry sidebar is the block bypassed (the public, apply, sign-in and shop
+  layouts put at most one control before their content, and the applicant page's tap-target spec rightly refused a
+  1×1 target there), above the banners, hidden until focused. It moves FOCUS to `<main id="main-content"
+  tabindex="-1">`, not only the scroll, and keeps the hash out of the URL. Fuel Costs' Export report: 48 Tabs → 10,
+  seen at 1366 and 390 px. `skipLink.test.ts` holds the shell's `<main>` to `MAIN_CONTENT_ID`. Mutation 9/9 killed.

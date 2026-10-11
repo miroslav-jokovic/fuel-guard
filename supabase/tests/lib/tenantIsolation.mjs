@@ -38,7 +38,9 @@ const NO_ORG_COLUMN = {
   geocode_cache: "global station geocode cache shared across organizations (0018)",
   migration_markers: "service-only migration bookkeeping with no tenant data (0026)",
   platform_admins: "platform control-plane authority, service-role only (0070)",
+  platform_alert_recipients: "who hears a platform alarm (release outcome), service-role only (0426)",
   platform_audit_log: "platform-wide control-plane audit trail, service-role only (0071)",
+  platform_release_approvals: "the owner's console approval of a release, service-role only (0440)",
   route_geometries: "global geographic route cache shared across organizations (0059)",
   vehicle_make_model_catalog:
     "global reference data — what a VIN body code, a VIN manufacturer code or a spelling names — " +
@@ -158,6 +160,17 @@ function literalFromCheck(meta, table, col) {
   const defs = (meta.checkOf.get(table) ?? []).filter((d) => new RegExp(`\\b${col}\\b`).test(d));
   if (defs.length === 0) return null;
 
+  // A check that PINS the column to one literal (`col = 'v'`, rendered `CHECK ((col = 'v'::text))`)
+  // admits exactly that value, the empty string included. 0426's `soap_password = ''` is the first;
+  // the quoted-literal scan below cannot see '' at all, and widening it to match '' would make a
+  // `btrim(col) <> ''` check seed the one value it forbids.
+  for (const def of defs) {
+    // Anchored: only a check that IS the equality. `fuel_price_days_carry_check` has
+    // `price_source = 'carried_forward'` as one branch of an OR, and that pins nothing.
+    const pinned = def.match(new RegExp(`^CHECK \\(\\(${col} = '([^']*)'::[a-z ]+\\)\\)$`));
+    if (pinned) return pinned[1];
+  }
+
   const forbidden = new Set();
   for (const def of defs) {
     for (const m of def.matchAll(new RegExp(`\\b${col}\\b\\s*<>\\s*'([^']+)'`, "g"))) forbidden.add(m[1]);
@@ -197,9 +210,22 @@ function jsonbFromCheck(meta, table, col) {
 }
 
 /** A minimal, constraint-satisfying literal for one column. */
+const FORMAT_PINNED = {
+  "ifta_fuel_receipt_uploads.file_sha256": "repeat('a', 64)", // check (file_sha256 ~ '^[0-9a-f]{64}$')
+  "ifta_fuel_receipts.jurisdiction": "'TX'", // check (jurisdiction ~ '^[A-Z]{2}$')
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  "document_sources.sha256": "(md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text))", // check (sha256 ~ '^[0-9a-f]{64}$') (0448)
+  "document_pages.original_sha256": "repeat('a', 64)", // same format check (0448)
+};
+
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
   if (c.col === "card_last4") return "'0000'";
+  // Regex CHECKs `literalFromCheck` cannot read a literal out of, pinned the way `card_last4` is (0436).
+  if (FORMAT_PINNED[`${table}.${c.col}`]) return FORMAT_PINNED[`${table}.${c.col}`];
   if (c.typtype === "e") {
     const labels = meta.enumOf.get(c.typname) ?? [];
     if (labels.length) return `'${labels[0]}'`;
@@ -212,7 +238,7 @@ function valueFor(meta, table, c, orgId, tsIndex = 0) {
     // A CHECK pins the value; otherwise make it UNIQUE. Several tables carry unique indexes over a
     // free-text business key (loads.ref is the one that bit first), and seeding two rows with the
     // same placeholder collides — which reads as "cannot seed" when the schema is in fact fine.
-    return literal ? `'${literal}'` : `('x-' || gen_random_uuid()::text)`;
+    return literal !== null ? `'${literal}'` : `('x-' || gen_random_uuid()::text)`;
   }
   if (/^(smallint|integer|bigint|numeric|real|double precision)/.test(t)) return "1";
   if (t === "boolean") return "false";

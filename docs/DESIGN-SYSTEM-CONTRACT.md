@@ -422,7 +422,7 @@ Plus domain mappers, all returning `toneClass(...)`: `severityTone` (critical→
 ### 5.1 The three best examples
 
 1. **`pages/TrailersPage.vue`** (287 ln) — canonical client-side list: search + 2 `FilterSelect`, client sort, client pagination, bulk selection, `KebabMenu`, `SlideOver` form. The cleanest end-to-end reference.
-2. **`pages/DispatchLoadsPage.vue`** (447 ln) — the full toolbar: chips + `#more` popover + `moreCount`, tab queues, two different DataTables (list + exceptions feed), row-click → route, bulk actions.
+2. **`pages/AssignmentsPage.vue`** + **`pages/DispatchLoadsPage.vue`** — the queue list, one pattern on two pages (rebuilt 2026-10-10 on the owner's ruling): `DataWorkspace` with an embedded `FilterBar`; queues as `AppTabs` with their counts, and a different feed (History, Exceptions) as the LAST tab — never a second strip; the toolbar stays on every tab; every filter, the queue, the sort (`useUrlSort`) and an open drawer in the URL through `useQueryState`; primary filters only, so no chips; one link shape (`AppButton variant="link" :to`); page notices as `AppCallout`. Until that day the Loads page was listed here while carrying the older two-card shape, chips for its primary filters and a boxed button recoloured as a link — and a reference that drifts is copied with its drift.
 3. **`pages/FuelLogPage.vue`** (361 ln) — server-side pagination + server-side sort, `DateRangeFilter`, sticky first column, `dense`, `row-class`, `#more` popover with chips, KPI strip.
 
 (`DriversPage.vue` is a good structural example but carries two hand-rolled badge maps — see §8.)

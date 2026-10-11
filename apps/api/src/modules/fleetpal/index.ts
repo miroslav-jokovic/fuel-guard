@@ -30,6 +30,8 @@
  * convenient exception at a time.
  */
 export { startFleetpalScheduler, isFleetpalSyncDue } from "./scheduler.js";
+export { registerFleetpalIntegrationRoutes } from "./routes/integration.js";
+export { probeApiKey, type ProbeOutcome } from "./probe.js";
 export {
   getCredential,
   getApiKey,
@@ -62,11 +64,15 @@ export {
 export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export { readCoverage, monthsBetween, type CoverageAnswer } from "./coverage.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
+export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
+export { labelRepairs } from "./componentLabels.js";
 export {
   sweepRepairRecord,
   runIngest,
   purchaseOrdersIngest,
   poInvoicesIngest,
+  poPaymentsIngest,
+  poItemsIngest,
   ingestDefects,
   ingestExpirations,
   issuesIngest,

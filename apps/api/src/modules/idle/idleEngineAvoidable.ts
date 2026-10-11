@@ -14,7 +14,14 @@
  *
  * ── MONEY ───────────────────────────────────────────────────────────────────────────────────────
  * Hours become gallons and dollars on `resolveIdleCostBasis` — the Idling page's own burn rate and
- * price, so the two never price an idle hour differently. The learned burn rate is IE4 (D-IE5).
+ * price, so the two never price an idle hour differently. `money.learned` prices the same seconds at
+ * the burn rate the fleet's engines measured (IE4, D-IE5): each park at its truck's cohort and its own
+ * ambient band (`idleBurnRateFor`) — or, where that cell has not passed the bar, its cohort's, the
+ * fleet's or the prior, whichever is nearest and has — at the same price. Both are carried, and
+ * `money.applied` is the one the carrier chose in `idle_settings.idle_burn_source` (0420, §4 Q-IE14):
+ * a page shows `applied`, and either side stays readable beside it, so a carrier comparing the two
+ * reads them from one answer. The learned table is today's, applied to the range, as the verdict is
+ * today's settings applied to it.
  *
  * ORG-FILTERED explicitly: the service role bypasses RLS, so every `.eq("org_id")` here IS the tenant
  * boundary.
@@ -24,16 +31,19 @@ import {
   DEFAULT_IDLE_AVOIDABLE_SETTINGS,
   declaredEquipment,
   idleAvoidableTotals,
+  idleBurnRateFor,
   idleStopVerdict,
   organizationTimezone,
   zonedWallTimeToUtcIso,
   type DeclaredEquipment,
   type IdleAvoidableSettings,
   type IdleAvoidableTotals,
+  type IdleBurnPricing,
   type IdleStopMeasure,
 } from "@silvicom/shared";
 import { fetchAllPaged } from "../../lib/paging.js";
 import { resolveIdleCostBasis } from "./idleCostBasis.js";
+import { learnOrgIdleBurnRates, readIdleBurnPricing } from "./idleBurnRates.js";
 
 interface StopRow {
   vehicle_id: string;
@@ -53,13 +63,25 @@ interface VehicleRow {
   apu_type: string | null;
 }
 
+interface IdleEngineMoneyFigures {
+  avoidableGallons: number;
+  avoidableUsd: number;
+  equipmentOpportunityGallons: number;
+  equipmentOpportunityUsd: number;
+}
+
 export interface IdleEngineMoney {
+  /** The carrier's choice of rate (0420); `applied` is that side's figures. */
+  pricing: IdleBurnPricing;
+  applied: IdleEngineMoneyFigures;
   galPerHour: number;
   pricePerGal: number;
   avoidableGallons: number;
   avoidableUsd: number;
   equipmentOpportunityGallons: number;
   equipmentOpportunityUsd: number;
+  /** The same seconds at the learned burn rate, park by park (IE4); same price. */
+  learned: IdleEngineMoneyFigures;
 }
 
 export interface IdleEngineTruckAvoidable {
@@ -89,10 +111,11 @@ export async function readIdleEngineAvoidable(
   from: string,
   to: string,
 ): Promise<IdleEngineAvoidable> {
-  const [{ data: org }, { data: s }, basis] = await Promise.all([
+  const [{ data: org }, { data: s }, basis, pricing] = await Promise.all([
     admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle(),
     admin.from("idle_settings").select("comfort_low_f, comfort_high_f").eq("org_id", orgId).maybeSingle(),
     resolveIdleCostBasis(admin, orgId),
+    readIdleBurnPricing(admin, orgId),
   ]);
   const timezone = organizationTimezone(org?.operating_hours);
   const settings: IdleAvoidableSettings = {
@@ -121,13 +144,18 @@ export async function readIdleEngineAvoidable(
     ),
   ]);
   const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+  const equipmentById = new Map(
+    vehicles.map((v) => [v.id, declaredEquipment({ hasApu: v.has_apu, apuType: v.apu_type })]),
+  );
+  const rates = await learnOrgIdleBurnRates(admin, orgId, equipmentById);
 
   type Judged = { stop: IdleStopMeasure; verdict: ReturnType<typeof idleStopVerdict> };
   const all: Judged[] = [];
   const byTruck = new Map<string, Judged[]>();
+  let learnedAvoidableGal = 0;
+  let learnedOpportunityGal = 0;
   for (const r of stops) {
-    const v = vehicleById.get(r.vehicle_id);
-    const equipment = declaredEquipment({ hasApu: v?.has_apu ?? null, apuType: v?.apu_type ?? null });
+    const equipment = equipmentById.get(r.vehicle_id) ?? "not_entered";
     const stop: IdleStopMeasure = {
       durationSec: r.duration_sec,
       runningSec: r.running_sec,
@@ -138,6 +166,9 @@ export async function readIdleEngineAvoidable(
       ambientMilliC: r.ambient_milli_c,
     };
     const judged = { stop, verdict: idleStopVerdict(stop, equipment, settings) };
+    const rate = idleBurnRateFor(rates, equipment, r.ambient_milli_c);
+    learnedAvoidableGal += (judged.verdict.avoidableSec / 3600) * rate;
+    learnedOpportunityGal += (judged.verdict.equipmentOpportunitySec / 3600) * rate;
     all.push(judged);
     const list = byTruck.get(r.vehicle_id) ?? [];
     list.push(judged);
@@ -153,12 +184,24 @@ export async function readIdleEngineAvoidable(
     return {
       vehicleId,
       unit: v?.unit_number ?? "—",
-      equipment: declaredEquipment({ hasApu: v?.has_apu ?? null, apuType: v?.apu_type ?? null }),
+      equipment: equipmentById.get(vehicleId) ?? "not_entered",
       totals: idleAvoidableTotals(rows),
     };
   });
   trucks.sort((a, b) => b.totals.avoidableSec - a.totals.avoidableSec || a.unit.localeCompare(b.unit));
 
+  const configured: IdleEngineMoneyFigures = {
+    avoidableGallons,
+    avoidableUsd: r2(avoidableGallons * basis.fuelPricePerGal),
+    equipmentOpportunityGallons,
+    equipmentOpportunityUsd: r2(equipmentOpportunityGallons * basis.fuelPricePerGal),
+  };
+  const learned: IdleEngineMoneyFigures = {
+    avoidableGallons: r2(learnedAvoidableGal),
+    avoidableUsd: r2(r2(learnedAvoidableGal) * basis.fuelPricePerGal),
+    equipmentOpportunityGallons: r2(learnedOpportunityGal),
+    equipmentOpportunityUsd: r2(r2(learnedOpportunityGal) * basis.fuelPricePerGal),
+  };
   return {
     from,
     to,
@@ -166,12 +209,12 @@ export async function readIdleEngineAvoidable(
     settings,
     totals,
     money: {
+      pricing,
+      applied: pricing === "learned" ? learned : configured,
       galPerHour: basis.idleGalPerHour,
       pricePerGal: basis.fuelPricePerGal,
-      avoidableGallons,
-      avoidableUsd: r2(avoidableGallons * basis.fuelPricePerGal),
-      equipmentOpportunityGallons,
-      equipmentOpportunityUsd: r2(equipmentOpportunityGallons * basis.fuelPricePerGal),
+      ...configured,
+      learned,
     },
     trucks,
   };

@@ -1,3 +1,4 @@
+import { localHourMinute } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import {
@@ -29,7 +30,32 @@ import {
  * objects are the routine failure rather than the alarming one. Without this pass a driver's
  * abandoned re-shoots would be billed for ever.
  */
-const DAILY_MS = 24 * 60 * 60 * 1000;
+/**
+ * Once a night at a fixed Central-time hour, not once per 24 h of process life.
+ *
+ * It was `setInterval(run, 24h)` with no boot run. Measured 2026-10-02, the api process restarted
+ * 810 times in 40 days (median life 23 minutes) and lived 24 h exactly once, so this reconciler had
+ * effectively never run — the "nightly orphan sweep" that dataRetentionPolicy.ts leans on twice was
+ * a promise with no clock behind it. A nightly release (RELEASE-TRAIN-PLAN) would not have fixed
+ * it: a 24 h interval started at the 01:00 release first fires at the NEXT release, which kills it.
+ *
+ * 06:00 Central sits after everything heavy in the night (the 01:00 release, the 02:55 EFS session
+ * reset, the 03:00 nightly reconcile that has run up to 154 minutes) and before the office's first
+ * action, measured at 07:00. The ledger-less "already ran today" key lives in memory: two processes
+ * both crossing 06:00 the same day would need a restart inside that hour, and a second pass is a
+ * no-op because the reconcile is idempotent.
+ */
+export const STORAGE_RECONCILE_HOUR = 6;
+export const STORAGE_RECONCILE_TZ = "America/Chicago";
+const TICK_MS = 15 * 60_000;
+
+/** The Central calendar day to stamp when a reconcile is due now, or null when it is not. Pure. */
+export function storageReconcileDueDay(nowMs: number, lastRanDay: string | null): string | null {
+  const now = new Date(nowMs);
+  if (localHourMinute(now.toISOString(), STORAGE_RECONCILE_TZ).h !== STORAGE_RECONCILE_HOUR) return null;
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: STORAGE_RECONCILE_TZ }).format(now);
+  return day === lastRanDay ? null : day;
+}
 
 export function startStorageReconcileScheduler(env: Env): void {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
@@ -61,7 +87,13 @@ export function startStorageReconcileScheduler(env: Env): void {
     inFlight = false;
   };
 
-  const timer = setInterval(() => void run(), DAILY_MS);
+  // Still never on boot — a full-bucket listing is heavy, and the release that booted us is 01:00.
+  let lastRanDay: string | null = null;
+  const timer = setInterval(() => {
+    const due = storageReconcileDueDay(Date.now(), lastRanDay);
+    if (!due) return;
+    lastRanDay = due;
+    void run();
+  }, TICK_MS);
   timer.unref?.();
-  // Deliberately NOT run on boot — a full-bucket listing is heavy; the first run is one interval in.
 }

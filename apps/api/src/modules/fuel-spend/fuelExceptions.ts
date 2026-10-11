@@ -13,7 +13,10 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  FUEL_EXCEPTION_OPEN_STATUSES,
+  QUEUE_EXCEPTION_KINDS,
+  disputeTotals,
+  type DisputeTotals,
+  type DisputeTotalsRow,
   type FuelExceptionKind,
   type FuelExceptionStatus,
 } from "@silvicom/shared";
@@ -108,45 +111,27 @@ export async function exceptionTotals(
   /**
    * ⚠ The SAME scope the list takes, not just a window (FUEL-P3).
    *
-   * These four figures sit directly above the table. Scoping the list to two trucks while the tiles
-   * kept answering for the fleet would put "Identified $41,000" above eleven rows worth $600 — the
-   * disagreement FUEL-T3a spent a migration removing on the Fuel Log, arriving here through a filter.
-   * `status` and `kind` are deliberately NOT taken: identified/claimed/recovered are defined ACROSS the
-   * statuses (claimed is disputed+credited), so narrowing by status would make each tile a different
-   * question rather than a smaller one.
+   * These figures sit directly above the table. Scoping the list to two trucks while the tiles kept
+   * answering for the fleet would put a fleet's claim above eleven rows — the disagreement FUEL-T3a spent
+   * a migration removing on the Fuel Log, arriving here through a filter. `status` and `kind` are
+   * deliberately NOT taken: the tiles are defined ACROSS the statuses, so narrowing by one would make each
+   * tile a different question rather than a smaller one.
    */
   window: { from?: string | null; to?: string | null; unitNumbers?: string[] | null; assignedTo?: string | null } = {},
-): Promise<Record<string, unknown>> {
-  let q = admin.from("fuel_exceptions").select("status, amount_kind, amount, credited_amount").eq("org_id", orgId);
+): Promise<DisputeTotals> {
+  // The queue's money kinds only (9b, Q-F2): the buying habits are a report on Fuel Costs now.
+  let q = admin
+    .from("fuel_exceptions")
+    .select("status, amount_kind, amount, credited_amount")
+    .eq("org_id", orgId)
+    .in("kind", [...QUEUE_EXCEPTION_KINDS]);
   if (window.from) q = q.gte("occurred_on", window.from);
   if (window.to) q = q.lte("occurred_on", window.to);
   if (window.unitNumbers) q = q.in("unit_number", window.unitNumbers);
   if (window.assignedTo) q = q.eq("assigned_to", window.assignedTo);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-
-  const rows = (data ?? []) as Array<{ status: string; amount_kind: string; amount: string | number; credited_amount: string | number | null }>;
-  const byKind: Record<string, { identified: number; lines: number }> = {};
-  let identified = 0, claimed = 0, recovered = 0, openLines = 0;
-  for (const r of rows) {
-    const amt = Number(r.amount) || 0;
-    identified += amt;
-    byKind[r.amount_kind] ??= { identified: 0, lines: 0 };
-    byKind[r.amount_kind]!.identified += amt;
-    byKind[r.amount_kind]!.lines += 1;
-    if (r.status === "disputed" || r.status === "credited") claimed += amt;
-    if (r.status === "credited") recovered += Number(r.credited_amount ?? 0) || 0;
-    if ((FUEL_EXCEPTION_OPEN_STATUSES as readonly string[]).includes(r.status)) openLines += 1;
-  }
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  return {
-    identified: r2(identified),
-    claimed: r2(claimed),
-    recovered: r2(recovered),
-    lines: rows.length,
-    openLines,
-    byKind: Object.fromEntries(Object.entries(byKind).map(([k, v]) => [k, { ...v, identified: r2(v.identified) }])),
-  };
+  return disputeTotals((data ?? []) as DisputeTotalsRow[]);
 }
 
 export interface LifecycleMove {

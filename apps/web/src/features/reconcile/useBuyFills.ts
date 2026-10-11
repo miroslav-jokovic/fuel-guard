@@ -28,6 +28,38 @@ import { supabase } from "@/lib/supabase";
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v));
 
+/** PostgREST's response cap. `fuel_spend_lines` pages at the same size for the same reason (`useSpendLines`). */
+export const BUY_FILLS_PAGE = 1000;
+
+/**
+ * Every row of `fuel_buy_fills`, page by page.
+ *
+ * ── WHY THIS PAGES (design verdict 2026-10-03, F5) ────────────────────────────────────────────────
+ * The hook made ONE call, and the hosted PostgREST returns at most 1,000 rows however many the function
+ * has. Measured on production for the 90-day default window as a signed-in admin: **6,484 rows**, so the
+ * page analysed the first 1,000 — and the function orders by `vehicle_id, fueled_at`, so that was every fill of
+ * the first ~15% of trucks and none of the rest. The headline read "867 fills in sequence" and a floor of
+ * $4,462 for a fleet whose real figure was several times that, with no sign anything was missing. Paging by
+ * `range` is safe because the function's ORDER BY is a total order for one vehicle's fills (a vehicle never
+ * fuels twice in the same instant) and each page re-runs a 190 ms query.
+ *
+ * Throws on a failed page rather than returning the pages so far: a sequence cut short is the defect, and
+ * the page already knows how to say "couldn't load" (`isError`).
+ */
+export async function readAllBuyFillRows(
+  page: (start: number, end: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let start = 0; ; start += BUY_FILLS_PAGE) {
+    const { data, error } = await page(start, start + BUY_FILLS_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as Record<string, unknown>[];
+    out.push(...batch);
+    if (batch.length < BUY_FILLS_PAGE) break;
+  }
+  return out;
+}
+
 export function useBuyFillsQuery(window: Ref<{ from: string; to: string }>) {
   return useQuery({
     queryKey: ["fuel_buy_fills", window],
@@ -37,13 +69,11 @@ export function useBuyFillsQuery(window: Ref<{ from: string; to: string }>) {
       // `p_org` is deliberately omitted: `fuel_buy_fills` is `security invoker` with
       // `coalesce(p_org, auth_org_id())`, so a browser is scoped by its own JWT (D-FC1). Naming an
       // org here would be no more powerful and would put a tenant id in a query string.
-      const { data, error } = await supabase.rpc("fuel_buy_fills", {
-        p_from: window.value.from,
-        p_to: window.value.to,
-      });
-      if (error) throw new Error(error.message);
+      const rows = await readAllBuyFillRows((start, end) =>
+        supabase.rpc("fuel_buy_fills", { p_from: window.value.from, p_to: window.value.to }).range(start, end),
+      );
 
-      return ((data ?? []) as Record<string, unknown>[]).map((r) => {
+      return rows.map((r) => {
         // `VehicleView`'s shape, with only the fields `resolveCapacity` reads populated: it takes the
         // whole view because it lives beside the rules that need the rest, and the optional capacity
         // columns are `number | undefined` there rather than nullable.

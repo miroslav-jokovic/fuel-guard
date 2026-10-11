@@ -7,6 +7,8 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { resolveIdleCostBasis } from "../idleCostBasis.js";
 import { readIdleEquipment } from "../idleEquipment.js";
 import { readIdleEngineAvoidable } from "../idleEngineAvoidable.js";
+import { readIdleBurnRates } from "../idleBurnRates.js";
+import { readIdleEngineParity } from "../idleEngineParity.js";
 
 /** A year, like the fuel report: each park row is small, but the bound keeps a URL from asking for all time. */
 const MAX_AVOIDABLE_DAYS = 366;
@@ -77,6 +79,28 @@ export function idleRouter(): Router {
       }
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ ok: true, data: await readIdleEngineAvoidable(admin, req.auth!.orgId!, from, to) });
+    }),
+  );
+
+  // IE4, D-IE5: what an idling engine burns, learned per declared equipment × ambient band over the
+  // last 60 days, beside the configured rate every idle dollar still uses. Same door; nothing writes.
+  router.get(
+    "/engine/burn-rates",
+    requireSection("safety", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await readIdleBurnRates(admin, req.auth!.orgId!) });
+    }),
+  );
+
+  // IE5, D-IE9: does the idle engine agree with the trucks' own computers on enough final truck-days to
+  // replace today's idle figures? Read-only; the switch itself is a later merge (§4 Q-IE16).
+  router.get(
+    "/engine/parity",
+    requireSection("safety", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ ok: true, data: await readIdleEngineParity(admin, req.auth!.orgId!) });
     }),
   );
 

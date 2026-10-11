@@ -1,9 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { defineComponent, h } from "vue";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { computed, defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { useSpendFilters } from "./useSpendFilters";
-import { defaultWindow } from "@silvicom/shared";
+import { addDays, defaultWindow, todayInZone } from "@silvicom/shared";
+
+// "Today" is the carrier's day (D-PREC6). The zone is mocked; the clock is the real one unless a test moves it.
+const ZONE = "America/Chicago";
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+const carrierToday = () => todayInZone(new Date(), ZONE);
+afterEach(() => vi.useRealTimers());
 
 /**
  * The regression these exist for shipped to production and looked like a broken control rather than a
@@ -79,7 +85,7 @@ describe("useSpendFilters", () => {
 
   it("falls back to the default window only when the URL really carries no dates", async () => {
     const { f } = await mountFilters();
-    const d = defaultWindow(new Date().toISOString().slice(0, 10));
+    const d = defaultWindow(carrierToday());
     expect(f.range.value).toEqual(d);
     expect(f.active.value).toBe(false);
   });
@@ -112,7 +118,7 @@ describe("useSpendFilters", () => {
     const { f } = await mountFilters("/fuel-spend?from=2031-01-01&to=not-a-date");
 
     expect(f.range.value.from <= f.range.value.to).toBe(true);
-    expect(f.range.value.to <= new Date().toISOString().slice(0, 10)).toBe(true);
+    expect(f.range.value.to <= carrierToday()).toBe(true);
     // and it SAYS it corrected something, rather than quietly showing a different period
     expect(f.windowNotice.value).toBeTruthy();
   });
@@ -121,7 +127,7 @@ describe("useSpendFilters", () => {
 
   it("does not light up Clear for a link that merely pins the default window", async () => {
     // Pressing Clear here used to leave the screen identical, which reads as a broken button.
-    const d = defaultWindow(new Date().toISOString().slice(0, 10));
+    const d = defaultWindow(carrierToday());
     const { f } = await mountFilters();
     f.setWindow(d.from, d.to);
     await settle();
@@ -161,5 +167,27 @@ describe("useSpendFilters", () => {
     const q = new URLSearchParams(f.asQuery.value);
     expect(q.get("from")).toBe("2026-08-01");
     expect(q.get("to")).toBe("2026-08-20");
+  });
+
+  it("ends the default window on the carrier's today, not UTC's, after 19:00 Central", async () => {
+    // 20:30 CDT on 10/03 is already 10/04 in UTC. The window must end on 10/03 — a day that has begun.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T01:30:00Z"));
+    const { f } = await mountFilters();
+    expect(f.range.value).toEqual({ from: "2026-07-06", to: "2026-10-03" });
+    expect(f.active.value).toBe(false);
+    // …and a link ending on the UTC day is a future day here: clamped, and said so.
+    f.setWindow("2026-09-01", "2026-10-04");
+    await settle();
+    expect(f.range.value.to).toBe("2026-10-03");
+  });
+
+  it("lights up Clear when only the window's end moved off the default", async () => {
+    const d = defaultWindow(carrierToday());
+    const { f } = await mountFilters();
+    f.setWindow(d.from, addDays(d.to, -1));
+    await settle();
+    expect(f.range.value.from).toBe(d.from);
+    expect(f.active.value).toBe(true);
   });
 });

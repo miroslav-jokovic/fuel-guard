@@ -5,7 +5,7 @@ import { registerNetworkRoutes } from "../modules/posted-prices/index.js";
 import { registerStatementRoutes } from "../modules/fuel-spend/index.js";
 import { registerDiscountRuleRoutes, registerFuelExportRoutes } from "../modules/fuel/index.js";
 import { registerSpendRoutes, registerReportRoutes } from "../modules/fuel-spend/index.js";
-import { registerExceptionRoutes } from "../modules/fuel-spend/index.js";
+import { registerExceptionRoutes, registerOpportunityRoutes } from "../modules/fuel-spend/index.js";
 import { registerFeedFreshnessRoutes, registerEfsExportRoutes } from "../modules/efs/index.js";
 
 /**
@@ -35,6 +35,8 @@ export function fuelingRouter(): Router {
   // FS1 — the Fuel Costs report: one range and the previous one, summed per day by network (0405).
   registerReportRoutes(router);
   registerExceptionRoutes(router);
+  // FS-STRIP — the open findings per kind under the Fuel Costs cards; its own file, `exceptions.ts` is full.
+  registerOpportunityRoutes(router);
   // A7 / FUEL-T5 — when each EFS feed last delivered. Mounted here rather than on the admin-only
   // integration router because its readers are the ones looking at Transactions and Rejections.
   registerFeedFreshnessRoutes(router);

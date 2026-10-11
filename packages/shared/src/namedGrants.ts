@@ -67,6 +67,11 @@ export const ADMIN_ONLY_CAPABILITIES = [
     why: "Overwrites the odometer EFS holds for a unit, using the EFS login; a wrong baseline can strand a truck at the pump.",
   },
   {
+    key: "fleetpal.connection",
+    label: "FleetPal connection",
+    why: "Stores the carrier's FleetPal API key, which carries the role of the FleetPal user who issued it, and switches the hourly repair-record sweep on or off.",
+  },
+  {
     key: "posted-prices.networks",
     label: "Fuel-network price feeds",
     why: "Rewrites the station registry and posted prices every organisation's fuel planning reads, not only this one's.",

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import FuelCostDaysTable from "./FuelCostDaysTable.vue";
-import type { CostDayRow } from "./fuelCostView";
+import type { CostDayRow } from "@silvicom/shared";
 
 /** The report's one table: paging, the MPG column only for a truck question, and a withheld MPG explained. */
 const row = (day: string, o: Partial<CostDayRow> = {}): CostDayRow => ({
@@ -39,8 +39,8 @@ describe("FuelCostDaysTable", () => {
   });
 
   it("has the MPG column only for a truck question", () => {
-    expect(mountTable(days(2)).text()).toContain("MPG (7 days)");
-    expect(mountTable(days(2), false).text()).not.toContain("MPG (7 days)");
+    expect(mountTable(days(2)).text()).toContain("MPG — previous 7 days");
+    expect(mountTable(days(2), false).text()).not.toContain("MPG — previous 7 days");
   });
 
   it("explains a withheld MPG on hover rather than leaving a bare dash", () => {

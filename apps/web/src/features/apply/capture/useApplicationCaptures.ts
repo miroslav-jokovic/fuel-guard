@@ -14,7 +14,7 @@ import { injectLocalCopy, type LocalCopySpec } from "../deviceCopies";
 import { dropKeptPhoto, keepPhoto, readKeptPhoto, serverIsNewer } from "./photoLocal";
 import { captureContentType, stageCapture, DEFAULT_CAPTURE_IO, type CaptureIo } from "./stageCapture";
 import { createWebFileProvider, type PickedPhoto, type WebCaptureProvider } from "./webFileProvider";
-import { pickImageFile, pickPhotoFromCamera } from "./webImageIo";
+import { pickImageFile, pickPhotoFromCamera, uploadAccept } from "./webImageIo";
 
 /**
  * One photograph per slot, from the driver's own phone (A8, D-APP10).
@@ -148,7 +148,7 @@ export function useApplicationCaptures(
           picked = got?.file ?? null;
           return got;
         }
-        return (picked = await (source === "file" ? pickImageFile("image/*") : pickPhotoFromCamera(facing)));
+        return (picked = await (source === "file" ? pickImageFile(target ? uploadAccept(target) : "image/*") : pickPhotoFromCamera(facing)));
       },
     });
   const io: CaptureIo = { ...DEFAULT_CAPTURE_IO, ...(options.io ?? {}) };

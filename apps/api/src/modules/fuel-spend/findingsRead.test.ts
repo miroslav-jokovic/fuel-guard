@@ -20,12 +20,14 @@ const EXCEPTIONS = [
   { id: "e-1", kind: "off_network_premium", status: "open", occurred_on: "2026-09-04", amount: "120.50", credited_amount: null, unit_number: "701", assigned_to: null, first_seen_at: "2026-09-04T00:00:00Z" },
 ];
 
-const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[] } = {}) =>
+const seed = (o: { anomalies?: unknown[]; exceptions?: unknown[]; vehicles?: unknown[]; incidents?: unknown[]; epoch?: string | null; tz?: string } = {}) =>
   createSupabaseRecorder({
     tables: {
       anomalies: o.anomalies ?? ANOMALIES,
       fuel_exceptions: o.exceptions ?? EXCEPTIONS,
       vehicles: o.vehicles ?? [{ id: V1, unit_number: "701" }],
+      card_fraud_incidents: o.incidents ?? [],
+      organizations: [{ detection_epoch: o.epoch ?? null, operating_hours: o.tz ? { tz: o.tz } : null }],
     },
   });
 
@@ -133,5 +135,126 @@ describe("paging a queue merged in memory", () => {
     const rec = seed({ exceptions: many(500, "e") });
     const page = await readFindings(rec.client, ORG, "admin");
     expect(page.truncated).toBe(true);
+  });
+});
+
+/**
+ * Card-fraud incidents in the queue (chunk 8c1). Section fuel by Q-F11 (a); the start date (D-CF9) keeps
+ * the history CF2 records as the nightly sweep re-scores old fills out of today's queue.
+ */
+describe("card-fraud incidents", () => {
+  const EPOCH = "2026-10-08T15:28:02Z";
+  const INCIDENT = {
+    id: "i-1", status: "open", disposition: null, card_ref: "7083050000000107967", opened_at: "2026-10-09T08:00:00Z",
+    attempt_count: 2, fuel_taken: false, places: [{ city: "Jacksonville", state: "FL" }], assigned_to: null, vehicle_id: V1,
+  };
+
+  it("are in the queue for a fuel role, newest first with the rest, and org-scoped", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin");
+    expect(page.rows.map((r) => r.id)).toEqual(["i-1", "e-1", "a-1"]);
+    expect(page.rows[0]).toMatchObject({ source: "incident", section: "fuel", summary: "Card ••••7967 tried 2 times in Jacksonville, FL" });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("are seen by the accountant, who holds fuel and not safety", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "accountant");
+    expect(page.rows.map((r) => r.source).sort()).toEqual(["exception", "incident"]);
+  });
+
+  it("are never read for a role without fuel", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    await readFindings(rec.client, ORG, "technician");
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  it("are read on their own when the kind filter names only them", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["card_fraud"] });
+    expect(page.rows.map((r) => r.id)).toEqual(["i-1"]);
+    expect(rec.forTable("anomalies")).toHaveLength(0);
+    expect(rec.forTable("fuel_exceptions")).toHaveLength(0);
+  });
+
+  it("are left out when the kind filter names other kinds only", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["contract_variance"] });
+    expect(page.rows.map((r) => r.id)).toEqual(["e-1"]);
+    expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+
+  // Chunk 9b (Q-F2): the buying habits left the queue, so naming one in a filter is not a way back in.
+  it("never lists a buying habit, even when the filter names one", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { kinds: ["off_network_premium"] });
+    expect(page.rows).toEqual([]);
+    expect(rec.forTable("fuel_exceptions")).toHaveLength(0);
+    await readFindings(rec.client, ORG, "admin", {});
+    const kinds = rec.forTable("fuel_exceptions")[0]!.filters().find((f) => f.col === "kind")!.val as string[];
+    expect(kinds.filter((k) => k.endsWith("_premium"))).toEqual([]);
+    expect(kinds).toContain("contract_variance");
+  });
+
+  it("are asked only from the start date on, unless someone is investigating them", async () => {
+    const rec = seed({ incidents: [INCIDENT], epoch: EPOCH });
+    await readFindings(rec.client, ORG, "admin");
+    const ors = rec.forTable("card_fraud_incidents")[0]!.ops.filter((o) => o.method === "or").map((o) => o.args[0]);
+    expect(ors).toEqual(["opened_at.gte.2026-10-08T15:28:02.000Z,status.eq.investigating"]);
+  });
+
+  it("apply the same rule to fill cases, on the fill's time", async () => {
+    const rec = seed({ epoch: EPOCH });
+    await readFindings(rec.client, ORG, "admin");
+    const ors = rec.forTable("anomalies")[0]!.ops.filter((o) => o.method === "or").map((o) => o.args[0]);
+    expect(ors).toEqual(["fueled_at.gte.2026-10-08T15:28:02.000Z,status.eq.investigating"]);
+  });
+
+  it("are not filtered by a start date an org never set", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    await readFindings(rec.client, ORG, "admin");
+    expect(rec.forTable("card_fraud_incidents")[0]!.ops.some((o) => o.method === "or")).toBe(false);
+  });
+
+  it("follow the truck filter through the card's truck", async () => {
+    const rec = seed({ incidents: [INCIDENT] });
+    const page = await readFindings(rec.client, ORG, "admin", { vehicleIds: [V1] });
+    const f = rec.forTable("card_fraud_incidents")[0]!.filters().find((x) => x.col === "vehicle_id");
+    expect(f?.val).toEqual([V1]);
+    expect(page.rows.find((r) => r.id === "i-1")?.unitNumber).toBe("701");
+  });
+});
+
+/**
+ * Chunk 10 (Q-F13): the two sources dated by an instant are filtered on the carrier's day. Until then the
+ * window ended at the end of the UTC day, so a case opened after 19:00 Central was on the Dashboard and
+ * missing from this page, and it began at UTC midnight, five hours before the carrier's day did.
+ */
+describe("the date window on the carrier's day", () => {
+  const bounds = (rec: ReturnType<typeof seed>, table: string, col: string) =>
+    rec.forTable(table)[0]!.ops
+      .filter((o) => ["gte", "lt", "lte"].includes(o.method) && o.args[0] === col)
+      .map((o) => [o.method, o.args[1]]);
+
+  it("starts at the carrier's midnight and stops before the next one, for fill cases and incidents", async () => {
+    const rec = seed();
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    // Chicago is on CDT (UTC−5) in October.
+    const want = [["gte", "2026-10-01T05:00:00.000Z"], ["lt", "2026-10-09T05:00:00.000Z"]];
+    expect(bounds(rec, "anomalies", "fueled_at")).toEqual(want);
+    expect(bounds(rec, "card_fraud_incidents", "opened_at")).toEqual(want);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("follows the carrier's own zone, not a fixed one", async () => {
+    const rec = seed({ tz: "America/Denver" });
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    expect(bounds(rec, "anomalies", "fueled_at")).toEqual([["gte", "2026-10-01T06:00:00.000Z"], ["lt", "2026-10-09T06:00:00.000Z"]]);
+  });
+
+  it("leaves the ledger's dates as dates", async () => {
+    const rec = seed();
+    await readFindings(rec.client, ORG, "admin", { from: "2026-10-01", to: "2026-10-08" });
+    expect(bounds(rec, "fuel_exceptions", "occurred_on")).toEqual([["gte", "2026-10-01"], ["lte", "2026-10-08"]]);
   });
 });

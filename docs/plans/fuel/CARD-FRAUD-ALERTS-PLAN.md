@@ -140,7 +140,7 @@ email_enabled, sms_phone, sms_verified_at, sms_enabled), with RLS enabled and wr
 
 **CF5 — approved-fill rules become notes (D-CF3, D-CF4).** Weight changes in `catalog.yaml`
 (`pnpm gen:rules`; `RULESET_HASH` changes, and a `SCORING_VERSION` bump re-scores history under it).
-- **Odometer rule** to the Q-CF2 threshold.
+- **Odometer rule** to the Q-CF2 threshold. Moved to CF6 (F02 plan, Q-F10 ruling, 2026-10-08).
 - **Old fill alerts stop.** Email (`notifyForTransaction`) and `fuel_alert` notifications stop for
   everything but `tank_fill_short` reviews.
 - **The Detection metrics page** keeps measuring precision, now over incidents and the one review rule.
@@ -237,3 +237,12 @@ almost never be flagged. Measured over 3,716 OBD-checked fills in 60 days:
 
 - 2026-10-02 — Plan written from production measurements in §1. Nothing built.
 - 2026-10-02 — Owner ruled Q-CF1 (a) retire, Q-CF2 flat 100 mi, Q-CF3 owner asks Telnyx, Q-CF4 `manage("settings")`.
+- 2026-10-07 — CF2 part 1 (F02-F04 PLAN.md chunk 5a): the pure fold `packages/shared/src/cardFraud.ts`,
+  pinned against the 13 §1 declines (7 incidents) and the four proximity rows (none). Rebuilt from
+  main; #1216 is not merged. Table (5b) and scorers (5c) follow as their own PRs.
+- 2026-10-07 — CF2 part 2 (chunk 5b): migration 0438, the incident tables and their one writer, with
+  the matrix replaying the 13 §1 declines through the real fold. The scorers (5c) follow.
+- 2026-10-07 — CF2 part 3 (chunk 5c): the decline and fill scorers record incidents
+  (`apps/api/src/modules/anomalies/cardFraudIncidents.ts`). Records only; CF4 delivers. History is
+  recorded, with no cutoff (the epoch is CF0's); a fill qualifies on Samsara's "away" verdict alone
+  (5 fills in 180 days). CF2 is complete once this merges.

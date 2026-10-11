@@ -13,7 +13,9 @@ import { testEnv } from "../../testing/testEnv.js";
 const ORG = "org1";
 
 const notifyCalls: Array<Record<string, unknown>> = [];
-vi.mock("../messaging/index.js", () => ({
+// notify() is faked; keysAlreadySent() is the REAL one, so the ledger RPC below is what it reads.
+vi.mock("../messaging/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../messaging/index.js")>()),
   notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
     notifyCalls.push(input);
     return "evt";
@@ -32,7 +34,22 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const plus = (days: number): string =>
   new Date(Date.parse(`${TODAY}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
-function makeRecorder(sentDedupeKeys: string[] = []) {
+/** A sent key, and when it was first sent (default: an hour ago). */
+type Sent = string | { key: string; at: string };
+
+/**
+ * The ledger as `notification_keys_sent` answers it (0432): of the keys asked about, those sent —
+ * and, with `p_since`, only those first sent on or after it. Filters are APPLIED here, unlike the
+ * recorder's tables, because "which keys did you ask about" is the behaviour under test.
+ */
+const ledgerRpc = (sent: Sent[]) => (fn: string, args: unknown) => {
+  if (fn !== "notification_keys_sent") return fn === "org_module_enabled" ? false : null;
+  const { p_keys, p_since } = args as { p_keys: string[]; p_since: string | null };
+  const rows = sent.map((s) => (typeof s === "string" ? { key: s, at: new Date(Date.now() - 3_600_000).toISOString() } : s));
+  return rows.filter((r) => p_keys.includes(r.key) && (p_since === null || r.at >= p_since)).map((r) => r.key);
+};
+
+function makeRecorder(sentDedupeKeys: Sent[] = []) {
   return createSupabaseRecorder({
     tables: {
       drivers: [{ id: "d1", full_name: "Marcus Reyes", status: "active", cdl_number: "D1" }],
@@ -44,7 +61,6 @@ function makeRecorder(sentDedupeKeys: string[] = []) {
       ],
       qualification_records: [],
       documents: [],
-      notification_events: sentDedupeKeys.map((k) => ({ dedupe_key: k })),
       // The recorder returns fixtures verbatim (filters are RECORDED, not applied) — the office-only
       // narrowing is asserted below against the query's `.in("role", …)` ops instead.
       memberships: [
@@ -53,7 +69,7 @@ function makeRecorder(sentDedupeKeys: string[] = []) {
       ],
       organizations: { data: [{ notifications_enabled: true, notification_emails: ["office@x.com"] }] },
     },
-    rpc: { org_module_enabled: false },
+    rpc: ledgerRpc(sentDedupeKeys),
   });
 }
 
@@ -108,15 +124,59 @@ describe("runDqAlertsOnce (C3)", () => {
         ],
         qualification_records: [],
         documents: [],
-        notification_events: [],
         memberships: [{ user_id: "u-admin", role: "admin" }],
         organizations: { data: [{ notifications_enabled: false, notification_emails: ["office@x.com"] }] },
       },
-      rpc: { org_module_enabled: false },
+      rpc: ledgerRpc([]),
     });
     const n = await runDqAlertsOnce(rec.client, env, ORG);
     expect(n).toBe(1);
     expect(notifyCalls).toHaveLength(1);
+    expect(emails).toHaveLength(0);
+  });
+
+  it("asks the ledger only about today's candidates, never reads the inbox", async () => {
+    const rec = makeRecorder();
+    await runDqAlertsOnce(rec.client, env, ORG);
+    const asked = rec.rpcs().filter((r) => r.fn === "notification_keys_sent");
+    expect(asked.length).toBeGreaterThan(0);
+    for (const a of asked) expect((a.args as { p_org: string }).p_org).toBe(ORG);
+    const keys = asked.flatMap((a) => (a.args as { p_keys: string[] }).p_keys);
+    expect(keys).toContain(`dq:d1:medical_card:${plus(60)}:60`);
+    expect(rec.forTable("notification_events")).toHaveLength(0);
+  });
+
+  it("an old-format key sent this cycle still silences its alert — the format change re-alerts nothing", async () => {
+    const rec = makeRecorder(["dq:d1:medical_card:60"]);
+    const n = await runDqAlertsOnce(rec.client, env, ORG);
+    expect(n).toBe(1); // only the overdue CDL
+    expect(notifyCalls.some((c) => String(c.dedupeKey).includes("medical_card"))).toBe(false);
+  });
+
+  it("an old-format key from a previous cycle no longer silences the renewal", async () => {
+    const lastYear = new Date(Date.now() - 300 * 86_400_000).toISOString();
+    const rec = makeRecorder([{ key: "dq:d1:medical_card:60", at: lastYear }]);
+    const n = await runDqAlertsOnce(rec.client, env, ORG);
+    expect(n).toBe(2);
+    expect(notifyCalls.some((c) => c.dedupeKey === `dq:d1:medical_card:${plus(60)}:60`)).toBe(true);
+  });
+
+  it("a ledger read failure stops the run instead of re-sending everything", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        drivers: [{ id: "d1", full_name: "Marcus Reyes", status: "active", cdl_number: "D1" }],
+        certifications: [
+          { subject_id: "d1", kind: "cdl", qualifier: null, training_type: null, issued_at: null, expires_at: plus(-3), document_id: null },
+        ],
+        qualification_records: [],
+        documents: [],
+        memberships: [{ user_id: "u-admin", role: "admin" }],
+        organizations: { data: [{ notifications_enabled: true, notification_emails: ["office@x.com"] }] },
+      },
+      rpc: (fn) => (fn === "notification_keys_sent" ? { error: { message: "boom" } } : false),
+    });
+    await expect(runDqAlertsOnce(rec.client, env, ORG)).rejects.toThrow(/notification_keys_sent/);
+    expect(notifyCalls).toHaveLength(0);
     expect(emails).toHaveLength(0);
   });
 });

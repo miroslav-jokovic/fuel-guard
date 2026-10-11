@@ -7,13 +7,15 @@ import type { NotificationCategory, NotificationSeverity } from "./notifications
  * threshold-crossings deserve a notification TODAY given what was already sent.
  *
  * The dedupe design carries the whole correctness burden:
- *   - A dated item emits once per crossed threshold, ever: the key is
- *     `dq:{driverId}:{itemKey}:{threshold}`, and only the SMALLEST crossed threshold emits — an
- *     item first seen at 10 days out sends ONE alert (the 14 key), not five.
+ *   - A dated item emits once per crossed threshold PER EXPIRY DATE: the key is
+ *     `dq:{driverId}:{itemKey}:{goodUntil}:{threshold}`, and only the SMALLEST crossed threshold
+ *     emits — an item first seen at 10 days out sends ONE alert (the 14 key), not five. The date is
+ *     in the key since 2026-10-05: before it, a renewed medical card kept last cycle's keys and was
+ *     never alerted on again (found by the Q11 audit, DATA-LIFECYCLE-PLAN.md).
  *   - An overdue item re-emits weekly, not daily: the key carries the ISO week bucket, so six
  *     scheduler runs in a week produce one emission and a restart produces none.
- *   - `alreadySentKeys` comes from the notification_events ledger — the planner never trusts
- *     in-memory state, so the scheduler is stateless and a crash loses nothing.
+ *   - `alreadySentKeys` comes from the dedupe ledger (0432) — the planner never trusts in-memory
+ *     state, so the scheduler is stateless and a crash loses nothing.
  *
  * MISSING items deliberately do not alert (dq_missing stays a vocabulary for manual/inbox use):
  * a fleet mid-onboarding has sixteen missing items per driver, and a channel that opens with
@@ -22,6 +24,14 @@ import type { NotificationCategory, NotificationSeverity } from "./notifications
  */
 
 export const DQ_ALERT_THRESHOLDS = [90, 60, 30, 14, 0] as const;
+
+/**
+ * How far back an old-format key still speaks for the current cycle. A threshold key is sent no
+ * earlier than 90 days before its expiry, and a dated item is planned only while today is on or
+ * before that expiry — so every key of the CURRENT cycle was first sent within the last 90 days.
+ * One more day absorbs the scheduler's six-hour cadence crossing midnight.
+ */
+export const DQ_LEGACY_KEY_DAYS = 91;
 
 export interface DqAlert {
   driverId: string;
@@ -34,6 +44,13 @@ export interface DqAlert {
   category: Extract<NotificationCategory, "dq_expiring" | "dq_expired">;
   severity: NotificationSeverity;
   dedupeKey: string;
+  /**
+   * The pre-2026-10-05 key for the same crossing, without the expiry date. TRANSITION ONLY: it counts
+   * as sent when first sent within `DQ_LEGACY_KEY_DAYS`, so the format change does not re-alert
+   * every item already announced this cycle. Nothing writes this format any more, so once the
+   * window has passed (after 2027-01-05) no legacy key can match and this field can be deleted.
+   */
+  legacyDedupeKey?: string;
   /** One line, office-facing: "Marcus Reyes — Medical examiner's certificate expires in 14 days". */
   title: string;
 }
@@ -78,8 +95,9 @@ export function planDqAlerts(
 
       const threshold = [...DQ_ALERT_THRESHOLDS].reverse().find((t) => a.daysRemaining! <= t);
       if (threshold === undefined) continue; // beyond 90 days — not yet news
-      const key = `dq:${d.driver_id}:${a.key}:${threshold}`;
-      if (alreadySentKeys.has(key)) continue;
+      const key = `dq:${d.driver_id}:${a.key}:${a.goodUntil ?? "undated"}:${threshold}`;
+      const legacyKey = `dq:${d.driver_id}:${a.key}:${threshold}`;
+      if (alreadySentKeys.has(key) || alreadySentKeys.has(legacyKey)) continue;
       out.push({
         driverId: d.driver_id,
         driverName: d.driver_name,
@@ -91,6 +109,7 @@ export function planDqAlerts(
         category: "dq_expiring",
         severity: threshold <= 14 ? "warning" : "info",
         dedupeKey: key,
+        legacyDedupeKey: legacyKey,
         title:
           a.daysRemaining === 0
             ? `${d.driver_name} — ${a.label} expires today`

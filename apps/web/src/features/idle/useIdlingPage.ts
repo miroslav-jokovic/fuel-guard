@@ -6,6 +6,7 @@ import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useIdleConfidence } from "./useIdleConfidence";
+import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
@@ -15,6 +16,7 @@ import {
   EQUIPMENT_SOURCE_LABELS,
   formatDisplayDate,
   formatDisplayDayShort,
+  IDLE_DEFAULT_WINDOW_DAYS,
   type ApuType,
   type BehavesLike,
 } from "@silvicom/shared";
@@ -41,7 +43,7 @@ const rangeDays = computed(() => {
     const d = (Date.parse(`${dateTo.value}T23:59:59`) - Date.parse(`${dateFrom.value}T00:00:00`)) / 86_400_000;
     return Math.max(1, Math.round(d));
   }
-  return 30;
+  return IDLE_DEFAULT_WINDOW_DAYS;
 });
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 // Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
@@ -53,30 +55,36 @@ const rangeLabel = computed(() => {
   if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;
   if (f) return `since ${fmtDay(f)}`;
   if (t) return `through ${fmtDay(t)}`;
-  return "last 30 days";
+  return `last ${IDLE_DEFAULT_WINDOW_DAYS} days`;
 });
 
 // Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.
 const costBasis = useIdleCostBasis();
 const priceSource = computed(() => costBasis.value.priceSource);
 const fuelPricePerGal = computed(() => costBasis.value.fuelPricePerGal);
-const priceNote = computed(() => {
-  const p = usd2(costBasis.value.fuelPricePerGal) + "/gal";
-  return costBasis.value.priceSource === "truck_stops"
-    ? `${p} · live truck-stop prices`
-    : costBasis.value.priceSource === "settings"
-      ? `${p} · from idle settings`
-      : `${p} · default estimate`;
-});
 
 // Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
 const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter, costBasis);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
+/** What each total covers, how it was priced, and how far the data reaches — beside it (`idleEstimateLines`). */
+const estimate = computed(() => {
+  const f = fleet.value;
+  if (!f) return null;
+  return {
+    scope: idleScopeLine(f),
+    avoidableCoverage: avoidableCoverageLine(f),
+    avoidablePricing: idlePricingLine(f.avoidablePricing, costBasis.value),
+    reducibleCoverage: reducibleCoverageLine(f),
+    reduciblePricing: idlePricingLine(f.reduciblePricing, costBasis.value),
+  };
+});
 // The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
 // breakdown reads — no separate raw-table scan, no silent-failure path.
-const { data: caps } = useIdleCapabilities();
+// The Truck capability tab's own read: its loading and failure belong to its table, or a pending or failed
+// read says "No trucks match" (design verdict, E8).
+const { data: caps, isLoading: capLoading, isError: capIsError, error: capError, isFetching: capFetching, refetch: capRefetch } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -116,12 +124,16 @@ const sourceLabel = (s: string | null) =>
   s ? (EQUIPMENT_SOURCE_LABELS as Record<string, string>)[s] ?? s : "Not entered";
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "trucks" | "drivers" | "capability";
-const activeTab = ref<TabKey>("trucks");
+// In `AppTabs`' shape: it owns the roles, the roving tabindex and the arrow keys the hand-rolled strip never
+// had (design verdict, E8). `AppTabs` emits a plain string, so the key is one. A count shows once its read has
+// answered: a pending or failed read is not zero trucks.
+const activeTab = ref("trucks");
+/** Which reads have answered — the result counts above each table wait on the same thing. */
+const answered = computed(() => ({ trucks: breakdown.value != null, drivers: driverRows.value != null, capability: caps.value != null }));
 const tabs = computed(() => [
-  { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
-  { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
-  { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
+  { value: "trucks", label: "Trucks", badge: breakdown.value?.trucks.length },
+  { value: "drivers", label: "Drivers", badge: driverRows.value?.length },
+  { value: "capability", label: "Truck capability", badge: caps.value?.length },
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
@@ -166,22 +178,41 @@ function clearTrk() {
   trkConfidentOnly.value = false;
 }
 watch(trkFiltered, () => (trkPage.value = 1));
+/**
+ * The Trucks table leads with money: truck, the two costs and their hours, how much of the running was idle,
+ * and whether the data can be trusted — seven columns, so the costs are on screen at a desktop width
+ * (design verdict 2026-10-03, E3: thirteen columns put them ninth and eleventh, off the right edge). The time
+ * split behind them (engine, driving, idle, off-duty and on-duty idle) and the learned capability open under
+ * each truck (`trkExpanded`), where the reader asking "why this figure" goes, instead of competing with it.
+ * Rows arrive largest avoidable cost first (`computeIdleBreakdown`), which is the ranking this order serves.
+ */
 const trkColumns: DataTableColumn[] = [
   { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true },
-  { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "restIdleH", label: "Rest idle (SB/OFF)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   // Reported for EVERY truck, including the ones with no equipment (where avoidable is a correct zero).
-  // This is the column that stops the page reading as empty for most of the fleet.
-  { key: "reducibleH", label: "Reducible with equipment (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "reducibleUsd", label: "Reducible cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "capability", label: "Idle capability" },
-  { key: "coveragePct", label: "Data confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  // This is the pair that stops the page reading as empty for most of the fleet. Worded as the card above
+  // names it: "Reducible cost" said the same thing in a second word.
+  { key: "reducibleUsd", label: "Needs an APU, cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reducibleH", label: "Needs an APU, hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "coveragePct", label: "Data completeness", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+];
+const trkExpanded = ref(new Set<string>());
+function toggleTrk(row: TruckBreakdown) {
+  const next = new Set(trkExpanded.value);
+  if (next.has(row.vehicleId)) next.delete(row.vehicleId);
+  else next.add(row.vehicleId);
+  trkExpanded.value = next;
+}
+/** What opens under a truck: where its running time went. `null` (no duty split) prints as a dash. */
+const hours = (h: number | null) => (h == null ? "—" : `${h.toLocaleString()} h`);
+const trkDetail = (t: TruckBreakdown) => [
+  { label: "Engine hours", value: hours(t.engineOnH) },
+  { label: "Driving", value: hours(t.driveH) },
+  { label: "Idling", value: hours(t.idleH) },
+  { label: "Idling while off duty or sleeping", value: hours(t.restIdleH) },
+  { label: "Idling on duty", value: hours(t.workIdleH) },
 ];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
@@ -240,7 +271,7 @@ const drvColumns: DataTableColumn[] = [
   { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableUsd", label: "Estimated avoidable fuel cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
 // ── tab: truck idle capability ───────────────────────────────────────────────
@@ -280,15 +311,16 @@ const capColumns: DataTableColumn[] = [
     isLoading, isError, error, isFetching, refetch,
     breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
     trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
-    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
+    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
-    tabs, activeTab, showInfo, showConfidence,
+    tabs, answered, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
-    priceSource, fuelPricePerGal, priceNote,
+    priceSource, fuelPricePerGal, estimate,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+    capLoading, capIsError, capError, capFetching, capRefetch,
   };
 }

@@ -7,14 +7,13 @@ import {
   type IdleClassification,
   dayRangeInstants,
   todayInZone,
-  shiftDay,
+  idleWindow,
 } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import type { IdleDateFilter } from "./useIdleScores";
 
 const PAGE = 1000;
-const WINDOW_DAYS = 30;
 
 interface RawLongIdleRow {
   started_at: string;
@@ -33,7 +32,7 @@ interface RawLongIdleRow {
 }
 
 /**
- * The longest AVOIDABLE idle events over the last WINDOW_DAYS — the single biggest coaching wins. Joins each
+ * The longest AVOIDABLE idle events over the last IDLE_DEFAULT_WINDOW_DAYS — the single biggest coaching wins. Joins each
  * discretionary idle to the truck's learned capability so we can flag the ones where an APU / optimized idle was
  * available (the driver could have shut the main engine off). RLS-scoped, read-only; sorting lives in the shared
  * pure helper.
@@ -50,8 +49,7 @@ export function useLongIdles(filters: Ref<IdleDateFilter>) {
     queryKey: ["long_idles", filters, zone],
     queryFn: async (): Promise<LongIdleRow[]> => {
       const f = toValue(filters);
-      const toDay = f.to ?? todayInZone(new Date(), zone.value);
-      const fromDay = f.from ?? shiftDay(toDay, -WINDOW_DAYS);
+      const { from: fromDay, to: toDay } = idleWindow(f, todayInZone(new Date(), zone.value));
       const { start: from, endExclusive } = dayRangeInstants(fromDay, toDay, zone.value);
       const rows: LongIdleInput[] = [];
       for (let offset = 0; ; offset += PAGE) {

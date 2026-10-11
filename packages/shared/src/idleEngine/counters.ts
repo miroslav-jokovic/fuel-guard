@@ -15,6 +15,25 @@
 
 import type { Seg } from "./timeline.js";
 
+/**
+ * How fast a counter can rise per second of engine RUNNING, plus the slack its reading steps allow.
+ * Only `obdEngineSeconds` has one: an engine-seconds counter cannot count more seconds than the engine
+ * ran. Measured 2026-10-03 (FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md §7): on 774, 808, 786 and 805 it rose
+ * across long engine-OFF spans while the fuel counter stood still — 774 by 34,380 s over ten hours the
+ * engine states call off, with 219 s of running and one 500 mL fuel step. It counts something besides
+ * the running engine there (ignition time is the likely one), and spreading that along 219 s of running
+ * put 15,062 engine seconds into one hour. A pair of readings that rises past the bound says nothing
+ * about how the rise divides, so an instant inside it is unknown — never squeezed into the running
+ * minutes. Fuel has no bound: its rate is the thing being measured.
+ */
+export interface CounterRate {
+  perRunningSec: number;
+  slack: number;
+}
+
+/** `obdEngineSeconds`: one second per running second; each reading may trail by one 180 s step, so two. */
+export const ENGINE_SECONDS_RATE: CounterRate = { perRunningSec: 1, slack: 360 };
+
 export interface CounterReading {
   t: number;
   value: number;
@@ -48,6 +67,7 @@ export function counterAt(
   readings: CounterReading[],
   engine: Seg<boolean | null>[],
   t: number,
+  rate?: CounterRate,
 ): number | null {
   let before: CounterReading | undefined;
   let after: CounterReading | undefined;
@@ -64,6 +84,7 @@ export function counterAt(
       // unknown somewhere in between — then the share of the burn is unknowable.
       return knownOff(engine, before.t, after.t) || after.value === before.value ? before.value : null;
     }
+    if (rate && after.value - before.value > (run / 1000) * rate.perRunningSec + rate.slack) return null;
     return before.value + ((after.value - before.value) * runningMs(engine, before.t, t)) / run;
   }
   if (before && knownOff(engine, before.t, t)) return before.value;
@@ -81,10 +102,11 @@ export function counterDelta(
   engine: Seg<boolean | null>[],
   a: number,
   b: number,
+  rate?: CounterRate,
 ): number | null {
   if (knownOff(engine, a, b)) return 0;
-  const x = counterAt(readings, engine, a);
-  const y = counterAt(readings, engine, b);
+  const x = counterAt(readings, engine, a, rate);
+  const y = counterAt(readings, engine, b, rate);
   if (x == null || y == null || y < x) return null;
   return Math.round(y - x);
 }

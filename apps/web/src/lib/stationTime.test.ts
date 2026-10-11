@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stationTime, stationDateTime, stationDate } from "./stationTime";
+import { stationTime, stationDateTime, stationDate, efsDateTime, efsTime, stationClockNote } from "./stationTime";
 
 // A fill imported as 15:25 local at a Texas (Central) station in summer → stored 20:25Z (CDT, −5).
 // The display must reproduce the STATION-local 15:25, not the UTC 20:25 or the viewer's browser time.
@@ -31,5 +31,30 @@ describe("stationDateTime / stationDate", () => {
   it("stationDate renders the station-local calendar date", () => {
     // 00:30Z is still the prior evening in Central — the date must not roll forward.
     expect(stationDate("2026-06-30T00:30:00.000Z", "TX")).toBe("6/29/2026");
+  });
+});
+
+// Chunk 10b (Q-F5): EFS prints every line on its Central clock, so the Fuel Log does too.
+describe("efsDateTime / efsTime — EFS's Central clock", () => {
+  it("dates a Nevada fill at 22:12 PDT on 09-30 on 10-01, 00:12 CT", () => {
+    expect(efsDateTime("2026-10-01T05:12:00Z")).toBe("Oct 1, 2026, 00:12 CT");
+    expect(efsTime("2026-10-01T05:12:00Z")).toBe("00:12");
+  });
+
+  it("shows a date-only row's date and no time or zone", () => {
+    expect(efsDateTime("2026-06-29T12:00:00.000Z")).toBe("Jun 29, 2026");
+    expect(efsTime("2026-06-29T12:00:00.000Z")).toBe("—");
+  });
+});
+
+describe("stationClockNote — the station's own clock, for the hover", () => {
+  it("names the station's date, time and zone when it differs from Central", () => {
+    expect(stationClockNote("2026-10-01T05:12:00Z", "NV")).toBe("At the station: Sep 30, 2026, 22:12 PDT");
+  });
+
+  it("adds nothing for a Central station, an unknown state or a date-only row", () => {
+    expect(stationClockNote("2026-10-01T05:12:00Z", "TX")).toBeNull();
+    expect(stationClockNote("2026-10-01T05:12:00Z", "ZZ")).toBeNull();
+    expect(stationClockNote("2026-06-29T12:00:00.000Z", "NV")).toBeNull();
   });
 });

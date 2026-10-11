@@ -2,15 +2,25 @@ name: Production smoke test
 
 # Phase 9 deploy verification. Requires repository variable API_URL, for example:
 # https://fleetguardweb-production.up.railway.app
+#
+# Since the release train (RELEASE-TRAIN-PLAN R5): release.yml calls this after verifying production.
+# The workflow_run chain off "Verify deployment" stops once RELEASE_TRAIN is `on` — a push to main then
+# deploys staging, not production, and smoke-testing an unchanged production would prove nothing.
 on:
   workflow_dispatch: {}
   workflow_run:
     workflows: ["Verify deployment"]
     types: [completed]
+  workflow_call:
+    inputs:
+      from_release:
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ inputs.from_release || github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && vars.RELEASE_TRAIN != 'on') }}
     # Same machine switch as ci.yml (CI_RUNNER; its header says why).
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15

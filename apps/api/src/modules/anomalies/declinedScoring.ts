@@ -16,6 +16,7 @@ import type { Env } from "../../env.js";
 import { reconcileWithSamsara } from "../samsara/index.js";
 import { syncCardAssignments, lookupCardAssignment } from "../fuel/index.js";
 import { resolveDeclineDrivers } from "../fuel/index.js";
+import { declineFraudAttempt, recordCardFraud } from "./cardFraudIncidents.js";
 
 const WINDOW_H = 3; // hours around a decline for repeat / approval-elsewhere checks
 
@@ -344,6 +345,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
     .eq("id", declineId)
     .eq("org_id", orgId);
   await writeTruckPosition(admin, orgId, declineId, truckPosition);
+  await recordCardFraud(admin, orgId, declineFraudAttempt(d, samsaraLocationMatched, corrective != null, reason.category, truckPosition));
 }
 
 /**

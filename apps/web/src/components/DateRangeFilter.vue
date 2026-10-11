@@ -45,9 +45,16 @@ const model = computed<string[] | null>({
   },
 });
 
+/**
+ * `n` calendar days ENDING today — today and the `n - 1` before it. Both ends are picked, so this is
+ * the repo's own rule (`windowDays` counts inclusively; `defaultWindow` starts at `today - (N - 1)`):
+ * subtracting `n` made "Last 7 days" eight dates, 30 → 31, 90 → 91 (verdict 03, evidence E8). Stepped by
+ * calendar date rather than by `n * 86400_000` ms, which lands an hour off across a daylight-saving change.
+ */
 const lastDays = (n: number): [Date, Date] => {
   const end = new Date();
-  const start = new Date(end.getTime() - n * 86400_000);
+  const start = new Date(end);
+  start.setDate(end.getDate() - (n - 1));
   return [start, end];
 };
 /**

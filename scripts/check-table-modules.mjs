@@ -67,13 +67,6 @@ const GRANDFATHERED_WRITERS = new Set([
   "fuel_transactions <- apps/api/src/modules/efs/services/efsIngestShared.ts",
   "fuel_transactions <- apps/api/src/modules/efs/services/efsSync.ts",
   "fuel_transactions <- apps/api/src/modules/org/routes/audit.ts",
-  // The fuel log creates a fill straight from the browser. Pre-existing debt, not new: the owner of
-  // `fuel_transactions` is the API `fuel` MODULE, so no folder inside `apps/web` satisfies it and
-  // routing this through an endpoint is its own step. Repointed when the read half of `useFuelLog`
-  // was promoted to `@/composables/` (the dashboard needed the reads without a cross-feature import).
-  // Moving the write back under `features/fuel/` does NOT discharge the entry — I assumed it would,
-  // and the gate corrected me.
-  "fuel_transactions <- apps/web/src/features/fuel/useCreateFillUp.ts",
   "geocode_cache <- apps/api/src/modules/posted-prices/pilotPriceIngest.ts",
   "geocode_cache <- apps/api/src/modules/posted-prices/roadRangerIngest.ts",
   // fuel_stations: collector->core direct writes, same posture as mcleod's load ingest today.
@@ -96,7 +89,13 @@ const GRANDFATHERED_WRITERS = new Set([
   "org_integrations <- apps/api/src/modules/mcleod/tmsIngest.ts",
   "org_modules <- apps/admin-api/src/lib/orgs.ts",
   "platform_admins <- apps/admin-api/src/lib/platformAdmins.ts",
+  // Added 2026-10-05 (0427), not inherited: the same platform-plane writer as its neighbours, so it
+  // follows their open carve-out decision rather than pre-empting it with a module of its own.
+  "platform_alert_recipients <- apps/admin-api/src/lib/alertRecipients.ts",
   "platform_audit_log <- apps/admin-api/src/lib/audit.ts",
+  // Added 2026-10-08 (0440, D-REL14), not inherited: same platform-plane writer and the same open
+  // carve-out decision as platform_alert_recipients above.
+  "platform_release_approvals <- apps/admin-api/src/lib/releaseApproval.ts",
   "qualification_records <- apps/api/src/modules/psp/pspImport.ts",
   "qualification_records <- apps/api/src/modules/psp/pspOrder.ts",
   "route_fuel_settings <- apps/api/src/modules/posted-prices/routes/networks.ts",

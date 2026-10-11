@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { isFuelSweepDue, runDueFuelSweeps } from "./fuelSpendRollupScheduler.js";
 import { createSupabaseRecorder, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 import { testEnv } from "../../testing/testEnv.js";
+import { runFuelContractScan } from "./fuelContractScan.js";
 
 /**
  * WHY THIS SUITE EXISTS. The sweep was `setInterval(run, 24h)` with no boot run, in a service that
@@ -19,6 +20,9 @@ vi.mock("./fuelSpendRollup.js", () => ({
   buildFuelSpendRollup: vi.fn().mockResolvedValue({ written: 0, deleted: 0, rejectedIntervals: 0, unattributedFills: 0, defUnmatched: 0 }),
 }));
 vi.mock("./fuelPolicyScan.js", () => ({ runFuelPolicyScanForWindow: vi.fn().mockResolvedValue([]) }));
+vi.mock("./fuelContractScan.js", () => ({
+  runFuelContractScan: vi.fn().mockResolvedValue({ from: "", to: "", filed: 0, inserted: 0, refreshed: 0, closed: 0, error: null }),
+}));
 vi.mock("../fuel/index.js", () => ({
   resolveFuelTransactionStations: vi.fn().mockResolvedValue({ resolved: 0, scanned: 0, topUnmatched: [] }),
 }));
@@ -156,6 +160,21 @@ describe("the ledger around each sweep", () => {
     expect(opened).toMatchObject({ org_id: "org-due", kind: "fuel_spend_rollup", status: "running" });
     expect(closed).toMatchObject({ status: "done" });
     expect(closed!.stats).toMatchObject({ written: 0, deleted: 0, scansFailed: 0 });
+  });
+
+  it("runs the contract scan on the sweep's window, and counts its failure in the job row", async () => {
+    vi.mocked(runFuelContractScan).mockResolvedValueOnce({
+      from: "", to: "", filed: 0, inserted: 0, refreshed: 0, closed: 0, error: "sync refused",
+    });
+    const rec = createSupabaseRecorder({ tables: { organizations: [org], jobs: jobsFixture } });
+
+    await runDueFuelSweeps(rec.client, env, NOW);
+
+    const call = vi.mocked(runFuelContractScan).mock.calls.at(-1)!;
+    expect(call[1]).toBe("org-due");
+    expect(call[2] < call[3]).toBe(true); // a real from..to window, not empty strings
+    const closed = rec.writtenRows("jobs")[1]!;
+    expect(closed.stats).toMatchObject({ scansFailed: 1 });
   });
 
   // The row that did not exist during the outage. Without the error text on it, `/jobs/failed` and

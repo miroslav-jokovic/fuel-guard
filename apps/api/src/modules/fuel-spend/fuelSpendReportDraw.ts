@@ -95,14 +95,26 @@ export function letterhead(
   metaStrip(doc, meta);
 }
 
-/** The labelled scope fields, in a wash strip the eye reads as one object. */
+/**
+ * The labelled scope fields, in a wash strip the eye reads as one object.
+ *
+ * The strip grows by the extra lines its longest value wraps to. It was a fixed 34pt, which held while every
+ * value was a date range or a truck count; the Fuel Costs document (FS-PDF) puts every station filter on its
+ * letterhead, and five states, three locations and three networks wrapped to four lines that ran out of the
+ * strip and into the verdict band beneath it (seen rasterised 2026-10-03; no text assertion can see it). A
+ * one-line strip measures exactly as before, so every older document keeps its geometry.
+ */
 export function metaStrip(doc: PDFKit.PDFDocument, meta: readonly MetaField[]): void {
   if (meta.length === 0) return;
-  const height = 34;
+  const w = CONTENT_W / meta.length;
+  // Set the value's font BEFORE measuring: `heightOfString` measures in whatever font is in force.
+  doc.font("Helvetica-Bold").fontSize(T.small);
+  const oneLine = doc.heightOfString("X", { width: w - 20 });
+  const tallest = Math.max(...meta.map((f) => doc.heightOfString(winAnsi(f.value), { width: w - 20 })));
+  const height = 34 + Math.max(0, tallest - oneLine);
   const top = doc.y;
   doc.save().roundedRect(M, top, CONTENT_W, height, GEOM.radius).fillColor(C.wash).fill().restore();
 
-  const w = CONTENT_W / meta.length;
   withoutAutoBreak(doc, () => meta.forEach((f, i) => {
     const x = M + i * w;
     if (i > 0) {
@@ -111,7 +123,7 @@ export function metaStrip(doc: PDFKit.PDFDocument, meta: readonly MetaField[]): 
     }
     label(doc, f.label, x + 11, top + 8, w - 20, C.inkSubtle);
     doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(T.small)
-      .text(winAnsi(f.value), x + 11, top + 18, { width: w - 20, lineBreak: false });
+      .text(winAnsi(f.value), x + 11, top + 18, { width: w - 20 });
   }));
 
   doc.x = M;

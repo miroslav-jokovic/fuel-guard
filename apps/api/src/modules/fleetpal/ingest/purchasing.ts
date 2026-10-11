@@ -1,7 +1,11 @@
 import {
   fleetpalPoInvoiceSchema,
+  fleetpalPoItemSchema,
+  fleetpalPoPaymentSchema,
   fleetpalPurchaseOrderSchema,
   type FleetpalPoInvoice,
+  type FleetpalPoItem,
+  type FleetpalPoPayment,
   type FleetpalPurchaseOrder,
 } from "@silvicom/shared";
 import type { ResourceIngest } from "./types.js";
@@ -100,6 +104,64 @@ export const poInvoicesIngest: ResourceIngest<FleetpalPoInvoice> = {
     amount: row.amount,
     payable_to_fleetpal_id: row.payable_to,
     payment_term_fleetpal_id: row.payment_term,
+    vendor_created_at: row.created,
+    vendor_updated_at: row.updated,
+  }),
+};
+
+/**
+ * How each invoice was paid (MAINTENANCE-MONEY-CONTROL-PLAN.md C1, migration 0424).
+ *
+ * The money control's strongest key: `number` is the company check or EFS check number, which
+ * reaches McLeod's `check_number` and EFS's own check records. Mapped byte-exact (D-MMC2) — `""`
+ * stays `""` (615 of 2,840 on 2026-10-04), `009326` keeps its zeros, and the two absurd amounts
+ * the live account holds are staged as sent for the control to flag (D-MMC5).
+ */
+export const poPaymentsIngest: ResourceIngest<FleetpalPoPayment> = {
+  resource: "purchase-order-payments",
+  path: "/v1/purchase-order-payments/",
+  rpc: "stage_fleetpal_po_payments",
+  schema: fleetpalPoPaymentSchema,
+  updatedOf: (row) => row.updated,
+  map: (row) => ({
+    fleetpal_id: row.id,
+    purchase_order_fleetpal_id: row.purchase_order,
+    payment_number: row.number,
+    paid_on: row.date,
+    amount: row.amount,
+    method: row.method,
+    payable_to_fleetpal_id: row.payable_to,
+    // An array, not one id: 43 payments settle none and some settle two (M-9).
+    invoice_fleetpal_ids: row.invoices,
+    notes: row.notes,
+    vendor_created_at: row.created,
+    vendor_updated_at: row.updated,
+  }),
+};
+
+/** What each purchase order bought — part, fee or tax lines (C1, migration 0424). */
+export const poItemsIngest: ResourceIngest<FleetpalPoItem> = {
+  resource: "purchase-order-items",
+  path: "/v1/purchase-order-items/",
+  rpc: "stage_fleetpal_po_items",
+  schema: fleetpalPoItemSchema,
+  updatedOf: (row) => row.updated,
+  map: (row) => ({
+    fleetpal_id: row.id,
+    purchase_order_fleetpal_id: row.purchase_order,
+    item_type: row.type,
+    description: row.description,
+    part_fleetpal_id: row.part,
+    part_number: row.part_number,
+    universal_product_code: row.universal_product_code,
+    manufacturer_fleetpal_id: row.manufacturer,
+    manufacturer_part_number: row.manufacturer_part_number,
+    // A vmrs-components ID (FLEETPAL F9c), never a code.
+    component_fleetpal_id: row.component,
+    unit_of_measure: row.unit_of_measure,
+    quantity: row.quantity,
+    price: row.price,
+    total: row.total,
     vendor_created_at: row.created,
     vendor_updated_at: row.updated,
   }),

@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
-import { computed, ref, type Ref } from "vue";
-import { NO_FUEL_TARGETS, type FuelPolicy, type SpendLine } from "@silvicom/shared";
+import { computed, ref, toValue, type MaybeRefOrGetter, type Ref } from "vue";
+// The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+import { NO_FUEL_TARGETS, policyGallonCells, type ContractTotals, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 
 /**
  * Buy discipline, mounted — Fuel Spend's second tab, its own page since FS2 (Q-FSV12). These are the
@@ -32,25 +34,70 @@ const BUY_FILLS = [
     state: "AZ", gallons: 100, netAmount: 100 * 5.2, milesSinceLast: 350, baselineMpg: 7,
     levelBeforePct: 50, tankCapacityGal: 240,
   },
+  // A second truck on a different leg (CA → NM), so a Trucks filter has something to exclude.
+  {
+    vehicleId: "v2", unit: "702", fueledAt: "2026-08-17T12:00:00Z", tranDate: "2026-08-17", inWindow: true,
+    state: "CA", gallons: 150, netAmount: 150 * 6.6, milesSinceLast: null, baselineMpg: 7,
+    levelBeforePct: 50, tankCapacityGal: 240,
+  },
+  {
+    vehicleId: "v2", unit: "702", fueledAt: "2026-08-18T12:00:00Z", tranDate: "2026-08-18", inWindow: true,
+    state: "NM", gallons: 100, netAmount: 100 * 5.2, milesSinceLast: 350, baselineMpg: 7,
+    levelBeforePct: 50, tankCapacityGal: 240,
+  },
 ];
 
 const asQuery = <T,>(data: T) => ({ data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null) });
-const seen = { buyWindow: null as Ref<{ from: string; to: string }> | null, lineFilters: null as Ref<{ from: string }> | null };
+/** What the two inputs the targets are graded from report; flipped per test, reset in beforeEach. */
+const inputState = {
+  feed: "ready" as "ready" | "loading" | "error",
+  cells: "ready" as "ready" | "loading" | "error",
+  totals: "ready" as "ready" | "loading" | "error",
+  settings: "ready" as "ready" | "loading" | "error",
+  fills: "ready" as "ready" | "loading" | "error",
+};
+const withState = <T,>(data: T, state: "ready" | "loading" | "error") => ({
+  data: computed(() => (state === "ready" ? data : undefined)), isLoading: ref(state === "loading"), isError: ref(state === "error"), error: ref(null),
+  refetch: vi.fn(),
+});
+const seen = {
+  buyWindow: null as Ref<{ from: string; to: string }> | null,
+  lineFilters: null as Ref<{ from: string }> | null,
+  /** Whether the row feed was switched on, read live: it must stay off until the quote tile is opened. */
+  rowsEnabled: null as (() => boolean) | null,
+  fillsRefetch: null as ReturnType<typeof vi.fn> | null,
+};
+/** The four sums the quote tile reads: 2 measured fills at +$14 net, $820 of $1,260 billed dollars priced. */
+const TOTALS: ContractTotals = {
+  measuredLines: 2, measuredGallons: 160, measuredPaid: 820, measuredExpected: 806, unmeasuredLines: 1, unmeasuredPaid: 440,
+};
 
 vi.mock("@/features/reconcile/useBuyFills", () => ({
   useBuyFillsQuery: (window: Ref<{ from: string; to: string }>) => {
     seen.buyWindow = window;
-    return asQuery(BUY_FILLS);
+    const q = withState(BUY_FILLS, inputState.fills);
+    seen.fillsRefetch = q.refetch;
+    return q;
   },
 }));
 vi.mock("@/features/reconcile/useSpendLines", () => ({
-  useSpendLinesQuery: (filters: Ref<{ from: string }>) => {
+  useSpendLinesQuery: (filters: Ref<{ from: string }>, enabled: MaybeRefOrGetter<boolean> = true) => {
     seen.lineFilters = filters;
-    return asQuery(FEED);
+    seen.rowsEnabled = () => toValue(enabled);
+    return withState(FEED, inputState.feed);
   },
 }));
+vi.mock("@/features/reconcile/useContractTotals", () => ({
+  useContractTotalsQuery: () => withState(TOTALS, inputState.totals),
+}));
+vi.mock("@/features/reconcile/usePolicyGallons", () => ({
+  usePolicyGallonsQuery: () => withState(policyGallonCells(FEED), inputState.cells),
+}));
 const policy = ref<FuelPolicy>({ avoidStates: ["CA"], avoidBrands: ["one9"], preferredBrands: ["pilot", "flying_j"], targets: NO_FUEL_TARGETS });
-vi.mock("@/composables/useRouteFuelSettings", () => ({ useFuelPolicy: () => computed(() => policy.value) }));
+vi.mock("@/composables/useRouteFuelSettings", () => ({
+  useFuelPolicy: () => computed(() => policy.value),
+  useRouteFuelSettings: () => withState({}, inputState.settings),
+}));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => asQuery([{ id: "v1", unit_number: "701" }]) }));
 vi.mock("@/features/reconcile/usePriceCoverage", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/usePriceCoverage")>();
@@ -65,6 +112,12 @@ import FuelBuyDisciplinePage from "./FuelBuyDisciplinePage.vue";
 beforeEach(() => {
   seen.buyWindow = null;
   seen.lineFilters = null;
+  seen.rowsEnabled = null;
+  inputState.feed = "ready";
+  inputState.cells = "ready";
+  inputState.totals = "ready";
+  inputState.settings = "ready";
+  inputState.fills = "ready";
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
     value: (query: string) => ({
@@ -93,14 +146,126 @@ describe("FuelBuyDisciplinePage", () => {
     const t = (await mountPage()).text();
     expect(t).toContain("Fuel carried out of dearer states");
     expect(t).toContain("CA → AZ");
-    expect(t).toContain("fills in sequence");
+    expect(t).toMatch(/\d+ fills in sequence/);
     expect(t).not.toMatch(/NaN|undefined/);
+  });
+
+  it("claims no count of fills while the fill sequence is pending or failed (verdict E8)", async () => {
+    for (const state of ["loading", "error"] as const) {
+      inputState.fills = state;
+      expect((await mountPage()).text(), state).not.toContain("fills in sequence");
+    }
+  });
+
+  it("keeps the targets on screen when only the fill sequence failed, and says which read failed", async () => {
+    inputState.fills = "error";
+    const t = (await mountPage()).text();
+    expect(t).toContain("Couldn't load the fill sequence for this window.");
+    expect(t).toContain("On the preferred network");
+    expect(t).toContain("Paid vs Pilot quote");
+  });
+
+  it("says the fill sequence is loading, not that nothing was carried, while it is pending", async () => {
+    inputState.fills = "loading";
+    const t = (await mountPage()).text();
+    expect(t).toContain("Loading the fill sequence…");
+    expect(t).not.toContain("at least, over this window");
+    expect(t).toContain("On the preferred network");
+  });
+
+  it("reads the fill sequence again from the purchases table's Retry", async () => {
+    inputState.fills = "error";
+    const w = await mountPage();
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(seen.fillsRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("hands both of its reads the page's window, not windows of their own", async () => {
     await mountPage("?from=2026-06-01&to=2026-06-30");
     expect(seen.buyWindow?.value).toEqual({ from: "2026-06-01", to: "2026-06-30" });
     expect(seen.lineFilters?.value).toMatchObject({ from: "2026-06-01" });
+  });
+
+  it("applies the Trucks filter to the fill sequence, not only to the brand cards", async () => {
+    expect((await mountPage()).text()).toContain("CA → NM");
+    const t = (await mountPage("?trucks=v1")).text();
+    expect(t).toContain("CA → AZ");
+    expect(t).not.toContain("CA → NM");
+  });
+
+  it("says the grades are unavailable, not that there was no fuel, when the gallon sums fail or are pending", async () => {
+    const ok = (await mountPage()).text();
+    expect(ok).toContain("On the preferred network");
+    for (const [state, say] of [["error", "nothing is graded here"], ["loading", "Loading the purchases and settings"]] as const) {
+      inputState.cells = state;
+      const t = (await mountPage()).text();
+      expect(t, state).toContain(say);
+      expect(t, state).not.toContain("no tractor fuel in this window");
+      expect(t, state).not.toContain("Against it");
+    }
+  });
+
+  it("says the quote comparison is unavailable, not that no fill matched, when the sums fail or are pending", async () => {
+    expect((await mountPage()).text()).toContain("Paid vs Pilot quote");
+    for (const [state, say] of [["error", "Couldn't load"], ["loading", "Loading the purchases"]] as const) {
+      inputState.totals = state;
+      const t = (await mountPage()).text();
+      expect(t, state).toContain(say);
+      expect(t, state).not.toContain("no fill in this window matched a quote");
+    }
+  });
+
+  it("states the tile from the database's sums: +$14 over contract, 65.1% of the bill priced (Q-FSV18)", async () => {
+    const t = (await mountPage()).text();
+    expect(t).toMatch(/\$14(?![\d,.])/);
+    expect(t).toContain("over contract");
+    expect(t).toContain("65.1% of this window's fuel priced");
+  });
+
+  it("does not download the rows behind the tile until it is opened, and does once it is", async () => {
+    const w = await mountPage();
+    expect(seen.rowsEnabled?.()).toBe(false);
+    const tile = w.findAll("button").find((b) => b.text().includes("Paid vs Pilot quote"))!;
+    await tile.trigger("click");
+    await flushPromises();
+    expect(seen.rowsEnabled?.()).toBe(true);
+    await tile.trigger("click");
+    await flushPromises();
+    expect(seen.rowsEnabled?.()).toBe(false);
+  });
+
+  it("keeps the tile on screen when the row feed is slow or fails, and says so inside the opened fills only", async () => {
+    for (const [state, say] of [["loading", "Loading the fills behind this figure"], ["error", "Couldn't load the fills behind this figure"]] as const) {
+      inputState.feed = state;
+      const w = await mountPage();
+      expect(w.text(), state).toContain("65.1% of this window's fuel priced");
+      expect(w.text(), state).not.toContain(say);
+      await w.findAll("button").find((b) => b.text().includes("Paid vs Pilot quote"))!.trigger("click");
+      await flushPromises();
+      expect(w.text(), state).toContain(say);
+      expect(w.text(), state).toContain("65.1% of this window's fuel priced");
+      expect(w.text(), state).not.toContain("Quoted / gal");
+    }
+  });
+
+  it("does not hold the grades up for the row feed: a slow or failed feed leaves them on screen (Q-FSV16)", async () => {
+    for (const state of ["loading", "error"] as const) {
+      inputState.feed = state;
+      const t = (await mountPage()).text();
+      expect(t, state).toContain("On the preferred network");
+      expect(t, state).not.toContain("nothing is graded here");
+      expect(t, state).not.toContain("no tractor fuel in this window");
+      // 120 + 90 gallons, 120 of them at a preferred brand (pilot) and 90 at one9: 57.1%.
+      expect(t, state).toContain("57.1%");
+    }
+  });
+
+  it("grades nothing when the settings did not arrive, rather than reading defaults as 'no target set'", async () => {
+    inputState.settings = "error";
+    const t = (await mountPage()).text();
+    expect(t).toContain("nothing is graded here");
+    expect(t).not.toContain("no target set");
+    expect(t).not.toContain("No target is set");
   });
 
   it("keeps the fills billed above Pilot's quote behind their tile until asked for", async () => {

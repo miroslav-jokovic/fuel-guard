@@ -7,7 +7,7 @@
  */
 import { computed, type Ref } from "vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
-import { defaultWindow, FUEL_NETWORKS, type FuelNetwork, type FuelReport } from "@silvicom/shared";
+import { FUEL_NETWORKS, type FuelNetwork, type FuelReport } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@/composables/useQueryState";
 import { useSpendFilters } from "./useSpendFilters";
@@ -77,8 +77,8 @@ export function useFuelCostFilters() {
    */
   const active = computed(() => {
     if (stationFiltered.value || base.vehicleIds.value.length > 0) return true;
-    const d = defaultWindow(new Date().toISOString().slice(0, 10));
-    return base.from.value !== d.from || base.to.value !== d.to;
+    // The default window on the carrier's clock, from the one place that knows it (D-PREC6).
+    return !base.isDefaultWindow.value;
   });
 
   const params = computed<FuelReportParams>(() => ({

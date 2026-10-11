@@ -1620,3 +1620,100 @@ out-of-order retry does not overwrite newer state — each proved by a test, and
 
   **Next is F9c** (VMRS descriptions), then **F9d**, then F10. F9d wants Q10 ruled first, and it is
   the only open question in §6.2.
+
+- **2026-10-04 · The connection door — the go-live step had no door to go through.** Production
+  held **zero rows in every `fleetpal_*` table**, thirteen days after F8 merged. The "two owner acts"
+  were `FLEETPAL_SYNC_ENABLED=true` and "the key stored per org through `setApiKey`" — and nothing
+  called `setApiKey`. The key is sealed under the production `SECRETS_ENCRYPTION_KEY`, which exists
+  only inside the api service, so the only other way to store one was copying that key onto a laptop,
+  the posture `credentials.ts` is written against. A missing capability, not an owner delay.
+
+  Built: `/api/integrations/fleetpal/{config,key,enable,disable,sync-now}`
+  (`modules/fleetpal/routes/integration.ts`) behind a new admin-only capability
+  `fleetpal.connection`, and the page `/settings/fleetpal` (surface `admin.settings.fleetpal`).
+  **The key is probed against `/v1/shops/` BEFORE it is sealed** — a refused key is never written
+  (400 `fleetpal_key_refused`), and neither is one FleetPal did not answer about (502). Storing a key
+  and switching the sweep on take a fresh sign-in; switching it off does not. The status read names
+  all three switches — the org's key, the org's sweep, the deploy's flag — because all three were off
+  and no screen said so.
+
+  **And the deploy flag was a trap.** `FLEETPAL_SYNC_ENABLED` was `z.coerce.boolean()`, and
+  `Boolean("false")` is true: setting the kill switch to "false" would have switched the collector
+  ON. Now the `PSP_ORDERS_ENABLED` enum shape. Pinned by "reads "false" as off — coercion read it
+  as on".
+
+  **Go-live, as it now is:** owner sets `FLEETPAL_SYNC_ENABLED=true` on `@fleetguard/api` only, then
+  Settings → FleetPal integration → paste key → Switch sweep on → Sync now. The first sweep should
+  reproduce **"at least 58.2%" for July 2026** (§8, F9b).
+- **2026-10-04 · F9c DONE — and the thing it resolves was never a code.** Every `component` field
+  FleetPal sends (Job, JobItem, ServiceHistory, Defect, Issue, PMSchedule) is the opaque id of a
+  `/v1/vmrs-components` node — the spec says "a `/v1/vmrs-components` id" on each, and the fixtures
+  carry `hovDtcRc`, `SVQX9Nc4`. F9b's `UnitRepair.component` was documented as a CODE and the step
+  text above said "a repair report that cannot say ALTERNATOR must still say 013". We never hold the
+  013. So F9c resolves **id → code + words**, and its degraded answer is `componentLabel: null`, with
+  the page falling back to the shop's own free-text `description` of the repair — printing the id
+  would be worse than printing nothing.
+
+  `modules/fleetpal/vmrs.ts`: one `GET /v1/vmrs-components/{id}/` per distinct id not already held,
+  six at a time, 5 s deadline, no retry; an in-process cache keyed **org + id** (a 404 is "another
+  company's", and companies add their own codes), one hour, 5,000 entries. A 404 is cached as null;
+  an outage is not, so the next page view asks again. The module imports nothing that can write —
+  pinned by "holds no database client — the words have nowhere to be written".
+  `componentLabels.ts` unseals the key on the read path, which is the cost this step was split out
+  to name, and answers every label null for an org with no key or with its sweep off.
+  The `CodeKey33` schema (the vendor generator's name, kept verbatim) joined the field manifest, so
+  `lint:fleetpal-contract` holds `fleetpalVmrsComponentSchema` like the other twenty.
+
+  **Next: F9d**, which wants **Q10** ruled, then F10.
+
+- **2026-10-04 · The first production sweep, and the defect it found.** The owner set
+  `FLEETPAL_SYNC_ENABLED=true` and pasted the key. The first sweep started 14:23Z. Two runs were
+  released by deploys (merges restart the api) and resumed from their watermarks, as designed.
+  Staged by 15:17Z, as rows seen:
+  - vendors 764
+  - work orders 5,400
+  - jobs 13,090
+  - shops 1
+  - service history 13,047
+  - purchase orders 4,056
+
+  **Job items failed: "canceling statement due to statement timeout", 0 staged.** `runIngest`
+  sent a whole walk in ONE `stage_*` call. 13,090 jobs fit; 35,121 job items did not. Because the
+  watermark only moves after success, every hourly sweep would have repeated the same full walk and
+  the same timeout, for ever. Meters (135,631 at F4) were next in line.
+
+  Fixed: `STAGE_BATCH = 1,000` rows per call, stopping at the first refusal, with the watermark
+  moved only after every batch succeeds. A re-run rewrites the written batches identically. Pinned
+  by two tests, both caught when the loop is collapsed back to one call. The other staging calls
+  (shops 1, defects 604, expirations 0, PM schedules) are small; the PM schedule count is read from
+  this sweep's result before that claim stands.
+
+- **2026-10-04 · Defects and expirations never staged: FleetPal 500s on a lowercase boolean.**
+  Production's `fleetpal_sync_state` at 16:29Z, migration 0423: `defects` and `expirations` both
+  read `last_error = "server: FleetPal returned 500"` (15:37Z), `rows_seen` 0, and both tables
+  hold **0 rows**. **The entry above calling defects "small" (604) was wrong:** 604 is F4's count,
+  and nothing has ever staged one. PM schedules did stage: **1,037** rows seen, no error. Issues
+  298, purchase-order invoices 4,095.
+
+  Measured against the live account with read-only `GET`s, same key:
+
+  | Query | Answer |
+  |---|---|
+  | `/v1/defects/?is_resolved=false` / `=true` | **500**, HTML |
+  | `/v1/defects/?is_resolved=False` / `=0` | 200, **46** |
+  | `/v1/defects/?is_resolved=True` / `=1` | 200, **578** |
+  | `/v1/defects/` (no filter) | 200, **624** = 46 + 578 |
+  | `/v1/expirations/?is_completed=false` / `=true` | **500**, HTML |
+  | `/v1/expirations/?is_completed=False` / `=0` | 200, 0 |
+
+  The spec types both parameters as an array of boolean and says nothing about spelling. The
+  collector sent `"false"` at both call sites (`ingest/condition.ts`). `FleetpalClient.walk` run
+  against the live account reproduces the production error with `false` and walks 46 defects with
+  `False`. Fixed: both send `FLEETPAL_FALSE = "False"`. The two F7 tests that assert the URL now
+  expect `False`, and both fail when the constant is put back to `"false"`. `/v1/issues/` takes no
+  `is_resolved` parameter (absent from its spec entry; it answers 298 with or without it), and no
+  other boolean query value is sent anywhere in `modules/fleetpal`.
+
+  Like #1278, this reaches production with the next release, not on merge. The post-release check
+  is the handoff's: every resource has rows and no `last_error`. That includes defects (46 open,
+  plus whatever was detected in the overlap window) and expirations (0 rows, no error).

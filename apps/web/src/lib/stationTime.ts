@@ -1,4 +1,4 @@
-import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@silvicom/shared";
+import { stateTimeZone, isNoonSentinelIso, EFS_CLOCK_TZ, EFS_REJECT_TZ } from "@silvicom/shared";
 
 /**
  * Fueling times must be shown in the STATION's local timezone so they match the printed EFS report. On import,
@@ -9,6 +9,10 @@ import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@silvicom/share
  *
  * When the state has no timezone mapping, import stored the value as naive-UTC (the printed wall time in the
  * UTC slot), so we render in UTC — again reproducing the printed time.
+ *
+ * ⚠ Since chunk 10b (Q-F5) the Fuel Log's "When" is NOT station time: EFS prints the Central day, so the
+ * column reads `efsDateTime` and the station's clock is its hover (`stationClockNote`). The helpers below
+ * stay for the readers that want the station's wall clock itself (the after-hours rule's evidence).
  */
 function tzFor(state: string | null | undefined): string {
   return stateTimeZone(state ?? null) ?? "UTC";
@@ -69,6 +73,73 @@ export function stationDate(iso: string | null | undefined, state: string | null
     return new Date(iso).toISOString().slice(0, 10);
   }
 }
+
+/**
+ * A fill's time on EFS's Central clock, labelled "CT" — the Fuel Log's "When" since chunk 10b (Q-F5).
+ *
+ * The station's clock used to be shown here, which put a Nevada fill at 22:12 on 09-30 on a row the
+ * filter and the totals file under 10-01: 0444 stores `business_date` on EFS's clock, the day EFS prints,
+ * so the date a person reads has to come from that same clock or the two disagree on every evening fill
+ * west of Central. The station's own time is not lost; it is the hover (`stationClockNote`, F-H2).
+ * A date-only row (the noon-UTC sentinel) shows its date and no time, as `stationDateTime` does.
+ */
+export function efsDateTime(iso: string | null | undefined, opts: { short?: boolean } = {}): string {
+  if (!iso) return "—";
+  const dateOnly = isNoonSentinelIso(iso);
+  try {
+    const txt = new Intl.DateTimeFormat("en-US", {
+      timeZone: EFS_CLOCK_TZ,
+      month: "short",
+      day: "numeric",
+      ...(opts.short ? {} : { year: "numeric" }),
+      ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit", hour12: false }),
+    }).format(new Date(iso));
+    return dateOnly ? txt : `${txt} CT`;
+  } catch {
+    return new Date(iso).toISOString().slice(0, dateOnly ? 10 : 16).replace("T", " ");
+  }
+}
+
+/**
+ * Time-of-day "HH:MM" on EFS's Central clock — the clock EFS's own `tran_time` is on (measured
+ * 2026-10-08: 3,080 of 3,080 lines since 09-01 at stations outside Central match it; none match the
+ * station's clock). "—" for a date-only row.
+ */
+export function efsTime(iso: string | null | undefined): string {
+  if (!iso || isNoonSentinelIso(iso)) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: EFS_CLOCK_TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+  } catch {
+    return iso.slice(11, 16);
+  }
+}
+
+/**
+ * The fill's time on the STATION's clock, for the hover beside `efsDateTime` — "At the station: Sep 30,
+ * 2026, 22:12 PDT". Null when there is nothing to add: a station on Central time, a state with no known
+ * zone, or a date-only row.
+ */
+export function stationClockNote(iso: string | null | undefined, state: string | null | undefined): string | null {
+  if (!iso || isNoonSentinelIso(iso)) return null;
+  const tz = stateTimeZone(state ?? null);
+  if (!tz || tz === EFS_CLOCK_TZ) return null;
+  try {
+    const txt = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, month: "short", day: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short",
+    }).format(new Date(iso));
+    return `At the station: ${txt}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The one footnote under every Fuel Log tab (chunk 10b). Each tab used to say which day it meant in its
+ * own words — the station's day for fills, Central for declines, "the EFS business date" for source
+ * records — and since 0444 all three are the same Central day, so they say it once, in one sentence.
+ */
+export const FUEL_LOG_DATES_NOTE = "All dates and times are in Central time (CT), the time EFS uses on its statements.";
 
 /**
  * Decline (reject) timestamps — 2026-08 display-basis fix. EFS prints reject times in CENTRAL TIME

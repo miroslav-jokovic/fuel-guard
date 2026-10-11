@@ -9,6 +9,8 @@ import { efsCardStatusHandler, efsCardSyncHandler } from "./efsCardSync.js";
 import { efsSoapHandler, efsWindowRefetchHandler } from "./efsSoap.js";
 import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
+import { documentReadHandler } from "./documentRead.js";
+import { documentIntakeHandler } from "./documentIntake.js";
 import {
   backfillHandler,
   patternSweepHandler,
@@ -23,6 +25,7 @@ import {
   syncIdleHandler,
   syncIftaHandler,
   syncOdometerHandler,
+  syncDocumentsHandler,
   syncStatsHandler,
   syncTrailersHandler,
   syncVehiclesHandler,
@@ -53,6 +56,8 @@ export function registerAllHandlers(): void {
   registerHandler("efs_card_status", efsCardStatusHandler);
   registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
+  registerHandler("document_read", documentReadHandler);
+  registerHandler("document_intake", documentIntakeHandler);
   registerHandler("rebuild", rebuildHandler);
   registerHandler("backfill", backfillHandler);
   registerHandler("score_import", scoreImportHandler);
@@ -67,6 +72,7 @@ export function registerAllHandlers(): void {
   registerHandler("idle_event_twins", idleEventTwinsHandler);
   registerHandler("sync_ifta", syncIftaHandler);
   registerHandler("sync_odometer", syncOdometerHandler);
+  registerHandler("sync_documents", syncDocumentsHandler);
   registerHandler("sync_hos", syncHosHandler);
   registerHandler("sync_drivers", syncDriversHandler);
   registerHandler("sync_driver_scores", syncDriverScoresHandler);

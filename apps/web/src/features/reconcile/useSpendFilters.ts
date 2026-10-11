@@ -20,16 +20,15 @@
  * like a fleet that bought no fuel.
  */
 import { computed } from "vue";
-import { normalizeWindow, describeFixes, defaultWindow, type SpendGrain } from "@silvicom/shared";
+import { normalizeWindow, describeFixes, defaultWindow, todayInZone, type SpendGrain } from "@silvicom/shared";
 import { useQueryState } from "@/composables/useQueryState";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 /** Kept for existing importers; the span itself is `DEFAULT_WINDOW_DAYS` in `@silvicom/shared`. */
 export const DEFAULT_DAYS = 90;
 
 /** The grain a page opens on, and the one "Clear filters" returns to. */
 export const DEFAULT_GRAIN: SpendGrain = "week";
-
-const todayYmd = (): string => new Date().toISOString().slice(0, 10);
 
 export interface SpendFilters {
   from: string;
@@ -47,6 +46,13 @@ export function useSpendFilters() {
    * buffer was never specific to dates, and the roster needs the same guarantee under D-ROS14.
    */
   const { one, list, set } = useQueryState();
+  /*
+   * "Today" on the CARRIER's clock (D-PREC6), as the idle readers already use. It was the UTC day, so from
+   * 19:00 Central the default window and the future-date clamp ran a day ahead: the 90 days ended on a
+   * day with no fills yet, and Fuel Costs, Buy discipline and their PDFs all read one day short.
+   */
+  const { zone } = useOrgTimezone();
+  const todayYmd = (): string => todayInZone(new Date(), zone.value);
 
   /**
    * The window, normalised. Every other consumer on this page reads THIS and never the raw query, so a
@@ -101,14 +107,18 @@ export function useSpendFilters() {
    * "Clear filters" must not appear to do nothing: arriving via a link that pinned the default 90 days
    * used to light the button up, and pressing it left the screen identical.
    */
+  /** The window is the default one — the one "Clear filters" returns to. Read by `useFuelReport` too. */
+  const isDefaultWindow = computed(() => {
+    const d = defaultWindow(todayYmd());
+    const w = normalized.value.window;
+    return w.from === d.from && w.to === d.to;
+  });
   const active = computed(() => {
     if (vehicleIds.value.length > 0) return true;
     // Grain sits in the same bar behind the same "Clear filters" button, so a reader who changed it
     // and pressed clear expected it to go back. It did not, and the button did not light up either.
     if (grain.value !== DEFAULT_GRAIN) return true;
-    const d = defaultWindow(todayYmd());
-    const w = normalized.value.window;
-    return w.from !== d.from || w.to !== d.to;
+    return !isDefaultWindow.value;
   });
 
   const range = computed(() => ({ from: from.value, to: to.value }));
@@ -123,5 +133,5 @@ export function useSpendFilters() {
     set({ from: undefined, to: undefined, trucks: undefined, grain: undefined });
   }
 
-  return { from, to, setWindow, windowNotice, vehicleIds, grain, tab, range, active, asQuery, reset };
+  return { from, to, setWindow, windowNotice, vehicleIds, grain, tab, range, active, isDefaultWindow, asQuery, reset };
 }

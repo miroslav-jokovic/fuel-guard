@@ -60,7 +60,7 @@ await db.exec(`
   );
   create table storage.objects (
     id uuid primary key default gen_random_uuid(),
-    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+    bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now()
   );
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(name text)
@@ -212,6 +212,11 @@ const INS = `insert into saved_views (user_id, org_id, table_id, name, query) va
 ok(
   "an unknown table_id is refused, so the table cannot fill with rows no surface lists",
   await refused(INS, [ACTOR, ORG, "roster.unicorns", "X", "q=1"]),
+);
+// 0452: the Dispatch board is the second table with views. Its id is admitted; anything else still is not.
+ok(
+  "the dispatch board's views are admitted beside the roster's (0452)",
+  !(await refused(INS, [ACTOR, ORG, "dispatch.board", "Late in my fleet", "queue=late&scope=mine"])),
 );
 ok("a blank name is refused", await refused(INS, [ACTOR, ORG, "roster.drivers", "   ", "q=1"]));
 ok("an over-long query is refused", await refused(INS, [ACTOR, ORG, "roster.drivers", "Long", "x".repeat(2001)]));

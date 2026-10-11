@@ -13,8 +13,9 @@ import { getSupabaseAdmin } from "./supabaseAdmin.js";
  * `/api/version` is the one surface already built to be watched ("a monitor can watch one boolean"),
  * so the job's state is published there and folded into `ok`.
  *
- * ⚠ It is a PULL surface. Nothing here pushes an alert — the repo has no platform alert channel, and
- * that is Q9 in the plan, a blocker for L7. This makes the state readable; it does not make it heard.
+ * It is a PULL surface; the push is outside the API on purpose (Q9, answered 2026-10-05):
+ * `.github/workflows/platform-health.yml` reads this state every 15 minutes and pages Settings →
+ * Alert recipients (0427) on a non-ok state seen twice in a row.
  *
  * `pending` counts as healthy: it is the hour between the migration applying and the first run.
  * `cron.job` carries no creation time, so "scheduled, never fired once" also reads `pending`; that one

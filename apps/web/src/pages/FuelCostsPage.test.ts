@@ -3,7 +3,9 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import { fuelReportTotals, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
+// The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
 /**
@@ -50,6 +52,8 @@ function fixture(params: FuelReportParams): FuelReport {
 
 /** What the page handed the report query — the wiring under test. */
 const seen = { params: null as Ref<FuelReportParams> | null };
+/** The report read's state; a test flips it, `beforeEach` puts it back. */
+const reportState = vi.hoisted(() => ({ value: "ready" as "ready" | "loading" | "error" }));
 vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/useFuelReport")>();
   return {
@@ -57,8 +61,9 @@ vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
     useFuelReportQuery: (params: Ref<FuelReportParams>) => {
       seen.params = params;
       return {
-        data: computed(() => fixture(params.value)), isLoading: ref(false), isError: ref(false),
-        error: ref(null), isFetching: ref(false),
+        data: computed(() => (reportState.value === "ready" ? fixture(params.value) : undefined)),
+        isLoading: ref(reportState.value === "loading"), isError: ref(reportState.value === "error"),
+        error: ref(reportState.value === "error" ? new Error("boom") : null), isFetching: ref(false),
       };
     },
   };
@@ -69,6 +74,17 @@ vi.mock("@/features/reconcile/useSpendFreshness", () => ({
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: computed(() => [{ id: "v1", unit_number: "701" }, { id: "v2", unit_number: "754" }]) }),
 }));
+/** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
+const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+vi.mock("@/features/reconcile/useBuyingHabits", () => ({
+  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(false) }),
+}));
+vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
+  useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
+    strip.params = params;
+    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(false) };
+  },
+}));
 const opensAll = vi.hoisted(() => ({ value: true }));
 vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => opensAll.value }));
 
@@ -76,7 +92,9 @@ import FuelCostsPage from "./FuelCostsPage.vue";
 
 beforeEach(() => {
   seen.params = null;
+  reportState.value = "ready";
   opensAll.value = true;
+  strip.rows = [];
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -123,10 +141,26 @@ describe("FuelCostsPage — one report", () => {
     expect(t).toContain("vs 08/01–08/31");
     expect(t).toContain("Cost per mile");
     expect(t).toContain("92% of this range's tractor fuel");
-    expect(t).toContain("MPG (7 days)");
+    expect(t).toContain("MPG — previous 7 days");
     expect(t).toContain("6.51");
     expect(t).not.toContain(FUEL_REPORT_TRUCK_FIGURES_NOTE);
     expect(t).not.toContain("-$0");
+  });
+
+  it("leads with spend and why it changed, then what to review, then the other figures (design verdict, move 2)", async () => {
+    strip.rows = [{ kind: "contract_variance", label: "Paid above Pilot's quote", count: 3, amount: 61.5, withAmount: 3, oldest: "2026-09-02" }];
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30");
+    const tiles = w.findAllComponents({ name: "StatCard" });
+    expect(tiles[0]!.props()).toMatchObject({ label: "Fuel spend", size: "hero" });
+    expect(tiles.slice(1).every((t) => t.props("size") === "kpi")).toBe(true);
+    // The sentence is the shared one, worked from the same report the cards read.
+    const said = w.get('[data-testid="spend-change"]').text();
+    expect(said).toBe(spendChangeLine(fixture({ from: "2026-09-01", to: "2026-09-30", vehicleIds: [], states: [], siteIds: [], networks: [] })));
+    expect(said).toMatch(/^Fuel spend (rose|fell) .* gallons, at /);
+    const t = w.text();
+    expect(t.indexOf(said)).toBeLessThan(t.indexOf("Open fuel findings"));
+    expect(t.indexOf("Open fuel findings")).toBeLessThan(t.indexOf("The figures behind it"));
+    expect(t.indexOf("The figures behind it")).toBeLessThan(t.indexOf("Avg price / gal"));
   });
 
   it("swaps the truck figures for the sentence under a station-side filter", async () => {
@@ -136,7 +170,7 @@ describe("FuelCostsPage — one report", () => {
       // The card labels, not the page text: the method panel names cost per mile whatever the filter.
       const cards = w.findAllComponents({ name: "StatCard" }).map((c) => c.props("label"));
       expect(cards, q).toEqual(["Fuel spend", "Gallons", "Avg price / gal", "Paid vs Pilot quote", "Out of network"]);
-      expect(w.text(), q).not.toContain("MPG (7 days)");
+      expect(w.text(), q).not.toContain("MPG — previous 7 days");
     }
   });
 });
@@ -201,12 +235,47 @@ describe("FuelCostsPage — every filter reaches the query", () => {
 describe("FuelCostsPage — where the rest went", () => {
   it("links Buy discipline and Pilot invoices where the guard opens them, and names them where it doesn't", async () => {
     const links = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
-      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to"));
+      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).map((to: string | { path: string }) => (typeof to === "string" ? to : to.path));
     expect(links((await mountPage()).w)).toEqual(expect.arrayContaining(["/fuel-buy-discipline", "/fuel-invoices"]));
     opensAll.value = false;
     const denied = (await mountPage()).w;
     expect(links(denied)).not.toContain("/fuel-buy-discipline");
     expect(denied.text()).toContain("Buy discipline");
+  });
+
+  it("opens Buy discipline on the days and trucks being read, and says what it cannot carry", async () => {
+    const buyTo = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((to) => typeof to !== "string" && to.path === "/fuel-buy-discipline");
+    const scoped = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1,v2");
+    expect(buyTo(scoped.w)).toEqual({ path: "/fuel-buy-discipline", query: { from: "2026-09-01", to: "2026-09-30", trucks: "v1,v2" } });
+    expect(scoped.w.text()).not.toContain("it opens on every station");
+    const stationed = await mountPage("?from=2026-09-01&to=2026-09-30&states=TX");
+    expect(buyTo(stationed.w)).toEqual({ path: "/fuel-buy-discipline", query: { from: "2026-09-01", to: "2026-09-30" } });
+    expect(stationed.w.text()).toContain("it opens on every station");
+  });
+
+  it("shows the open findings under the cards for the days and trucks being read", async () => {
+    strip.rows = [{ kind: "contract_variance", label: "Paid above Pilot's quote", count: 3, amount: 61.5, withAmount: 3, oldest: "2026-09-02" }];
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1");
+    expect(strip.params && (strip.params as Ref<unknown>).value).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicleIds: ["v1"] });
+    expect(w.text()).toContain("Open fuel findings");
+    expect(w.text()).toContain("Paid above Pilot's quote");
+    expect(w.text()).toContain("$62");
+    // And the row opens the inbox on those same days and trucks, not on its own defaults.
+    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/fuel-problems");
+    expect(to).toEqual({ path: "/fuel-problems", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
+  });
+
+  it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {
+    const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1&states=TX&sites=s-1&networks=out");
+    const props = w.findAllComponents({ name: "ExportButton" }).map((c) => c.props() as { href: string; scope: string });
+    const pdf = props.find((p) => p.href.includes("/api/fueling/report.pdf"));
+    expect(pdf, "no export points at the Fuel Costs document").toBeTruthy();
+    const q = new URLSearchParams(pdf!.href.split("?")[1]);
+    expect(Object.fromEntries(q)).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicles: "v1", states: "TX", sites: "s-1", networks: "out" });
+    expect(pdf!.scope).toContain("filtered stations");
+    // And not the older weekly document, which ignored three of those five filters.
+    expect(props.some((p) => p.href.includes("spend-report.pdf"))).toBe(false);
   });
 
   it("keeps the freshness line and the PDF export", async () => {
@@ -218,5 +287,16 @@ describe("FuelCostsPage — where the rest went", () => {
   it("says so when it corrected the window in a link it was sent", async () => {
     const t = (await mountPage("?from=2026-09-30&to=2026-09-01")).w.text();
     expect(t).toMatch(/round|order|swap|corrected|adjust/i);
+  });
+
+  it("claims no count of days while the report is pending or failed (verdict E8)", async () => {
+    // The count is its own element; the page's text runs together ("Network0 days"), so match the element.
+    const dayCount = (w: { findAll: (s: string) => { text: () => string }[] }) =>
+      w.findAll("span").map((e) => e.text().trim()).filter((t) => /^\d+ days?$/.test(t));
+    expect(dayCount((await mountPage()).w)).toHaveLength(1);
+    for (const state of ["loading", "error"] as const) {
+      reportState.value = state;
+      expect(dayCount((await mountPage()).w), state).toEqual([]);
+    }
   });
 });

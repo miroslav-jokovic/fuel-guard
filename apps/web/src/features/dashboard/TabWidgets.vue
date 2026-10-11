@@ -39,7 +39,7 @@
  * and a visibly different page.
  */
 import { computed, nextTick, onMounted, ref } from "vue";
-import { canReachSurface, resolveDashboardLayout, widgetsForTab, type DashboardWidget } from "@silvicom/shared";
+import { canReachSurface, layoutNamesNothingHere, resolveDashboardLayout, widgetsForTab, type DashboardWidget } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useModulesQuery } from "@/composables/useModules";
 import { useDashboardLayout } from "@/composables/useDashboardLayout";
@@ -104,6 +104,21 @@ const drawable = computed(() => widgets.value.filter((w) => WIDGET_COMPONENTS[w.
  * never reach a tab whose gate they fail.
  */
 const emptyByChoice = computed(() => drawable.value.length === 0 && allowed.value.length > 0);
+
+/** The stored row names nothing on this tab any more — the default is showing (Q-FO4 (b)). */
+const staleLayout = computed(() => layout.value != null && layoutNamesNothingHere(allowed.value, layout.value));
+
+/**
+ * Column count → grid classes. `md` collapses per D-DT5 (≤ 6 → half, > 6 → full); `lg` is the
+ * catalogue's own count. Keys are the counts the catalogue uses; an unlisted count renders full.
+ */
+const SPAN_CLASS: Record<number, string> = {
+  3: "md:col-span-6 lg:col-span-3",
+  4: "md:col-span-6 lg:col-span-4",
+  5: "md:col-span-12 lg:col-span-5",
+  6: "md:col-span-6 lg:col-span-6",
+  12: "md:col-span-12 lg:col-span-12",
+};
 
 /**
  * …and NOTHING they could draw, which is a different sentence and must not offer a Customize button.
@@ -200,12 +215,27 @@ const workspaceWidget = computed(() =>
       </BaseButton>
     </div>
 
-    <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <!--
+      Q-FO4 (b): a row saved against cards that no longer exist renders the default, and says so
+      once, here, rather than pretending the arrangement carried over. Pinned in
+      `tabWidgetsLayout.test.ts` by
+      "says once that a saved arrangement from before the catalogue changed is not being used".
+    -->
+    <p v-else-if="staleLayout" class="text-xs text-ink-tertiary" data-test="stale-layout-note">
+      Your saved arrangement referred to cards that no longer exist, so the default is shown. Customize to set a new one.
+    </p>
+    <div v-if="!nothingAvailable && !emptyByChoice" class="grid grid-cols-1 gap-6 md:grid-cols-12">
+      <!--
+        Twelve columns, and a card's `span` is how many it takes (Q-FO3). D-DT5: a narrower screen
+        collapses SPANS, never restyles a widget — so below `lg` anything narrower than half the
+        row becomes half, and anything wider becomes the whole row; below `md` everything stacks.
+        A static class per count, because Tailwind cannot see a class built at runtime.
+      -->
       <div
         v-for="w in drawable"
         :key="w.key"
         :data-test="`widget-${w.key}`"
-        :class="w.span === 'full' ? 'lg:col-span-2' : ''"
+        :class="SPAN_CLASS[typeof w.span === 'number' ? w.span : 12]"
       >
         <component
           :is="WIDGET_COMPONENTS[w.key]"

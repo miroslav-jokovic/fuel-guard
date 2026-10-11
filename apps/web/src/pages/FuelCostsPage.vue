@@ -11,11 +11,15 @@ import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import ReportExportButton from "@/features/reconcile/ReportExportButton.vue";
 import FuelCostDaysTable from "@/features/reconcile/FuelCostDaysTable.vue";
-import { useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
+import FuelOpportunitiesStrip from "@/features/reconcile/FuelOpportunitiesStrip.vue";
+import { useFuelOpportunitiesQuery } from "@/features/reconcile/useFuelOpportunities";
+import BuyingHabitsTable from "@/features/reconcile/BuyingHabitsTable.vue";
+import { useBuyingHabitsQuery } from "@/features/reconcile/useBuyingHabits";
+import { fuelReportQuery, useFuelCostFilters, useFuelReportQuery } from "@/features/reconcile/useFuelReport";
 import { useSpendFreshnessQuery } from "@/features/reconcile/useSpendFreshness";
 import {
-  brandList, costCards, costDayRows, networkLine, rangeLabel, reeferLine,
-} from "@/features/reconcile/fuelCostView";
+  brandList, comparingLine, costCards, costDayRows, mpgCoverageLine, networkLine, reeferLine, spendChangeLine,
+} from "@silvicom/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useOpens } from "@/composables/useOpens";
 
@@ -34,6 +38,13 @@ import { useOpens } from "@/composables/useOpens";
  *   sequence, its graded targets and its two tables are a policy check, not a cost report, and the
  *   report keeps one table (finance-reader rule).
  *
+ * ── WHAT IT LEADS WITH ───────────────────────────────────────────────────────────────────────────
+ * Spend and the sentence splitting its change into gallons and price (`spendChangeLine`), beside the open
+ * findings ranked by dollars; the other figures follow as detail. The 2026-10-03 design verdict (move 2)
+ * found eight cards of equal weight with no next action: a reader had to work out which figure mattered
+ * and where to go from it. The cards keep every figure and comparison they had (D-FSV3) — they are
+ * demoted, not removed — and the PDF's spend band prints the same sentence.
+ *
  * ── THE URL IS THE STATE ─────────────────────────────────────────────────────────────────────────
  * Every filter is a query parameter, so a link opens on what its sender was looking at. Old links
  * carrying `?tab=` or `?grain=` still open here; the parameters are ignored.
@@ -44,6 +55,11 @@ const opens = useOpens();
 const { data: report, isLoading, isError, error, isFetching } = useFuelReportQuery(f.params);
 
 /** How current the daily fuel roll-up is — MPG's gallons come from it (`fleetMpg.ts`). */
+/** The open findings waiting for review in these dates and trucks — the strip under the cards (FS-STRIP). */
+const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
+// Chunk 9a (Q-F2): the policy premiums as a monthly table, in the same window and trucks.
+const habits = useBuyingHabitsQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
+
 const freshness = useSpendFreshnessQuery(computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value })));
 
 // ── the filter menus ────────────────────────────────────────────────────────────────────────────
@@ -78,24 +94,27 @@ const networkModel = computed<string[]>({
 
 // ── what the report says ────────────────────────────────────────────────────────────────────────
 const cards = computed(() => (report.value ? costCards(report.value) : []));
+const spendCard = computed(() => cards.value.find((c) => c.key === "spend") ?? null);
+const figureCards = computed(() => cards.value.filter((c) => c.key !== "spend"));
+const change = computed(() => (report.value ? spendChangeLine(report.value) : ""));
 const rows = computed(() => (report.value ? costDayRows(report.value) : []));
 const network = computed(() => (report.value ? networkLine(report.value) : null));
 const reefer = computed(() => (report.value ? reeferLine(report.value.current) : null));
 const truckFigures = computed(() => report.value?.current.efficiency != null);
-const comparing = computed(() =>
-  report.value ? `${rangeLabel(report.value.current)} compared with ${rangeLabel(report.value.previous)}, the same number of days just before` : "",
-);
-/** How much of the fuel the MPG speaks for — the coverage D-MPG4 makes part of the answer. */
-const mpgCoverage = computed(() => {
-  const m = report.value?.current.efficiency?.mpg;
-  if (!m || m.measuredShare == null) return null;
-  return `MPG and miles cover the ${m.trucksMeasured} trucks with a measured distance — ${Math.round(m.measuredShare * 100)}% of this range's tractor fuel.`;
-});
-const exportQuery = computed(() => {
-  const q = new URLSearchParams({ from: f.from.value, to: f.to.value, grain: "week" });
-  if (f.vehicleIds.value.length) q.set("vehicles", f.vehicleIds.value.join(","));
-  return q.toString();
-});
+const comparing = computed(() => (report.value ? comparingLine(report.value) : ""));
+/** How much of the fuel the MPG speaks for (D-MPG4) — the sentence the PDF prints too. */
+const mpgCoverage = computed(() => (report.value ? mpgCoverageLine(report.value) : null));
+// The screen's own query string: the document is asked for with every filter the report was (Q-FSV14).
+const exportQuery = computed(() => fuelReportQuery(f.params.value));
+/**
+ * Buy discipline opens on the days and trucks being read here — its header promises that shared context.
+ * State, location and network are not parameters of its fill sequence, so they cannot travel; the link
+ * says so when one is active instead of silently widening the view.
+ */
+const buyLink = computed(() => ({
+  path: "/fuel-buy-discipline",
+  query: { from: f.from.value, to: f.to.value, ...(f.vehicleIds.value.length ? { trucks: f.vehicleIds.value.join(",") } : {}) },
+}));
 const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-700" : t === "bad" ? "text-danger-700" : undefined);
 </script>
 
@@ -119,7 +138,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
       {{ freshness.data.value.lead }}
     </p>
 
-    <FilterBar :count="rows.length" count-label="days">
+    <!-- No count until the report answers: a pending or failed read is not "0 days" (verdict E8). -->
+    <FilterBar :count="report ? rows.length : null" count-label="days">
       <!-- In #filters: FilterBar has no default slot, and plain children are silently dropped. The two
            date v-models are safe because `useQueryState` coalesces their same-tick patches. -->
       <template #filters>
@@ -135,8 +155,8 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
           :query="exportQuery"
           :from="f.from.value"
           :to="f.to.value"
-          grain="week"
           :truck-count="f.vehicleIds.value.length"
+          :station-filtered="f.stationFiltered.value"
         />
       </template>
     </FilterBar>
@@ -147,11 +167,42 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
     </p>
 
     <template v-else-if="report">
-      <section class="space-y-3">
+      <!-- Spend and what to review, side by side so both are on the first screen (design verdict, move 2). -->
+      <div class="grid gap-4 lg:grid-cols-5">
+        <StatCard
+          v-if="spendCard"
+          class="lg:col-span-2 lg:self-start"
+          size="hero"
+          :label="spendCard.label"
+          :value="spendCard.value"
+          :value-title="spendCard.previous"
+          :title="spendCard.term"
+        >
+          <template #sub>
+            <span>
+              <span class="block text-ink" data-testid="spend-change">{{ change }}</span>
+              <span v-if="network" class="mt-1 block text-ink-tertiary">{{ network }}</span>
+            </span>
+          </template>
+        </StatCard>
+        <FuelOpportunitiesStrip
+          class="lg:col-span-3"
+          :rows="opportunities.data.value"
+          :loading="opportunities.isLoading.value"
+          :error="opportunities.isError.value"
+          :from="f.from.value"
+          :to="f.to.value"
+          :vehicle-ids="f.vehicleIds.value"
+          :can-open-inbox="opens('/fuel-problems')"
+        />
+      </div>
+
+      <section class="space-y-3" aria-labelledby="fuel-costs-figures-heading">
+        <h3 id="fuel-costs-figures-heading" class="text-sm font-semibold text-ink">The figures behind it</h3>
         <p class="text-xs text-ink-tertiary">{{ comparing }}. Tractor fuel only.</p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <StatCard
-            v-for="c in cards"
+            v-for="c in figureCards"
             :key="c.key"
             :label="c.label"
             :value="c.value"
@@ -163,7 +214,6 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         </div>
         <p v-if="!truckFigures" class="text-xs text-ink-tertiary">{{ FUEL_REPORT_TRUCK_FIGURES_NOTE }}</p>
         <p v-else-if="mpgCoverage" class="text-xs text-ink-tertiary">{{ mpgCoverage }}</p>
-        <p v-if="network" class="text-sm text-ink-secondary">{{ network }}</p>
         <p v-if="reefer" class="text-xs text-ink-tertiary">{{ reefer }}</p>
       </section>
 
@@ -174,10 +224,13 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         :filename="`fuel-costs-${f.from.value}-to-${f.to.value}`"
       />
 
+      <BuyingHabitsTable :table="habits.data.value" :loading="habits.isFetching.value" :error="habits.isError.value" />
+
       <p class="text-sm text-ink-muted">
         Fuel carried out of a dearer state, and the fuel targets graded:
-        <RouterLink v-if="opens('/fuel-buy-discipline')" to="/fuel-buy-discipline" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
-        <template v-else>Buy discipline</template>.
+        <RouterLink v-if="opens('/fuel-buy-discipline')" :to="buyLink" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
+        <template v-else>Buy discipline</template>
+        <template v-if="f.stationFiltered.value"> (it opens on every station: it can't narrow by state, location or network)</template>.
         A vendor bill is checked on
         <RouterLink v-if="opens('/fuel-invoices')" to="/fuel-invoices" class="text-link hover:text-link-hover">Pilot invoices</RouterLink>
         <template v-else>Pilot invoices</template>.

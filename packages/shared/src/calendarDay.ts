@@ -177,6 +177,13 @@ export function shiftDay(day: CalendarDay, n: number): CalendarDay {
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
 }
 
+/**
+ * The first day of the `n` calendar days ending on `to`, both ends included: 30 gives 30 dates.
+ * `shiftDay(to, -n)` gives `n + 1` — the off-by-one `DateRangeFilter`'s presets had (verdict 03, E8) and
+ * the idle readers' default "last 30 days" kept after the presets were fixed.
+ */
+export const lastDaysStart = (to: CalendarDay, n: number): CalendarDay => shiftDay(to, -(n - 1));
+
 /** Whole days from `from` to `to` inclusive — 1 when they are the same day. Never below 1. */
 export function daysInRange(from: CalendarDay, to: CalendarDay): number {
   const at = (day: CalendarDay): number => {

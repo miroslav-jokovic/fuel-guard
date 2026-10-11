@@ -4,6 +4,7 @@ import { registerSamsaraIntegrationRoutes } from "../modules/samsara/index.js";
 import { registerPerformanceIntegrationRoutes } from "../modules/performance/index.js";
 import { registerMcleodIntegrationRoutes } from "../modules/mcleod/index.js";
 import { registerEfsSoapIntegrationRoutes, registerEfsSoapCertRoutes } from "../modules/efs/index.js";
+import { registerFleetpalIntegrationRoutes } from "../modules/fleetpal/index.js";
 
 /**
  * Integrations admin surface, assembled from the collectors' own route registrations since the
@@ -19,5 +20,6 @@ export function integrationsRouter(): Router {
   registerMcleodIntegrationRoutes(router);
   registerEfsSoapIntegrationRoutes(router);
   registerEfsSoapCertRoutes(router);
+  registerFleetpalIntegrationRoutes(router);
   return router;
 }

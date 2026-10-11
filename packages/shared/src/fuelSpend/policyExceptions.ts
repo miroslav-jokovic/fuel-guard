@@ -334,9 +334,9 @@ export interface PolicyExceptions {
  * could not identify it" as compliant is how off-network spend stayed invisible.
  */
 export function policyPredicates(policy: FuelPolicy): {
-  isAvoidedBrand: (l: SpendLine) => boolean;
-  isAvoidedState: (l: SpendLine) => boolean;
-  isOffNetwork: (l: SpendLine) => boolean;
+  isAvoidedBrand: (l: Pick<SpendLine, "brand">) => boolean;
+  isAvoidedState: (l: Pick<SpendLine, "state">) => boolean;
+  isOffNetwork: (l: Pick<SpendLine, "brand">) => boolean;
 } {
   const avoidBrand = new Set(policy.avoidBrands);
   const avoidState = new Set(policy.avoidStates);
