@@ -10,6 +10,7 @@ import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
 import { sentCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { EVIDENCE_FOR } from "../evidence/index.js";
+import { ocrPages, type PageForOcr, type RecognisePage } from "../ocr/pageOcr.js";
 import { READ_PROMPTS } from "./prompts.js";
 import { classifyPages, currentVerdicts, type PageVerdict } from "./classifyPages.js";
 import { reviewEpoch, targetOfRow, targetPages, type ReadTarget, type TargetPage } from "./readTarget.js";
@@ -30,7 +31,8 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  * Since §7B A2 a finished read records evidence: the profile's witnesses over its document
  * (evidence/index.ts — for the shipping document, the Hazardous Materials Table's verdict on each line).
  * Since A3 a second model (pass B, Sonnet 5.5) reads the same pages and its values are recorded beside pass
- * A's, lines matched by key; the read's document is pass A's. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
+ * A's, lines matched by key; the read's document is pass A's. Since A5 the OCR engine reads the same pages and
+ * says which reader's count, weight and quantity is printed on the line's own row. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
  * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
  * read only when its class is one the profile reads; a page the classifier could not answer is still
  * read — an unknown page is not a known non-BOL. Each read page is sent turned upright by its verdict's
@@ -53,6 +55,8 @@ export interface ReadDeps {
   client: ModelClient;
   gateFor: ReadGateFor;
   env: Pick<Env, "DOC_READ_MODEL_A" | "DOC_READ_MODEL_B" | "HAZMAT_MODEL_A" | "HAZMAT_MODEL_B" | "DOC_CLASSIFY_MODEL">;
+  /** The OCR witness's engine (§7B A5), or absent for none — the composition root's choice (DOC_OCR_WITNESS). */
+  ocr?: RecognisePage;
   /** The month the budget is counted in — injectable so a test does not depend on the clock. */
   now?: () => Date;
 }
@@ -113,16 +117,18 @@ function readablePages(pages: readonly PageRow[], verdicts: ReadonlyMap<string, 
 
 /**
  * Download each page's original, verify it, and derive the copy the model reads — sized once, from the
- * original, to the model's resolution tier (D-DR16), so the API never resizes it again.
+ * original, to the model's resolution tier (D-DR16), so the API never resizes it again. The verified
+ * original is kept for the OCR witness, which reads it at full resolution (ocr/pageOcr.ts).
  */
 async function loadImages(
   admin: SupabaseClient,
   pages: readonly PageRow[],
   model: string,
   rotationOf: (pageId: string) => PageRotation,
-): Promise<PageImage[] | "integrity_mismatch"> {
+): Promise<{ images: PageImage[]; originals: PageForOcr[] } | "integrity_mismatch"> {
   const limits = sendLimitsFor(model, pages.length);
   const images: PageImage[] = [];
+  const originals: PageForOcr[] = [];
   for (const p of pages) {
     const { data: blob, error } = await admin.storage.from(DOCUMENT_BUCKET).download(p.original_path);
     // A missing object is a stored page that no longer matches what was received — the same failure.
@@ -131,8 +137,9 @@ async function loadImages(
     if (createHash("sha256").update(png).digest("hex") !== p.original_sha256) return "integrity_mismatch";
     const sent = await sentCopyOf(png, limits, rotationOf(p.id));
     images.push({ base64: sent.bytes.toString("base64"), mediaType: sent.mediaType });
+    originals.push({ originalPng: png, rotation: rotationOf(p.id) });
   }
-  return images;
+  return { images, originals };
 }
 
 async function cachedResult(admin: SupabaseClient, orgId: string, readId: string, cacheKey: string): Promise<{ result: unknown; evidence: unknown } | undefined> {
@@ -241,8 +248,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
 
   const pages = readablePages(given, verdicts, read.profile);
   if (pages.length === 0) return fail("no_readable_page", spent.input, spent.output);
-  const images = await loadImages(admin, pages, models[0]!, rotationOf);
-  if (images === "integrity_mismatch") return fail("integrity_mismatch", spent.input, spent.output);
+  const loaded = await loadImages(admin, pages, models[0]!, rotationOf);
+  if (loaded === "integrity_mismatch") return fail("integrity_mismatch", spent.input, spent.output);
+  const { images, originals } = loaded;
 
   versions.cacheKey = readCacheKey({
     profileVersion: profile.version,
@@ -267,6 +275,9 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     const input = { profile: read.profile, pages: images, model, prompt };
     return "sections" in profile && profile.sections?.length ? readSections(input, deps.client) : readPages(input, deps.client);
   };
+  // The OCR witness (§7B A5) runs on its own thread while the models read; it costs no tokens, and its
+  // failure is its absence, never the read's.
+  const ocrRun = deps.ocr ? ocrPages(originals, deps.ocr).catch(() => null) : Promise.resolve(null);
   // Pass A is the document; pass B is a second, independent witness to it (§7B A3). They run in turn, not
   // in parallel: a refusal or failure of A ends the read before B is paid for.
   const a = await read1(pins.A);
@@ -274,7 +285,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   const b = await read1(pins.B);
   const total = { input: spend(a.usage).input + b.usage.input, output: spend(a.usage).output + b.usage.output };
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
-  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION);
+  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION, await ocrRun);
   return done(a.document, evidence, false, total.input, total.output, pages.length);
 }
 

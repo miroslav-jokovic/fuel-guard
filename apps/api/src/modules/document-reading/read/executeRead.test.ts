@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DOCUMENT_PROFILES, printedHazmatLineSchema, readersAgree } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
@@ -12,6 +12,7 @@ import { TIER_LIMITS } from "../model/visionTier.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { executeRead, failUnavailableRead, type ReadGate } from "./executeRead.js";
 import { READ_PROMPTS } from "./prompts.js";
+import type { RecognisePage } from "../ocr/pageOcr.js";
 import { CLASSIFY_PROMPT } from "../model/classifyPage.js";
 
 /** Step 1.6 — one read, end to end, against the recorder: every outcome is one transition. */
@@ -53,6 +54,8 @@ interface World {
    * answered `bol`, upright. A function lets a test make the classifier refuse.
    */
   classifier?: Record<string, { pageClass: string; rotation: string }> | ((pageId: string) => Anthropic.Message);
+  /** The OCR witness's engine (§7B A5); absent = none, as with DOC_OCR_WITNESS=off. */
+  ocr?: RecognisePage;
 }
 
 function message(over: Partial<Anthropic.Message> = {}): Anthropic.Message {
@@ -138,6 +141,7 @@ async function world(w: World = {}) {
     env: { ...ENV, ...w.env },
     now: () => new Date("2026-10-09T12:00:00Z"),
     gateFor: async (_a: unknown, org: string) => (gates.push(org), w.gate ?? { open: true, monthlyTokenBudget: null }),
+    ocr: w.ocr,
   };
   const run = () => executeRead(rec.client, ORG, READ, deps);
   const transitions = () => rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => r.args as Record<string, unknown>);
@@ -375,6 +379,46 @@ describe("executeRead — evidence (§7B A2 + A3)", () => {
     expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
     expect(w.transitions()[1]!.p_evidence).toEqual(stored);
     expect(w.requests).toEqual([]);
+  });
+});
+
+describe("executeRead — the OCR witness (§7B A5)", () => {
+  const empty = PROFILE.empty();
+  const withCount = (packageCount: number) =>
+    ({ ...empty, hazmat: { ...empty.hazmat, lines: [printedHazmatLineSchema.parse({ idText: "UN2735", hazardClass: "8", packageCount })] } });
+  const box = (text: string, y: number) => ({ text, box: { x: 2, y, width: 20, height: 4 } });
+  const twoReaders = { "claude-sonnet-4-6": withCount(9), "claude-sonnet-5-5": withCount(6) };
+
+  it("gives the engine every read page from its verified original, turned upright, and records the row's word on the count", async () => {
+    const sizes: number[][] = [];
+    const ocr: RecognisePage = async (b) => {
+      const m = await sharp(b).metadata();
+      sizes.push([m.width!, m.height!]);
+      return sizes.length === 1 ? [box("UN2735 Amines 8 PG II", 10), box("6", 11)] : [];
+    };
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, rotations: { p2: 90 }, documents: twoReaders, ocr });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    // 40 × 30 originals at full size; p2 turned a quarter, as the model's copy is.
+    expect(sizes).toEqual([[40, 30], [30, 40]]);
+    const ev = w.transitions()[1]!.p_evidence as { path: string; sources: { reader: string; page: number | null; value: unknown }[] }[];
+    const count = ev.find((e) => e.path === "hazmat.lines[0].packageCount")!;
+    expect(count.sources.map((s) => [s.reader, s.value])).toEqual([["passA", 9], ["passB", 6], ["ocr", 6]]);
+    expect(count.sources.find((s) => s.reader === "ocr")!.page).toBe(1);
+  });
+
+  it("finishes the read without the witness when the engine fails", async () => {
+    const w = await world({ classes: { p1: "bol", p2: "bol" }, documents: twoReaders, ocr: async () => { throw new Error("engine died"); } });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    const ev = w.transitions()[1]!.p_evidence as { sources: { reader: string }[] }[];
+    expect(ev.some((e) => e.sources.some((s) => s.reader === "ocr"))).toBe(false);
+    expect(ev.some((e) => e.sources.some((s) => s.reader === "passB"))).toBe(true);
+  });
+
+  it("runs no OCR for a cache hit", async () => {
+    const ocr = vi.fn<RecognisePage>(async () => []);
+    const w = await world({ cached: withCount(6), classes: { p1: "bol", p2: "bol" }, ocr });
+    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
+    expect(ocr).not.toHaveBeenCalled();
   });
 });
 

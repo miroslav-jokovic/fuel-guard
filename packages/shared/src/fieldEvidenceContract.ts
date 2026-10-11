@@ -27,9 +27,13 @@ export type FieldStatus = (typeof FIELD_STATUSES)[number];
  * hazmat line (DOCUMENT-READER-PLAN §7B, D-DR19). It reads no page: its `value` is its verdict on the
  * line, and it can only ever stop a value, never be the second witness that makes one *Read* — a model can
  * invent a line the table finds perfectly consistent.
+ * `ocr` is the open-source OCR engine run in the worker over the upright page (§7B A5, Q-DR22) — not
+ * `deviceOcr`, which is the driver's phone. It is ROW-BOUND: its `value` is the one reader's value printed
+ * on the row of the line's own UN id, or null when the row shows none of them (or more than one); its
+ * `bbox` is that row. Like `table` it judges what the models read and reads nothing of its own (D-DR21).
  */
 export const EVIDENCE_READERS = [
-  "passA", "passB", "textLayer", "deviceOcr", "region", "arithmetic", "order", "declaration", "reviewer", "table",
+  "passA", "passB", "textLayer", "deviceOcr", "region", "arithmetic", "order", "declaration", "reviewer", "table", "ocr",
 ] as const;
 export type EvidenceReader = (typeof EVIDENCE_READERS)[number];
 
