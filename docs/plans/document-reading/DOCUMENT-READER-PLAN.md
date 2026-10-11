@@ -1237,3 +1237,12 @@ Append dated lines at the end; never edit a row above.
   two-reader disagreement catches Sonnet 4.6's two count/weight misreads. Recorded D-DR19 (Read = witnesses
   agree), D-DR20 (reader locked to Sonnet 4.6), D-DR21, build order A1–A6, Q-DR22 (OCR engine in the worker),
   Q-DR23 (second reader; recommend Sonnet 5.5). Next: A1 + A2.
+- **2026-10-11 (§7B A1 + A2)** — A1 merged (#1450): `DOC_READ_MODEL_A` defaults to Sonnet 4.6 on its own.
+  A2: a finished read now records evidence — `evidence/hmtWitness.ts` runs the hazmat extractor's LOCKED
+  `resolveHmtLine` over every read hazmat line and records, for its id, PSN, class and PG, pass A's value and
+  the table's verdict (new evidence reader `table`). Every judged field is *Check*: a single model is never
+  enough (D-DR17), and the table can stop a value but never be the second witness that makes one *Read*. The
+  verdict waits for A3 (second reader) to make agreement possible. `ACCEPTANCE_RULE_VERSION` "none" → "1"
+  (cache key: reads made without evidence are not replayed). The test is §7B.2's measurement kept: all five
+  product-code lines refused, all seven correctly read office lines consistent, a class contradiction refused.
+  Six mutants killed. Next: A3, the second reader (Q-DR23).
