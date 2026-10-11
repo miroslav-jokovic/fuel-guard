@@ -1305,6 +1305,16 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   as MM/DD/YYYY (was ISO), "Gallons bought" (two columns were both "Bought"), "Measured by" with "Tank reading" / "Miles
   driven (at least)". Nothing deleted; `<details>` keeps closed text findable by the browser's search. Tests +3, two
   rewordings; mutation 11/11 killed. Seen rendered at 1440 px (preview build, stubbed RPCs).
+- **2026-10-03** Q-FSV17 step (3) BUILT, HELD: `IdleEngineParityPanel`, `useIdleEngineParity`, the office reader
+  `idleEngineParity.ts` and `GET /api/idle/engine/parity` are removed (retired rather than narrowed — after the panel goes
+  it has no caller: the console reads through `apps/admin-api`, the nightly check reads the database). `IdleBurnRatesPanel`
+  and `/engine/burn-rates` stay (Q-IE14's switch sits beside them). The shared gate code is unchanged. Tests: the route
+  answers 404 to safety_manager and admin and reads nothing; the page never prints the gate. Production read first: both
+  `platform_admins` rows have `user_id` NULL and no verified MFA factor, and `platform_audit_log` is empty, so step (2)
+  has not happened. The PR is therefore NOT merged on green, against the standing merge rule, because the owner's own
+  order is "never both views absent" — merging now would leave the gate on no screen anyone can open. It merges after
+  the owner signs in to the console (first sign-in links the row, then TOTP enrolment), opens Customers → the carrier →
+  "Idle engine checks", and says it matches the office panel on the same night (10/04 is the first with 2 final days).
 - **2026-10-03** Design verdict move 4, coverage and freshness beside each Idling estimate. Each money card now says what
   it counts and why the rest are out ("Counts 180 of 187 trucks; 7 with too little data are left out" / "From 150 of 187
   trucks: the ones with rest idle an APU would carry. 4 seen for under half the range are left out"), and how it was
@@ -1351,3 +1361,8 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   1×1 target there), above the banners, hidden until focused. It moves FOCUS to `<main id="main-content"
   tabindex="-1">`, not only the scroll, and keeps the hash out of the URL. Fuel Costs' Export report: 48 Tabs → 10,
   seen at 1366 and 390 px. `skipLink.test.ts` holds the shell's `<main>` to `MAIN_CONTENT_ID`. Mutation 9/9 killed.
+- **2026-10-11** — **Q-FSV17 step (3) released (#1259).** Production read the same day: a `platform_admins` row is
+  now linked to a user and `platform_audit_log` has rows (the latest 10/09), so the console has been signed in to and
+  used — the gate is on a screen the owner can open. The owner asked for every pending PR in one release, so the held PR
+  merges now: the office page loses the parity panel and `GET /api/idle/engine/parity` is retired, as built on 10/03.
+

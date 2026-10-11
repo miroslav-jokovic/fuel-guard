@@ -26,6 +26,34 @@ const deletedIds = (rec: SupabaseRecorder, table: string) =>
   deleteStatements(rec, table).flatMap((q) => (q.filters().find((f) => f.col === "id")?.val ?? []) as string[]);
 
 describe("retention policy (the config itself)", () => {
+  /**
+   * The books and the McLeod staging they are projected from (2026-10-05, finance inventory). A month
+   * close, the income statement and the fuel tie-out are claims about these rows; a time-based prune
+   * would leave a closed month citing figures nobody can produce. Measured on production the same day:
+   * ~134 MB across all of them after a backfill to 2024-01-01, so nothing argues for pruning. How long
+   * the law requires them kept is the carrier's accountant's question; never deleting by rule cannot be
+   * shorter than any answer.
+   */
+  it("never prunes the books or the McLeod staging they are projected from", () => {
+    const listed = new Set(RETENTION_RULES.map((r) => r.table));
+    for (const t of [
+      "financial_entries",
+      "finance_month_closes",
+      "mcleod_settlements",
+      "mcleod_ap_vouchers",
+      "mcleod_deductions",
+      "mcleod_billing",
+      "mcleod_office_lines",
+      "mcleod_movements",
+      "mcleod_gl_accounts",
+      "mcleod_gl_days",
+      "mcleod_gl_totals",
+    ]) {
+      expect(RETENTION_FORBIDDEN).toContain(t);
+      expect(listed.has(t)).toBe(false);
+    }
+  });
+
   it("never lists a forbidden table (audit ledger, business records, identity)", () => {
     const listed = new Set(RETENTION_RULES.map((r) => r.table));
     expect(RETENTION_FORBIDDEN).toContain("efs_card_mutations");
