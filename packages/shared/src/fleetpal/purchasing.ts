@@ -252,3 +252,63 @@ export const fleetpalPoReceiptItemSchema = z.looseObject({
   created: timestamp,
 });
 export type FleetpalPoReceiptItem = z.infer<typeof fleetpalPoReceiptItemSchema>;
+
+/**
+ * How an invoice was paid — `GET /v1/purchase-order-payments/` (MAINTENANCE-MONEY-CONTROL-PLAN.md C1).
+ *
+ * The record the money control matches on: `number` is the check number (company `CHECK`) or the
+ * EFS check number (`EFS_CHECK`), which reach McLeod and EFS by a stronger key than an invoice
+ * number a human typed. Measured on the live account 2026-10-04 (M-9), all 2,840 payments:
+ *
+ *   · ⚠ `number` is `""` — never null — on 615. The spec calls it required; empty is how it is absent.
+ *   · ⚠ `method` is null on 20, although the spec's enum lists no "unknown".
+ *   · `invoices` is empty on 43 and holds TWO ids on some — a payment is not always one invoice.
+ *   · `amount` carries up to THREE decimals (1 row), so the staging column is numeric(14,3).
+ *   · ⚠ Two amounts are absurd: $9,146,990,499 (ON_ACCOUNT, 2026-07-27) and $4,007,362,959
+ *     (EFS_CHECK, 2025-07-24) — both shaped like a check number typed into the amount. They are
+ *     staged as sent; flagging them is the control's job (D-MMC5), never the parser's.
+ */
+export const fleetpalPoPaymentSchema = z.looseObject({
+  url: z.string(),
+  id: fleetpalId,
+  purchase_order: fleetpalId,
+  number: z.string(),
+  /** A calendar date (`2026-07-27`), not an instant. */
+  date: timestamp,
+  amount: money,
+  method: z.string().nullable(),
+  payable_to: fleetpalId.nullable(),
+  invoices: z.array(fleetpalId),
+  notes: z.string(),
+  created: timestamp,
+  updated: timestamp,
+});
+export type FleetpalPoPayment = z.infer<typeof fleetpalPoPaymentSchema>;
+
+/**
+ * One line of a purchase order — `GET /v1/purchase-order-items/` (C1). What was bought: a part, a
+ * fee or tax. 2,106 lines all-time on 2026-10-04; `price` and `total` carry up to three decimals
+ * (64 and 36 rows), so their staging columns are numeric(14,3). `part`, `part_number` and
+ * `component` are null together on the 41 FEE/TAX lines.
+ */
+export const fleetpalPoItemSchema = z.looseObject({
+  url: z.string(),
+  id: fleetpalId,
+  purchase_order: fleetpalId,
+  /** PART · FEE · TAX. */
+  type: z.string(),
+  description: z.string(),
+  part: fleetpalId.nullable(),
+  part_number: z.string().nullable(),
+  universal_product_code: z.string().nullable(),
+  manufacturer: fleetpalId.nullable(),
+  manufacturer_part_number: z.string(),
+  component: fleetpalId.nullable(),
+  unit_of_measure: z.string().nullable(),
+  quantity: z.number(),
+  price: money,
+  total: money,
+  created: timestamp,
+  updated: timestamp,
+});
+export type FleetpalPoItem = z.infer<typeof fleetpalPoItemSchema>;

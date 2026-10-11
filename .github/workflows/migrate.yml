@@ -25,6 +25,10 @@ on:
 
 jobs:
   migrate:
+    # Once RELEASE_TRAIN is `on` (RELEASE-TRAIN-PLAN R5), a merge no longer touches production's
+    # schema: release.yml applies migrations there at 01:00, before the code it ships. A dispatch
+    # still runs — incident recovery is exactly when production must be reachable by hand.
+    if: ${{ github.event_name != 'push' || vars.RELEASE_TRAIN != 'on' }}
     # Same machine switch as ci.yml (CI_RUNNER; its header says why).
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:

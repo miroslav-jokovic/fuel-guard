@@ -3,7 +3,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs } from "@silvicom/ui";
 import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -21,12 +21,13 @@ const {
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
-  tabs, activeTab, showInfo, showConfidence,
-  dateFrom, dateTo, rangeLabel, priceNote,
+  tabs, answered, activeTab, showInfo, showConfidence,
+  dateFrom, dateTo, rangeLabel, estimate,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+  capLoading, capIsError, capError, capFetching, capRefetch,
 } = useIdlingPage();
 </script>
 
@@ -39,13 +40,18 @@ const {
     <SamsaraFeedLine :feeds="['idle']" />
 
     <!-- Which window every card + table below reflects (the date picker lives in the tab toolbars). -->
-    <div class="flex items-center gap-2 text-sm">
+    <div class="flex flex-wrap items-center gap-2 text-sm">
       <span class="text-ink-muted">Showing</span>
       <span class="rounded-control bg-surface-muted px-2 py-0.5 font-semibold text-ink">{{ rangeLabel }}</span>
+      <!-- How far the data reaches, and that the table's filters don't narrow the cards (design verdict, move 4). -->
+      <span v-if="estimate" class="text-xs text-ink-tertiary" data-testid="idle-scope">{{ estimate.scope }}</span>
     </div>
 
     <!-- Fleet engine-time summary: running = drive + idle, with BOTH idle measures — avoidable (waste on
-         trucks that had an alternative) and reducible (what equipping the rest of the fleet would save). -->
+         trucks that had an alternative) and reducible (what equipping the rest of the fleet would save).
+         Each money card carries its own coverage and pricing lines (design verdict, move 4). The dollars are
+         plain ink, as on Fuel Costs (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
+         whether it is good news — avoidable idle is a coaching queue and "Needs an APU" an investment case. -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
@@ -59,44 +65,52 @@ const {
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
-        <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">across {{ fleet.confidentTrucks }}/{{ fleet.totalTrucks }} trucks with confident data</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" title="Fuel price the idle cost is figured at">{{ priceNote }}</dd>
+        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="avoidable-usd">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</dd>
+        <dd v-if="estimate?.avoidablePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</dd>
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
-        <dd class="mt-1 text-2xl font-bold text-warning-600">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry, across {{ fleet.reducibleTrucks }}/{{ fleet.totalTrucks }} trucks</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">includes trucks with no idle-reduction equipment — this is the case for fitting it, not waste to coach</dd>
+        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="reducible-usd">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</dd>
+        <dd v-if="estimate?.reduciblePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</dd>
       </BaseCard>
     </div>
 
-    <!-- Tab strip + info toggle -->
+    <!-- Tab strip + the two disclosures. The strip was hand-rolled buttons with no tab semantics and the
+         disclosures announced no state; `AppTabs` and `aria-expanded` are what a keyboard and a screen
+         reader need (design verdict, E8). A disclosure names its region only while it exists. -->
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm">
-        <BaseButton
-          v-for="t in tabs"
-          :key="t.key"
-          class="rounded-control px-3 py-1.5 font-medium transition"
-          :class="activeTab === t.key ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-          @click="activeTab = t.key"
-        >
-          {{ t.label }} <span class="ml-0.5 text-ink-tertiary">{{ t.count }}</span>
-        </BaseButton>
-      </div>
+      <AppTabs v-model="activeTab" :tabs="tabs" label="Idling views" id-prefix="idling" />
       <div class="flex items-center gap-4">
-        <BaseButton variant="ghost" size="sm" @click="showConfidence = !showConfidence">
+        <BaseButton
+          variant="ghost"
+          size="sm"
+          :aria-expanded="showConfidence"
+          :aria-controls="showConfidence && confidence ? 'idling-completeness' : undefined"
+          @click="showConfidence = !showConfidence"
+        >
           Data completeness
           <span v-if="confidence && confidence.overall != null" class="font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</span>
+          <AppIcon :icon="showConfidence ? ChevronDownIcon : ChevronRightIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="showInfo = !showInfo">
-          {{ showInfo ? "Hide" : "How idle is scored" }}
+        <BaseButton
+          variant="ghost"
+          size="sm"
+          :aria-expanded="showInfo"
+          :aria-controls="showInfo ? 'idling-how-scored' : undefined"
+          @click="showInfo = !showInfo"
+        >
+          How idle is scored
+          <AppIcon :icon="showInfo ? ChevronDownIcon : ChevronRightIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
       </div>
     </div>
 
     <!-- Collapsible explanation + comfort band (was the always-on top blurb) -->
-    <BaseCard v-if="showInfo" padding="sm" class="space-y-3 text-sm">
+    <div v-if="showInfo" id="idling-how-scored" class="space-y-6">
+    <BaseCard padding="sm" class="space-y-3 text-sm">
       <p class="text-ink-secondary">
         <strong>Avoidable idle</strong> is waste we can coach: the truck had an APU or optimized idle recorded on
         its Vehicles page, and the main engine ran while parked anyway — in comfortable weather, with no work being
@@ -134,10 +148,11 @@ const {
       </p>
     </BaseCard>
     <!-- IE4: the measured idle burn rate beside the configured one (a table carries its own card) -->
-    <IdleBurnRatesPanel v-if="showInfo" />
+    <IdleBurnRatesPanel />
+    </div>
 
     <!-- Data completeness: how complete the inputs behind these numbers are -->
-    <BaseCard v-if="showConfidence && confidence" padding="sm" class="space-y-3 text-sm">
+    <BaseCard v-if="showConfidence && confidence" id="idling-completeness" padding="sm" class="space-y-3 text-sm">
       <div class="flex items-center justify-between">
         <p class="font-medium text-ink">Data completeness</p>
         <p v-if="confidence.overall != null" class="text-lg font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</p>
@@ -159,11 +174,11 @@ const {
     </BaseCard>
 
     <!-- ── TAB: Trucks — engine-on = drive + idle, avoidable ─────────────────── -->
-    <template v-if="activeTab === 'trucks'">
+    <div v-if="activeTab === 'trucks'" id="idling-panel-trucks" role="tabpanel" aria-labelledby="idling-tab-trucks" class="space-y-6">
       <FilterBar
         v-model:search="trkSearch"
         search-placeholder="Search truck…"
-        :count="trkFiltered.length"
+        :count="answered.trucks ? trkFiltered.length : null"
         count-label="trucks"
       >
         <template #filters>
@@ -235,14 +250,14 @@ const {
           <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />
         </template>
       </DataTable>
-    </template>
+    </div>
 
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->
-    <template v-else-if="activeTab === 'drivers'">
+    <div v-else-if="activeTab === 'drivers'" id="idling-panel-drivers" role="tabpanel" aria-labelledby="idling-tab-drivers" class="space-y-6">
       <FilterBar
         v-model:search="drvSearch"
         search-placeholder="Search driver…"
-        :count="drvFiltered.length"
+        :count="answered.drivers ? drvFiltered.length : null"
         count-label="drivers"
       >
         <template #filters>
@@ -277,14 +292,14 @@ const {
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
         </template>
       </DataTable>
-    </template>
+    </div>
 
     <!-- ── TAB: Truck capability ─────────────────────────────────────────────── -->
-    <template v-else>
+    <div v-else id="idling-panel-capability" role="tabpanel" aria-labelledby="idling-tab-capability" class="space-y-6">
       <FilterBar
         v-model:search="capSearch"
         search-placeholder="Search truck or batch…"
-        :count="capFiltered.length"
+        :count="answered.capability ? capFiltered.length : null"
         count-label="trucks"
       >
         <template #filters>
@@ -298,10 +313,14 @@ const {
         :columns="capColumns"
         :rows="capPaged"
         row-key="unit_number"
+        :loading="capLoading"
+        :error="capIsError ? (capError instanceof Error ? capError.message : 'Failed to load') : null"
+        :retrying="capFetching"
         :sort="capSort"
         empty-text="No trucks match. Recorded equipment is set on the Vehicles page; the long-park columns fill in as trucks park for four hours or more."
         :row-class="(t) => (t.cross_check === 'disagree' ? 'bg-danger-50/40' : '')"
         @sort="capSort = toggleSort(capSort, $event)"
+        @retry="capRefetch"
       >
         <template #cell-recorded="{ row }">
           <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', recordedCls(row)]" :title="`Recorded: ${sourceLabel(row.equipment_source)}`">{{ recordedLabel(row) }}</span>
@@ -320,6 +339,6 @@ const {
           <TablePagination :page="capPage" :page-size="PAGE_SIZE" :total="capFiltered.length" @update:page="capPage = $event" />
         </template>
       </DataTable>
-    </template>
+    </div>
   </div>
 </template>

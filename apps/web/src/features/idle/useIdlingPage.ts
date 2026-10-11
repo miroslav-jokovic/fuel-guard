@@ -6,6 +6,7 @@ import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useIdleConfidence } from "./useIdleConfidence";
+import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
 import { sortRows, type SortState } from "@/lib/sort";
@@ -15,6 +16,7 @@ import {
   EQUIPMENT_SOURCE_LABELS,
   formatDisplayDate,
   formatDisplayDayShort,
+  IDLE_DEFAULT_WINDOW_DAYS,
   type ApuType,
   type BehavesLike,
 } from "@silvicom/shared";
@@ -41,7 +43,7 @@ const rangeDays = computed(() => {
     const d = (Date.parse(`${dateTo.value}T23:59:59`) - Date.parse(`${dateFrom.value}T00:00:00`)) / 86_400_000;
     return Math.max(1, Math.round(d));
   }
-  return 30;
+  return IDLE_DEFAULT_WINDOW_DAYS;
 });
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 // Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
@@ -53,30 +55,36 @@ const rangeLabel = computed(() => {
   if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;
   if (f) return `since ${fmtDay(f)}`;
   if (t) return `through ${fmtDay(t)}`;
-  return "last 30 days";
+  return `last ${IDLE_DEFAULT_WINDOW_DAYS} days`;
 });
 
 // Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.
 const costBasis = useIdleCostBasis();
 const priceSource = computed(() => costBasis.value.priceSource);
 const fuelPricePerGal = computed(() => costBasis.value.fuelPricePerGal);
-const priceNote = computed(() => {
-  const p = usd2(costBasis.value.fuelPricePerGal) + "/gal";
-  return costBasis.value.priceSource === "truck_stops"
-    ? `${p} · live truck-stop prices`
-    : costBasis.value.priceSource === "settings"
-      ? `${p} · from idle settings`
-      : `${p} · default estimate`;
-});
 
 // Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
 const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter, costBasis);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
+/** What each total covers, how it was priced, and how far the data reaches — beside it (`idleEstimateLines`). */
+const estimate = computed(() => {
+  const f = fleet.value;
+  if (!f) return null;
+  return {
+    scope: idleScopeLine(f),
+    avoidableCoverage: avoidableCoverageLine(f),
+    avoidablePricing: idlePricingLine(f.avoidablePricing, costBasis.value),
+    reducibleCoverage: reducibleCoverageLine(f),
+    reduciblePricing: idlePricingLine(f.reduciblePricing, costBasis.value),
+  };
+});
 // The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
 // breakdown reads — no separate raw-table scan, no silent-failure path.
-const { data: caps } = useIdleCapabilities();
+// The Truck capability tab's own read: its loading and failure belong to its table, or a pending or failed
+// read says "No trucks match" (design verdict, E8).
+const { data: caps, isLoading: capLoading, isError: capIsError, error: capError, isFetching: capFetching, refetch: capRefetch } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -116,12 +124,16 @@ const sourceLabel = (s: string | null) =>
   s ? (EQUIPMENT_SOURCE_LABELS as Record<string, string>)[s] ?? s : "Not entered";
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "trucks" | "drivers" | "capability";
-const activeTab = ref<TabKey>("trucks");
+// In `AppTabs`' shape: it owns the roles, the roving tabindex and the arrow keys the hand-rolled strip never
+// had (design verdict, E8). `AppTabs` emits a plain string, so the key is one. A count shows once its read has
+// answered: a pending or failed read is not zero trucks.
+const activeTab = ref("trucks");
+/** Which reads have answered — the result counts above each table wait on the same thing. */
+const answered = computed(() => ({ trucks: breakdown.value != null, drivers: driverRows.value != null, capability: caps.value != null }));
 const tabs = computed(() => [
-  { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
-  { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
-  { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
+  { value: "trucks", label: "Trucks", badge: breakdown.value?.trucks.length },
+  { value: "drivers", label: "Drivers", badge: driverRows.value?.length },
+  { value: "capability", label: "Truck capability", badge: caps.value?.length },
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
@@ -302,12 +314,13 @@ const capColumns: DataTableColumn[] = [
     trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
-    tabs, activeTab, showInfo, showConfidence,
+    tabs, answered, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
-    priceSource, fuelPricePerGal, priceNote,
+    priceSource, fuelPricePerGal, estimate,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+    capLoading, capIsError, capError, capFetching, capRefetch,
   };
 }

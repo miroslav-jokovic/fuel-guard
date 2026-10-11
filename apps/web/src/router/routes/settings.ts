@@ -11,6 +11,14 @@ import type { RouteRecordRaw } from "vue-router";
  */
 export const settingsRoutes: RouteRecordRaw[] = [
   {
+    // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2). No section meta: `admin.settings.mcleod-fleets`
+    // in the surface catalogue says `settings: view`, and the guard reads it from there.
+    path: "/settings/mcleod-fleets",
+    name: "mcleod-fleets-settings",
+    component: () => import("@/pages/McleodFleetsSettingsPage.vue"),
+    meta: { requiresAuth: true, title: "McLeod fleets", parent: "/settings" },
+  },
+  {
     path: "/settings/card-control",
     name: "card-control-settings",
     component: () => import("@/pages/CardControlSettingsPage.vue"),
@@ -118,6 +126,17 @@ export const settingsRoutes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: true,
       title: "EFS Integration",
+      parent: "/settings",
+    },
+  },
+  {
+    path: "/settings/fleetpal",
+    name: "fleetpal-settings",
+    component: () => import("@/pages/FleetpalSettingsPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "FleetPal Integration",
       parent: "/settings",
     },
   },

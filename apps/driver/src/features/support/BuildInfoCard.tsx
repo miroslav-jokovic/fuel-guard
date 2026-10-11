@@ -18,6 +18,8 @@ import { useDriverContext } from '@/session/useDriverContext';
  * exact condition under which somebody most wants to read it.
  */
 interface ApiVersion {
+  /** The release tag (R6, D-REL10); null off production and before release.yml tags the deploy. */
+  version?: string | null;
   commitShort: string | null;
   branch: string | null;
   env: string;
@@ -75,7 +77,7 @@ export function BuildInfoCard() {
         <Row label="Runtime" value={String(Updates.runtimeVersion ?? 'unknown')} />
         <Row label="JavaScript" value={bundle} />
         <Row label="Update channel" value={String(Updates.channel ?? 'none')} />
-        <Row label="Server" value={api ? `${api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
+        <Row label="Server" value={api ? `${api.version ?? api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
         <Row label="Database" value={api ? `${api.schema.applied ?? 'unknown'} (${api.schema.state})` : '—'} />
       </Card>
       <AppText variant="caption" tone="muted">

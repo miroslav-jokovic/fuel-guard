@@ -34,6 +34,8 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category === "application_stalled") return "/recruitment";
   // The card itself — the entity is the `efs_cards` row the status poll saw change.
   if (category === "card_status_changed" && entityType === "efs_card" && entityId) return `/fuel-cards/${entityId}`;
+  // The daily summary names many cards and no single one, so it opens the card list (chunk 3b).
+  if (category === "card_status_changed" && entityType === null && entityId === null) return "/fuel-cards";
   if (category.startsWith("hazmat_") && entityType === "load" && entityId) {
     return `/hazmat/loads/${entityId}`;
   }

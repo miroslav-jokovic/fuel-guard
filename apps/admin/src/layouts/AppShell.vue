@@ -44,7 +44,7 @@ const NAV: NavItem[] = [
   { label: "Users & access" },
   { label: "Billing" },
   { label: "Backups" },
-  { label: "Settings & flags" },
+  { label: "Settings", to: { name: "settings" } },
   { label: "Errors & repairs" },
   { label: "Audit" },
 ];

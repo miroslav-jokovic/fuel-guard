@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../../testing/supabaseRecorder.js";
 import { FleetpalClient } from "../client.js";
 import { runIngest } from "./run.js";
-import { poInvoicesIngest, purchaseOrdersIngest } from "./purchasing.js";
+import { poInvoicesIngest, poItemsIngest, poPaymentsIngest, purchaseOrdersIngest } from "./purchasing.js";
 import purchaseOrderFixture from "../__fixtures__/purchase-orders.json" with { type: "json" };
 import poInvoiceFixture from "../__fixtures__/purchase-order-invoices.json" with { type: "json" };
+import poPaymentFixture from "../__fixtures__/purchase-order-payments.json" with { type: "json" };
+import poItemFixture from "../__fixtures__/purchase-order-items.json" with { type: "json" };
 
 /**
  * The invoice bridge's ingest (FLEETPAL-INTEGRATION-PLAN.md F9, §2.4).
@@ -187,5 +189,83 @@ describe("what the invoice mapping carries", () => {
   it("keeps the purchase-order id, which is the bridge's first joint", () => {
     const mapped = poInvoicesIngest.map(poInvoices[0] as never) as Record<string, unknown>;
     expect(mapped.purchase_order_fleetpal_id).toBe("htogZmNa");
+  });
+});
+
+/**
+ * The money control's payments and order lines (MAINTENANCE-MONEY-CONTROL-PLAN.md C1, 0424).
+ *
+ * The fixture is one recorded row per edge case M-9 measured on 2026-10-04 across all 2,840 live
+ * payments — so each case below is a shape the vendor really sends, not one we imagined.
+ */
+describe("payments: what the control will match on survives the way in", () => {
+  const payments = poPaymentFixture.results as unknown as Record<string, unknown>[];
+  const byId = (id: string) =>
+    poPaymentsIngest.map(payments.find((p) => p.id === id) as never) as Record<string, unknown>;
+
+  it("stages every recorded payment through the watermarked path, org-scoped", async () => {
+    const { client, urls } = clientWith([poPaymentFixture]);
+    const rec = recorderWith([{ resource: "purchase-order-payments", watermark: "2026-10-01T00:00:00Z", window_end: null, last_run_at: null, last_error: null, rows_seen: 0 }]);
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, poPaymentsIngest);
+    expect(result.error).toBeNull();
+    expect(result.fetched).toBe(payments.length);
+    const staged = rec.rpcs().find((c) => c.fn === "stage_fleetpal_po_payments")!.args as { p_rows: unknown[] };
+    expect(staged.p_rows).toHaveLength(payments.length);
+    // `updated_after` measured EXCLUSIVE on this endpoint, so the stored watermark is the right bound.
+    expect(urls[0]).toContain("updated_after=2026-10-01T00%3A00%3A00Z");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("⚠ keeps a check number's leading zeros — `009455` is the key into McLeod's check_number", () => {
+    expect(byId("dqTnnTMB").payment_number).toBe("009455");
+  });
+
+  it("⚠ keeps an empty payment number as '' — never null, never dropped (615 of 2,840)", () => {
+    expect(byId("sFpCjMoW").payment_number).toBe("");
+  });
+
+  it("keeps a null method as null (20 of 2,840)", () => {
+    expect(byId("MAQn6SN4").method).toBeNull();
+  });
+
+  it("keeps BOTH invoice ids when one payment settles two, and an empty list when it settles none", () => {
+    expect(byId("XzuQ7qvd").invoice_fleetpal_ids).toHaveLength(2);
+    expect(byId("hWGnsHNn").invoice_fleetpal_ids).toEqual([]);
+  });
+
+  it("⚠ passes the $9,146,990,499 amount through untouched — the control flags it, the ingest does not judge", () => {
+    expect(byId("5eZEkt7N").amount).toBe(9146990499);
+    expect(byId("EK8KY7kv").amount).toBe(1384.322);
+  });
+
+  it("maps the vendor's calendar date to paid_on", () => {
+    expect(byId("dqTnnTMB").paid_on).toBe(payments.find((p) => p.id === "dqTnnTMB")!.date);
+  });
+});
+
+describe("order lines: what each purchase order bought", () => {
+  const items = poItemFixture.results as unknown as Record<string, unknown>[];
+
+  it("stages every recorded line", async () => {
+    const { client } = clientWith([poItemFixture]);
+    const rec = recorderWith();
+    const result = await runIngest({ admin: rec.client, client, orgId: ORG }, poItemsIngest);
+    expect(result.error).toBeNull();
+    expect(result.fetched).toBe(items.length);
+  });
+
+  it("keeps the type, the three-decimal price and the component id of a part line", () => {
+    const part = items.find((i) => i.type === "PART")!;
+    const mapped = poItemsIngest.map(part as never) as Record<string, unknown>;
+    expect(mapped.item_type).toBe("PART");
+    expect(mapped.price).toBe(part.price);
+    expect(String(mapped.price).split(".")[1]).toHaveLength(3);
+    expect(mapped.component_fleetpal_id).toBe(part.component);
+  });
+
+  it("carries a FEE line's missing part as null, not as an empty id", () => {
+    const fee = poItemsIngest.map(items.find((i) => i.type === "FEE") as never) as Record<string, unknown>;
+    expect(fee.part_fleetpal_id).toBeNull();
+    expect(fee.component_fleetpal_id).toBeNull();
   });
 });

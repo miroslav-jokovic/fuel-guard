@@ -3,6 +3,8 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
+// The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
@@ -50,6 +52,8 @@ function fixture(params: FuelReportParams): FuelReport {
 
 /** What the page handed the report query — the wiring under test. */
 const seen = { params: null as Ref<FuelReportParams> | null };
+/** The report read's state; a test flips it, `beforeEach` puts it back. */
+const reportState = vi.hoisted(() => ({ value: "ready" as "ready" | "loading" | "error" }));
 vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/useFuelReport")>();
   return {
@@ -57,8 +61,9 @@ vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
     useFuelReportQuery: (params: Ref<FuelReportParams>) => {
       seen.params = params;
       return {
-        data: computed(() => fixture(params.value)), isLoading: ref(false), isError: ref(false),
-        error: ref(null), isFetching: ref(false),
+        data: computed(() => (reportState.value === "ready" ? fixture(params.value) : undefined)),
+        isLoading: ref(reportState.value === "loading"), isError: ref(reportState.value === "error"),
+        error: ref(reportState.value === "error" ? new Error("boom") : null), isFetching: ref(false),
       };
     },
   };
@@ -71,6 +76,9 @@ vi.mock("@/composables/useVehicles", () => ({
 }));
 /** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
 const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+vi.mock("@/features/reconcile/useBuyingHabits", () => ({
+  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(false) }),
+}));
 vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
   useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
     strip.params = params;
@@ -84,6 +92,7 @@ import FuelCostsPage from "./FuelCostsPage.vue";
 
 beforeEach(() => {
   seen.params = null;
+  reportState.value = "ready";
   opensAll.value = true;
   strip.rows = [];
   // DataTable branches on matchMedia; jsdom has none.
@@ -253,8 +262,8 @@ describe("FuelCostsPage — where the rest went", () => {
     expect(w.text()).toContain("Paid above Pilot's quote");
     expect(w.text()).toContain("$62");
     // And the row opens the inbox on those same days and trucks, not on its own defaults.
-    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/findings");
-    expect(to).toEqual({ path: "/findings", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
+    const to = w.findAllComponents({ name: "RouterLink" }).map((l) => l.props("to")).find((t) => typeof t !== "string" && t.path === "/fuel-problems");
+    expect(to).toEqual({ path: "/fuel-problems", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1" } });
   });
 
   it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {
@@ -278,5 +287,16 @@ describe("FuelCostsPage — where the rest went", () => {
   it("says so when it corrected the window in a link it was sent", async () => {
     const t = (await mountPage("?from=2026-09-30&to=2026-09-01")).w.text();
     expect(t).toMatch(/round|order|swap|corrected|adjust/i);
+  });
+
+  it("claims no count of days while the report is pending or failed (verdict E8)", async () => {
+    // The count is its own element; the page's text runs together ("Network0 days"), so match the element.
+    const dayCount = (w: { findAll: (s: string) => { text: () => string }[] }) =>
+      w.findAll("span").map((e) => e.text().trim()).filter((t) => /^\d+ days?$/.test(t));
+    expect(dayCount((await mountPage()).w)).toHaveLength(1);
+    for (const state of ["loading", "error"] as const) {
+      reportState.value = state;
+      expect(dayCount((await mountPage()).w), state).toEqual([]);
+    }
   });
 });

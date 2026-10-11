@@ -84,9 +84,10 @@ describe("a decline code's menu label is the reason, not the vendor's trace", ()
   /**
    * Measured on production 2026-09-04: EFS sends a pipe-delimited trace with the reason in front of
    * it, so a 40-character truncation offered "18 — ITEM NOT ALLOWED|ADDITIVES IN48808|C" and spent the
-   * space the reason needed on internal context.
+   * space the reason needed on internal context. Since 2026-10-09 (F02-F04 chunk 14b, W7) the
+   * headline is said in plain words by `plainDeclineReason`, the table's reader too.
    */
-  it("keeps the first segment and drops the transaction id trailing it", async () => {
+  it("says the headline in plain words, without the trace or the transaction id", async () => {
     declineFacetRows.value = [
       { facet: "error_code", value: "18", label: "ITEM NOT ALLOWED|ADDITIVES IN48808|CheckItems|" },
       { facet: "error_code", value: "119", label: "NO SECUREFUEL DATA IN0037110997|No Carrier SecureFuel Event|" },
@@ -94,17 +95,17 @@ describe("a decline code's menu label is the reason, not the vendor's trace", ()
     ];
     const q = await read(() => useEfsFacets());
     expect(q.data.value?.rejErrorCodes.map((c) => c.label)).toEqual([
-      "18 — ITEM NOT ALLOWED",
-      "55 — MAX AMOUNT EXCEEDED",
-      "119 — NO SECUREFUEL DATA",
+      "18 — Item not allowed on this card",
+      "55 — Money code over its maximum amount",
+      "119 — No location from the truck to check against",
     ]);
   });
 
-  // A description with no trace at all is already the reason — the rule must not eat it.
-  it("leaves a plain description alone", async () => {
+  // A headline the reader has no words for is shown as EFS wrote it, in sentence case — never dropped.
+  it("shows a headline it does not know as itself", async () => {
     declineFacetRows.value = [{ facet: "error_code", value: "51", label: "INVALID DRIVER ID" }];
     const q = await read(() => useEfsFacets());
-    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("51 — INVALID DRIVER ID");
+    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("51 — Invalid driver id");
   });
 
   // ⚠ `IN123` is stripped only when it TRAILS the reason. A code whose reason ends in something that
@@ -112,7 +113,7 @@ describe("a decline code's menu label is the reason, not the vendor's trace", ()
   it("never shortens a reason to nothing", async () => {
     declineFacetRows.value = [{ facet: "error_code", value: "7", label: "IN0415408493|Card Swipe Violation|" }];
     const q = await read(() => useEfsFacets());
-    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("7 — IN0415408493|Card Swipe Violation|");
+    expect(q.data.value?.rejErrorCodes[0]!.label).toBe("7 — Card swipe violation");
   });
 });
 
@@ -206,7 +207,7 @@ describe("the filter menus come from the two facet functions, not from a capped 
     const q = await read(() => useEfsFacets());
     expect(q.data.value?.rejErrorCodes).toEqual([
       { code: "9", label: "9" },
-      { code: "51", label: "51 — INVALID DRIVER ID" },
+      { code: "51", label: "51 — Invalid driver id" },
     ]);
   });
 });

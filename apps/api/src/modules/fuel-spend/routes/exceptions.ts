@@ -15,7 +15,7 @@ import { writeAudit } from "../../../lib/audit.js";
 import {
   FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_STATUSES,
   FINDING_ASSIGNABLE_SECTIONS,
-  FINDING_KINDS,
+  QUEUE_FINDING_KINDS,
   FINDING_QUEUE_STATES,
   canViewSection,
   rolesAssignableIn,
@@ -24,7 +24,7 @@ import {
 } from "@silvicom/shared";
 import { exceptionTotals, listExceptions, moveException, readException } from "../fuelExceptions.js";
 import { readFindings, readFindingsSummary } from "../findingsRead.js";
-import { assignFindings, type FindingRef } from "../findingsAssign.js";
+import { assignFindings, findingRefsFrom, FINDING_SOURCE_TABLE } from "../findingsAssign.js";
 import { exportExceptions } from "../fuelExceptionExport.js";
 import { renderDisputePacket } from "../fuelDisputePacket.js";
 import { ExportTooLargeError, MAX_EXPORT_ROWS } from "../../../lib/csvExport.js";
@@ -139,13 +139,7 @@ export function registerExceptionRoutes(router: Router): void {
         res.status(400).json(apiError("bad_request", "That is not somebody we can assign a finding to."));
         return;
       }
-      const refs = Array.isArray(body?.findings)
-        ? body.findings.filter(
-            (r): r is FindingRef =>
-              !!r && typeof r === "object" && UUID.test(String((r as FindingRef).id)) &&
-              ((r as FindingRef).source === "anomaly" || (r as FindingRef).source === "exception"),
-          )
-        : [];
+      const refs = findingRefsFrom(body?.findings);
 
       const result = await assignFindings(admin, req.auth!.orgId!, req.auth!.userId, req.auth!.role as UserRole, assignee, refs);
       if (!result.ok) {
@@ -171,7 +165,7 @@ export function registerExceptionRoutes(router: Router): void {
             orgId: req.auth!.orgId!,
             actorId: req.auth!.userId,
             action: "fuel.finding_assigned",
-            entity: r.source === "anomaly" ? "anomalies" : "fuel_exceptions",
+            entity: FINDING_SOURCE_TABLE[r.source],
             entityId: r.id,
             meta: { assignee, batch: result.assigned },
           }),
@@ -210,7 +204,7 @@ export function registerExceptionRoutes(router: Router): void {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const page = await readFindings(admin, req.auth!.orgId!, req.auth!.role as UserRole, {
         states: closedSet(req.query.state, FINDING_QUEUE_STATES) ?? undefined,
-        kinds: closedSet(req.query.kind, FINDING_KINDS) ?? undefined,
+        kinds: closedSet(req.query.kind, QUEUE_FINDING_KINDS) ?? undefined,
         // `?vehicles=` with ids, the same parameter every other fuel surface sends.
         vehicleIds: idsFrom(req.query.vehicles),
         assignedTo:
@@ -293,7 +287,7 @@ export function registerExceptionRoutes(router: Router): void {
     }),
   );
 
-  /** identified / claimed / recovered — three numbers, never one (E3). */
+  /** Can be disputed / disputed / credited back (9b) — the claim from open to paid, never one number (E3). */
   router.get(
     "/exceptions/totals",
     requireOrg,

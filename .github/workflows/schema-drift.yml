@@ -1,0 +1,57 @@
+name: Schema drift
+
+# Does production still match its own migrations? (RELEASE-TRAIN-PLAN Q-REL6)
+#
+# Staging is built from supabase/migrations/ and nothing else, so `scripts/schema-drift.mjs`
+# fingerprints both projects through the Supabase Management API and fails on any difference. The
+# 2026-10-02 comparison found production 38 items away from its migrations, and each one had been
+# invisible for weeks: nothing else in CI ever looks at production's catalog. Its header says what
+# is compared and what is not.
+#
+# When: 11:37 UTC daily (06:37 CDT / 05:37 CST): after the 03:00 CT nightly reconcile, before the
+# office's first action at 07:00 CT, and well clear of the 01:00 CT release window (D-REL6). Also on
+# any PR touching the script or this file, so a change to the check is tested against the real pair.
+#
+# Secrets: SUPABASE_ACCESS_TOKEN (one account token, both projects), SUPABASE_PROJECT_REF,
+# STAGING_SUPABASE_PROJECT_REF — the same three migrate.yml asserts, asserted here the same way.
+# The queries are read_only; this workflow writes nothing anywhere.
+
+on:
+  schedule:
+    - cron: "37 11 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/schema-drift.mjs"
+      - ".github/workflows/schema-drift.yml"
+
+jobs:
+  drift:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert the secrets exist
+        run: |
+          missing=()
+          [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && missing+=(SUPABASE_ACCESS_TOKEN)
+          [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ] && missing+=(SUPABASE_PROJECT_REF)
+          [ -z "${{ secrets.STAGING_SUPABASE_PROJECT_REF }}" ] && missing+=(STAGING_SUPABASE_PROJECT_REF)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} — drift was NOT checked."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Self-test the comparison
+        run: node scripts/schema-drift.mjs --self-test
+
+      - name: Compare production with its migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/schema-drift.mjs "${{ secrets.SUPABASE_PROJECT_REF }}" "${{ secrets.STAGING_SUPABASE_PROJECT_REF }}"

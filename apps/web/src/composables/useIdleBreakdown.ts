@@ -8,7 +8,7 @@ import {
   type TruckIdleVerdict,
   type CalendarDay,
   todayInZone,
-  shiftDay,
+  idleWindow,
   daysInRange,
   IN_SERVICE_VEHICLE_STATUSES,
 } from "@silvicom/shared";
@@ -43,7 +43,6 @@ const DEFAULT_COST_BASIS: IdleCostBasis = {
 };
 
 const PAGE = 1000;
-const WINDOW_DAYS = 30;
 
 /**
  * ── WHY THIS IS A COMPOSABLE AND NOT A FEATURE INTERNAL ─────────────────────────────────────────
@@ -74,8 +73,7 @@ function rangeBounds(f: IdleDateFilter, zone: string) {
    * were `new Date().toISOString().slice(0, 10)`, a UTC day, which after 19:00 Central made the
    * default window end tomorrow (D-PREC6).
    */
-  const toDate = f.to ?? todayInZone(new Date(), zone);
-  const fromDate = f.from ?? shiftDay(toDate, -WINDOW_DAYS);
+  const { from: fromDate, to: toDate } = idleWindow(f, todayInZone(new Date(), zone));
   return { fromDate, toDate, days: daysInRange(fromDate, toDate) };
 }
 

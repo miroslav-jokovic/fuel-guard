@@ -5,8 +5,14 @@
 - `supabase/migrations/` is the single source of schema truth. Change schema ONLY by adding the next
   free `NNNN_name.sql` (check `ls supabase/migrations | tail -1`; `lint:migrations` enforces unique
   numbers). Never edit an applied migration; never hand-apply SQL to production.
-- `migrate.yml` auto-applies to the production Supabase project on merge to main (gated on CI green).
-  Merging a migration deploys it.
+- Merging a migration applies it to STAGING (`migrate.yml` `migrate-staging`, gated on CI green).
+  PRODUCTION gets it only in a release: `release.yml` runs `supabase db push` at 01:07 CT for the
+  commit the owner approved, BEFORE deploying that commit's code (root CLAUDE.md, release train).
+  `schema-drift.yml` compares the two databases every morning; any difference is a failed check.
+- Production's catalog is not what the migrations alone imply until proven: 0422/0423 reconciled 66
+  items of drift from edited early migrations (2026-10-04). A migration that reshapes an OLD table
+  must also apply cleanly to production's shape — `schema-drift-production-shape.test.mjs` is the
+  harness; a matrix built from migrations alone could not see 0422's first production failure.
 - Every `create table` needs `enable row level security` in the same or a later migration
   (`check-rls.mjs`). RLS with zero policies = intentional service-role-only.
 - Migration headers carry the house comment discipline: what gap, why this shape, what was rejected

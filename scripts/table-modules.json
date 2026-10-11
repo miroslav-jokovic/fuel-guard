@@ -65,7 +65,7 @@
         "retention_days": 90,
         "partition": null,
         "budget_rows_per_day": 100,
-        "why": "D-APP2 \u2014 a half-typed \u00a7391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
+        "why": "D-APP2 \u2014 a half-typed §391.21 form holding PII for somebody who never applied. 90d rule predates this plan."
       }
     },
     "application_edits": {
@@ -134,6 +134,28 @@
         "why": "D-LIFE4: evidence, append-only, RETENTION_FORBIDDEN \u2014 never pruned. Budget set by L2 (migration 0352), which stopped the trigger recording telemetry. Basis: everything that was NOT vehicle.update/driver.update measured 1,191 rows/30d \u2248 40/day on 2026-09-21, plus identity and compliance changes which are rare (zero vehicle.insert or vehicle.delete in seven days); 500/day is ~12x headroom. \u26a0 PROVISIONAL until the post-0352 rate is measured in production \u2014 re-measure and tighten. L7 partitions this table (its pkey takes 3 scans, so nothing looks it up by id)."
       }
     },
+    "card_fraud_incident_attempts": {
+      "module": "anomalies",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "each decline or fill Samsara put away from its truck, in one incident (CF2, 0438). Measured 2026-10-07: 13 in 09-02..10-02, so under 1 a day; x10 headroom. RETENTION_FORBIDDEN: the incident's evidence."
+      }
+    },
+    "card_fraud_incidents": {
+      "module": "anomalies",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "one per card per episode (CF2, 0438): 7 in 09-02..10-02 on production's declines. core, not derived: status and disposition are a person's verdict, which no rebuild can recreate. RETENTION_FORBIDDEN."
+      }
+    },
     "card_write_counters": {
       "module": "efs",
       "layer": "infra",
@@ -198,6 +220,83 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "document_pages": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 400,
+        "why": "budget derived from DOCUMENT-READER-PLAN §0.1 (measured 2026-10-08): 2,135 BOL-type and 311 delivery photos in 30 days through Samsara, ~82 pages a day, before SMS and email; x5 headroom. One canonical page per photo or PDF page (0448). Append-only evidence beside its source; no rule."
+      }
+    },
+    "document_page_classes": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 800,
+        "why": "one classifier verdict per page (document_pages' 400 a day, the same x5 headroom on DOCUMENT-READER-PLAN §0.1's ~82 pages) plus a re-classification on a prompt change and each dispatcher override; x2 on the page budget. Append-only labels, newest per page wins, RETENTION_FORBIDDEN (0449, Q-DR12)."
+      }
+    },
+    "document_assemblies": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "one Layer 1 proposal per submission or upload (~22 BOL-type submissions a day, DOCUMENT-READER-PLAN §0.1, plus office uploads) and each dispatcher edit as a new version; x5 headroom on ~40. Append-only, RETENTION_FORBIDDEN (0454, D-DR14)."
+      }
+    },
+    "document_assembly_pages": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "one row per page per assembly version: document_pages' 400 a day once, plus each edit re-listing its pages; x2.5 on the page budget. Append-only, RETENTION_FORBIDDEN (0454, D-DR14)."
+      }
+    },
+    "document_read_reviews": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 2000,
+        "why": "one row per field per Calculate press (plan §6, at most 500 per batch); the hazmat calculator is the only consumer, a few dozen loads a day at ~40 fields each. Append-only labels, RETENTION_FORBIDDEN (0448, D-DR5)."
+      }
+    },
+    "document_reads": {
+      "module": "document-reading",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "one read per source per profile plus re-reads after a version change; sources are budgeted at 100 a day (0448). No rule yet: a read is the evidence a review cites, and the cache key (§4.6) reuses finished ones."
+      }
+    },
+    "document_sources": {
+      "module": "document-reading",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 100,
+        "why": "budget derived from DOCUMENT-READER-PLAN §0.1 (measured 2026-10-08): 492 BOL and 160 delivery submissions in 30 days through Samsara, ~22 a day, before SMS and email intake; x4 headroom. Evidence, append-only, RETENTION_FORBIDDEN (0448, D-DR9: §172.201(e), §177.817(f))."
       }
     },
     "documents": {
@@ -341,6 +440,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "driver_hos_clocks": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "current state: one row per Samsara driver, overwritten on every clocks poll (0450, DISPATCH-BOARD-PLAN DB3); bounded by the driver roster, never grows with time."
       }
     },
     "driver_vehicle_assignments": {
@@ -651,6 +761,28 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "fleetpal_po_items": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 80,
+        "why": "Grows with purchasing: 2,106 lines on the live account, created 2025-03-25 to 2026-10-03, mean 3.8/day, peak 77 in one day (2025-04-05), measured 2026-10-04. Budget sits just above that peak. Evidence for the money control, so no retention."
+      }
+    },
+    "fleetpal_po_payments": {
+      "module": "fleetpal",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 40,
+        "why": "Grows with purchasing: 2,840 payments on the live account, created 2025-03-28 to 2026-10-01, mean 5.1/day, peak 32 in one day (2026-03-18), measured 2026-10-04. Budget sits just above that peak. Evidence for the money control, so no retention."
+      }
+    },
     "fleetpal_purchase_orders": {
       "module": "fleetpal",
       "layer": "raw",
@@ -737,6 +869,28 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "fmcsa_fetch_runs": {
+      "module": "inspections",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 12,
+        "why": "one row per dataset per daily FMCSA feed run (0457, INSPECTION-CHALLENGE-PLAN IC1): 6/day per carrier, budget allows a retry day. Kept: the feed's freshness and failure history; pinned in RETENTION_FORBIDDEN."
+      }
+    },
+    "fmcsa_raw_rows": {
+      "module": "inspections",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "FMCSA open-data records versioned on change (0457, D-IC2): a ~7,000-row backfill once, then new inspections (1,390 in 3 years, ~1.3/day, ~5 rows each across the six datasets) plus republished changes and vanishes. Kept: a vanish is the DataQs outcome signal; RETENTION_FORBIDDEN."
       }
     },
     "fuel_cards": {
@@ -1022,7 +1176,7 @@
         "retention_days": 400,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day \u2014 ~2,000 duty transitions plus ~1,100 daily-boundary logs \u2014 which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400\u2192120 leg; see the plan's \u00a78)."
+        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day \u2014 ~2,000 duty transitions plus ~1,100 daily-boundary logs \u2014 which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400\u2192120 leg; see the plan's §8)."
       }
     },
     "idle_events": {
@@ -1111,6 +1265,28 @@
         "partition": null,
         "budget_rows_per_day": 500,
         "why": "raw telemetry windows; its 400d rule predates this plan and is kept."
+      }
+    },
+    "ifta_fuel_receipt_uploads": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "budget derived from the first two files (2026-10-07): a fuel-app report and a McLeod ticket export per quarter, re-sent with additions — a handful of uploads a quarter, x40 headroom for a busy upload day. Evidence, append-only, pinned in RETENTION_FORBIDDEN (an IFTA return is kept 4 years)."
+      }
+    },
+    "ifta_fuel_receipts": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 200,
+        "why": "budget derived from the first two files (2026-10-07): 101 driver-paid fills for Q3 2026 (~1.1/day), but they arrive in quarterly batches, so a day can bring a whole quarter at once; 200 covers a batch day with headroom. Evidence, append-only, pinned in RETENTION_FORBIDDEN (an IFTA return is kept 4 years)."
       }
     },
     "import_rows": {
@@ -1289,6 +1465,17 @@
         "why": "proof-of-delivery photographs; its 1095d (3-year) rule predates this plan and is kept."
       }
     },
+    "load_stop_eta_predictions": {
+      "module": "loads",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 60,
+        "partition": null,
+        "budget_rows_per_day": 4000,
+        "why": "the dispatch board's ETA sampled hourly per truck heading to a stop (0453, DISPATCH-BOARD-PLAN DB7): ~120 trucks x 24 = ~2,900 rows/day on the 2026-10-10 fleet, budget leaves room for fleet growth. 60 days: two fortnight measurements plus a re-run."
+      }
+    },
     "load_stops": {
       "module": "loads",
       "layer": "core",
@@ -1386,6 +1573,17 @@
         "partition": null,
         "budget_rows_per_day": 650,
         "why": "budget derived from live lme 2026-09-24: 209.7 stops/day over the same 28 days (max 12 on one movement), x3 headroom. Cascades from mcleod_dispatch_movements, so its retention is the movement's \u2014 LOADS-MIRROR-PLAN Q-LMR8."
+      }
+    },
+    "mcleod_fuel_tax_receipts": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "budget derived from lme_analytics 2026-10-05: 447 hand-keyed receipts over 2 years (~0.6/day, keyed in quarterly batches of ~70), x8 headroom for a batch day. The nightly 2-year re-read upserts in place, so it adds no rows. Retention unruled \u2014 an IFTA return is kept 4 years (IFTA-PRECISION-PLAN)."
       }
     },
     "mcleod_gl_accounts": {
@@ -1509,15 +1707,26 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
-    "notification_events": {
+    "notification_dedupe_keys": {
       "module": "messaging",
-      "layer": "derived",
+      "layer": "core",
       "lifecycle": {
         "growth": "time",
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "delivery queue for Expo Push. Retention unruled \u2014 L9."
+        "why": "idempotency ledger for notify() (0432, DATA-LIFECYCLE-PLAN Q11): a deleted key re-arms its alert, so no window. One narrow row per keyed emit, ~70/day measured 2026-10-05 (3,182 since 08-09); the budget matches notification_events."
+      }
+    },
+    "notification_events": {
+      "module": "messaging",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 90,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "the bell's inbox and the Expo Push delivery queue. 90 days (DATA-LIFECYCLE-PLAN Q11, ruled 2026-10-05): prunable since 0432 moved the dedupe keys to notification_dedupe_keys."
       }
     },
     "notification_preferences": {
@@ -1685,6 +1894,28 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "platform_alert_recipients": {
+      "module": "org",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "platform_release_approvals": {
+      "module": "org",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-08 (0440, D-REL14): at most a few rows per release night, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
     "platform_audit_log": {
       "module": "org",
       "layer": "infra",
@@ -1716,6 +1947,50 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      }
+    },
+    "roadside_citations": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "court results projected from fmcsa_raw_rows (0458, IC1b): 21 in 3 years. Rebuildable from the raw store; kept because IC4's cases will point at it."
+      }
+    },
+    "roadside_inspection_units": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 20,
+        "why": "inspected units projected from fmcsa_raw_rows and matched to vehicles/trailers (0458, IC1b): 2,763 in 3 years (~2.5/day). Rebuildable; kept because cases point at it."
+      }
+    },
+    "roadside_inspections": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "FMCSA roadside inspections projected from fmcsa_raw_rows (0458, IC1b): 1,390 in 3 years (~1.3/day). Rebuildable from the raw store; kept, a vanished one is marked, never deleted."
+      }
+    },
+    "roadside_violations": {
+      "module": "inspections",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 10,
+        "why": "violations projected from fmcsa_raw_rows (0458, IC1b): 1,422 in 3 years (~1.3/day). Rebuildable; kept because IC4's cases will point at it."
       }
     },
     "route_fuel_settings": {
@@ -1771,6 +2046,17 @@
         "partition": null,
         "budget_rows_per_day": 500,
         "why": "raw fetch envelopes for the IFTA report."
+      }
+    },
+    "samsara_documents": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 300,
+        "why": "driver documents staged from Samsara (0445): ~126/day measured 2026-10-08 across all types; refreshed in place by document id. Kept: the reader's intake and the corpus read from it."
       }
     },
     "samsara_ifta_jurisdiction_miles": {
@@ -1883,6 +2169,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "surface_page_views": {
+      "module": "org",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 700,
+        "why": "daily page-view count per (org, day, screen, role), product readiness X1 (0435). Ceiling is 72 screens x 9 roles = 648 rows per org per day; one office reads far fewer. No window yet: the usage history is the evidence the keep/hide rulings rest on."
+      }
+    },
     "thread_participants": {
       "module": "messaging",
       "layer": "core",
@@ -1903,6 +2200,17 @@
         "partition": null,
         "budget_rows_per_day": null,
         "why": "one row per McLeod dispatcher account, upserted on (org_id, provider, external_id) - 16 on the live board 2026-09-23 (L4, its first writer). Bounded by the carrier's staff, not by elapsed time."
+      }
+    },
+    "tms_fleets": {
+      "module": "mcleod",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "one row per TMS fleet code (14 named fleets plus the '1' pool on live McLeod 2026-10-09), upserted on (org_id, provider, code); bounded by the carrier's dispatch staff, not by elapsed time (0450, DISPATCH-BOARD-PLAN DB2)."
       }
     },
     "tms_movements": {
@@ -1971,6 +2279,17 @@
         "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
       }
     },
+    "vehicle_fuel_tax_exclusions": {
+      "module": "ifta",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-05 (0433): one row per fuel-tax exclusion period a carrier sets on a truck in McLeod; no truck had ever been excluded when it shipped, so growth and budget are owed at first write (D-LIFE1 ratchet)."
+      }
+    },
     "vehicle_engine_days": {
       "module": "idle",
       "layer": "derived",
@@ -2001,7 +2320,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "evidence \u2014 \u00a7396.17 inspection line items, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
+        "why": "evidence \u2014 §396.17 inspection line items, RETENTION_FORBIDDEN. retention_days null because the table is in RETENTION_FORBIDDEN."
       }
     },
     "vehicle_inspections": {

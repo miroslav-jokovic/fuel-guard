@@ -13,6 +13,70 @@ about this deployment, so it is the first thing described here.
 
 `apps/driver` is an Expo app and is **not** a Railway service.
 
+## Two environments, two branches (the release train, since 2026-10-04)
+
+| Railway environment | Follows | Database | Moves when |
+|---|---|---|---|
+| **`production`** | branch **`production`** | production Supabase | `release.yml` ships an owner-approved release PR at 01:07 CT (Sunday–Thursday nights), or a hotfix / rollback dispatch |
+| **`uat`** (staging) | branch **`main`** | `Silvicom 360 Staging` | every merge |
+
+The branch is set **per environment** on each service's deployment trigger, not on the service:
+the four production triggers (`@fleetguard/api`, `@fleetguard/web`, `platform-console`,
+`driver-dist`) name `production`; the four uat triggers name `main`. Change one only through the
+GraphQL `deploymentTriggerUpdate` by trigger id (`railway api`). `railway service source connect`
+works at the SERVICE level and would move both environments at once.
+
+`production` is guarded by a ruleset (update, deletion, force-push; the only bypass is the
+`release-train` deploy key held as `RELEASE_DEPLOY_KEY`), so not even an admin can push it by hand.
+A release that needs to go out NOW is `release.yml` → `mode=hotfix`; going back is `mode=rollback`.
+Plan, decisions and the cutover record: `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`.
+
+### What a release night does on its own, and what it tells you (2026-10-05)
+
+| Moment | What happens | You hear |
+|---|---|---|
+| 18:00 CT | `release-candidate.yml` opens or refreshes the `main → production` PR | email: "Release ready for your approval", notes + link |
+| 01:07 CT | `release.yml` ships the approved commit: CI green → **a backup under 26 h** → migrations → push → verify → smoke → tag | email: "Released v…" with the notes |
+| — not approved / frozen | nothing ships | email: "No release tonight — …" |
+| — fails BEFORE the push | production unchanged (migrations that ran stay) | email **+ text** |
+| — fails AFTER the push | **automatic rollback** to the previous commit, verified on its own | email **+ text**: "rolled back" |
+| — rollback does not verify | nothing more is automatic | email **+ text**: "act now" — run `mode=rollback` with the last tag, or roll back the Railway deploy |
+| 01:37 CT | retry: ships an approved release a delayed or dropped 01:07 run missed; otherwise silent | — |
+
+**Approving is done in either of two places** (D-REL14): a review on the release PR by a repository
+admin, or **platform console → Settings → Tonight's release** by an active platform owner, who
+types an authenticator code there (table `platform_release_approvals`, 0440). Only the PRODUCTION
+console can approve; the uat one says so. The console approves the commit the notes describe (the
+`release-candidate-sha` line in the PR body), and `release.yml` takes the newer of the two signals.
+The 18:00 email links to the console when the repository variable `CONSOLE_URL` is set. If the
+console's approvals cannot be read at 01:07, the run warns and GitHub reviews alone decide.
+
+The summary is sent from the workflow straight to Brevo and Telnyx (`scripts/release-notify.mjs`),
+never through our API — the message that matters most is the one saying the API is broken.
+
+**Who receives it is kept in the platform console → Settings → Alert recipients** (table
+`platform_alert_recipients`, 0427): add or remove an email or a phone there, owner/admin with a fresh
+authenticator code, recorded in the platform audit trail, no deploy. Phones show as their last four
+digits. The workflow reads the list from production's database at send time through Supabase's
+management API. Per channel, if that read fails or the list has nobody on it, it falls back to the
+repository secrets `RELEASE_NOTIFY_EMAILS` / `RELEASE_NOTIFY_PHONES` (comma-separated), so keep one
+number there as the safety net. It never merges the two: someone removed in the console stops hearing
+alarms. The providers come from four more secrets, `BREVO_API_KEY`, `MAIL_FROM`, `TELNYX_API_KEY`,
+`TELNYX_FROM` — copies of production `@fleetguard/api`'s own; rotate them in both places. A missing one
+is a workflow warning, never a failed release.
+
+**Backups.** Production takes one physical backup a day (~03:40 CT, 7 kept); point-in-time recovery
+is OFF (measured 2026-10-05). A release at 01:07 that damaged data could be restored only to the
+previous morning — about 21 h of writes lost. The release refuses to start without a backup under
+26 h old, which proves the schedule is alive but cannot shrink that window; only PITR can (Supabase add-on, ~$100/month for 7 days, needs
+at least Small compute — the owner's call, RELEASE-TRAIN-PLAN Q-REL7).
+
+Staging cannot reach real people or money: `OUTBOUND_ALLOWLIST` on uat api + web limits email and
+SMS to the two owners, EFS SOAP/routes are off, card control and PSP orders default off, and the
+Samsara token is read-only. uat `@fleetguard/web` runs the schedulers against the staging database
+(`RUN_SCHEDULERS_IN_PROCESS` unset = true; checked 2026-10-04) — the rule below about exactly one
+scheduler process is per DATABASE, and uat has exactly one.
+
 ### The two are not same-origin, whatever the code's default says
 
 `apps/web/src/lib/api.ts` defaults `VITE_API_URL` to `""`, which would make the browser call
@@ -75,7 +139,8 @@ This is safe because of a fact about `main`, not a fact about the build: branch 
 `pnpm typecheck`, which is `pnpm -r typecheck`, which includes that exact `vue-tsc`. Nothing
 reaches `main` without it having passed — not a force-push (disabled), not an admin. The copy
 inside the deploy was a second execution of a check that cannot fail by the time Railway sees the
-commit.
+commit. Production deploys the `production` branch, which `release.yml` moves only to a commit
+whose CI is green (`require-ci-green`) — a main commit, or a hotfix whose PR ran the same CI.
 
 Note what this does NOT change: `vite build` never typechecked anything in the first place, it
 strips types. So the shipped bundle is byte-for-byte the same work; only the redundant gate is
@@ -152,19 +217,30 @@ once. It depends on two things no gate can see:
 To check it worked, the old deployment's log should end with
 `[shutdown] api: SIGTERM — … waiting up to 35s` and then `N finished, M released`.
 
+## EFS feed older than 2 hours: who is told, and what to check
+
+**Who:** every member with `accounting: manage` gets "EFS transactions not updated in N hours" in
+the bell (a warning; critical after 6 h), and the org's notification emails get one message. It
+comes from `financialFreshness.ts`, which fires once the last successful `efs_soap_posted` run is
+over an hour old (the poll runs every minute). It checks only every 6 hours and says it once a day,
+so a 2-hour gap can go unannounced for up to 6 more hours. **Check:** Settings → Data & sync, the
+EFS feed card, for the last delivery and any gap; then `railway logs` on `@fleetguard/api` for
+`efs_soap_posted`. It is the only WEX-whitelisted host, so nothing polls if it is down or its `RUN_SCHEDULERS_IN_PROCESS` became `false` (§ Exactly one service
+runs the schedulers). (F02–F04 chunk 16, measured 2026-10-09.)
+
 ## One-time Railway setup (makes the files above authoritative)
 
 `watchPatterns` in a config file only apply when the Railway service is pointed at that file.
 Set this once per service (Railway → service → Settings):
 
 1. **app service** → Config-as-code → **Config Path = `railway.json`**. Automatic Deploys **on**;
-   deploy branch **`main`**.
+   deploy branch **`production`** in the production environment, **`main`** in uat.
 2. **admin service** → Config-as-code → **Config Path = `railway.admin.json`**. Automatic Deploys
-   **on**; branch **`main`**.
+   **on**; branch **`production`** in production, **`main`** in uat.
 3. **Both `@fleetguard/api` and `@fleetguard/web` point at `railway.json`.** They are meant to.
    See the top of this file for which is which, and do not "tidy up" the second one.
 
-To verify: push a web-only change to `main`. The **app service** should build and its log should
+To verify: push a web-only change to `main`. The **uat app service** should build and its log should
 show `pnpm --filter ./apps/web exec vite build`. If it doesn't, the service isn't reading
 `railway.json` — re-check step 1. (That line named `@silvicom/web build` until 2026-09-05, which
 was already the wrong filter spelling and is now the wrong command as well; see the section above.)
@@ -174,4 +250,5 @@ was already the wrong filter spelling and is now the wrong command as well; see 
 - Push anything under `apps/api`, `apps/web`, or `packages` → **app service** redeploys (web + API
   ship together).
 - Push anything under `apps/admin`, `apps/admin-api`, or `packages` → **admin service** redeploys.
-- `git push` to `main` always triggers the correct service(s). No manual redeploys.
+- A merge to `main` redeploys those services in **uat**; production follows at the next release,
+  when `release.yml` moves `production`. No manual redeploys in either environment.

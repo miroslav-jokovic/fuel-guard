@@ -126,7 +126,10 @@ export const SURFACES: readonly Surface[] = [
    * holds `fuel: "view"`, so nobody is hidden from a queue they can work, and a caller without
    * `safety` simply has no theft cases in their list rather than being refused the page.
    */
-  { key: "fuel.exceptions", label: "Findings", path: "/findings", group: "fuel", gate: section("fuel") },
+  // F02-F04 chunk 8c4 (Q-F12 (b), 2026-10-08): "Fuel problems" at `/fuel-problems`. The queue holds card
+  // fraud and short fills as well as money findings, and "Findings" named only the last. Alerts keeps
+  // `/anomalies` for safety work; `/findings` redirects here. The key stays, for the reason above.
+  { key: "fuel.exceptions", label: "Fuel problems", path: "/fuel-problems", group: "fuel", gate: section("fuel") },
   { key: "fuel.ifta", label: "IFTA", path: "/ifta", group: "fuel", gate: section("fuel") },
 
   // ── dispatch ──────────────────────────────────────────────────────────────────────────────────
@@ -144,8 +147,9 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "dispatch.loads", label: "Loads", path: "/loads", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
-  { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread" },
-  { key: "dispatch.assignments", label: "Assignments", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
+  // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
+  { key: "dispatch.messages", label: "Messages", path: "/messages", group: "dispatch", gate: section("dispatch"), module: "messages", badge: "messagesUnread", startsOnFor: [] },
+  { key: "dispatch.assignments", label: "Dispatch board", path: "/assignments", group: "dispatch", gate: section("dispatch"), module: "dispatch" },
   { key: "dispatch.fuel-planning", label: "Fuel Planning", path: "/fuel-planning", group: "dispatch", gate: manage("dispatch") },
   { key: "dispatch.truck-stops", label: "Truck Stops", path: "/truck-stops", group: "dispatch", gate: section("dispatch") },
 
@@ -174,8 +178,9 @@ export const SURFACES: readonly Surface[] = [
    * for `recruiter`, `accountant` and `technician`, whose shipped `hazmat` is `none`; the review
    * queue's own write stays with HAZMAT_REVIEW_ROLES (D6), which a section grant never widens.
    */
-  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: section("hazmat"), module: "hazmatguard" },
-  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: section("hazmat"), module: "hazmatguard", badge: "hazmatReview" },
+  // Q-PR2 (2026-10-06): Tier C, hidden until it has a named first user; an admin grant turns it back on.
+  { key: "safety.placard-calculator", label: "Placard calculator", path: "/hazmat/calculator", group: "safety", gate: section("hazmat"), module: "hazmatguard", startsOnFor: [] },
+  { key: "safety.hazmat-review", label: "Hazmat review", path: "/hazmat/review", group: "safety", gate: section("hazmat"), module: "hazmatguard", badge: "hazmatReview", startsOnFor: [] },
 
   // ── recruitment ───────────────────────────────────────────────────────────────────────────────
   // The hiring half of §391, and its OWN section — not a corner of Fleet. Gating it on `fleet` (how
@@ -269,6 +274,7 @@ export const SURFACES: readonly Surface[] = [
   { key: "fleet.vehicles.detail", label: "Vehicle", path: "/vehicles/:id", group: "fleet", gate: section("equipment"), parent: "fleet.vehicles" },
   { key: "fuel.cards.detail", label: "Fuel Card", path: "/fuel-cards/:id", group: "fuel", gate: section("fuel"), parent: "fuel.cards" },
   { key: "fuel.invoices.detail", label: "Invoice check", path: "/fuel-invoices/:id", group: "fuel", gate: section("fuel"), parent: "fuel.invoices" },
+  { key: "fuel.ifta.jurisdiction", label: "IFTA jurisdiction", path: "/ifta/:jurisdiction", group: "fuel", gate: section("fuel"), parent: "fuel.ifta" },
   // FS2, Q-FSV12: the spend page's Buy discipline tab, its own screen now that the report has no tabs.
   // Reached from Fuel Costs and sharing its grant, so it asks the same `manage` the tab sat behind.
   { key: "fuel.spend.buy-discipline", label: "Buy discipline", path: "/fuel-buy-discipline", group: "fuel", gate: manage("fuel"), parent: "fuel.spend" },
@@ -384,7 +390,14 @@ export const SURFACES: readonly Surface[] = [
    */
   { key: "admin.recruiting", label: "Recruiting", path: "/settings/recruiting", group: "admin", gate: section("recruitment"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.data", label: "Data & sync", path: "/settings/data", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
+  // Whose McLeod fleet is whose (DISPATCH-BOARD-PLAN DB2, 2026-10-10). `settings: view` to read and
+  // the API's `settings: manage` to edit — Q-DB3's "admin + fleet manager" IS that section, so the gate
+  // is read from the matrix rather than written as a role list.
+  { key: "admin.settings.mcleod-fleets", label: "McLeod fleets", path: "/settings/mcleod-fleets", group: "admin", gate: section("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.efs", label: "EFS integration", path: "/settings/efs-soap", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // The FleetPal connection (2026-10-04). Admin-only for `fleetpal.connection`'s reason in
+  // namedGrants.ts: the key it stores speaks for the carrier to the shop system.
+  { key: "admin.settings.fleetpal", label: "FleetPal integration", path: "/settings/fleetpal", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
@@ -427,6 +440,14 @@ export const SURFACES: readonly Surface[] = [
 for (const s of SURFACES) {
   const dir = s.reachedFrom ? SURFACES.find((d) => d.key === s.reachedFrom) : undefined;
   if (dir?.gate.kind === "directory") (dir.gate.screens as Surface[]).push(s);
+}
+
+// A child answers to its parent's key (D-SURF8), so it must also START as its parent does — or
+// hiding Hazmat review (Q-PR2) would leave `/hazmat/loads/:id` open. Copied from the parent here
+// rather than written on the child, which `lint:surfaces` refuses: nobody can answer for a child.
+for (const s of SURFACES) {
+  const parent = s.parent ? SURFACES.find((p) => p.key === s.parent) : undefined;
+  if (parent?.startsOnFor) s.startsOnFor = parent.startsOnFor;
 }
 
 export const NAV_SURFACES: readonly Surface[] = SURFACES.filter((s) => s.parent === undefined && s.reachedFrom === undefined);

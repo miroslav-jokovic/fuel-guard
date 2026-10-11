@@ -8,8 +8,10 @@
  * table shapes and a scoping rule into a browser bundle is the thing to avoid.
  *
  * Owns no table, so it appears in no writer manifest. If that ever changes, the table is somebody
- * else's and this module should still be reading it through them.
+ * else's and this module should still be reading it through them. The first case came on 2026-10-10:
+ * the board's recorded ETAs (DB7) are `loads`' table, written through `recordStopEtaPredictions`.
  */
 export { liveMapRouter } from "./routes/index.js";
+export { startBoardEtaRecorder } from "./boardEtaRecorder.js";
 export { readLiveMapBoard, FLEET_WIDE_SCOPE_REASON } from "./liveMapBoard.js";
 export { readLiveMapBoardCached, BOARD_CACHE_TTL_MS } from "./liveMapBoardCache.js";

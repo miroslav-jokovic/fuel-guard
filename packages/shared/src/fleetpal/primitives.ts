@@ -75,6 +75,10 @@ export const FLEETPAL_ORDER_TYPES = ["WORK_ORDER", "STANDARD", "CREDIT"] as cons
 export const FLEETPAL_PO_ITEM_TYPES = ["PART", "FEE", "TAX"] as const;
 export const FLEETPAL_PO_INVOICE_TYPES = ["STANDARD", "CREDIT"] as const;
 export const FLEETPAL_VENDOR_TYPES = ["SERVICE", "FINANCIAL"] as const;
+/** How a purchase-order payment was made (MAINTENANCE-MONEY-CONTROL-PLAN.md C1). Nullable on the wire. */
+export const FLEETPAL_PAYMENT_METHODS = [
+  "CASH", "ON_ACCOUNT", "CARD", "CHECK", "EFS_CHECK", "PERSONAL_CREDIT_CARD", "PAYROLL_DEDUCTION", "NATIONAL_ACCOUNT",
+] as const;
 /**
  * Written out rather than `[...FLEETPAL_METER_TYPES, "TIME"]`, which is the tidier expression and
  * the wrong one: `check-fleetpal-contract.mjs` reads these consts as source text, so a spread-built
@@ -138,6 +142,7 @@ export const FLEETPAL_ENUMS: Record<string, readonly string[]> = {
   IntervalTypeEnum: FLEETPAL_INTERVAL_TYPES,
   TimeIntervalEnum: FLEETPAL_TIME_INTERVALS,
   UnitOfMeasureEnum: FLEETPAL_UNITS_OF_MEASURE,
+  PaymentMethodEnum: FLEETPAL_PAYMENT_METHODS,
 };
 
 // ── the envelope ────────────────────────────────────────────────────────────────────────────────

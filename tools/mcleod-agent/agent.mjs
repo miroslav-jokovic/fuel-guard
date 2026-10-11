@@ -44,6 +44,7 @@ import {
 } from "./service.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
+import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -744,6 +745,16 @@ async function runFinancial() {
     });
     log(`financial: ledger-totals ${periodStart} rows=${lc.totals.length} upserted=${rl.upserted ?? 0} staleRemoved=${rl.staleRemoved ?? 0}`);
   }
+
+  // Hand-keyed IFTA fuel receipts (IFTA-PRECISION-PLAN IP6): two whole years every night, not the
+  // 75-day window — the office keys a quarter's receipts after it closes, and the re-read IS the
+  // backfill of past quarters. ~70 rows a quarter, so the cost is a few hundred tiny rows.
+  const rw = receiptWindow(windowEnd.slice(0, 10));
+  const fr = await fetchFuelTaxReceipts({ ...CFG.sql, ...rw });
+  const rr = await send("/api/tms/fuel-tax-receipts", "receipts", fr.receipts,
+    { window_start: rw.windowStart, window_end: rw.windowEnd }, 2000);
+  log(`financial: fuel-tax-receipts ${rw.windowStart} → ${rw.windowEnd} ${verb}=${fr.receipts.length} received=${rr.received} upserted=${rr.upserted}` +
+    (fr.dropped ? ` dropped=${fr.dropped} (no tractor or state)` : ""));
 
   // Reconciliation stays where it always ran: the standalone CLIs print the to-the-cent GL
   // tie-outs; this sweep only persists. Fuel purchases are deliberately NOT posted — EFS is

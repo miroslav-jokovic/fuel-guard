@@ -56,7 +56,7 @@ vi.mock("@/composables/useFuelLog", () => ({
     seen.fuel = f;
     return listOf({ id: "f1", vehicle_id: "v-654", driver_id: "dr-1", fueled_at: "2026-08-15T14:00:00Z", gallons: 100, has_anomaly: false, case_level: "clear", case_score: 0, case_signals: [], case_gates: null });
   },
-  useFuelRangeTotals: () => ({ data: ref(null) }),
+  useFuelRangeTotals: () => ({ data: ref(null), isError: ref(false), isPlaceholderData: ref(false) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: ref([{ id: "v-654", unit_number: "654", status: "active" }]) }),
@@ -114,9 +114,6 @@ beforeEach(() => {
   seen.fuel = seen.txn = seen.declined = null;
 });
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("the Fuel Log's filters round-trip through the query string", () => {
   it("puts a facet chosen on the Fills tab into the URL, and the query", async () => {
     const { w, query } = await mountAt("/fuel-log");
@@ -137,7 +134,7 @@ describe("the Fuel Log's filters round-trip through the query string", () => {
   it("puts each raw-feed tab's own facets in the URL under its own names", async () => {
     const dec = await mountAt("/fuel-log?tab=declines");
     await pick(dec.w, "Risk", "alert");
-    await pick(dec.w, "Error", "51");
+    await pick(dec.w, "Reason", "51");
     expect(dec.query()).toMatchObject({ risk: "alert", error: "51" });
     expect(seen.declined?.value.suspicion).toBe("alert");
     expect(seen.declined?.value.errorCode).toBe("51");

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  CARD_FRAUD_KIND,
   FINDING_KINDS,
   FINDING_SECTIONS,
   sectionOfFinding,
@@ -13,7 +14,7 @@ import { canViewSection, rolesThatManage } from "./auth.js";
 
 describe("the section a finding belongs to", () => {
   it("covers every kind the inbox can hold, with nothing left to a page's gate", () => {
-    expect(FINDING_KINDS).toHaveLength(FUEL_EXCEPTION_KINDS.length + 1);
+    expect(FINDING_KINDS).toHaveLength(FUEL_EXCEPTION_KINDS.length + 2);
     for (const kind of FINDING_KINDS) {
       expect(FINDING_SECTIONS[kind as FindingKind]).toBeDefined();
     }
@@ -25,6 +26,13 @@ describe("the section a finding belongs to", () => {
   it("keeps a theft case with safety and the money findings with fuel", () => {
     expect(sectionOfFinding(CASE_RULE_ID)).toBe("safety");
     for (const kind of FUEL_EXCEPTION_KINDS) expect(sectionOfFinding(kind)).toBe("fuel");
+  });
+
+  // Q-F11 (a), 2026-10-08: holding or replacing the card in WEX is the fuel manager's job.
+  it("puts a card-fraud incident in fuel, so the fuel manager works it and a safety-only role does not", () => {
+    expect(sectionOfFinding(CARD_FRAUD_KIND)).toBe("fuel");
+    expect(rolesThatManageFinding(CARD_FRAUD_KIND)).toEqual(rolesThatManage("fuel"));
+    expect(rolesThatManageFinding(CARD_FRAUD_KIND)).not.toContain("safety_manager");
   });
 
   it("lets the safety manager close a theft case and no fuel finding", () => {

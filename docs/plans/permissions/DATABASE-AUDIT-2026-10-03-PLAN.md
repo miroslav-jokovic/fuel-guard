@@ -15,13 +15,13 @@ Production reads were `supabase db query --linked`, aggregate-only, and any role
 | C | `TRUNCATE`, `REFERENCES`, `TRIGGER`, `MAINTAIN` granted to client roles | **Fixed** | 0413, #1227 |
 | 5 (part) | `revoke_push_tokens` missing on production; `notify_dedupe_key` unused | **Fixed** | 0414, #1231 |
 | 2 | Receipts readable and deletable by any member | **Fixed** | 0415, #1235 |
-| 1 | Denied sections still readable — `fuel_transactions` | **In review** | 0417; web halves #1239, #1240 merged |
+| 1 | Denied sections still readable — `fuel_transactions` | **Fixed** | 0417 (restrictive `ftxn_section_read` on production, checked 2026-10-05); web halves #1239, #1240 |
 | 1 | Denied sections still readable — `drivers` | Open | needs a name-only surface first (Q-DA3) |
 | 3 | Stale JWTs after suspension | Open | design needed (Q-DA4) |
 | 4 | Tenant identity across foreign keys | Open | 0 existing mismatches found in the two core tables checked |
 | 5 (rest) | Nine production-only policies, five columns, ~20 indexes, two stale overloads, two FK differences | Open | the replay tests a database production is not |
-| 6, 7 | SSL not enforced, network open, leaked-password protection off | Open | dashboard/CLI settings, not migrations |
-| — | `efs_soap_credentials.soap_password` plaintext beside `soap_password_sealed` | Open | two-merge pattern |
+| 6, 7 | SSL not enforced, network open, leaked-password protection off | Open (SSL off and `0.0.0.0/0` rechecked 2026-10-05) | dashboard/CLI settings, not migrations |
+| — | `efs_soap_credentials.soap_password` plaintext beside `soap_password_sealed` | **Merge 1 of 2** | measured 2026-10-05: both rows `''` with a sealed copy; 0426 forbids any other value and the reader no longer falls back. Merge 2 drops the column once no deployed code writes `''` |
 
 ## What the report got right, and what this check changed
 

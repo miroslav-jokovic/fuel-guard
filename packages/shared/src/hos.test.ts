@@ -6,6 +6,7 @@ import {
   hosOverlapSeconds,
   hosVehicleOverlapSeconds,
   parseHosClocks,
+  parseHosClockReadings,
   type HosSegment,
 } from "./hos.js";
 import {
@@ -454,6 +455,30 @@ describe("parseHosClocks — current duty status per driver", () => {
     expect(parseHosClocks(data)).toEqual([
       { driverId: "57168899", status: "driving", vehicleId: "212", vehicleName: "556" },
       { driverId: "99", status: "off_duty", vehicleId: null, vehicleName: null },
+    ]);
+  });
+});
+
+describe("parseHosClockReadings — the clocks parseHosClocks drops (DISPATCH-BOARD-PLAN DB3)", () => {
+  it("keeps the four remaining clocks verbatim and a missing or non-numeric one as null", () => {
+    const data = [
+      {
+        driver: { id: "5551" },
+        currentVehicle: { id: "281474", name: "773" },
+        currentDutyStatus: { hosStatusType: "onDuty" },
+        clocks: {
+          drive: { driveRemainingDurationMs: 0 },
+          shift: { shiftRemainingDurationMs: 3_600_000 },
+          cycle: { cycleRemainingDurationMs: "soon" },
+        },
+      },
+    ];
+    expect(parseHosClockReadings(data)).toEqual([
+      {
+        driverId: "5551", status: "on_duty", vehicleId: "281474", vehicleName: "773",
+        // Zero is a real answer — out of drive time — and must not read as "no clock".
+        driveRemainingMs: 0, shiftRemainingMs: 3_600_000, cycleRemainingMs: null, timeUntilBreakMs: null,
+      },
     ]);
   });
 });

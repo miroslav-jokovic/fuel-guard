@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   deriveFuelSpendRollup,
-  businessDate,
   MAX_INTERVAL_MILES,
   type SpendFill,
   type SpendEngineDay,
@@ -14,9 +13,11 @@ import {
  * are about WHERE things land, not just how much of them there is.
  */
 
+// Every fixture below fuels between 06:00 and 23:59 UTC, where the UTC day is also EFS's Central day,
+// so the stored day defaults to the instant's date. The one test about the day itself sets it apart.
 const fill = (o: Partial<SpendFill> & { fueledAt: string }): SpendFill => ({
   vehicleId: "v1",
-  state: "TX",
+  businessDate: o.fueledAt.slice(0, 10),
   tank: "tractor",
   gallons: 120,
   totalCost: 620.4,
@@ -34,15 +35,23 @@ const derive = (i: Partial<DeriveInput> & { from: string; to: string }) =>
 const row = (r: ReturnType<typeof derive>, day: string, vehicleId: string | null = "v1") =>
   r.rows.find((x) => x.day === day && x.vehicleId === vehicleId);
 
-describe("businessDate", () => {
-  it("uses the station's local day, not the UTC one", () => {
-    // 05:00 UTC on the 18th is 22:00 on the 17th in Nevada — the day the vendor prints.
-    expect(businessDate("2026-08-18T05:00:00Z", "NV")).toBe("2026-08-17");
-    expect(businessDate("2026-08-18T05:00:00Z", null)).toBe("2026-08-18"); // no state, no shift
+describe("the fill's day", () => {
+  it("is the business date the database stored, not one worked out again from the instant", () => {
+    // A Nevada fill at 22:12 on 09-30 is 00:12 on 10-01 on EFS's Central clock, and EFS prints 10-01
+    // (Q-F5). The instant's UTC date is also 10-01, so the fill is dated 09-30 here to tell "read the
+    // stored day" apart from both re-derivations this file could fall back to.
+    const r = derive({
+      from: "2026-09-29",
+      to: "2026-10-02",
+      fills: [fill({ fueledAt: "2026-10-01T05:12:00Z", businessDate: "2026-09-30", gallons: 150, totalCost: 540 })],
+    });
+    expect(row(r, "2026-09-30")?.spendTractor).toBe(540);
+    expect(row(r, "2026-10-01")).toBeUndefined();
   });
 
-  it("returns null for an unparseable instant rather than inventing a day", () => {
-    expect(businessDate("not a date", "TX")).toBeNull();
+  it("drops a fill with no stored day rather than inventing one", () => {
+    const r = derive({ from: "2026-09-29", to: "2026-10-02", fills: [fill({ fueledAt: "2026-10-01T05:12:00Z", businessDate: null })] });
+    expect(r.rows.filter((x) => x.fills > 0)).toHaveLength(0);
   });
 });
 
@@ -180,8 +189,8 @@ describe("a slice too small to round is taken whole or not at all", () => {
     const r = derive({
       from: "2026-09-06", to: "2026-09-20",
       fills: [
-        fill({ fueledAt: "2026-09-12T16:17:00Z", state: null, gallons: 134.39, milesSinceLast: 857 }),
-        fill({ fueledAt: "2026-09-16T12:00:00Z", state: null, gallons: 158.06, milesSinceLast: 0.2 }),
+        fill({ fueledAt: "2026-09-12T16:17:00Z", gallons: 134.39, milesSinceLast: 857 }),
+        fill({ fueledAt: "2026-09-16T12:00:00Z", gallons: 158.06, milesSinceLast: 0.2 }),
       ],
       engineDays: [
         engine("2026-09-13", 600), engine("2026-09-14", 24857),
@@ -212,8 +221,8 @@ describe("a slice too small to round is taken whole or not at all", () => {
     const r = derive({
       from: "2026-09-16", to: "2026-09-18",
       fills: [
-        fill({ fueledAt: "2026-09-16T12:00:00Z", state: null, gallons: 100, milesSinceLast: 600 }),
-        fill({ fueledAt: "2026-09-18T12:00:00Z", state: null, gallons: 2.59, milesSinceLast: 940.5 }),
+        fill({ fueledAt: "2026-09-16T12:00:00Z", gallons: 100, milesSinceLast: 600 }),
+        fill({ fueledAt: "2026-09-18T12:00:00Z", gallons: 2.59, milesSinceLast: 940.5 }),
       ],
       engineDays: [engine("2026-09-17", 5), engine("2026-09-18", 30000)],
     });

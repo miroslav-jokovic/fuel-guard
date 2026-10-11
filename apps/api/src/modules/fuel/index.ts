@@ -39,3 +39,9 @@ export { countDeclinedAttempts } from "./declinedCount.js";
  * across: `fuel_transactions` is this module's table.
  */
 export { readRecentlyFuelledVehicleIds, type RecentFuelResult } from "./recentFuelReads.js";
+/** The IFTA drill-down's purchases half: one jurisdiction's tractor fills for a quarter, per truck. */
+/**
+ * The same fills, per truck across every state, as the four facts IFTA's receipt duplicate rule
+ * compares (IP6) — so a hand-keyed McLeod receipt the card already carried is not credited twice.
+ */
+export { readJurisdictionFills, readQuarterTractorFills, readVehicleTractorFillKeys } from "./jurisdictionFillReads.js";

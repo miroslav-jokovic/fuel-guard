@@ -3,6 +3,8 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, toValue, type MaybeRefOrGetter, type Ref } from "vue";
+// The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
 import { NO_FUEL_TARGETS, policyGallonCells, type ContractTotals, type FuelPolicy, type SpendLine } from "@silvicom/shared";
 
 /**
@@ -52,15 +54,18 @@ const inputState = {
   cells: "ready" as "ready" | "loading" | "error",
   totals: "ready" as "ready" | "loading" | "error",
   settings: "ready" as "ready" | "loading" | "error",
+  fills: "ready" as "ready" | "loading" | "error",
 };
 const withState = <T,>(data: T, state: "ready" | "loading" | "error") => ({
   data: computed(() => (state === "ready" ? data : undefined)), isLoading: ref(state === "loading"), isError: ref(state === "error"), error: ref(null),
+  refetch: vi.fn(),
 });
 const seen = {
   buyWindow: null as Ref<{ from: string; to: string }> | null,
   lineFilters: null as Ref<{ from: string }> | null,
   /** Whether the row feed was switched on, read live: it must stay off until the quote tile is opened. */
   rowsEnabled: null as (() => boolean) | null,
+  fillsRefetch: null as ReturnType<typeof vi.fn> | null,
 };
 /** The four sums the quote tile reads: 2 measured fills at +$14 net, $820 of $1,260 billed dollars priced. */
 const TOTALS: ContractTotals = {
@@ -70,7 +75,9 @@ const TOTALS: ContractTotals = {
 vi.mock("@/features/reconcile/useBuyFills", () => ({
   useBuyFillsQuery: (window: Ref<{ from: string; to: string }>) => {
     seen.buyWindow = window;
-    return asQuery(BUY_FILLS);
+    const q = withState(BUY_FILLS, inputState.fills);
+    seen.fillsRefetch = q.refetch;
+    return q;
   },
 }));
 vi.mock("@/features/reconcile/useSpendLines", () => ({
@@ -110,6 +117,7 @@ beforeEach(() => {
   inputState.cells = "ready";
   inputState.totals = "ready";
   inputState.settings = "ready";
+  inputState.fills = "ready";
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
     value: (query: string) => ({
@@ -138,8 +146,38 @@ describe("FuelBuyDisciplinePage", () => {
     const t = (await mountPage()).text();
     expect(t).toContain("Fuel carried out of dearer states");
     expect(t).toContain("CA → AZ");
-    expect(t).toContain("fills in sequence");
+    expect(t).toMatch(/\d+ fills in sequence/);
     expect(t).not.toMatch(/NaN|undefined/);
+  });
+
+  it("claims no count of fills while the fill sequence is pending or failed (verdict E8)", async () => {
+    for (const state of ["loading", "error"] as const) {
+      inputState.fills = state;
+      expect((await mountPage()).text(), state).not.toContain("fills in sequence");
+    }
+  });
+
+  it("keeps the targets on screen when only the fill sequence failed, and says which read failed", async () => {
+    inputState.fills = "error";
+    const t = (await mountPage()).text();
+    expect(t).toContain("Couldn't load the fill sequence for this window.");
+    expect(t).toContain("On the preferred network");
+    expect(t).toContain("Paid vs Pilot quote");
+  });
+
+  it("says the fill sequence is loading, not that nothing was carried, while it is pending", async () => {
+    inputState.fills = "loading";
+    const t = (await mountPage()).text();
+    expect(t).toContain("Loading the fill sequence…");
+    expect(t).not.toContain("at least, over this window");
+    expect(t).toContain("On the preferred network");
+  });
+
+  it("reads the fill sequence again from the purchases table's Retry", async () => {
+    inputState.fills = "error";
+    const w = await mountPage();
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(seen.fillsRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("hands both of its reads the page's window, not windows of their own", async () => {

@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planDqAlerts, type DqAlert } from "@silvicom/shared";
+import { DQ_LEGACY_KEY_DAYS, planDqAlerts, type DqAlert } from "@silvicom/shared";
 import type { Env } from "../../env.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { getComplianceOverview } from "./complianceOverview.js";
-import { notify } from "../messaging/index.js";
+import { keysAlreadySent, notify } from "../messaging/index.js";
 import { runApplicationNudgesOnce } from "../recruiting/index.js";
 import { usersWhoManage } from "../org/index.js";
 
@@ -24,14 +24,23 @@ import { usersWhoManage } from "../org/index.js";
  */
 const CHECK_INTERVAL_MS = 6 * 3_600_000;
 
-async function sentKeys(admin: SupabaseClient, orgId: string): Promise<Set<string>> {
-  const { data, error } = await admin
-    .from("notification_events")
-    .select("dedupe_key")
-    .eq("org_id", orgId)
-    .like("dedupe_key", "dq:%");
-  if (error) throw new Error(error.message);
-  return new Set(((data ?? []) as { dedupe_key: string | null }[]).map((r) => r.dedupe_key ?? ""));
+/**
+ * The keys among today's candidates that were already sent (0432). This used to read EVERY `dq:%`
+ * row from `notification_events` — 400 on 2026-10-05, one per recipient — and PostgREST stops at
+ * 1,000, so within weeks the set would have come back truncated and the office re-sent expiries. It
+ * now asks only about the candidates, through the ledger, in one uncapped answer.
+ *
+ * Old-format keys (no expiry date, before 2026-10-05) count only when first sent within
+ * DQ_LEGACY_KEY_DAYS — exactly the current cycle — so the format change re-alerts nothing already
+ * announced, and last year's key can no longer silence this year's renewal.
+ */
+async function sentKeys(admin: SupabaseClient, orgId: string, candidates: DqAlert[], today: string): Promise<Set<string>> {
+  const legacySince = new Date(Date.parse(`${today}T00:00:00.000Z`) - DQ_LEGACY_KEY_DAYS * 86_400_000);
+  const [current, legacy] = await Promise.all([
+    keysAlreadySent(admin, orgId, candidates.map((a) => a.dedupeKey)),
+    keysAlreadySent(admin, orgId, candidates.flatMap((a) => (a.legacyDedupeKey ? [a.legacyDedupeKey] : [])), legacySince),
+  ]);
+  return new Set([...current, ...legacy]);
 }
 
 /** Who hears a qualification finding: every member holding `roster` manage (D-DQ13). */
@@ -70,7 +79,11 @@ const escapeHtml = (s: string): string =>
 export async function runDqAlertsOnce(admin: SupabaseClient, env: Env, orgId: string): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const overview = await getComplianceOverview(admin, orgId, today, { expiringWithinDays: 91 });
-  const alerts = planDqAlerts(overview.drivers, today, await sentKeys(admin, orgId));
+  // Plan once with nothing sent to learn the candidate keys, then again against what the ledger
+  // says was sent. The planner stays pure; the second pass is the one that decides.
+  const candidates = planDqAlerts(overview.drivers, today, new Set());
+  if (candidates.length === 0) return 0;
+  const alerts = planDqAlerts(overview.drivers, today, await sentKeys(admin, orgId, candidates, today));
   if (alerts.length === 0) return 0;
 
   const users = await officeUserIds(admin, orgId);
@@ -78,7 +91,7 @@ export async function runDqAlertsOnce(admin: SupabaseClient, env: Env, orgId: st
     for (const userId of users) {
       // emit_notification applies org entitlement, per-user mutes, quiet hours and the dedupe key
       // (G14) — never insert a row by hand, and never pre-filter what it governs better. The SAME
-      // key goes to every recipient: uq_notification_dedupe is per (org, user, key), so each office
+      // key goes to every recipient: the dedupe ledger is per (org, user, key) (0432), so each office
       // user gets their row, and sentKeys() reads back exactly the keys the planner emits.
       await notify(admin, {
         orgId,

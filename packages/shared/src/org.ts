@@ -15,6 +15,8 @@ export interface OrgSettings {
   operating_hours: { start: string; end: string; tz: string };
   notification_emails: string[];
   notifications_enabled: boolean;
+  /** Fill alerts start here (0439, D-CF9); null = never reset. Set only by the audited reset. */
+  detection_epoch?: string | null;
 }
 
 const timeHHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24h)");

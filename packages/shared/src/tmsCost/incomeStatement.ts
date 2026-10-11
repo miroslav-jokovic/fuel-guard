@@ -137,6 +137,18 @@ const REVENUE_TYPES = new Set<string>([...PNL_REVENUE_TYPES, "Other Revenue and 
 const EXPENSE_TYPES = new Set<string>([...PNL_EXPENSE_TYPES, "Other Expenses and Losses"]);
 
 /**
+ * Which side of the statement an account class sits on, or null for the balance sheet and for a
+ * class the statement does not recognise. Exported so `ledgerMonths.ts` judges a month's revenue and
+ * expense with the statement's own classes rather than a second list of them.
+ */
+export function pnlSideOfType(type: string | null | undefined): "revenue" | "expense" | null {
+  if (type == null) return null;
+  if (REVENUE_TYPES.has(type)) return "revenue";
+  if (EXPENSE_TYPES.has(type)) return "expense";
+  return null;
+}
+
+/**
  * Balance-sheet classes, excluded from the statement entirely rather than reported as unrecognised.
  *
  * They are not an anomaly — a GL sweep returns them because a ledger holds them, and a driver

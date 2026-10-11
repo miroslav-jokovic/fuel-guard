@@ -36,7 +36,7 @@ const { data: vehicles } = useVehiclesQuery();
 const truckOptions = computed(() => (vehicles.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })));
 
 const queryFilters = computed(() => ({ from: f.from.value, to: f.to.value, vehicleIds: f.vehicleIds.value }));
-const { data: buyFillData, isLoading, isError } = useBuyFillsQuery(f.range);
+const { data: buyFillData, isLoading, isError, refetch: refetchFills } = useBuyFillsQuery(f.range);
 // `fuel_buy_fills` takes no truck parameter, but a leg is a pair of fills on ONE vehicle, so dropping
 // other trucks' rows after the fetch is exact (it cannot orphan a pair, lookback rows included). Without
 // this the Trucks filter above applied to the brand cards and silently not to the fills (verdict 03,
@@ -80,7 +80,8 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
       {{ f.windowNotice.value }}
     </p>
 
-    <FilterBar :count="legs" count-label="fills in sequence">
+    <!-- No count until the fills answer: a pending or failed read is not "0 fills" (verdict E8). -->
+    <FilterBar :count="buyFillData ? legs : null" count-label="fills in sequence">
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Trucks" multiple />
@@ -88,18 +89,16 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
       </template>
     </FilterBar>
 
-    <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the fill sequence for this window.
-    </p>
-    <!-- A truck filter strips the grade, since a target is a fleet commitment. -->
+    <!-- A truck filter strips the grade, since a target is a fleet commitment. A failed fill sequence is said
+         inside the parts worked out from it; the targets read their own sums and stay (verdict E8). -->
     <BuyDisciplineTab
-      v-else
       :fills="buyFills"
       :cells="cells"
       :window="f.range.value"
       :fleet-wide="f.vehicleIds.value.length === 0"
       :policy="policy"
-      :loading="isLoading"
+      :fills-state="isError ? 'error' : isLoading || !buyFillData ? 'loading' : 'ready'"
+      @retry="refetchFills()"
       :inputs="inputs"
     />
 

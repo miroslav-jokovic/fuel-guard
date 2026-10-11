@@ -60,6 +60,13 @@ const RESOURCES = [
   // Not a stored object and not in the usual envelope — F4 found the catalogue answers a bare
   // `results` array, and F15 subscribes by the `key` it lists.
   "WebhookEvent",
+  // `/v1/vmrs-components/{id}/` (F9c). The spec's generator named it `CodeKey33`; the name is the
+  // vendor's, kept verbatim so a regeneration finds it. Field NAMES only — the descriptions it carries
+  // are licensed TMC text and never reach this file or any table (D-FP8).
+  "CodeKey33",
+  // MAINTENANCE-MONEY-CONTROL-PLAN.md C1: how each invoice was paid, and what each order bought.
+  "POPayment",
+  "POItem",
 ];
 
 /**
@@ -86,6 +93,7 @@ const ENUMS = [
   "IntervalTypeEnum",
   "TimeIntervalEnum",
   "UnitOfMeasureEnum",
+  "PaymentMethodEnum",
 ];
 
 function build(spec) {

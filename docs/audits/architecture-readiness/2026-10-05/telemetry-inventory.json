@@ -1,0 +1,638 @@
+{
+  "commit": "77eff5f",
+  "totals": {
+    "rawAccessGrandfathered": 29,
+    "writersGrandfathered": 59
+  },
+  "tables": {
+    "fuel_events": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 50,
+        "why": "budget derived from production 2026-09-21: 4 rows/day, x3 headroom. Retention unruled — DATA-LIFECYCLE-PLAN L9."
+      },
+      "writers": [
+        "apps/api/src/modules/samsara/fuelEventsWebhook.ts",
+        "apps/api/src/modules/samsara/samsaraStatsFeed.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/org/digest.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_fuel_events_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["fuel_events_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/org/digest.ts",
+        "apps/api/src/modules/insights/askData.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "fuel_txn_recon": {
+      "module": "samsara",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "1:1 with fuel_transactions; same reasoning as fuel_txn_scores."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_fuel_txn_satellites",
+          "migration": "0261",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "hos_duty_segments": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw ELD duty segments. The 29,819/day measured at L1 was almost entirely a writer artefact, not ELD volume: 72.5% of the last 45 days sat at 334 shared instants, one row per driver per sync run, stranded below the next run's window start where the orphan sweep could not see it (L4, 2026-09-22). Genuine rate is ~3,100/day — ~2,000 duty transitions plus ~1,100 daily-boundary logs — which is why the 5,000 budget set at L1 is the right ceiling and was already the right ceiling. 400 days is the window IN FORCE and stays: the scoring attribution check reads segments around any fill it rescores, and 9,406 of 17,297 fills are older than 120 days (L4 declined the 400→120 leg; see the plan's §8)."
+      },
+      "writers": ["apps/api/src/modules/samsara/hosSync.ts"],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/scoring/context.ts",
+        "apps/api/src/modules/idle/idleRollupInputs.ts",
+        "apps/api/src/modules/idle/vehicleDutyTimelines.ts",
+        "apps/api/src/modules/loads/dispatchLoads/queries.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_hos_duty_segments_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": [
+        "hos_duty_segments_select [PERMISSIVE/SELECT]",
+        "hos_duty_segments_write [PERMISSIVE/ALL]"
+      ],
+      "grandfathered_raw_access": [
+        "apps/api/src/modules/anomalies/scoring/context.ts",
+        "apps/api/src/modules/idle/vehicleDutyTimelines.ts",
+        "apps/api/src/modules/idle/idleRollupInputs.ts",
+        "apps/api/src/modules/loads/dispatchLoads/queries.ts"
+      ],
+      "grandfathered_writers": []
+    },
+    "idle_engine_days": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 250,
+        "why": "IE2 (0404): one row per truck per local day, derived in SQL from idle_engine_hours by idle_engine_write. Kept: the long-horizon store the 60-day hours roll into, and D-IE9's gate reads it."
+      },
+      "writers": [],
+      "readers_api": ["apps/api/src/modules/idle/idleEngineParity.ts"],
+      "readers_web": [],
+      "readers_other": ["apps/admin-api/src/lib/idleEngine.ts"],
+      "sql_functions": [
+        {
+          "fn": "idle_engine_write",
+          "migration": "0407",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_engine_hours": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 60,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "IE2 (0404): one row per active truck per UTC hour, the five D-IE2 buckets and the counter deltas; ~185 x 24 = 4,440/day. D-IE8 keeps 60 days: the timeSlice rule in RETENTION_RULES landed with the collector (idleEngineSync.ts). A plain table, not pg_partman: Q-IE8 in FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md (it would be the first partitioned table, which D-LIFE10 and Q9 gate)."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "idle_engine_write",
+          "migration": "0407",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "idle_engine_burn_hours",
+          "migration": "0419",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_engine_stops": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 3000,
+        "why": "IE2 (0404): one row per park of at least min_idle_minutes (D-IE3). Kept (D-IE8): it is the only grain that sees a continuous run, and IE3's avoidable verdict is per stop. The budget is an estimate (~8 parks per truck per day) until measured; idle_park_sessions (parks of 30 min and more) measured 491/day."
+      },
+      "writers": [],
+      "readers_api": [
+        "apps/api/src/modules/idle/idleEngineAvoidable.ts",
+        "apps/api/src/modules/idle/idleEngineSync.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "idle_engine_write",
+          "migration": "0407",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_events": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "idling events; idle_rollup_days carries history beyond the window. Measured 2,482/day. L5 proposes 400d→180d."
+      },
+      "writers": ["apps/api/src/modules/idle/idleSync.ts"],
+      "readers_api": [
+        "apps/api/src/modules/idle/idleDutyEvidenceSync.ts",
+        "apps/api/src/modules/idle/idleEquipmentEvidenceSync.ts",
+        "apps/api/src/modules/idle/idleEventTwins.ts",
+        "apps/api/src/modules/idle/idleRollupInputs.ts",
+        "apps/api/src/modules/insights/askData.ts",
+        "apps/api/src/modules/performance/driverPerformanceSnapshot.ts"
+      ],
+      "readers_web": [
+        "apps/web/src/features/drivers/useDriverPerformance.ts",
+        "apps/web/src/features/idle/useIdleConfidence.ts",
+        "apps/web/src/features/idle/useIdleScores.ts",
+        "apps/web/src/features/idle/useLongIdles.ts"
+      ],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "merge_driver",
+          "migration": "0239",
+          "writes": true,
+          "definer": false
+        },
+        {
+          "fn": "resolve_idle_event_twins",
+          "migration": "0398",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_idle_events_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["idle_events_select [PERMISSIVE/SELECT]", "idle_events_write [PERMISSIVE/ALL]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_park_sessions": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 1000,
+        "why": "per-park sessions feeding the avoidable-idle algorithm. Measured 491/day. L5 proposes 400d→180d."
+      },
+      "writers": ["apps/api/src/modules/idle/idleCapabilitySync.ts"],
+      "readers_api": [
+        "apps/api/src/modules/idle/idleDutyEvidenceSync.ts",
+        "apps/api/src/modules/idle/idleEquipmentEvidenceSync.ts",
+        "apps/api/src/modules/idle/idleLearnedEnvelopeSync.ts",
+        "apps/api/src/modules/idle/idleRollupInputs.ts"
+      ],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "apply_idle_hos_evidence",
+          "migration": "0174",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "apply_idle_equipment_evidence",
+          "migration": "0174",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "vehicle_long_park_behaviour",
+          "migration": "0403",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_idle_park_sessions_clamp_evidence",
+          "fn": "idle_park_sessions_clamp_evidence"
+        },
+        {
+          "name": "trg_idle_park_sessions_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["idle_park_sessions_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_rollup_days": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "one row per truck per day; the reason idle_events and idle_park_sessions can be pruned at all. No rule, and none wanted."
+      },
+      "writers": ["apps/api/src/modules/idle/idleRollupPersistence.ts"],
+      "readers_api": [
+        "apps/api/src/modules/idle/fuelIdleVerdict.ts",
+        "apps/api/src/modules/idle/idleRollup.ts"
+      ],
+      "readers_web": ["apps/web/src/composables/useIdleBreakdown.ts"],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "delete_idle_rollup_rows",
+          "migration": "0183",
+          "writes": true,
+          "definer": true
+        },
+        {
+          "fn": "dashboard_summary",
+          "migration": "0347",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_idle_rollup_days_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["idle_rollup_days_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "idle_settings": {
+      "module": "idle",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": [
+        "apps/api/src/modules/idle/idleSync.ts",
+        "apps/web/src/features/idle/useIdleSettings.ts"
+      ],
+      "readers_api": [
+        "apps/api/src/modules/fuel-spend/routes/spend.ts",
+        "apps/api/src/modules/fuel/fuelPriceDaySync.ts",
+        "apps/api/src/modules/idle/idleBurnRates.ts",
+        "apps/api/src/modules/idle/idleCostBasis.ts",
+        "apps/api/src/modules/idle/idleEngineAvoidable.ts",
+        "apps/api/src/modules/idle/idleEngineSync.ts"
+      ],
+      "readers_web": [],
+      "readers_other": ["apps/admin-api/src/lib/idleEngine.ts"],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_idle_settings_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": [
+        "idle_settings_select [PERMISSIVE/SELECT]",
+        "idle_settings_write [PERMISSIVE/ALL]"
+      ],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": ["apps/web/src/features/idle/useIdleSettings.ts"]
+    },
+    "idle_telemetry_windows": {
+      "module": "idle",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw telemetry windows; its 400d rule predates this plan and is kept."
+      },
+      "writers": ["apps/api/src/modules/idle/idleTelemetrySync.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": ["idle_telemetry_windows_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "samsara_feed_alerts": {
+      "module": "samsara",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": ["apps/api/src/modules/samsara/samsaraFeedAlarm.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_samsara_feed_alerts_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "samsara_feed_cursors": {
+      "module": "samsara",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": ["apps/api/src/modules/samsara/lib/feedCursor.ts"],
+      "readers_api": ["apps/api/src/modules/samsara/samsaraFeedHealth.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_samsara_feed_cursors_updated",
+          "fn": "set_updated_at"
+        }
+      ],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "samsara_ifta_fetches": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "raw fetch envelopes for the IFTA report."
+      },
+      "writers": ["apps/api/src/modules/samsara/samsaraIftaSync.ts"],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "ifta_period_summary",
+          "migration": "0258",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": ["samsara_ifta_fetches_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "samsara_ifta_jurisdiction_miles": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw IFTA jurisdiction miles. Measured 820/day. Retention unruled — L9."
+      },
+      "writers": ["apps/api/src/modules/samsara/samsaraIftaSync.ts"],
+      "readers_api": ["apps/api/src/modules/samsara/samsaraIftaReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "ifta_period_jurisdictions",
+          "migration": "0258",
+          "writes": false,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": ["samsara_ifta_miles_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "samsara_odometer_readings": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5000,
+        "why": "raw odometer readings; the distance rule differences BOUNDING readings, so history has value. Measured 1,629/day over 17 days."
+      },
+      "writers": ["apps/api/src/modules/samsara/samsaraOdometerSync.ts"],
+      "readers_api": ["apps/api/src/modules/samsara/samsaraOdometerReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "vehicle_engine_days": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 500,
+        "why": "one row per truck per day (0076): drive/idle/off. ⚠ It DOES carry a 400d rule today, which is in tension with idle_rollup_days being the long-horizon store — raised as a question by L9, not changed here."
+      },
+      "writers": ["apps/api/src/modules/idle/idleCapabilitySync.ts"],
+      "readers_api": [
+        "apps/api/src/modules/anomalies/scoring/context.ts",
+        "apps/api/src/modules/fuel-spend/fuelSpendRollup.ts",
+        "apps/api/src/modules/idle/idleEngineParity.ts",
+        "apps/api/src/modules/idle/idleRollupInputs.ts"
+      ],
+      "readers_web": [],
+      "readers_other": ["apps/admin-api/src/lib/idleEngine.ts"],
+      "sql_functions": [],
+      "triggers": [
+        {
+          "name": "trg_vehicle_engine_days_org_immutable",
+          "fn": "forbid_org_change"
+        }
+      ],
+      "policies": ["vehicle_engine_days_select [PERMISSIVE/SELECT]"],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "vehicle_idle_learned": {
+      "module": "idle",
+      "layer": "derived",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+      },
+      "writers": [],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "sync_vehicle_learned_satellites",
+          "migration": "0262",
+          "writes": true,
+          "definer": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "vehicle_positions": {
+      "module": "samsara",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "unmeasured",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+      },
+      "writers": [],
+      "readers_api": ["apps/api/src/modules/samsara/vehiclePositionReads.ts"],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [
+        {
+          "fn": "record_vehicle_positions",
+          "migration": "0394",
+          "writes": true,
+          "definer": true
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    },
+    "weather_cache": {
+      "module": "idle",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": 400,
+        "partition": null,
+        "budget_rows_per_day": 10000,
+        "why": "a cache; re-fetched on demand. Measured 8,634/day. L5 proposes 400d→90d. D-LIFE7: NEVER partitioned — its PK is the natural key (lat_grid, lng_grid, hour_utc) and adding a time column would change dedup semantics."
+      },
+      "writers": [
+        "apps/api/src/modules/idle/idleSessionWeather.ts",
+        "apps/api/src/modules/idle/weatherBackfill.ts"
+      ],
+      "readers_api": [],
+      "readers_web": [],
+      "readers_other": [],
+      "sql_functions": [],
+      "triggers": [],
+      "policies": [],
+      "grandfathered_raw_access": [],
+      "grandfathered_writers": []
+    }
+  }
+}

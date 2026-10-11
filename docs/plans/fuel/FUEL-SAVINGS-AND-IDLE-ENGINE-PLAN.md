@@ -1315,3 +1315,54 @@ IE5b waits on 14 final days and the owner's §4 Q-IE14 (the burn rate); Q-IE17 i
   order is "never both views absent" — merging now would leave the gate on no screen anyone can open. It merges after
   the owner signs in to the console (first sign-in links the row, then TOTP enrolment), opens Customers → the carrier →
   "Idle engine checks", and says it matches the office panel on the same night (10/04 is the first with 2 final days).
+- **2026-10-03** Design verdict move 4, coverage and freshness beside each Idling estimate. Each money card now says what
+  it counts and why the rest are out ("Counts 180 of 187 trucks; 7 with too little data are left out" / "From 150 of 187
+  trucks: the ones with rest idle an APU would carry. 4 seen for under half the range are left out"), and how it was
+  priced: the burn rate, the BLENDED day price the total actually carries, and how many calendar days had no day price and
+  fell back to the cost basis, named by source. The old line printed the fallback basis ("$5.87/gal · live truck-stop
+  prices") as if every dollar were charged at it, which they are not (`avoidableCostByDay` prices per day). Beside the
+  "Showing" chip: "Idle data through MM/DD/YYYY" (latest day with coverage among listed trucks) and that the table's
+  filters do not narrow the cards (audit copy note 9). Shared: `FleetIdleVerdict` gains `thinTrucks`, `throughDay`,
+  `avoidablePricing`, `reduciblePricing` (new `idleTotals.ts`, split out to keep `idleBreakdown.ts` at 499 lines); the
+  API's `readFleetIdleVerdict` returns them too and reads nothing new. Tests: shared +7, web +6; mutation 26/26 killed
+  (one first survivor, a day that added nothing being counted, was a fixture with no zero-idle day; that case is now a
+  test). Seen rendered at 1440 and 390 px. The red/amber dollar tones are untouched (owner's question).
+- **2026-10-04** — **Verdict E8, the Idling page's states and semantics.** The tab strip was hand-rolled buttons with
+  no tab roles; it is now `AppTabs` (labelled tablist, roving tabindex, arrow keys), and each panel is a `tabpanel`
+  named by its tab. "Data completeness" and "How idle is scored" carry `aria-expanded` and point at the region they
+  open; the second keeps its name while open (it read "Hide", which names no region). The Truck capability table now
+  shows its read's loading and failure (with Retry); before, a pending or failed read said "No trucks match", and
+  neither a tab count nor the result count above a table shows until its read has answered (a failed read is not
+  zero trucks). Tests: web +5 mounted cases; mutation 20/20 killed. Seen rendered at 1440 and 390 px, keyboard
+  included. #1259 re-checked the same morning: both `platform_admins` rows still unlinked, no MFA, empty
+  `platform_audit_log` — still held.
+- **2026-10-04** — **Q-FSV15 ruling 2 extended to Idling, and the verdict's engineering checks (V5's half that needs no
+  people).** Owner: "proceed as suggested" — the Avoidable idle and Needs an APU totals lose their red/amber; a total
+  says how much, not whether it is good news. The state sweep (protocol §"Also checked", run on a dev-bypass build at
+  1366 and 390 px) found four defects, fixed here: (1) Idling's default "last 30 days" read 31 dates in all four idle
+  readers (`today - 30`, the off-by-one the picker's presets lost on 10/03); now one shared `idleWindow` /
+  `IDLE_DEFAULT_WINDOW_DAYS` and `lastDaysStart`. (2) Fuel Costs and Buy discipline took "today" from UTC, so from
+  19:00 Central the default 90 days ended on a day not yet begun and the future-date clamp let it; now the carrier's
+  clock (D-PREC6), and `useFuelReport` reads `isDefaultWindow` instead of recomputing it. (3) Both filter bars said
+  "0 days" / "0 fills in sequence" while their read was pending or failed; no count until it answers. (4) A failed
+  fill sequence hid Buy discipline's targets and showed "$0 at least" while pending; the fills' parts now say
+  loading/failed in place (with a working Retry) and the targets, which read their own sums, stay. Passed unchanged:
+  keyboard reaches and fires Export report (48 Tabs, 40 of them the sidebar — no skip link, noted); the PDF request
+  carries `states`/`networks` and the button's scope says "filtered stations"; spend is in the first 390 px screen;
+  a failed findings strip says "Couldn't load". Mutation 21/21 killed. Still owed: the five sessions, and a
+  signed-in look on production. Not changed, for the owner: Buy discipline's carried-fuel dollars stay red when
+  above zero (ruling 2 named Fuel Costs; say if it extends).
+- **2026-10-04** — **The two calls left open by the state sweep, decided** (owner: "decide with best solutions").
+  (1) **Buy discipline's carried-fuel total is plain ink** — Q-FSV15 ruling 2's line is that a TOTAL carries no
+  direction and a verdict does; the targets keep their met/short colour, and the quote card keeps its caution tone,
+  which flags thin coverage and not money. (2) **A "Skip to main content" link, app-wide** (WCAG 2.4.1): first in the
+  tab order over the app shell, whose ~40-entry sidebar is the block bypassed (the public, apply, sign-in and shop
+  layouts put at most one control before their content, and the applicant page's tap-target spec rightly refused a
+  1×1 target there), above the banners, hidden until focused. It moves FOCUS to `<main id="main-content"
+  tabindex="-1">`, not only the scroll, and keeps the hash out of the URL. Fuel Costs' Export report: 48 Tabs → 10,
+  seen at 1366 and 390 px. `skipLink.test.ts` holds the shell's `<main>` to `MAIN_CONTENT_ID`. Mutation 9/9 killed.
+- **2026-10-11** — **Q-FSV17 step (3) released (#1259).** Production read the same day: a `platform_admins` row is
+  now linked to a user and `platform_audit_log` has rows (the latest 10/09), so the console has been signed in to and
+  used — the gate is on a screen the owner can open. The owner asked for every pending PR in one release, so the held PR
+  merges now: the office page loses the parity panel and `GET /api/idle/engine/parity` is retired, as built on 10/03.
+
