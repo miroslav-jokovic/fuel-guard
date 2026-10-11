@@ -57,6 +57,9 @@
     "apps/api/src/modules/messaging/notify.ts",
     "apps/api/src/modules/messaging/routes/notifications.ts"
   ],
+  "document_page_classes": [
+    "apps/api/src/modules/document-reading/read/classifyPages.ts"
+  ],
   "document_pages": [
     "apps/api/src/modules/document-reading/intake/intake.ts"
   ],

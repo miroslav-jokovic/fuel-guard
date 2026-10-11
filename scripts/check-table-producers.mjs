@@ -72,9 +72,8 @@ const WAIVERS = new Map([
   // both — a reference by this gate's definition; their writers are the intake and the review route.
   // `document_sources` left on 2026-10-10 with Step 1.6b: intake/intake.ts inserts it from the
   // `document_intake` job behind POST /api/documents/sources/:id/complete. That was the last of 0448's.
-  // document_page_classes (0449, Q-DR12) joins them schema-only: the page classifier (Step 1.5) writes its
-  // verdicts, and the override control (Step 3.4) a person's. It leaves with the classifier.
-  ["document_page_classes", "DOCUMENT-READER-PLAN.md Step 1.5 — the page classifier writes it (schema-only, 0449 Q-DR12)"],
+  // document_page_classes (0449, Q-DR12) left on 2026-10-11 with P2: read/classifyPages.ts writes the
+  // classifier's verdict (class + rotation, 0456) for every page a read is given that has none.
   //
   // tms_fleets and driver_hos_clocks (0450, DISPATCH-BOARD-PLAN.md wave 1) left it in wave 2, the merge after
   // their schema: mcleod/fleetCodes.ts seeds the first from the roster sweep, samsara/hosClocksFeed.ts
