@@ -162,22 +162,15 @@ describe("GET /api/idle/engine/burn-rates (IE4)", () => {
   });
 });
 
-describe("GET /api/idle/engine/parity (IE5)", () => {
-  const get = (role: string) => {
-    rec = createSupabaseRecorder({ tables: { organizations: [{ operating_hours: { tz: "America/Chicago" } }], jobs: [] } });
+describe("GET /api/idle/engine/parity — retired (Q-FSV17 step 3)", () => {
+  it("is not served to a carrier, not even to a role that manages safety, and reads nothing", async () => {
+    rec = createSupabaseRecorder({ tables: { organizations: [{ operating_hours: { tz: "America/Chicago" } }], jobs: [], idle_engine_days: [] } });
     holder.client = rec.client;
-    return fetch(`${baseUrl}/api/idle/engine/parity`, { headers: { Authorization: `Bearer ${role}` } });
-  };
-
-  it("answers the gate, nothing final before the first nightly", async () => {
-    const res = await get("safety_manager");
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { finalThrough: string | null; pass: boolean; daysNeeded: number } };
-    expect(body.data).toMatchObject({ finalThrough: null, pass: false, daysNeeded: 14 });
-  });
-
-  it("is the Idling surface's door: a role without safety is refused", async () => {
-    expect((await get("recruiter")).status).toBe(403);
+    for (const role of ["safety_manager", "admin"]) {
+      const res = await fetch(`${baseUrl}/api/idle/engine/parity`, { headers: { Authorization: `Bearer ${role}` } });
+      expect(res.status, role).toBe(404);
+    }
+    expect(rec.forTable("idle_engine_days")).toHaveLength(0);
     expect(rec.forTable("jobs")).toHaveLength(0);
   });
 });
