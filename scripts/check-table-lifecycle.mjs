@@ -47,6 +47,9 @@ const MANIFEST = join(ROOT, "scripts", "table-modules.json");
 // L3 pushed it past the 500-line budget. Pointing at the wrong one parses an empty rule set and this
 // gate passes while enforcing nothing — so the self-test below asserts the parse found rules at all.
 const RETENTION_TS = join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionPolicy.ts");
+// RETENTION_FORBIDDEN left the policy file on 2026-10-10 (the same budget, DB7's rule). Both are read
+// as one text; the self-test's "found no RETENTION_FORBIDDEN entries" fires if this path goes stale.
+const FORBIDDEN_TS = join(ROOT, "apps", "api", "src", "modules", "org", "dataRetentionForbidden.ts");
 const SCHEMA_SNAPSHOT = join(ROOT, "supabase", "schema.generated.sql");
 
 const GROWTH = ["time", "fleet", "static", "unmeasured"];
@@ -165,7 +168,7 @@ function selfTest(manifest, retention) {
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-const retention = parseRetention(readFileSync(RETENTION_TS, "utf8"));
+const retention = parseRetention(`${readFileSync(RETENTION_TS, "utf8")}\n${readFileSync(FORBIDDEN_TS, "utf8")}`);
 
 if (process.argv.includes("--self-test")) {
   const fails = selfTest(manifest, retention);

@@ -213,6 +213,12 @@ function jsonbFromCheck(meta, table, col) {
 const FORMAT_PINNED = {
   "ifta_fuel_receipt_uploads.file_sha256": "repeat('a', 64)", // check (file_sha256 ~ '^[0-9a-f]{64}$')
   "ifta_fuel_receipts.jurisdiction": "'TX'", // check (jurisdiction ~ '^[A-Z]{2}$')
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  // Unique per row, not a constant: 0448 also holds unique (org_id, sha256), and the seeder makes a
+  // second source as the parent of a read.
+  "document_sources.sha256": "(md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text))", // check (sha256 ~ '^[0-9a-f]{64}$') (0448)
+  "document_pages.original_sha256": "repeat('a', 64)", // same format check (0448)
 };
 
 function valueFor(meta, table, c, orgId, tsIndex = 0) {

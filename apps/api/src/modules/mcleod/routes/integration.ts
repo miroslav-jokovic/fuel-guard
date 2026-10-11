@@ -10,10 +10,14 @@ import {
   disableTmsIntegration,
 } from "../tmsIngest.js";
 import { readRosterFreshness } from "../rosterFreshness.js";
+import { registerDispatchLinkRoutes } from "./dispatchLinks.js";
 
 /** McLeod integration config — enable/rotate/disable the on-prem agent's ingest token. Moved
  *  here from routes/integrations.ts at the P1.6 split (2026-08-27); paths unchanged. */
 export function registerMcleodIntegrationRoutes(router: Router): void {
+  // Whose fleet is whose — the dispatch board's two office links (DISPATCH-BOARD-PLAN DB2).
+  registerDispatchLinkRoutes(router);
+
   // ── McLeod / TMS integration config (admin) ────────────────────────────────────────────────────────
   // Non-secret status for the settings screen (enabled? token issued? last sync?). Never returns the token.
   router.get(

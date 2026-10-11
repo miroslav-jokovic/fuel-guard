@@ -42,7 +42,7 @@ const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: props.ra
       :from="range.from"
       :to="range.to"
       :vehicle-ids="[]"
-      :can-open-inbox="opens('/findings')"
+      :can-open-inbox="opens('/fuel-problems')"
     />
   </ChartCard>
 </template>

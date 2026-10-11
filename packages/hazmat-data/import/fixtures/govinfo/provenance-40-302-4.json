@@ -1,0 +1,19 @@
+{
+  "ecfr": {
+    "title": 40,
+    "section": "302.4",
+    "date": "2026-10-07",
+    "latestAmendedOn": "2026-10-02"
+  },
+  "govinfo": {
+    "source": "govinfo",
+    "collectionCode": "CFR",
+    "cfrTitle": 40,
+    "section": "302.4",
+    "packageId": "CFR-2025-title40-vol30",
+    "editionYear": 2025,
+    "volume": 30,
+    "dateIssued": "2025-07-01",
+    "xmlLink": "https://www.govinfo.gov/content/pkg/CFR-2025-title40-vol30/xml/CFR-2025-title40-vol30-sec302-4.xml"
+  }
+}

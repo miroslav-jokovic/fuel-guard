@@ -15,6 +15,7 @@ import { writeAudit } from "../../lib/audit.js";
 import type { JobHandler } from "../types.js";
 import { syncIftaMonths } from "../../modules/samsara/index.js";
 import { syncVehicleOdometerReadings } from "../../modules/samsara/index.js";
+import { syncSamsaraDocuments } from "../../modules/samsara/index.js";
 
 /**
  * Samsara / telematics sync + nightly-reconcile handlers (WQ1c). Each reconstructs entirely from
@@ -390,3 +391,23 @@ export const syncDriversHandler: JobHandler = async (ctx, job) => {
 // syncDriverScoresHandler and snapshotDriverWeekHandler moved to handlers/performance.ts, and
 // nightlyReconcileHandler to handlers/nightlyReconcile.ts (2026-08-27, program step P1.4b) —
 // they are harness recomputation and org-orchestration, and a collector-named file hid that.
+
+/**
+ * Samsara driver documents (DOCUMENT-READER-PLAN Step 0.1). The same run the scheduler tier makes, so
+ * a queued run and an in-process one can never stage a document differently. `payload.backfillDays`
+ * widens only an org's FIRST run; after that the stored watermark decides where it resumes.
+ */
+export const syncDocumentsHandler: JobHandler = async (ctx, job) => {
+  const { admin, env } = ctx;
+  const days = Number(job.payload.backfillDays);
+  try {
+    const r = await syncSamsaraDocuments(admin, env, job.org_id, {
+      now: new Date(),
+      backfillDays: Number.isInteger(days) && days > 0 ? Math.min(days, 365) : env.SAMSARA_DOCUMENTS_BACKFILL_DAYS,
+    });
+    return { ...r };
+  } catch (e) {
+    if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
+    throw e;
+  }
+};

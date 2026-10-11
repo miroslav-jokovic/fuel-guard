@@ -60,6 +60,18 @@ describe("validateBol — §172.202/172.203 shipping-paper compliance", () => {
     }
   });
 
+  it("states RQ as §172.203(c)(2) does: \"either before or after the basic description\"", () => {
+    const benzene = { ...DATASET, entries: [...DATASET.entries, { entryId: "UN1114-benzene", symbols: [], psnPrinted: "Benzene", psnAlternates: [], hazardClass: "3", subsidiaryClasses: [], idPrefix: "UN", idNumber: "1114", pgRows: [{ pg: "II" }] }] };
+    const r = validateBol({ ...load([line({ hmtRef: "UN1114-benzene#II" })]), dataset: benzene } as unknown as LoadInput);
+    expect(r.lines[0]!.additionalRequired).toContain("“RQ” before or after the basic description (§172.203(c)(2))");
+  });
+
+  it("states the §172.604(a)(1) number in the regulation's words: \"Monitored at all times the hazardous material is in transportation\"", () => {
+    const phone = validateBol(load([line()])).findings.find((f) => f.ruleId === "bol_emergency_phone_required");
+    expect(phone?.message).toContain("monitored at all times the hazardous material is in transportation");
+    expect(phone?.message).not.toContain("24-hour");
+  });
+
   it("fails closed on an unresolvable line", () => {
     const r = validateBol(load([line({ hmtRef: "UN9999-mystery#II" })]));
     expect(ids(r)).toContain("bol_line_unresolved");

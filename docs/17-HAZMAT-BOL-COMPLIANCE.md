@@ -155,7 +155,8 @@ violations and destroy trust. Key calibrations discovered in research:
 - The HM/"X" column and hazmat-first ordering apply **only** to mixed hazmat/non-hazmat papers —
   an all-hazmat fuel BOL needs neither.
 - **Shipper certification is often legitimately absent** on fuel BOLs: §172.204(b) exempts
-  carrier-supplied cargo tanks and private carriers hauling their own product. This check is
+  carrier-supplied cargo tanks and private carriers hauling their own product (not to be
+  reshipped or transferred; never hazardous waste — §172.204(b)(1)). This check is
   *conditional on the carrier relationship* — a company setting, not a universal rule.
 - ER phone rules are strict and heavily cited at roadside: 24/7 monitored number (no answering
   machines/pagers), and a CHEMTREC-style number needs the shipper's name/contract ID adjacent
@@ -345,8 +346,14 @@ space therefore ships "decision support," keeps a trained human in the acceptanc
 part of PSN) → 3. Hazard class (subsidiary in parentheses after primary; class may be omitted
 only for "Combustible liquid, n.o.s." PSN) → 4. PG in Roman numerals (optional "PG" prefix).
 **No PG for Class 2 (propane).** Quantity with unit before or after description (§172.202(c));
-bulk may use "1 cargo tank" (§172.202(a)(5)(i)); not required for residue. Number/type of
-packages ("1 cargo tank", "12 drums") §172.202(a)(6).
+bulk may use "1 cargo tank" or "2 IBCs" (§172.202(a)(5)(iii)(A)), cylinders "10 cylinders"
+((a)(5)(iii)(B)); not required for residue ((a)(5)(iii)(C)). Number/type of packages
+("1 cargo tank", "12 drums") §172.202(a)(7).
+
+*Paragraph numbers checked against eCFR's text of 2026-10-09: §172.202(a)(1) identification
+number, (a)(2) proper shipping name, (a)(3) hazard class (omission for "Combustible liquid,
+n.o.s." is (a)(3)(ii)), (a)(4) packing group, (a)(5) total quantity, (a)(6) aircraft only,
+(a)(7) number and type of packages.*
 
 ### A.3 Additional entries — §172.203 (petroleum-relevant)
 DOT-SP numbers (a); "Limited Quantity"/"Ltd Qty" (b); RQ before/after description for hazardous
@@ -356,9 +363,12 @@ for elevated-temperature (n) — hot No. 6 oil/asphalt; technical names for n.o.
 **LPG requires "NONCORROSIVE"/"NONCOR" or "NOT FOR Q and T TANKS"** (h)(2).
 
 ### A.4 Shipper certification — §172.204
-Two authorized wordings; signature may be mechanical/typed (d). **Exceptions (b): cargo tank
-supplied by the carrier; private motor carrier own-vehicle (unless reshipped)** — most rack fuel
-BOLs qualify → conditional check, not hard fail. Hazwaste always requires manifest/certification.
+Two authorized wordings; signature may be mechanical/typed (d). **Exceptions (b)(1), "Except for
+a hazardous waste": "(i) In a cargo tank supplied by the carrier, or (ii) By the shipper as a
+private carrier except for a hazardous material that is to be reshipped or transferred from one
+carrier to another"** — most rack fuel BOLs qualify → conditional check, not hard fail. Hazwaste
+always requires manifest/certification. The engine derives the exception with
+`certificationExemptionFrom` (owner ruling Q-DR16).
 
 ### A.5 ER phone — §172.604 (+§172.602 ER info)
 Numeric with area code; monitored 24/7 during transportation incl. storage incidental; person

@@ -4,7 +4,11 @@
 is merged (#1337); Inventory (2b) waits on Q-F7. Chunk 3 is merged (#1339, #1340, #1341); release
 3a–3c together. Chunk 4 (migration 0437) is merged. Chunk 5a (the incident fold) is merged (#1346); 5b (migration 0438) is merged (#1349); 5c (the
 scorers write incidents) is merged (#1350). Chunk 7 (the reset) is complete: merged (#1352, #1353,
-#1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunk 6 is built.
+#1355) and released (v2026.10.08.1), before chunk 6 (Q-F9 (a)). Chunks 6, 8, 9 and 10 are merged
+and released (v2026.10.09 the last). Chunks 11 (#1384–#1386, migration 0446), 12 (#1387, #1388,
+migration 0447) and 13 are released (v2026.10.09.1); chunk 13 needed no product change, the five
+tools were already admin-only (see its entry). Chunks 14 (#1398, #1403, #1408) and 15 (#1412) are
+merged and wait for a release. Chunk 16's runbook line is written; its tie-out waits on Q-F14.
 
 Findings are in `AUDIT.md` (IDs U, N, W, S, A, D, P). This plan does not copy the approved
 card-fraud plan (`docs/plans/fuel/CARD-FRAUD-ALERTS-PLAN.md`, D-CF1..9). It puts that plan's
@@ -117,6 +121,55 @@ remaining phases in order with this feature's other fixes.
 - **Q-F11. Which section owns a card-fraud incident? RULED 2026-10-08 (a): fuel.** Acting on one means
   holding or replacing the card in WEX, which is the fuel manager's job. (b) safety, like fill cases,
   was not taken. Admin sees and closes everything either way.
+
+- **Q-F12. Does `/anomalies` (Alerts, SAFETY) redirect to Fuel problems? RULED 2026-10-08 (b): no.**
+  Alerts stays for safety work; only `/findings` (and `/fuel-spend/exceptions` before it) redirects to
+  `/fuel-problems`. (a), retiring Alerts into the fuel queue, was not taken: Alerts holds signals that
+  are not fuel problems, and the queue already lists the one fill-case kind that is.
+
+- **Q-F13. Which window does the queue's count cover? RULED 2026-10-08 (a): the door carries the window.** The Dashboard counts
+  every open item; Fuel problems lists open items inside its date window, 90 days unless the link says
+  otherwise. Measured on production 2026-10-08: 157 open money findings, the oldest dated 08-01, so
+  today both say 157. From 10-30 the August items leave the page's default window and the page shows
+  fewer than the tile that links to it.
+  - **(a) Recommended: the Dashboard's door carries the window.** The summary also returns the date of
+    the oldest open item, and the door links `/fuel-problems?from=<that date>`. The page's meaning does
+    not change, the link says what it covers, and the two numbers agree by construction. Cost: three
+    small reads (oldest per table) on the Dashboard.
+  - (b) The queue ignores the window for open states. Simplest, but the date filter would then say
+    "last 90 days" over rows older than that.
+  - (c) The Dashboard counts only the last 90 days. An unclaimed item would leave the count by aging,
+    which is the opposite of what aging is for (Q-FUI4).
+  - Built: `GET /api/fueling/findings/summary` returns `oldestOpenOn`, read in the same query as each
+    count (ordered by the source's date, one row; the exact count covers the whole match). The
+    Dashboard's tile and attention row link `/fuel-problems?from=<that day>`.
+  - ⚠ Left, recorded rather than routed around: the page's END day. Fill cases and incidents are cut at
+    `<to>T23:59:59Z`, the end of the UTC day, while `to` is today on the carrier's clock. A case opened
+    after 19:00 Central is counted on the Dashboard and missing from the page until midnight UTC. Today
+    there are 0 open fill cases and 0 incidents, so nothing differs. The fix is to bound both ends of
+    the page's window on the carrier's day (`a calendar day is not an instant`), as Q-FUI13 already
+    asks for the start; recommended inside chunk 10, which moves fills onto one day.
+  - Built in chunk 10 (10c): both ends of the window are on the carrier's day (`organizations.operating_hours`
+    zone, read with the start date in one row), and `oldestOpenOn` is a case's carrier day, so the
+    link's `?from=` still starts at or before the oldest item.
+
+- **Q-F14. Chunk 16 cannot meet its accept line yet. OPEN (asked 2026-10-09).** "Tie September,
+  explain any gap over $50" is blocked twice, and neither block can be fixed in this plan:
+  - McLeod has not posted September. F14's sweep ran at 18:59 UTC on 10-09 and found only recurring
+    journals (`RJ`, 8 rows) for September: no FUEL, AP or BILL. Its accounting close is McLeod's,
+    not ours.
+  - The month that can be tied (August) agrees in total but not line by line. McLeod's whole FUEL
+    module against every EFS card line: August −$152.25, July +$482.50 (0.01% and 0.04%). No single
+    edge-day fill matches either amount. Explaining the remainder line by line needs McLeod's own
+    `fuel_detail` with its posting dates, which F12b stages, not this plan.
+  - **(a) Recommended: close chunk 16 on August.** Its whole-module gap and per-account split are in
+    the Log (2026-10-09). The remaining $152.25 is named as the tie-out's one unproven term, as
+    `fuelTieOut.ts` already says it is until F12b. September becomes one Log line when McLeod posts
+    it, not a chunk that holds the task walk.
+  - (b) Hold chunk 16 until McLeod posts September and F12b stages `fuel_detail`. That honours the
+    accept line exactly, but it holds the definition of done on two things outside this plan.
+  - (c) Re-word the accept as a share (for example, under 0.1% of the month). Not recommended: it
+    would pass July's $482.50 without anybody saying what that money is.
 
 ---
 
@@ -394,31 +447,106 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
       checked against one map of source → table.
     - Until 8c3, an incident row opens nothing, so 8c1–8c3 ship in one release.
   - **8c2** closing an incident: an API with an audit row, as fill cases close.
+    - 8c1 merged (#1364, 0c9ac66); staging serves it.
+    - Built: `POST /api/card-fraud-incidents/:id/transition`, gated `fuel: manage`. The request and
+      the allowed moves are derived from a fill case's (`cardFraudIncidentContract.ts`): investigate,
+      resolve or dismiss with a note and a disposition, reopen to investigate. Like `transition_anomaly`,
+      the person who acts takes the incident; a close records who and when, a reopen clears them. One
+      UPDATE guarded by the version read, so a second person or a new attempt recorded meanwhile
+      gives a 409, not an overwrite. Each move writes one `card_fraud.status_changed` audit row, which is
+      the incident's history (no transitions table, so no migration).
   - **8c3** a drawer on this page for each kind of row.
-  - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings` and `/anomalies`, and the
-    acceptance tests below.
+    - 8c2 merged (#1365, d0ff20c); staging serves it.
+    - Built: every row opens its own drawer on this page. A money finding opens the ledger drawer, as
+      before. A fill case opens the Alerts drawer (`AnomalyDetail`), read by id; before 8c3 it sent
+      the reader to `/anomalies`, which a dispatcher may not open, so the click did nothing. An incident
+      opens `IncidentDetail`, from `GET /api/card-fraud-incidents/:id` (fuel view; the API cuts the
+      card to its last four).
+    - The incident drawer says what happened in plain sentences (`incidentStory`: where the card was
+      tried, where Samsara had the truck, whether fuel was taken, any failed prompt) and lists each
+      attempt with its time. Closing works as for a fill case: pick a verdict, write a note,
+      Resolve or Dismiss, which is two clicks. A closed incident can be reopened. Only fuel managers
+      see the actions.
+    - Both drawers' moves refresh the queue.
+  - **8c4** rename to "Fuel problems" under FUEL, redirect `/findings`, and the acceptance tests below.
+    `/anomalies` stays Alerts (Q-F12 (b)).
+    - 8c3 merged (#1368, 361c023); staging serves it.
+    - Built: the surface is "Fuel problems" at `/fuel-problems` (the key stays `fuel.exceptions`, so
+      saved grants still apply). `/findings` and `/fuel-spend/exceptions` redirect with their query.
+      The Dashboard's tile and attention row say "Fuel problems".
+    - The open drawer is in the URL: `?finding=`, `?case=` or `?incident=`, one at a time. A link with
+      one opens that item, also through the old `/findings` address.
+    - The Dashboard's count now applies the start-date rule to fill cases too. Before, an open fill
+      case dated before the start date was counted on the Dashboard and hidden on the page; the nightly
+      re-score (#1358) can open such cases.
+    - The page is split under its file budget (455 → 369 lines): the drawers and the export actions
+      are their own components in `pages/fuelProblems/`.
 - **Accept:**
   - Each role in the matrix opens every row it can see.
-  - Closing an item takes ≤ 3 clicks.
+    - 8c4: `fuelProblemsDrawers.test.ts` lists the queue for every role and opens each row through the
+      route its drawer calls. A mutant gating the incident drawer at `fuel: manage` fails it.
+  - Closing an item takes ≤ 3 clicks, counted from the queue row (ruled 2026-10-08).
+    - An incident 3 (row, verdict, Resolve), a fill case 3 (2 for "False alarm"). A money finding was 4
+      (row, the status menu, the status, Save); its drawer now has one button per move, so a dismiss
+      or a dispute is 2 and a credit 3 (row, Credited, Save credit, the amount typed). Only fuel
+      managers see the moves, as the PATCH route requires.
   - The open count on the page equals the dashboard's.
+    - 8c4: for every role, the Dashboard's count asks each table the same question as the queue's
+      default view. True in production today; the date window is Q-F13.
 
 ### Chunk 9 — buying habits move to Fuel Costs (Q-F2)
 - **9a** A monthly buying-habits table in Fuel Costs, per driver and truck.
   - Accept: September's total equals the sum of those `fuel_exceptions.amount` values, to the
     cent.
+  - Built: a **Buying habits** table on Fuel Costs, under the days table, in the page's dates and trucks
+    (whole months: a window opening on the 12th keeps its first month). One row per truck per month: the
+    drivers who fuelled it, avoided state, out of network, avoided brand, total; the window's total above
+    it. A driver has no amount of their own, because `policyFindings` files the premium per truck
+    (Q-FUI3) and the drivers ride in `evidence.drivers`. 23 truck-months name no driver ("Not on the fills").
+  - Counts every status except `resolved_by_reingest` (the detector withdrawing a finding). Kinds are
+    `POLICY_EXCEPTION_KINDS`, the producer's own list. `GET /api/fueling/buying-habits`, fuel view.
+  - Accept met on production, 2026-10-08: September is $8,095.80 in the database and in the table
+    (58 findings, 46 truck-months).
 - **9b** The three habit kinds leave the queue. The tiles become **Can be disputed / Disputed /
   Credited back**.
   - Accept: the tile total equals the sum of the disputable rows.
+  - Built: the queue holds `QUEUE_EXCEPTION_KINDS` (every ledger kind but `BUYING_HABIT_KINDS`, derived)
+    plus fill cases and incidents. The list, the Dashboard's count, the Fuel Costs strip, the kind filter,
+    the CSV and the tiles all read it; a habit named in a link reads as nothing.
+  - The tiles count every item and add only claimable money (D-FX5): `overbilled` and `unrecorded`.
+    `underbilled` and `unbilled` are billing gaps where nothing is owed back. "Can be disputed" says both:
+    "14 items open · 4 with money to claim".
+  - Accept met on production, 2026-10-08: "Can be disputed" is $56.34, the SQL sum of the 4 open
+    claimable rows; 14 open items (the other 10: $208.60 underbilled, $2,339.63 unbilled, counted and not
+    added). The Dashboard's count drops from 157 to 14.
 
 ### Chunk 10 — one day for a fill (Q-F5)
 - **10a** Migration: `fuel_business_date` reads EFS's clock (`America/Chicago`, named as EFS's
   clock, not as the org's). Backfill the 42 moved fills and rebuild the spend days they touch.
   - Accept: a matrix pins a Nevada fill at 22:12 local on 09-30 to 10-01. In production, every
     fill's `business_date` equals its EFS `tran_date`.
+  - Built as migration 0444. Two findings while building it:
+    - 129 fills move, not 42. The 42 counted 08-01 → 10-05. The rest are older history, 01-04 → 10-07
+      (re-measured 2026-10-08).
+    - The spend days were worked out in TypeScript (`rollupDerive.ts`), with a second copy of the
+      station rule. The rollup now reads the stored `business_date`. A migration cannot run that code,
+      so after the release: `POST /api/fuel/spend-rollup` for 2026-02-04 (the table's first day) →
+      today.
 - **10b** The Fuel Log's "When" shows office time, with the station's time in the hover. The
   footnotes "the day of the fill at the station" and "Central time" become one sentence on every
   tab.
   - Accept: September on the Fuel Log equals EFS's September line total (fuel lines, $1,317,898.79).
+  - Built. "When" is EFS's Central time, labelled CT, with the station's time in the hover. All three
+    tabs show one sentence: "All dates and times are in Central time (CT), the time EFS uses on its
+    statements." Source records' fallback time is Central too: EFS's own `tran_time` is Central
+    (3,080 of 3,080 lines at stations outside Central since 09-01).
+  - The target has moved since the audit. $1,317,898.79 was tractor diesel on 10-07. EFS has posted
+    $6,002.18 more September lines since. Re-measured 2026-10-08, read-only:
+    - Under 0444's rule, the Fuel Log's September is $1,338,438.24.
+    - EFS's September ULSD + ULSR lines are also $1,338,438.24: tractor $1,323,900.97 (1,949 lines)
+      and reefer $14,537.27 (135), equal to the cent.
+    - Under today's station rule it is $1,339,077.48, the audit's $639.24 Nevada fill apart.
+    - Confirmed live once 0444 is released.
 
 ### Chunk 11 — Fuel Log numbers (N5, N6, N9)
 - **11a** "Flagged" counts fills with an **open** case and links to them.
@@ -438,6 +566,14 @@ Set a detection epoch, and retire the open cases per Q-CF1 (82 on 2026-10-08).
 ### Chunk 13 — hide the unused tools (Q-F4)
 Surface grants for the five tools, as chunk 2.
 - **Accept:** `SidebarPreview` per role, and each URL still opens for admin.
+- **Found already done (2026-10-09).** None of the five is a sidebar entry; each is a card on the
+  Settings page. Q-SET2 (2026-09-30, `ec228c2`) already made every Settings screen start off for every
+  role but admin, a week before Q-F4 was ruled. Card control was never grantable at all: its gate is
+  `ADMIN` (Q-SET1). The links elsewhere (the dashboard's coverage tile, Reports' "Review cleared
+  fills", Odometer's Coverage link, the Cards page's settings link) each check the gate first.
+  Production stores no answer for any of the five keys, so the default holds for every org.
+  The change is therefore a test only: `tierCSurfaces.test.ts` names the five as Q-F4's, so relaxing
+  Q-SET2 later cannot bring them back without that test turning red.
 
 ### Chunk 14 — wording, one page group per PR (W2–W7)
 - **14a** EFS integration and Card control settings: no repo paths, environment-variable names
@@ -551,3 +687,254 @@ every AUDIT finding is fixed, ruled won't-fix, or moved by name.
   owner to Miroslav and gives him the open items, in one audited act.
 - 2026-10-08: Chunk 8b merged (#1362, 1626ed3); staging applied 0443 and skipped (no Silvicom there).
   Owner ruled Q-F11 (a), incidents are fuel, and agreed the 8c cut. 8c1 built.
+- 2026-10-08: 8c1 merged (#1364, 0c9ac66); staging serves it. 8c2 built: closing an incident.
+- 2026-10-08: 8c2 merged (#1365, d0ff20c); staging serves it. 8c3 built: a drawer for every row.
+- 2026-10-08: 8c3 merged (#1368, 361c023); staging serves it. Owner ruled Q-F12 (b): Alerts stays. 8c4
+  built: Fuel problems at `/fuel-problems`, the open drawer in the URL, the Dashboard's count on the
+  queue's start-date rule. Q-F13 (the count's window) recorded, open.
+- 2026-10-08: 8c4 merged (#1371, c3c334e) and released (v2026.10.08.4). Owner ruled Q-F13 (a) and that
+  clicks count from the row. Built: the Dashboard's door carries `?from=` the oldest open item, and the
+  money drawer's moves are buttons (close in 2 clicks). The page's end-of-day cut is recorded for chunk 10.
+- 2026-10-08: #1373 merged (63d50f4): Q-F13 (a) and the money drawer's buttons. 9a built: the buying-habits
+  table on Fuel Costs; September $8,095.80 matches the database to the cent.
+- 2026-10-08: 9a merged (#1374, 26cb87f). 9b built: the buying habits leave the queue; the tiles become
+  Can be disputed / Disputed / Credited back, adding only claimable money. Production: $56.34 to claim, 14 open.
+- 2026-10-08: 9b merged (#1376, 4e84b7f). 10a built: migration 0444 dates fills on EFS's Central clock
+  (`efs_clock_tz()`). The backfill moves 129 fills on production and leaves `updated_at` and the
+  satellites untouched. The spend rollup now reads the stored day. Still owed after its release: the
+  spend-days rebuild (see 10a) and the re-measure against `tran_date`. 10a waits for the release that
+  carries #1373/#1374/#1376.
+- 2026-10-08: #1373, #1374 and #1376 released (v2026.10.08.5, 4e84b7f). 10a merged (#1377, 134681d); 0444
+  goes to production in the next release. 10c built: the Fuel problems page filters fill cases and
+  card-fraud incidents on the carrier's day at both ends, and the Dashboard's oldest-open date is a
+  carrier day. No migration, so it does not depend on 10a.
+- 2026-10-08: #1378 merged (bebd4c1). 10b built: the Fuel Log's "When" is EFS's Central time, with the
+  station's time in the hover, and one dates sentence on all three tabs. The acceptance figure moved
+  with EFS's late postings; re-measured, see 10b. 10b must ship in the same release as 0444, which it is
+  merged after.
+- 2026-10-09: #1381 (10b) merged (c723e5c). Released as v2026.10.09 with #1377, #1378, #1379 and #1380. The
+  owner chose to ship #1380 (another session's Samsara documents collector, migration 0445) in the same
+  release. Production serves c723e5c with schema 0445. Accept, re-measured read-only:
+  - 0 fills off EFS's Central day.
+  - 0 of 4,776 fills since 08-01 dated differently from their EFS `tran_date`.
+  - September on the Fuel Log is $1,338,438.24, equal to EFS's September ULSD + ULSR lines to the cent.
+  - The backfill touched no other row's `updated_at`.
+  Spend days rebuilt 02-04 → 10-09 with the service key, run by Claude on the owner's instruction as
+  in the 10-01 rebuild: 34,715 rows written, 778 stale rows swept, and one `fuel.spend_rollup_rebuilt`
+  audit row (actor null, reason 0444). September tractor spend went from $1,324,540.21 to
+  $1,323,900.97, the $639.24 Nevada fill moved to October. Spend days total $8,656,213.71 for
+  02-04 → 10-09, equal to the fills to the cent. **Chunk 10 is complete.**
+
+- 2026-10-09: 11a built. Re-measured on production first, read-only. The 10-08 detection reset (0441)
+  dismissed every open case, so 138 canonical fills are flagged and 0 have an open or investigating
+  case. The tile said 138 fills needed review over an empty work queue.
+  - Migration 0446 redefines `fuel_range_totals` (same signature, body only). `flagged` counts fills
+    with an OPEN case on or after the detection start date (D-CF9), read from `anomalies`. `clear` is
+    unchanged (fills with no flag), so `flagged + clear` no longer equals `fills`. The difference is the
+    fills whose cases are all closed.
+  - Open means queue state `open`, not `investigating`. It is the Alerts page's default work queue, and
+    the set the link opens. A case someone has taken is not waiting for review.
+  - SQL cannot import `anomalyStatusesIn("open")`, so 0446 holds a copy. `fuel-range-totals.test.mjs`
+    derives its expectation from the shared function for every status, so a status mapped onto `open`
+    later fails the matrix (proved by mutating the built map).
+  - The tile reads "fills with an open case" and links to `/anomalies?status=open` with the window and
+    the trucks (`flaggedCasesLink.ts`). No link under a driver, fuel-type or search filter, because the
+    Alerts page cannot narrow by those. Both production orgs are on Central: 0 fills fall on a different
+    day under the Fuel Log's `business_date` and the Alerts page's carrier day.
+  - The row marker is unchanged. A fill whose case was dismissed keeps its red marker and opens its
+    history, because that pointer is still true.
+  - `FillsTab.vue` is at 494 lines (budget 500). 11b adds a column there, so 11b must split the file
+    first.
+- 2026-10-09: 11a merged (#1384, be8f97d); 0446 goes to production in the next release. 11b built:
+  - The Fills table has an **Amount** column after $/gal: what EFS billed for the fill, to the cent
+    (`usd2`), "—" when EFS sent no amount. It is sortable. The export already carried `total_cost`.
+  - Gallons print to the hundredth with a thousands separator. That is what EFS sends: on production,
+    3,694 of 4,187 fills in the 60 days to 10-09 use the second decimal, and none uses a third.
+  - `usd2` moved from the reconcile feature into `@silvicom/shared` (`moneyFormat.ts`) beside `usd`, and
+    the reconcile tab re-exports it. The idle page and the PDF report keep their own copies, which
+    differ on purpose (locale, and "-" for a missing figure); not consolidated here.
+  - To make room, the four "why" helpers moved unchanged from `FillsTab.vue` to `fillWhy.ts`.
+    `FillsTab.vue` is 470 lines.
+- 2026-10-09: 11b merged (#1385, 257b700). 11c built:
+  - `lib/tileFigure.ts` holds the rule and its two strings: a tile shows "—" and "Not available" unless its
+    query holds its own answer for the current filters. Loading, failed, and the previous window's answer
+    that `keepPreviousData` keeps on screen all count as no answer, so a total never sits under a filter
+    bar naming a different window.
+  - Fuel Log, Fills tab. The tiles were gated on the LIST query, so a failed totals query printed 0 on
+    Total miles, Flagged, Clear and Gallons. They now read their own query. Total fill-ups stays the
+    list's count. Avg MPG reads its own query too: "Not available" when it was asked and has no answer,
+    and its explanation unchanged when no closed window was asked. The "Open cases" link appears only
+    over a real count.
+  - Fuel problems (AUDIT.md's `FuelExceptionsPage.vue`). The three tiles already showed "—" (9b), but
+    their sub-lines named what the figure would be, and a failed request whose earlier answer was still
+    cached printed that answer. Both fixed.
+  - Accept: tests render a failed totals query as "—" and "Not available" on both pages. The changes are
+    proved by six mutants. **Chunk 11 is complete.**
+- 2026-10-09: 11c merged (#1386, 196a07b). 12a built. Re-measured first, read-only: all 18,517 fills on
+  production are `source = 'fuel_card'`, and none was entered by hand.
+  - Removed: the "Log fill-up" button and its drawer on the Fuel Log, `FillUpForm.vue` with its test,
+    `useCreateFillUp.ts`, and `imageCompress.ts`, which only that hook used.
+  - `table-writers.json` loses the `apps/web` entry under `fuel_transactions`, and
+    `check-table-modules.mjs` loses its grandfathered line. No web code writes the table now.
+  - Kept on purpose, recorded rather than removed here:
+    - `fillUpInputSchema` and `computeFillUpWarnings` in `@silvicom/shared` (the driver app's smoke test
+      imports the schema).
+    - The API's `POST /api/transactions/:id/score` route (service role).
+    - The columns only the form wrote (`payment_method`, `receipt_path`, `entered_by`). A column drop
+      is its own two-merge step if ever wanted.
+  - Test: "offers no Log fill-up beside it, even to the admin" in `importRetired.test.ts`. Proved by
+    restoring the old page.
+- 2026-10-09: 12a merged (#1387, 9e636c8). 12b built. Migration 0447 drops the browser's three write policies on fills (`ftxn_insert`,
+  `ftxn_update`, `ftxn_delete`). It also drops the two restrictive driver-insert policies
+  (`ftxn_driver_insert`, `fuel_tx_driver_insert`), which narrow nothing once no permissive insert is left.
+  Reads are unchanged.
+  - Accept: `fuel-ledger-section-gate.test.mjs` refuses insert, update and delete for every role in
+    `USER_ROLES` (derived), each holding fuel: manage. The service role still does all three. Proved by
+    putting back each of the three write policies, one at a time; each fails 8 cases.
+  - Two matrices had pinned the old capability and now pin its absence:
+    - `org-section-access` §D: the admin, and a dispatcher granted fuel: manage, are both refused.
+    - `schema-drift-reconciled`: five driver denials, and no write policy on the table.
+  - Merged after 12a, so no served page offers a write the database refuses. If both ride one release,
+    the migration applies minutes before the code; in that window only the old, unused button would fail.
+- 2026-10-09: 12b merged (#1388, 3574482). **Chunk 12 is complete.**
+- 2026-10-09: chunk 13 measured before building, and found already done by Q-SET2 (see its entry).
+  - Production, read-only: `org_role_surface_access` holds 1 row and `user_surface_access` 3, none on
+    `admin.recall-audit`, `admin.settings.card-control`, `admin.settings.thresholds`, `admin.coverage`
+    or `admin.reefer-coverage`.
+  - Built: a Q-F4 block in `tierCSurfaces.test.ts`. Each of the five is closed to every editable role
+    and open to the admin; an admin's grant brings back each of the four grantable ones; Card control
+    stays admin-only even with a grant.
+  - Proved by five mutants, each restored byte for byte: two of the tools starting on (one for every
+    role, one for the fleet manager), Card control made grantable, Anomaly thresholds made admin-only
+    (that one first survived, because the grant case filtered its keys on the gate; the keys are now
+    written out), and a key renamed.
+- 2026-10-09: 13 merged (#1390, df3d2cf). **Chunk 13 is complete.** 14a built: the EFS integration and
+  Card control pages rewritten for an office reader (W2).
+  - EFS integration: the repo path, both environment-variable names and the kill switch are gone. The
+    feeds are named by what they hold ("Declined card attempts", "Completed fuel purchases"). "SOAP",
+    "credentials", "poll" and "roundtrip" become "web service address", "sign-in", "checked" and
+    "EFS answered in … ms", in the page, the confirmation dialog and the toasts.
+  - The poll interval is no longer printed. It was the environment default, which a deploy can change,
+    and the status API does not report it. "Checked every few minutes" plus each feed's own "Last
+    checked … ago" line say what is true without copying a value.
+  - Card control: no "QA endpoint", "no-op", "echo" or `setCardV2`. The write-access badge reads
+    "not checked yet" / "confirmed" / "refused" instead of the contract's raw `unknown` / `denied`.
+  - Not changed, on purpose: the text the write check's API returns (verdict, step names, field paths)
+    is a diagnostic shown after a run, so it stays as it is. The client certificate card keeps
+    "fingerprint" and "TLS", which are the words EFS itself uses for that step.
+  - Left for 14c: W2's other three lines (Recall audit, Detection coverage, Anomaly thresholds). These
+    screens are admin-only since chunk 13, but the wording is still the audit's finding.
+  - Test: `efsSettingsWording.test.ts` renders every state of both pages and checks all readable text,
+    the dialog and the toasts against one list of engineering words. Proved by six mutants: each old
+    page restored whole, an environment variable put back in a feed card, the raw badge code, the old
+    confirmation text, and the `setCardV2` hint. Each turned the test red.
+- 2026-10-09: 14a merged (#1398, 31e55df). 14b built: the Fuel Log tabs and the Declines tab (W3, W7).
+  - W3: the tab captions no longer say "from your uploaded EFS … reports". Both feeds are fetched from
+    EFS every few minutes. The Fills caption loses "anomaly status".
+  - W7: a decline reads as a reason. `plainDeclineReason` in `@silvicom/shared` (`declineReason.ts`,
+    beside the scoring taxonomy) turns EFS's trace into one sentence: "Limit reached: cash advance",
+    "Truck stop not allowed for this card", "Wrong unit number entered at the pump: 779".
+    - It was written against production, read-only: 90 days, 60 distinct texts, every one starting
+      with a headline the function knows. An unknown headline is shown as EFS wrote it, in sentence
+      case, never guessed.
+    - Proximity is read first, as the scorer reads it: EFS files its geofence verdict under the
+      same INVALID TRUCKSTOP headline as a benign out-of-network stop.
+  - The table's "Error" / "Description" columns are now "Code" / "Reason". EFS's text is in the
+    Reason cell's hover, and under the reason in the decline drawer ("EFS: …"), for a reader with no
+    hover.
+  - The Reason menu (was Error) reads the same function, from the headline only. One code covers
+    several traces (19 is both scales and cash advance), so the detail would misname some rows. The
+    menu's own `readableReason` is gone: one reader of EFS's text, not two.
+  - The cards and rescore tools say what they do: "Recheck", the card assignment rule in numbers, no
+    "decline scorer".
+  - Not in 14b: W7's second half (showing card-fraud D-CF5/D-CF6 notes on a decline) is a feature,
+    not wording. W5 (the Fills status cell) is a layout change. Neither has a chunk yet.
+  - Tests: `declineReason.test.ts` pins all 18 texts measured on production, plus the unknown, empty,
+    id-only and two-prompt cases. `FuelLogTabs.test.ts` pins the reason cell, its hover, the drawer
+    and the three captions. Proved by seven mutants: old captions, the raw text back in the cell,
+    the hover dropped, the drawer line dropped, proximity not read first, ids not stripped, and a
+    value shown against two prompts. The last one first survived; a case for it was added.
+- 2026-10-09: 14b merged (#1403, 7d1e657). 14c built: Alerts, Findings, and the three detection tools
+  in Settings (W4, W6, and W2's last three lines).
+  - W4, Alerts: the header says "Fuel-card fills that look wrong…" instead of "anomaly detection". The
+    hand-built pair of buttons is now `AppTabs`, a real tablist, with `reefer=1` still the URL's one
+    record of the view. "Rebuild / Re-sync →" is "Data & sync →", naming the screen it opens. The
+    reefer explanation says "truck diesel" and "reefer fuel", not ULSD/ULSR.
+  - W6, Findings: the export's scope line prints MM/DD/YYYY, as the picker beside it does. The file
+    name keeps ISO, because a file name sorts.
+  - W2, Recall audit: "precision", "recall", "false negative" and "95% CI" are gone. The page says it
+    measures what the system misses, and the range reads "likely between … and …".
+  - W2, Detection coverage: "blind", "telematics", "corroborate", "judgeable" and "unidentifiable" become
+    "not matched", "Samsara", "checked", "could be checked" and "could not be tied to one card".
+  - W2, Anomaly thresholds: "Tune the anomaly engine" becomes "Set the limits that decide when a fill is
+    flagged". The AI checkbox is "Ask AI for a second opinion on flagged fills".
+  - The three Settings cards for those tools lost "anomaly engine" and "detection engine".
+  - Not changed: the catalogue labels "Recall audit", "Detection coverage" and "Anomaly thresholds".
+    Each is a screen's name in the sidebar preview and in every stored grant's audit trail. Renaming
+    them is its own decision, recorded here, not taken.
+  - Tests: `detectionToolsWording.test.ts` renders the three pages, Coverage with a real
+    `computeDetectionCoverage` summary so its tiles and table render, and holds them and their cards
+    to one word list. `MoneyExportActions.test.ts` is new and pins the scope line and the ISO file
+    name. `anomaliesFiltersInUrl.test.ts` pins the header and the tablist with its selected tab.
+  - Proved by seven mutants: each of the four old pages, the ISO scope line, the old coverage card, and
+    plain buttons in place of the tabs. Each turned the tests red. A first run of the mutants used a
+    file list zsh did not split, so it took no backups and overwrote the uncommitted edits. They were
+    re-applied from one saved script and committed before the mutants ran again, so each restore was a
+    `git checkout`.
+  - **Chunk 14 is complete** once this merges. Next: chunk 15.
+- 2026-10-09: 14c merged (#1408, c77f9d1). Chunk 14 is complete.
+  - Post-release checks for v2026.10.09.1 (production schema 0447), read-only on production:
+    - 0446: the Fuel Log "Flagged" tile reads 0 for both orgs (Silvicom 18,131 fills, 17,994 clear;
+      EFS QA 397, 397). 137 fills are marked, and 0 of them have an open or investigating case. The
+      handoff said 138; one marked fill has since lost its mark. Pass.
+    - 0447: `pg_policies` on `fuel_transactions` lists four SELECT policies (`ftxn_driver_select`,
+      `ftxn_section_read`, `ftxn_select`, `fuel_tx_driver_scope`) and nothing else. Pass.
+  - Chunk 15 built (A2): `anomalyTransition.test.ts` drives `POST /api/anomalies/:id/transition`
+    over HTTP. Its `anomalies` fixture applies the route's `id` and `org_id` filters, because the
+    recorder only records them.
+    - Another org's case answers 404, and neither the RPC nor the audit write runs.
+    - A stale version answers 409 `conflict` before the RPC runs. A version race the RPC loses is
+      also 409 `conflict`, with no audit row.
+    - Every role without `safety: manage` gets 403 before the case is read, and every role with it
+      can move a case. Both lists come from `rolesThatManage("safety")`, not a hand-written list.
+    - The accepted move calls `transition_anomaly` with the caller's org, actor and expected version,
+      and writes one `anomaly.status_changed` audit row with org, actor, from and to.
+    - Proved by seven mutants, each run against the committed test and restored with `git checkout`:
+      the org filter dropped from the case read (the accept criterion), the version check dropped,
+      the gate widened to `safety: view`, the audit write skipped, the RPC handed the case id as its
+      org, an RPC conflict mapped to 422, and the audit's `from` written as the target. Each turned
+      the test red.
+    - **Chunk 15 is complete** once this merges. Next: chunk 16.
+- 2026-10-09: 15 merged (#1412, 7ae09ca). Chunk 15 is complete. Chunk 16 started; its accept line is
+  blocked and asked as Q-F14.
+  - F14's sweep refreshed `mcleod_gl_totals` at 18:59 UTC: July and August are re-swept. September
+    holds only recurring journals (`RJ`), so McLeod has not posted it and it cannot be tied.
+  - August tied instead, read-only on production with `getFuelTieOut` (the D-FIN12 tie-out the
+    coverage report uses; the end date is the next month's first day, because the EFS read is
+    `tran_date < end`):
+    - Whole FUEL module: McLeod $1,255,635.13 (it debits the products and Fuel Advance, and
+      credits Fuel Payable by the same amount) against $1,255,787.38 of EFS card lines. Gap
+      −$152.25. July, as a control: $1,082,023.71 against $1,081,541.21, gap +$482.50.
+    - Per account, August (McLeod − EFS): tractor diesel −$18,595.34 and Fuel Advance +$18,820.93,
+      which net to +$225.59. McLeod books about $18.8k more as owner-operator fuel than the 16
+      units our settlement sweep names, so the gap is which trucks count as owner-operator, not
+      missing money. Scales +$1,087.82, DEF −$197.09, Reefer −$44.20, Oil +$12.01, Accessorial
+      Income +$1.25, and $1,237.63 of EFS lines no rule maps (DSL1 $772.63, ANFR, WWFL, STAX, ADD).
+      These move money between accounts; only the −$152.25 total is a real difference.
+    - Not posting lag: moving the EFS window one day earlier makes tractor diesel −$35,726.68, not
+      smaller. No single fill on 06-30, 07-01, 07-31, 08-01, 08-31 or 09-01 is $152.25 or $482.50.
+  - Runbook: `docs/DEPLOYMENT.md` § "EFS feed older than 2 hours" says who `financialFreshness`
+    tells and what to check. Measured for it: 60 successful `efs_soap_posted` runs per org in the
+    last hour, so the poll runs every minute and the alarm fires after 60 minutes. It checks every 6
+    hours. The same file's drain section already said "about once a minute".
+
+- 2026-10-10: Q-F14 — the owner rejected (a), closing chunk 16 on August, as "2 months behind".
+  The question behind it is no longer this plan's. Why September cannot be tied yet is that McLeod
+  posts a month 10–39 days after it ends, and the owner's answer to that is a preliminary month
+  built from the sub-ledgers, EFS among them. That is **D-FLEET11** in
+  `docs/plans/financial/FINANCE-FLEET-REPORT-PLAN.md`, with the nightly finance sweep and the AP
+  distribution collector ahead of it (that plan's log, 2026-10-10). Q-F14 therefore stays OPEN in
+  Rulings and is answered by whichever comes first: the September GL posting, which a nightly sweep
+  will now stage without anyone running it, or the preliminary month's fuel line. Chunk 16's
+  tie-out is one Log line at that point. Either way it does not hold the task walk.
+

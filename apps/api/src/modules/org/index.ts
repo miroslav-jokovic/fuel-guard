@@ -17,7 +17,7 @@ export { publicPasswordResetRouter } from "./routes/publicPasswordReset.js";
 export { memberPasswordResetRouter } from "./routes/memberPasswordReset.js";
 export { deliverInvite, type InviteDelivery } from "./inviteDelivery.js";
 export { membersRouter } from "./routes/members.js";
-export { usersWhoManage } from "./memberLookup.js";
+export { usersWhoManage, lookupMemberRole, listOfficeMembers, type OfficeMember } from "./memberLookup.js";
 export { savedViewsRouter } from "./routes/savedViews.js";
 export { orgSettingsRouter } from "./routes/orgSettings.js";
 export { dashboardLayoutRouter } from "./routes/dashboardLayout.js";

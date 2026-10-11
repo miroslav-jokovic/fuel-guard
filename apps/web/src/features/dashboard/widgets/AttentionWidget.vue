@@ -21,13 +21,18 @@ import { AppDelta } from "@silvicom/ui";
 import { deltaLabel, deltaTone } from "@silvicom/shared";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import DoorLink from "@/components/ui/DoorLink.vue";
-import { useFindingsSummaryQuery } from "@/composables/useFindingsSummary";
+import { useFindingsSummaryQuery, fuelProblemsDoor } from "@/composables/useFindingsSummary";
 import { useFleetWidgetData, fmtInt, type FleetRange } from "../fleetWidgetData";
 import { viz, fmtCompact, fmtMoney } from "@/lib/chartTheme";
 
 const props = defineProps<{ range: FleetRange }>();
 const { s, isLoading, canSeeMoney, deltas, previousLabel } = useFleetWidgetData(computed(() => props.range));
 const { data: findings } = useFindingsSummaryQuery();
+// The queue from the oldest item counted, so the page lists what this row counts (Q-F13 (a)).
+const problemsDoor = computed(() => {
+  const d = fuelProblemsDoor(findings.value);
+  return d.query ? `${d.path}?from=${d.query.from}` : d.path;
+});
 
 const sev = computed(() => s.value?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 });
 const ORDER = ["critical", "high", "medium", "low"] as const;
@@ -70,11 +75,11 @@ const v = (n: number | null | undefined) => (isLoading.value || n == null ? "—
       </li>
 
       <li class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-0.5 py-3">
-        <span class="text-sm font-medium text-ink">Open findings</span>
+        <span class="text-sm font-medium text-ink">Fuel problems</span>
         <span class="text-lg font-bold tabular-nums text-ink" data-test="attention-findings">{{ v(findings?.open) }}</span>
         <span class="col-span-2 flex flex-wrap items-center justify-between gap-x-2 text-xs text-ink-tertiary">
           <span>need somebody · open now</span>
-          <DoorLink to="/findings">Assign</DoorLink>
+          <DoorLink :to="problemsDoor">Assign</DoorLink>
         </span>
       </li>
 

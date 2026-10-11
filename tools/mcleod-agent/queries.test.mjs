@@ -68,6 +68,18 @@ test("the fuel-tax letter becomes a fact, and an unknown letter becomes NO fact"
   assert.equal(fact("X"), undefined);
 });
 
+test("the home fleet is read in identity mode only, and crosses the wire verbatim", () => {
+  // DISPATCH-BOARD-PLAN DB1: tractor.fleet_id ('VINNIEV') is who owns the truck. Link mode reads nothing extra.
+  assert.match(vehicles("identity"), /AS fleet_id/);
+  assert.ok(!/fleet_id/.test(vehicles("link")), "link mode reads no fleet");
+  const code = (r) => MAP.vehicles({ external_id: "773", make: "Freightliner", ...r }).fleet_code;
+  assert.equal(code({ fleet_id: "VINNIEV " }), "VINNIEV");
+  // A blank fleet is McLeod saying "no fleet" — null, which clears a stale code on our side ...
+  assert.equal(code({ fleet_id: "  " }), null);
+  // ... while a row that never read the column sends nothing, so it can never clear one.
+  assert.equal(code({}), undefined);
+});
+
 test("the retirement predicate is the TMS's active flag, negated, and nothing more", () => {
   const q = retirementQueries().vehicles;
   assert.match(q, /t\.service_status <> 'A'/);

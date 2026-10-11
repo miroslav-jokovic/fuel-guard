@@ -231,6 +231,26 @@ export function useAnomalyTransition() {
         throw new Error(res.error?.message ?? "Could not update the anomaly");
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["anomalies"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["anomalies"] });
+      // The fuel queue lists fill cases too, and since 8c3 closes them in this same drawer (F02-F04).
+      void qc.invalidateQueries({ queryKey: ["findings"] });
+    },
+  });
+}
+
+/**
+ * One fill case by id, for the fuel queue's drawer (F02-F04 chunk 8c3). The queue's row carries only
+ * the id; `AnomalyDetail` needs the whole case, read the same way the Alerts page reads it.
+ */
+export function useAnomalyById(id: Ref<string | null>) {
+  return useQuery({
+    queryKey: ["anomalies", "one", id],
+    enabled: () => !!toValue(id),
+    queryFn: async (): Promise<Anomaly | null> => {
+      const { data, error } = await supabase.from("anomalies").select(ANOMALY_COLS).eq("id", toValue(id)!).maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data as Anomaly | null) ?? null;
+    },
   });
 }

@@ -1,5 +1,9 @@
 // Silvicom 360 — fuel_transactions.business_date matrix (migration 0287, D-FUI11, FUEL-T1).
 //
+// ⚠ Since 0444 (Q-F5) the day is EFS's Central day, not the station's: EFS prints Central days (guide
+// p. 10). The column, trigger and backfill pinned here are 0287's; the rule they apply is 0444's, and
+// its own matrix is fuel-business-date-efs-clock.test.mjs. The assertions below that 0444 changed say so.
+//
 // The defect this column closes is not a wrong value anywhere — it is TWO derivations of the same
 // day. The Fuel Log renders `fueled_at` in the station's zone and filters it as a UTC instant, so a
 // California fill at 18:00 local on the 31st is displayed as the 31st and filtered as the 1st of the
@@ -11,11 +15,13 @@
 //      that month's business-date window and outside the next — the assertion the plan named.
 //   2. THE TRIGGER OWNS THE COLUMN. A writer cannot assert a business date; whatever it sends is
 //      overwritten. That is the property that makes eleven writers (including the browser) safe.
-//   3. IT FOLLOWS A CORRECTION. Move the instant or the state and the day moves with it.
+//   3. IT FOLLOWS A CORRECTION. Move the instant and the day moves with it. (Since 0444 the state no
+//      longer can — the efs-clock matrix pins that.)
 //   4. HISTORY IS BACKFILLED. A row written before 0287 carries the right day afterwards.
 //   5. THE BACKFILL IS QUIET. It does not stamp `updated_at` on every fill in the carrier's history,
 //      and it does not touch the 0261 satellites.
-//   6. UTC IS THE DOCUMENTED FALLBACK, so an unmappable state is deterministic rather than null.
+//   6. AN UNMAPPABLE STATE IS STILL DATED, deterministically, never null. (Under 0287 that was a UTC
+//      fallback; since 0444 no state is consulted, so it is EFS's day like any other.)
 //
 // Run:  node supabase/tests/fuel-business-date.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -146,9 +152,8 @@ ok("  ...while the OLD instant window puts that same fill in September — the d
    utcSep.rows[0].n === 1);
 
 // ── 2. the trigger owns the column ───────────────────────────────────────────────────────────
-// 06:00Z is chosen deliberately: local midnight is 07:00Z in California and 05:00Z in Texas, so this
-// instant is 31 August in one and 1 September in the other — which is what makes the state correction
-// below observable at all. (01:00Z would NOT: both are still on the 31st.)
+// 06:00Z is 01:00 on 1 September in Chicago — EFS's day since 0444 — and still 23:00 on 31 August at the
+// California station, so the stored 09-01 shows the EFS clock is the one applied.
 const ASSERT = "bbbbbbbb-0000-0000-0000-000000000003";
 await db.query(
   `insert into fuel_transactions (id, org_id, fueled_at, state, gallons, business_date, is_canonical)
@@ -157,17 +162,13 @@ await db.query(
 );
 const asserted = await db.query(`select business_date::text as d from fuel_transactions where id=$1`, [ASSERT]);
 ok("a writer cannot assert a business date — the trigger overwrites what it sent",
-   asserted.rows[0]?.d === "2026-08-31", `got ${asserted.rows[0]?.d}`);
+   asserted.rows[0]?.d === "2026-09-01", `got ${asserted.rows[0]?.d}`);
 
 await db.query(`update fuel_transactions set business_date = '2030-01-01' where id=$1`, [ASSERT]);
 const reasserted = await db.query(`select business_date::text as d from fuel_transactions where id=$1`, [ASSERT]);
-ok("  and it cannot assert one on an update either", reasserted.rows[0]?.d === "2026-08-31");
+ok("  and it cannot assert one on an update either", reasserted.rows[0]?.d === "2026-09-01");
 
 // ── 3. it follows a correction ───────────────────────────────────────────────────────────────
-await db.query(`update fuel_transactions set state='TX' where id=$1`, [ASSERT]);
-const restated = await db.query(`select business_date::text as d from fuel_transactions where id=$1`, [ASSERT]);
-ok("correcting the STATE moves the business day with it (CA→TX crosses into September)",
-   restated.rows[0]?.d === "2026-09-01", `got ${restated.rows[0]?.d}`);
 await db.query(`update fuel_transactions set fueled_at='2026-08-20T15:00:00Z' where id=$1`, [ASSERT]);
 const removed = await db.query(`select business_date::text as d from fuel_transactions where id=$1`, [ASSERT]);
 ok("correcting the INSTANT moves it too", removed.rows[0]?.d === "2026-08-20");
@@ -180,7 +181,9 @@ await db.query(
   [UNK, ORG],
 );
 const unk = await db.query(`select business_date::text as d from fuel_transactions where id=$1`, [UNK]);
-ok("an unmappable state falls back to UTC deterministically, never to null", unk.rows[0]?.d === "2026-09-01");
+// 01:00Z on 1 September is 20:00 on 31 August in Chicago.
+ok("an unmappable state is still dated on EFS's clock, never null", unk.rows[0]?.d === "2026-08-31",
+   `got ${unk.rows[0]?.d}`);
 
 // ── the index the next merge's filter needs ──────────────────────────────────────────────────
 const idx = await db.query(

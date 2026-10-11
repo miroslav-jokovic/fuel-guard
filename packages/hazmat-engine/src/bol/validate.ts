@@ -121,9 +121,10 @@ export function validateBol(load: LoadInput): BolValidation {
     ) {
       additionalRequired.push("the words “Marine Pollutant” (§172.203(l))");
     }
-    // §172.203(c): RQ if a listed hazardous substance (Appendix A). Petroleum fuels are CERCLA-excluded.
+    // §172.203(c)(2): "The letters “RQ” must be entered on the shipping paper either before or after the
+    // basic description" for a listed hazardous substance (Appendix A). Petroleum fuels are CERCLA-excluded.
     if (ds.hazSubstances.some((h) => names.includes(h.nameNormalized))) {
-      additionalRequired.push("“RQ” before the basic description (§172.203(c))");
+      additionalRequired.push("“RQ” before or after the basic description (§172.203(c)(2))");
     }
 
     lines.push({ hmtRef: line.hmtRef, basicDescription, additionalRequired });
@@ -178,7 +179,9 @@ export function validateBol(load: LoadInput): BolValidation {
 
   // Load-level required elements of any hazmat shipping paper (stated as requirements to verify).
   const REQUIRED_ELEMENTS: Array<{ ruleId: string; message: string; cfr: string }> = [
-    { ruleId: "bol_emergency_phone_required", message: "A monitored 24-hour emergency-response telephone number must appear on the shipping paper.", cfr: "49 CFR 172.604" },
+    // §172.604(a): "a numeric emergency response telephone number, including the area code", "(1) Monitored
+    // at all times the hazardous material is in transportation, including storage incidental to transportation".
+    { ruleId: "bol_emergency_phone_required", message: "A numeric emergency response telephone number, including the area code, monitored at all times the hazardous material is in transportation, must appear on the shipping paper.", cfr: "49 CFR 172.604" },
     { ruleId: "bol_emergency_info_required", message: "Emergency response information must accompany the shipping paper (e.g. the ERG guide number).", cfr: "49 CFR 172.602" },
     { ruleId: "bol_certification_required", message: "The shipper's certification must be present and signed.", cfr: "49 CFR 172.204" },
     { ruleId: "bol_identification_required", message: "Hazardous materials entries must be identifiable on the paper (entered first, highlighted, or marked “X” in an HM column) with the total quantity and number/type of packages.", cfr: "49 CFR 172.201" },

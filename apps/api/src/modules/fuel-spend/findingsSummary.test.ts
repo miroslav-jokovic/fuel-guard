@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFindingsSummary, quarterStart } from "./findingsRead.js";
+import { USER_ROLES, type FindingQueueState } from "@silvicom/shared";
+import { readFindings, readFindingsSummary, quarterStart } from "./findingsRead.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../testing/supabaseRecorder.js";
 
 /**
@@ -123,5 +124,100 @@ describe("card-fraud incidents in the Dashboard's count", () => {
     const rec = seed({ incidents: 2 });
     await readFindingsSummary(rec.client, ORG, "technician", NOW);
     expect(rec.forTable("card_fraud_incidents")).toHaveLength(0);
+  });
+});
+
+/**
+ * Chunk 8c4's acceptance: "the open count on the page equals the dashboard's". The recorder does not
+ * filter (it answers whatever a fixture says), so equal NUMBERS from it would prove nothing; what can be
+ * proved is that both sides ask each table the same question. The page opens on the queue's default
+ * states with no other narrowing, which is exactly what the Dashboard's door sends, so for every role the
+ * count's WHERE must equal the list's WHERE, table by table, and neither may read a table the other skips.
+ *
+ * ⚠ The date WINDOW is outside this: the page always reads one (90 days by default) and the Dashboard
+ * counts every open item. They agree today only because the oldest open item is younger than 90 days —
+ * Q-F13 in the plan.
+ */
+describe("the Dashboard's count and the queue it opens", () => {
+  const QUEUE_DEFAULT: FindingQueueState[] = ["open", "investigating", "working"];
+  const CASE_TABLES = ["anomalies", "fuel_exceptions", "card_fraud_incidents"] as const;
+  const WHERE = new Set(["eq", "neq", "in", "or", "gte", "lte", "gt", "lt", "is", "not"]);
+  const where = (q: RecordedQuery) =>
+    q.ops.filter((o) => WHERE.has(o.method)).map((o) => JSON.stringify([o.method, o.args])).sort();
+  const isCreditedRead = (q: RecordedQuery) => q.filters().some((f) => f.col === "status" && f.val === "credited");
+
+  it("asks every table the same question as the queue, for every role", async () => {
+    for (const role of USER_ROLES) {
+      const listRec = seed({ epoch: "2026-10-08T15:28:02Z" });
+      const countRec = seed({ epoch: "2026-10-08T15:28:02Z" });
+      await readFindings(listRec.client, ORG, role, { states: QUEUE_DEFAULT });
+      await readFindingsSummary(countRec.client, ORG, role, NOW);
+      for (const table of CASE_TABLES) {
+        const list = listRec.forTable(table).map(where);
+        const count = countRec.forTable(table).filter((q) => !isCreditedRead(q)).map(where);
+        expect({ role, table, where: count }).toEqual({ role, table, where: list });
+      }
+    }
+  });
+});
+
+/**
+ * Q-F13 (a), ruled 2026-10-08: the tile counts every open item and the page reads a date window, so the
+ * Dashboard's door carries the date of the oldest item counted. Read in the same query as each count.
+ */
+describe("the oldest open item the count covers", () => {
+  const dated = (o: { anomaly?: string; exception?: string; incident?: string }) =>
+    createSupabaseRecorder({
+      tables: {
+        anomalies: { count: o.anomaly ? 1 : 0, data: o.anomaly ? [{ fueled_at: o.anomaly }] : [] },
+        card_fraud_incidents: { count: o.incident ? 1 : 0, data: o.incident ? [{ opened_at: o.incident }] : [] },
+        organizations: [{ detection_epoch: null }],
+        fuel_exceptions: (q: RecordedQuery) =>
+          q.filters().some((f) => f.col === "status" && f.val === "credited")
+            ? { data: [] }
+            : { count: o.exception ? 1 : 0, data: o.exception ? [{ occurred_on: o.exception }] : [] },
+      },
+    });
+
+  it("is the earliest across the sources, as a day", async () => {
+    const rec = dated({ anomaly: "2026-09-02T03:10:00+00:00", exception: "2026-08-01", incident: "2026-10-05T14:10:00+00:00" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-08-01");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("reads each source's oldest row in the count's own query, by that source's date", async () => {
+    const rec = dated({ exception: "2026-08-01" });
+    await readFindingsSummary(rec.client, ORG, "admin", NOW);
+    const asked = (table: string) =>
+      rec.forTable(table).filter((q) => !q.filters().some((f) => f.val === "credited"))
+        .map((q) => q.ops.filter((o) => o.method === "order" || o.method === "limit").map((o) => [o.method, o.args[0]]));
+    expect(asked("anomalies")).toEqual([[["order", "fueled_at"], ["limit", 1]]]);
+    expect(asked("fuel_exceptions")).toEqual([[["order", "occurred_on"], ["limit", 1]]]);
+    expect(asked("card_fraud_incidents")).toEqual([[["order", "opened_at"], ["limit", 1]]]);
+    for (const t of ["anomalies", "fuel_exceptions", "card_fraud_incidents"]) {
+      const order = rec.forTable(t).flatMap((q) => q.ops).find((o) => o.method === "order")!;
+      expect(order.args[1]).toEqual({ ascending: true });
+    }
+  });
+
+  it("ignores a source the caller may not see", async () => {
+    const rec = dated({ anomaly: "2026-07-01T00:00:00+00:00", exception: "2026-08-01" });
+    expect((await readFindingsSummary(rec.client, ORG, "accountant", NOW)).oldestOpenOn).toBe("2026-08-01");
+  });
+
+  // Chunk 10: the door's `?from=` must start the page at or before the row it was read from. 01:00Z on
+  // 10-06 is 20:00 on 10-05 in Chicago, and the page now starts 10-06 at 05:00Z — so the day must be 10-05.
+  it("is a case's day on the carrier's clock, not its UTC day, so the link's page still lists it", async () => {
+    const rec = dated({ anomaly: "2026-10-06T01:00:00+00:00", incident: "2026-10-07T01:00:00+00:00" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-10-05");
+  });
+
+  it("keeps the ledger's stored date as it is, because it is already a day", async () => {
+    const rec = dated({ exception: "2026-10-06" });
+    expect((await readFindingsSummary(rec.client, ORG, "admin", NOW)).oldestOpenOn).toBe("2026-10-06");
+  });
+
+  it("is null when nothing is open", async () => {
+    expect((await readFindingsSummary(dated({}).client, ORG, "admin", NOW)).oldestOpenOn).toBeNull();
   });
 });

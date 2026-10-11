@@ -33,5 +33,6 @@ export { markPatternSweepOutcome } from "./patternSweepRequests.js";
 export { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 export { assignAnomalies, assignCardFraudIncidents } from "./assignAnomalies.js";
 export { anomaliesRouter } from "./routes/anomalies.js";
+export { cardFraudIncidentsRouter } from "./routes/cardFraudIncidents.js";
 export { runPatternSweep } from "./entityRisk.js";
 export { affectedVehicleIds } from "./scoring/index.js";

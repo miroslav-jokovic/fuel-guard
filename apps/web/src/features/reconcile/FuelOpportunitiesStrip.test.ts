@@ -12,7 +12,7 @@ const opp = (o: Partial<FuelOpportunity> = {}): FuelOpportunity => ({
   kind: "contract_variance", label: "Paid above Pilot's quote", count: 3, amount: 61.5, withAmount: 3, oldest: "2026-09-02", ...o,
 });
 
-const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/findings", component: { template: "<div/>" } }] });
+const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/fuel-problems", component: { template: "<div/>" } }] });
 const mountStrip = (over: Record<string, unknown> = {}) =>
   mount(FuelOpportunitiesStrip, {
     props: { rows: [opp()], loading: false, error: false, from: "2026-09-01", to: "2026-09-30", vehicleIds: [], canOpenInbox: true, ...over },
@@ -34,7 +34,7 @@ describe("FuelOpportunitiesStrip", () => {
   it("opens the findings inbox on that kind, with the page's dates and trucks", () => {
     const w = mountStrip({ vehicleIds: ["v1", "v2"] });
     const link = w.findComponent({ name: "RouterLink" });
-    expect(link.props("to")).toEqual({ path: "/findings", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1,v2" } });
+    expect(link.props("to")).toEqual({ path: "/fuel-problems", query: { kind: "contract_variance", from: "2026-09-01", to: "2026-09-30", trucks: "v1,v2" } });
   });
 
   it("names the kind without a link when the inbox does not open for this caller", () => {
