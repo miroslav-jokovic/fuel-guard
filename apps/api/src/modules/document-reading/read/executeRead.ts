@@ -9,6 +9,7 @@ import { sendLimitsFor } from "../model/visionTier.js";
 import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
 import { sentCopyOf } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
+import { EVIDENCE_FOR } from "../evidence/index.js";
 import { READ_PROMPTS } from "./prompts.js";
 import { classifyPages, currentVerdicts, type PageVerdict } from "./classifyPages.js";
 import { reviewEpoch, targetOfRow, targetPages, type ReadTarget, type TargetPage } from "./readTarget.js";
@@ -26,9 +27,10 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  * and a configuration error (a bad key, a retired model id, a schema the API refuses), which no retry
  * mends and which must reach the job's error column rather than pass for a reading failure.
  *
- * What it does NOT do yet, each its own step: pass B and the field ledger (Phase 2 — the read records
- * `evidence: []` and only pass A's model, because nothing would read pass B's answer until key
- * alignment, 2.2, lands); the usability gate (`unusable_image`, which needs the shared capture metrics
+ * Since §7B A2 a finished read records evidence: the profile's witnesses over its document
+ * (evidence/index.ts — for the shipping document, the Hazardous Materials Table's verdict on each line).
+ * What it does NOT do yet, each its own step: pass B (A3 — the read records only pass A's model, so no
+ * field can be *Read* yet); the usability gate (`unusable_image`, which needs the shared capture metrics
  * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
  * read only when its class is one the profile reads; a page the classifier could not answer is still
  * read — an unknown page is not a known non-BOL. Each read page is sent turned upright by its verdict's
@@ -199,7 +201,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   const done = async (result: unknown, cacheHit: boolean, input: number, output: number, pages: number): Promise<ExecuteReadOutcome> => {
     await transition(admin, orgId, readId, "done", {
       p_result: result,
-      p_evidence: [],
+      p_evidence: EVIDENCE_FOR[read.profile](result, ACCEPTANCE_RULE_VERSION),
       p_models: versions.models,
       p_prompt_version: versions.promptVersion,
       p_schema_hash: versions.schemaHash,

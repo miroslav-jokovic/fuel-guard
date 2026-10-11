@@ -22,7 +22,14 @@ import { createHash } from "node:crypto";
  * The terms are joined as `name=value` lines in this fixed order, so no two different inputs can join to
  * the same string (no term holds a newline: versions and hashes are generated, and a model id is a pin).
  */
-export const ACCEPTANCE_RULE_VERSION = "none";
+/**
+ * The acceptance rule that sets each field's status (D-DR17/D-DR19), versioned so a graduation count and
+ * a cached read each belong to one rule.
+ *   none — no evidence recorded (Steps 1.6–P2).
+ *   1    — 2026-10-11, §7B A2: the Hazardous Materials Table judges each hazmat line; nothing is *Read*
+ *          on one model's word, so every judged field is *Check*, with the table's reason when it fails.
+ */
+export const ACCEPTANCE_RULE_VERSION = "1";
 
 export interface CacheKeyInput {
   profileVersion: string;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { DOCUMENT_PROFILES } from "@silvicom/shared";
+import { DOCUMENT_PROFILES, printedHazmatLineSchema } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
 import { combinedSchemaHash, sectionWireSchemas } from "../model/readSections.js";
@@ -310,6 +310,29 @@ describe("executeRead — P2, classify and orient (§7A.3, Q-DR19 (a))", () => {
   it("counts a refused read's classification tokens too: the model was asked", async () => {
     const w = await world({ model: () => message({ stop_reason: "refusal", content: [] }) });
     expect(await w.run()).toEqual({ outcome: "failed", code: "refusal", inputTokens: 10_000, outputTokens: 1240 });
+  });
+});
+
+describe("executeRead — evidence (§7B A2)", () => {
+  // A fresh read and a cache hit end through the same `done`, so the evidence is asserted on a replayed
+  // document — which also proves a replay carries today's rule rather than the cached read's.
+  it("records the table's verdict on each hazmat line of the finished document, every judged field Check", async () => {
+    const empty = PROFILE.empty();
+    const bad = printedHazmatLineSchema.parse({ idText: "5607540", psn: "PAINT", hazardClass: "3", pg: "III" });
+    const cached = { ...empty, hazmat: { ...empty.hazmat, lines: [bad] } };
+    const w = await world({ cached, classes: { p1: "bol", p2: "bol" } });
+    expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
+    const done = w.transitions()[1]!;
+    expect(done).toMatchObject({ p_acceptance_rule_version: ACCEPTANCE_RULE_VERSION });
+    const ev = done.p_evidence as { path: string; status: string; sources: { reader: string; value: unknown }[] }[];
+    expect(ev.map((e) => e.path)).toEqual(["hazmat.lines[0].idText", "hazmat.lines[0].psn", "hazmat.lines[0].hazardClass", "hazmat.lines[0].pg"]);
+    expect(ev.every((e) => e.status === "check")).toBe(true);
+    // A read that records evidence names the rule that produced it — never "none", the version that means
+    // "no evidence" — and every field carries the same rule as the read, so a cached read made under the
+    // evidence-less rule is never replayed as if it had been judged.
+    expect(done.p_acceptance_rule_version).not.toBe("none");
+    expect(new Set(ev.map((e) => (e as unknown as { ruleVersion: string }).ruleVersion))).toEqual(new Set([done.p_acceptance_rule_version]));
+    expect(ev[0]!.sources.find((s) => s.reader === "table")!.value).toMatchObject({ consistent: false });
   });
 });
 

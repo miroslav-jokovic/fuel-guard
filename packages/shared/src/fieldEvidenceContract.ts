@@ -23,9 +23,13 @@ export type FieldStatus = (typeof FIELD_STATUSES)[number];
  * (D-DR3), `deviceOcr` the driver scanner's word boxes (Phase 6.3), `region` a re-read of a crop (Phase 5),
  * `arithmetic` a sum or product that reproduces the value (§4.4), `order` the McLeod order (§4.5),
  * `declaration` something the sender stated, `reviewer` a person's confirmation or correction.
+ * `table` is a regulatory table the value must be consistent with — the Hazardous Materials Table for a
+ * hazmat line (DOCUMENT-READER-PLAN §7B, D-DR19). It reads no page: its `value` is its verdict on the
+ * line, and it can only ever stop a value, never be the second witness that makes one *Read* — a model can
+ * invent a line the table finds perfectly consistent.
  */
 export const EVIDENCE_READERS = [
-  "passA", "passB", "textLayer", "deviceOcr", "region", "arithmetic", "order", "declaration", "reviewer",
+  "passA", "passB", "textLayer", "deviceOcr", "region", "arithmetic", "order", "declaration", "reviewer", "table",
 ] as const;
 export type EvidenceReader = (typeof EVIDENCE_READERS)[number];
 
