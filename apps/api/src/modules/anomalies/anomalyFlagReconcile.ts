@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { caseIsAfterReset } from "@silvicom/shared";
+import { loadDetectionEpoch } from "./scoring/loaders.js";
 
 /**
  * Anomaly-flag reconcile — keeps `fuel_transactions.has_anomaly` / `max_severity` consistent with the
@@ -43,11 +45,14 @@ export async function reconcileAnomalyFlags(
   admin: SupabaseClient,
   orgId: string,
 ): Promise<FlagReconcileResult> {
-  // Live (non-superseded) anomalies → max severity per transaction.
-  const anomalies = await pageAll<{ transaction_id: string | null; severity: string }>((a, b) =>
+  // Live anomalies → max severity per transaction. Live = not superseded, and after the org's detection
+  // start date or being investigated (0439, D-CF9): a fill before the reset is not flagged, because the
+  // Alerts page no longer lists its case and a flag that leads nowhere is the dead end this sweep removes.
+  const epoch = await loadDetectionEpoch(admin, orgId);
+  const anomalies = await pageAll<{ transaction_id: string | null; severity: string; status: string; fueled_at: string | null }>((a, b) =>
     admin
       .from("anomalies")
-      .select("transaction_id, severity")
+      .select("transaction_id, severity, status, fueled_at")
       .eq("org_id", orgId)
       .neq("status", "superseded")
       .order("id", { ascending: true })
@@ -55,7 +60,7 @@ export async function reconcileAnomalyFlags(
   );
   const liveSevByTxn = new Map<string, string>();
   for (const a of anomalies) {
-    if (!a.transaction_id) continue;
+    if (!a.transaction_id || !caseIsAfterReset(a, epoch)) continue;
     liveSevByTxn.set(a.transaction_id, maxSev(liveSevByTxn.get(a.transaction_id) ?? null, a.severity));
   }
 

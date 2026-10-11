@@ -281,6 +281,26 @@ export interface CapabilityBehaviour<TBody> extends Governance<TBody> {
    * from the document the plan opened to the one the last step left behind.
    */
   vendorMovesFields?: readonly string[];
+  /**
+   * Parts of the card that may move between the operator's screen and the write WITHOUT a refusal —
+   * top-level element names of the canonical document, e.g. `["infos"]` (2026-10-08).
+   *
+   * ── Why ─────────────────────────────────────────────────────────────────────────────────────────
+   * McLeod writes each truck's current order and trailer onto its card as REPORT_ONLY prompts (TRIP,
+   * TRLR), so an active card's prompts change with every dispatch. ••••7962's TRIP went 0136174 →
+   * 0136311 between the nightly sweep and a fuel-exception grant (both values are on its own fills in
+   * `efs_transactions`), and the grant was refused "This card
+   * changed in EFS" over a field the grant neither reads nor writes. Most active trucks are dispatched
+   * daily, so this refused most grants made against a sweep-old screen.
+   *
+   * ── What it does NOT loosen ─────────────────────────────────────────────────────────────────────
+   * Only the PLAN-time comparison of the operator's screen with the fresh read. The edits are built
+   * from the fresh read and every precondition judges it, so nothing stale is decided on or echoed.
+   * The pre-write re-read in `dispatch.ts` stays exact: a prompt moving in the second between plan and
+   * write would otherwise be reverted by our echo. A capability whose DECISION is about these parts —
+   * `prompts_set` — must not declare them, and none is declared by default.
+   */
+  rebasesOver?: readonly string[];
 }
 
 /**

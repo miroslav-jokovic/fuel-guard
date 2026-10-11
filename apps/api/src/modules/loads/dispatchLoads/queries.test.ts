@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../../../testing/supabaseRecorder.js";
 import { listAssignments, listLoads } from "./queries.js";
+import { IN_LIST_CHUNK } from "../../../lib/paging.js";
 
 /**
  * The board read (LR7). What it must hold on its own, since it reads with the service role: every
@@ -54,6 +55,57 @@ describe("listLoads", () => {
     const rows = (await listLoads(rec.client, ORG)) as { dispatcher_name: string | null }[];
     expect(rows[0]?.dispatcher_name).toBeNull();
     expect(rec.forTable("tms_dispatchers")).toHaveLength(0);
+  });
+
+  /**
+   * 2026-10-09: the Board VM's first day put 454 loads on the board, and one `.in()` over all of them
+   * overflowed Node 22's header limit — every board read failed with "fetch failed". The reads by load
+   * id now go in IN_LIST_CHUNK slices, and the loads read pages past PostgREST's 1,000-row cap.
+   */
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `11111111-2222-4333-8444-${String(i).padStart(12, "0")}`,
+      source: "tms", provider: "mcleod", dispatcher_external_id: null, hazmat: false,
+    }));
+
+  it("reads stops and dispatches for a board larger than one id chunk, every load keeping its own", async () => {
+    const loads = many(2 * IN_LIST_CHUNK + 7);
+    const rec = createSupabaseRecorder({
+      tables: {
+        loads: { pages: [loads] },
+        load_stops: (q: RecordedQuery) =>
+          (filter(q, "load_id") as string[]).map((id) => ({ load_id: id, seq: 1, kind: "pickup" })),
+        load_dispatches: (q: RecordedQuery) =>
+          (filter(q, "load_id") as string[]).map((id) => ({ id: `d-${id}`, load_id: id, sent_at: "2026-10-09T12:00:00Z", drivers: null })),
+      },
+    });
+    const rows = (await listLoads(rec.client, ORG)) as { id: string; stops: { load_id: string }[]; last_dispatch: { id: string } | null }[];
+    expectOrgScoped(rec, ORG);
+    for (const table of ["load_stops", "load_dispatches"]) {
+      const reads = rec.forTable(table);
+      expect(reads).toHaveLength(3);
+      for (const q of reads) expect((filter(q, "load_id") as string[]).length).toBeLessThanOrEqual(IN_LIST_CHUNK);
+    }
+    expect(rows).toHaveLength(loads.length);
+    for (const r of rows) {
+      expect(r.stops.map((s) => s.load_id)).toEqual([r.id]);
+      expect(r.last_dispatch?.id).toBe(`d-${r.id}`);
+    }
+  });
+
+  it("fails the board when a stops read fails, rather than showing loads without their stops", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { loads: { pages: [many(3)] }, load_stops: { error: { message: "fetch failed" } } },
+    });
+    await expect(listLoads(rec.client, ORG)).rejects.toThrow("fetch failed");
+  });
+
+  it("returns every load past PostgREST's 1,000-row page", async () => {
+    const loads = many(1003);
+    const rec = createSupabaseRecorder({ tables: { loads: { pages: [loads.slice(0, 1000), loads.slice(1000)] } } });
+    const rows = (await listLoads(rec.client, ORG)) as { id: string }[];
+    expect(rows).toHaveLength(1003);
+    expect(rec.forTable("loads")).toHaveLength(2);
   });
 });
 

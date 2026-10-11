@@ -105,7 +105,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # `packages:` names the half of the action's default that still exists. The default
+      # (`tools platform-tools`) runs `sdkmanager tools`, and Google withdrew the obsolete `tools`
+      # package from the SDK repository on 2026-09-14 (measured in ci.yml's native-android job, which
+      # got this line the same day). This lane never got it because GitHub held every run of it
+      # until 2026-10-07, when the first APK build the release train dispatched (run 37636862762,
+      # v2026.10.07) ran for real and died in this step with `Failed to find package 'tools'`.
+      # The build needs nothing from `tools`: Gradle resolves build-tools and platforms itself.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

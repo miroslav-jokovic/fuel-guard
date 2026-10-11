@@ -1,8 +1,8 @@
-// Silvicom 360 — tenant-composite foreign keys matrix (migration 0434, DATABASE-AUDIT Q-DA5).
+// Silvicom 360 — tenant-composite foreign keys matrix (migration 0459, DATABASE-AUDIT Q-DA5).
 //
 // A fuel transaction must point at a truck and a driver of its OWN organisation. The single-column
 // keys (`vehicle_id → vehicles.id`, `driver_id → drivers.id`) only prove the row exists somewhere.
-// The API writes with the service role, which bypasses RLS, so before 0434 nothing in the database
+// The API writes with the service role, which bypasses RLS, so before 0459 nothing in the database
 // stopped a fill of org A naming org B's truck. Measured on production 2026-10-05: 0 such rows today
 // (all 180 smaller tenant FKs scanned in full, the two largest sampled at 1%); this is prevention.
 //

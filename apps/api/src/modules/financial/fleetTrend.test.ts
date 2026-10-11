@@ -63,14 +63,14 @@ const BILLS = [
  * putting the whole ledger in every point. Filtering here also makes the fixture prove the service
  * asked correctly — one that drops its window gets May and fails.
  */
-const recorder = () =>
+const recorder = (totals: typeof GL_TOTALS = GL_TOTALS) =>
   createSupabaseRecorder({
     tables: {
       mcleod_gl_totals: (q) => {
         const ops = q.ops;
         const gte = ops.find((o) => o.method === "gte" && o.args[0] === "period_start")?.args[1] as string | undefined;
         const lt = ops.find((o) => o.method === "lt" && o.args[0] === "period_start")?.args[1] as string | undefined;
-        return GL_TOTALS.filter((r) => (!gte || r.period_start >= gte) && (!lt || r.period_start < lt));
+        return totals.filter((r) => (!gte || r.period_start >= gte) && (!lt || r.period_start < lt));
       },
       mcleod_gl_accounts: () => ACCOUNTS,
       samsara_ifta_jurisdiction_miles: (q) => {
@@ -147,7 +147,9 @@ describe("getFleetTrend", () => {
     const ledgerRead = rec.forTable("mcleod_gl_totals")[0]!;
     const bound = (method: string) =>
       ledgerRead.ops.find((o) => o.method === method && o.args[0] === "period_start")?.args[1];
-    expect(bound("gte")).toBe("2026-02-01");
+    // The lower bound is the whole staged history, so the oldest month on the chart is judged
+    // against the month before it (Q10). The upper bound is the claim: nothing after April is read.
+    expect(bound("gte")).toBe("1900-01-01");
     expect(bound("lt")).toBe("2026-05-01");
 
     // Coverage is read a month at a time, so the same claim is checkable there: three months asked
@@ -175,5 +177,19 @@ describe("getFleetTrend", () => {
     expect(t.monthsPartial.map((m) => m.month)).toEqual(["2026-08"]);
     // It joins the months with no ledger at all: not plotted, and named beneath the chart.
     expect(t.missing).toContain("2026-08");
+  });
+
+  /**
+   * September as production held it on 2026-10-10: swept nine days after it ended, holding recurring
+   * journals only, because McLeod had not posted it (Q10). Plotted, it is the same cliff to the axis.
+   */
+  it("drops a month swept after it ended that McLeod has not posted, and says why", async () => {
+    const september = { period_start: "2026-09-01", period_end: "2026-10-01", swept_at: "2026-10-09 18:59:00+00", glid: "40000001", post_module: "RJ", net_amount: 26_946, line_count: 8, abs_amount: 26_946 };
+    const rec = recorder([...GL_TOTALS, september]);
+    const t = await getFleetTrend(rec.client, ORG, "2026-09-15", 3);
+    expect(t.points.map((p) => p.month)).not.toContain("2026-09");
+    expect(t.monthsPartial.map((m) => [m.month, m.shortfall])).toEqual([["2026-08", "partial"], ["2026-09", "unposted"]]);
+    expect(t.ledgerReason).toContain("2026-09 has not been fully posted in McLeod yet (no BILL, SET lines)");
+    expectOrgScoped(rec, ORG);
   });
 });

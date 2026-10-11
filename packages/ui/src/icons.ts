@@ -111,6 +111,11 @@ export {
   ResetPasswordIcon           as ResetPasswordIcon,
   Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)
   AiMagicIcon                 as SparklesIcon,                   // ✨ AI features
+  // The assistant's composer and dock: send is an arrow UP (the message rises into the thread),
+  // not the paper plane the old one-shot form used; expand opens the same thread as a full page.
+  ArrowUp02Icon               as ArrowUpIcon,
+  ArrowExpand01Icon           as ArrowsPointingOutIcon,
+  PencilEdit02Icon            as PencilSquareIcon,
   SmartPhone01Icon            as DevicePhoneMobileIcon,          // Driver App settings card
 
   // ── Time / calendar ─────────────────────────────────────────────────────
@@ -120,6 +125,9 @@ export {
   // ── People ──────────────────────────────────────────────────────────────
   UserGroupIcon               as UserGroupIcon,
   UserMultiple02Icon          as UsersIcon,
+  // ONE person (TRUCK-CARD-ROUTE-PLAN D-TC1): the live map's "Open driver" door names a single
+  // driver, and `UserGroupIcon` is the Drivers LIST — a group on a door to one person misreads.
+  UserIcon                    as UserIcon,
   // The applicant board (U5/D-UI6). It rendered `Building02Icon` — a BUILDING, for the person
   // applying — because the nav item was added before this barrel had a people-list glyph.
   UserListIcon                as UserListIcon,
@@ -184,6 +192,9 @@ export {
   Calculator01Icon  as BooksCheckIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,
+  // The live map's route toggle (TRUCK-CARD-ROUTE-PLAN D-TC7): a path between two points, which is
+  // what the button draws — not MapIcon, which Fuel Planning's nav item wears.
+  Route01Icon                 as RouteIcon,
   ShippingTruck01Icon         as VehicleIcon,
   DashboardBrowsingIcon       as OdometerIcon,
 

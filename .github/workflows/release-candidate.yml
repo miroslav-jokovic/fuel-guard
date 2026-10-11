@@ -73,8 +73,11 @@ jobs:
           # The title names the commit, not a date: the tag is minted at 01:00, on the NEXT Central day.
           title="Release candidate — main @ ${after::7}"
           {
-            echo "**Approve this PR to ship it at 01:00 CT** (release.yml, D-REL6). The approval pins the commit you"
-            echo "reviewed; anything merged after it rides the next train. No approval, no release."
+            # D-REL14: the console approves the commit these notes describe, read from this line.
+            node scripts/release-train.mjs marker "$after"
+            echo "**Approve this PR — or tonight's release in the console's Settings — to ship it at 01:00 CT**"
+            echo "(release.yml, D-REL6). The approval pins the commit you reviewed; anything merged after it rides"
+            echo "the next train. No approval, no release."
             echo
             echo "Check it on staging first: the uat hosts serve main within minutes of every merge."
             echo
@@ -106,6 +109,8 @@ jobs:
           PR_URL: ${{ steps.candidate.outputs.pr_url }}
           PR_COUNT: ${{ steps.candidate.outputs.pr_count }}
           NOTES_FILE: notes.md
+          # D-REL14: the email links to the console's Settings, where the owner approves from a phone.
+          CONSOLE_URL: ${{ vars.CONSOLE_URL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
           RELEASE_NOTIFY_EMAILS: ${{ secrets.RELEASE_NOTIFY_EMAILS }}

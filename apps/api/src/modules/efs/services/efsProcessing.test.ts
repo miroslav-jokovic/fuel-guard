@@ -16,7 +16,10 @@ vi.mock("../../messaging/index.js", () => ({ notify: mocks.notify }));
 
 import { processEfsProcessingRun } from "./efsProcessing.js";
 
-function fakeAdmin() {
+const criticalAlert = { id: "anomaly-1", transaction_id: "txn-1", severity: "critical", status: "open", message: "Overfill" };
+
+/** `anomalyRows` is filtered by the `.in()` filters the service applies, so a test sees its real gate. */
+function fakeAdmin(anomalyRows: Record<string, unknown>[] = [criticalAlert]) {
   const updates: { table: string; patch: Record<string, unknown>; filters: [string, unknown][] }[] = [];
   const processing = {
     id: "processing-1",
@@ -41,13 +44,17 @@ function fakeAdmin() {
       let mode: "select" | "update" = "select";
       let patch: Record<string, unknown> = {};
       const filters: [string, unknown][] = [];
+      const ins: [string, unknown[]][] = [];
       const chain: Record<string, unknown> = {
         select: () => chain,
         eq: (col: string, val: unknown) => {
           filters.push([col, val]);
           return chain;
         },
-        in: () => chain,
+        in: (col: string, vals: unknown[]) => {
+          ins.push([col, vals]);
+          return chain;
+        },
         order: () => chain,
         limit: () => chain,
         update: (value: Record<string, unknown>) => {
@@ -72,7 +79,7 @@ function fakeAdmin() {
               : table === "fuel_transactions"
                 ? { data: [{ id: "txn-1" }], error: null }
                 : table === "anomalies"
-                  ? { data: [{ id: "anomaly-1", transaction_id: "txn-1", severity: "critical", message: "Overfill" }], error: null }
+                  ? { data: anomalyRows.filter((r) => ins.every(([col, vals]) => col === "transaction_id" || vals.includes(r[col]))), error: null }
                   : table === "memberships"
                     ? { data: [{ user_id: "user-1" }, { user_id: "user-2" }], error: null }
                     : { data: null, error: null },
@@ -96,6 +103,19 @@ describe("processEfsProcessingRun", () => {
     expect(mocks.scoreImport).toHaveBeenCalledWith(admin, {}, "org-1", "import-1");
     expect(mocks.notify).toHaveBeenCalledTimes(2);
     expect(updates.some((u) => u.table === "efs_processing_runs" && u.patch.status === "succeeded")).toBe(true);
+  });
+
+  // CF5 (2026-10-08) relies on this gate: after it, the only fill case is a Review, which is medium,
+  // and the bell asks for high/critical — so a Review rings no bell, with no change to this code.
+  it("rings no bell for a Review (medium) — only an alert is high or critical", async () => {
+    mocks.scoreImport.mockResolvedValueOnce({ scored: 1, cascaded: 0, vehicles: 1 });
+    mocks.notify.mockReset();
+    const { admin, processing } = fakeAdmin([{ ...criticalAlert, severity: "medium", message: "Review: tank rose less than billed" }]);
+
+    const result = await processEfsProcessingRun(admin, {} as never, processing.id);
+
+    expect(result).toMatchObject({ feed: "posted", alerts: 0, notifications: 0 });
+    expect(mocks.notify).not.toHaveBeenCalled();
   });
 });
 

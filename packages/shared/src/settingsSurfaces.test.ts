@@ -20,8 +20,8 @@ const SETTINGS = surface("admin.settings");
 const OFFICE_ROLES = USER_ROLES.filter((r) => r !== "driver");
 
 describe("by default only the admin sees Settings (Q-SET2 as revised)", () => {
-  it("links the directory to all seventeen screens, so this block is not vacuous", () => {
-    expect(directoryScreens("admin.settings")).toHaveLength(17);
+  it("links the directory to all eighteen screens, so this block is not vacuous", () => {
+    expect(directoryScreens("admin.settings")).toHaveLength(18);
   });
 
   for (const r of OFFICE_ROLES) {

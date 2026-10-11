@@ -116,6 +116,9 @@ export function mountBodyParsers(app: Express): void {
   // can be several hundred KB before base64 — `SIGNATURE_ADOPTION_MAX_BYTES` is the ceiling the route
   // validates, so this parser only has to let a body of that size reach it.
   app.use("/api/public/application/:token/adoption", express.json({ limit: "5mb" }));
+  // A driver-paid fuel file travels as base64 for the IFTA receipt upload (IP8): up to
+  // `IFTA_RECEIPT_UPLOAD_MAX_BYTES` (4 MB) of file, ~5.4 MB encoded, which the route's schema bounds.
+  app.use("/api/ifta/receipt-uploads", express.json({ limit: "6mb" }));
 
   // ⚠ The `express.urlencoded` mount that used to sit here was for Twilio, which posts
   // `application/x-www-form-urlencoded`. Telnyx posts JSON and signs the RAW BYTES, so the parser

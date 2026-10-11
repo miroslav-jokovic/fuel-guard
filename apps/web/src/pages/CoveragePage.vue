@@ -46,22 +46,21 @@ const blindTone = (p: number) =>
 const columns: DataTableColumn[] = [
   { key: "vehicleId", label: "Truck", cellClass: "font-medium text-ink" },
   { key: "fills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
-  { key: "blindFills", label: "Blind", numeric: true },
-  { key: "reconciledPct", label: "Telematics", numeric: true },
+  { key: "blindFills", label: "Not matched", numeric: true },
+  { key: "reconciledPct", label: "Samsara", numeric: true },
   { key: "locationPct", label: "Location", numeric: true },
   { key: "odometerPct", label: "Odometer", numeric: true },
-  { key: "attributedPct", label: "Attributed", numeric: true },
+  { key: "attributedPct", label: "Matched to truck", numeric: true },
 ];
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader>
-      How much of the last 90 days of fuel data the system could actually corroborate against
-      Samsara — and which trucks are blind spots. A fill with no telematics match is still scored on
-      internal physics, but it can't be cross-checked against location or a true odometer, so heavy
-      blind coverage means "we didn't flag it" carries less weight. This is the honest bound on how
-      much we can catch.
+      How many fills in the last 90 days could be checked against Samsara, and which trucks could not
+      be. A fill with no Samsara match is still checked on its own numbers, but not against where the
+      truck was or its real odometer. So for a truck with many unmatched fills, "not flagged" means less.
+      This is the limit on how much the system can catch.
     </PageHeader>
 
     <!-- SAM-S5: how current the telematics behind this page is, before its numbers are believed.
@@ -74,14 +73,14 @@ const columns: DataTableColumn[] = [
     >
       <BaseCard>
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Telematics coverage
+          Checked against Samsara
         </dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.reconciledPct)">
           {{ fmtPct(data.reconciledPct) }}
         </dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">
           {{ data.blindFills.toLocaleString() }} of {{ data.totalFills.toLocaleString() }} fills
-          blind
+          not matched
         </dd>
       </BaseCard>
       <BaseCard>
@@ -92,8 +91,8 @@ const columns: DataTableColumn[] = [
           {{ fmtPct(data.locationConfirmedPct) }}
         </dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">
-          GPS placed the truck at the station · {{ fmtPct(data.locationPct) }} judgeable (incl.
-          in-state)
+          GPS placed the truck at the station · {{ fmtPct(data.locationPct) }} could be checked
+          (including in the right state)
         </dd>
       </BaseCard>
       <BaseCard>
@@ -169,7 +168,7 @@ const columns: DataTableColumn[] = [
           title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks"
         >
           {{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card
-          fills unidentifiable
+          fills could not be tied to one card
         </dd>
       </BaseCard>
     </div>
@@ -178,10 +177,10 @@ const columns: DataTableColumn[] = [
     <BaseCard v-if="data && data.totalFills > 0" padding="sm">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Fueling-time confidence
+          How sure the fill time is
         </h3>
         <p class="text-xs text-ink-tertiary">
-          Last telematics match: {{ fmtDateTime(data.lastReconciledAt) }}
+          Last matched with Samsara: {{ fmtDateTime(data.lastReconciledAt) }}
           <!-- SP5: Coverage is `settings` view, Data & sync is `settings` manage — a reader of one may not open the other. -->
           <template v-if="opens('/settings/data')">
             ·
@@ -212,7 +211,7 @@ const columns: DataTableColumn[] = [
         >
         <span
           class="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1 ring-1 ring-edge"
-          ><span class="font-medium text-ink-secondary">No telematics</span
+          ><span class="font-medium text-ink-secondary">No Samsara data</span
           ><span class="text-ink-secondary">{{ data.timeBasis.none }}</span></span
         >
       </div>
@@ -227,7 +226,7 @@ const columns: DataTableColumn[] = [
 
     <div class="space-y-2">
       <p v-if="!isLoading && !isError && trucks.length > 0" class="text-xs text-ink-muted">
-        Trucks with the biggest blind spots first — these are where detection is weakest.
+        Trucks with the most unmatched fills first. These are where the checks are weakest.
       </p>
       <DataTable
         :columns="columns"

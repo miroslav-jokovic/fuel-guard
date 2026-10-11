@@ -112,10 +112,11 @@ const EXPECTED: Record<string, string> = {
   dispatchers: "dispatcher",
   drivers: "driver",
   entries: "entry",
+  // DB-UX 2026-10-10: the Loads page's Exceptions tab keeps the toolbar, so it counts its rows.
+  exceptions: "exception",
   files: "file",
   "fill-ups": "fill-up",
   "fills in sequence": "fill in sequence",
-  findings: "finding",
   inspections: "inspection",
   inspectors: "inspector",
   invoices: "invoice",
@@ -128,6 +129,8 @@ const EXPECTED: Record<string, string> = {
   loads: "load",
   parts: "part",
   plans: "plan",
+  // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.
+  problems: "problem",
   readings: "reading",
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.

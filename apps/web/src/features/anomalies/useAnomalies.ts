@@ -6,6 +6,7 @@ import { dayRangeInstants } from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { apiFetch } from "@/lib/api";
+import { afterReset, useDetectionEpoch } from "./useDetectionEpoch";
 
 /** Extended transaction row for the anomaly detail view (includes card/geo + fueling-event audit fields). */
 export interface AnomalyTxnDetail extends FuelTransaction {
@@ -77,8 +78,11 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
    * not re-run on that change would keep showing the guess.
    */
   const { zone } = useOrgTimezone();
+  // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
+  const { epoch, ready } = useDetectionEpoch();
   return useQuery({
-    queryKey: ["anomalies", filters, zone],
+    queryKey: ["anomalies", filters, zone, epoch],
+    enabled: ready,
     // Surface anomalies from background EFS ingestion + scoring without a manual reload. Matches the
     // dashboard cadence; Vue Query pauses polling when the tab is hidden, so it stays rate-friendly.
     refetchInterval: 120_000,
@@ -90,6 +94,7 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
         .order("fueled_at", { ascending: false, nullsFirst: false })
         .limit(500);
       q = f.status ? q.eq("status", f.status) : q.neq("status", "superseded");
+      q = afterReset(q, epoch.value);
       if (f.severity) q = q.eq("severity", f.severity);
       if (f.vehicleIds?.length) q = q.in("vehicle_id", f.vehicleIds);
       if (f.ruleId) q = q.eq("rule_id", f.ruleId);
@@ -226,6 +231,26 @@ export function useAnomalyTransition() {
         throw new Error(res.error?.message ?? "Could not update the anomaly");
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["anomalies"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["anomalies"] });
+      // The fuel queue lists fill cases too, and since 8c3 closes them in this same drawer (F02-F04).
+      void qc.invalidateQueries({ queryKey: ["findings"] });
+    },
+  });
+}
+
+/**
+ * One fill case by id, for the fuel queue's drawer (F02-F04 chunk 8c3). The queue's row carries only
+ * the id; `AnomalyDetail` needs the whole case, read the same way the Alerts page reads it.
+ */
+export function useAnomalyById(id: Ref<string | null>) {
+  return useQuery({
+    queryKey: ["anomalies", "one", id],
+    enabled: () => !!toValue(id),
+    queryFn: async (): Promise<Anomaly | null> => {
+      const { data, error } = await supabase.from("anomalies").select(ANOMALY_COLS).eq("id", toValue(id)!).maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data as Anomaly | null) ?? null;
+    },
   });
 }

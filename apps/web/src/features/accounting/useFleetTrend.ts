@@ -48,6 +48,8 @@ export interface FleetTrendResponse {
    * to a month the sweep reached on the 28th (G11).
    */
   monthsPartial: LedgerMonthState[];
+  /** The API's sentence naming those months — the same one the statement prints. Null when none. */
+  ledgerReason: string | null;
 }
 
 export function useFleetTrendQuery(to: Ref<string>, months: Ref<number>) {

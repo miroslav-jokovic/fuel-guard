@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { classifyLineLoadState, normalizeUnit, pageComplete, parseBolFields, type BolLineFields } from "./bolFields.js";
+import { shippingDocumentSchema } from "@silvicom/shared";
+import { bolFieldsFromShippingDocument, classifyLineLoadState, normalizeUnit, pageComplete, parseBolFields, type BolLineFields } from "./bolFields.js";
 
 const line = (over: Partial<BolLineFields> = {}): BolLineFields =>
   parseBolFields({ lines: [over] }).lines[0]!;
@@ -42,5 +43,36 @@ describe("bolFields — page completeness", () => {
   it("multi-page set missing pages → incomplete", () => {
     expect(pageComplete(parseBolFields({ pageInfo: { page: 1, of: 3 } }))).toBe(false);
     expect(pageComplete(parseBolFields({ pageInfo: { page: 3, of: 3 } }))).toBe(true);
+  });
+});
+
+describe("BolFields as a projection of the reader's ShippingDocument (document reader Step 1.1)", () => {
+  const doc = (over: object) => shippingDocumentSchema.parse(over);
+
+  it("carries the hazmat section across key for key", () => {
+    const b = bolFieldsFromShippingDocument(
+      doc({
+        identity: { pageOf: { page: 1, of: 2 } },
+        hazmat: { lines: [{ idText: "UN1203", pg: "II" }], emergencyPhone: "8004249300", shipperCertification: true, offeror: "Acme" },
+        freight: { weight: 41000, weightUnit: "lb" },
+      }),
+    );
+    expect(b).toEqual(
+      parseBolFields({
+        lines: [{ idText: "UN1203", pg: "II" }],
+        emergencyPhone: "8004249300",
+        shipperCertification: true,
+        offerorName: "Acme",
+        pageInfo: { page: 1, of: 2 },
+        totalGrossWeightLb: 41000,
+      }),
+    );
+  });
+
+  it("never converts a kilogram total, and reads an unknown certification as not seen", () => {
+    const b = bolFieldsFromShippingDocument(doc({ freight: { weight: 18000, weightUnit: "kg" } }));
+    expect(b.totalGrossWeightLb).toBeNull();
+    expect(b.shipperCertification).toBe(false);
+    expect(b.pageInfo).toEqual({ page: null, of: null });
   });
 });

@@ -1,0 +1,212 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`planFuelRoute — the Fuel planning page's answer, pinned before TC3 splits it > plans fuel stops on a fixed line from a manual fuel level, every read scoped to the org 1`] = `
+{
+  "breakAdvice": {
+    "breakDueHours": 8,
+    "breakDueMiles": 496.6,
+    "coincidesStopIndex": null,
+    "savesMinutes": 0,
+  },
+  "destination": {
+    "lat": 41.6,
+    "lng": -73.97,
+  },
+  "manualFuelUsed": true,
+  "message": undefined,
+  "origin": {
+    "lat": 41.6,
+    "lng": -87.6,
+  },
+  "plan": {
+    "arrivalFuelPct": 58.3,
+    "discountSavings": 86.94,
+    "flags": [
+      "overnight_reset_required",
+      "load_weight_unknown",
+      "manual_fuel_entry",
+      "fills_uncapped_no_load_weight",
+    ],
+    "reachesDestination": true,
+    "stops": [
+      {
+        "arrivalGal": 55.1,
+        "borderState": null,
+        "brand": "pilot",
+        "cost": 457.75,
+        "coversBreak": false,
+        "detourMiles": 2.4,
+        "discountPerGal": 0.6,
+        "driveHoursLeftOnArrival": 7.8,
+        "exit": "12",
+        "gallons": 144.9,
+        "isBorderTopOff": false,
+        "isEmergency": false,
+        "isOffNetwork": false,
+        "isOvernight": false,
+        "kind": "fuel",
+        "milesAhead": 201.5,
+        "netPrice": 3.16,
+        "postedPrice": 3.76,
+        "priceAgeHours": 2,
+        "priceBasis": "fresh",
+        "priceConfidence": null,
+        "priceEstimated": false,
+        "state": "IN",
+        "stationId": "st-2",
+        "stationLat": 41.603,
+        "stationLng": -83.69999999999999,
+        "stationName": "Stop 2",
+        "storeNumber": "102",
+      },
+    ],
+    "totalCost": 457.7523062437259,
+    "totalCostAtPump": 544.82,
+    "totalGallons": 144.9,
+  },
+  "route": {
+    "directions": [
+      {
+        "instruction": "Head east on I-80.",
+        "miles": 689.7,
+      },
+    ],
+    "distanceMiles": 689.7,
+    "durationHours": 11.1,
+    "polyline": [
+      {
+        "lat": 41.6,
+        "lng": -87.6,
+      },
+      {
+        "lat": 41.6,
+        "lng": -87.13,
+      },
+      {
+        "lat": 41.6,
+        "lng": -86.66,
+      },
+      {
+        "lat": 41.6,
+        "lng": -86.19,
+      },
+      {
+        "lat": 41.6,
+        "lng": -85.72,
+      },
+      {
+        "lat": 41.6,
+        "lng": -85.25,
+      },
+      {
+        "lat": 41.6,
+        "lng": -84.78,
+      },
+      {
+        "lat": 41.6,
+        "lng": -84.30999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -83.83999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -83.36999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -82.89999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -82.42999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -81.96,
+      },
+      {
+        "lat": 41.6,
+        "lng": -81.49,
+      },
+      {
+        "lat": 41.6,
+        "lng": -81.02,
+      },
+      {
+        "lat": 41.6,
+        "lng": -80.55,
+      },
+      {
+        "lat": 41.6,
+        "lng": -80.08,
+      },
+      {
+        "lat": 41.6,
+        "lng": -79.61,
+      },
+      {
+        "lat": 41.6,
+        "lng": -79.14,
+      },
+      {
+        "lat": 41.6,
+        "lng": -78.66999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -78.19999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -77.72999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -77.25999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -76.78999999999999,
+      },
+      {
+        "lat": 41.6,
+        "lng": -76.32,
+      },
+      {
+        "lat": 41.6,
+        "lng": -75.85,
+      },
+      {
+        "lat": 41.6,
+        "lng": -75.38,
+      },
+      {
+        "lat": 41.6,
+        "lng": -74.91,
+      },
+      {
+        "lat": 41.6,
+        "lng": -74.44,
+      },
+      {
+        "lat": 41.6,
+        "lng": -73.97,
+      },
+    ],
+  },
+  "status": "ok",
+  "truck": {
+    "breakInHours": 8,
+    "cycleRemainingHours": 70,
+    "driveRemainingHours": 11,
+    "fuelPct": 45,
+    "fuelRangeMiles": 292.5,
+    "gallonsOnHand": 90,
+    "reachableMiles": 292.5,
+    "shiftRemainingHours": 14,
+    "tankCapacityGal": 200,
+  },
+}
+`;

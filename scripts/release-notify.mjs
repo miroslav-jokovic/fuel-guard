@@ -18,7 +18,7 @@
  *
  * Kinds: candidate · shipped · skipped · failed · rolled-back · rollback-failed · rollback
  *
- * Environment: TAG, SHA, BEFORE, MODE, REASON, DETAIL, RUN_URL, PR_URL, NOTES_FILE, PR_COUNT;
+ * Environment: TAG, SHA, BEFORE, MODE, REASON, DETAIL, RUN_URL, PR_URL, CONSOLE_URL, NOTES_FILE, PR_COUNT;
  * secrets BREVO_API_KEY, MAIL_FROM, TELNYX_API_KEY, TELNYX_FROM.
  *
  * RECIPIENTS come from the console's Settings → Alert recipients (table platform_alert_recipients,
@@ -50,8 +50,11 @@ export function compose(kind, e) {
       return {
         subject: `Release ready for your approval — main @ ${short(e.sha)}${e.prCount ? ` (${e.prCount} PRs)` : ""}`,
         text:
-          `Tonight's release is waiting for your approval. Approve the pull request before 01:07 CT and it ships then; ` +
-          `without an approval nothing ships and the work rides the next night's train.\n\nApprove: ${e.prUrl ?? "—"}\n\n` +
+          `Tonight's release is waiting for your approval. Approve it before 01:07 CT and it ships then; ` +
+          `without an approval nothing ships and the work rides the next night's train.\n\n` +
+          // D-REL14: the console's Settings approves from a phone; the PR stays the other way in.
+          (e.consoleUrl ? `Approve in the console: ${e.consoleUrl.replace(/\/+$/, "")}/settings\n` : "") +
+          `Approve on GitHub: ${e.prUrl ?? "—"}\n\n` +
           `Check it on staging first: staging serves main within minutes of every merge.${notes}`,
         sms: null,
       };
@@ -198,7 +201,7 @@ async function main(kind) {
   if (env.NOTES_FILE) try { notes = readFileSync(env.NOTES_FILE, "utf8").trim(); } catch { /* notes are an extra; the outcome still goes out */ }
   const msg = compose(kind, {
     tag: env.TAG, sha: env.SHA, before: env.BEFORE, mode: env.MODE, reason: env.REASON, detail: env.DETAIL,
-    runUrl: env.RUN_URL, prUrl: env.PR_URL, prCount: env.PR_COUNT, notes,
+    runUrl: env.RUN_URL, prUrl: env.PR_URL, consoleUrl: env.CONSOLE_URL, prCount: env.PR_COUNT, notes,
   });
   const who = chooseRecipients(await readTable(env), env);
   console.log(`Recipients: ${who.email.to.length} email (${who.email.source}), ${who.sms.to.length} phone (${who.sms.source}).`);
@@ -229,6 +232,9 @@ function selfTest() {
   eq("a long text is cut to exactly one 160-character segment", fitSms(`${"x".repeat(300)} https://x.y/z`).length, 160);
   eq("the approval email links the PR and names the deadline",
     [compose("candidate", base).text.includes(base.prUrl), compose("candidate", base).text.includes("01:07 CT")], [true, true]);
+  eq("the candidate email links the console's Settings when its URL is known (D-REL14)",
+    [compose("candidate", { ...base, consoleUrl: "https://console.example.com/" }).text.includes("https://console.example.com/settings"),
+      compose("candidate", base).text.includes("console")], [true, false]);
   eq("a failure names what production is on", compose("failed", base).subject.includes("bbbbbbb"), true);
   eq("a shipped release is named by its tag", compose("shipped", base).subject, "Released v2026.10.06 to production");
   eq("…and by its commit when there is no tag", compose("shipped", { ...base, tag: "" }).subject, "Released aaaaaaa to production");
