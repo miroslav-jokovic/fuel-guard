@@ -11,12 +11,14 @@
  * `FMCSA_FEED_HOURS` (24): a deploy, a failed run or a day FMCSA was down is caught up on the next
  * tick instead of waiting a day. The inspection file is the clock because the other datasets hang
  * off it; `fmcsa_fetch_runs` is the ledger, so there is no jobs-ledger row (the boardEtaRecorder's
- * reasoning). An org with no `dot_number` has no FMCSA record to fetch and is skipped.
+ * reasoning). An org with no `dot_number` has no FMCSA record to fetch and is skipped. After the
+ * fetch, the typed `roadside_*` record is re-projected (0458, `project.ts`).
  */
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { SocrataClient } from "./socrata.js";
 import { lastSucceededAt } from "./store.js";
+import { projectRoadside } from "./project.js";
 import { syncFmcsaFeed } from "./sync.js";
 
 const TICK_MS = 60 * 60_000;
@@ -55,7 +57,12 @@ export function startFmcsaFeedScheduler(env: Env): void {
           const summary = results
             .map((r) => (r.outcome === "succeeded" ? `${r.dataset} ${r.rowsSeen} seen/${r.rowsNew + r.rowsChanged + r.rowsReappeared} new/${r.rowsVanished} vanished` : `${r.dataset} FAILED`))
             .join(", ");
-          console.log(`[fmcsa-feed] org ${id}: ${summary} (${client.requestCount} requests)`);
+          // Projected whatever the feed's outcome: the typed record is a function of what is stored, and a
+          // failed dataset leaves its last good versions current, so projecting them is still right.
+          const p = await projectRoadside(admin, id);
+          console.log(
+            `[fmcsa-feed] org ${id}: ${summary} (${client.requestCount} requests); projected ${p.inspections} inspections, ${p.units} units, ${p.violations} violations, ${p.citations} citations changed`,
+          );
         } catch (e) {
           console.error(`[fmcsa-feed] org ${id}: run failed —`, e instanceof Error ? e.message : e);
         }

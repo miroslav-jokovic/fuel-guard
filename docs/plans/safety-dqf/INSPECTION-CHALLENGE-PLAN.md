@@ -387,12 +387,12 @@ about three merges.
 
 ## 9. Open questions
 
-- **Q-IC1 — Who files, under which DataQs account?** (a) Our safety staff, each registered as a
+- **Q-IC1 — RESOLVED 2026-10-11 (owner): (a), our own safety staff file in DataQs.** Was: Who files, under which DataQs account?** (a) Our safety staff, each registered as a
   Motor Carrier user validated with the USDOT PIN. (b) A third-party service in the "Public/Industry"
   role. *Recommendation: (a).* A validated carrier user sees PII the public role does not (Analyst
   Guide §4.3–4.4), the 18 USC 1001 attestation should be ours, and the product exists to make (a)
   fast.
-- **Q-IC2 — Who obtains court dispositions?** ~146 tickets have no recorded result. (a) The safety
+- **Q-IC2 — RESOLVED 2026-10-11 (owner): (a), our safety office handles the tickets and obtains the dispositions.** Was: Who obtains court dispositions?** ~146 tickets have no recorded result. (a) The safety
   office requests them from each court. (b) The driver who received the ticket uploads it in the
   driver app. (c) A ticket-defense attorney network. *Recommendation: (a) with (b) as the intake.*
   The disposition must be certified (job aid), which usually means the court, not the driver.
@@ -436,3 +436,31 @@ about three merges.
     no units yet" as normal for a day, not as an error.
   - Not yet built: the `roadside_*` projections, `sms_violation_definitions`, and the freshness alert
     from §4.1. These are IC1b.
+- **2026-10-11 — Owner decisions.** Q-IC1: our own safety staff file in DataQs. Q-IC2: the safety
+  office handles the tickets, including getting the court results. IC4 therefore builds the
+  disposition task for the safety office's queue. The driver-app upload is not needed for IC4.
+- **2026-10-11 — IC1b (the typed record).** Migration 0458 adds four tables: `roadside_inspections`,
+  `roadside_inspection_units`, `roadside_violations` and `roadside_citations`. All four are derived
+  from the raw store by `roadside_project`. That function is set-based, idempotent, and runs after
+  every feed run. A row whose record vanished is marked `removed` or `aged_out` and never deleted.
+  I ran it in PGlite on the real record and the production roster (2026-10-11):
+  - **Rows:** 1,390 inspections, 2,763 units, 1,422 violations and 21 citations on the first call;
+    0 changed on the second. All 21 citations link to their violation, and 996 of the 996
+    vehicle-side violations link to their unit.
+  - **Speed:** about 4 s in WASM, after replacing the correlated per-unit scans (25 s) with hash
+    joins.
+  - **Unit matches:**
+
+    | | VIN | Plate | Unit number | Wrong kind | No match |
+    |---|---|---|---|---|---|
+    | Tractors | 1,200 | 23 | 4 | 1 | 154 |
+    | Semi-trailers | 1,263 | 15 | 12 | 2 | 75 |
+
+  - **New method, `kind_mismatch`.** Matching found 4 units whose VIN or plate belongs to the wrong
+    kind of roster record (a tractor's VIN on a trailer row, or the reverse). That is either an
+    officer's typo or a roster row in the wrong table. D-IC7 rules out a silent join, so these are
+    recorded and left unmatched. Tractors (type 11) match only vehicles and semi-trailers (type 9)
+    match only trailers, by every method.
+  - **Not built:** `sms_violation_definitions` moves to IC3 with the calculator that reads it. The
+    feed-freshness alert from §4.1 is IC1c.
+  - **Q-IC8 still open:** about 229 tractors and trailers have no match.
