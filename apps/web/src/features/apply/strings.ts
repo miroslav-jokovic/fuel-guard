@@ -336,7 +336,7 @@ export const APPLY_COPY = {
       IMAGE_BLURRED: "Too blurry to read. Hold still and try again.",
       GLARE_OVER_TEXT: "There is glare across the text. Move away from the light.",
       SHADOW_OVER_TEXT: "A shadow is covering the text. Move so your hand is not over it.",
-      RESOLUTION_TOO_LOW: "Too small to read. Move closer so the document fills the frame.",
+      RESOLUTION_TOO_LOW: "Too small to read. Take it closer so the document fills the frame, or choose a larger picture.",
       LENS_DIRTY: "The lens looks smudged. Wipe it and try again.",
       PAGE_INCOMPLETE: "Part of the document is out of frame. Fit all four corners in.",
       LOW_CONTRAST: "Too washed out to read. Try somewhere with more light.",
@@ -346,7 +346,9 @@ export const APPLY_COPY = {
       SCANNER_MODULE_UNAVAILABLE: "Could not open the camera. Try again.",
       UNSUPPORTED_DEVICE: "This phone cannot take the photo here. You can send it to the carrier instead.",
       CAPTURE_CANCELLED: "No photo taken.",
-      PROVIDER_ERROR: "Something went wrong with the camera. Try again.",
+      // True for every source (2026-10-07): it said "the camera" until then, but a file the browser cannot
+      // open — a HEIC in Chrome, a damaged PDF — lands here too, from "Upload" with no camera involved.
+      PROVIDER_ERROR: "We could not open that picture. Take a new photo, or choose a different file.",
     },
   },
 

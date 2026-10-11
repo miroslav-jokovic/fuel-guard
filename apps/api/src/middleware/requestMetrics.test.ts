@@ -10,6 +10,7 @@ import {
   resetRequestMetrics,
   formatMetricsLine,
   startRequestMetricsReporter,
+  EVENT_LOOP_STALL_REPORT_MS,
 } from "./requestMetrics.js";
 
 /**
@@ -197,6 +198,33 @@ describe("the summary that reaches the log", () => {
     try {
       await new Promise((r) => setTimeout(r, 70));
       expect(lines).toEqual([]);
+    } finally {
+      clearInterval(timer);
+    }
+  });
+
+  /**
+   * Incident 2026-10-06: a synchronous rollup froze this process for minutes and the metrics line
+   * could not say so — requests that never start have no latency. A stall must be reported by itself.
+   */
+  it("reports an event-loop stall even when no request finished in the window", async () => {
+    resetRequestMetrics();
+    const lines: string[] = [];
+    const timer = startRequestMetricsReporter(300, (l) => lines.push(l));
+    try {
+      // Longer than the threshold PLUS one interval, so the tick lands well past due.
+      const until = Date.now() + EVENT_LOOP_STALL_REPORT_MS + 300 + 200;
+      while (Date.now() < until) {
+        // Hold the event loop the way the rollup did.
+      }
+      await new Promise((r) => setTimeout(r, 400));
+      expect(lines.length).toBeGreaterThanOrEqual(1);
+      const parsed = JSON.parse(lines[0]!.replace("[metrics] ", "")) as {
+        requests: number;
+        eventLoopMaxMs: number;
+      };
+      expect(parsed.requests).toBe(0);
+      expect(parsed.eventLoopMaxMs).toBeGreaterThanOrEqual(EVENT_LOOP_STALL_REPORT_MS);
     } finally {
       clearInterval(timer);
     }

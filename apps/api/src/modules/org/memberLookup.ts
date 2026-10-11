@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { rolesThatManage, type AppSection } from "@silvicom/shared";
+import { isRosterIssuedRole, rolesThatManage, type AppSection } from "@silvicom/shared";
 
 /**
  * "Which role does this person hold in THIS org?" — asked by every per-user permission route
@@ -70,4 +70,29 @@ export async function usersWhoManage(
     .in("role", rolesThatManage(section));
   if (error) throw new Error(error.message);
   return [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
+}
+
+/**
+ * The org's OFFICE members — everyone a person could be, when an office links a McLeod dispatcher
+ * login to one of our users (DISPATCH-BOARD-PLAN DB2, D-LM4).
+ *
+ * The same directory and the same filter the Users page applies (`org_member_directory()`, DC10's
+ * `isRosterIssuedRole`): a driver-app login is a credential, not a dispatcher. Suspended members are
+ * left out — linking a login to someone who cannot sign in would give the link to nobody. No role list:
+ * whether the linked person may SEE the board is the section matrix's answer at request time, with the
+ * org's overrides, and a picker filtered by a role list here would be a second copy of it.
+ */
+export interface OfficeMember {
+  userId: string;
+  fullName: string | null;
+  email: string | null;
+  role: string;
+}
+
+export async function listOfficeMembers(admin: SupabaseClient, orgId: string): Promise<OfficeMember[]> {
+  const { data, error } = await admin.rpc("org_member_directory", { p_org_id: orgId });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<{ user_id: string; full_name: string | null; email: string | null; role: string; suspended_at?: string | null }>)
+    .filter((m) => !isRosterIssuedRole(m.role) && !m.suspended_at)
+    .map((m) => ({ userId: m.user_id, fullName: m.full_name, email: m.email, role: m.role }));
 }

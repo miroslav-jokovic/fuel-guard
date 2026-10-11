@@ -85,7 +85,7 @@ describe("the ledger export covers what the screen covers", () => {
     const out = await exportExceptions(rec.client, { orgId: ORG, filters: {}, scope: SCOPE });
     expect(out.csv).not.toContain("recon_missing_on_report");
     expect(out.csv).toContain("Dismissed");
-    expect(out.csv).toContain("Recorded, never billed");
+    expect(out.csv).toContain("In our records, not on Pilot's bill");
   });
 
   /**

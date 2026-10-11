@@ -73,6 +73,12 @@ export interface LiveMapStop {
   appointmentStart: string | null;
   appointmentEnd: string | null;
   status: string | null;
+  /**
+   * Street and postal code (TRUCK-CARD-ROUTE-PLAN D-TC2), so the card can show the load's two ends as
+   * addresses. Optional for the same reason as `source` below: the web and api deploy separately.
+   */
+  addressLine?: string | null;
+  postalCode?: string | null;
 }
 
 export interface LiveMapLoad {
@@ -93,6 +99,15 @@ export interface LiveMapLoad {
    * departed in McLeod. Null when every stop is behind it or none was recorded.
    */
   nextStop: LiveMapStop | null;
+  /**
+   * The load's two ends (D-TC2): the first pickup and the last delivery by McLeod's sequence, chosen by
+   * `boardStops` — the Loads board's own rule, so the two surfaces cannot name a different pickup.
+   * `extraStops` counts the stops between and beside them. Optional: an api from before 2026-10-09
+   * sends none, and the card then shows the next stop alone, as it did.
+   */
+  pickup?: LiveMapStop | null;
+  delivery?: LiveMapStop | null;
+  extraStops?: number;
 }
 
 export interface LiveMapVehicle {
@@ -185,4 +200,60 @@ export interface LiveMapBoard {
    * quarter of the fleet would look exactly like a board with fewer trucks on it.
    */
   truncated: boolean;
+}
+
+/** A fuel stop the planner chose on the part of a load's route still ahead (TRUCK-CARD-ROUTE-PLAN D-TC4). */
+export interface LiveMapRouteFuelStop {
+  name: string | null;
+  brand: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  exit: string | null;
+  lat: number;
+  lng: number;
+  /** Miles ahead of the truck (or of the pickup, when the truck is off the route). */
+  milesAhead: number;
+}
+
+/** One end of a load's route: where its first or last stop is, and what McLeod calls the place. */
+export interface LiveMapRouteEnd {
+  lat: number;
+  lng: number;
+  name: string | null;
+  /** `pickup` or `dropoff`, as the stop records it. */
+  kind: string | null;
+}
+
+/**
+ * `GET /api/livemap/loads/:id/route` (D-TC3, D-TC6): the load's route pickup → delivery, split where the
+ * truck stands on it, and the fuel stops the planner places on the part ahead. No prices: the map is
+ * `dispatch` view, and money is another section's (LM-F).
+ */
+export interface LiveMapLoadRoute {
+  loadId: string;
+  /** Already driven: start → the truck's point on the line. Empty when the truck is off the route. */
+  covered: { lat: number; lng: number }[];
+  /** Still ahead: the truck's point → delivery. The whole line when the truck is off it. */
+  ahead: { lat: number; lng: number }[];
+  /** The whole route, pickup → delivery. */
+  distanceMiles: number;
+  durationHours: number;
+  /** Where the truck is against the line. `offRouteMiles` is null when there is no position for it. */
+  truckOnRoute: boolean;
+  coveredMiles: number;
+  offRouteMiles: number | null;
+  fuelStops: LiveMapRouteFuelStop[];
+  /**
+   * The route's two ends as McLeod locates them — the first and last stop by sequence, not the line's
+   * snapped ends — for the start and end pins (2026-10-09, the owner's "pins like Google Maps").
+   * Optional: an api from before them sends neither, and the map draws the line without pins.
+   */
+  start?: LiveMapRouteEnd;
+  end?: LiveMapRouteEnd;
+  /** Why there are no fuel stops, or what the planner had to do — one sentence, or null. */
+  fuelNote: string | null;
+  /** A hazmat-marked load routed WITHOUT hazmat restrictions: no cleared record supplies its classes yet. */
+  hazmatNotApplied: boolean;
 }

@@ -253,7 +253,8 @@ export function widgets(src) {
       tab: line.match(/tab:\s*"([^"]+)"/)?.[1] ?? null,
       section: line.match(/gate:\s*(?:section|manage)\("(\w+)"/)?.[1] ?? null,
       module: line.match(/module:\s*"([^"]+)"/)?.[1] ?? null,
-      span: line.match(/span:\s*"([^"]+)"/)?.[1] ?? null,
+      // A column count (`span: 5`) or the one word `"workspace"` — v3 made the width a number (Q-FO3).
+      span: (() => { const m = line.match(/span:\s*(?:"([^"]+)"|(\d+))/); return m ? (m[1] ?? Number(m[2])) : null; })(),
       defaultFor: [...(line.match(/defaultFor:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]),
     });
   }
@@ -298,8 +299,8 @@ export function findWidgetViolations({ list, components, tabs, sections, roles, 
     if (w.module && !modules.has(w.module)) errors.push(`widget "${w.key}" needs module "${w.module}", which is not a ModuleKey.`);
     // 5. and it must render into a tab that exists
     if (w.tab && !tabs.has(w.tab)) errors.push(`widget "${w.key}" renders into tab "${w.tab}", which is not in DASHBOARD_TABS.`);
-    if (w.span && !["full", "half", "workspace"].includes(w.span))
-      errors.push(`widget "${w.key}" has span "${w.span}" — only full|half|workspace lay out.`);
+    if (w.span != null && w.span !== "workspace" && !(Number.isInteger(w.span) && w.span >= 1 && w.span <= 12))
+      errors.push(`widget "${w.key}" has span "${w.span}" — only 1–12 columns or workspace lay out.`);
   }
   /**
    * 6. D-DR24: a `workspace` widget IS its tab, so it cannot share one.
@@ -380,7 +381,7 @@ function selfTest() {
     fails.push(`detector did not fire for a redundant waiver: ${JSON.stringify(redundant)}`);
 
   // ── D-DW4: the widget detectors, each proven to fire ──────────────────────────────────────────
-  const wBase = { key: "t.w", tab: "fleet", section: "fuel", module: null, span: "half", defaultFor: [] };
+  const wBase = { key: "t.w", tab: "fleet", section: "fuel", module: null, span: 6, defaultFor: [] };
   const wEnv = { tabs: new Set(["fleet"]), sections, roles: new Set(["admin"]), modules: new Set(["dispatch"]) };
   const wCases = [
     [[wBase], new Set(), /has no component/],
@@ -388,7 +389,8 @@ function selfTest() {
     [[{ ...wBase, defaultFor: ["wizard"] }], new Set(["t.w"]), /not a UserRole/],
     [[{ ...wBase, module: "teleport" }], new Set(["t.w"]), /not a ModuleKey/],
     [[{ ...wBase, tab: "nowhere" }], new Set(["t.w"]), /not in DASHBOARD_TABS/],
-    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only full\|half\|workspace/],
+    [[{ ...wBase, span: "third" }], new Set(["t.w"]), /only 1–12 columns or workspace/],
+    [[{ ...wBase, span: 13 }], new Set(["t.w"]), /only 1–12 columns or workspace/],
     // D-DR24: a workspace sharing its tab, and two workspaces on one tab. Both render nothing and
     // say nothing, which is exactly the class of defect this file exists for.
     [[{ ...wBase, key: "t.ws", span: "workspace" }, wBase], new Set(["t.w", "t.ws"]), /would never render/],

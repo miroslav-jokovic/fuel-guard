@@ -37,7 +37,14 @@ export function startDqExportSweeper(env: Env): void {
     inFlight = false;
   };
 
+  // Four minutes after boot, then hourly. It used to run one interval in, on the reasoning that
+  // "nothing expires in the first hour of a boot" — true of the boot, false of the binders, which
+  // expire on their own clock. Measured 2026-10-02: the api process restarted 810 times in 40 days
+  // with a median life of 23 minutes, so an hour-in first tick fired on a minority of processes and
+  // "seven days" meant whatever the deploy rhythm made it. The query is the same bounded indexed
+  // read either way. RELEASE-TRAIN-PLAN §R2.
+  const boot = setTimeout(() => void run(), 4 * 60_000);
+  boot.unref?.();
   const timer = setInterval(() => void run(), HOURLY_MS);
   timer.unref?.();
-  // Runs one interval in, like the storage reconciler — nothing expires in the first hour of a boot.
 }

@@ -113,6 +113,67 @@ describe("the fleet roll-up", () => {
   });
 });
 
+describe("what the page says beside each total (design verdict, move 4)", () => {
+  const day = (i: number) => `2026-08-${String(10 + i).padStart(2, "0")}`;
+
+  it("counts calendar days with and without a day price, once however many trucks idled on them", () => {
+    // Two equipped trucks idle all week; days 0–4 have a price, days 5–6 do not.
+    const prices = new Map(Array.from({ length: 5 }, (_, i) => [day(i), 6]));
+    const { fleet } = run([...week("t1"), ...week("t2")], [truck("t1", { hasApu: true }), truck("t2", { hasApu: true })], prices);
+    expect(fleet.avoidablePricing).toMatchObject({ pricedDays: 5, unpricedDays: 2 });
+    expect(fleet.reduciblePricing).toMatchObject({ pricedDays: 5, unpricedDays: 2 });
+  });
+
+  it("does not count a day that added nothing to the total, priced or not", () => {
+    // Day 6 is driving only: no idle, so nothing on it was charged, and its missing price is not a gap.
+    const rows = [...week("t1").slice(0, 6), row({ vehicle_id: "t1", day: day(6), idle_sec: 0, continuous_idle_sec: 0, rest_idle_sec: 0, hos_rest_sec: 0, off_sec: 16 * H })];
+    const prices = new Map(Array.from({ length: 6 }, (_, i) => [day(i), 6]));
+    const { fleet } = run(rows, [truck("t1", { hasApu: true })], prices);
+    expect(fleet.avoidablePricing).toMatchObject({ pricedDays: 6, unpricedDays: 0 });
+    expect(fleet.reduciblePricing).toMatchObject({ pricedDays: 6, unpricedDays: 0 });
+  });
+
+  it("blends the price over the dollars it actually charged: day prices, and the basis on the days without one", () => {
+    // Equal idling every day: five at $6 and two at the $5 basis blend to (5×6 + 2×5) / 7.
+    const prices = new Map(Array.from({ length: 5 }, (_, i) => [day(i), 6]));
+    const { fleet } = run(week("t1"), [truck("t1", { hasApu: true })], prices);
+    expect(fleet.avoidablePricing.blendedPricePerGal).toBeCloseTo((5 * 6 + 2 * 5) / 7, 3);
+    // And it is the total's own ratio, not a figure from elsewhere.
+    expect(fleet.avoidableUsd / fleet.avoidablePricing.blendedPricePerGal!).toBeCloseTo(fleet.avoidableH * COST.idleGalPerHour, 0);
+  });
+
+  it("prices each total over its OWN trucks: an unequipped truck's days never reach the avoidable line", () => {
+    // t2 has no equipment, so it is in the reducible total only; it idles on a day with no price.
+    const rows = [row({ vehicle_id: "t1", day: day(0) }), row({ vehicle_id: "t2", day: day(1) })];
+    const { fleet } = run(rows, [truck("t1", { hasApu: true }), truck("t2")], new Map([[day(0), 6]]));
+    expect(fleet.avoidablePricing).toMatchObject({ pricedDays: 1, unpricedDays: 0 });
+    expect(fleet.reduciblePricing).toMatchObject({ pricedDays: 1, unpricedDays: 1 });
+  });
+
+  it("has no price to state for a total that charged nothing", () => {
+    const { fleet } = run(week("t1"), [truck("t1")]); // no equipment: nothing avoidable
+    expect(fleet.avoidablePricing).toEqual({ blendedPricePerGal: null, pricedDays: 0, unpricedDays: 0 });
+  });
+
+  it("reaches as far as the latest day with coverage, not the latest row", () => {
+    const rows = [...week("t1"), row({ vehicle_id: "t1", day: "2026-08-17", coverage_sec: 0, idle_sec: 0, drive_sec: 0, off_sec: 0 })];
+    expect(run(rows, [truck("t1")]).fleet.throughDay).toBe("2026-08-16");
+    // A vehicle outside the list (retired, say) does not move it either.
+    const ghost = [...week("t1"), row({ vehicle_id: "ghost", day: "2026-08-20" })];
+    expect(run(ghost, [truck("t1")]).fleet.throughDay).toBe("2026-08-16");
+    expect(run([], [truck("t1")]).fleet.throughDay).toBeNull();
+  });
+
+  it("counts the trucks the reducible total leaves out for thin data", () => {
+    // t2 has one covered day of seven, under half, so it is in the list and out of the reducible total.
+    const rows = [...week("t1"), row({ vehicle_id: "t2", day: day(0) })];
+    const { fleet } = run(rows, [truck("t1"), truck("t2")]);
+    expect(fleet.totalTrucks).toBe(2);
+    expect(fleet.reducibleTrucks).toBe(1);
+    expect(fleet.thinTrucks).toBe(1);
+  });
+});
+
 describe("idleRangeDays", () => {
   it("counts days the rollup HAS, not the span the picker selected", () => {
     // Production bug: rollup history starts when the feature shipped, so a 3-month span diluted every

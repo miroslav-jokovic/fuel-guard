@@ -53,8 +53,10 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 | `startEfsSoapPoller` | minutes | `api` (WEX-whitelisted) | EFS's own service account; `EFS_SOAP_ENABLED` |
 | `startEfsCardSyncScheduler` | daily | `api` | WEX guide p11: excessive polling can suspend the account |
 | `startSamsaraScheduler` | minutes | `api` | Samsara's published rate limit, `samsaraFetch` |
+| ↳ its `idle-engine` tier (kind `idle_engine`, IE2) | hourly, + a nightly 2-day recompute chosen inside the run | `api` | `samsaraFetch` + the stats/history 9 req/s cap; ~10 batches × 3 requests an hour, plus one request per long-parked truck; `IDLE_ENGINE_SYNC_MINUTES=0` disables |
 | **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
 | `startSmsOutboxScheduler` | 5 minutes | `api` | Telnyx's account rate limit; at most 50 rows per org per run (`DRAIN_BATCH`) |
+| `startFmcsaFeedScheduler` | hourly tick, a run per org 24 h after its last successful one | `api` | Socrata's anonymous per-IP pool (none published); ~30 requests per org per run, measured 2026-10-11; `FMCSA_FEED_HOURS=0` disables |
 
 `startSmsOutboxScheduler` (C2d, 2026-09-26) sends texts that were queued for their recipient's civil
 hours. A second process running it would not send a row twice — the drain claims each row with a

@@ -7,7 +7,9 @@ import SlideOver from "@/components/SlideOver.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { notificationRoute } from "@/lib/notificationRoute";
 import { useOpens } from "@/composables/useOpens";
+import { useToastStore } from "@/stores/toast";
 import {
+  useDismissNotifications,
   useMarkNotificationsRead,
   useNotificationsQuery,
   type OfficeNotification,
@@ -17,13 +19,37 @@ import {
  * The office bell (DQF plan C6) — the web half of the notification system the driver app already
  * had. By the time this shipped, C3's alert scheduler had been writing ledger rows for a while, so
  * the inbox opens with history in it rather than empty. Scope per the plan: list, unread count,
- * mark read, deep link — preferences stay driver-app-only until someone asks.
+ * mark read, deep link — preferences stay driver-app-only until someone asks. "Clear all" joined it
+ * on 2026-10-05 (0430), once the card status poll could fill an inbox in an afternoon.
  */
 const open = ref(false);
 const router = useRouter();
 const { notifications, unread } = useNotificationsQuery();
 const markRead = useMarkNotificationsRead();
+const dismiss = useDismissNotifications();
 const opens = useOpens();
+const toast = useToastStore();
+// Clearing cannot be undone from here, so it asks first — in place of the list, not in a second
+// dialog stacked on the drawer (DESIGN-SYSTEM-CONTRACT §6.2).
+const confirmingClear = ref(false);
+
+function close(): void {
+  open.value = false;
+  confirmingClear.value = false;
+}
+
+function markAllRead(): void {
+  markRead.mutate(undefined, {
+    onError: (e) => toast.error("Could not mark all read", e instanceof Error ? e.message : undefined),
+  });
+}
+
+function clearAll(): void {
+  dismiss.mutate(undefined, {
+    onSuccess: () => (confirmingClear.value = false),
+    onError: (e) => toast.error("Could not clear notifications", e instanceof Error ? e.message : undefined),
+  });
+}
 
 const SEVERITY_TONE: Record<OfficeNotification["severity"], string> = {
   info: "info",
@@ -44,7 +70,7 @@ function openItem(n: OfficeNotification): void {
   if (n.read_at === null) markRead.mutate([n.id]);
   const to = notificationRoute(n.category, n.entity_type, n.entity_id, opens);
   if (to) {
-    open.value = false;
+    close();
     void router.push(to);
   }
 }
@@ -68,8 +94,15 @@ function openItem(n: OfficeNotification): void {
       </span>
     </button>
 
-    <SlideOver :open="open" title="Notifications" @close="open = false">
-      <div v-if="notifications.length === 0" class="py-10 text-center text-sm text-ink-muted">
+    <SlideOver :open="open" title="Notifications" @close="close">
+      <div v-if="confirmingClear" class="flex min-h-[20rem] flex-col items-center justify-center text-center">
+        <h3 class="text-sm font-semibold text-ink">Clear all notifications?</h3>
+        <p class="mt-2 max-w-sm text-sm text-ink-muted">
+          They leave your list and count as read. This cannot be undone. Nobody else's notifications
+          change, and new ones still arrive here.
+        </p>
+      </div>
+      <div v-else-if="notifications.length === 0" class="py-10 text-center text-sm text-ink-muted">
         Nothing yet. Qualification and fleet alerts land here as they happen.
       </div>
       <ul v-else class="space-y-1">
@@ -104,12 +137,26 @@ function openItem(n: OfficeNotification): void {
       </ul>
 
       <template #footer>
-        <div class="flex items-center justify-end">
+        <div v-if="confirmingClear" class="flex items-center justify-end gap-3">
+          <BaseButton :disabled="dismiss.isPending.value" @click="confirmingClear = false">Back</BaseButton>
+          <BaseButton variant="danger" :disabled="dismiss.isPending.value" @click="clearAll">
+            {{ dismiss.isPending.value ? "Clearing…" : "Clear all" }}
+          </BaseButton>
+        </div>
+        <div v-else class="flex items-center justify-end gap-3">
+          <BaseButton
+            variant="ghost"
+            size="sm"
+            :disabled="notifications.length === 0"
+            @click="confirmingClear = true"
+          >
+            Clear all…
+          </BaseButton>
           <BaseButton
             variant="ghost"
             size="sm"
             :disabled="unread === 0 || markRead.isPending.value"
-            @click="markRead.mutate(undefined)"
+            @click="markAllRead"
           >
             Mark all read
           </BaseButton>

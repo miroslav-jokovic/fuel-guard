@@ -94,6 +94,7 @@ describe("GET /api/version", () => {
       "schema",
       "service",
       "startedAt",
+      "version",
     ]);
   });
 });

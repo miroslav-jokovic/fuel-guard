@@ -101,6 +101,11 @@ const PARTS = [
       ["CHART OF ACCOUNTS", "", Q.GL_ACCOUNTS],
       ["GENERAL LEDGER TOTALS BY DAY AND ACCOUNT", "", Q.GL_CONTROL_TOTALS],
       ["OFFICE PAYROLL LINES", "", Q.OFFICE_SETTLEMENT_LINES],
+      [
+        "FUEL RECEIPTS KEYED BY HAND",
+        "Source F of the fuel-tax history only: cash and own-card receipts. Read over two years each night (about 70 rows a quarter).",
+        Q.FUEL_TAX_RECEIPTS,
+      ],
     ],
   },
   {

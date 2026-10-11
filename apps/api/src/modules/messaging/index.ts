@@ -3,7 +3,8 @@
  * 2026-08-27, docs/ARCHITECTURE.md §4).
  *
  * Owns `message_threads`, `messages`, `message_reports`, `thread_participants`,
- * `notification_events`, `notification_preferences`, `notification_reads` — and
+ * `notification_events`, `notification_preferences`, `notification_reads`,
+ * `notification_dedupe_keys` (0432: the idempotency ledger that outlives the pruned inbox) — and
  * `device_push_tokens`, corrected here from the doc's driver-app parking: its writers are the
  * notification machinery, and the manifest is the enforcement. The root rule survives the move
  * unchanged: `notify()` → the `emit_notification` RPC (entitlement, mutes, quiet hours, dedupe)
@@ -16,7 +17,7 @@
  */
 export { messagesRouter } from "./routes/messages.js";
 export { notificationsRouter } from "./routes/notifications.js";
-export { notify, revokePushTokens } from "./notify.js";
+export { keysAlreadySent, notify, revokePushTokens } from "./notify.js";
 export { notifyForTransaction } from "./notifications.js";
 export { startNotificationPushScheduler } from "./notificationPush.js";
 export { loginForDriver } from "./notify.js";

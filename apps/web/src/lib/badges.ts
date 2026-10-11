@@ -299,6 +299,14 @@ export function assetMovementMarker(reason: AssetMovementReason): string {
   return reason === "retired" ? MARKER.neutral : MARKER.info;
 }
 
+/**
+ * A load stop's marker on the truck drawer's rail (DB6): the stops still ahead are what a dispatcher
+ * reads the rail for, so they are coloured; a stop already reached is history and takes the plain dot.
+ */
+export function stopMarker(reached: boolean): string {
+  return reached ? MARKER.neutral : MARKER.info;
+}
+
 /** The one spelling of what a movement was, for the rail's headline. */
 export const assetMovementLabel = (reason: AssetMovementReason): string =>
   ASSET_MOVEMENT_REASON_LABELS[reason];
@@ -321,6 +329,24 @@ export function hosStatusBadge(status: string): DqBadge {
       return { label: "Personal", tone: "neutral" };
     default:
       return { label: "Unknown", tone: "neutral" };
+  }
+}
+
+/**
+ * The dispatch board's on-time verdict (`onTimeVerdict` in `@silvicom/shared`) → badge. One spelling
+ * for every page that shows it — the board row and, from DB5b, the Loads page (D-DB6). "Unknown" is
+ * neutral and never green: no appointment, or no ETA, is not on time.
+ */
+export function onTimeBadge(verdict: string): DqBadge {
+  switch (verdict) {
+    case "on_time":
+      return { label: "On time", tone: "success" };
+    case "at_risk":
+      return { label: "At risk", tone: "warning" };
+    case "late":
+      return { label: "Late", tone: "danger" };
+    default:
+      return { label: "No ETA", tone: "neutral" };
   }
 }
 

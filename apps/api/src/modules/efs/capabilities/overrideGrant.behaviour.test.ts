@@ -216,6 +216,17 @@ describe("an override grant whose scope this vendor does not report back", () =>
       .toBe("indeterminate");
   });
 
+  it("does not condemn a grant whose use was spent before the sweep read the card", () => {
+    // Production, 2026-08-18: both grants armed (count 0 → 1 at write time) and were relabelled
+    // `failed` a day later, because by then the count read 0 — used or cleared, which is what a
+    // granted exception is FOR. A spent count is not evidence the grant never landed.
+    const spent = parseCardDocument(NO_OVERRIDE);
+    const edits = overrideGrantEdits(parseCardDocument(NO_OVERRIDE), 1, { kind: "all" }, []);
+
+    expect(overrideGrantBehaviour.verify.reconcile?.({ doc: spent }, edits, {}))
+      .toBe("indeterminate");
+  });
+
   it("records `succeeded` when the vendor DOES echo the scope back", async () => {
     const rec = recorder();
     const outcome = await grant(COUNT_AND_SCOPE, rec);

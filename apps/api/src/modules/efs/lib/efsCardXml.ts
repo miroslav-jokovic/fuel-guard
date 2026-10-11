@@ -82,7 +82,8 @@ export const VOLATILE_FIELDS: ReadonlySet<string> = new Set([
  * configuration and nothing else.
  */
 const IDENTITY_FIELDS = ["cardNumber", "cardNum", "CardNumber"] as const;
-const UNVERSIONED_FIELDS: ReadonlySet<string> = new Set([...VOLATILE_FIELDS, ...IDENTITY_FIELDS]);
+/** Everything `cardVersion` ignores. Exported so a 409 can name the fields that DID move (orchestrator/movedFields.ts). */
+export const UNVERSIONED_FIELDS: ReadonlySet<string> = new Set([...VOLATILE_FIELDS, ...IDENTITY_FIELDS]);
 
 // ─── Parsing ───────────────────────────────────────────────────────────────────────────────────
 

@@ -66,3 +66,21 @@ describe("readRosterFreshness", () => {
     expect((await readRosterFreshness(rec.client, ORG)).configured).toBe(false);
   });
 });
+
+describe("stampRosterRead with the fleet-parity summary (FL2)", () => {
+  const PARITY = { checked: true as const, at: "2026-10-02T12:00:00Z", findings: ["Truck 506: model year is 2020 in McLeod, 2021 here."], known: ["632"], notified: true };
+
+  it("stores the summary beside the counts, on the update and on the first insert alike", async () => {
+    for (const existing of [{ last_synced_at: "2026-09-22T19:00:00Z" }, null]) {
+      const rec = seed({ [ROSTER_PROVIDER]: existing });
+      await stampRosterRead(rec.client, ORG, COUNTS, PARITY);
+      expect(rec.writes().at(-1)!.write?.payload).toMatchObject({ config: { counts: COUNTS, parity: PARITY } });
+    }
+  });
+
+  it("leaves config as counts alone when no check ran", async () => {
+    const rec = seed({ [ROSTER_PROVIDER]: { last_synced_at: "2026-09-22T19:00:00Z" } });
+    await stampRosterRead(rec.client, ORG, COUNTS);
+    expect((rec.writes()[0]!.write?.payload as { config: unknown }).config).toEqual({ counts: COUNTS });
+  });
+});

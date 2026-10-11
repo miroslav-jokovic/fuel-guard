@@ -81,6 +81,34 @@ export async function notify(admin: SupabaseClient, input: NotifyInput): Promise
   return (data as string | null) ?? null;
 }
 
+/**
+ * Of `keys`, the ones this org has already emitted to anybody — the schedulers' "is this finding
+ * new?" (0432, DATA-LIFECYCLE-PLAN Q11). It reads the dedupe LEDGER, never `notification_events`:
+ * the inbox is pruned, the ledger is not, and a key read from a pruned inbox would re-send its alert.
+ *
+ * The function returns one array, so PostgREST's 1,000-row cap cannot truncate the answer — the
+ * defect the old `.like("dedupe_key", "dq:%")` read was weeks from (400 rows on 2026-10-05, one per
+ * recipient). `since` ignores keys first sent before it.
+ *
+ * THROWS on a read error. A scheduler that cannot tell what it already sent must stop, not treat
+ * every finding as new and email the office the whole list again.
+ */
+export async function keysAlreadySent(
+  admin: SupabaseClient,
+  orgId: string,
+  keys: readonly string[],
+  since?: Date,
+): Promise<Set<string>> {
+  if (keys.length === 0) return new Set();
+  const { data, error } = await admin.rpc("notification_keys_sent", {
+    p_org: orgId,
+    p_keys: [...keys],
+    p_since: since ? since.toISOString() : null,
+  });
+  if (error) throw new Error(`notification_keys_sent: ${error.message}`);
+  return new Set((data as string[] | null) ?? []);
+}
+
 /** Resolve a driver's login id — notifications address a user, drivers are a roster concept. */
 export async function loginForDriver(
   admin: SupabaseClient,

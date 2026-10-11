@@ -15,6 +15,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "sync_vehicles",
   "sync_trailers",
   "sync_idle",
+  "idle_event_twins",
   "sync_odometer",
   "sync_hos",
   "sync_stats",

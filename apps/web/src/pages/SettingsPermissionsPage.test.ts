@@ -255,7 +255,7 @@ describe("the Roles tab", () => {
   });
 
   /**
-   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so Fuel Spend
+   * D-SURF2 at the row. A technician holds `equipment: view` and no `fuel` at all, so Fuel Costs
    * (fuel: manage) is not a screen an org can hand them here — and neither is any Fuel screen, so
    * the whole group is named as unlisted rather than drawn as four rows of refusals. A group with
    * SOME reachable screens keeps the others, each saying what it needs.
@@ -273,8 +273,8 @@ describe("the Roles tab", () => {
     await openRole(w, USER_ROLE_LABELS.dispatcher);
     expect(sectionAccess("dispatcher", "fuel")).toBe("view");
     expect(toggle(w, "Cards")).toBeTruthy();
-    expect(toggle(w, "Fuel Spend")).toBeUndefined();
-    expect(row(w, "Fuel Spend")!.text()).toContain("Needs Fuel · Manage");
+    expect(toggle(w, "Fuel Costs")).toBeUndefined();
+    expect(row(w, "Fuel Costs")!.text()).toContain("Needs Fuel · Manage");
   });
 
   it("resets a role by writing each changed section back to its shipped default and each screen to allowed", async () => {

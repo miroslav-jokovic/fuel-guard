@@ -206,6 +206,19 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
         </ul>
       </AppCard>
 
+      <AppCard class="mt-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold text-ink-secondary">Idle engine checks</h2>
+            <p class="mt-1 text-xs text-ink-muted">
+              Whether the new idle measurement agrees with the trucks' own computers, and what their engines
+              burn while parked. Opening it is recorded in the platform log.
+            </p>
+          </div>
+          <AppButton size="sm" variant="soft" :to="{ name: 'customer-idle-engine', params: { id } }">Open</AppButton>
+        </div>
+      </AppCard>
+
       <AppCard padding="none" class="mt-4">
         <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>
         <AppTable class="mt-3 w-full text-sm">

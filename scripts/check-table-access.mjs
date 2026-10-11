@@ -64,10 +64,9 @@ const GRANDFATHERED_ACCESS = new Set([
   "fuel_prices_posted <- apps/api/src/modules/anomalies/scoring/marketPrice.ts",
   "fuel_prices_posted <- apps/api/src/modules/routing/routes/stations.ts",
   "fuel_prices_posted <- apps/api/src/modules/routing/fuelPlanning.ts",
-  "fuel_statement_lines <- apps/web/src/features/reconcile/useStatements.ts",
-  "fuel_statements <- apps/web/src/features/reconcile/useStatements.ts",
   "hos_duty_segments <- apps/api/src/modules/anomalies/scoring/context.ts",
-  "hos_duty_segments <- apps/api/src/modules/idle/idleDutyEvidenceSync.ts",
+  // moved with its reader out of idleDutyEvidenceSync.ts (IE3, 2026-10-02) — the same read, now shared with the idle engine.
+  "hos_duty_segments <- apps/api/src/modules/idle/vehicleDutyTimelines.ts",
   "hos_duty_segments <- apps/api/src/modules/idle/idleRollupInputs.ts",
   "hos_duty_segments <- apps/api/src/modules/loads/dispatchLoads/queries.ts",
   "imports <- apps/api/src/modules/fuel/routes/transactions.ts",

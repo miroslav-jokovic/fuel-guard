@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyzeContractCapture, weeklyContractCapture, CONTRACT_TOLERANCE_PER_GAL } from "./contractCapture.js";
+import { analyzeContractCapture, contractHeadline, weeklyContractCapture, CONTRACT_TOLERANCE_PER_GAL, type ContractTotals } from "./contractCapture.js";
 import type { SpendLine } from "./types.js";
 
 /**
@@ -180,5 +180,64 @@ describe("weeklyContractCapture", () => {
 
   it("ignores lines with no date rather than bucketing them under a fake week", () => {
     expect(weeklyContractCapture([fill({ tranDate: null, gallons: 100, netAmount: 500, contractAmount: 500 })])).toHaveLength(0);
+  });
+});
+
+/**
+ * Q-FSV18: the tile reads four sums from `fuel_contract_totals` instead of every row. `contractHeadline` is the
+ * one formula for its two figures, and `analyzeContractCapture` calls it, so what must hold is that the two
+ * routes — add the rows up and call the analysis, or hand over the database's sums — print the same tile.
+ */
+describe("contractHeadline", () => {
+  /** The four sums, added up here by the rules the SQL function states, independently of the analysis. */
+  const totalsOf = (lines: SpendLine[]): ContractTotals => {
+    const fuel = lines.filter((l) => l.product === "diesel" && l.tank !== "reefer" && l.gallons > 0 && l.netAmount != null);
+    const m = fuel.filter((l) => l.contractAmount != null);
+    const u = fuel.filter((l) => l.contractAmount == null);
+    const sum = (ls: SpendLine[], f: (l: SpendLine) => number) => ls.reduce((a, l) => a + f(l), 0);
+    return {
+      measuredLines: m.length,
+      measuredGallons: sum(m, (l) => l.gallons),
+      measuredPaid: sum(m, (l) => l.netAmount!),
+      measuredExpected: sum(m, (l) => l.contractAmount!),
+      unmeasuredLines: u.length,
+      unmeasuredPaid: sum(u, (l) => l.netAmount!),
+    };
+  };
+  // Uneven on purpose: over and under offset, one unquoted fill, a reefer fill and a zero-gallon fill.
+  const FEED: SpendLine[] = [
+    fill({ gallons: 100, netAmount: 520, contractAmount: 500 }),
+    fill({ gallons: 60, netAmount: 300, contractAmount: 306 }),
+    fill({ gallons: 80, netAmount: 440 }),
+    fill({ gallons: 30, netAmount: 150, tank: "reefer", contractAmount: 140 }),
+    fill({ gallons: 0, netAmount: 0 }),
+  ];
+
+  it("prints the same tile whether the rows were added up or the database added them", () => {
+    const viaRows = analyzeContractCapture(FEED);
+    const viaTotals = contractHeadline(totalsOf(FEED));
+    expect(viaTotals.measuredLines).toBe(viaRows.measuredLines);
+    expect(viaTotals.netVariance).toBe(viaRows.netVariance);
+    expect(viaTotals.measuredSpendShare).toBe(viaRows.measuredSpendShare);
+  });
+
+  it("and the answer is the known one: +$14 over two quoted fills, 820 of 1,260 billed dollars priced", () => {
+    const h = contractHeadline(totalsOf(FEED));
+    expect(h.netVariance).toBe(14);
+    expect(h.measuredLines).toBe(2);
+    expect(h.measuredSpendShare).toBeCloseTo(820 / 1260, 9);
+  });
+
+  it("states no variance and no share over an empty window, rather than zero coverage", () => {
+    const h = contractHeadline({ measuredLines: 0, measuredGallons: 0, measuredPaid: 0, measuredExpected: 0, unmeasuredLines: 0, unmeasuredPaid: 0 });
+    expect(h.measuredLines).toBe(0);
+    expect(h.measuredSpendShare).toBeNull();
+  });
+
+  it("reads a window of only unquoted fills as unmeasured with a zero share, not as billed at contract", () => {
+    const h = contractHeadline(totalsOf([fill({ gallons: 80, netAmount: 440 })]));
+    expect(h.measuredLines).toBe(0);
+    expect(h.measuredSpendShare).toBe(0);
+    expect(h.netVariance).toBe(0);
   });
 });

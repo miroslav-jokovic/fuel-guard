@@ -21,7 +21,7 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const fill = (o: Record<string, unknown> = {}) => ({
   vehicle_id: "v1",
   fueled_at: "2026-08-18T14:00:00Z",
-  state: "TX",
+  business_date: "2026-08-18",
   tank_type: "tractor",
   gallons: 120,
   total_cost: 620.4,
@@ -60,11 +60,21 @@ describe("buildFuelSpendRollup", () => {
     expect(gte.slice(0, 10)).toBe("2026-07-26");
   });
 
-  it("widens the fill window a day past the end, because business dates are station-local", async () => {
+  it("widens the fill window a day past the end, because a fill on the last Central day can be past UTC midnight", async () => {
     const rec = seed();
     await buildFuelSpendRollup(rec.client, ORG, "2026-08-17", "2026-08-23");
     const read = rec.forTable("fuel_transactions").find((q) => !q.write)!;
     expect((read.ops.find((o) => o.method === "lte")?.args[1] as string).slice(0, 10)).toBe("2026-08-24");
+  });
+
+  it("files a fill on the business date the database stored (Q-F5), not on its UTC instant's date", async () => {
+    // 03:12 UTC on 08-19 is 22:12 on 08-18 in Chicago: EFS prints 08-18, and 0287's trigger stored it.
+    const rec = seed({ fuel_transactions: [fill({ fueled_at: "2026-08-19T03:12:00Z", business_date: "2026-08-18" })] });
+    await buildFuelSpendRollup(rec.client, ORG, "2026-08-17", "2026-08-23");
+    const read = rec.forTable("fuel_transactions").find((q) => !q.write)!;
+    expect(read.ops.find((o) => o.method === "select")?.args[0]).toContain("business_date");
+    const days = rec.writtenRows("fuel_spend_days").filter((x) => Number(x.fills) > 0).map((x) => x.day);
+    expect(days).toEqual(["2026-08-18"]);
   });
 
   it("writes the whole row and conflicts on the natural key, never on the primary key", async () => {

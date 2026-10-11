@@ -53,7 +53,7 @@ export function notificationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const userId = req.auth!.userId;
 
-      const [eventsRes, readsRes, prefsRes] = await Promise.all([
+      const [eventsRes, prefsRes] = await Promise.all([
         admin
           .from("notification_events")
           .select("id, category, title, body, severity, entity_type, entity_id, deep_link, created_at")
@@ -61,22 +61,37 @@ export function notificationsRouter(): Router {
           .eq("audience_user_id", userId)
           .order("created_at", { ascending: false })
           .limit(100),
-        admin.from("notification_reads").select("event_id, read_at").eq("user_id", userId),
         admin
           .from("notification_preferences")
           .select("muted_categories, quiet_hours_start, quiet_hours_end, timezone")
           .eq("user_id", userId)
           .maybeSingle(),
       ]);
+      const events = (eventsRes.data ?? []) as unknown as { id: string }[];
 
-      const readAt = new Map<string, string>();
-      for (const r of (readsRes.data ?? []) as { event_id: string; read_at: string }[]) {
-        readAt.set(r.event_id, r.read_at);
+      // Read state for the listed events ONLY. This read used to take every row the user had ever
+      // read, and PostgREST answers at most 1,000 — past that, read events would have silently
+      // come back unread (0430's audit, 2026-10-05: the owner was at 557 and climbing).
+      const readsRes =
+        events.length > 0
+          ? await admin
+              .from("notification_reads")
+              .select("event_id, read_at, dismissed_at")
+              .eq("user_id", userId)
+              .in(
+                "event_id",
+                events.map((e) => e.id),
+              )
+          : { data: [] };
+      const reads = new Map<string, { read_at: string; dismissed_at: string | null }>();
+      for (const r of (readsRes.data ?? []) as { event_id: string; read_at: string; dismissed_at: string | null }[]) {
+        reads.set(r.event_id, r);
       }
-      const notifications = ((eventsRes.data ?? []) as unknown as { id: string }[]).map((e) => ({
-        ...e,
-        read_at: readAt.get(e.id) ?? null,
-      }));
+      // A cleared notification (0430's `dismissed_at`) leaves the bell; its event row stays,
+      // because the alert schedulers dedupe against it.
+      const notifications = events
+        .filter((e) => !reads.get(e.id)?.dismissed_at)
+        .map((e) => ({ ...e, read_at: reads.get(e.id)?.read_at ?? null }));
 
       res.json({
         notifications,
@@ -96,23 +111,54 @@ export function notificationsRouter(): Router {
       const body = res.locals.body as ReturnType<typeof markReadRequestSchema.parse>;
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const userId = req.auth!.userId;
+      const orgId = req.auth!.orgId!;
 
-      let ids = body.ids;
-      if (!ids) {
-        const { data } = await admin
-          .from("notification_events")
-          .select("id")
-          .eq("org_id", req.auth!.orgId!)
-          .eq("audience_user_id", userId)
-          .limit(500);
-        ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+      // Mark all: one set-based insert in the database (0430). This used to select `.limit(500)`
+      // ids with no order, so past 500 events the newest — the ones the user was looking at —
+      // were the ones skipped: a click on 2026-10-05 marked 11 of 33 unread.
+      if (!body.ids) {
+        const { data, error } = await admin.rpc("mark_notifications_read", { p_org: orgId, p_user: userId });
+        if (error) {
+          res.status(500).json(apiError("db_error", "Could not mark your notifications read"));
+          return;
+        }
+        res.json({ ok: true, marked: Number(data ?? 0) });
+        return;
       }
+
+      const ids = body.ids;
       if (ids.length > 0) {
-        await admin
+        const { error } = await admin
           .from("notification_reads")
           .upsert(ids.map((event_id) => ({ event_id, user_id: userId })), { onConflict: "event_id,user_id" });
+        if (error) {
+          res.status(500).json(apiError("db_error", "Could not mark your notifications read"));
+          return;
+        }
       }
       res.json({ ok: true, marked: ids.length });
+    }),
+  );
+
+  /**
+   * Clear the bell: every notification addressed to the caller leaves their list (and counts as
+   * read). A stamp on their own read rows, never a delete — the event rows are the dedupe ledger
+   * the alert schedulers read, so deleting one would send its alert again (0430).
+   */
+  router.post(
+    "/dismiss",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { data, error } = await admin.rpc("dismiss_notifications", {
+        p_org: req.auth!.orgId!,
+        p_user: req.auth!.userId,
+      });
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not clear your notifications"));
+        return;
+      }
+      res.json({ ok: true, dismissed: Number(data ?? 0) });
     }),
   );
 

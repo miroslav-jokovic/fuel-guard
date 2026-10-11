@@ -346,7 +346,7 @@ async function readUnitNumbers(admin: SupabaseClient, orgId: string, vehicleIds:
 }
 
 
-async function readCarrier(admin: SupabaseClient, orgId: string): Promise<string> {
+export async function readCarrier(admin: SupabaseClient, orgId: string): Promise<string> {
   const { data } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
   return (data as { name?: string } | null)?.name ?? "Carrier";
 }

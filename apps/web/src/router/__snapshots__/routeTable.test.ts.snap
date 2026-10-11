@@ -253,7 +253,12 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/fuel-spend",
   },
   {
-    "name": "findings",
+    "name": "fuel-problems",
+    "params": {},
+    "url": "/fuel-problems",
+  },
+  {
+    "name": "",
     "params": {},
     "url": "/findings",
   },
@@ -266,6 +271,30 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "ifta",
     "params": {},
     "url": "/ifta",
+  },
+  {
+    "name": "ifta-jurisdiction",
+    "params": {
+      "jurisdiction": "TX",
+    },
+    "url": "/ifta/TX",
+  },
+  {
+    "name": "fuel-invoices",
+    "params": {},
+    "url": "/fuel-invoices",
+  },
+  {
+    "name": "fuel-invoice-check",
+    "params": {
+      "id": "run_1",
+    },
+    "url": "/fuel-invoices/run_1",
+  },
+  {
+    "name": "fuel-buy-discipline",
+    "params": {},
+    "url": "/fuel-buy-discipline",
   },
   {
     "name": "fleet-report",
@@ -489,6 +518,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/efs-soap",
   },
   {
+    "name": "fleetpal-settings",
+    "params": {},
+    "url": "/settings/fleetpal",
+  },
+  {
+    "name": "mcleod-fleets-settings",
+    "params": {},
+    "url": "/settings/mcleod-fleets",
+  },
+  {
     "name": "org-settings",
     "params": {},
     "url": "/settings/org",
@@ -612,7 +651,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Assignments",
+      "title": "Dispatch board",
     },
     "name": "assignments",
     "path": "/assignments",
@@ -720,13 +759,10 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
-    "meta": {
-      "requiresAuth": true,
-      "title": "Findings",
-    },
-    "name": "findings",
+    "meta": {},
+    "name": "",
     "path": "/findings",
-    "redirect": null,
+    "redirect": "fn",
   },
   {
     "meta": {
@@ -745,6 +781,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "forgot-password",
     "path": "/forgot-password",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/fuel-spend",
+      "requiresAuth": true,
+      "title": "Buy discipline",
+    },
+    "name": "fuel-buy-discipline",
+    "path": "/fuel-buy-discipline",
     "redirect": null,
   },
   {
@@ -781,6 +827,25 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
+      "title": "Pilot invoices",
+    },
+    "name": "fuel-invoices",
+    "path": "/fuel-invoices",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/fuel-invoices",
+      "requiresAuth": true,
+      "title": "Invoice check",
+    },
+    "name": "fuel-invoice-check",
+    "path": "/fuel-invoices/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
       "title": "Fuel Log",
     },
     "name": "fuel-log",
@@ -797,6 +862,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     "redirect": null,
   },
   {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Fuel problems",
+    },
+    "name": "fuel-problems",
+    "path": "/fuel-problems",
+    "redirect": null,
+  },
+  {
     "meta": {},
     "name": "",
     "path": "/fuel-reconciliation",
@@ -805,7 +879,7 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
-      "title": "Fuel Spend",
+      "title": "Fuel Costs",
     },
     "name": "fuel-spend",
     "path": "/fuel-spend",
@@ -885,6 +959,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "ifta",
     "path": "/ifta",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/ifta",
+      "requiresAuth": true,
+      "title": "IFTA jurisdiction",
+    },
+    "name": "ifta-jurisdiction",
+    "path": "/ifta/:jurisdiction",
     "redirect": null,
   },
   {
@@ -1158,11 +1242,32 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "FleetPal Integration",
+    },
+    "name": "fleetpal-settings",
+    "path": "/settings/fleetpal",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
       "requiresAuth": true,
       "title": "Planned Fueling",
     },
     "name": "fuel-planning-settings",
     "path": "/settings/fuel-planning",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAuth": true,
+      "title": "McLeod fleets",
+    },
+    "name": "mcleod-fleets-settings",
+    "path": "/settings/mcleod-fleets",
     "redirect": null,
   },
   {

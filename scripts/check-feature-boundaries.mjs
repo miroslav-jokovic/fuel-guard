@@ -124,6 +124,19 @@ const API_ALLOW = new Set([
   // construction: applyMirroredLoads only, through loads' index — the collector→core write D-ARC3
   // asks for, the same shape as "psp -> evidence" above.
   "mcleod -> loads",
+  // The truck's McLeod home fleet (DISPATCH-BOARD-PLAN.md DB1, 0450). `vehicles` belongs to roster
+  // (D-ARC3), and the fleet code arrives on mcleod's roster sweep — so mcleod reads it and writes it
+  // through roster's interface, the same collector→core shape as "mcleod -> loads" above. Narrow by
+  // construction: recordVehicleFleetCodes only, through roster's index, which writes ONE column and
+  // only on change; mcleod keeps its own `tms_fleets` seed.
+  "mcleod -> roster",
+  // The dispatch board's scope (DISPATCH-BOARD-PLAN DB3/DB4). Whose fleet is whose lives in mcleod's
+  // `tms_fleets` and `tms_dispatchers`, both layer=raw and sealed to mcleod, so the board asks mcleod
+  // for the caller's scope instead of reading them. Narrow by construction: readDispatchLinks only.
+  "livemap -> mcleod",
+  // The links card's people picker and its membership check (DB2): who in THIS org a McLeod login may
+  // be linked to is org's directory, not mcleod's. Narrow: listOfficeMembers and lookupMemberRole only.
+  "mcleod -> org",
   // ── the §396.17 annual inspection's three reads-and-writes-through-owners (D-AVI10) ───────────
   // maintenance owns the report; it owns none of what a report has to be made of. All three edges
   // go through the owner's index, which is exactly the shape D-ARC3 asks for rather than a leak:
@@ -152,6 +165,11 @@ const API_ALLOW = new Set([
   "livemap -> samsara",
   "livemap -> roster",
   "livemap -> loads",
+  // A load's route on the map (TRUCK-CARD-ROUTE-PLAN TC3, 2026-10-09): HERE's truck route, its
+  // cache and the fuel solver are `routing`'s, and the map draws what they answer. The edge runs
+  // this way and not routing -> livemap, and the endpoint lives here rather than in routing, because
+  // `routing -> samsara/index` would close a module cycle (`samsara -> routing` exists, below).
+  "livemap -> routing",
   // The driver's own account closure (P4.2) closes their login by calling the roster module's
   // `disableDriverLogin` through its index — the ban, the push-token revoke and the
   // `app_access_enabled` flag. A second ban path in driver-app would be two implementations of
@@ -268,6 +286,12 @@ const API_ALLOW = new Set([
   // 2026-09 with `console.error` as its only reader, and fleet MPG read 8.61 against a true 6.91
   // until somebody noticed by eye.
   "fuel-spend -> messaging",
+  // The fleet-parity check (FUEL-SAVINGS FL2, D-FL2): after every roster read, a truck or trailer
+  // list that disagrees with McLeod's is a finding the equipment managers see — "a disagreement is a
+  // notification", in the plan's words. notify() through messaging's index, and the recipients from
+  // org's `usersWhoManage("equipment")` (the edge below), exactly the fuel-spend shape above.
+  "mcleod -> messaging",
+  "mcleod -> org",
   "fuel -> messaging",
   "recruiting -> messaging",
   "roster -> messaging",
@@ -354,6 +378,25 @@ const API_ALLOW = new Set([
   //     who depended on it.
   "fleetpal -> mcleod",
   "fleetpal -> samsara",
+  // The IFTA ledger's drill-down (2026-10-05): one jurisdiction's quarter, truck by truck. The
+  // period RPCs (0256) already fold the trucks together, so the per-truck sums come through
+  // samsara's own `readJurisdictionVehicleMiles` — the collector's door onto its jurisdiction table,
+  // the same kind of read the CPM harness and FleetPal take — never a `.from()` on the raw table.
+  "ifta -> samsara",
+  // …and its purchases half: the tractor fills bought in that jurisdiction, through fuel's own
+  // `readJurisdictionFills`, on the ledger row's own predicate, so the trucks' gallons add up to it.
+  // ARCHITECTURE §4 always had ifta reading "samsara staging + fuel"; this is the fuel arrow drawn.
+  "ifta -> fuel",
+  // The roster sweep hands McLeod's fuel-tax switch (`tractor.exclude_fueltax`) to ifta's
+  // `recordFuelTaxExclusion`, which owns the dated periods in 0433. The collector delivers the fact;
+  // ifta decides what a period is. Same shape as `mcleod -> evidence` for credentials.
+  "mcleod -> ifta",
+  // …and the other way, a READ: McLeod's hand-keyed fuel receipts (cash and drivers' own cards,
+  // `fuel_tax_history.source = 'F'`) are fuel bought, so the IFTA ledger and its state page add them
+  // to "gallons bought" (IP6). Through the collector's `readFuelTaxReceipts`, never a `.from()` on
+  // `mcleod_fuel_tax_receipts`; ifta maps McLeod's unit to our truck and drops card duplicates.
+  // Same shape as `fleetpal -> mcleod`: a reader of McLeod facts, with nothing written back.
+  "ifta -> mcleod",
 ]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
@@ -388,6 +431,9 @@ const PURE_PACKAGES = [
   ["packages/hazmat-data", ["@silvicom/", "@/", "@hazmat/engine"], "hazmat packages must stay dependency-free — D3/G5"],
   ["packages/hazmat-placards", ["@silvicom/", "@/", "@hazmat/data"], "hazmat packages must stay dependency-free — D3/G5"],
   ["packages/qr", ["@silvicom/", "@/", "@hazmat/"], "@silvicom/qr must stay dependency-free of the workspace — D-INV16"],
+  // The SMS calculator (INSPECTION-CHALLENGE-PLAN IC3, D-IC6/D-IC9): its numbers are compared with FMCSA's to the
+  // point, so nothing app-side may leak into it.
+  ["packages/sms-engine", ["@silvicom/", "@/", "@hazmat/"], "@silvicom/sms-engine must stay dependency-free of the workspace — D-IC9"],
 ];
 
 /** Pure so the self-test can plant a synthetic file without touching the tree. */
@@ -439,6 +485,7 @@ const DETERMINISM_RULES = [
 const DETERMINISTIC_PACKAGES = [
   ["packages/hazmat-engine/src", "@hazmat/engine"],
   ["packages/qr/src", "@silvicom/qr"],
+  ["packages/sms-engine/src", "@silvicom/sms-engine"], // D-IC9: the measurement date is an argument, never a clock
 ];
 
 /** Pure so the self-test can plant synthetic source without writing a file into the tree. */

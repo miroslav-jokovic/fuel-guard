@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { rosterQueries, retirementQueries } from "./queries.mjs";
+import { MAP } from "./roster.mjs";
 
 /**
  * The roster predicates, pinned as TEXT.
@@ -49,6 +50,34 @@ test("the sub-status is read for display, and the letter itself never leaves thi
   // 'S' to the neutral in_shop flag; @silvicom/shared turns that into the stored status.
   assert.match(vehicles("identity"), /AS tractor_status/);
   assert.ok(!/tractor_status/.test(vehicles("link")), "link mode reads no sub-status");
+});
+
+test("the fuel-tax switch is read in identity mode, and link mode still reads nothing extra", () => {
+  // IFTA-PRECISION-PLAN IP4: McLeod's own exclusion from its fuel-tax module. 'N' on every tractor on
+  // 2026-10-05; roster.mjs turns the letter into the neutral fuel_tax_excluded fact.
+  assert.match(vehicles("identity"), /AS exclude_fueltax/);
+  assert.ok(!/exclude_fueltax/.test(vehicles("link")), "link mode reads no fuel-tax flag");
+});
+
+test("the fuel-tax letter becomes a fact, and an unknown letter becomes NO fact", () => {
+  const fact = (letter) => MAP.vehicles({ external_id: "512", make: "Freightliner", exclude_fueltax: letter }).fuel_tax_excluded;
+  assert.equal(fact("Y"), true);
+  assert.equal(fact("N"), false);
+  // Blank or unexpected: absent, so Silvicom 360 never closes an exclusion period on a guess.
+  assert.equal(fact(null), undefined);
+  assert.equal(fact("X"), undefined);
+});
+
+test("the home fleet is read in identity mode only, and crosses the wire verbatim", () => {
+  // DISPATCH-BOARD-PLAN DB1: tractor.fleet_id ('VINNIEV') is who owns the truck. Link mode reads nothing extra.
+  assert.match(vehicles("identity"), /AS fleet_id/);
+  assert.ok(!/fleet_id/.test(vehicles("link")), "link mode reads no fleet");
+  const code = (r) => MAP.vehicles({ external_id: "773", make: "Freightliner", ...r }).fleet_code;
+  assert.equal(code({ fleet_id: "VINNIEV " }), "VINNIEV");
+  // A blank fleet is McLeod saying "no fleet" — null, which clears a stale code on our side ...
+  assert.equal(code({ fleet_id: "  " }), null);
+  // ... while a row that never read the column sends nothing, so it can never clear one.
+  assert.equal(code({}), undefined);
 });
 
 test("the retirement predicate is the TMS's active flag, negated, and nothing more", () => {

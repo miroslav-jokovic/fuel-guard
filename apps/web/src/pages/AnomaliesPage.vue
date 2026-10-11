@@ -5,7 +5,7 @@ import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -30,35 +30,26 @@ const {
 // SP5: the button goes where Data & sync is — asked of that page's gate (a Settings screen that starts
 // off for everyone but the admin), not of `safety` manage, which a safety manager holds and the page never asked.
 const opens = useOpens();
+
+const VIEW_TABS: TabItem[] = [
+  { value: "all", label: "All alerts" },
+  { value: "reefer", label: "Reefer fueling" },
+];
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Fuel-card alerts from anomaly detection — theft, misuse, and data-quality signals across your fleet." />
+    <PageHeader description="Fuel-card fills that look wrong: possible theft, card misuse, or data that does not add up." />
 
-    <!-- Tabs: all alerts vs reefer-fueling cases (design-system segmented control) -->
-    <div class="flex w-fit gap-1 rounded-surface bg-surface-muted p-1 text-sm">
-      <BaseButton
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="!reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="setReeferOnly(false)"
-      >
-        All alerts
-      </BaseButton>
-      <BaseButton
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="setReeferOnly(true)"
-      >
-        Reefer fueling
-      </BaseButton>
-    </div>
+    <!-- W4 (F02-F04 chunk 14c): the shared tab strip, which a hand-built pair of buttons was not — no
+         tablist role, no arrow keys. The URL's `reefer=1` stays the one place the choice lives. -->
+    <AppTabs :model-value="reeferOnly ? 'reefer' : 'all'" :tabs="VIEW_TABS" label="Alert view" @update:model-value="setReeferOnly($event === 'reefer')" />
 
     <BaseCard v-if="reeferOnly" as="div">
       <p class="text-sm text-ink-secondary">
-        Reefer-fueling alerts flag trucks that haul a reefer but may be fueling it with ULSD selected at the pump —
-        a reefer-hauling truck buying little or no reefer (ULSR) fuel, or a ULSD fill that didn't fully enter the
-        tractor tank. Each row shows the truck, its paired reefer trailer, and the driver on the flagged fill.
+        These alerts are for trucks that pull a reefer and may be filling it with truck diesel instead of reefer
+        fuel: a truck that buys little or no reefer fuel, or a diesel fill that did not all go into the truck's own
+        tank. Each row shows the truck, its reefer trailer, and the driver on the fill.
       </p>
     </BaseCard>
 
@@ -81,9 +72,9 @@ const opens = useOpens();
           variant="ghost"
           size="sm"
           to="/settings/data"
-          title="Rebuild and Re-sync Samsara moved to Settings → Data & Sync (with live progress)"
+          title="Check all fills again, or bring Samsara data in again, from Settings → Data & sync"
         >
-          Rebuild / Re-sync →
+          Data &amp; sync →
         </BaseButton>
       </template>
     </FilterBar>
@@ -108,7 +99,7 @@ const opens = useOpens();
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load anomalies') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load alerts') : null"
       :retrying="isFetching"
       empty-text="Nothing here — no alerts match these filters."
       :sort="sort"

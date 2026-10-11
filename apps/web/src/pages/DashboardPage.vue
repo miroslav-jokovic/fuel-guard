@@ -28,6 +28,8 @@ import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
+import FleetLeadLine from "@/features/dashboard/FleetLeadLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { greeting } from "@/lib/greeting";
 import { PAGE_GUTTER_CLASS } from "@/lib/layout";
@@ -152,8 +154,11 @@ const EXPORTS = [
     <!-- ⚠ Not rendered on a workspace tab: the hero plate and the greeting are 200px of scenery in
          front of a surface whose whole complaint was that it is not tall enough. The greeting is a
          property of the DASHBOARD, and on this tab the dashboard is a map. -->
+    <!-- Q-FO6: on the fleet tab the second line is DERIVED — what moved most, what is waiting —
+         and is the static sentence until the comparison exists. `FleetLeadLine` owns the figures. -->
     <PageHeader v-if="!workspace" :title="greetingLine">
-      Here's what's happening with your fleet today.
+      <FleetLeadLine v-if="activeKey === 'fleet'" :range="range" />
+      <template v-else>Here's what's happening with your fleet today.</template>
     </PageHeader>
 
     <!--
@@ -210,6 +215,9 @@ const EXPORTS = [
       -->
       <div id="dashboard-actions" class="ml-auto flex flex-wrap items-center gap-2">
         <template v-if="activeKey === 'fleet'">
+          <!-- D-FO8: telematics freshness is a status chip in the control row, not the tab's first
+               full-width card. The three tiers the fleet figures are built from, as before. -->
+          <SamsaraFeedLine variant="chip" :feeds="['stats', 'telematics', 'idle']" />
           <DateRangeFilter v-model:from="from" v-model:to="to" />
 
           <!-- SP5: both exports are `/api/reports/*`, `requireSection("settings", "view")` — ask that, not

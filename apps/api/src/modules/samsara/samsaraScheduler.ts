@@ -7,8 +7,8 @@ import { syncRecentDriverScoreWeeks } from "../performance/index.js";
 import { snapshotSettledWeeks } from "../performance/index.js";
 import { syncIdleFoundation } from "../idle/index.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
-import { syncIdleRollup } from "../idle/index.js";
-import { syncIdleDutyEvidence } from "../idle/index.js";
+import { syncIdleRollup, repairIdleEventTwins } from "../idle/index.js";
+import { syncIdleDutyEvidence, syncIdleEngine } from "../idle/index.js";
 import { runDataRetention } from "../org/index.js";
 // The machinery every tier shares — which orgs, which slot, which loop. Moved out when LM4's tier
 // pushed this file past the 500-line budget; see `lib/tierRunner.ts` for why it is a split and not a
@@ -17,8 +17,10 @@ import { orgsToSync, runOrgTier, startTier } from "./lib/tierRunner.js";
 import { runSamsaraFeedAlarm } from "./samsaraFeedAlarm.js";
 import { samsaraFeedCadences } from "./samsaraFeedHealth.js";
 import { dispatchJob } from "../../queue/dispatch.js";
-import { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+import { syncIftaMonths } from "./samsaraIftaSync.js";
 import { syncVehicleOdometerReadings } from "./samsaraOdometerSync.js";
+import { startDocumentsTier } from "./samsaraDocumentsSync.js";
+import { startHosClocksTier } from "./hosClocksFeed.js";
 
 /**
  * Tier 5 — PER-FILL TELEMATICS (SAM-S3, D-SAM1). The tier that stops the collection hole growing.
@@ -183,6 +185,13 @@ function startPerformanceTier(env: Env): void {
         const r = await syncRecentDriverScoreWeeks(admin, env, orgId);
         return { weeks: r.weeks, upserted: r.totalUpserted };
       });
+      // Before sync_idle: the sync keys what it writes only once nothing stored is unkeyed (plan I0).
+      await runOrgTier(admin, env, orgId, "idle_event_twins", async () => {
+        const r = await repairIdleEventTwins(admin, orgId, {
+          refreeze: async (refreeze) => (await snapshotSettledWeeks(admin, env, orgId, { refreeze })).weeksFrozen,
+        });
+        return { ...r };
+      });
       await runOrgTier(admin, env, orgId, "sync_idle", async () => {
         const r = await syncIdleFoundation(admin, env, orgId);
         return {
@@ -276,17 +285,8 @@ function startIftaTier(env: Env): void {
   startTier(env, "ifta", 180_000, env.SAMSARA_IFTA_SYNC_HOURS * 3_600_000, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_ifta", async () => {
-        const months = monthsToSync(new Date());
-        const per: Record<string, number> = {};
-        let rows = 0;
-        let unmapped = 0;
-        for (const { year, month } of months) {
-          const r = await syncIftaMilesForMonth(admin, env, orgId, year, month);
-          per[`${month} ${year}`] = r.rows;
-          rows += r.rows;
-          unmapped = Math.max(unmapped, r.unmappedVehicles);
-        }
-        return { months: per, rows, unmappedVehicles: unmapped };
+        const r = await syncIftaMonths(admin, env, orgId);
+        return { months: r.months, rows: r.rows, unmappedVehicles: r.unmappedVehicles, notReady: r.notReady };
       });
     }
   });
@@ -330,6 +330,20 @@ function startOdometerTier(env: Env): void {
           windowDays: r.windowDays,
         };
       });
+    }
+  });
+}
+
+/**
+ * Tier 3d — THE IDLE ENGINE (IE2, D-IE8). Its own tier and kind: the grain is an hour, and the run
+ * picks its own window (trailing three hours, or the nightly two-day recompute when due), so one
+ * (org, kind) slot keeps the two windows from ever being written at once. The first tick waits out
+ * the deploy window for the reason tier 3c gives.
+ */
+function startIdleEngineTier(env: Env): void {
+  startTier(env, "idle-engine", 900_000, env.IDLE_ENGINE_SYNC_MINUTES * 60_000, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, env, orgId, "idle_engine", async () => ({ ...(await syncIdleEngine(admin, env, orgId)) }));
     }
   });
 }
@@ -427,8 +441,11 @@ export function startSamsaraScheduler(env: Env): void {
   startPerformanceTier(env);
   if (env.SAMSARA_IFTA_SYNC_HOURS > 0) startIftaTier(env);
   if (env.SAMSARA_ODOMETER_SYNC_HOURS > 0) startOdometerTier(env);
+  if (env.SAMSARA_DOCUMENTS_SYNC_MINUTES > 0) startDocumentsTier(env);
+  if (env.IDLE_ENGINE_SYNC_MINUTES > 0) startIdleEngineTier(env);
   if (env.SAMSARA_RECON_SYNC_MINUTES > 0 && env.SAMSARA_RECON_BATCH > 0) startReconTier(env);
   if (env.SAMSARA_POSITIONS_SYNC_SECONDS > 0) startPositionsTier(env);
+  if (env.SAMSARA_HOS_CLOCKS_SYNC_MINUTES > 0) startHosClocksTier(env);
   startRetentionTier(env);
   // Reads what the tiers above recorded and says so when one of them has stopped delivering.
   startFeedAlarmTier(env);

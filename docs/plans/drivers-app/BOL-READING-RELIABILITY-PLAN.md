@@ -680,3 +680,8 @@ Append dated lines at the end; never edit a row above. (`plan-progress-log-not-t
   service splits into Layer 1 (read-only verification + POD chase over what McLeod/Samsara already hold,
   no driver change) and Layer 2 (our capture; delivery to McLeod chosen on price). Q6 answered by default
   (no writes); Q9 opened for McLeod.
+- **2026-10-08** — Superseded for execution by `docs/plans/document-reading/DOCUMENT-READER-PLAN.md`:
+  one reusable reading module, first consumer the Hazmat Calculator's prefill from an office upload or a
+  Samsara document. F-EX1–13 and D-EXR1–12 stand and are cited there by ID; this document's §7 phases
+  are re-cut into that plan's Phases 0–6. The corpus blocker is gone — Samsara holds 492 BOL-type
+  submissions (2,135 photos) in the last 30 days, readable with the existing token.

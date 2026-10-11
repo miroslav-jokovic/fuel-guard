@@ -39,22 +39,24 @@ export interface NearestOnRoute {
   /** Miles ALONG the route from its start to the nearest point (progress). */
   alongTrackMiles: number;
   segIndex: number;
+  /** Where on segment `segIndex` the nearest point lies: 0 = its start, 1 = its end. */
+  t: number;
   /** Which side of travel the point sits on at the nearest segment (left/right of the heading). */
   side: TravelSide;
 }
 
 /** Nearest point on a polyline to p: cross-track distance + how far along the route it is. */
 export function nearestOnRoute(p: LatLng, poly: LatLng[]): NearestOnRoute {
-  if (poly.length === 0) return { crossTrackMiles: Infinity, alongTrackMiles: 0, segIndex: 0, side: "on" };
-  if (poly.length === 1) return { crossTrackMiles: haversineMiles(p.lat, p.lng, poly[0]!.lat, poly[0]!.lng), alongTrackMiles: 0, segIndex: 0, side: "on" };
-  let best: NearestOnRoute = { crossTrackMiles: Infinity, alongTrackMiles: 0, segIndex: 0, side: "on" };
+  if (poly.length === 0) return { crossTrackMiles: Infinity, alongTrackMiles: 0, segIndex: 0, t: 0, side: "on" };
+  if (poly.length === 1) return { crossTrackMiles: haversineMiles(p.lat, p.lng, poly[0]!.lat, poly[0]!.lng), alongTrackMiles: 0, segIndex: 0, t: 0, side: "on" };
+  let best: NearestOnRoute = { crossTrackMiles: Infinity, alongTrackMiles: 0, segIndex: 0, t: 0, side: "on" };
   let cum = 0;
   for (let i = 0; i < poly.length - 1; i++) {
     const a = poly[i]!;
     const b = poly[i + 1]!;
     const segLen = haversineMiles(a.lat, a.lng, b.lat, b.lng);
     const { miles, t, side } = pointToSegmentMiles(p, a, b);
-    if (miles < best.crossTrackMiles) best = { crossTrackMiles: miles, alongTrackMiles: cum + t * segLen, segIndex: i, side };
+    if (miles < best.crossTrackMiles) best = { crossTrackMiles: miles, alongTrackMiles: cum + t * segLen, segIndex: i, t, side };
     cum += segLen;
   }
   return best;
@@ -65,4 +67,45 @@ export function routeLengthMiles(poly: LatLng[]): number {
   let m = 0;
   for (let i = 0; i < poly.length - 1; i++) m += haversineMiles(poly[i]!.lat, poly[i]!.lng, poly[i + 1]!.lat, poly[i + 1]!.lng);
   return m;
+}
+
+/**
+ * How far from its route a truck may be and still be "on" it (TRUCK-CARD-ROUTE-PLAN Q-TC3, ruled
+ * 2026-10-09). Past this, a split would be guessed from a far point, so the route is not split at all.
+ * A constant, not a setting; revisited after a week of real trucks.
+ */
+export const OFF_ROUTE_MILES = 1;
+
+export interface RouteSplit {
+  /** The part already driven, start → the truck's point on the line. Empty when the truck is off the route. */
+  covered: LatLng[];
+  /** The part still ahead, the truck's point → the end. The whole line when the truck is off the route. */
+  ahead: LatLng[];
+  coveredMiles: number;
+  /** Miles from the truck to the line. */
+  offRouteMiles: number;
+  onRoute: boolean;
+}
+
+/**
+ * Split a route where a truck stands on it, the way a navigation app greys the road behind you
+ * (D-TC3). The split point is the truck's NEAREST point on the line — a segment projection, not the
+ * nearest vertex, so a U-shaped route does not put the truck on the arm it is not driving — and both
+ * halves share it, so the two lines meet without a gap.
+ */
+export function splitRouteAt(poly: LatLng[], truck: LatLng, offRouteMiles = OFF_ROUTE_MILES): RouteSplit {
+  const near = nearestOnRoute(truck, poly);
+  if (poly.length < 2 || !(near.crossTrackMiles <= offRouteMiles)) {
+    return { covered: [], ahead: poly, coveredMiles: 0, offRouteMiles: near.crossTrackMiles, onRoute: false };
+  }
+  const a = poly[near.segIndex]!;
+  const b = poly[near.segIndex + 1]!;
+  const at = { lat: a.lat + near.t * (b.lat - a.lat), lng: a.lng + near.t * (b.lng - a.lng) };
+  return {
+    covered: [...poly.slice(0, near.segIndex + 1), at],
+    ahead: [at, ...poly.slice(near.segIndex + 1)],
+    coveredMiles: near.alongTrackMiles,
+    offRouteMiles: near.crossTrackMiles,
+    onRoute: true,
+  };
 }

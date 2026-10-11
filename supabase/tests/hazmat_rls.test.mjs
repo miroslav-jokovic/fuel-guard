@@ -75,7 +75,7 @@ async function main() {
     create table auth.users (id uuid primary key default gen_random_uuid(), email text);
     create schema storage;
     create table storage.buckets (id text primary key, name text, public boolean default false, file_size_limit bigint);
-    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, created_at timestamptz default now());
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now());
     alter table storage.objects enable row level security;
     create function storage.foldername(t text) returns text[] language sql immutable as $fn$ select string_to_array(t, '/') $fn$;
     create role anon nologin;

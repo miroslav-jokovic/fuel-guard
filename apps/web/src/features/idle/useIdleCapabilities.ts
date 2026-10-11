@@ -1,95 +1,88 @@
 import { useQuery } from "@tanstack/vue-query";
-import { IN_SERVICE_VEHICLE_STATUSES } from "@silvicom/shared";
-import { supabase } from "@/lib/supabase";
+import { purchaseBatchLabel, type BehavesLike, type IdleEquipmentRow } from "@silvicom/shared";
+import { apiFetch } from "@/lib/api";
 
 export type IdleCapability = "apu" | "ecu_optimized" | "continuous_only" | "unknown";
 export type CrossCheck = "agree" | "disagree" | "na";
 
 export interface TruckIdleCapability {
   unit_number: string;
-  /** Manual source of truth (Vehicles page): is the truck engine-off capable at rest (real APU)? */
+  /** The purchase batch in plain words (Q-IE7), or null for a truck with no purchase date yet. */
+  batch: string | null;
+  /** DECLARED equipment (owner's ruling or an office entry, `equipment_source`). */
   has_apu: boolean | null;
-  /** Idle-reduction equipment detail (Vehicles page). */
   apu_type: string | null;
-  /** OEM optimized idle recorded (Vehicles page). Distinct from has_apu. */
   has_optimized_idle: boolean | null;
-  /** Learned from engine-state park sessions (cross-check only). */
+  equipment_source: string | null;
+  /** EVIDENCE: the truck's long parks over 45 days, and what they look like (D-IE7). */
+  behaves_like: BehavesLike;
+  parks: number;
+  idling_pct: number | null;
+  off_pct: number | null;
+  /** The 0043 learned capability — still read by the page's fleet optimized-idle figure until IE6. */
   idle_capability: IdleCapability;
   idle_optimized_pct: number;
-  /** Manual flag vs learned capability: do they agree? "na" when either side is unknown. */
+  /**
+   * Declared vs behaviour: "disagree" is the server's review flag; "na" when the evidence is mixed or
+   * thin. A definite behaviour on a truck with nothing recorded is always a review there, so "agree"
+   * needs no check of its own that something was recorded.
+   */
   cross_check: CrossCheck;
 }
 
-/**
- * Compare the LEARNED behavior (from engine-state park sessions) against the RECORDED equipment, now that APU and
- * OEM optimized idle are separate manual flags. Each learned capability is checked against the flag it implies:
- * 'apu' ↔ has_apu, 'ecu_optimized' ↔ has_optimized_idle. 'continuous_only' means the truck showed no idle-
- * reduction in use, so a recorded APU or optimized idle is a mismatch worth a look. "na" when the relevant manual
- * flag is unset (nothing to compare).
- */
-function crossCheck(
-  hasApu: boolean | null,
-  hasOptimizedIdle: boolean | null,
-  learned: IdleCapability,
-): CrossCheck {
-  switch (learned) {
-    case "unknown":
-      return "na";
-    case "apu":
-      return hasApu == null ? "na" : hasApu ? "agree" : "disagree";
-    case "ecu_optimized":
-      return hasOptimizedIdle == null ? "na" : hasOptimizedIdle ? "agree" : "disagree";
-    case "continuous_only":
-      if (hasApu == null && hasOptimizedIdle == null) return "na";
-      return hasApu === true || hasOptimizedIdle === true ? "disagree" : "agree";
-  }
+/** The server's rows in the tab's shape: review first (the queue a person works), then by unit. */
+export function shapeIdleEquipment(data: IdleEquipmentRow[]): TruckIdleCapability[] {
+  const rows = data.map(
+    (r): TruckIdleCapability => ({
+      unit_number: r.unitNumber,
+      batch: purchaseBatchLabel(r.batch),
+      has_apu: r.hasApu,
+      apu_type: r.apuType,
+      has_optimized_idle: r.hasOptimizedIdle,
+      equipment_source: r.equipmentSource,
+      behaves_like: r.behavesLike,
+      parks: r.parks,
+      idling_pct: r.idlingPct,
+      off_pct: r.offPct,
+      idle_capability: (r.idleCapability ?? "unknown") as IdleCapability,
+      idle_optimized_pct: r.idleOptimizedPct,
+      cross_check: r.review
+        ? "disagree"
+        : r.behavesLike === "battery_apu" || r.behavesLike === "no_apu"
+          ? "agree"
+          : "na",
+    }),
+  );
+  const rank = (c: CrossCheck) => (c === "disagree" ? 0 : c === "agree" ? 1 : 2);
+  return rows.sort(
+    (a, b) =>
+      rank(a.cross_check) - rank(b.cross_check) ||
+      a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }),
+  );
 }
 
 /**
- * Every non-retired truck's idle capability: the MANUAL APU flag (source of truth) alongside the LEARNED
- * capability (cross-check), so an admin can see where telematics disagrees with the recorded equipment. Sorted
- * disagreements first (the review queue), then lowest optimized-idle. Shows all trucks — not just the ones the
- * learner could classify — so nothing is silently hidden (audit A1.1).
+ * Every in-service truck's DECLARED idle equipment beside its long-park BEHAVIOUR, from
+ * `GET /api/idle/equipment` (FUEL-SAVINGS-AND-IDLE-ENGINE-PLAN.md IE1, D-IE7).
+ *
+ * This used to read `vehicles` from the browser and compare the 0043 learned capability with the
+ * flags itself. The comparison now has one home — `needsEquipmentReview` in @silvicom/shared, run by
+ * the server against 0403's service-role measurement — and this composable only shapes the answer.
+ * Review first (the queue a person works), then by unit. Every truck is listed, so a truck with no
+ * declaration or no parks is visible rather than silently missing (audit A1.1).
  */
 export function useIdleCapabilities() {
   return useQuery({
     queryKey: ["idle_capabilities"],
     queryFn: async (): Promise<TruckIdleCapability[]> => {
-      const { data, error } = await supabase
-        .from("vehicles")
-        .select(
-          "unit_number, has_apu, apu_type, has_optimized_idle, idle_capability, idle_optimized_pct",
-        )
-        .in("status", [...IN_SERVICE_VEHICLE_STATUSES]);
-      if (error) throw new Error(error.message);
-      const rows = (
-        (data ?? []) as {
-          unit_number: string;
-          has_apu: boolean | null;
-          apu_type: string | null;
-          has_optimized_idle: boolean | null;
-          idle_capability: string | null;
-          idle_optimized_pct: number | string | null;
-        }[]
-      ).map((v) => {
-        const learned = (v.idle_capability ?? "unknown") as IdleCapability;
-        return {
-          unit_number: v.unit_number,
-          has_apu: v.has_apu ?? null,
-          apu_type: v.apu_type ?? null,
-          has_optimized_idle: v.has_optimized_idle ?? null,
-          idle_capability: learned,
-          idle_optimized_pct: v.idle_optimized_pct == null ? 0 : Number(v.idle_optimized_pct),
-          cross_check: crossCheck(v.has_apu ?? null, v.has_optimized_idle ?? null, learned),
-        };
-      });
-      // Disagreements first (review queue), then lowest optimized-idle adoption.
-      const rank = (c: CrossCheck) => (c === "disagree" ? 0 : c === "agree" ? 1 : 2);
-      return rows.sort(
-        (a, b) =>
-          rank(a.cross_check) - rank(b.cross_check) || a.idle_optimized_pct - b.idle_optimized_pct,
+      const res = await apiFetch<{ ok: boolean; data?: IdleEquipmentRow[]; error?: { message?: string } }>(
+        "/api/idle/equipment",
       );
+      if (!res.ok || !res.data?.ok || !res.data.data) {
+        throw new Error(res.data?.error?.message ?? res.error?.message ?? "Could not read the trucks' idle equipment");
+      }
+      return shapeIdleEquipment(res.data.data);
     },
-    refetchInterval: 120_000,
+    refetchInterval: 300_000,
   });
 }

@@ -14,8 +14,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > a null modu
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -102,8 +103,15 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
     ],
   },
   {
@@ -140,8 +148,15 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
     ],
   },
   {
@@ -178,8 +193,15 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > accountant 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
+    ],
+  },
+  {
+    "group": "Fleet",
+    "items": [
+      "Odometer → /odometer",
     ],
   },
   {
@@ -217,8 +239,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -227,7 +250,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · al
     "items": [
       "Loads → /loads",
       "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -300,8 +323,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -309,7 +333,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · de
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -380,8 +404,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > admin · no
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -457,7 +482,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -465,8 +491,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Truck Stops → /truck-stops",
     ],
   },
@@ -477,8 +502,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -530,7 +553,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -538,7 +562,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Truck Stops → /truck-stops",
     ],
   },
@@ -600,7 +624,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > auditor · 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -669,8 +694,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -679,7 +705,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > badges are 
     "items": [
       "Loads → /loads",
       "Messages → /messages [7]",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -751,7 +777,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -759,8 +786,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -769,8 +795,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Safety",
     "items": [
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -798,7 +822,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -806,7 +831,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -842,7 +867,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > dispatcher 
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -917,8 +943,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -926,8 +953,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -939,8 +965,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -985,8 +1009,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -994,7 +1019,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -1050,8 +1075,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > fleet_manag
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -1200,7 +1226,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -1211,8 +1238,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1246,7 +1271,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -1290,7 +1316,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > safety_mana
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Findings → /findings",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -1334,7 +1361,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1364,7 +1390,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1394,7 +1419,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > technician 
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1424,7 +1448,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Vehicles → /vehicles",
       "Trailers → /trailers",
-      "Odometer → /odometer",
     ],
   },
   {
@@ -1452,8 +1475,9 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "items": [
       "Fuel Log → /fuel-log",
       "Cards → /fuel-cards",
-      "Fuel Spend → /fuel-spend",
-      "Findings → /findings",
+      "Fuel Costs → /fuel-spend",
+      "Pilot invoices → /fuel-invoices",
+      "Fuel problems → /fuel-problems",
       "IFTA → /ifta",
     ],
   },
@@ -1461,8 +1485,7 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
     "group": "Dispatch",
     "items": [
       "Loads → /loads",
-      "Messages → /messages",
-      "Assignments → /assignments",
+      "Dispatch board → /assignments",
       "Fuel Planning → /fuel-planning",
       "Truck Stops → /truck-stops",
     ],
@@ -1474,8 +1497,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the org's S
       "Driver Performance → /driver-performance",
       "Idling → /idling",
       "Driver Qualification → /compliance",
-      "Placard calculator → /hazmat/calculator",
-      "Hazmat review → /hazmat/review",
     ],
   },
   {
@@ -1520,7 +1541,8 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "items": [
         "Fuel Log → /fuel-log",
         "Cards → /fuel-cards",
-        "Findings → /findings",
+        "Pilot invoices → /fuel-invoices",
+        "Fuel problems → /fuel-problems",
         "IFTA → /ifta",
       ],
     },
@@ -1528,8 +1550,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
       "group": "Safety",
       "items": [
         "Driver Qualification → /compliance",
-        "Placard calculator → /hazmat/calculator",
-        "Hazmat review → /hazmat/review",
       ],
     },
     {
@@ -1567,7 +1587,6 @@ exports[`buildNavGroups is unchanged by the surface catalogue (S1) > the section
         "Vehicles → /vehicles",
         "Trailers → /trailers",
         "Drivers → /drivers",
-        "Odometer → /odometer",
       ],
     },
   ],

@@ -325,6 +325,47 @@
       "description",
       "key",
       "sample_payload"
+    ],
+    "CodeKey33": [
+      "code",
+      "description",
+      "id",
+      "level",
+      "parent",
+      "url"
+    ],
+    "POPayment": [
+      "amount",
+      "created",
+      "date",
+      "id",
+      "invoices",
+      "method",
+      "notes",
+      "number",
+      "payable_to",
+      "purchase_order",
+      "updated",
+      "url"
+    ],
+    "POItem": [
+      "component",
+      "created",
+      "description",
+      "id",
+      "manufacturer",
+      "manufacturer_part_number",
+      "part",
+      "part_number",
+      "price",
+      "purchase_order",
+      "quantity",
+      "total",
+      "type",
+      "unit_of_measure",
+      "universal_product_code",
+      "updated",
+      "url"
     ]
   },
   "enums": {
@@ -434,6 +475,16 @@
       "oz",
       "pt",
       "qt"
+    ],
+    "PaymentMethodEnum": [
+      "CASH",
+      "ON_ACCOUNT",
+      "CARD",
+      "CHECK",
+      "EFS_CHECK",
+      "PERSONAL_CREDIT_CARD",
+      "PAYROLL_DEDUCTION",
+      "NATIONAL_ACCOUNT"
     ]
   },
   "listFilters": {

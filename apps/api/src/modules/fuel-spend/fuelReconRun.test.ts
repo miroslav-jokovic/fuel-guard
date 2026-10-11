@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { RECON_EXCEPTION_KINDS } from "@silvicom/shared";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { runFuelReconciliation } from "./fuelReconRun.js";
+import { statementWords } from "./statementWords.fixture.js";
 
 /**
  * The server side of a reconciliation. Its arithmetic is `reconcileFuelReport`, tested in
@@ -47,7 +48,8 @@ const seed = (fills: Record<string, unknown>[] = [fill()]) =>
     tables: {
       fuel_transactions: fills,
       vehicles: [{ id: "v1", unit_number: "701" }],
-      fuel_recon_runs: { data: { id: "run-1" } },
+      // The insert answers with the new id; a read (the re-check lookup) finds no earlier run.
+      fuel_recon_runs: (q) => (q.write ? { data: { id: "run-1" } } : []),
     },
   });
 
@@ -169,5 +171,108 @@ describe("runFuelReconciliation", () => {
     expect(args.p_kinds).toEqual(RECON_EXCEPTION_KINDS);
     expect(args.p_org).toBe(ORG);
     expect(args.p_run).toBe("run-1");
+  });
+
+  // ── the lines are kept with the run (FS3, 0406) ───────────────────────────────────────────────
+  it("keeps the run's lines beside it, so a saved check opens on what was found", async () => {
+    const rec = seed();
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", {
+      grid: grid([line(100, 500), line(40, 200, 20, "Truck Diesel", "999999"), line(9, 45, 140, "Diesel Exhaust Fluid")]),
+      pivotGrid: pivot(140),
+    });
+    expect(r.ok, r.error).toBe(true);
+    const [kept] = rec.writtenRows("fuel_recon_run_rows");
+    expect(kept).toMatchObject({ run_id: "run-1", org_id: ORG });
+    const rows = kept!.rows as Array<{ status: string }>;
+    // Every row, the clean one too: the clean rows are the evidence the rest were looked for.
+    expect(rows.map((x) => x.status).sort()).toEqual(["clean", "missing_in_system"]);
+    expect(kept!.unmatchable).toHaveLength(1);
+    expect(r.linesError).toBeNull();
+  });
+
+  it("keeps six digits of a card number, never the full number our side holds", async () => {
+    const rec = seed();
+    await runFuelReconciliation(rec.client, ORG, "user-1", {
+      grid: grid([line(100, 500, 20, "Truck Diesel", "7083050030490367971")]),
+      pivotGrid: pivot(100),
+    });
+    const rows = rec.writtenRows("fuel_recon_run_rows")[0]!.rows as Array<{
+      report: { cardRef: string } | null; system: { cardRef: string } | null;
+    }>;
+    expect(rows[0]!.system!.cardRef).toBe("367971");
+    expect(rows[0]!.report!.cardRef).toBe("367971");
+    expect(JSON.stringify(rows)).not.toContain(PAN);
+  });
+
+  it("says when the lines failed to save, rather than failing a run that is already recorded", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        fuel_transactions: [fill()],
+        vehicles: [{ id: "v1", unit_number: "701" }],
+        fuel_recon_runs: (q) => (q.write ? { data: { id: "run-1" } } : []),
+        fuel_recon_run_rows: { data: null, writeError: { message: "relation does not exist" } },
+      },
+    });
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
+    expect(r.ok).toBe(true);
+    expect(r.runId).toBe("run-1");
+    expect(r.linesError).toContain("does not exist");
+  });
+
+  // ── a re-check replaces the earlier one in the list ───────────────────────────────────────────
+  /** Live runs, answered per the filters the supersede query actually applied. */
+  const withLiveRuns = (live: Array<{ id: string; source_kind: string; invoice_no?: string; source_sha256?: string; superseded_by?: string }>) =>
+    createSupabaseRecorder({
+      tables: {
+        fuel_transactions: [fill()],
+        vehicles: [{ id: "v1", unit_number: "701" }],
+        fuel_recon_runs: (q) => {
+          if (q.write) return { data: { id: "run-new" } };
+          const f = Object.fromEntries(q.filters().map((x) => [x.col, x.val]));
+          return live.filter((run) =>
+            run.source_kind === f.source_kind &&
+            (f.invoice_no === undefined || run.invoice_no === f.invoice_no) &&
+            (f.source_sha256 === undefined || run.source_sha256 === f.source_sha256) &&
+            (!("superseded_by" in f) || (run.superseded_by ?? null) === f.superseded_by));
+        },
+      },
+    });
+  const supersedeWrites = (rec: ReturnType<typeof createSupabaseRecorder>) =>
+    rec.forTable("fuel_recon_runs").filter((q) => q.write?.method === "update");
+
+  it("replaces an earlier check of the same invoice, and only that one", async () => {
+    const rec = withLiveRuns([
+      { id: "run-old", source_kind: "weekly_statement", invoice_no: "795506105" },
+      { id: "run-other-week", source_kind: "weekly_statement", invoice_no: "797857123" },
+      // Already history: 0249's trigger freezes a superseded run, so re-pointing it would fail the
+      // whole update and leave the live one listed twice.
+      { id: "run-history", source_kind: "weekly_statement", invoice_no: "795506105", superseded_by: "run-old" },
+    ]);
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", { words: statementWords(), filename: "db139445F.pdf" });
+    expect(r.ok, r.error).toBe(true);
+    expect(r.supersededRunId).toBe("run-old");
+    const [upd] = supersedeWrites(rec);
+    expect(upd!.write!.payload).toMatchObject({ superseded_by: "run-new" });
+    expect(upd!.filters()).toContainEqual({ col: "id", val: ["run-old"] });
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("does not take an export for an earlier check just because it covers the same weeks", async () => {
+    // An export has no invoice number. Two exports over overlapping months are different evidence; only
+    // the SAME file again replaces a check.
+    const rec = withLiveRuns([{ id: "run-old-export", source_kind: "monthly_export", source_sha256: "some-other-file" }]);
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
+    expect(r.ok, r.error).toBe(true);
+    expect(r.supersededRunId).toBeUndefined();
+    expect(supersedeWrites(rec)).toHaveLength(0);
+  });
+
+  it("replaces an earlier check of the very same export file", async () => {
+    const first = seed();
+    await runFuelReconciliation(first.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
+    const sha = String(first.writtenRows("fuel_recon_runs")[0]!.source_sha256);
+    const rec = withLiveRuns([{ id: "run-old-export", source_kind: "monthly_export", source_sha256: sha }]);
+    const r = await runFuelReconciliation(rec.client, ORG, "user-1", { grid: grid([line(100, 500)]), pivotGrid: pivot(100) });
+    expect(r.supersededRunId).toBe("run-old-export");
   });
 });

@@ -44,6 +44,7 @@ import {
 } from "./service.mjs";
 import { fetchLedgerControl, fetchGlAccounts } from "./ledger.mjs";
 import { fetchBilling, mapBilling } from "./billing.mjs";
+import { fetchFuelTaxReceipts, receiptWindow } from "./fuelTaxReceipts.mjs";
 
 // ── config ──────────────────────────────────────────────────────────────────────────────────────────
 /** A path beside agent.mjs itself, so state does not follow the working directory around. */
@@ -523,7 +524,7 @@ async function runRoster() {
     if (res.unmatched.length) log(`roster: ${entity} unmatched → ${res.unmatched.slice(0, 25).join(", ")}${res.unmatched.length > 25 ? "…" : ""}`);
   }
   persistRosterState(CFG.rosterStatePath, nextState, { dryRun: CFG.dryRun });
-  if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster.counts);
+  if (!CFG.dryRun && CFG.rosterMode !== "report") await sendRosterCheckpoint(roster);
 }
 
 /**
@@ -536,13 +537,18 @@ async function runRoster() {
  * Deliberately NOT `postToFuelGuard`: that exits the process on any 4xx, which is right for a payload
  * FuelGuard refuses and wrong here — an agent upgraded before the API that serves this route would
  * otherwise die on its first 404 and stop sweeping the roster it had just swept correctly.
+ *
+ * It carries the FULL tractor and trailer lists this read saw, not only the counts (FL2, Q-FL7): the
+ * sweep above sends only changed rows, so this is the one moment FuelGuard sees McLeod's whole fleet
+ * and can check its own list against it. Nothing new is read from McLeod for it — these are the rows
+ * the reviewed queries already returned. Drivers are not sent: the parity check is about equipment.
  */
-async function sendRosterCheckpoint(counts) {
+async function sendRosterCheckpoint(roster) {
   try {
     const res = await fetch(`${CFG.ingestUrl}/api/tms/roster/checkpoint`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${CFG.ingestToken}` },
-      body: JSON.stringify({ counts }),
+      body: JSON.stringify({ counts: roster.counts, tractors: roster.vehicles, trailers: roster.trailers }),
     });
     if (!res.ok) log(`roster: checkpoint not recorded (HTTP ${res.status}) — the sweep itself succeeded`);
   } catch (e) {
@@ -739,6 +745,16 @@ async function runFinancial() {
     });
     log(`financial: ledger-totals ${periodStart} rows=${lc.totals.length} upserted=${rl.upserted ?? 0} staleRemoved=${rl.staleRemoved ?? 0}`);
   }
+
+  // Hand-keyed IFTA fuel receipts (IFTA-PRECISION-PLAN IP6): two whole years every night, not the
+  // 75-day window — the office keys a quarter's receipts after it closes, and the re-read IS the
+  // backfill of past quarters. ~70 rows a quarter, so the cost is a few hundred tiny rows.
+  const rw = receiptWindow(windowEnd.slice(0, 10));
+  const fr = await fetchFuelTaxReceipts({ ...CFG.sql, ...rw });
+  const rr = await send("/api/tms/fuel-tax-receipts", "receipts", fr.receipts,
+    { window_start: rw.windowStart, window_end: rw.windowEnd }, 2000);
+  log(`financial: fuel-tax-receipts ${rw.windowStart} → ${rw.windowEnd} ${verb}=${fr.receipts.length} received=${rr.received} upserted=${rr.upserted}` +
+    (fr.dropped ? ` dropped=${fr.dropped} (no tractor or state)` : ""));
 
   // Reconciliation stays where it always ran: the standalone CLIs print the to-the-cent GL
   // tie-outs; this sweep only persists. Fuel purchases are deliberately NOT posted — EFS is

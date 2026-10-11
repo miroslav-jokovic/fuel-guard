@@ -32,6 +32,13 @@ export interface TxnOutcomeArgs {
   recon: ReconResult;
   /** WP-ATTR — the fill's logbook attribution check, persisted for the UI/data-quality surfaces. */
   attribution: AttributionCheck;
+  /**
+   * The fill is before the org's detection start date (0439, D-CF9): no case is raised, so the fill is
+   * not flagged either. The verdict's level, score and signals are still stored: they are what the
+   * engine measured, and a flag with no case behind it is the Fuel Log dead end `anomalyFlagReconcile`
+   * exists to clear.
+   */
+  beforeReset?: boolean;
 }
 
 export interface ScoringAttempt {
@@ -173,8 +180,8 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): {
   const verdict: Record<string, unknown> = {
     miles_since_last: milesSinceLast(txn, previousTxn),
     computed_mpg: computedMpg(txn, previousTxn, intermediateGallons),
-    has_anomaly: assessment.level !== "clear",
-    max_severity: assessment.severity,
+    has_anomaly: !a.beforeReset && assessment.level !== "clear",
+    max_severity: a.beforeReset ? null : assessment.severity,
     // WP2 "why" surface: persist the outcome even when clear, so sub-threshold signals stay visible.
     case_level: assessment.level,
     case_score: assessment.score,

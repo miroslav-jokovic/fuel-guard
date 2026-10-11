@@ -60,7 +60,7 @@ describe("useOpens, resolving without an installed router", () => {
   });
 
   it("follows a redirect to the page the guard will actually be asked about", () => {
-    // `/fuel-spend/exceptions` redirects to `/findings` (fuel view); a technician holds no fuel.
+    // `/fuel-spend/exceptions` redirects to `/fuel-problems` (fuel view); a technician holds no fuel.
     session.role = "technician";
     expect(useOpens()("/fuel-spend/exceptions")).toBe(false);
     session.role = "fleet_manager";

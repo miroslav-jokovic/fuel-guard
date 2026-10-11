@@ -21,6 +21,19 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+// 0458's projection seeds share one chain: run → raw row → inspection (→ unit). Each is a CTE prefix
+// that the seed closes with its own final statement.
+const rsRaw = (org) =>
+  `with r as (insert into fmcsa_fetch_runs (org_id, dataset, dot_number, started_at, outcome, complete) ` +
+  `values ('${org}', 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id), ` +
+  `raw as (insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256) ` +
+  `select '${org}', id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r returning id),`;
+const rsInsp = (org) =>
+  `i as (insert into roadside_inspections (org_id, fmcsa_inspection_id, raw_row_id) ` +
+  `select '${org}', (random() * 1e12)::bigint, id from raw returning id)`;
+const rsUnit = (org) =>
+  `u as (insert into roadside_inspection_units (org_id, inspection_id, fmcsa_unit_id, raw_row_id, match_method) ` +
+  `select '${org}', i.id, (random() * 1e12)::bigint, raw.id, 'none' from i, raw returning id)`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
 const read = (rel) => readFileSync(join(SUPA, rel), "utf8");
@@ -103,7 +116,7 @@ async function main() {
     );
     create table storage.objects (
       id uuid primary key default gen_random_uuid(),
-      bucket_id text, name text, owner uuid, created_at timestamptz default now()
+      bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now()
     );
     alter table storage.objects enable row level security;
     -- Supabase ships storage.foldername(); our storage policies path-scope on it
@@ -2267,6 +2280,11 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      // 0435: `surface_key` and `role` are shape-checked by regex, and the generic seeder reads a
+      // CHECK's first quoted literal as a value — here that is the pattern itself.
+      surface_page_views: (org) =>
+        `insert into surface_page_views (org_id, day, surface_key, role, views) ` +
+        `values ('${org}', current_date, 'fuel.log', 'admin', 1)`,
       efs_cards: (org) =>
         `insert into efs_cards (org_id, card_last4, card_ref_hmac, card_number_sealed, status, document, card_version) ` +
         `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version')`,
@@ -2278,6 +2296,73 @@ async function main() {
       // 0255's period columns are range-checked (`period_year between 2015 and 2100`), which the
       // generic seeder's placeholder integer cannot satisfy — a real year is cheaper than loosening a
       // constraint that exists to stop a month landing in year zero.
+      // 0438: the fold columns are shape-checked (`places`/`steps` a non-empty array, `level` one of two
+      // words), and an attempt references its incident through `(incident_id, org_id)`, a composite FK
+      // the generic synthesiser cannot follow — handed a real parent, as `vehicle_positions` below.
+      card_fraud_incidents: (org) =>
+        `insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps) ` +
+        `values ('${org}', gen_random_uuid()::text, 'rls', 'rls', now(), now(), 'alert', 1, '[{}]', '[{}]')`,
+      card_fraud_incident_attempts: (org) =>
+        `with i as (insert into card_fraud_incidents (org_id, incident_key, card_key, card_ref, opened_at, last_attempt_at, level, attempt_count, places, steps) ` +
+        `values ('${org}', gen_random_uuid()::text, 'rls', 'rls', now(), now(), 'alert', 1, '[{}]', '[{}]') returning id) ` +
+        `insert into card_fraud_incident_attempts (source, source_id, org_id, incident_id, attempted_at) ` +
+        `select 'decline', gen_random_uuid(), '${org}', id, now() from i`,
+      // 0449: `document_page_classes_provenance` ties `model`, `prompt_version` and `actor` to `set_by`
+      // (a classifier names its model and no person) — a cross-column rule the column-by-column seeder
+      // cannot satisfy, since it leaves the nullable three empty. A classifier verdict on a page whose
+      // source is built inline, as 0449's composite (page_id, org_id) FK needs one of this org.
+      document_page_classes: (org) =>
+        `with s as (insert into document_sources (org_id, origin, storage_path, sha256, mime, byte_size, page_count) ` +
+        `values ('${org}', 'upload', 'rls', md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text), 'image/png', 1, 1) returning id), ` +
+        `p as (insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version) ` +
+        `select '${org}', id, 1, 'o', repeat('a', 64), 'w', 1, 1, 'n1' from s returning id) ` +
+        `insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) ` +
+        `select '${org}', id, 'bol', 'classifier', 'rls', 'rls' from p`,
+      // 0454: the same cross-column provenance rule (`document_assemblies_provenance`: Layer 1's proposal
+      // names its prepare_version and no person), and the page row needs a real page of this org through
+      // the composite (page_id, org_id) FK — so both are built inline, as above.
+      document_assemblies: (org) =>
+        `insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls')`,
+      document_assembly_pages: (org) =>
+        `with s as (insert into document_sources (org_id, origin, storage_path, sha256, mime, byte_size, page_count) ` +
+        `values ('${org}', 'upload', 'rls', md5(gen_random_uuid()::text) || md5(gen_random_uuid()::text), 'image/png', 1, 1) returning id), ` +
+        `p as (insert into document_pages (org_id, source_id, page_number, original_path, original_sha256, working_path, width, height, normaliser_version) ` +
+        `select '${org}', id, 1, 'o', repeat('a', 64), 'w', 1, 1, 'n1' from s returning id), ` +
+        `a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id) ` +
+        `insert into document_assembly_pages (assembly_id, org_id, position, page_id) ` +
+        `select a.id, '${org}', 1, p.id from a, p`,
+      // 0455: a read names exactly one of a source or an assembly (`document_reads_names_one`), and the
+      // generic seeder fills NOT NULL columns only — since 0455 neither — so a read of an inline assembly
+      // is built here, and a review hangs off one.
+      document_reads: (org) =>
+        `with a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id) ` +
+        `insert into document_reads (org_id, assembly_id, profile, profile_version) select '${org}', id, 'shipping_document', 'rls' from a`,
+      document_read_reviews: (org) =>
+        `with u as (insert into auth.users (id) values (gen_random_uuid()) returning id), ` +
+        `a as (insert into document_assemblies (org_id, made_by, prepare_version) values ('${org}', 'prepare', 'rls') returning id), ` +
+        `r as (insert into document_reads (org_id, assembly_id, profile, profile_version) select '${org}', id, 'shipping_document', 'rls' from a returning id) ` +
+        `insert into document_read_reviews (org_id, read_id, field_path, action, actor, consumer) ` +
+        `select '${org}', r.id, 'identity.bolNumber', 'confirmed', u.id, 'hazmat_calculator' from r, u`,
+      // 0457: a present version carries its payload and hash (`fmcsa_raw_rows_payload_iff_present`) and
+      // names its run through the composite `(fetch_run_id, org_id)` FK — a cross-column rule plus a
+      // composite parent, neither of which the generic synthesiser can build, so the run is made inline.
+      fmcsa_raw_rows: (org) =>
+        `with r as (insert into fmcsa_fetch_runs (org_id, dataset, dot_number, started_at, outcome, complete) ` +
+        `values ('${org}', 'fx4q-ay7w', '1', now(), 'succeeded', true) returning id) ` +
+        `insert into fmcsa_raw_rows (org_id, fetch_run_id, dataset, natural_key, version, kind, payload, sha256) ` +
+        `select '${org}', id, 'fx4q-ay7w', gen_random_uuid()::text, 1, 'present', '{}'::jsonb, repeat('a', 64) from r`,
+      // 0458: every projection row names the raw version it came from (`raw_row_id` → fmcsa_raw_rows, whose
+      // payload/kind rule the generic synthesiser cannot satisfy), and the three children name their
+      // inspection, unit or violation through composite (id, org_id) FKs. So the chain is built inline:
+      // a run, a raw row, then the parents each child needs.
+      roadside_inspections: (org) => `${rsRaw(org)} ${rsInsp(org)} select 1`,
+      roadside_inspection_units: (org) => `${rsRaw(org)} ${rsInsp(org)}, ${rsUnit(org)} select 1`,
+      roadside_violations: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, vi as (insert into roadside_violations (org_id, inspection_id, fmcsa_violation_id, raw_row_id) ` +
+        `select '${org}', i.id, 1, raw.id from i, raw returning id) select 1`,
+      roadside_citations: (org) =>
+        `${rsRaw(org)} ${rsInsp(org)}, ci as (insert into roadside_citations (org_id, inspection_id, natural_key, raw_row_id) ` +
+        `select '${org}', i.id, 'rls', raw.id from i, raw returning id) select 1`,
       samsara_ifta_fetches: (org) =>
         `insert into samsara_ifta_fetches (org_id, period_year, period_month) values ('${org}', 2026, 4)`,
       // 0341: `(vehicle_id, org_id) references vehicles (id, org_id)` — a COMPOSITE FK, which the
@@ -2299,6 +2384,27 @@ async function main() {
         `values ('${org}', 'TMS', 'rls-mv') returning org_id, company_id, movement_id) ` +
         `insert into mcleod_dispatch_stops (org_id, company_id, stop_id, movement_id) ` +
         `select org_id, company_id, 'rls-st', movement_id from m`,
+      // 0406: a run's lines must point at a run of the SAME org — a composite foreign key a
+      // placeholder uuid cannot satisfy — so the seed records a real run first.
+      fuel_recon_run_rows: (org) =>
+        `with r as (insert into fuel_recon_runs (org_id, source_kind, period_start, period_end, tol_gallons, ` +
+        `tol_amount_abs, tol_amount_pct, max_day_drift, matcher_version, summary) ` +
+        `values ('${org}', 'weekly_statement', '2026-08-17', '2026-08-23', 1, 1, 0.01, 1, 'rls', '{}'::jsonb) returning id, org_id) ` +
+        `insert into fuel_recon_run_rows (run_id, org_id, rows) select id, org_id, '[]'::jsonb from r`,
+      // 0404: an hour row's buckets must add up to the whole hour and its start must sit ON the hour,
+      // and a stop's parts must add up to its duration — CHECKs a classifier bug should trip, which a
+      // placeholder timestamp and placeholder integers cannot satisfy. A real (all engine-off) hour
+      // and a real ten-minute stop instead of loosening them.
+      idle_engine_hours: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ieh', 150) returning id) ` +
+        `insert into idle_engine_hours (org_id, vehicle_id, hour_start, driving_sec, stopped_running_sec, brief_stop_sec, ` +
+        `engine_off_sec, no_data_sec, engine_starts, classifier_version) ` +
+        `select '${org}', id, '2026-10-02T04:00:00Z', 0, 0, 0, 3600, 0, 0, 'rls' from v`,
+      idle_engine_stops: (org) =>
+        `with v as (insert into vehicles (org_id, unit_number, tank_capacity_gal) values ('${org}', 'rls-ies', 150) returning id) ` +
+        `insert into idle_engine_stops (org_id, vehicle_id, started_at, start_observed, duration_sec, running_sec, off_sec, ` +
+        `no_data_sec, engine_starts, longest_run_sec, classifier_version) ` +
+        `select '${org}', id, '2026-10-02T04:10:00Z', true, 600, 600, 0, 0, 0, 600, 'rls' from v`,
       // 0370: a dispatch's outcome is constrained across columns — an SMS may read `sent` only with a
       // recipient and the provider's receipt, anything else only with a reason — and its guard insists
       // the load and the driver are the row's own org. The synthesiser fills every column and invents

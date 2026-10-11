@@ -57,9 +57,11 @@ const PROBES = [
   // segments must keep beating the param, or the inquiry queue starts rendering an applicant record
   // for a driver whose id is the word "inquiries".
   "/recruitment", "/recruitment/screening", "/recruitment/inquiries", "/recruitment/templates", "/recruitment/ap_1",
-  // C7b renamed the ledger to /findings and left the old address as a redirect, so both are probed
+  // C7b renamed the ledger to /findings and 8c4 to /fuel-problems, each leaving the old address as a redirect, so all are probed
   // for the same reason /cpm's predecessors are below: a link somebody sent last week must still open.
-  "/driver-performance", "/fuel-log", "/fuel-spend", "/findings", "/fuel-spend/exceptions", "/ifta",
+  "/driver-performance", "/fuel-log", "/fuel-spend", "/fuel-problems", "/findings", "/fuel-spend/exceptions", "/ifta", "/ifta/TX",
+  // FS3 (D-FSV8): Pilot invoices and one saved check, the check probed with a placeholder id.
+  "/fuel-invoices", "/fuel-invoices/run_1", "/fuel-buy-discipline",
   // G7 deleted /accounting, /cost-schedule and /books-check and renamed /cpm; the old address
   // stays as a redirect, so it is probed here too.
   "/fleet-report", "/cpm", "/billing", "/shop",
@@ -91,7 +93,7 @@ const PROBES = [
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data", "/settings/recruiting",
-  "/settings/efs-soap", "/settings/org", "/settings/notifications", "/settings/audit",
+  "/settings/efs-soap", "/settings/fleetpal", "/settings/mcleod-fleets", "/settings/org", "/settings/notifications", "/settings/audit",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated
   // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
   "/privacy", "/terms", "/support", "/sms-terms",

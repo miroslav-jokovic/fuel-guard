@@ -10,6 +10,7 @@ import { createSupabaseRecorder } from "../../../testing/supabaseRecorder.js";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { INVENTORY_REQUEST_BUDGET } from "./inventory.js";
+import { seal, secretAad } from "../../../lib/secretBox.js";
 
 /**
  * The account inventory as a ROUTE (execution plan Step 7.2).
@@ -56,7 +57,7 @@ const soap = (body: string): string =>
 
 const CREDENTIALS = {
   org_id: ORG, environment: "sandbox", endpoint_url: ENDPOINT,
-  soap_username: "user", soap_password: "pass", soap_password_sealed: null, account_id: null,
+  soap_username: "user", soap_password: "", soap_password_sealed: seal(env, "pass", secretAad(ORG, "efs_soap_password.v1")), account_id: null,
   posted_last_cursor: null, rejected_last_cursor: null,
   posted_last_polled_at: null, rejected_last_polled_at: null,
   posted_last_success_at: null, rejected_last_success_at: null,

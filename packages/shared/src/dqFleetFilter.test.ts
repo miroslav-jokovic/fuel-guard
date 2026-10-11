@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILT_IN_VIEWS,
+  SAVED_VIEW_TABLES,
   builtInViewsFor,
   DQ_DUE_FILTERS,
   DQ_STATE_FILTERS,
@@ -150,6 +151,6 @@ describe("BUILT_IN_VIEWS", () => {
   });
 
   it("declares a table that saved views also accept", () => {
-    expect(Object.keys(BUILT_IN_VIEWS)).toEqual(["roster.drivers"]);
+    expect(Object.keys(BUILT_IN_VIEWS)).toEqual([...SAVED_VIEW_TABLES]);
   });
 });

@@ -1,45 +1,65 @@
 # Migration Discipline (runbook)
 
-Goal: `supabase/migrations/` is the **single source of truth** for the database, applied only through
-the CI pipeline (`.github/workflows/migrate.yml`, which runs `supabase db push` on merges to `main`
-that touch `supabase/migrations/**`). The hand-written `supabase/_deploy/*.sql` files are a legacy
-manual path that has drifted from reality at least once and should be retired.
+Goal: `supabase/migrations/` is the **single source of truth** for the database, applied only by CI:
 
-These steps need the **Supabase CLI + DB access**, so they run on your machine, not in this session.
+| Database | Applied by | When |
+|---|---|---|
+| **Staging** (`Silvicom 360 Staging`, Railway `uat`) | `migrate.yml` job `migrate-staging` | every merge to `main` that touches `supabase/migrations/**`, once CI is green |
+| **Production** | `release.yml` | the nightly release (01:07 CT, Sunday–Thursday nights), for the commit the owner approved on the `main → production` release PR — **before** that commit's code deploys. Also its `hotfix` mode. |
 
-## 1. Confirm production matches migrations/ (no drift)
+Since the release train went live (2026-10-04, `docs/plans/ship-pipeline/RELEASE-TRAIN-PLAN.md`)
+**a merged migration is a STAGING migration**; it reaches production in the next approved release,
+and not at all if nobody approves one. `migrate.yml`'s production job skips pushes while the
+repository variable `RELEASE_TRAIN` is `on`; dispatching it is for incident recovery only.
+
+## Drift: production must equal what the migrations build
+
+Staging is built from the migrations and nothing else, so **its schema is the migrations' schema**.
+`schema-drift.yml` (06:37 CT daily, and on any PR touching it) runs `scripts/schema-drift.mjs`,
+which fingerprints both databases — columns, constraints, indexes, function signatures/bodies/grants,
+policies, table grants, triggers — and fails on any difference. By hand:
+
 ```bash
-supabase link --project-ref <YOUR_PROJECT_REF>   # once
-supabase db diff --linked --schema public        # shows anything in the DB not represented by migrations/
+SUPABASE_ACCESS_TOKEN=… node scripts/schema-drift.mjs <production-ref> <staging-ref>
 ```
-- Empty diff → you're clean; skip to step 3.
-- Non-empty diff → the live DB has objects (columns/indexes/policies) that no numbered migration creates.
-  This is the drift the `_deploy/reconcile_schema.sql` file was papering over.
 
-## 2. Capture drift as a real migration
-For anything the diff reports (cross-check against `supabase/_deploy/reconcile_schema.sql` and the
-`apply_00xx.sql` files), add it as the next numbered migration so the numbered set is complete:
-```bash
-# create supabase/migrations/00NN_reconcile_drift.sql with the missing DDL (idempotent: IF NOT EXISTS)
-supabase db diff --linked --schema public --file 00NN_reconcile_drift   # can generate it for you
-```
-Re-run `supabase db diff` until it is empty. Now `migrations/` fully describes the DB.
+When it fails, the fix is the **next numbered migration** that makes both sides agree, written to be
+idempotent on both — never SQL by hand on either database. 0422 and 0423 are the pattern: they
+reconciled 66 items left by migrations edited after production had applied them (2026-10-04). Two
+lessons from them:
 
-## 3. Retire the manual path
-- Move `supabase/_deploy/` into `_to_delete/` (or delete on your machine) — nothing should apply SQL by hand anymore.
-- Update `apps/api/src/services/schemaCheck.ts`: the warning currently tells operators to
-  "Apply supabase/_deploy/reconcile_schema.sql". Change it to "a migration is unapplied — the migrate
-  workflow will apply it on the next deploy" (no manual step).
-
-## 4. Guardrail (optional, once clean)
-Add a CI check that fails if `supabase db diff` is non-empty on a PR, so drift can never reappear.
-(Requires the Supabase CLI + a read-only DB connection secret in CI.)
+- **Compare constraints, not just indexes.** `pg_indexes` renders a UNIQUE constraint and a bare
+  unique index identically; 0422's first production push failed on exactly that (2BP01).
+- **Test the reconciling migration against the OTHER side's shape.** Every PGlite matrix builds from
+  migrations, so all of them passed a file production then refused.
+  `supabase/tests/schema-drift-production-shape.test.mjs` builds production's shape and applies
+  every migration from 0422 on to it.
 
 ## Invariant going forward
 Change the schema **only** by adding a numbered file to `supabase/migrations/`. Never edit an applied
-migration; never hand-apply SQL. The pipeline is the only door.
+migration; never hand-apply SQL. The pipeline is the only door. (0422 was edited once after staging
+applied it, by the owner's ruling, because production could never apply it otherwise and every later
+migration was stuck behind it — the edit was a no-op wherever 0422 had already run. That is the bar.)
 
 ## The deploy window — a merge is served ~9 minutes before its migration is applied
+
+### 2026-10-04: the release train changes which window you are in
+
+Everything measured below is the **merge** window, and it is still the window on **staging**: Railway
+`uat` deploys on push, `migrate-staging` waits for CI, so either can land first. On **production** the
+release train orders the two by construction — `release.yml` applies migrations, and only then moves
+the `production` branch Railway deploys from. So in production:
+
+- **New schema serves OLD code** for the deploy minutes, never the reverse. An added column is
+  harmless; a dropped or renamed column that the old code still reads is the hazard.
+- A column and its first reader in the **same release** are safe on production — but they are not
+  safe on staging, where the merges are served one at a time. The two-merge rule below therefore
+  stays, and `lint:migration-ordering` with it (D-REL9; revisit after a month of the train).
+- **Drop a column one release after its last reader is gone**, never in the release that removes the
+  reader: that release's old code runs against the new schema while it deploys.
+- The open question at the end of this section — ordering the deploy behind the migration — is
+  answered for production by the release train, and left open for staging on purpose: staging is
+  where a window bug is meant to surface first.
 
 Two pipelines start from the same merge and finish at different times:
 
@@ -114,8 +134,9 @@ whole query for one unknown column, so the page returned 500 for everyone until 
 So a column and its first reader ship in **two merges**:
 
 1. **Merge the migration alone.** No code names the new column.
-2. Wait for `curl <API_URL>/api/version` to report `"schema":{"state":"current"}` — or for the
-   "Apply Supabase migrations" run to go green, which is the same fact.
+2. Wait for staging — `curl https://fleetguardapi-uat.up.railway.app/api/version` — to report
+   `"schema":{"state":"current"}`, or for the "Apply Supabase migrations" run's `migrate-staging` job
+   to go green, which is the same fact. (Production follows at the next release, migration first.)
 3. **Merge the code** that reads it.
 
 `pnpm lint:migration-ordering` enforces this on every pull request

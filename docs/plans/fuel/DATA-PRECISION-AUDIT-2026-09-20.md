@@ -1052,6 +1052,34 @@ is a one-line question for the owner.
 **Q10 is unaffected and still the right blocker.** Whatever the books say, the product should not
 publish a month that came back with one module of fourteen.
 
+
+**2026-10-10 — Q10 RULED: option (a), and built — with one measured deviation from its text.** The
+owner ruled "proceed as recommended" on the finance-lag handoff of 2026-10-10, which recommended (a).
+The month it was asked about had come round again: the 10-09 sweep ran nine days after September
+ended and found eight `RJ` lines and nothing else, so September passed `assessLedgerMonths` and
+`/fleet-report` opened on a month with almost no revenue.
+
+  · **(a) read literally does not survive the production ledger.** "The revenue-bearing posting
+    modules the preceding complete months carried", as the intersection of every earlier month's
+    modules, refuses January 2026: December carried a $100.00 `DED` line on a revenue account and
+    January did not. Over all modules it refuses March too (no `DEDV`, `MISC` or `SETV` that month).
+    Measured on `mcleod_gl_totals` × `mcleod_gl_accounts`, 2025-12 to 2026-10.
+  · **What was built instead keeps (a)'s three properties** — derived from the ledger, no constant,
+    follows the carrier if it changes modules. A month swept after it ended is also refused until it
+    carries the module that EARNED the most and the module that SPENT the most in the last complete
+    month before it. Production: BILL every month; SET every month but December 2025 (GJ). September
+    and October 2026 hold neither and are withheld as `unposted`, naming the missing modules. Because
+    it judges expense as well as revenue, it also answers the objection this section raised against
+    (b) — a month that lost its expenses would otherwise print a margin far too good.
+  · **The read reaches back over the whole staged history**, not just the report's window, so January
+    is judged against December. That is a few hundred rows a month.
+  · The reason sentence and the page's opening note now come from one shared clause
+    (`ledgerMonthWhy`), so the statement, the overview, the chart and the page word a month one way.
+
+Code: `packages/shared/src/tmsCost/ledgerMonths.ts`; readers `apps/api/src/modules/financial/
+ledgerPeriod.ts` and `fleetTrend.ts`. This is a rule about which months may be reported. It does
+not make September reportable: that is the preliminary month in
+`docs/plans/financial/FINANCE-FLEET-REPORT-PLAN.md` (D-FLEET11), or McLeod's posting.
 ---
 
 ## 7. Queue item 5 — survey before the build (2026-09-21)

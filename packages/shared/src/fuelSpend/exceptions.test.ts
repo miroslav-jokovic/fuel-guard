@@ -3,8 +3,9 @@ import {
   contractFindings, fuelExceptionFingerprint, reconFindings,
   FUEL_EXCEPTION_KIND_LABELS, FUEL_EXCEPTION_KINDS,
   FUEL_EXCEPTION_STATUS_LABELS, FUEL_EXCEPTION_STATUSES,
+  CONTRACT_EXCEPTION_KINDS, MIN_CONTRACT_OVERBILL_USD, RECON_EXCEPTION_KINDS,
 } from "./exceptions.js";
-import { reconcileFuelReport, type SystemFill } from "../reconcile/fuelMatch.js";
+import { reconcileFuelReport, RECON_STATUS_LABELS, type SystemFill } from "../reconcile/fuelMatch.js";
 import { analyzeContractCapture } from "./contractCapture.js";
 import type { PilotReportFill } from "../reconcile/pilotFuelReport.js";
 import type { SpendLine } from "./types.js";
@@ -36,6 +37,20 @@ describe("the vocabulary", () => {
       expect(FUEL_EXCEPTION_STATUS_LABELS[s], `no label for ${s}`).toBeTruthy();
       expect(FUEL_EXCEPTION_STATUS_LABELS[s]).not.toContain("_");
     }
+  });
+
+  it("names a reconciliation finding in the words its invoice-check line wears (Q-FSV13)", () => {
+    // One fact, one sentence: the Findings inbox and Pilot invoices used to word these four differently.
+    expect(FUEL_EXCEPTION_KIND_LABELS.recon_missing_in_system).toBe(RECON_STATUS_LABELS.missing_in_system);
+    expect(FUEL_EXCEPTION_KIND_LABELS.recon_missing_on_report).toBe(RECON_STATUS_LABELS.missing_on_report);
+    expect(FUEL_EXCEPTION_KIND_LABELS.recon_amount).toBe(RECON_STATUS_LABELS.amount_mismatch);
+    expect(FUEL_EXCEPTION_KIND_LABELS.recon_gallons).toBe(RECON_STATUS_LABELS.gallon_mismatch);
+    expect(FUEL_EXCEPTION_KIND_LABELS.recon_missing_in_system).toBe("On Pilot's bill, not in our records");
+  });
+
+  it("uses §5's words for the contract and network kinds", () => {
+    expect(FUEL_EXCEPTION_KIND_LABELS.contract_variance).toBe("Paid above Pilot's quote");
+    expect(FUEL_EXCEPTION_KIND_LABELS.off_network_premium).toBe("Out of network");
   });
 });
 
@@ -158,6 +173,32 @@ describe("contractFindings", () => {
     // `ContractCapture` already reports the under figure beside the over one.
     const f = contractFindings(analyzeContractCapture([line({ netAmount: 480 })]));
     expect(f).toHaveLength(0);
+  });
+
+  it("leaves out a fill billed less than the floor above its quote, and keeps one at it", () => {
+    const capture = analyzeContractCapture([
+      line({ unit: "701", netAmount: 503 }), // $3 over
+      line({ unit: "702", netAmount: 505 }), // exactly $5 over: at the floor, filed
+      line({ unit: "703", netAmount: 520 }), // $20 over
+    ]);
+    expect(contractFindings(capture, MIN_CONTRACT_OVERBILL_USD).map((f) => f.unit).sort()).toEqual(["702", "703"]);
+    // The default keeps the function's own contract: every overbilled fill.
+    expect(contractFindings(capture)).toHaveLength(3);
+  });
+
+  it("files only against the fill's own day's quote — a day-old price list is the overnight move, not a charge", () => {
+    const capture = analyzeContractCapture([
+      line({ unit: "701", netAmount: 520, quoteStaleDays: 0 }), // $20 over today's quote: filed
+      line({ unit: "702", netAmount: 520, quoteStaleDays: 1 }), // $20 over yesterday's: not measurable
+      line({ unit: "703", netAmount: 520, quoteStaleDays: 3 }),
+    ]);
+    expect(contractFindings(capture, MIN_CONTRACT_OVERBILL_USD).map((f) => f.unit)).toEqual(["701"]);
+    expect(contractFindings(capture).map((f) => f.unit)).toEqual(["701"]);
+  });
+
+  it("owns a close scope of its own that no sibling producer shares", () => {
+    expect(CONTRACT_EXCEPTION_KINDS).toEqual(["contract_variance"]);
+    for (const k of RECON_EXCEPTION_KINDS) expect(CONTRACT_EXCEPTION_KINDS).not.toContain(k);
   });
 
   it("is stable across re-runs", () => {
