@@ -8,7 +8,6 @@ import { resolveIdleCostBasis } from "../idleCostBasis.js";
 import { readIdleEquipment } from "../idleEquipment.js";
 import { readIdleEngineAvoidable } from "../idleEngineAvoidable.js";
 import { readIdleBurnRates } from "../idleBurnRates.js";
-import { readIdleEngineParity } from "../idleEngineParity.js";
 
 /** A year, like the fuel report: each park row is small, but the bound keeps a URL from asking for all time. */
 const MAX_AVOIDABLE_DAYS = 366;
@@ -93,16 +92,11 @@ export function idleRouter(): Router {
     }),
   );
 
-  // IE5, D-IE9: does the idle engine agree with the trucks' own computers on enough final truck-days to
-  // replace today's idle figures? Read-only; the switch itself is a later merge (§4 Q-IE16).
-  router.get(
-    "/engine/parity",
-    requireSection("safety", "view"),
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      res.json({ ok: true, data: await readIdleEngineParity(admin, req.auth!.orgId!) });
-    }),
-  );
+  // IE5's `/engine/parity` (the D-IE9 gate) is no longer served here (Q-FSV17 step 3, owner's ruling (i)
+  // 2026-10-03): the gate is a release control, not a carrier's figure, so it is read on the platform
+  // console (`apps/admin-api`, `/admin/orgs/:id/idle-engine`) and by the nightly check straight from the
+  // database, both through `@silvicom/shared`'s `idleParityReport`. The burn rates above stay: the carrier's
+  // "use measured rates" switch sits beside them (§4 Q-IE14).
 
   return router;
 }
