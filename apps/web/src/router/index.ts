@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 import { routeOpens } from "@/lib/routeOpens";
+import { recordPageView } from "@/lib/pageViews";
+import { DEV_BYPASS } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -111,4 +113,17 @@ router.beforeEach(async (to) => {
    */
   if (!routeOpens(to.matched[0]?.path ?? to.path, to.meta, session)) return { name: "dashboard" };
   return true;
+});
+
+/**
+ * The page-view count (X1, 0435): one view of the screen the guard let the caller onto. After the
+ * guard, so a redirect counts where the person landed, not where they tried to go. Declared path,
+ * for the same reason the guard uses it — the catalogue is keyed on `/drivers/:id`, not on an id.
+ * Not in a dev-bypass build, whose fake session has no token for the API to accept.
+ */
+router.afterEach((to, _from, failure) => {
+  if (failure || DEV_BYPASS) return;
+  const session = useSessionStore();
+  if (!session.isAuthenticated || !session.hasOrg || session.role === "driver") return;
+  recordPageView(to.matched[0]?.path ?? to.path);
 });

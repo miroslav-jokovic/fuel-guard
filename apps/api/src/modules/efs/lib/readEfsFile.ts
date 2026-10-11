@@ -1,4 +1,4 @@
-import { detectReportKind, type RawRow } from "@silvicom/shared";
+import { detectReportKind, tokenizeCsv, type RawRow } from "@silvicom/shared";
 
 /**
  * Server-side EFS report reader: turns delivered file bytes into the same `{ headers, rows }` shape the
@@ -33,67 +33,10 @@ export async function readEfsBuffer(filename: string, buf: Buffer): Promise<Pars
 
 // ── CSV ───────────────────────────────────────────────────────────────────────────────────────────
 
-/**
- * RFC-4180 tokenizer: fields may be quoted; quoted fields may contain commas, CRLF/newlines, and
- * escaped quotes (""). A naive line/comma split miscounts columns and silently drops data — the same
- * failure the web reader's comments call out. Handles LF, CRLF and lone-CR line endings.
- */
-export function tokenizeCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let field = "";
-  let row: string[] = [];
-  let inQuotes = false;
-  let sawAny = false; // did the current row have any content (so a trailing newline doesn't add [""])
-
-  const endField = () => {
-    row.push(field);
-    field = "";
-    sawAny = true;
-  };
-  const endRow = () => {
-    row.push(field);
-    field = "";
-    rows.push(row);
-    row = [];
-    sawAny = false;
-  };
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += c;
-      }
-      continue;
-    }
-    if (c === '"') {
-      inQuotes = true;
-    } else if (c === ",") {
-      endField();
-    } else if (c === "\n") {
-      endRow();
-    } else if (c === "\r") {
-      if (text[i + 1] === "\n") continue; // CRLF — let the \n end the row
-      endRow(); // lone CR
-    } else {
-      field += c;
-      sawAny = true;
-    }
-  }
-  // Flush a final unterminated row (no trailing newline).
-  if (sawAny || field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows;
-}
+// The RFC-4180 tokenizer moved to `@silvicom/shared` (`csv.ts`) when the IFTA receipt upload (IP8)
+// needed the same grid from a driver-paid fuel file; re-exported so this module's callers and tests
+// are unchanged.
+export { tokenizeCsv };
 
 /**
  * Parse an EFS CSV export into header + row objects. Mirrors the web reader: strip a UTF-8 BOM, drop

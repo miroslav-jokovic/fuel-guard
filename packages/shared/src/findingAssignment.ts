@@ -2,6 +2,7 @@ import { type AppSection, rolesThatManage } from "./auth.js";
 import type { UserRole } from "./constants.js";
 import { CASE_RULE_ID } from "./anomalyRules/cases.js";
 import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKind } from "./fuelSpend/exceptions.js";
+import { BUYING_HABIT_KINDS } from "./fuelSpend/buyingHabits.js";
 
 /**
  * Who may close a finding, and who may be assigned one (Q-FUI4 and Q-FUI15, both ruled 2026-09-06).
@@ -21,9 +22,10 @@ import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKin
  * ── WHAT THIS IS NOT ─────────────────────────────────────────────────────────────────────────
  * It is not C7a. C7a maps the QUEUE AXIS and the two close models onto one read contract; this maps
  * kind → section, which is one fact C7a will consume and which two rulings needed first. And it is
- * not a lifecycle: no default assignee is invented here, because the ruling was **unassigned by
- * default** — a finding is claimed, and aging is what makes an unclaimed one visible rather than a
- * name written on it at creation that nobody agreed to.
+ * not a lifecycle: no default assignee is invented here. Q-FUI15 ruled **unassigned by default**; Q-F1
+ * (2026-10-06) replaced that for the fuel queue with a named owner, and the default lives in the
+ * database (migration 0442: the org's fuel queue owner, assigned by trigger on insert), not here. Whoever
+ * sets that owner must check `rolesAssignableIn` for every section below, as `findingsAssign.ts` does.
  *
  * ⚠ TODAY THIS CHANGES NO GATE. `fuel_exceptions` can only hold the eight kinds below, every one of
  * them `fuel`, so `requireSection("fuel")` on the ledger's writes is already exactly what this
@@ -31,9 +33,27 @@ import { FUEL_EXCEPTION_KINDS, FUEL_EXCEPTION_KIND_LABELS, type FuelExceptionKin
  * the point of settling it now, while it is a map and not a migration.
  */
 
-/** Every kind the merged inbox will hold: the ledger's eight, plus the anomaly feed's one case type. */
-export const FINDING_KINDS = [...FUEL_EXCEPTION_KINDS, CASE_RULE_ID] as const;
-export type FindingKind = FuelExceptionKind | typeof CASE_RULE_ID;
+/**
+ * A card-fraud incident as a finding (CF2, D-CF1: a card used where its truck is not). One kind, as the
+ * anomaly feed has one: the incident table holds nothing else.
+ */
+export const CARD_FRAUD_KIND = "card_fraud";
+
+/** Every kind the merged inbox holds: the ledger's eight, the anomaly feed's one, the incidents' one. */
+export const FINDING_KINDS = [...FUEL_EXCEPTION_KINDS, CASE_RULE_ID, CARD_FRAUD_KIND] as const;
+export type FindingKind = FuelExceptionKind | typeof CASE_RULE_ID | typeof CARD_FRAUD_KIND;
+
+/**
+ * The money kinds the fuel queue holds: every ledger kind except the buying habits (F02-F04 chunk 9b,
+ * Q-F2 ruled 2026-10-06). A habit is a premium nobody can dispute, so it is a report on Fuel Costs
+ * (`BUYING_HABIT_KINDS`, 9a) and not a task. Derived, so a new ledger kind joins the queue unless it is a
+ * habit — and a new habit leaves it the day the producer files it.
+ */
+export const QUEUE_EXCEPTION_KINDS: readonly FuelExceptionKind[] = FUEL_EXCEPTION_KINDS.filter(
+  (k) => !(BUYING_HABIT_KINDS as readonly string[]).includes(k),
+);
+/** Every kind Fuel problems lists: the queue's money kinds, the fill case, the card-fraud incident. */
+export const QUEUE_FINDING_KINDS: readonly FindingKind[] = [...QUEUE_EXCEPTION_KINDS, CASE_RULE_ID, CARD_FRAUD_KIND];
 
 /**
  * The section a finding belongs to — TOTAL over `FindingKind`, so a new kind cannot be added without
@@ -53,6 +73,10 @@ export const FINDING_SECTIONS: Record<FindingKind, AppSection> = {
   // A theft case is an accusation about a person, not a variance about money. It is worked by the
   // safety manager on `/anomalies` today and stays theirs when the surfaces merge (Q-FUI1).
   [CASE_RULE_ID]: "safety",
+  // Q-F11 (a), ruled 2026-10-08: fuel. What a person does about a card used where its truck is not is
+  // hold or replace the card in WEX, which is the fuel manager's job; a safety manager without fuel
+  // cannot act on it. Recorded in F02-F04 PLAN.md, chunk 8c.
+  [CARD_FRAUD_KIND]: "fuel",
 };
 
 export const sectionOfFinding = (kind: FindingKind): AppSection => FINDING_SECTIONS[kind];
@@ -70,6 +94,7 @@ export const sectionOfFinding = (kind: FindingKind): AppSection => FINDING_SECTI
 export const FINDING_KIND_LABELS: Record<FindingKind, string> = {
   ...FUEL_EXCEPTION_KIND_LABELS,
   [CASE_RULE_ID]: "Possible theft",
+  [CARD_FRAUD_KIND]: "Card used away from its truck",
 };
 
 /**

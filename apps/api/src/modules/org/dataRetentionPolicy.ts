@@ -11,7 +11,8 @@
  * `lifecycle.retention_days` in scripts/table-modules.json agree in both directions (D-LIFE2). If
  * this file is ever renamed or the rules move again, that gate's RETENTION_TS constant moves with
  * them or it silently starts reading an empty rule set — the exact class of failure the gate exists
- * to catch, one level up.
+ * to catch, one level up. The never-touch list moved to `dataRetentionForbidden.ts` on 2026-10-10
+ * (re-exported below); the gate's FORBIDDEN_TS reads it there.
  *
  * Principles (unchanged by the split):
  *  - Only DERIVED or REPRODUCIBLE data is pruned. Business records and the audit ledger are never
@@ -283,7 +284,30 @@ export const RETENTION_RULES: RetentionRule[] = [
     orgScoped: true,
     why: "AW14 (APPLICATION-FLOW-V2-PLAN §6.8): screen visits on the applicant's link, names and times only, read by the completion-time query; 180 days as 0376's table comment promised",
   },
+  {
+    // DATA-LIFECYCLE-PLAN Q11 (ruled (b), 2026-10-05). Prunable ONLY because 0432 moved the dedupe
+    // keys to `notification_dedupe_keys` (pinned in RETENTION_FORBIDDEN) — this rule ships in the
+    // same merge as the schedulers' move to that ledger, so a revert takes both. 90 days against the
+    // readers: the bell shows the newest 100, the push sweep reads minutes-old rows, and the routing
+    // plan's counts read 30 days. Reads cascade with their event. Measurements: the plan's Q11.
+    table: "notification_events",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    why: "Q11 (DATA-LIFECYCLE-PLAN): the bell's inbox — newest 100 shown, unpushed rows minutes old; dedupe keys live in notification_dedupe_keys since 0432, so a pruned event re-sends nothing",
+  },
+  {
+    // 0453 (DISPATCH-BOARD-PLAN DB7). A measurement instrument, not a record: the board's hourly ETA
+    // per truck, read only by DB7's comparison against arrivals over a fortnight. 60 days holds two
+    // such fortnights and a re-run after a basis change; the stop and its arrival stay in `load_stops`.
+    table: "load_stop_eta_predictions",
+    timeColumn: "predicted_at",
+    keepDays: 60,
+    strategy: "id",
+    orgScoped: true,
+    why: "DB7 (DISPATCH-BOARD-PLAN): the dispatch board's recorded ETAs, scored against arrivals over two weeks; the stop and its actual arrival live on in load_stops",
+  },
 ];
 
-// Split out on 2026-10-05 (file budget); re-exported so every importer is unchanged.
 export { RETENTION_FORBIDDEN } from "./dataRetentionForbidden.js";

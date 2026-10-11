@@ -190,5 +190,8 @@ function toLoadContext(
     source: load.source,
     externalStatus: load.externalStatus,
     nextStop: load.nextStop,
+    pickup: load.pickup,
+    delivery: load.delivery,
+    extraStops: load.extraStops,
   };
 }

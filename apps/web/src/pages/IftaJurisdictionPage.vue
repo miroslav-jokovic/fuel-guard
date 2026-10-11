@@ -162,15 +162,33 @@ const fillCols: DataTableColumn[] = [
   { key: "price", label: "Price / gal", numeric: true, width: "sm" },
   { key: "total", label: "Total", numeric: true, width: "sm" },
 ];
+/**
+ * A receipt is a row of its own kind. One keyed in McLeod (IP6) has a date, a state and gallons —
+ * McLeod holds no station, price or time for it, so those cells stay empty rather than invented. A
+ * driver-paid fill the office uploaded (IP8) shows whatever its file carried.
+ */
+const RECEIPT_LABEL = { mcleod_receipt: "Receipt keyed in McLeod", uploaded_receipt: "Driver-paid, uploaded" } as const;
 const fillRows = (id: string) =>
   (byKey.value.get(id)?.fills ?? []).map((f) => ({
     id: f.id,
     date: formatDate(f.businessDate ?? f.fueledAt),
-    location: f.location,
+    location: f.source === "mcleod_receipt" || f.source === "uploaded_receipt"
+      ? [`${RECEIPT_LABEL[f.source]} · ${code.value}`, f.location].filter(Boolean).join(" · ")
+      : f.location,
     gallons: gal(f.gallons),
     price: f.pricePerGal == null ? null : usd3(f.pricePerGal),
     total: f.totalCost == null ? null : usd(f.totalCost),
   }));
+
+/** "in 684 fills", and the receipts beside them when there are any — both inside "Gallons bought". */
+const boughtSub = computed(() => {
+  const d = data.value;
+  if (!d) return "";
+  const fills = `in ${d.fillCount.toLocaleString("en-US")} fill${d.fillCount === 1 ? "" : "s"}`;
+  if (!d.receiptCount) return fills;
+  const n = d.receiptCount.toLocaleString("en-US");
+  return `${fills} + ${n} driver-paid receipt${d.receiptCount === 1 ? "" : "s"} (${gal(d.receiptGallons)} gal)`;
+});
 </script>
 
 <template>
@@ -202,7 +220,7 @@ const fillRows = (id: string) =>
     <template v-else>
       <div v-if="data" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Taxable miles" :value="data.taxableMiles.toLocaleString('en-US')" :sub="`${data.totalMiles.toLocaleString('en-US')} total, incl. toll and off-highway`" />
-        <StatCard label="Gallons bought" :value="gal(data.gallonsBought)" :sub="`in ${data.fillCount.toLocaleString('en-US')} fills`" />
+        <StatCard label="Gallons bought" :value="gal(data.gallonsBought)" :sub="boughtSub" />
         <StatCard label="Spent here" :value="usd(data.spent)" sub="tractor diesel, as billed" />
         <StatCard label="Trucks" :value="truckCount.toLocaleString('en-US')" :sub="`drove or fuelled in ${name}`" />
       </div>
@@ -272,8 +290,12 @@ const fillRows = (id: string) =>
 
       <p class="text-xs text-ink-tertiary">
         Miles are Samsara's monthly jurisdiction report for each truck, added up over the quarter. Fills are
-        tractor diesel bought at {{ name }} stations, dated in the station's own time zone. Both are the
-        figures the IFTA page's {{ name }} row adds up across trucks, so the totals above match that row.
+        tractor diesel bought at {{ name }} stations, dated in the station's own time zone. Driver-paid receipts
+        are the cash, own-card and fuel-app fills no card feed sees: uploaded on the IFTA page, or keyed in McLeod
+        after the quarter closes. One that matches a card fill or another copy of itself (same truck, day and
+        gallons) is counted once<template v-if="data?.receiptDuplicates">
+        ({{ data.receiptDuplicates }} here)</template>. All of it is what the IFTA page's {{ name }} row adds up
+        across trucks, so the totals above match that row.
       </p>
     </template>
   </div>

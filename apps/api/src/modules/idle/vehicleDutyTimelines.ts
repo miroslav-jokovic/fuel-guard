@@ -177,6 +177,15 @@ export function mapSegments(rows: HosSegmentRow[]): {
  *    on one truck are marked ambiguous by the vehicle timeline, and ambiguous sessions are excluded
  *    from scoring rather than guessed (buildHosVehicleTimelines).
  *  - Team drivers double-covering a truck stay correct: same-kind overlap is counted once.
+ *
+ * WHY THE ASSIGNMENTS ARE MERGED FIRST (incident 2026-10-06). The assignment rows for one driver on one
+ * truck overlap heavily — production holds 85,436 rows over 566 driver↔truck pairs in 33 days, one
+ * driver alone 923 — so clipping per ROW credited the same duty segment to the same truck up to ~100
+ * times: 11.9 million derived segments, 111k of them distinct. The timeline only asks whether a kind is
+ * active (same-kind overlap counts once, above), so those copies changed nothing but the cost — part of
+ * the synchronous block that froze the API during every sync_hos. Each pair's intervals are therefore
+ * unioned before clipping; a segment ∩ (A ∪ B) is exactly (segment ∩ A) ∪ (segment ∩ B), so the
+ * timelines built from the result are the same.
  */
 export function deriveAssignedVehicleSegments(
   assignments: AssignmentRow[],
@@ -185,6 +194,39 @@ export function deriveAssignedVehicleSegments(
   windowEndMs: number,
 ): Map<string, HosSegment[]> {
   const derived = new Map<string, HosSegment[]>();
+  for (const pair of mergeAssignmentsByPair(assignments, vehicleIdBySamsara, windowEndMs)) {
+    const segments = segmentsBySamsaraDriver.get(pair.driverSamsaraId) ?? [];
+    for (const [assignStartMs, assignEndMs] of pair.intervals) {
+      for (const segment of segments) {
+        // The driver's own logbook named a different truck for this segment → the log wins, skip.
+        if (segment.vehicleId != null && segment.vehicleId !== pair.vehicleId) continue;
+        const segmentEndMs = segment.endMs ?? windowEndMs;
+        const clippedStartMs = Math.max(segment.startMs, assignStartMs);
+        const clippedEndMs = Math.min(segmentEndMs, assignEndMs);
+        if (!(clippedEndMs > clippedStartMs)) continue;
+        const list = derived.get(pair.vehicleId) ?? [];
+        list.push({ ...segment, vehicleId: pair.vehicleId, startMs: clippedStartMs, endMs: clippedEndMs });
+        derived.set(pair.vehicleId, list);
+      }
+    }
+  }
+  return derived;
+}
+
+interface AssignmentPair {
+  vehicleId: string;
+  driverSamsaraId: string;
+  /** Disjoint [start, end) intervals, ascending — overlapping and touching rows unioned. */
+  intervals: [number, number][];
+}
+
+/** Group valid assignment rows by (truck, driver) — first-seen order — and union each pair's intervals. */
+function mergeAssignmentsByPair(
+  assignments: AssignmentRow[],
+  vehicleIdBySamsara: Map<string, string>,
+  windowEndMs: number,
+): AssignmentPair[] {
+  const pairs = new Map<string, AssignmentPair>();
   for (const assignment of assignments) {
     const vehicleId = vehicleIdBySamsara.get(assignment.vehicle_samsara_id);
     if (vehicleId == null) continue;
@@ -192,19 +234,25 @@ export function deriveAssignedVehicleSegments(
     const assignEndMs = assignment.end_at == null ? windowEndMs : Date.parse(assignment.end_at);
     if (!Number.isFinite(assignStartMs) || !Number.isFinite(assignEndMs)) continue;
     if (assignEndMs <= assignStartMs) continue;
-    for (const segment of segmentsBySamsaraDriver.get(assignment.driver_samsara_id) ?? []) {
-      // The driver's own logbook named a different truck for this segment → the log wins, skip.
-      if (segment.vehicleId != null && segment.vehicleId !== vehicleId) continue;
-      const segmentEndMs = segment.endMs ?? windowEndMs;
-      const clippedStartMs = Math.max(segment.startMs, assignStartMs);
-      const clippedEndMs = Math.min(segmentEndMs, assignEndMs);
-      if (!(clippedEndMs > clippedStartMs)) continue;
-      const list = derived.get(vehicleId) ?? [];
-      list.push({ ...segment, vehicleId, startMs: clippedStartMs, endMs: clippedEndMs });
-      derived.set(vehicleId, list);
+    const key = `${vehicleId}|${assignment.driver_samsara_id}`;
+    let pair = pairs.get(key);
+    if (!pair) {
+      pair = { vehicleId, driverSamsaraId: assignment.driver_samsara_id, intervals: [] };
+      pairs.set(key, pair);
     }
+    pair.intervals.push([assignStartMs, assignEndMs]);
   }
-  return derived;
+  for (const pair of pairs.values()) {
+    pair.intervals.sort((a, b) => a[0] - b[0]);
+    const merged: [number, number][] = [];
+    for (const interval of pair.intervals) {
+      const last = merged[merged.length - 1];
+      if (last != null && interval[0] <= last[1]) last[1] = Math.max(last[1], interval[1]);
+      else merged.push([interval[0], interval[1]]);
+    }
+    pair.intervals = merged;
+  }
+  return [...pairs.values()];
 }
 
 export interface VehicleDutyTimelines {

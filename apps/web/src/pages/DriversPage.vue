@@ -2,7 +2,6 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
 import type { Driver, DriverInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -32,12 +31,11 @@ import ColumnPicker from "@/components/ui/ColumnPicker.vue";
 import SavedViewMenu from "@/components/ui/SavedViewMenu.vue";
 import DocumentsModal from "@/components/DocumentsModal.vue";
 import { useDocumentsQuery } from "@/composables/useCompliance";
-import { useSavedViews } from "@/composables/useSavedViews";
+import { useSavedViewMenu } from "@/composables/useSavedViewMenu";
 import { useTableColumns } from "@/composables/useTableColumns";
 import {
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
-  builtInViewsFor,
   matchesDqFilters,
   dqStateFilterOptions,
   dqDueFilterOptions,
@@ -131,7 +129,6 @@ async function linkDriver(sourceId: string) {
  * preference keyed on a URL would reset the day the page moves.
  */
 const ROSTER_TABLE = SAVED_VIEW_TABLES[0];
-const ROSTER_BUILT_IN_VIEWS = builtInViewsFor(ROSTER_TABLE);
 const DQ_STATE_OPTIONS = dqStateFilterOptions();
 const DQ_DUE_OPTIONS = dqDueFilterOptions();
 
@@ -155,43 +152,10 @@ const {
 } = useRosterFilters();
 
 /**
- * Saved views (R3c-2). A view is a name and this page's query string, so applying one is a
- * NAVIGATION and the URL afterwards IS the view — the same URL a colleague would receive as a link.
- * There is no second code path that "applies" a view, which is what stops the two drifting apart.
+ * Saved views (R3c-2): a name and this page's query string, applied by navigating — the wiring is
+ * `useSavedViewMenu`'s, shared with the Dispatch board.
  */
-const savedViews = useSavedViews(ROSTER_TABLE);
-const route = useRoute();
-const router = useRouter();
-
-/** What Save would store: everything in the URL, which is exactly what a link carries. */
-const currentQuery = computed(() => new URLSearchParams(route.query as Record<string, string>).toString());
-/** The name of the saved view this page is currently showing, when it is showing one. */
-const activeViewName = computed(
-  () =>
-    ROSTER_BUILT_IN_VIEWS.find((v) => v.query === currentQuery.value)?.name ??
-    savedViews.views.value.find((v) => v.query === currentQuery.value)?.name ??
-    null,
-);
-
-function applyView(query: string) {
-  void router.replace({ path: route.path, query: Object.fromEntries(new URLSearchParams(query)) });
-}
-async function saveView(name: string) {
-  try {
-    await savedViews.save(name, currentQuery.value);
-    toast.success("View saved", `“${name}” now opens this roster.`);
-  } catch (e) {
-    toast.error("Could not save the view", e instanceof Error ? e.message : undefined);
-  }
-}
-async function removeView(name: string) {
-  try {
-    await savedViews.remove(name);
-    toast.success("View deleted");
-  } catch (e) {
-    toast.error("Could not delete the view", e instanceof Error ? e.message : undefined);
-  }
-}
+const viewMenu = useSavedViewMenu(ROSTER_TABLE, "roster");
 
 /**
  * The §391.51 folder (R5, D-ROS8). ONE modal owned by the page, never one per row — and the
@@ -340,14 +304,14 @@ async function onSubmit(input: DriverInput) {
              way back that does not require knowing which controls were set (OdometerPage's shape). -->
         <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
         <SavedViewMenu
-          :built-ins="ROSTER_BUILT_IN_VIEWS"
-          :views="savedViews.views.value"
-          :current-query="currentQuery"
-          :active-name="activeViewName"
-          :busy="savedViews.saving.value"
-          @apply="applyView"
-          @save="saveView"
-          @remove="removeView"
+          :built-ins="viewMenu.builtIns"
+          :views="viewMenu.views.value"
+          :current-query="viewMenu.currentQuery.value"
+          :active-name="viewMenu.activeName.value"
+          :busy="viewMenu.busy.value"
+          @apply="viewMenu.apply"
+          @save="viewMenu.save"
+          @remove="viewMenu.remove"
         />
         <ColumnPicker :columns="rosterColumns" />
       </template>

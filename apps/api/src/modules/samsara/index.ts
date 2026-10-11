@@ -27,6 +27,8 @@ export {
   type VehiclePositionRow,
   type VehiclePositionsResult,
 } from "./vehiclePositionReads.js";
+// The owner's read for `driver_hos_clocks` (raw, sealed here) — the dispatch board's HOS column (DB4).
+export { readHosClocks } from "./hosClocksReads.js";
 export {
   syncVehiclesFromSamsara,
   NoSamsaraTokenError,
@@ -42,7 +44,8 @@ export {
   type TelematicsCoverageResult,
 } from "./telematicsCoverage.js";
 export { syncTrailersFromSamsara } from "./samsaraTrailerSync.js";
-export { monthsToSync, syncIftaMilesForMonth } from "./samsaraIftaSync.js";
+export { monthsToSync, syncIftaMilesForMonth, syncIftaMonths } from "./samsaraIftaSync.js";
+export { syncSamsaraDocuments } from "./samsaraDocumentsSync.js";
 export {
   syncVehicleOdometerReadings,
   ODOMETER_SOURCE_WINDOW_DAYS,
@@ -64,6 +67,7 @@ export {
   readVehicleMonthlyMiles,
   readMonthlyMileageByMonth,
   readJurisdictionVehicleMiles,
+  readQuarterTruckStateMiles,
   type JurisdictionVehicleMiles,
 } from "./samsaraIftaReads.js";
 export {

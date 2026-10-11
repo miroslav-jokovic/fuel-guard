@@ -1,9 +1,7 @@
 /** Money / volume formatting shared by the spend tabs, so a figure reads the same on every one. */
 // The Fuel Costs four live in shared so the PDF prints the same strings (Q-FSV14); the rest are web-only.
-export { usd, wholeUsd, usd3, gal } from "@silvicom/shared";
-
-export const usd2 = (n: number | null | undefined): string =>
-  n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// `usd2` joined them in 11b so the Fuel Log's Amount column prints a fill the way this tab does.
+export { usd, wholeUsd, usd2, usd3, gal } from "@silvicom/shared";
 
 export const pct1 = (n: number | null | undefined): string => (n == null ? "—" : `${(n * 100).toFixed(1)}%`);
 

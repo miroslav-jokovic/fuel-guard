@@ -1,10 +1,13 @@
 /**
- * The tables no retention rule may ever touch (`RETENTION_FORBIDDEN`), split out of
- * dataRetentionPolicy.ts on 2026-10-05 when the books joined it and pushed that file past the
- * 500-line budget. The seam is "what may be pruned, and when" there vs "what may never be" here.
- * dataRetentionPolicy.ts re-exports it, so no importer changes; scripts/check-table-lifecycle.mjs
- * reads both files.
+ * The tables retention may never touch — evidence, ledgers and records the law or the product needs
+ * kept (`RETENTION_FORBIDDEN`), pinned by a guard test.
+ *
+ * Split out of `dataRetentionPolicy.ts` on 2026-10-10, when DB7's rule for
+ * `load_stop_eta_predictions` took that file past the 500-line budget; it re-exports this list, so
+ * every importer is unchanged. The seam is the policy's own: what MAY be pruned and for how long stays
+ * there, what may NEVER be is here. `scripts/check-table-lifecycle.mjs` parses both files.
  */
+
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */
 export const RETENTION_FORBIDDEN = [
   /**
@@ -19,9 +22,12 @@ export const RETENTION_FORBIDDEN = [
    * The rows are already frozen once final by 0280's trigger; pinning them here is what stops a
    * retention rule deleting a report that a roadside inspection is about to ask for.
    */
-  "vehicle_inspections",
-  "vehicle_inspection_items",
+  "vehicle_inspections", "vehicle_inspection_items",
   "audit_logs", // append-only compliance ledger
+  "ifta_fuel_receipt_uploads", "ifta_fuel_receipts", // IFTA credit evidence (0436): voided, never deleted
+  // The notification dedupe ledger (0432, Q11): a deleted key re-arms its alert. The inbox is
+  // prunable precisely because this table is not.
+  "notification_dedupe_keys",
   /**
    * The driver's signatures, place by place, on the application packet (0339) and the handbook (0374)
    * — G-6, APPLICATION-FLOW-V2-PLAN.md. Both are append-only by trigger, and each row is the fact a
@@ -82,7 +88,7 @@ export const RETENTION_FORBIDDEN = [
   "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",
-  "anomalies",
+  "anomalies", "card_fraud_incidents", "card_fraud_incident_attempts", // 0438: a person's fraud verdict + its evidence
   "driver_scores",
   "driver_performance_weeks", // frozen rewards ledger
   "organizations",
@@ -183,7 +189,15 @@ export const RETENTION_FORBIDDEN = [
    * So a retention rule on this table would be a storage deletion on a one-day delay — the same
    * composition `application_captures` above relies on deliberately, running here against evidence.
    */
-  "hazmat_documents",
+  "hazmat_documents", "document_sources", "document_read_reviews", "document_page_classes", // + the reader's bytes and labels: the same papers (0448/0449, D-DR9)
+  "document_assemblies", "document_assembly_pages", // + which photos made one shipping paper (0454, D-DR14)
+  /**
+   * FMCSA's public record of our roadside inspections, version by version (0457, INSPECTION-CHALLENGE-
+   * PLAN D-IC2). A violation that vanishes after a DataQs request was granted is how the engine learns
+   * the request worked; a pruned version is a "before" no outcome can be read against, and FMCSA keeps
+   * only three years itself, so after that nothing anywhere can reproduce it.
+   */
+  "fmcsa_fetch_runs", "fmcsa_raw_rows",
   /**
    * The driver's account-closure request (0330, D-PR8).
    *

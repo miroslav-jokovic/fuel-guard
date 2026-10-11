@@ -25,7 +25,9 @@ const swept = (lastSyncedAt: string | null): FinancialIntegration => ({ configur
 const noMcleod: FinancialIntegration = { configured: false, lastSyncedAt: null };
 
 const notifyCalls: Array<Record<string, unknown>> = [];
-vi.mock("../messaging/index.js", () => ({
+// notify() is faked; keysAlreadySent() is the REAL one, reading the ledger RPC the recorder answers.
+vi.mock("../messaging/index.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../messaging/index.js")>()),
   notify: vi.fn(async (_admin: unknown, input: Record<string, unknown>) => {
     notifyCalls.push(input);
     return "evt";
@@ -187,10 +189,14 @@ function recorder(over: {
     tables: {
       org_integrations: over.syncedAt === undefined ? [] : [{ last_synced_at: over.syncedAt }],
       jobs: jobsFor,
-      notification_events: (over.sentKeys ?? []).map((dedupe_key) => ({ dedupe_key })),
       memberships: [{ user_id: "u-owner" }, { user_id: "u-acct" }, { user_id: "u-owner" }],
       organizations: [{ notifications_enabled: true, notification_emails: over.emails === undefined ? ["office@example.test"] : over.emails }],
     },
+    // The dedupe ledger (0432): of the keys asked about, the ones already sent.
+    rpc: (fn, args) =>
+      fn === "notification_keys_sent"
+        ? (args as { p_keys: string[] }).p_keys.filter((k) => (over.sentKeys ?? []).includes(k))
+        : null,
   });
 }
 

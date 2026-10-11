@@ -10,40 +10,36 @@
  * asserts these keys are exactly the catalogue's, in both directions, so the split cannot drift.
  *
  * ── ⚠ AND WHY IT IS IN `lib/` RATHER THAN IN `features/dashboard/` ───────────────────────────────
- * Because a widget may come from ANY feature, and the live map does. `check-feature-boundaries.mjs`
- * refuses `features/dashboard → features/livemap`, and `WEB_ALLOW` is deliberately empty with a
- * comment recording that the intended fix is always to promote the shared thing OUT of `features/`
- * rather than to allow-list the leak. A registry outside `features/` is that promotion: it is the
- * composition root for the Dashboard, exactly as a page is for a route, so it may name any feature's
- * top-level surface without any feature reaching into another.
+ * Because a widget may come from ANY feature, and two do: the live map from `features/livemap` and
+ * the savings card from `features/reconcile` (D-FO9: the Fuel costs page's own rows, reused rather
+ * than restated). `check-feature-boundaries.mjs` refuses `features/dashboard → features/livemap`,
+ * and `WEB_ALLOW` is deliberately empty with a comment recording that the intended fix is always to
+ * promote the shared thing OUT of `features/` rather than to allow-list the leak. A registry outside
+ * `features/` is that promotion: it is the composition root for the Dashboard, exactly as a page is
+ * for a route, so it may name any feature's top-level surface without any feature reaching into
+ * another.
  *
- * Every widget is loaded EAGERLY. They are small, the heaviest of them (`LiveMapPanel`) already
+ * Every widget is loaded EAGERLY. They are small, the heaviest of them (`LiveMapWorkspace`) already
  * splits its own maplibre chunk through `useMapLibre`, and a lazy component inside a grid that is
  * itself conditional on a gate would add a second reason for a blank square — which is the one thing
  * a dashboard must never have.
  */
 import type { Component } from "vue";
-import FeedFreshnessWidget from "@/features/dashboard/widgets/FeedFreshnessWidget.vue";
-import KpiHeroWidget from "@/features/dashboard/widgets/KpiHeroWidget.vue";
-import OperatingMetricsWidget from "@/features/dashboard/widgets/OperatingMetricsWidget.vue";
-import SpendTrendWidget from "@/features/dashboard/widgets/SpendTrendWidget.vue";
-import MpgTrendWidget from "@/features/dashboard/widgets/MpgTrendWidget.vue";
-import CostCompositionWidget from "@/features/dashboard/widgets/CostCompositionWidget.vue";
-import SeverityWidget from "@/features/dashboard/widgets/SeverityWidget.vue";
-import TopVehiclesWidget from "@/features/dashboard/widgets/TopVehiclesWidget.vue";
-import TopDriversWidget from "@/features/dashboard/widgets/TopDriversWidget.vue";
+import FuelWidget from "@/features/dashboard/widgets/FuelWidget.vue";
+import EfficiencyWidget from "@/features/dashboard/widgets/EfficiencyWidget.vue";
+import AttentionWidget from "@/features/dashboard/widgets/AttentionWidget.vue";
+import ActivityWidget from "@/features/dashboard/widgets/ActivityWidget.vue";
+import ConcentrationWidget from "@/features/dashboard/widgets/ConcentrationWidget.vue";
+import SavingsWidget from "@/features/reconcile/SavingsWidget.vue";
 import LiveMapWorkspace from "@/features/livemap/LiveMapWorkspace.vue";
 
 export const WIDGET_COMPONENTS: Record<string, Component> = {
-  "fleet.feed-freshness": FeedFreshnessWidget,
-  "fleet.kpi-hero": KpiHeroWidget,
-  "fleet.operating-metrics": OperatingMetricsWidget,
-  "fleet.spend-trend": SpendTrendWidget,
-  "fleet.mpg-trend": MpgTrendWidget,
-  "fleet.cost-composition": CostCompositionWidget,
-  "fleet.severity": SeverityWidget,
-  "fleet.top-vehicles": TopVehiclesWidget,
-  "fleet.top-drivers": TopDriversWidget,
+  "fleet.fuel": FuelWidget,
+  "fleet.efficiency": EfficiencyWidget,
+  "fleet.attention": AttentionWidget,
+  "fleet.activity": ActivityWidget,
+  "fleet.concentration": ConcentrationWidget,
+  "fleet.savings": SavingsWidget,
   /**
    * ── D-DR24: THE WORKSPACE, NOT THE CARD ─────────────────────────────────────────────────────────
    * D-DW5 had two shapes of one board — `LiveMapWorkspace` at `/live-map` and `LiveMapPanel` here,
@@ -60,12 +56,10 @@ export const WIDGET_COMPONENTS: Record<string, Component> = {
 
 /** Widgets that need the page's date range. The live map is live — it has no window to scope. */
 export const WIDGETS_TAKING_RANGE = new Set([
-  "fleet.kpi-hero",
-  "fleet.operating-metrics",
-  "fleet.spend-trend",
-  "fleet.mpg-trend",
-  "fleet.cost-composition",
-  "fleet.severity",
-  "fleet.top-vehicles",
-  "fleet.top-drivers",
+  "fleet.fuel",
+  "fleet.efficiency",
+  "fleet.attention",
+  "fleet.activity",
+  "fleet.concentration",
+  "fleet.savings",
 ]);

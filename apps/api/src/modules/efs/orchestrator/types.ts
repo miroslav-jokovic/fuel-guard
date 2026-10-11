@@ -96,6 +96,8 @@ export interface ResolvedCapability<TBody> {
   governance: Governance<TBody>;
   /** Header fields a dedicated vendor op is EXPECTED to move — recorded as vendor-maintained drift. */
   vendorMovesFields: readonly string[];
+  /** `CapabilityBehaviour.rebasesOver`; absent means none — see there. */
+  rebasesOver?: readonly string[];
   body: TBody;
 }
 

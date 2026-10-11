@@ -42,17 +42,18 @@ describe("planDqAlerts — threshold crossings", () => {
     const out = plan([driver({}, [attention({ daysRemaining: 60 })])]);
     expect(out).toHaveLength(1);
     expect(out[0]!.threshold).toBe(60);
-    expect(out[0]!.dedupeKey).toBe("dq:d1:medical_card:60");
+    expect(out[0]!.dedupeKey).toBe("dq:d1:medical_card:2026-09-01:60");
+    expect(out[0]!.legacyDedupeKey).toBe("dq:d1:medical_card:60");
     expect(out[0]!.category).toBe("dq_expiring");
   });
 
   it("at 59 days it does NOT re-emit once the 60 key was sent", () => {
-    const out = plan([driver({}, [attention({ daysRemaining: 59 })])], ["dq:d1:medical_card:60"]);
+    const out = plan([driver({}, [attention({ daysRemaining: 59 })])], ["dq:d1:medical_card:2026-09-01:60"]);
     expect(out).toHaveLength(0);
   });
 
   it("crossing the next threshold emits again — 30 fires even though 60 was sent", () => {
-    const out = plan([driver({}, [attention({ daysRemaining: 30 })])], ["dq:d1:medical_card:60"]);
+    const out = plan([driver({}, [attention({ daysRemaining: 30 })])], ["dq:d1:medical_card:2026-09-01:60"]);
     expect(out).toHaveLength(1);
     expect(out[0]!.threshold).toBe(30);
   });
@@ -77,6 +78,27 @@ describe("planDqAlerts — threshold crossings", () => {
   it("far-out thresholds are informational, near ones are warnings", () => {
     const far = plan([driver({}, [attention({ daysRemaining: 88 })])]);
     expect(far[0]!.severity).toBe("info");
+  });
+});
+
+describe("planDqAlerts — renewal and the key-format transition (Q11, 2026-10-05)", () => {
+  it("a renewed item alerts again: last cycle's key does not silence the new expiry date", () => {
+    const out = plan(
+      [driver({}, [attention({ goodUntil: "2027-09-01", daysRemaining: 60 })])],
+      ["dq:d1:medical_card:2026-09-01:60"],
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.dedupeKey).toBe("dq:d1:medical_card:2027-09-01:60");
+  });
+
+  it("an old-format key the caller vouches for (sent this cycle) still counts as sent", () => {
+    const out = plan([driver({}, [attention({ daysRemaining: 59 })])], ["dq:d1:medical_card:60"]);
+    expect(out).toHaveLength(0);
+  });
+
+  it("overdue keys carry no legacy twin — their format did not change", () => {
+    const out = plan([driver({}, [attention({ daysRemaining: -3, state: "expired" })])]);
+    expect(out[0]!.legacyDedupeKey).toBeUndefined();
   });
 });
 

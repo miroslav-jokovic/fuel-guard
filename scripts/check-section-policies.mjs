@@ -50,6 +50,9 @@ const MODULE_SECTIONS = {
   anomalies: "fuel",
   routing: "fuel",
   "posted-prices": "fuel", // carved out of fuel at P1.5; its tables' client policies were authored under the fuel section
+  // Its first table arrived 2026-10-05 (0433). `/api/ifta/period` already gates on fuel: view, so the
+  // section is the one the API asks, not a new one; 0433's own policy is org-wide and names no role.
+  ifta: "fuel",
   samsara: null,
   mcleod: null,
   // A collector, and deny-all in both directions: the four 0334 tables carry no client policy
@@ -58,6 +61,9 @@ const MODULE_SECTIONS = {
   // door onto a credential and a watermark (D-FP1, D-SEP1).
   fleetpal: null,
   psp: "safety",
+  // Roadside inspections and DataQs challenges (INSPECTION-CHALLENGE-PLAN D-IC12). Its first two tables
+  // (0457) are deny-all collector staging; the safety section is the one its future endpoints gate on.
+  inspections: "safety",
   org: "admin",
   // `fleet` split into `roster` + `equipment` on 2026-08-30 (D-ROS12, DRIVER-ROSTER-PLAN R0a), so
   // every module that used to point at it had to be re-pointed deliberately rather than by search
@@ -76,6 +82,10 @@ const MODULE_SECTIONS = {
   "driver-app": null,
   recruiting: "recruitment",
   hazmat: "hazmat",
+  // A core-store module (D-DR1, 0448): deny-all to every client, read only through its API, whose
+  // permission is the CONSUMER's section (the calculator asks hazmat ≥ manage), never its own. A
+  // role-named policy on its tables would be a door that bypasses the consumer's gate.
+  "document-reading": null,
 };
 
 /**

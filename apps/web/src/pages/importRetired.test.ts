@@ -110,9 +110,6 @@ const button = (w: Mounted, label: string) =>
 
 beforeEach(async () => { await asRole("admin"); });
 
-vi.mock("@/features/fuel/useCreateFillUp", () => ({
-  useCreateFillUp: () => ({ mutateAsync: vi.fn(), isPending: { value: false } }),
-}));
 describe("the EFS backfill moved to the Fuel Log's header (D-FUI3)", () => {
   it("offers it to a role that may manage fuel, and mounts the drawer behind the button", async () => {
     const w = await mountAt(FuelLogPage, "/fuel-log", "Fuel Log");
@@ -140,6 +137,14 @@ describe("the EFS backfill moved to the Fuel Log's header (D-FUI3)", () => {
       // Not merely hidden: a component holding a write mutation is not instantiated for them at all.
       expect(w.findComponent(EfsImportDrawer).exists(), role).toBe(false);
     }
+  });
+
+  // Q-F6 (F02-F04 chunk 12a): the only other header action, which wrote a fill from the browser, is gone.
+  // Asked of the admin, who was offered it before: the backfill is now the page's one action.
+  it("offers no Log fill-up beside it, even to the admin", async () => {
+    const w = await mountAt(FuelLogPage, "/fuel-log", "Fuel Log");
+    expect(button(w, "Backfill EFS reports")).toBeTruthy();
+    expect(w.findAll("button").some((b) => /log fill-up/i.test(b.text()))).toBe(false);
   });
 
   it("still offers it to the other role that could — the fleet manager", async () => {
