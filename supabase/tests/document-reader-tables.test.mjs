@@ -31,6 +31,7 @@ import {
   INTAKE_LIMITS,
   PAGE_CLASSES,
   PAGE_CLASS_SETTERS,
+  PAGE_ROTATIONS,
   READ_FAILURE_CODES,
   READ_STATUSES,
   REVIEW_ACTIONS,
@@ -88,6 +89,7 @@ await db.exec(
 );
 ok("0448 present", MIGRATIONS.some((f) => f.startsWith("0448_document_reader_tables")));
 ok("0449 present", MIGRATIONS.some((f) => f.startsWith("0449_document_page_classes")));
+ok("0456 present", MIGRATIONS.some((f) => f.startsWith("0456_document_page_rotation")));
 for (const f of MIGRATIONS)
   await db.exec(read(join("migrations", f)).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
@@ -118,6 +120,12 @@ for (const [table, conname, name, contract] of VOCABULARIES) {
   if (!same) drift.push(`${conname}: sql ${JSON.stringify(sql)} vs ${name} ${JSON.stringify(contract)}`);
 }
 ok("every CHECK vocabulary equals its contract array", drift.length === 0, drift.join(" | "));
+// 0456: an integer vocabulary, so the catalog renders it without quotes.
+const rot = await one(`select pg_get_constraintdef(oid) as d from pg_constraint
+  where conrelid = 'public.document_page_classes'::regclass and conname = 'document_page_classes_rotation_check'`);
+const rotLiterals = rot ? [...rot.d.matchAll(/\b(\d+)\b/g)].map((m) => Number(m[1])) : null;
+ok("the rotation CHECK equals PAGE_ROTATIONS (0456)", Array.isArray(PAGE_ROTATIONS) && PAGE_ROTATIONS.length > 0
+  && JSON.stringify(rotLiterals) === JSON.stringify([...PAGE_ROTATIONS]), `${JSON.stringify(rotLiterals)} vs ${JSON.stringify(PAGE_ROTATIONS)}`);
 
 const bucket = await one(`select public, file_size_limit from storage.buckets where id = 'document-intake'`);
 ok("the document-intake bucket exists and is private", bucket?.public === false, JSON.stringify(bucket));
@@ -245,6 +253,22 @@ ok("a person's override that names a model is refused",
   (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor, model) values ($1, $2, 'bol', 'reviewer', $3, 'm')`, [ORG, P1, USER])) === "23514");
 ok("a page class outside PAGE_CLASSES is refused",
   (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version) values ($1, $2, 'invoice', 'classifier', 'm', 'p')`, [ORG, P1])) === "23514");
+ok("a classifier verdict carries its rotation, and the current-class fold returns it (0456)", await (async () => {
+  await db.exec("begin");
+  try {
+    await db.query(`insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version, rotation)
+                    values ($1, $2, 'bol', 'classifier', 'm', 'p', 90)`, [ORG, P1]);
+    return (await one(`select rotation from document_page_current_class($1, $2::uuid[])`, [ORG, [P1]]))?.rotation === 90;
+  } finally { await db.exec("rollback"); }
+})());
+ok("a verdict without a rotation is accepted — not answered (0456)", await (async () => {
+  await db.exec("begin");
+  try {
+    return (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor) values ($1, $2, 'bol', 'reviewer', $3)`, [ORG, P2, USER])) === null;
+  } finally { await db.exec("rollback"); }
+})());
+ok("a rotation that is not a right angle is refused (0456)",
+  (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, model, prompt_version, rotation) values ($1, $2, 'bol', 'classifier', 'm', 'p', 45)`, [ORG, P1])) === "23514");
 ok("a class setter outside PAGE_CLASS_SETTERS is refused",
   (await sqlstate(`insert into document_page_classes (org_id, page_id, page_class, set_by, actor) values ($1, $2, 'bol', 'driver', $3)`, [ORG, P1, USER])) === "23514");
 const PX = (await insertPage(OTHER, SX, 1)).rows[0].id;

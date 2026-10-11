@@ -32,6 +32,12 @@ export type PageClass = (typeof PAGE_CLASSES)[number];
 export const PAGE_CLASS_SETTERS = ["classifier", "reviewer", "labeller"] as const;
 export type PageClassSetter = (typeof PAGE_CLASS_SETTERS)[number];
 /**
+ * How far a page must be turned, CLOCKWISE, for its text to read upright (0456, Q-DR19 (a)). The P2
+ * classifier answers it beside the class; null on a verdict means "not answered" and the reader turns nothing.
+ */
+export const PAGE_ROTATIONS = [0, 90, 180, 270] as const;
+export type PageRotation = (typeof PAGE_ROTATIONS)[number];
+/**
  * Who made a document assembly — "these pages, in this order, are one document" (D-DR14, 0454): Layer 1's
  * proposal, the order a person uploaded in, or a person's edit (untick, reorder, add a page).
  */

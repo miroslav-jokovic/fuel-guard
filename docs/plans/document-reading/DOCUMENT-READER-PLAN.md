@@ -1132,3 +1132,9 @@ Append dated lines at the end; never edit a row above.
   an iPhone HEIC as "". The read is emitted, not yet applied: filling the form and saying what the
   shipper left out is N6. Fifteen mutants killed; seen in a browser at desktop and 390-px widths.
   Next: N3's remainder (P2 classify + orient).
+- **2026-10-11 (P2 part 1, the rotation column)** — Migration 0456: `document_page_classes.rotation`
+  (`PAGE_ROTATIONS` 0/90/180/270, degrees clockwise to read upright; null = not answered), so the P2
+  classifier's turn is a verdict in the same ledger as its class and a person overrides both the same
+  way (Q-DR19 (a)). Nullable with no default — a verdict that did not look must not claim 0. Matrix
+  `document-reader-tables` 88 checks (five new); three mutants killed. Next: the classifier itself,
+  writing and reading the column, in its own merge.
