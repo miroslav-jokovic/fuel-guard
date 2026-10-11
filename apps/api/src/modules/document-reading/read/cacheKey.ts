@@ -30,8 +30,11 @@ import { createHash } from "node:crypto";
  *          on one model's word, so every judged field is *Check*, with the table's reason when it fails.
  *   2    — 2026-10-11, §7B A3: every field carries both model readers' values (lines matched by key) and
  *          the table's verdict; `not_read` where both read nothing, else `check` until graduation (D-DR5).
+ *   3    — 2026-10-11, §7B A5: a hazmat line's count, weight and quantity also carry the OCR engine's
+ *          row-bound word (PP-OCRv6 medium at the revision ocrModels.ts pins); statuses unchanged.
+ *          A model or revision change there is a new rule, as this one was.
  */
-export const ACCEPTANCE_RULE_VERSION = "2";
+export const ACCEPTANCE_RULE_VERSION = "3";
 
 export interface CacheKeyInput {
   profileVersion: string;

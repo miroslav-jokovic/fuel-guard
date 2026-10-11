@@ -1,6 +1,16 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { DocumentProfileId } from "@silvicom/shared";
+import type { Env } from "../../env.js";
 import { anthropicClient } from "../../lib/anthropic.js";
-import { executeRead, failUnavailableRead, TransientModelError, type ReadGateFor } from "../../modules/document-reading/index.js";
+import {
+  executeRead,
+  failUnavailableRead,
+  ocrEngine,
+  TransientModelError,
+  type ReadGateFor,
+  type RecognisePage,
+} from "../../modules/document-reading/index.js";
 import { shippingDocumentReadGate } from "../../modules/hazmat/index.js";
 import type { JobHandler } from "../types.js";
 
@@ -25,11 +35,16 @@ const GATES = {
 } as const satisfies Record<DocumentProfileId, (...a: Parameters<ReadGateFor>) => ReturnType<ReadGateFor>>;
 const gateFor: ReadGateFor = (admin, orgId, profile) => GATES[profile](admin, orgId);
 
+// The OCR witness's engine (§7B A5): one per process, started by the first read that needs it.
+let engine: RecognisePage | undefined;
+const ocrFor = (env: Env): RecognisePage | undefined =>
+  env.DOC_OCR_WITNESS === "off" ? undefined : (engine ??= ocrEngine({ cacheDir: env.DOC_OCR_CACHE_DIR ?? join(tmpdir(), "silvicom-ocr-models") }));
+
 export const documentReadHandler: JobHandler = async (ctx, job) => {
   const readId = typeof job.payload.readId === "string" ? job.payload.readId : "";
   if (!readId) throw new Error("document_read job has no readId");
   try {
-    const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor, env: ctx.env });
+    const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor, env: ctx.env, ocr: ocrFor(ctx.env) });
     return { readId, ...r };
   } catch (e) {
     if (e instanceof TransientModelError && job.attempts >= job.max_attempts) await failUnavailableRead(ctx.admin, job.org_id, readId);

@@ -34,6 +34,12 @@ export const documentReadingEnvFields = {
   // scanned sideways; Haiku 5.5, Sonnet 4.6 and Sonnet 5.5 answered all 24. Haiku 5.5 is the cheapest of
   // the three. A deployment may pin another; the verdict row records the model that answered.
   DOC_CLASSIFY_MODEL: z.string().min(1).default("claude-haiku-5-5"),
+  // §7B A5 (Q-DR22): the open-source OCR engine as a row-bound witness on each hazmat line's count, weight
+  // and quantity (evidence/rowWitness.ts). On by default; "off" is the switch if the engine misbehaves on a
+  // host — a read without it is exactly a read before A5. Its ~139 MB of model files are downloaded on first
+  // use into DOC_OCR_CACHE_DIR (pinned revision and sha256, ocr/ocrModels.ts), once per container.
+  DOC_OCR_WITNESS: z.enum(["on", "off"]).default("on"),
+  DOC_OCR_CACHE_DIR: z.string().min(1).optional(),
 
   // Driver documents (0445, Step 0.1): BOL photos, delivery copies and call forms drivers submit in
   // Samsara's app. Fifteen minutes, because a dispatcher reading a BOL into the hazmat calculator is

@@ -3,6 +3,7 @@ import { emptyShippingDocument, fieldEvidenceSchema, printedHazmatLineSchema, re
 import { alignLines } from "./alignLines.js";
 import { HMT_JUDGED_KEYS } from "./hmtWitness.js";
 import { EVIDENCE_FOR } from "./index.js";
+import type { OcrPage } from "./rowWitness.js";
 import { shippingEvidence } from "./shippingEvidence.js";
 
 /**
@@ -98,7 +99,71 @@ describe("shippingEvidence", () => {
   });
 
   it("is what a finished shipping-document read records", () => {
-    const a = doc([line({ ...UN2735 })]);
-    expect(EVIDENCE_FOR.shipping_document(a, a, "2")).toEqual(shippingEvidence(a, a, "2"));
+    const a = doc([line({ ...UN2735, packageCount: 6 })]);
+    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR)).toEqual(shippingEvidence(a, a, "3", OCR));
+    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR)).not.toEqual(shippingEvidence(a, a, "3", null));
+  });
+});
+
+// 0132900 as the OCR engine saw it: UN2735's row shows 6 and 11,400; UN3082's, a line below, shows 24 and the class 9.
+const box = (text: string, x: number, y: number) => ({ text, box: { x, y, width: 20 * text.length, height: 40 } });
+const OCR: OcrPage[] = [{
+  page: 1, width: 2550, height: 3300, items: [
+    box("UN2735, Amines, liquid, corrosive, n.o.s., 8, PG II", 400, 1000), box("6", 120, 1010), box("11,400", 2100, 1005),
+    box("UN3082, Environmentally hazardous substance, liquid, n.o.s., 9, PG III", 400, 1300), box("24", 120, 1310),
+  ],
+}];
+const ocrOf = (all: ReturnType<typeof ev>, path: string) => at(all, path).sources.filter((s) => s.reader === "ocr");
+
+describe("shippingEvidence — the OCR witness (§7B A5)", () => {
+  it("records which reader's count the line's own row shows — 0132900's 6 drums, not Sonnet 4.6's 9", () => {
+    const all = shippingEvidence(
+      doc([line({ ...UN2735, packageCount: 9, grossWeightLb: 11400 }), line({ ...UN3082, packageCount: 24 })]),
+      doc([line({ ...UN2735, packageCount: 6, grossWeightLb: 11400 }), line({ ...UN3082, packageCount: 24 })]),
+      "3",
+      OCR,
+    );
+    expect(ocrOf(all, "hazmat.lines[0].packageCount")).toEqual([{ reader: "ocr", page: 1, bbox: expect.any(Object), value: 6 }]);
+    expect(ocrOf(all, "hazmat.lines[0].grossWeightLb").map((s) => s.value)).toEqual([11400]);
+    expect(ocrOf(all, "hazmat.lines[1].packageCount").map((s) => s.value)).toEqual([24]);
+    // Status is unchanged by the witness: Read comes only by graduation (D-DR5).
+    expect(at(all, "hazmat.lines[0].packageCount").status).toBe("check");
+  });
+
+  it("records null when the row shows neither reader's value, or only the line's own class", () => {
+    const all = shippingEvidence(doc([line({ ...UN2735, packageCount: 9 })]), doc([line({ ...UN2735, packageCount: 7 })]), "3", OCR);
+    expect(ocrOf(all, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([null]);
+    // UN2735 is class 8, and its description prints the 8 on this row.
+    const eight = shippingEvidence(doc([line({ ...UN2735, packageCount: 8 })]), doc([line({ ...UN2735, packageCount: 8 })]), "3", OCR);
+    expect(ocrOf(eight, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([null]);
+  });
+
+  it("judges only count, weight and quantity — never the identifying fields — and nothing both readers left empty", () => {
+    const a = doc([line({ ...UN2735, packageCount: 6, quantity: { value: 6, unit: "DR" } })]);
+    const all = shippingEvidence(a, a, "3", OCR);
+    const judged = all.filter((e) => e.sources.some((s) => s.reader === "ocr")).map((e) => e.path);
+    expect(judged).toEqual(["hazmat.lines[0].quantity.value", "hazmat.lines[0].packageCount"]);
+  });
+
+  it("is absent with no OCR, and when the line's id is not on the page", () => {
+    const a = doc([line({ ...UN2735, packageCount: 6 }), line({ idText: "5607540", packageCount: 6 })]);
+    expect(shippingEvidence(a, a, "3", null).some((e) => e.sources.some((s) => s.reader === "ocr"))).toBe(false);
+    expect(ocrOf(shippingEvidence(a, a, "3", OCR), "hazmat.lines[1].packageCount")).toEqual([]);
+  });
+
+  it("binds the second of two lines with one id to the second printed row — 0135071's two UN1263 lines", () => {
+    const paint = { idText: "UN1263", psn: "Paint", hazardClass: "3", pg: "II" as const };
+    const ocr: OcrPage[] = [{ page: 1, width: 2550, height: 3300, items: [
+      box("UN1263, PAINT, 3, PG II", 400, 1000), box("77", 120, 1005), box("UN1263, PAINT, 3, PG II", 400, 1600), box("182", 120, 1605),
+    ] }];
+    const a = doc([line({ ...paint, packageCount: 77 }), line({ ...paint, packageCount: 182 })]);
+    const all = shippingEvidence(a, a, "3", ocr);
+    expect(ocrOf(all, "hazmat.lines[0].packageCount").map((s) => s.value)).toEqual([77]);
+    expect(ocrOf(all, "hazmat.lines[1].packageCount").map((s) => s.value)).toEqual([182]);
+  });
+
+  it("binds a line only pass B saw to its own row", () => {
+    const all = shippingEvidence(doc([line({ ...UN2735, packageCount: 6 })]), doc([line({ ...UN2735, packageCount: 6 }), line({ ...UN3082, packageCount: 24 })]), "3", OCR);
+    expect(ocrOf(all, "hazmat.lines[1].packageCount").map((s) => s.value)).toEqual([24]);
   });
 });

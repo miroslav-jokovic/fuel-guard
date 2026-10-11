@@ -45,3 +45,4 @@ export { readDispatcher } from "./dispatch.js";
 export { runIntake, registerUpload, sourceStatus, intakeDedupKey, type IntakeJob, type IntakeOutcome } from "./intake/intake.js";
 export { requestRead, getRead, recordReviews, reviewEntryProblem, readDedupKey } from "./read/requests.js";
 export { DOCUMENT_BUCKET } from "./storage.js";
+export { ocrEngine, type RecognisePage } from "./ocr/pageOcr.js";

@@ -715,7 +715,7 @@ recommended second reader (Q-DR23), not a replacement for the lock.
 | A2 | `hazmatLineChecks` — HMT + format consistency per line, a pure function over `@silvicom/hazmat-data`; result into each line's FieldEvidence | — | the 7B.2 five are flagged; no correct line of the ten is |
 | A3 | Second read (Phase 2.1/2.2): pass B by a different model, aligned by key; disagreement → *Check* | — | 7B.2's two count/weight errors are *Check* |
 | A4 | Text-layer witness for born-digital PDFs (2.7) | — | — |
-| A5 | OCR witness spike: PP-OCRv5 in the worker over the 184 corpus photos + 12 office pages; keep only if it turns *Check*s into correct *Read*s or catches what A2+A3 miss | onnxruntime-node + PP-OCRv5 (Q-DR22) | measured either way, written here |
+| A5 | OCR witness spike: PP-OCRv5 in the worker over the 184 corpus photos + 12 office pages; keep only if it turns *Check*s into correct *Read*s or catches what A2+A3 miss | onnxruntime-node + PP-OCRv5 (Q-DR22) | measured either way, written here — **built 2026-10-11** as a row-bound witness (PP-OCRv6 medium), see the progress log |
 | A6 | Score all of it on the labelled corpus (§8): false-accept on critical fields = the number that must be ~0 | — | the table, with counts |
 
 ### 7B.5 Open questions
@@ -1280,3 +1280,32 @@ Append dated lines at the end; never edit a row above.
   the identifying fields stay the table's and the readers'.
   Next: A5 build (row-bound OCR witness in the worker), then the field-description tightening, then A6 scoring
   on labels.
+- **2026-10-11 (§7B A5 — the OCR witness, built)** — The spike's verdict made real, in the read.
+  `ppu-paddle-ocr` 6.6.1 + `onnxruntime-node` 1.30.0 are `apps/api` dependencies. Every read page is OCR'd
+  from its verified ORIGINAL turned upright by P2's verdict (`ocr/pageOcr.ts`), on its own worker thread
+  (`ocr/ocrWorker.ts`) — reads run inside the API process today (`JOB_EXECUTION_MODE` is unset on both Railway
+  environments, so `inprocess`), so the engine must not run on the thread that answers requests. Inference is
+  capped at 2 threads; the thread starts on first use and stops after two idle minutes. OCR runs while the two
+  models read, costs no tokens, and its failure is its absence, never the read's. The model files (PP-OCRv6
+  medium, ~139 MB) are downloaded on first use per container into `DOC_OCR_CACHE_DIR` (default the OS temp
+  dir), from a PINNED Hugging Face revision with every file's sha256 checked (`ocr/ocrModels.ts`) — the
+  library's own loader fetches from a moving branch with no check. `DOC_OCR_WITNESS=off` switches it off.
+  **The rule** (`evidence/rowWitness.ts`, new evidence reader `ocr`): on `packageCount`, `grossWeightLb` and
+  `quantity.value` only, the witness records which of the two readers' values is printed as a whole token on
+  the printed row of the line's own UN id (1.5 anchor heights above to 2.5 below). It reads no value of its
+  own (D-DR21). Two additions to the spike, both found building it: a value that is also a token of the line's
+  hazard class is UNPROVABLE (the row's description prints "…, 8, PG II", so 8 drums on a class 8 line would be
+  backed by the class), and number tokens compare as numbers (0134527 prints "20,030.00"). It ABSTAINS when
+  the printed anchors do not number exactly the read lines with that id — 0134831 prints both its UN1263 lines
+  on each of its two pages, four anchors for two lines. Statuses are unchanged (Read only by graduation, D-DR5);
+  rule "2" → "3".
+  **Measured with the built engine** (real thread, pinned download, the spike's 17 lines / 32 true counts and
+  weights): 28 backed, 4 abstained (all 0134831), 0 shown-but-missed, **0 wrong values backed**; with both
+  readers' values offered, it backs 6 over Sonnet 4.6's 9 drums (0132900) and 3,806 over 3,808 lb (0135071),
+  and backs neither wrong value alone. ~9.5 s a page at 2 threads on this Mac (the spike's 3.8 s used every
+  core); first use adds the download and ~25 s of start-up. Image: `onnxruntime-node` is 287 MB installed (all
+  platforms' binaries ship in the one package; its postinstall, CUDA-only, is not run under pnpm's build-script
+  policy), `ppu-paddle-ocr` + `ppu-ocv` (opencv.js) under 30 MB; `@napi-rs/canvas` and `sharp` were already there.
+  Twenty-five mutants killed (rowWitness 10, shippingEvidence 5, ocrModels 3, pageOcr 3, executeRead 4).
+  Next: the field-description tightening (count vs quantity, what belongs in marks), then A6 on labels.
+
