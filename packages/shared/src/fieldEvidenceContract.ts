@@ -113,3 +113,30 @@ export function leafFieldPaths(doc: unknown, prefix: Segment[] = []): string[] {
   }
   return prefix.length ? [formatFieldPath(prefix)] : [];
 }
+
+/**
+ * The one comparison two readers' values are judged by (DOCUMENT-READER-PLAN §7B A3, D-DR19), shared so
+ * the API that records agreement and the screen that shows it cannot disagree about it. Deliberately
+ * narrow: case, surrounding space and runs of space are not differences (one model writes "DRUMS", another
+ * "Drums"); a thousands comma in a number written as text is not; ANY other difference is — a digit, a
+ * letter, a decimal place, null against a value. Never fuzzy: a near-miss is a disagreement for a person.
+ */
+export function normalisedForAgreement(v: unknown): unknown {
+  if (typeof v === "string") return v.trim().replace(/\s+/g, " ").toUpperCase().replace(/(\d),(\d{3})(?!\d)/g, "$1$2");
+  if (Array.isArray(v)) return v.map(normalisedForAgreement);
+  return v ?? null;
+}
+
+export function valuesAgree(a: unknown, b: unknown): boolean {
+  return JSON.stringify(normalisedForAgreement(a)) === JSON.stringify(normalisedForAgreement(b));
+}
+
+/**
+ * Whether a field's two model readers agree: true / false when both pass A and pass B recorded a value, null
+ * when either is absent (one reader only — never agreement).
+ */
+export function readersAgree(e: Pick<FieldEvidence, "sources">): boolean | null {
+  const a = e.sources.find((s) => s.reader === "passA");
+  const b = e.sources.find((s) => s.reader === "passB");
+  return a && b ? valuesAgree(a.value, b.value) : null;
+}

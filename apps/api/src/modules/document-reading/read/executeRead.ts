@@ -29,8 +29,8 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  *
  * Since §7B A2 a finished read records evidence: the profile's witnesses over its document
  * (evidence/index.ts — for the shipping document, the Hazardous Materials Table's verdict on each line).
- * What it does NOT do yet, each its own step: pass B (A3 — the read records only pass A's model, so no
- * field can be *Read* yet); the usability gate (`unusable_image`, which needs the shared capture metrics
+ * Since A3 a second model (pass B, Sonnet 5.5) reads the same pages and its values are recorded beside pass
+ * A's, lines matched by key; the read's document is pass A's. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
  * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
  * read only when its class is one the profile reads; a page the classifier could not answer is still
  * read — an unknown page is not a known non-BOL. Each read page is sent turned upright by its verdict's
@@ -135,10 +135,10 @@ async function loadImages(
   return images;
 }
 
-async function cachedResult(admin: SupabaseClient, orgId: string, readId: string, cacheKey: string): Promise<unknown | undefined> {
+async function cachedResult(admin: SupabaseClient, orgId: string, readId: string, cacheKey: string): Promise<{ result: unknown; evidence: unknown } | undefined> {
   const { data, error } = await admin
     .from("document_reads")
-    .select("id, result")
+    .select("id, result, evidence")
     .eq("org_id", orgId)
     .eq("cache_key", cacheKey)
     .eq("status", "done")
@@ -147,7 +147,8 @@ async function cachedResult(admin: SupabaseClient, orgId: string, readId: string
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`document_reads cache: ${error.message}`);
-  return (data as { result: unknown } | null)?.result ?? undefined;
+  const row = data as { result: unknown; evidence: unknown } | null;
+  return row && row.result != null ? { result: row.result, evidence: row.evidence ?? [] } : undefined;
 }
 
 async function tokensUsedThisMonth(admin: SupabaseClient, orgId: string, now: Date): Promise<number> {
@@ -183,7 +184,8 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   await transition(admin, orgId, readId, "reading");
 
   const prompt = READ_PROMPTS[read.profile];
-  const models = [readModels(deps.env).A];
+  const pins = readModels(deps.env);
+  const models = [pins.A, pins.B];
   const versions: Versions = { models, promptVersion: prompt.version, schemaHash: profileSchemaHash(read.profile), cacheKey: null };
   const fail = async (code: ReadFailureCode, input = 0, output = 0): Promise<ExecuteReadOutcome> => {
     await transition(admin, orgId, readId, "failed", {
@@ -198,10 +200,10 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
     });
     return { outcome: "failed", code, inputTokens: input, outputTokens: output };
   };
-  const done = async (result: unknown, cacheHit: boolean, input: number, output: number, pages: number): Promise<ExecuteReadOutcome> => {
+  const done = async (result: unknown, evidence: unknown, cacheHit: boolean, input: number, output: number, pages: number): Promise<ExecuteReadOutcome> => {
     await transition(admin, orgId, readId, "done", {
       p_result: result,
-      p_evidence: EVIDENCE_FOR[read.profile](result, ACCEPTANCE_RULE_VERSION),
+      p_evidence: evidence,
       p_models: versions.models,
       p_prompt_version: versions.promptVersion,
       p_schema_hash: versions.schemaHash,
@@ -254,16 +256,26 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   });
   const cached = await cachedResult(admin, orgId, readId, versions.cacheKey);
   // D17's order: a cache hit spends nothing, so it needs no budget to authorise it.
-  if (cached !== undefined) return done(cached, true, spent.input, spent.output, pages.length);
+  // The cached read's evidence is replayed with its result: the rule version is in the key, so it was
+  // judged by today's rule, and pass B's values cannot be recomputed without pass B's document.
+  if (cached !== undefined) return done(cached.result, cached.evidence, true, spent.input, spent.output, pages.length);
 
   const used = await tokensUsedThisMonth(admin, orgId, deps.now?.() ?? new Date());
   if (!withinBudget(used + spent.input + spent.output, gate.monthlyTokenBudget)) return fail("budget_exhausted", spent.input, spent.output);
 
-  const input = { profile: read.profile, pages: images, model: models[0]!, prompt };
-  const res = "sections" in profile && profile.sections?.length ? await readSections(input, deps.client) : await readPages(input, deps.client);
-  const total = spend(res.usage);
-  if (res.kind === "ok") return done(res.document, false, total.input, total.output, pages.length);
-  return fail(res.kind, total.input, total.output);
+  const read1 = (model: string) => {
+    const input = { profile: read.profile, pages: images, model, prompt };
+    return "sections" in profile && profile.sections?.length ? readSections(input, deps.client) : readPages(input, deps.client);
+  };
+  // Pass A is the document; pass B is a second, independent witness to it (§7B A3). They run in turn, not
+  // in parallel: a refusal or failure of A ends the read before B is paid for.
+  const a = await read1(pins.A);
+  if (a.kind !== "ok") return fail(a.kind, spend(a.usage).input, spend(a.usage).output);
+  const b = await read1(pins.B);
+  const total = { input: spend(a.usage).input + b.usage.input, output: spend(a.usage).output + b.usage.output };
+  // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
+  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION);
+  return done(a.document, evidence, false, total.input, total.output, pages.length);
 }
 
 /** The read the queue gave up on: its last attempt ended on a transient model error (0451). */
