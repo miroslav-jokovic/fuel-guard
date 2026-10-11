@@ -219,7 +219,7 @@ Every table: `org_id` NOT NULL with composite FKs, `enable row level security`, 
 | `roadside_inspection_units` | projection | Unit seq, type, VIN, plate/state, company number, decal → `vehicle_id`/`trailer_id` + match method |
 | `roadside_violations` | projection | seq_no, raw code (kept verbatim), normalised code, part/section, unit, category, OOS, defect verification, citation number, BASIC + severity from Appendix A version, SMS-included flag |
 | `roadside_citations` | projection | vioseqnum, adjseq, code, result |
-| `sms_violation_definitions` | versioned reference | Appendix A rows per version: normalised code, BASIC, group, severity, DSMS flag, added-in, effective snapshot date, source sha256 |
+| ~~`sms_violation_definitions`~~ | — | **Not a table (IC3, 2026-10-11).** Appendix A is the same for every carrier and is only read by the pure calculator, so it ships as versioned data inside `packages/sms-engine/datasets/`. It is generated from FMCSA's workbook and checked against it by `lint:codegen`, the same way `@hazmat/data` works. |
 | `regulatory_texts` | versioned reference, append-only | eCFR section text per `(section, effective date)`, source URL, sha256, retrieved_at. Fetched on demand and cached forever |
 | `inspection_attributions` | append-only | inspection → driver: method, confidence, Samsara assignment payload id, confirmed_by/at for human confirmation. A correction is a new row |
 | `inspection_evidence_snapshots` | append-only, RETENTION_FORBIDDEN | kind (gps_window, hos_day, assignments, dvir, efs_txns, annual_inspection, credentials, document), source endpoint, observed window, retrieved_at, sha256, payload or `document_id`, `temporal_class` (contemporaneous / post_event / context) |
@@ -412,6 +412,21 @@ about three merges.
 - **Q-IC8 — Leased/owner-operator units.** If the 227 unmatched units are owner-operators under our
   authority, they are ours for FMCSA purposes. Attribution must then read the lease roster, not only
   `vehicles`. IC1 measures it first.
+- **Q-IC9 — The 15 violations our calculator scores and FMCSA's 2026-08-28 snapshot did not.**
+  Every violation FMCSA scored, we score with the same weights. The open question is these 15 extra:
+  - **14 in HM Compliance:** shipping-paper, marking, label and placard codes (172.2xx, 172.3xx,
+    172.4xx, 172.5xx, 173.24) on 7 placarded Level 1–2 inspections from 2024–26. Other violations
+    on those same inspections were scored.
+  - **1 in Unsafe Driving:** 392.2LC on 4179180099 (IL, 2024-10-19). It was ticketed and the feed
+    has no court result.
+
+  Candidate explanations: (a) FMCSA attributes these to the shipper rather than the carrier, using
+  a flag the open-data violation file does not publish. (b) They were corrected in MCMIS without a
+  change that reached the open feed. (c) There is a rule in the methodology that we have not found
+  yet. *Recommendation:* until this is answered, HM Compliance and Unsafe Driving stay
+  `verified: false` in `SMS_PARITY`, so no impact figure is shown for them (D-IC6). The next
+  snapshot will add evidence: if the same codes drop out again on new inspections, (a) becomes
+  likely. One RDR-free check is to ask the state analyst for one of the 7 inspections.
 
 ---
 
@@ -464,3 +479,37 @@ about three merges.
   - **Not built:** `sms_violation_definitions` moves to IC3 with the calculator that reads it. The
     feed-freshness alert from §4.1 is IC1c.
   - **Q-IC8 still open:** about 229 tractors and trailers have no match.
+- **2026-10-11 — IC3 (the SMS calculator).** New pure package `packages/sms-engine`. It has no
+  workspace dependencies, takes the measurement date as an argument (no clock), and both rules are
+  enforced by `lint:boundaries`. Appendix A v3.21 (2,412 violations) is generated from the committed
+  workbook; the generator checks the workbook's sha256 against SOURCES.md, and `lint:codegen` fails
+  if the generated data drifts.
+  - **Rules found by measurement.** These were not in §0, and the parity test pins each one:
+    - Codes are compared without punctuation. The SMS input writes `39375A3TAOL`.
+    - Each BASIC counts only on its relevant inspection level. Vehicle Maintenance and HM need a
+      vehicle inspection (Level 1, 2, 5 or 6); the driver BASICs need Level 1, 2, 3 or 6. Ten of our
+      violations were on the wrong level.
+    - HM counts only where placardable HM was carried. 23 of ours were not.
+    - An inspection counts only if it reached MCMIS before the measurement date. Two did not.
+    - A code counts once per inspection, and is out-of-service if any occurrence was. 37 of ours were
+      repeats.
+    - There is no OOS weight in Unsafe Driving or Controlled Substances.
+    - A "different charge" conviction sets severity to 1 and drops the OOS weight.
+    - FMCSA's `total_severity_wght` is severity plus OOS, before time weighting.
+    - The time-weight boundaries fit snapshot date 2026-08-28 (a Friday), with each boundary
+      counted in the newer bucket.
+  - **Parity with FMCSA's 2026-08-28 snapshot**, run on our 2026-10-10 feed:
+    - Compared: 735 scored violations. Seven inspections FMCSA changed after the snapshot are
+      excluded; for example, 0298004281's violations were rewritten on 2026-09-26.
+    - Every one of FMCSA's 735 is reproduced, with identical severity, OOS, time and total weight.
+    - The scored inspection set and each inspection's time weight are identical.
+    - Extra on our side: the 15 in Q-IC9.
+    - Exact BASICs: Vehicle Maintenance, Hours of Service, Driver Fitness, and Controlled
+      Substances/Alcohol.
+  - **Mutation checks:** dropping the level rule, the different-charge rule or the placard rule
+    fails the parity test. Dropping the MCMIS-loaded rule fails the unit test; the parity test cannot
+    see it, because the same two inspections are also changed-after-snapshot.
+  - **Not built:** a BASIC *measure* needs the power-unit count and the relevant-inspection
+    denominator, and percentiles need every other carrier, which FMCSA does not publish. IC4 shows
+    the per-violation impact (`basicPoints` with and without the violation) for verified BASICs
+    only. The feed-freshness alert (IC1c) is still pending.
