@@ -3,7 +3,7 @@ import {
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
   parseVehicleFuelPercents,
-  parseCurrentAssignments,
+  parseDriverCurrentTrucks,
   parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
@@ -257,8 +257,9 @@ async function syncDriverAssignments(
 ): Promise<number> {
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
-    const rawAssign = (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0];
-    const links = parseCurrentAssignments(rawAssign, new Date().toISOString());
+    const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
+    // One truck per driver, not one driver per truck — see `driverTrucks.ts` for 506 and 807.
+    const links = parseDriverCurrentTrucks(rawAssign);
     const intervals = parseAssignmentIntervals(rawAssign);
     if (intervals.length) {
       const now = new Date().toISOString();
@@ -280,27 +281,42 @@ async function syncDriverAssignments(
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
         .from("vehicles")
-        .select("id, samsara_vehicle_id")
-        .eq("org_id", orgId)
-        .not("samsara_vehicle_id", "is", null),
+        .select("id, samsara_vehicle_id, assigned_driver_id")
+        .eq("org_id", orgId),
       admin
         .from("drivers")
         .select("id, samsara_driver_id")
         .eq("org_id", orgId)
         .not("samsara_driver_id", "is", null),
     ]);
-    const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
+    const vehicles = (vRows ?? []) as Array<{ id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null }>;
+    const vehById = new Map(vehicles.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id as string, r]));
     const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
-    let assigned = 0;
+    // Driver id → the one truck Samsara puts them in, for the drivers this pass places.
+    const placed = new Map<string, string>();
     for (const link of links) {
-      const vehId = vehById.get(link.vehicleSamsaraId);
+      const veh = vehById.get(link.vehicleSamsaraId);
       const drvId = drvById.get(link.driverSamsaraId);
-      if (vehId && drvId) {
-        await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
-        assigned++;
-      }
+      if (!veh || !drvId) continue;
+      placed.set(drvId, veh.id);
+      if (veh.assigned_driver_id === drvId) continue; // already right; a no-op write is still a write
+      await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", veh.id).eq("org_id", orgId);
     }
-    return assigned;
+    // ...and off every OTHER truck they still hold. Only drivers placed above: a driver whose current
+    // truck we cannot name in our roster keeps what they have, because clearing it would assert
+    // "drives nothing" on evidence that says "drives something we do not carry". The write repeats
+    // the driver it expects, so an office edit made since the read is not undone.
+    for (const v of vehicles) {
+      const drvId = v.assigned_driver_id;
+      if (!drvId || !placed.has(drvId) || placed.get(drvId) === v.id) continue;
+      await admin
+        .from("vehicles")
+        .update({ assigned_driver_id: null })
+        .eq("id", v.id)
+        .eq("org_id", orgId)
+        .eq("assigned_driver_id", drvId);
+    }
+    return placed.size;
   } catch {
     /* assignments are best-effort */
     return 0;
@@ -392,7 +408,7 @@ export async function syncVehiclesFromSamsara(
     console.warn(`[vehicle-sync] ${result.heldByOtherDevice.length} Samsara vehicle(s) match a truck another listed device holds: ${result.heldByOtherDevice.join(", ")}`);
   }
 
-  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
+  // ── Driver assignments: put each driver on their one current truck, and off every other ──────
   // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
   // token scope. Any failure here leaves identity/odometer sync intact.
   result.assigned = await syncDriverAssignments(admin, env, token, orgId, assignmentOverride);
