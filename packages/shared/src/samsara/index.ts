@@ -63,6 +63,7 @@ export {
   parseSamsaraVehicles,
   locationDistanceMiles,
 } from "./entities.js";
+export { parseDriverCurrentTrucks } from "./driverTrucks.js";
 export {
   parseIftaVehicleReport,
   mergeIftaPages,

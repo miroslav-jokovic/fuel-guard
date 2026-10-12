@@ -3,7 +3,7 @@ import {
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
   parseVehicleFuelPercents,
-  parseCurrentAssignments,
+  parseDriverCurrentTrucks,
   parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
@@ -257,8 +257,7 @@ async function syncDriverAssignments(
 ): Promise<number> {
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
-    const rawAssign = (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0];
-    const links = parseCurrentAssignments(rawAssign, new Date().toISOString());
+    const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
     const intervals = parseAssignmentIntervals(rawAssign);
     if (intervals.length) {
       const now = new Date().toISOString();
@@ -276,31 +275,53 @@ async function syncDriverAssignments(
         });
       }
     }
-    if (!links.length) return 0;
+    if (!intervals.length) return 0;
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
         .from("vehicles")
-        .select("id, samsara_vehicle_id")
-        .eq("org_id", orgId)
-        .not("samsara_vehicle_id", "is", null),
+        .select("id, samsara_vehicle_id, assigned_driver_id")
+        .eq("org_id", orgId),
       admin
         .from("drivers")
         .select("id, samsara_driver_id")
         .eq("org_id", orgId)
-        .not("samsara_driver_id", "is", null),
+        .not("samsara_driver_id", "is", null)
+        // An archived row is off the roster (0235) — on 2026-10-12 every inactive, terminated and
+        // applicant row was archived, 16 of 19 inactive ones nameless. Seated, it puts "Unnamed driver"
+        // on a truck the person behind it may never have driven under that row.
+        .is("archived_at", null),
     ]);
-    const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
+    const vehicles = (vRows ?? []) as Array<{ id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null }>;
+    const vehById = new Map(vehicles.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id as string, r]));
     const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
-    let assigned = 0;
-    for (const link of links) {
-      const vehId = vehById.get(link.vehicleSamsaraId);
-      const drvId = drvById.get(link.driverSamsaraId);
-      if (vehId && drvId) {
-        await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
-        assigned++;
-      }
+    // One truck per driver, not one driver per truck; only trucks and drivers we carry are ranked, as
+    // the feed carries trailers too. See `driverTrucks.ts` for 506/807, the team on 799, and the tie.
+    const { current, seats } = parseDriverCurrentTrucks(rawAssign, {
+      isTruck: (id) => vehById.has(id),
+      isDriver: (id) => drvById.has(id),
+    });
+    for (const seat of seats) {
+      const veh = vehById.get(seat.vehicleSamsaraId)!;
+      const drvId = drvById.get(seat.driverSamsaraId)!;
+      if (veh.assigned_driver_id === drvId) continue; // already right; a no-op write is still a write
+      await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", veh.id).eq("org_id", orgId);
     }
-    return assigned;
+    // ...and every driver off every truck but the one they are in now — a teammate who lost the seat
+    // above included. A driver Samsara has in no truck we carry keeps what they have: clearing it
+    // would assert "drives nothing" on evidence that says "drives something we do not carry". The
+    // write repeats the driver it expects, so an office edit made since the read is not undone.
+    const placed = new Map(current.map((c) => [drvById.get(c.driverSamsaraId)!, vehById.get(c.vehicleSamsaraId)!.id]));
+    for (const v of vehicles) {
+      const drvId = v.assigned_driver_id;
+      if (!drvId || !placed.has(drvId) || placed.get(drvId) === v.id) continue;
+      await admin
+        .from("vehicles")
+        .update({ assigned_driver_id: null })
+        .eq("id", v.id)
+        .eq("org_id", orgId)
+        .eq("assigned_driver_id", drvId);
+    }
+    return seats.length;
   } catch {
     /* assignments are best-effort */
     return 0;
@@ -392,7 +413,7 @@ export async function syncVehiclesFromSamsara(
     console.warn(`[vehicle-sync] ${result.heldByOtherDevice.length} Samsara vehicle(s) match a truck another listed device holds: ${result.heldByOtherDevice.join(", ")}`);
   }
 
-  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
+  // ── Driver assignments: put each driver on their one current truck, and off every other ──────
   // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
   // token scope. Any failure here leaves identity/odometer sync intact.
   result.assigned = await syncDriverAssignments(admin, env, token, orgId, assignmentOverride);
