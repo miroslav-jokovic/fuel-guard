@@ -1309,3 +1309,27 @@ Append dated lines at the end; never edit a row above.
   Twenty-five mutants killed (rowWitness 10, shippingEvidence 5, ocrModels 3, pageOcr 3, executeRead 4).
   Next: the field-description tightening (count vs quantity, what belongs in marks), then A6 on labels.
 
+
+- **2026-10-12 — N6 part 1: the read becomes calculator lines (`bolPrefill.ts`).** The consumer adapter
+  `fieldEvidenceContract.ts` always named: a finished read → one calculator line per printed hazmat line, each
+  field with the evidence's state (D-DR4), whether the two readers agree, whether the OCR found the value on the
+  line's row, the reason it is blank or needs a person, and the evidence paths a Calculate press will confirm.
+  **The product is the table's own row**: the line's `hmtRef` from the A2 witness, fetched by that exact ref
+  through `GET /hazmat/products?refs=` (new; never a search, a ref the calculator's dataset lacks leaves the
+  line unresolved). Limited Quantity only when BOTH readers read the notation (the extractor's rule: a wrong LQ
+  is the one error that could under-placard); the §173.150(f) election never set, the line says the paper
+  printed it; an unrecognised unit leaves the quantity blank; template lines with no count, weight or quantity
+  are left out and listed; a line only pass B saw comes in with a note; non-hazmat lines printed → other
+  freight "yes", otherwise "not sure", never "no". Nothing becomes *Read* the evidence did not say.
+  **One reading, not two:** the printed-unit table, the packaging-phrase reader (`packageTypeFromPrinted`, new)
+  and the template-line rule (`classifyLineLoadState`) move to `@silvicom/shared`; the hazmat extractor
+  re-exports them and takes its bulk/non-bulk answer from the same phrase reader, so the two paths cannot
+  classify one paper differently.
+  **A defect in A2, found building this:** the table witness resolved a line printed "Combustible liquid"
+  without the election the extractor's mapper passes, so NA1993 "Diesel fuel, Combustible liquid, PG III" —
+  how most fuel BOLs print diesel — was a class mismatch, and its product could never have prefilled. It now
+  passes the election exactly as `mapBolLines.ts` does; the resolver still refuses the word on gasoline or an
+  acid. Rule "3" → "4". Thirty mutants killed (bolPrefill 22, packaging and units 4, products-by-ref 2, witness 1,
+  extractor fallback 1); the survivors on the way removed a redundant filter and fixed an order test that had
+  passed on the dataset's own order. Not yet on screen: the panel still emits the read; part 2 applies it to
+  the form with each field's state, part 3 adds the paper audit's findings.

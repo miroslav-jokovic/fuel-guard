@@ -39,6 +39,8 @@ describe("mapBolLines — resolution + fail-closed", () => {
     expect(drums.lines[0]!.engineLine!.packagingKind).toBe("non_bulk");
     const noHint = mapBolLines(index, bol([{ idText: "UN1203", psn: "Gasoline", pg: "II", quantity: { value: 8000, unit: "gal" } }]), { vehicleKind: "cargo_tank" });
     expect(noHint.lines[0]!.engineLine!.packagingKind).toBe("bulk");
+    const unknownOnVan = mapBolLines(index, bol([{ idText: "UN1203", psn: "Gasoline", pg: "II", quantity: { value: 55, unit: "gal" }, packaging: "1 TT" }]), { vehicleKind: "van_or_flatbed" });
+    expect(unknownOnVan.lines[0]!.engineLine!.packagingKind).toBe("non_bulk");
   });
 });
 

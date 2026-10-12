@@ -27,9 +27,19 @@ export interface HazmatCalcResponse {
 // products through the API. One row per (HMT entry × pg-row) so a selection yields a canonical `hmtRef`
 // directly (no second PG step in the common case). With no `q`, the curated fuel shortlist is returned
 // (D4 launch scope); with `q`, the full HMT is searched by UN/NA number, PSN, or 'or'-alternate name.
+//
+// `refs` (comma-separated `hmtRef`s) asks for exactly those rows instead of a search: the document
+// reader's calculator prefill (DOCUMENT-READER-PLAN §7A N6) holds the table's own `hmtRef` for each read
+// line and needs the product it names, not a list to pick from. A ref the dataset does not hold is
+// left out, so the line stays unresolved rather than taking a neighbour.
 export const hazmatProductsQuerySchema = z.object({
   q: z.string().trim().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  refs: z
+    .string()
+    .transform((s) => s.split(",").map((r) => r.trim()).filter((r) => r.length > 0))
+    .pipe(z.array(z.string().max(200)).min(1).max(50))
+    .optional(),
 });
 export type HazmatProductsQuery = z.infer<typeof hazmatProductsQuerySchema>;
 

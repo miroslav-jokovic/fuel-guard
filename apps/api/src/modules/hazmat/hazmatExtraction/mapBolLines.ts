@@ -1,5 +1,6 @@
 import { resolveHmtLine, type DatasetIndex, type ResolveLineResult } from "@hazmat/data";
 import type { HazmatLine } from "@hazmat/engine";
+import { packageTypeFromPrinted, packagingKindFor } from "@silvicom/shared";
 import { normalizeUnit, type BolFields, type BolLineFields } from "./bolFields.js";
 
 /**
@@ -47,15 +48,11 @@ export interface MapBolOptions {
 }
 
 function derivePackaging(line: BolLineFields, vehicleKind: MapBolOptions["vehicleKind"]): "bulk" | "non_bulk" {
-  const txt = (line.packaging ?? "").toLowerCase();
   // H-P1 alignment: totes/IBCs and portable tanks are BULK (§171.8 — a 275/330-gal IBC exceeds 119
   // gal even on a dry van), and hoppers/pneumatics are bulk solids. They were in the non-bulk branch
-  // until 2026-08-08 — the same under-classification the manual form's D-H14 rework closed.
-  // Plural-tolerant stems: real BOLs print "4 TOTES", "10 DRUMS" — the old singular-only word
-  // boundaries silently matched nothing and every phrase fell through to the vehicle default.
-  if (/\b(cargo tanks?|tanks?|bulk|totes?|ibcs?|portable tanks?|iso tanks?|hoppers?|pneumatics?)\b/.test(txt)) return "bulk";
-  if (/\b(drums?|cases?|cartons?|boxes|box|pails?|jerricans?|cylinders?|bags?|packages?)\b/.test(txt)) return "non_bulk";
-  return vehicleKind === "cargo_tank" ? "bulk" : "non_bulk";
+  // until 2026-08-08 — the same under-classification the manual form's D-H14 rework closed. The phrase
+  // is read by the shared `packageTypeFromPrinted`, the one reading the calculator prefill uses too.
+  return packagingKindFor(packageTypeFromPrinted(line.packaging)) ?? (vehicleKind === "cargo_tank" ? "bulk" : "non_bulk");
 }
 
 function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions, lqConfirmed: boolean): MappedLine {

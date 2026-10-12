@@ -6,7 +6,7 @@ import {
   type HazmatProductsResponse,
 } from "@silvicom/shared";
 import { loadDataset } from "@hazmat/data";
-import { searchProducts } from "../hazmatProducts.js";
+import { productsByRef, searchProducts } from "../hazmatProducts.js";
 import { computeCalc } from "../hazmatCalc.js";
 import { apiError, asyncHandler, validateBody } from "../../../lib/http.js";
 
@@ -43,7 +43,9 @@ export function publicHazmatRouter(): Router {
         return;
       }
       const dataset = loadDataset();
-      const products = searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit, marinePollutants: dataset.marinePollutants });
+      const products = parsed.data.refs
+        ? productsByRef(dataset.entries, parsed.data.refs, dataset.marinePollutants)
+        : searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit, marinePollutants: dataset.marinePollutants });
       const response: HazmatProductsResponse = { datasetVersion: dataset.version, products };
       res.json(response);
     }),
