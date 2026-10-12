@@ -1,9 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import type { FuelPolicy, SpendLine } from "@silvicom/shared";
 import { NO_FUEL_TARGETS } from "@silvicom/shared";
 import { policyReports } from "./policyReports";
 import ExceptionsTab from "./ExceptionsTab.vue";
+
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
 
 /**
  * FUEL-C5 — the three policy reports, kept in the tree while nothing renders them.
@@ -114,9 +117,12 @@ describe("the three policy reports survive C5 intact", () => {
    * first having to work out what the page used to pass.
    */
   it("hands ExceptionsTab everything it needs, with no page in between", () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
     for (const r of policyReports(FEED, POLICY)) {
       const w = mount(ExceptionsTab, {
         props: { title: r.title, blurb: r.blurb, report: r.report, slug: r.slug, note: r.note },
+        global: { plugins: [pinia] },
       });
       expect(w.text(), r.key).toContain(r.title);
       expect(w.text(), r.key).not.toContain("NaN");

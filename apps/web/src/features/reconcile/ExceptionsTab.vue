@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import type { ExceptionReport } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
+import ExportButton from "@/components/ExportButton.vue";
 import { usd, usd3, gal, pct1 } from "./format";
 
 /**
@@ -244,13 +245,13 @@ function exportRows() {
       <div>
         <h4 class="mb-2 text-sm font-semibold text-ink">Which trucks</h4>
         <BaseCard padding="none">
-          <DataTable :columns="unitCols" :rows="unitRows" row-key="id" empty-text="No truck stands out." />
+          <DataTable embedded :columns="unitCols" :rows="unitRows" row-key="id" empty-text="No truck stands out." />
         </BaseCard>
       </div>
       <div v-if="siteRows.length">
         <h4 class="mb-2 text-sm font-semibold text-ink">Which sites</h4>
         <BaseCard padding="none">
-          <DataTable :columns="siteCols" :rows="siteRows" row-key="id" empty-text="No site stands out." />
+          <DataTable embedded :columns="siteCols" :rows="siteRows" row-key="id" empty-text="No site stands out." />
         </BaseCard>
       </div>
     </div>
@@ -258,10 +259,16 @@ function exportRows() {
     <div>
       <div class="mb-2 flex items-center justify-between">
         <h4 class="text-sm font-semibold text-ink">Every fill</h4>
-        <BaseButton v-if="report.fills.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
+        <ExportButton
+          v-if="report.fills.length"
+          :run="exportRows"
+          :scope="`${report.fills.length.toLocaleString()} fills`"
+          label="Download (CSV)"
+        />
       </div>
       <BaseCard padding="none">
         <DataTable
+          embedded
           :columns="cols"
           :rows="sortedRows"
           :sort="sort"

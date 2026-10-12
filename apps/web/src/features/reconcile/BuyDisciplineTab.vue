@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
   gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD, formatDisplayDate,
@@ -10,6 +10,7 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
@@ -291,10 +292,16 @@ function exportRows() {
     <div>
       <div class="mb-2 flex items-center justify-between">
         <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
-        <BaseButton v-if="fillsState === 'ready' && report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
+        <ExportButton
+          v-if="fillsState === 'ready' && report.findings.length"
+          :run="exportRows"
+          :scope="`${report.findings.length.toLocaleString()} purchases`"
+          label="Download (CSV)"
+        />
       </div>
       <BaseCard padding="none">
         <DataTable
+          embedded
           :columns="cols"
           :rows="pageRows"
           :sort="sort"
@@ -372,7 +379,7 @@ function exportRows() {
 
         <template v-if="props.policy.avoidStates.length">
           <BaseCard padding="none" class="mt-3">
-            <DataTable :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
+            <DataTable embedded :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
               <template #cell-against="{ row }">
                 <span :class="row.tone">{{ row.against }}</span>
               </template>
@@ -411,7 +418,7 @@ function exportRows() {
     </p>
     <ExplainerPanel v-if="fillsState === 'ready' && stateRows.length" summary="What fuel costs, by state, with the tax taken out">
       <BaseCard padding="none">
-        <DataTable :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
+        <DataTable embedded :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
       </BaseCard>
       <p class="text-xs text-ink-tertiary">
         This is what the fleet PAID, not what fuel costs in that state — somewhere you only ever stop at

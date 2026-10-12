@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaPeriodQuery,
   type IftaQuarter,
 } from "@/features/ifta/useIftaPeriod";
 import { usd, usd3, gal, pct1 } from "@/features/reconcile/format";
 import DriverFuelUploadDialog from "@/features/ifta/DriverFuelUploadDialog.vue";
-import ExportButton from "@/components/ExportButton.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -97,6 +97,22 @@ const uploadOpen = ref(false);
  */
 const exportQuery = computed(() => `year=${quarter.value.year}&quarter=${quarter.value.quarter}`);
 const exportName = computed(() => `ifta-return-${quarter.value.year}-Q${quarter.value.quarter}`);
+const exportItems = computed<readonly ExportItem[]>(() => [
+  {
+    key: "xlsx",
+    label: "Excel workbook",
+    description: "Truck-by-state grids and every fill",
+    href: `/api/ifta/return.xlsx?${exportQuery.value}`,
+    filename: `${exportName.value}.xlsx`,
+  },
+  {
+    key: "pdf",
+    label: "PDF return",
+    description: "Return summary with one section per truck",
+    href: `/api/ifta/return.pdf?${exportQuery.value}`,
+    filename: `${exportName.value}.pdf`,
+  },
+]);
 
 /**
  * One line saying whether the numbers below can be trusted, in the order a reader needs them.
@@ -170,7 +186,6 @@ const cols: DataTableColumn[] = [
   { key: "surcharge", label: "Surcharge", numeric: true, width: "sm" },
 ];
 const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
-
 /**
  * A row opens the trucks behind it, for the same quarter. The click is the mouse's path; the link in
  * the jurisdiction cell is the keyboard's and the screen reader's (contract §5.7 — a row that only
@@ -185,20 +200,9 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
     <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps.">
       <template #actions>
         <ExportButton
-          data-testid="export-ifta-xlsx"
-          :href="`/api/ifta/return.xlsx?${exportQuery}`"
-          :filename="`${exportName}.xlsx`"
+          data-testid="export-ifta"
+          :items="exportItems"
           :scope="quarterLabel(quarter)"
-          label="Excel"
-          variant="secondary"
-        />
-        <ExportButton
-          data-testid="export-ifta-pdf"
-          :href="`/api/ifta/return.pdf?${exportQuery}`"
-          :filename="`${exportName}.pdf`"
-          scope=""
-          label="PDF"
-          variant="secondary"
         />
         <BaseButton data-testid="open-driver-fuel" @click="uploadOpen = true">Driver-paid fuel</BaseButton>
       </template>
@@ -210,11 +214,16 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
          The jurisdiction miles the ledger owes tax on come from one tier and nothing else. -->
     <SamsaraFeedLine :feeds="['ifta']" />
 
-    <FilterBar :count="barCount" count-label="jurisdictions">
-      <template #filters>
+    <ReportScopeBar
+      title="Reporting quarter"
+      description="All return figures and exports use this filing period."
+      :count="barCount"
+      count-label="jurisdictions"
+    >
+      <template #control>
         <FilterSelect v-model="selectedKey" :options="quarterOptions" label="Quarter" />
       </template>
-    </FilterBar>
+    </ReportScopeBar>
 
     <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
     <p v-else-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
@@ -272,27 +281,25 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
 
       <p v-for="(note, i) in samsaraNotes" :key="i" class="text-xs text-ink-tertiary">{{ note }}</p>
 
-      <BaseCard padding="none">
-        <DataTable
-          :columns="cols"
-          :rows="rows"
-          row-key="id"
-          empty-text="No miles or fuel recorded for this quarter."
-          @row-click="openJurisdiction"
-        >
-          <template #cell-jurisdiction="{ row }">
-            <RouterLink
-              :to="jurisdictionLink(String(row.id))"
-              class="font-medium text-brand-700 hover:underline"
-              @click.stop
-            >{{ row.jurisdiction }}</RouterLink>
-          </template>
-          <template #cell-purchased="{ row }">
-            {{ row.purchased }}
-            <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from driver-paid receipts</span>
-          </template>
-        </DataTable>
-      </BaseCard>
+      <DataTable
+        :columns="cols"
+        :rows="rows"
+        row-key="id"
+        empty-text="No miles or fuel recorded for this quarter."
+        @row-click="openJurisdiction"
+      >
+        <template #cell-jurisdiction="{ row }">
+          <RouterLink
+            :to="jurisdictionLink(String(row.id))"
+            class="font-medium text-brand-700 hover:underline"
+            @click.stop
+          >{{ row.jurisdiction }}</RouterLink>
+        </template>
+        <template #cell-purchased="{ row }">
+          {{ row.purchased }}
+          <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from driver-paid receipts</span>
+        </template>
+      </DataTable>
 
       <!-- The filing workflow is not built (Q-IF5). Said outright rather than behind a disclosure: the
            first version hid the second sentence behind a "why can't I file from this?" toggle, which

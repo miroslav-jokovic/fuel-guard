@@ -14,6 +14,7 @@ import {
   type DqItemState,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -218,7 +219,9 @@ function onSort(key: string): void {
 
 <template>
   <div class="space-y-6">
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search drivers…"
       :count="filtered.length"
@@ -230,14 +233,14 @@ function onSort(key: string): void {
       </template>
     </FilterBar>
 
-    <p v-if="query.data.value?.truncated" class="text-sm text-warning-700">
+    <p v-if="query.data.value?.truncated" class="bg-warning-50 px-4 py-3 text-sm text-warning-700 sm:px-6">
       This picture is partial — the fleet has more qualification records than one read returns.
       Narrow the filters, or tell us so we can page it.
     </p>
 
     <div
       v-if="selected.size > 0"
-      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+      class="flex flex-wrap items-center gap-2 bg-brand-50 px-4 py-2.5 sm:px-6"
     >
       <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
       <span v-if="atCap" class="text-sm text-brand-800">
@@ -256,6 +259,7 @@ function onSort(key: string): void {
     </div>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -384,5 +388,6 @@ function onSort(key: string): void {
         />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

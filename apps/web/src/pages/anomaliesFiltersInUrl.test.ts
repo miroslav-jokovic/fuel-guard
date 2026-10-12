@@ -61,6 +61,8 @@ vi.mock("@vueuse/core", async (orig) => {
 });
 
 import AnomaliesPage from "./AnomaliesPage.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 
@@ -97,6 +99,14 @@ const settle = () => flushPromises();
 beforeEach(() => { seen.filters = null; });
 
 describe("the Alerts page's filters round-trip through the query string", () => {
+  it("keeps the embedded toolbar and table in one data workspace", async () => {
+    const { w } = await mountAt("/anomalies");
+    const workspace = w.getComponent(DataWorkspace);
+
+    expect(workspace.getComponent(FilterBar).props("embedded")).toBe(true);
+    expect(workspace.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
+  });
+
   it("writes the truck back, which is the half the deep link never had", async () => {
     const { w, query } = await mountAt("/anomalies");
     expect(query().vehicle).toBeUndefined();

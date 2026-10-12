@@ -100,7 +100,12 @@ const LabelsPage = (await import("@/pages/LabelsPage.vue")).default;
 /** Stubs that expose what the page handed down, without rendering a whole sheet into jsdom. */
 const stubs = {
   PageHeader: { template: "<div><slot name='actions' /></div>" },
-  FilterBar: { template: "<div><slot /></div>", props: ["search", "count", "countLabel", "searchPlaceholder"] },
+  FilterBar: {
+    name: "FilterBar",
+    template: "<div><slot name='filters' /><slot name='more' /><slot name='actions' /></div>",
+    props: { search: null, count: null, countLabel: null, searchPlaceholder: null, embedded: Boolean },
+  },
+  DataWorkspace: { name: "DataWorkspace", template: "<section data-testid='data-workspace'><slot /></section>" },
   AppSegmentedControl: {
     name: "AppSegmentedControl",
     props: ["modelValue", "options", "label"],
@@ -108,7 +113,7 @@ const stubs = {
   },
   DataTable: {
     name: "DataTable",
-    props: ["columns", "rows", "loading", "rowKey", "selectable", "selected"],
+    props: { columns: null, rows: null, loading: null, rowKey: null, selectable: null, selected: null, embedded: Boolean },
     template: "<div />",
   },
   LabelSheetPreview: { name: "LabelSheetPreview", props: ["faces", "presetId", "startPosition", "nudgeX", "nudgeY"], template: "<div />" },
@@ -124,6 +129,15 @@ beforeEach(() => {
 });
 
 describe("picking what to label", () => {
+  it("keeps the source control and picker table in one embedded data workspace", () => {
+    const wrapper = render();
+    const workspace = wrapper.get('[data-testid="data-workspace"]');
+
+    expect(workspace.findComponent({ name: "AppSegmentedControl" }).exists()).toBe(true);
+    expect(workspace.findComponent({ name: "FilterBar" }).props("embedded")).toBe(true);
+    expect(workspace.findComponent({ name: "DataTable" }).props("embedded")).toBe(true);
+  });
+
   /**
    * ⚠ The assertion this file exists for. A shelf has no id of its own, so the table's row key is
    * `stock:<part>:<location>` and the target has to come back out of that string as the same pair.

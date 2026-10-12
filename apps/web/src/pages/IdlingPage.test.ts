@@ -57,6 +57,8 @@ vi.mock("@/features/idle/useIdleSettings", () => ({
 vi.mock("@/features/idle/useIdleConfidence", () => ({ useIdleConfidence: () => ({ data: computed(() => null) }) }));
 
 import IdlingPage from "./IdlingPage.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 
 beforeEach(() => {
   Object.assign(caps, { loading: false, failed: false, refetch: vi.fn() });
@@ -124,6 +126,15 @@ describe("IdlingPage — each total says what it covers, how it was priced, and 
 });
 
 describe("IdlingPage — the Trucks table", () => {
+  it("gives the active tab one embedded toolbar-and-table workspace", async () => {
+    const w = await mountPage();
+    const workspaces = w.findAllComponents(DataWorkspace);
+
+    expect(workspaces).toHaveLength(1);
+    expect(workspaces[0]!.getComponent(FilterBar).props("embedded")).toBe(true);
+    expect(workspaces[0]!.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
+  });
+
   it("leads with the two costs, and keeps the table to seven columns", async () => {
     const w = await mountPage();
     expect(headers(w)).toEqual([

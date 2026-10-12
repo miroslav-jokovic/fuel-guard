@@ -14,6 +14,9 @@ vi.mock("@/stores/session", async () => {
   const s = fakeSession("admin");
   return { useSessionStore: () => s, __session: s };
 });
+vi.mock("@/features/ifta/DriverFuelUploadDialog.vue", () => ({
+  default: { template: "<div />" },
+}));
 
 
 /**
@@ -44,8 +47,8 @@ vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
 });
 
 const download = vi.fn(async (_path: string, _filename: string) => {});
-vi.mock("@/lib/api", async (orig) => ({
-  ...(await orig<typeof import("@/lib/api")>()),
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(),
   apiDownload: (path: string, filename: string) => download(path, filename),
 }));
 
@@ -123,6 +126,7 @@ describe("IftaLedgerPage", () => {
     expect(t).toContain("Texas");
     expect(t).toContain("Owed");
     expect(t).toContain("Paid at the pump");
+    expect(t).toContain("2 jurisdictions");
     expect(t).not.toContain("NaN");
   });
 
@@ -254,9 +258,13 @@ describe("IftaLedgerPage", () => {
   it("exports the quarter the page is showing, as Excel and as PDF", async () => {
     download.mockClear();
     const { w } = await mountPage("?q=2026-Q1");
-    expect(w.find('[data-testid="export-ifta-xlsx"]').text()).toContain("Q1 2026");
-    await w.find('[data-testid="export-ifta-xlsx"] button').trigger("click");
-    await w.find('[data-testid="export-ifta-pdf"] button').trigger("click");
+    const exportControl = w.get('[data-testid="export-ifta"]');
+    expect(exportControl.text()).toContain("Q1 2026");
+    await exportControl.get("button").trigger("click");
+    await w.findAll("button").find((button) => button.text().includes("Excel workbook"))!.trigger("click");
+    await flushPromises();
+    await exportControl.get("button").trigger("click");
+    await w.findAll("button").find((button) => button.text().includes("PDF return"))!.trigger("click");
     await flushPromises();
     expect(download.mock.calls).toEqual([
       ["/api/ifta/return.xlsx?year=2026&quarter=1", "ifta-return-2026-Q1.xlsx"],

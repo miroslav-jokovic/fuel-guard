@@ -2,12 +2,17 @@
 import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@silvicom/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import { AppTextarea } from "@silvicom/ui";
 import { AppTable } from "@silvicom/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
+
+const DETAIL_TABS: TabItem[] = [
+  { value: "overview", label: "Overview" },
+  { value: "audit", label: "Odometer & Location" },
+];
 
 const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
 const emit = defineEmits<{ changed: [] }>();
@@ -90,32 +95,29 @@ const {
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex gap-1 border-b border-edge text-sm">
-      <BaseButton
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="tab === 'overview' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-        @click="tab = 'overview'"
-      >
-        Overview
-      </BaseButton>
-      <BaseButton
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="tab === 'audit' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-        @click="tab = 'audit'"
-      >
-        Odometer &amp; Location
-      </BaseButton>
-    </div>
+    <AppTabs v-model="tab" :tabs="DETAIL_TABS" label="Anomaly detail views" id-prefix="anomaly-detail" />
 
     <!-- AUDIT TAB -->
-    <AnomalyAudit v-if="tab === 'audit' && txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
-    <p v-else-if="tab === 'audit'" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
+    <div
+      v-if="tab === 'audit'"
+      id="anomaly-detail-panel-audit"
+      role="tabpanel"
+      aria-labelledby="anomaly-detail-tab-audit"
+    >
+      <AnomalyAudit v-if="txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
+      <p v-else class="text-sm text-ink-tertiary italic">Loading transaction…</p>
+    </div>
 
     <!-- OVERVIEW TAB -->
-    <template v-if="tab === 'overview'">
-    <!-- ③ Contributing signals / Why this fired -->
-    <div class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
+    <div
+      v-if="tab === 'overview'"
+      id="anomaly-detail-panel-overview"
+      role="tabpanel"
+      aria-labelledby="anomaly-detail-tab-overview"
+      class="space-y-5"
+    >
+      <!-- ③ Contributing signals / Why this fired -->
+      <div class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
       <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {{ isCase ? "Contributing signals" : "Why this fired" }}
       </h4>
@@ -157,10 +159,10 @@ const {
           </dd>
         </template>
       </dl>
-    </div>
+      </div>
 
     <!-- ④ Same-card fills — appears whenever card_multi_vehicle is in play -->
-    <div v-if="hasCardSignal" class="rounded-surface border border-warning-200 bg-warning-50/50 p-4">
+      <div v-if="hasCardSignal" class="rounded-surface border border-warning-200 bg-warning-50/50 p-4">
       <div class="mb-3 flex flex-wrap items-baseline gap-2">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Same-card fills</h4>
         <span v-if="cardRef" class="font-mono text-xs text-ink-muted">card {{ cardRef }}</span>
@@ -212,10 +214,10 @@ const {
           </tbody>
         </AppTable>
       </div>
-    </div>
+      </div>
 
     <!-- ⑤ Transaction details (full) -->
-    <div v-if="txn" class="rounded-surface border border-edge p-4">
+      <div v-if="txn" class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Transaction</h4>
       <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <!-- Vehicle -->
@@ -277,9 +279,9 @@ const {
         <dt class="text-ink-muted">Source</dt>
         <dd class="text-right capitalize text-ink-secondary">{{ txn.source }}</dd>
       </dl>
-    </div>
+      </div>
 
-    </template>
+    </div>
 
     <!-- ⑦ Workflow -->
     <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-4 border-t border-edge pt-5">

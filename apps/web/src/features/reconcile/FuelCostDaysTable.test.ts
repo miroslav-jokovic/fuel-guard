@@ -1,8 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import FuelCostDaysTable from "./FuelCostDaysTable.vue";
-import type { CostDayRow } from "@silvicom/shared";
+import ExportButton from "@/components/ExportButton.vue";
+import { costDaysCsv, type CostDayRow } from "@silvicom/shared";
+
+const downloadCsv = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/csv", () => ({ downloadCsv }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
 
 /** The report's one table: paging, the MPG column only for a truck question, and a withheld MPG explained. */
 const row = (day: string, o: Partial<CostDayRow> = {}): CostDayRow => ({
@@ -12,6 +17,7 @@ const row = (day: string, o: Partial<CostDayRow> = {}): CostDayRow => ({
 const days = (n: number, start = 1) => Array.from({ length: n }, (_, i) => row(`2026-09-${String(start + i).padStart(2, "0")}`));
 
 beforeEach(() => {
+  downloadCsv.mockReset();
   setActivePinia(createPinia());
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -46,5 +52,19 @@ describe("FuelCostDaysTable", () => {
   it("explains a withheld MPG on hover rather than leaving a bare dash", () => {
     const w = mountTable([row("2026-09-01", { mpg: null, mpgReason: "The fuel roll-up reaches 2026-08-31…" })]);
     expect(w.find('[title="The fuel roll-up reaches 2026-08-31…"]').exists()).toBe(true);
+  });
+
+  it("uses the shared export action without changing the CSV or empty-state lock", async () => {
+    const rows = days(2);
+    const w = mountTable(rows);
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toBe("2 days");
+    expect(exportAction.props("disabled")).toBe(false);
+
+    await exportAction.get("button").trigger("click");
+    const csv = costDaysCsv(rows, true);
+    expect(downloadCsv).toHaveBeenCalledWith("fuel-costs", csv.headers, csv.rows);
+
+    expect(mountTable([]).getComponent(ExportButton).props("disabled")).toBe(true);
   });
 });

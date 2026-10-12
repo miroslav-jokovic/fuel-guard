@@ -6,6 +6,7 @@ import type { HazmatLoadRow } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useReviewQueueQuery } from "@/features/hazmat/useHazmatReview";
@@ -64,28 +65,31 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Review flagged loads oldest-first, inspect the evidence, and record an attestation or rejection." />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search load number or product…"
-      :count="visible.length"
-      count-label="loads"
-    >
-      <template #filters>
-        <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />
-        <FilterSelect v-model="filter.driverId" label="Driver" :options="driverOptions" />
-      </template>
-    </FilterBar>
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search load number or product…"
+        :count="visible.length"
+        count-label="loads"
+      >
+        <template #filters>
+          <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />
+          <FilterSelect v-model="filter.driverId" label="Driver" :options="driverOptions" />
+        </template>
+      </FilterBar>
 
-    <DataTable
-      :columns="columns"
-      :rows="visible"
-      row-key="id"
-      :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the review queue.') : null"
-      :retrying="isFetching"
-      :empty-text="emptyText"
-      @retry="refetch"
-    >
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="visible"
+        row-key="id"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the review queue.') : null"
+        :retrying="isFetching"
+        :empty-text="emptyText"
+        @retry="refetch"
+      >
       <template #cell-load_ref="{ row }">
         <span v-if="row.load_ref">{{ row.load_ref }}</span>
         <span v-else class="text-ink-tertiary" title="This record was never linked to a dispatch load">Unlinked</span>
@@ -101,6 +105,7 @@ const columns: DataTableColumn[] = [
           <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
       </template>
-    </DataTable>
+      </DataTable>
+    </DataWorkspace>
   </div>
 </template>

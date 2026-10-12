@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCallout, AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconRow, type ReconStatus, type ReconSummary } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -8,6 +8,8 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -197,17 +199,21 @@ const columns: DataTableColumn[] = [
       totals are on file. Check the invoice again to see every line.
     </AppCallout>
 
-    <template v-else>
-      <FilterBar :count="tableRows.length" count-label="lines">
+    <DataWorkspace v-else>
+      <FilterBar embedded :count="tableRows.length" count-label="lines">
         <template #filters>
           <FilterSelect v-model="statusFilter" label="Show" :options="statusOptions" />
         </template>
         <template #actions>
-          <BaseButton variant="ghost" @click="exportRows">Download every line (CSV)</BaseButton>
+          <ExportButton
+            :run="exportRows"
+            :scope="`${(rows?.length ?? 0).toLocaleString()} lines`"
+            label="Download every line (CSV)"
+          />
         </template>
       </FilterBar>
 
-      <DataTable :columns="columns" :rows="pageRows" row-key="id" empty-text="No lines in this group.">
+      <DataTable embedded :columns="columns" :rows="pageRows" row-key="id" empty-text="No lines in this group.">
         <template #cell-status="{ row }">
           <span :class="[BADGE_BASE, toneClass(reconStatusBadge(String(row.status)).tone)]">
             {{ reconStatusBadge(String(row.status)).label }}
@@ -230,6 +236,6 @@ const columns: DataTableColumn[] = [
           <TablePagination :page="page" :page-size="PAGE_SIZE" :total="tableRows.length" @update:page="page = $event" />
         </template>
       </DataTable>
-    </template>
+    </DataWorkspace>
   </div>
 </template>

@@ -4,12 +4,18 @@ import { computed, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import { RETURN_TO_DUTY_BLOCK, computeSubjectMpg, plausibleFillMpg, type Anomaly, type FuelTransaction } from "@silvicom/shared";
+import {
+  RETURN_TO_DUTY_BLOCK,
+  computeSubjectMpg,
+  plausibleFillMpg,
+  type Anomaly,
+  type FuelTransaction,
+} from "@silvicom/shared";
 import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppTabs, type TabItem } from "@silvicom/ui";
+import { AppCallout, AppCard as BaseCard, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   DRIVER_PAGE_SECTIONS,
   relocatedSectionPath,
@@ -20,6 +26,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
@@ -124,12 +131,8 @@ const canSeeFuel = computed(() => session.canView("fuel"));
 const toast = useToastStore();
 const requestBinder = useRequestBinder();
 async function exportWholeFile(): Promise<void> {
-  try {
-    await requestBinder.mutateAsync({ driverIds: [id.value], asAt: null });
-    toast.success("Building the file", "It appears under Exports on the qualification page shortly.");
-  } catch (e) {
-    toast.error("Could not start the export", e instanceof Error ? e.message : undefined);
-  }
+  await requestBinder.mutateAsync({ driverIds: [id.value], asAt: null });
+  toast.success("Building the file", "It appears under Exports on the qualification page shortly.");
 }
 const PAGE = 500;
 
@@ -140,7 +143,9 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
       .from("fuel_transactions")
       // `miles_since_last` is selected because this driver's MPG is now a ratio of sums over those
       // spans (M4, D-MPG3) rather than a gallon-weighted mean of `computed_mpg` — see `driverMpg`.
-      .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
+      .select(
+        "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at",
+      )
       .eq("driver_id", driverId)
       .eq("is_canonical", true)
       .order("fueled_at", { ascending: true })
@@ -163,6 +168,11 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
  * future migration might add.
  */
 const { data: driver } = useDriverQuery(id);
+const binderExportScope = computed(() =>
+  driver.value?.full_name
+    ? `${driver.value.full_name} · Complete qualification file`
+    : "Complete qualification file",
+);
 
 const { data: txns } = useQuery({
   queryKey: ["driver-fills", id],
@@ -174,14 +184,18 @@ const { data: txns } = useQuery({
 const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
 const { data: anomalies } = useQuery({
   queryKey: ["driver-anomalies", id, detectionEpoch],
-  enabled: computed(() => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined && epochReady.value),
+  enabled: computed(
+    () => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined && epochReady.value,
+  ),
   queryFn: async (): Promise<Anomaly[]> => {
     const transactionIds = (txns.value ?? []).map((t) => t.id);
     if (transactionIds.length === 0) return [];
     const { data, error } = await afterReset(
       supabase
         .from("anomalies")
-        .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at, fueled_at")
+        .select(
+          "id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at, fueled_at",
+        )
         .in("transaction_id", transactionIds)
         .neq("status", "superseded"),
       detectionEpoch.value,
@@ -221,8 +235,14 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 }));
 
 const recent = computed(() => [...(txns.value ?? [])].reverse().slice(0, 20));
-const openAnomalies = computed(() => (anomalies.value ?? []).filter((a) => a.status === "open" || a.status === "investigating").length);
-const totalGallons = computed(() => (txns.value ?? []).reduce((sum, t) => sum + Number(t.gallons || 0), 0));
+const openAnomalies = computed(
+  () =>
+    (anomalies.value ?? []).filter((a) => a.status === "open" || a.status === "investigating")
+      .length,
+);
+const totalGallons = computed(() =>
+  (txns.value ?? []).reduce((sum, t) => sum + Number(t.gallons || 0), 0),
+);
 /**
  * This driver's MPG — a DIFFERENT figure from the fleet's, and labelled as one (M4, D-MPG3).
  *
@@ -263,14 +283,15 @@ const fillColumns: DataTableColumn[] = [
       <template #actions>
         <!-- No longer gated on the qualification TAB being open: there are no tabs, and the button
              exports the §391.51 file whichever part of the page the reader has scrolled to. -->
-        <BaseButton
+        <ExportButton
           v-if="session.can('roster')"
-          variant="ghost"
+          :run="exportWholeFile"
+          :scope="binderExportScope"
+          label="Export this file"
+          busy-label="Building…"
+          error-title="Could not start the export"
           :disabled="requestBinder.isPending.value"
-          @click="exportWholeFile"
-        >
-          {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
-        </BaseButton>
+        />
       </template>
     </PageHeader>
 
@@ -319,14 +340,25 @@ const fillColumns: DataTableColumn[] = [
         <StatusBadge :status="driver.status" />
       </div>
       <dl v-if="canSeeFuel" class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div><dt class="text-ink-muted">Fills</dt><dd class="font-medium text-ink">{{ txns?.length ?? "—" }}</dd></div>
-        <div><dt class="text-ink-muted">Gallons</dt><dd class="font-medium text-ink">{{ Math.round(totalGallons).toLocaleString() }}</dd></div>
+        <div>
+          <dt class="text-ink-muted">Fills</dt>
+          <dd class="font-medium text-ink">{{ txns?.length ?? "—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-ink-muted">Gallons</dt>
+          <dd class="font-medium text-ink">{{ Math.round(totalGallons).toLocaleString() }}</dd>
+        </div>
         <div>
           <dt class="text-ink-muted">MPG on this driver's fills</dt>
-          <dd class="font-medium text-ink" :title="driverMpg.reason ?? undefined">{{ avgMpg != null ? avgMpg.toFixed(1) : "—" }}</dd>
+          <dd class="font-medium text-ink" :title="driverMpg.reason ?? undefined">
+            {{ avgMpg != null ? avgMpg.toFixed(1) : "—" }}
+          </dd>
           <dd v-if="driverMpg.reason" class="text-xs text-ink-tertiary">{{ driverMpg.reason }}</dd>
         </div>
-        <div><dt class="text-ink-muted">Open anomalies</dt><dd class="font-medium text-ink">{{ openAnomalies }}</dd></div>
+        <div>
+          <dt class="text-ink-muted">Open anomalies</dt>
+          <dd class="font-medium text-ink">{{ openAnomalies }}</dd>
+        </div>
       </dl>
     </BaseCard>
 
@@ -346,13 +378,21 @@ const fillColumns: DataTableColumn[] = [
         </DataTable>
       </div>
       <BaseCard padding="none">
-        <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
+        <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">
+          Anomalies
+        </h3>
         <ul class="divide-y divide-edge-subtle text-sm">
-          <li v-for="a in anomalies ?? []" :key="a.id" class="flex items-center justify-between px-5 py-2">
+          <li
+            v-for="a in anomalies ?? []"
+            :key="a.id"
+            class="flex items-center justify-between px-5 py-2"
+          >
             <span class="text-ink-secondary" :title="a.rule_id">{{ a.rule_id }}</span>
             <StatusBadge :status="a.status" />
           </li>
-          <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">No anomalies.</li>
+          <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-ink-muted">
+            No anomalies.
+          </li>
         </ul>
       </BaseCard>
     </div>

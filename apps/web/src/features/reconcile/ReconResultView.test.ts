@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@silvicom/shared";
 import ReconResultView from "./ReconResultView.vue";
+import ExportButton from "@/components/ExportButton.vue";
+
+const downloadCsv = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/csv", () => ({ downloadCsv }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ error: vi.fn() }) }));
 
 /**
  * A saved invoice check, as the Pilot invoices page shows it (FS3). The fixture is built with the REAL
@@ -32,6 +38,7 @@ const RESULT = reconcileFuelReport(
 );
 
 beforeEach(() => {
+  downloadCsv.mockReset();
   // DataTable branches on matchMedia; jsdom has none.
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
@@ -47,6 +54,25 @@ const view = (rows = RESULT.rows) =>
 const tableText = (w: ReturnType<typeof view>) => w.find("table").text();
 
 describe("ReconResultView", () => {
+  it("keeps the line filter and table in one data workspace", () => {
+    const workspace = view().find("section.divide-y");
+    expect(workspace.exists()).toBe(true);
+    expect(workspace.find("table").exists()).toBe(true);
+    expect(workspace.text()).toContain("Needs a look");
+  });
+
+  it("uses the shared export action for every saved reconciliation line", async () => {
+    const w = view();
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toBe(`${RESULT.rows.length} lines`);
+    await exportAction.get("button").trigger("click");
+    expect(downloadCsv).toHaveBeenCalledWith(
+      "pilot-test",
+      expect.arrayContaining(["Status", "Matched on", "Detail"]),
+      expect.any(Array),
+    );
+  });
+
   it("names each kind of line in the plan's words, never as a token", () => {
     const t = view().text();
     expect(t).toContain("On Pilot's bill, not in our records");

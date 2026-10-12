@@ -39,6 +39,7 @@ import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
 import { useCardAssignments, maskCardRef } from "@/composables/useCardAssignments";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
@@ -254,8 +255,10 @@ const columns: DataTableColumn[] = [
          fraud signal. A reader scoping this to a unit was seeing four fifths of it, unannounced. -->
     <RowCoverageLine :coverage="coverage" />
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search unit, driver, location, reason…"
       :count="total"
       count-label="declines"
@@ -304,9 +307,10 @@ const columns: DataTableColumn[] = [
 
     <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
          tabs mean EFS's Central day, so they say it in the one shared sentence. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
+    <p class="px-4 py-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
@@ -354,6 +358,7 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <!-- Card → truck assignments (read-only; learned from fill history, manual rows authoritative) -->
     <SlideOver :open="cardsOpen" title="Card assignments" @close="cardsOpen = false">

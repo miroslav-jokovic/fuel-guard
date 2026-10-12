@@ -4,8 +4,9 @@ import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMem
 import { apiFetch } from "@/lib/api";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { AppSearchField as SearchInput } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -369,22 +370,27 @@ onMounted(load);
     </BaseCard>
 
     <section class="space-y-3">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-base font-semibold text-ink">Active members</h3>
-        <div class="w-full sm:w-64">
-          <SearchInput v-model="search" placeholder="Search members…" />
-        </div>
-      </div>
+      <h3 class="text-base font-semibold text-ink">Active members</h3>
 
-      <div v-if="selectedIds.size > 0" class="flex items-center justify-between rounded-surface bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100">
+      <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search members…"
+        :count="filteredMembers.length"
+        count-label="members"
+      />
+
+      <div v-if="selectedIds.size > 0" class="flex flex-wrap items-center justify-between gap-2 bg-brand-50 px-4 py-2.5 text-sm">
         <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
-        <div class="flex items-center gap-3">
-          <BaseButton :disabled="bulkBusy" class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50" @click="bulkRemove">Remove</BaseButton>
-          <BaseButton class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</BaseButton>
+        <div class="flex items-center gap-2">
+          <BaseButton variant="danger" size="sm" :disabled="bulkBusy" @click="bulkRemove">Remove</BaseButton>
+          <BaseButton variant="ghost" size="sm" @click="selectedIds = new Set()">Clear</BaseButton>
         </div>
       </div>
 
       <DataTable
+        embedded
         :columns="memberColumns"
         :rows="filteredMembers"
         row-key="userId"
@@ -418,6 +424,7 @@ onMounted(load);
           </KebabMenu>
         </template>
       </DataTable>
+      </DataWorkspace>
     </section>
 
     <!-- The matrix itself moved to /settings/permissions (P0): it was collapsed behind a toggle at

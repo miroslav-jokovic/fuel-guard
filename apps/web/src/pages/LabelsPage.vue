@@ -6,6 +6,7 @@ import type { LabelPresetId } from "@silvicom/qr";
 import type { LabelTarget } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
@@ -180,20 +181,22 @@ async function print() {
 
     <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <div class="space-y-4">
-        <FilterBar v-model:search="search" search-placeholder="Search" :count="targets.length" count-label="labels">
-          <AppSegmentedControl
-            label="What to label"
-            :model-value="source"
-            :options="[
-              { value: 'stock', label: 'Shelves' },
-              { value: 'assets', label: 'Assets' },
-            ]"
-            @update:model-value="((source = $event as Source), (selected = new Set()))"
-          />
+        <DataWorkspace>
+        <FilterBar embedded v-model:search="search" search-placeholder="Search" :count="targets.length" count-label="labels">
+          <template #filters>
+            <AppSegmentedControl
+              label="What to label"
+              :model-value="source"
+              :options="[
+                { value: 'stock', label: 'Shelves' },
+                { value: 'assets', label: 'Assets' },
+              ]"
+              @update:model-value="((source = $event as Source), (selected = new Set()))"
+            />
+          </template>
         </FilterBar>
-
-        <BaseCard padding="none">
           <DataTable
+            embedded
             v-if="source === 'stock'"
             :columns="stockColumns"
             :rows="stockRows"
@@ -213,6 +216,7 @@ async function print() {
           </DataTable>
 
           <DataTable
+            embedded
             v-else
             :columns="assetColumns"
             :rows="assets?.assets ?? []"
@@ -228,7 +232,7 @@ async function print() {
             </template>
             <template #empty>No assets yet.</template>
           </DataTable>
-        </BaseCard>
+        </DataWorkspace>
       </div>
 
       <div class="space-y-4">

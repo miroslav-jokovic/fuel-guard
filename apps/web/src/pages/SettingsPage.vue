@@ -27,7 +27,7 @@ const reportCards = visible.filter((c) => c.block === "reports");
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6">
     <PageHeader description="Configuration, access, integrations, reporting, and fleet-readiness tools." />
     <SettingsSection v-if="configCards.length" title="Configuration">
       <div class="divide-y divide-edge-subtle rounded-surface bg-surface ring-1 ring-edge">

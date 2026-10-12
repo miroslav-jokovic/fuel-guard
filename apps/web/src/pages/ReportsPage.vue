@@ -193,7 +193,7 @@ async function sendDigest() {
 
         <div v-if="metrics.perLeadRule.length" class="mt-5">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Precision by lead signal</p>
-          <DataTable :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
+          <DataTable embedded :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
             <template #cell-precision="{ value }">
               <span class="font-medium" :class="value == null ? 'text-ink-tertiary' : value >= 0.9 ? 'text-success-700' : value >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(value) }}</span>
             </template>

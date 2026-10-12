@@ -110,7 +110,7 @@ const columns: DataTableColumn[] = [
       </ul>
 
       <div v-if="feeds.length" class="mt-4">
-        <DataTable :columns="columns" :rows="feeds" row-key="id">
+        <DataTable embedded :columns="columns" :rows="feeds" row-key="id">
           <template #cell-label="{ row }">
             <span class="text-ink">{{ row.label }}</span>
             <span class="block text-xs text-ink-tertiary">{{ row.what }}</span>

@@ -5,17 +5,18 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import PriceUploadDrawer from "@/features/fueling/PriceUploadDrawer.vue";
-import { AppCard as BaseCard, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 25;
-const { data, isLoading, isError, error } = useFuelStations();
+const { data, isLoading, isError, error, isFetching, refetch } = useFuelStations();
 
 /**
  * FUEL-C4, D-FUI3 — the price and locations uploads moved here from `/import`, which is gone.
@@ -95,14 +96,12 @@ const columns: DataTableColumn[] = [
 
     <PriceUploadDrawer :open="uploadOpen" @close="uploadOpen = false" />
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <BaseCard v-else-if="isError" class="text-sm text-danger-600">{{ error instanceof Error ? error.message : "Could not load stations." }}</BaseCard>
-
-    <template v-else>
+    <DataWorkspace>
       <FilterBar
         v-model:search="search"
+        embedded
         search-placeholder="Search stop, store #, state…"
-        :count="filtered.length"
+        :count="isLoading || isError ? null : filtered.length"
         count-label="truck stops"
       >
         <template #filters>
@@ -112,8 +111,19 @@ const columns: DataTableColumn[] = [
         </template>
       </FilterBar>
 
-      <BaseCard padding="none">
-        <DataTable :columns="columns" :rows="paged" row-key="id" :sort="sort" empty-text="No truck stops match." @sort="onSort">
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="paged"
+        row-key="id"
+        :sort="sort"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load stations.') : null"
+        :retrying="isFetching"
+        empty-text="No truck stops match."
+        @sort="onSort"
+        @retry="refetch"
+      >
           <template #cell-name="{ row }">{{ (row as FuelStationRow).name ?? "—" }}</template>
           <template #cell-brand="{ row }">{{ brandLabel((row as FuelStationRow).brand) }}</template>
           <template #cell-city="{ row }">
@@ -150,10 +160,10 @@ const columns: DataTableColumn[] = [
               {{ (row as FuelStationRow).ageHours }}h{{ (row as FuelStationRow).stale ? " · stale" : "" }}
             </span>
           </template>
-        </DataTable>
-      </BaseCard>
-
-      <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="filtered.length" />
-    </template>
+          <template #footer>
+            <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="filtered.length" />
+          </template>
+      </DataTable>
+    </DataWorkspace>
   </div>
 </template>

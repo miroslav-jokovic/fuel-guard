@@ -14,6 +14,8 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -60,7 +62,7 @@ const winners = computed(() => rows.value.filter((r) => r.isWinner).slice(0, 3))
 const isLoading = computed(() => (isLive.value ? live.isLoading.value : frozen.isLoading.value));
 const isError = computed(() => (isLive.value ? live.isError.value : frozen.isError.value));
 
-// ── Toolbar: Week + Status filters, driver search (standard FilterBar, per docs/DESIGN-SYSTEM-CONTRACT.md) ──
+// Week scopes the whole report; status and search narrow only the driver list.
 const weekProxy = computed({
   get: () => selectedWeek.value ?? "",
   set: (v: string) => (selectedWeek.value = v || null),
@@ -147,17 +149,14 @@ const columns: DataTableColumn[] = [
          The header names its own inputs: Samsara safety, Samsara efficiency, and idling discipline. -->
     <SamsaraFeedLine :feeds="['driver_scores', 'idle']" />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search driver…"
-      :count="filtered.length"
-      count-label="drivers"
+    <ReportScopeBar
+      title="Reporting week"
+      description="Choose the live week or a frozen reward period."
     >
-      <template #filters>
+      <template #control>
         <FilterSelect v-model="weekProxy" label="Week" :options="weekOptions" />
-        <FilterSelect v-model="statusSel" label="Status" :options="statusOptions" />
       </template>
-    </FilterBar>
+    </ReportScopeBar>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-sm text-ink-muted">{{ weekLabel }} · ranked on {{ trailingWeeks }}-week trailing average · {{ methodLabel }}</p>
@@ -191,7 +190,21 @@ const columns: DataTableColumn[] = [
       </BaseCard>
     </div>
 
+    <DataWorkspace>
+    <FilterBar
+      v-model:search="search"
+      embedded
+      search-placeholder="Search driver…"
+      :count="filtered.length"
+      count-label="drivers"
+    >
+      <template #filters>
+        <FilterSelect v-model="statusSel" label="Status" :options="statusOptions" />
+      </template>
+    </FilterBar>
+
     <DataTable
+      embedded
       :columns="columns"
       :rows="paged"
       row-key="driverId"
@@ -229,5 +242,6 @@ const columns: DataTableColumn[] = [
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
 // The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
 import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
@@ -268,14 +269,16 @@ describe("FuelCostsPage — where the rest went", () => {
 
   it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {
     const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1&states=TX&sites=s-1&networks=out");
-    const props = w.findAllComponents({ name: "ExportButton" }).map((c) => c.props() as { href: string; scope: string });
-    const pdf = props.find((p) => p.href.includes("/api/fueling/report.pdf"));
-    expect(pdf, "no export points at the Fuel Costs document").toBeTruthy();
-    const q = new URLSearchParams(pdf!.href.split("?")[1]);
+    const exports = w.findAllComponents({ name: "ExportButton" });
+    const reportExport = exports.find((c) => c.props("label") === "Export report");
+    expect(reportExport, "no Fuel Costs document export").toBeTruthy();
+    const href = reportExport!.props("href") as string;
+    expect(href).toContain("/api/fueling/report.pdf");
+    const q = new URLSearchParams(href.split("?")[1]);
     expect(Object.fromEntries(q)).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicles: "v1", states: "TX", sites: "s-1", networks: "out" });
-    expect(pdf!.scope).toContain("filtered stations");
+    expect(reportExport!.props("scope")).toContain("filtered stations");
     // And not the older weekly document, which ignored three of those five filters.
-    expect(props.some((p) => p.href.includes("spend-report.pdf"))).toBe(false);
+    expect(exports.some((c) => String(c.props("href") ?? "").includes("spend-report.pdf"))).toBe(false);
   });
 
   it("keeps the freshness line and the PDF export", async () => {
@@ -290,13 +293,14 @@ describe("FuelCostsPage — where the rest went", () => {
   });
 
   it("claims no count of days while the report is pending or failed (verdict E8)", async () => {
-    // The count is its own element; the page's text runs together ("Network0 days"), so match the element.
-    const dayCount = (w: { findAll: (s: string) => { text: () => string }[] }) =>
-      w.findAll("span").map((e) => e.text().trim()).filter((t) => /^\d+ days?$/.test(t));
-    expect(dayCount((await mountPage()).w)).toHaveLength(1);
+    // Read the table toolbar's result-count contract directly. Export scopes also name their range
+    // in days, and are not evidence that the report query has answered.
+    const dayCount = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.getComponent({ name: "FilterBar" }).props("count");
+    expect(dayCount((await mountPage()).w)).toBe(90);
     for (const state of ["loading", "error"] as const) {
       reportState.value = state;
-      expect(dayCount((await mountPage()).w), state).toEqual([]);
+      expect(dayCount((await mountPage()).w), state).toBeNull();
     }
   });
 });

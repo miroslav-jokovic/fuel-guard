@@ -31,6 +31,8 @@ const sessionMock = {
 };
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => sessionMock }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn(async () => undefined) }));
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 // The export URL is the assertion — what it downloads is `download.ts`'s business, not this test's.
 vi.mock("@/features/reports/download", () => ({ downloadReport: vi.fn(async () => undefined) }));
 /*
@@ -53,14 +55,22 @@ const replaced: { query?: Record<string, unknown> }[] = [];
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
   useRoute: () => ({ query: {} }),
-  useRouter: () => ({ replace: (to: { query?: Record<string, unknown> }) => { replaced.push(to); } }),
+  useRouter: () => ({
+    replace: (to: { query?: Record<string, unknown> }) => {
+      replaced.push(to);
+    },
+  }),
 }));
 
 import DashboardPage from "@/pages/DashboardPage.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import { downloadReport } from "@/features/reports/download";
 
 /** `canView` built from an explicit allow-list, so a test states the GRANTS it is giving. */
-const grants = (...allowed: AppSection[]) => (s: AppSection) => allowed.includes(s);
+const grants =
+  (...allowed: AppSection[]) =>
+  (s: AppSection) =>
+    allowed.includes(s);
 
 function mountShell() {
   return mount(DashboardPage, {
@@ -88,20 +98,25 @@ function mountShell() {
         TabWidgets: {
           props: ["tab", "range"],
           // `data-range` added 2026-09-21: the window the shell chose is only observable here.
-          template: '<div :data-test="tab + \'-tab\'" :data-range="range ? range.from + \'\u2192\' + range.to : undefined" />',
+          template:
+            "<div :data-test=\"tab + '-tab'\" :data-range=\"range ? range.from + '\u2192' + range.to : undefined\" />",
         },
-        DateRangeFilter: { template: '<div data-test="range-filter" />' },
+        DateRangeFilter: {
+          emits: ["update:from", "update:to"],
+          template:
+            '<button type="button" data-test="range-filter" @click="$emit(\'update:from\', \'2026-09-01\'); $emit(\'update:to\', \'2026-09-15\')" />',
+        },
         // v3: both read the fleet figures through vue-query; the shell test is about which tab
         // the shell chose, so they are stubbed to their markers.
         SamsaraFeedLine: { template: '<span data-test="feed-chip" />' },
         FleetLeadLine: { template: '<span data-test="fleet-lead" />' },
-        PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
+        PageHeader: { template: '<div><slot /><slot name="actions" /></div>' },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },
         MenuButton: true,
         MenuItems: { template: "<div><slot /></div>" },
         // Renders its slot so the export buttons exist to be clicked (the `active` slot prop is
         // headlessui's keyboard-focus flag and only drives a background class).
-        MenuItem: { template: "<div><slot :active=\"false\" /></div>" },
+        MenuItem: { template: '<div><slot :active="false" /></div>' },
         RouterLink: true,
       },
     },
@@ -218,7 +233,10 @@ describe("the tab strip actually switches the dashboard", () => {
     sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
     expect(w.find('[data-test="dispatch-tab"]').exists(), "the map should be open").toBe(true);
 
     const fleetTab = w.findAll('[role="tab"]').find((t) => t.text().includes("Fleet overview"));
@@ -227,7 +245,10 @@ describe("the tab strip actually switches the dashboard", () => {
     // And it must actually work, not merely be painted: a strip that is present but inert would
     // satisfy the assertion above and strand the reader just as completely.
     await fleetTab!.trigger("click");
-    expect(w.find('[data-test="fleet-tab"]').exists(), "clicking it should return to Fleet overview").toBe(true);
+    expect(
+      w.find('[data-test="fleet-tab"]').exists(),
+      "clicking it should return to Fleet overview",
+    ).toBe(true);
     expect(replaced.at(-1)?.query).toMatchObject({ tab: "fleet" });
   });
 
@@ -241,8 +262,13 @@ describe("the tab strip actually switches the dashboard", () => {
     sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
-    expect(w.find("#dashboard-actions").exists(), "TabWidgets teleports Customize here by id").toBe(true);
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
+    expect(w.find("#dashboard-actions").exists(), "TabWidgets teleports Customize here by id").toBe(
+      true,
+    );
   });
 
   /**
@@ -258,7 +284,10 @@ describe("the tab strip actually switches the dashboard", () => {
     sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
     const widgets = w.find('[data-test="dispatch-tab"]');
     expect(widgets.classes()).toContain("min-h-0");
     expect(widgets.classes()).toContain("flex-1");
@@ -282,7 +311,9 @@ describe("the control row", () => {
     const tablist = w.find('[role="tablist"]');
     const actions = w.find("#dashboard-actions");
     expect(tablist.exists()).toBe(true);
-    expect(actions.exists(), "TabWidgets teleports Customize into #dashboard-actions by id").toBe(true);
+    expect(actions.exists(), "TabWidgets teleports Customize into #dashboard-actions by id").toBe(
+      true,
+    );
     // Siblings, not merely both-present: a row is what puts them on one line.
     expect(actions.element.parentElement).toBe(tablist.element.parentElement);
     // And the scope controls are inside it rather than back up in the header.
@@ -293,9 +324,10 @@ describe("the control row", () => {
 describe("the header's fleet-only controls", () => {
   it("offers the range filter and exports on the fleet tab", () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    sessionMock.canView = grants("fuel", "dispatch", "accounting", "settings");
     const w = mountShell();
     expect(w.find('[data-test="range-filter"]').exists()).toBe(true);
+    expect(w.findComponent(ExportButton).exists()).toBe(true);
   });
 
   it("hides them on the dispatch tab, which has no range and nothing to export", () => {
@@ -352,16 +384,25 @@ describe("the window the page asks about", () => {
    */
   it("exports the same window it is showing, bounded on the carrier's clock", async () => {
     const w = mountShell();
-    // Click the real menu item, so this asserts what a reader pressing "Transactions CSV" gets.
-    const item = w.findAll("button").find((b) => b.text().includes("Transactions CSV"));
-    expect(item, "the Transactions CSV export button").toBeTruthy();
-    await item!.trigger("click");
+    const exportButton = w.findComponent(ExportButton);
+    expect(exportButton.props("scope")).toBe("08/21/2026 – 09/20/2026");
+    expect(w.text()).toContain("08/21/2026 – 09/20/2026");
+
+    const exports = exportButton.props("items") as readonly ExportItem[];
+    const item = exports.find((candidate) => candidate.key === "transactions");
+    expect(item?.label).toBe("Transactions CSV");
+    expect(item?.run).toBeTypeOf("function");
+    await item!.run!();
 
     const url = vi.mocked(downloadReport).mock.calls.at(-1)?.[0] ?? "";
     const q = new URLSearchParams(url.slice(url.indexOf("?")));
     expect(q.get("from")).toBe("2026-08-21T06:00:00.000Z"); // MDT, UTC-6 — Chicago would be 05:00
     // The day AFTER `to`, exclusive — never a T23:59:59.999 that drops the last sliver of a second.
     expect(q.get("to")).toBe("2026-09-21T06:00:00.000Z");
+
+    await w.get('[data-test="range-filter"]').trigger("click");
+    expect(exportButton.props("scope")).toBe("09/01/2026 – 09/15/2026");
+    expect(w.text()).toContain("09/01/2026 – 09/15/2026");
   });
 });
 
@@ -371,7 +412,7 @@ describe("the window the page asks about", () => {
  * the menu from a role the org granted `settings: view` and offered it to one the org had narrowed.
  */
 describe("the Export menu asks what the export endpoints ask (SP5)", () => {
-  const hasExport = (w: ReturnType<typeof mountShell>) => w.findAll("button").some((b) => b.text().includes("Transactions CSV"));
+  const hasExport = (w: ReturnType<typeof mountShell>) => w.findComponent(ExportButton).exists();
 
   it("shows for a settings VIEWER who manages nothing, and hides for a caller without settings", () => {
     // A role whose dashboard opens on the Fleet tab, which is where the menu lives.

@@ -111,6 +111,7 @@ const rowClass = (row: EffectiveDisplayRow): string => (row.enforced ? "" : "tex
         <slot name="actions" :section="section.id" />
       </div>
       <DataTable
+        embedded
         :columns="columns"
         :rows="section.rows"
         row-key="key"

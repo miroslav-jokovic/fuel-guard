@@ -7,6 +7,7 @@ import { AppButton as BaseButton, AppTabs } from "@silvicom/ui";
 import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
@@ -174,8 +175,10 @@ const {
     </BaseCard>
 
     <!-- ── TAB: Trucks — engine-on = drive + idle, avoidable ─────────────────── -->
-    <div v-if="activeTab === 'trucks'" id="idling-panel-trucks" role="tabpanel" aria-labelledby="idling-tab-trucks" class="space-y-6">
+    <div v-if="activeTab === 'trucks'" id="idling-panel-trucks" role="tabpanel" aria-labelledby="idling-tab-trucks">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="trkSearch"
         search-placeholder="Search truck…"
         :count="answered.trucks ? trkFiltered.length : null"
@@ -191,6 +194,7 @@ const {
         </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="trkColumns"
         :rows="trkPaged"
         row-key="vehicleId"
@@ -250,11 +254,14 @@ const {
           <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
 
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'drivers'" id="idling-panel-drivers" role="tabpanel" aria-labelledby="idling-tab-drivers" class="space-y-6">
+    <div v-else-if="activeTab === 'drivers'" id="idling-panel-drivers" role="tabpanel" aria-labelledby="idling-tab-drivers">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="drvSearch"
         search-placeholder="Search driver…"
         :count="answered.drivers ? drvFiltered.length : null"
@@ -265,6 +272,7 @@ const {
         </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="drvColumns"
         :rows="drvPaged"
         row-key="driverId"
@@ -292,11 +300,14 @@ const {
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
 
     <!-- ── TAB: Truck capability ─────────────────────────────────────────────── -->
-    <div v-else id="idling-panel-capability" role="tabpanel" aria-labelledby="idling-tab-capability" class="space-y-6">
+    <div v-else id="idling-panel-capability" role="tabpanel" aria-labelledby="idling-tab-capability">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="capSearch"
         search-placeholder="Search truck or batch…"
         :count="answered.capability ? capFiltered.length : null"
@@ -310,6 +321,7 @@ const {
         </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="capColumns"
         :rows="capPaged"
         row-key="unit_number"
@@ -339,6 +351,7 @@ const {
           <TablePagination :page="capPage" :page-size="PAGE_SIZE" :total="capFiltered.length" @update:page="capPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
   </div>
 </template>

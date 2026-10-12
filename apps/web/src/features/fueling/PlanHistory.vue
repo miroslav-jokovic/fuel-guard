@@ -2,6 +2,7 @@
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { computed, ref, watch } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -133,7 +134,9 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
 
 <template>
   <div class="space-y-3">
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search route, truck, creator…"
       :count="filtered.length"
@@ -156,7 +159,7 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
 
     <div
       v-if="selectedIds.size > 0"
-      class="flex items-center justify-between rounded-surface bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100"
+      class="flex items-center justify-between bg-brand-50 px-4 py-2.5 text-sm sm:px-6"
     >
       <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
       <div class="flex items-center gap-3">
@@ -172,6 +175,7 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
     </div>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="filtered"
       row-key="id"
@@ -206,5 +210,6 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
         </KebabMenu>
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

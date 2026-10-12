@@ -45,7 +45,6 @@ const scope = computed(
     :filename="`silvicom-fuel-costs-${from}-to-${to}.pdf`"
     :scope="scope"
     label="Export report"
-    variant="secondary"
     :disabled="disabled"
   />
 </template>
