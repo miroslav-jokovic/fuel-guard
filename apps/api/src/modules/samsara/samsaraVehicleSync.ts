@@ -20,6 +20,7 @@ import {
   type SamsaraOdometerFetcher,
   type SamsaraAssignmentFetcher,
 } from "./lib/samsara.js";
+import { recordMove } from "./vehicleRecordMoved.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara
@@ -40,6 +41,9 @@ export interface VehicleSyncResult {
    * still lists — reported, never re-linked (FL1b, Q-FL6). Unit or Samsara name, one per vehicle.
    */
   heldByOtherDevice: string[];
+  /** Samsara records that moved to another of our trucks and were re-linked to it, as
+   *  "<old unit> → <new unit>" (`vehicleRecordMoved.ts`: 603 → 819 on 2026-10-12). */
+  movedRecords: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -143,7 +147,7 @@ async function upsertSamsaraVehicle(
   maps: ReturnType<typeof buildVehicleMaps>,
   linkOnly: boolean,
   liveIds: Set<string>,
-): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string }> {
+): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string; moved?: string }> {
   const identity = {
     make: sv.make,
     model: sv.model,
@@ -172,10 +176,27 @@ async function upsertSamsaraVehicle(
     if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
     return out;
   };
+  // The id match is checked against the VIN before it is believed — see `vehicleRecordMoved.ts`.
+  const idMatch = maps.bySamsara.get(sv.samsaraId);
+  const move = recordMove(sv.samsaraId, sv.vin, idMatch, maps.byVin, liveIds);
+  if (move.kind === "contested") return { kind: "held", unit: sv.name };
+  if (move.kind === "moved") {
+    // Released first: `uq_vehicles_org_samsara` allows one row per record. The write repeats the id it
+    // expects, so a row re-linked since the read is left alone.
+    await admin
+      .from("vehicles")
+      .update({ samsara_vehicle_id: null })
+      .eq("id", move.from.id)
+      .eq("org_id", orgId)
+      .eq("samsara_vehicle_id", sv.samsaraId);
+    move.from.samsara_vehicle_id = null;
+    maps.bySamsara.set(sv.samsaraId, move.to);
+  }
   const match =
-    maps.bySamsara.get(sv.samsaraId) ??
+    (move.kind === "moved" ? move.to : idMatch) ??
     (sv.vin ? maps.byVin.get(sv.vin.toUpperCase()) : undefined) ??
     maps.byUnit.get(sv.name);
+  const moved = move.kind === "moved" ? `${move.from.unit_number} → ${move.to.unit_number}` : undefined;
   // ── A VIN OR NAME MATCH NEVER TAKES A ROW FROM ANOTHER DEVICE SAMSARA STILL LISTS (FL1b, Q-FL6) ──
   //
   // When a gateway is swapped, Samsara keeps the retired gateway's vehicle record (`568 - OLD`) and
@@ -212,7 +233,7 @@ async function upsertSamsaraVehicle(
       ? withStats({ samsara_vehicle_id: sv.samsaraId })
       : withStats({ ...identity, samsara_vehicle_id: sv.samsaraId });
     await admin.from("vehicles").update(patch).eq("id", match.id).eq("org_id", orgId);
-    return { kind: "updated" };
+    return { kind: "updated", moved };
   }
 
   const unit = pickUnitNumber(sv);
@@ -376,6 +397,7 @@ export async function syncVehiclesFromSamsara(
     samsaraMissing: await applyReplacementLifecycle(admin, orgId, existing, liveIds),
     unlinked: linkOnly ? [] : undefined,
     heldByOtherDevice: [],
+    movedRecords: [],
   };
 
   for (const sv of vehicles) {
@@ -389,6 +411,7 @@ export async function syncVehiclesFromSamsara(
       result.unlinked!.push(synced.unit!);
     } else {
       result.updated++;
+      if (synced.moved) result.movedRecords.push(synced.moved);
     }
   }
 
@@ -398,6 +421,9 @@ export async function syncVehiclesFromSamsara(
   // sync's bad-fetch guard and the trailer sync's pairing pass report from.
   if (result.unlinked?.length) {
     console.warn(`[vehicle-sync] ${result.unlinked.length} Samsara vehicle(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
+  }
+  if (result.movedRecords.length) {
+    console.warn(`[vehicle-sync] ${result.movedRecords.length} Samsara vehicle(s) moved to another truck and were re-linked: ${result.movedRecords.join(", ")}`);
   }
   if (result.heldByOtherDevice.length) {
     console.warn(`[vehicle-sync] ${result.heldByOtherDevice.length} Samsara vehicle(s) match a truck another listed device holds: ${result.heldByOtherDevice.join(", ")}`);
