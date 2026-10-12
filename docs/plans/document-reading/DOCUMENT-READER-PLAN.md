@@ -707,6 +707,17 @@ recommended second reader (Q-DR23), not a replacement for the lock.
 **D-DR21 — No open-source OCR model replaces the reader** (P1, P2). Open-source OCR enters only as a witness
 (P3–P5), and only after it is measured to add agreement the second model read does not.
 
+**D-DR22 — The paper audit judges a field when two independent witnesses agree on it (2026-10-12, N6 part 3).**
+The audit (§5.1) answers `cannot_tell` on any field that is not *Read*, and under the acceptance rule no field
+is *Read* until graduation (D-DR5, off) — so fed the evidence's statuses, every finding would be "can't check
+yet" and the audit could say nothing until a person retyped the paper. D-DR19 already names the bar for
+trusting a value: independent witnesses agree. So FOR THE AUDIT ONLY, a field counts as confirmed when both
+model readers read the same value (both reading nothing included — that is how a missing packing group or
+phone number is ever found) and the OCR, where it judged the field, did not find another; anything else keeps
+its status and the rule says what to confirm. The form's field states are unchanged, and every finding quotes
+the printed value it rests on. *Rejected:* auditing on pass A alone (one model's word, D-DR17); waiting for
+graduation (no audit at all for months).
+
 ### 7B.4 Build order (inserted before N4; N4 continues after)
 
 | Step | What | New dependency | Done when |
@@ -1353,3 +1364,27 @@ Append dated lines at the end; never edit a row above.
   products) at 1440 and 390 px: no horizontal overflow at 390. Twenty-nine mutants killed (wording and change
   detection 14, form 7, product lines 3, page 2, note 1, tank count 2), two survivors fixed with tests on the way.
   Next: part 3, the paper audit's findings ("what the shipper left out") beside the lines.
+
+- **2026-10-12 — N6 part 3: "Is this BOL written correctly?" above the calculator form.** `GET /reads/:id` now
+  carries `paperAudit` for a finished shipping-document read: `auditPrintedPaper` over pass A's document, each
+  line resolved by the table witness's own resolver and dataset (`hmtResolution`, one parsed dataset per
+  process), field states per **D-DR22** (above). Worked out on every fetch, never stored — it follows the
+  dataset and the rules in force, and a stored copy would be a second answer. The form shows it as a card:
+  *Wrong or missing* (each with who acts — "Do not accept the BOL until it is corrected" before "The shipper
+  must correct it" — how to fix it, and the CFR cite), *Check by eye*, and the passed checks folded behind
+  their count; "Every check passed." only when nothing is wrong or open.
+  **Found running it on a realistic read, fixed:** (1) every weight-only line was "shows no total quantity"
+  though the paper prints its weight. §172.202(a)(5) asks for the total "by mass or volume" and never says
+  "gross" (only (a)(6), aircraft, does — eCFR checked 2026-10-12; the draft Q-DR24 on #1456 says "net or
+  gross", which the text does not contain — correct it there before that merges). Whether a printed weight is
+  the material's total is a judgement the paper cannot settle, so the rule now answers `cannot_tell` /
+  `weight_only` naming the weight, not `fail`. (2) An unconfirmed field was worded as its path
+  ("isn't sure of hazmat.lines[0].quantity.value"); the catalogue now says "the quantity". (3) A stale audit
+  from the previous read stayed up when the next read's product lookup failed — cleared at the start of each read.
+  (4) Seen in a browser, the first build was unreadable: template lines were audited (the prefill leaves them
+  out — the audit now does too, keeping the read's line numbers), and one unmatched line repeated "doesn't match
+  a table entry" once per rule. A line's checks stopped by one cause are now ONE sentence naming every check it
+  stopped (`bolBlockedSentence`; each rule's subject is a catalogue property, not restated). On the stub BOL the
+  card went from 18 "check by eye" items to 6, beside 3 real failures (no PG twice, "CALL SHIPPER").
+  Twenty-nine mutants killed (audit states and inputs 10, route 1, weight-only rule 2, wording 5, grouping and
+  sorting 6, panel 2, form 3); three equivalent mutants removed dead code instead.

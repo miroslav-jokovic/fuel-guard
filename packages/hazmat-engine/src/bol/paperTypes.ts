@@ -59,6 +59,8 @@ export interface PrintedPaperLine {
   readonly technicalName: string | null;
   readonly quantity: { readonly value: number | null; readonly unit: string | null };
   readonly packageCount: number | null;
+  /** The line's weight column, in pounds as the reader's contract states it; absent = not transcribed. */
+  readonly grossWeightLb?: number | null;
   readonly packaging: string | null;
   readonly hmColumnMark: "X" | "RQ" | null;
   readonly marks: readonly string[];
