@@ -178,3 +178,53 @@ describe("the Samsara record's name is kept on the truck (FL2, Q-FL8, migration 
     expect(rec.writtenRows("vehicles").map((w) => w.samsara_name)).toEqual(["104"]);
   });
 });
+
+describe("a Samsara record whose VIN now names another of our trucks (vehicleRecordMoved.ts)", () => {
+  // Production, 2026-10-12: gateway GPFA-CWR-JA4's record left old 603 for new 819 — renamed "819",
+  // reading 819's VIN — while our 603 row still held its id, so 819's positions landed on 603.
+  const runWith = (rec: ReturnType<typeof seed>, list: Record<string, unknown>[]) =>
+    syncVehiclesFromSamsara(rec.client, env, ORG, async () => list, async () => ({ data: [] }), async () => ({ data: [] }));
+  // Fresh rows per test: the sync updates the rows it read as it goes, as it would PostgREST's.
+  const t603 = () => ({ ...mcleodTruck, id: "v-603", unit_number: "603", vin: "3AKJHHDR6MSMS9682", samsara_vehicle_id: "SV-JA4" });
+  const t819 = () => ({ ...mcleodTruck, id: "v-819", unit_number: "819", vin: "3HSDZAPR8VN167715", samsara_vehicle_id: null });
+  const linkWrites = (rec: ReturnType<typeof seed>) =>
+    rec.forTable("vehicles")
+      .filter((q) => q.write?.method === "update" && "samsara_vehicle_id" in (q.write.payload as object))
+      .map((q) => ({ id: (q.write!.payload as { samsara_vehicle_id: string | null }).samsara_vehicle_id, filters: Object.fromEntries(q.filters().map((f) => [f.col, f.val])) }));
+
+  for (const master of [true, false]) {
+    it(`follows the record to the truck its VIN names, releasing the old row first (${master ? "link-only" : "full"} mode)`, async () => {
+      const rec = seed([t603(), t819()], master);
+      const r = await runWith(rec, [{ id: "SV-JA4", name: "819", vin: "3HSDZAPR8VN167715", make: "INTERNATIONAL", model: "LT62F" }]);
+      expect(r.movedRecords).toEqual(["603 → 819"]);
+      // Order matters: one row per record (uq_vehicles_org_samsara), so 603 lets go before 819 takes it,
+      // and the release repeats the id it expects.
+      expect(linkWrites(rec)).toEqual([
+        { id: null, filters: { id: "v-603", org_id: ORG, samsara_vehicle_id: "SV-JA4" } },
+        { id: "SV-JA4", filters: { id: "v-819", org_id: ORG } },
+      ]);
+      expectOrgScoped(rec, ORG);
+    });
+  }
+
+  it("moves nothing when the VIN's truck reports through its own live device — 563 - SOLD vs 804", async () => {
+    const t563 = { ...mcleodTruck, id: "v-563", unit_number: "563", vin: "3AKJHHDR8MSMS9649", samsara_vehicle_id: "SV-563" };
+    const t804 = { ...mcleodTruck, id: "v-804", unit_number: "804", vin: "3HSDZAPR8VN844651", samsara_vehicle_id: "SV-804" };
+    const rec = seed([t563, t804], true);
+    const r = await runWith(rec, [
+      { id: "SV-563", name: "563 - SOLD", vin: "3HSDZAPR8VN844651" },
+      { id: "SV-804", name: "804", vin: "3HSDZAPR8VN844651" },
+    ]);
+    expect(r.movedRecords).toEqual([]);
+    expect(r.heldByOtherDevice).toEqual(["563 - SOLD"]);
+    // 804 keeps its own device; nothing is released.
+    expect(linkWrites(rec)).toEqual([{ id: "SV-804", filters: { id: "v-804", org_id: ORG } }]);
+  });
+
+  it("keeps the link when the VIN agrees or Samsara gives none", async () => {
+    const rec = seed([t603(), t819()], true);
+    const r = await runWith(rec, [{ id: "SV-JA4", name: "603", vin: null }]);
+    expect(r.movedRecords).toEqual([]);
+    expect(linkWrites(rec)).toEqual([{ id: "SV-JA4", filters: { id: "v-603", org_id: ORG } }]);
+  });
+});
