@@ -282,6 +282,10 @@ function onRemoveChip(key: string): void {
   if (facet) facet.value = "";
 }
 
+const activeFilterCount = computed(
+  () => Object.values(FACETS).filter((facet) => facet.value).length + (search.value ? 1 : 0),
+);
+
 /** Search included, unlike `FACETS` — a chip removes one facet, this clears the screen. The sort is
  *  kept: it is how the list is ordered, not how it is narrowed. */
 function clearAll(): void {
@@ -335,6 +339,7 @@ const mileageOpen = ref(false);
         :count="rows.length"
         count-label="cards"
         :chips="chips"
+        :active-count="activeFilterCount"
         @remove="onRemoveChip"
         @clear-all="clearAll"
       >

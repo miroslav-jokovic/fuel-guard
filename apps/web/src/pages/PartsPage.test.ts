@@ -122,6 +122,16 @@ describe("the stock filter", () => {
     expect(w.text()).toContain("1 shelf");
     expect(w.text()).toContain("Main shelf");
   });
+
+  it("offers Clear filters on the low-stock view, and clearing returns to the whole catalogue", async () => {
+    query.value = { stock: "low" };
+    const w = page();
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    await clearFilters()!.trigger("click");
+    expect(clearButtons(w)).toHaveLength(0);
+    expect(clearFilters()).toBeUndefined();
+    expect(w.text()).toContain("1 part");
+  });
 });
 
 describe("the header", () => {

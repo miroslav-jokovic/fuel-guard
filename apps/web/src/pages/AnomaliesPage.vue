@@ -61,6 +61,8 @@ const VIEW_TABS: TabItem[] = [
       search-placeholder="Search message or vehicle…"
       :count="total"
       count-label="alerts"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="status" label="Status" :options="statusOptions" />
@@ -69,7 +71,6 @@ const VIEW_TABS: TabItem[] = [
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         <BaseButton
           v-if="opens('/settings/data')"
           variant="ghost"

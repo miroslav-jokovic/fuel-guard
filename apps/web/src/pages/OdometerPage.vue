@@ -13,7 +13,6 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { formatDate as fmtDate, formatDateTime as fmtDateTime } from "@/lib/format";
@@ -41,7 +40,8 @@ const vehicleOptions = computed(() => [
     .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
     .map((v) => ({ value: v.id, label: v.unit_number })),
 ]);
-const activeFilterCount = computed(() => [vehicleId.value, from.value, to.value].filter(Boolean).length + (search.value.trim() ? 1 : 0));
+// The date range is one filter (FilterBar's convention), however many of its ends are set.
+const activeFilterCount = computed(() => (vehicleId.value ? 1 : 0) + (from.value || to.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
 function resetFilters() {
   search.value = "";
   vehicleId.value = undefined;
@@ -142,13 +142,12 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search truck or driver…"
         :count="filtered.length"
         count-label="readings"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
       <template #filters>
         <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v)" @update:to="(v) => (to = v)" />
-      </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
       </FilterBar>
 

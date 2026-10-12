@@ -88,6 +88,13 @@ const filtered = computed(() => {
   return out;
 });
 
+// The week is not counted or cleared: it chooses which report this is, not which drivers it lists.
+const activeFilterCount = computed(() => [search.value.trim(), statusSel.value].filter(Boolean).length);
+function clearFilters(): void {
+  search.value = "";
+  statusSel.value = "";
+}
+
 // Column keys are display groupings, so map each to the underlying row field for sorting.
 const sortAccessor = (r: PerformanceDisplayRow, k: string): unknown => {
   switch (k) {
@@ -197,6 +204,8 @@ const columns: DataTableColumn[] = [
       search-placeholder="Search driver…"
       :count="filtered.length"
       count-label="drivers"
+      :active-count="activeFilterCount"
+      @clear-all="clearFilters"
     >
       <template #filters>
         <FilterSelect v-model="statusSel" label="Status" :options="statusOptions" />

@@ -75,6 +75,14 @@ const kind = ref("");
 const kit = ref(route.query.kit === "short" ? "short" : "");
 watch(kit, (v) => void router.replace({ query: v === "short" ? { kit: "short" } : {} }));
 
+const activeFilterCount = computed(() => [search.value.trim(), kind.value, kit.value].filter(Boolean).length);
+/** Clearing `kit` goes through its watcher above, which drops `?kit=short` from the URL. */
+function resetFilters() {
+  search.value = "";
+  kind.value = "";
+  kit.value = "";
+}
+
 const filter = computed(() => ({
   kind: (kind.value || undefined) as "tractor" | "trailer" | undefined,
   shortOnly: kit.value === "short",
@@ -139,6 +147,8 @@ const rulesOpen = ref(false);
         search-placeholder="Search unit number…"
         :count="rows.length"
         count-label="units"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="kind" label="Kind" :options="KIND_OPTIONS" />

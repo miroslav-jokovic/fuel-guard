@@ -44,6 +44,15 @@ const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
+// "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (reeferFilter.value ? 1 : 0),
+);
+function resetFilters() {
+  search.value = "";
+  statusFilter.value = "active";
+  reeferFilter.value = "";
+}
 const reeferOptions = [
   { value: "", label: "All trailers" },
   { value: "reefer", label: "Reefers only" },
@@ -193,6 +202,8 @@ async function onRetire(t: Trailer) {
       search-placeholder="Search unit, make, model, plate…"
       :count="filtered.length"
       count-label="trailers"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="reeferFilter" label="Type" :options="reeferOptions" />

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { STATE_NAMES, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelNetwork } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -51,6 +50,15 @@ import { useOpens } from "@/composables/useOpens";
  */
 
 const f = useFuelCostFilters();
+/**
+ * `f.active`, counted: a window off its default plus each list that holds anything. Grain is left out
+ * for the reason `useFuelCostFilters.active` gives — this page no longer offers it.
+ */
+const activeFilterCount = computed(
+  () =>
+    (f.isDefaultWindow.value ? 0 : 1) +
+    [f.vehicleIds.value, f.states.value, f.siteIds.value, f.networks.value].filter((l) => l.length > 0).length,
+);
 const opens = useOpens();
 const { data: report, isLoading, isError, error, isFetching } = useFuelReportQuery(f.params);
 
@@ -139,7 +147,12 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
     </p>
 
     <!-- No count until the report answers: a pending or failed read is not "0 days" (verdict E8). -->
-    <FilterBar :count="report ? rows.length : null" count-label="days">
+    <FilterBar
+      :count="report ? rows.length : null"
+      count-label="days"
+      :active-count="activeFilterCount"
+      @clear-all="f.reset()"
+    >
       <!-- In #filters: FilterBar has no default slot, and plain children are silently dropped. The two
            date v-models are safe because `useQueryState` coalesces their same-tick patches. -->
       <template #filters>
@@ -148,7 +161,6 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         <FilterSelect v-model="f.states.value" :options="stateOptions" label="State" multiple />
         <FilterSelect v-model="f.siteIds.value" :options="siteOptions" label="Location" multiple />
         <FilterSelect v-model="networkModel" :options="networkOptions" label="Network" multiple />
-        <BaseButton v-if="f.active.value" variant="ghost" @click="f.reset()">Clear filters</BaseButton>
       </template>
       <template #actions>
         <ReportExportButton

@@ -77,6 +77,12 @@ const typeOptions = computed(() => [
 ]);
 
 const filtered = computed(() => Boolean(search.value || status.value || typeId.value));
+const activeFilterCount = computed(() => [search.value.trim(), status.value, typeId.value].filter(Boolean).length);
+function resetFilters() {
+  search.value = "";
+  status.value = "";
+  typeId.value = "";
+}
 
 const filter = computed(() => ({
   search: search.value.trim() || undefined,
@@ -135,6 +141,8 @@ watch(creating, (open) => {
         search-placeholder="Search number, name, serial or tag…"
         :count="assets.data.value?.total ?? 0"
         count-label="assets"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />

@@ -117,6 +117,8 @@ function templateStructureViolations(item) {
   const nestedTables = [];
   const filterBarChildren = [];
   const paginationOutsideFooter = [];
+  const filterBarsWithoutActiveCount = [];
+  const localClearButtons = [];
   let previousEnd = tags[0]?.end ?? 0;
   const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
 
@@ -127,6 +129,10 @@ function templateStructureViolations(item) {
     }
 
     if (tag.closing) {
+      if (tag.name === "FilterBar") {
+        const bar = stack.findLast((entry) => entry.name === "FilterBar");
+        if (bar?.narrows && !/\s:?active-count\s*=/.test(bar.raw)) filterBarsWithoutActiveCount.push(at(bar.start));
+      }
       const match = stack.findLastIndex((entry) => entry.name === tag.name);
       if (match !== -1) stack.splice(match);
       previousEnd = tag.end;
@@ -138,6 +144,18 @@ function templateStructureViolations(item) {
         ? tag.raw.match(/(?:#|v-slot:)([\w-]+)/)?.[1]
         : undefined;
       if (!slot || !FILTER_BAR_SLOTS.has(slot)) filterBarChildren.push(at(tag.start));
+      if (slot === "filters" || slot === "more") parent.narrows = true;
+    }
+
+    // FilterBar owns "Clear filters" (one place, one look, one meaning: every filter and the search,
+    // never the sort). A page drawing its own is the drift the 2026-10-12 audit counted nine times.
+    if (!tag.selfClosing && /^(BaseButton|AppButton)$/.test(tag.name)) {
+      const close = item.source.indexOf("<", tag.end);
+      const text = item.source.slice(tag.end, close === -1 ? undefined : close).trim();
+      if (/^(Clear (all )?filters|Reset filters|Clear all)$/i.test(text) && close !== -1 &&
+          item.source.startsWith(`</${tag.name}`, close)) {
+        localClearButtons.push(at(tag.start));
+      }
     }
 
     if (tag.name === "DataTable" && stack.some((entry) => entry.name === "BaseCard") &&
@@ -157,7 +175,13 @@ function templateStructureViolations(item) {
     previousEnd = tag.end;
   }
 
-  return { nestedTables, filterBarChildren, paginationOutsideFooter };
+  return {
+    nestedTables,
+    filterBarChildren,
+    paginationOutsideFooter,
+    filterBarsWithoutActiveCount,
+    localClearButtons,
+  };
 }
 
 /**
@@ -258,6 +282,11 @@ function structureCheckerSelfTest() {
         <FilterBar><AppSegmentedControl /></FilterBar>
         <DataTable :columns="columns"><template #footer><TablePagination /></template></DataTable>
         <TablePagination />
+        <FilterBar><template #filters><FilterSelect /></template></FilterBar>
+        <FilterBar :active-count="n"><template #more><FilterSelect /></template></FilterBar>
+        <FilterBar v-model:search="q" />
+        <BaseButton variant="ghost">Clear filters</BaseButton>
+        <BaseButton>Clear</BaseButton>
       </div>
     </template>`),
   };
@@ -279,6 +308,8 @@ function structureCheckerSelfTest() {
   ]) &&
     result.filterBarChildren[0] === "self-test.vue:14" &&
     result.paginationOutsideFooter[0] === "self-test.vue:16" &&
+    JSON.stringify(result.filterBarsWithoutActiveCount) === JSON.stringify(["self-test.vue:17"]) &&
+    JSON.stringify(result.localClearButtons) === JSON.stringify(["self-test.vue:20"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -317,6 +348,8 @@ const structureViolations = pagesAndFeatures.map(templateStructureViolations);
 const nestedTables = structureViolations.flatMap((item) => item.nestedTables);
 const filterBarChildren = structureViolations.flatMap((item) => item.filterBarChildren);
 const paginationOutsideFooter = structureViolations.flatMap((item) => item.paginationOutsideFooter);
+const filterBarsWithoutActiveCount = structureViolations.flatMap((item) => item.filterBarsWithoutActiveCount);
+const localClearButtons = structureViolations.flatMap((item) => item.localClearButtons);
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -477,6 +510,10 @@ function verifyAdoption() {
     failures.push(`FilterBar content outside #filters/#more/#actions: ${filterBarChildren.join(", ")}`);
   if (paginationOutsideFooter.length)
     failures.push(`TablePagination outside DataTable #footer: ${paginationOutsideFooter.join(", ")}`);
+  if (filterBarsWithoutActiveCount.length)
+    failures.push(`FilterBar with #filters/#more but no :active-count (it owns Clear filters): ${filterBarsWithoutActiveCount.join(", ")}`);
+  if (localClearButtons.length)
+    failures.push(`hand-built Clear filters button (pass :active-count to FilterBar instead): ${localClearButtons.join(", ")}`);
   if (manualActionColumns.length)
     failures.push(`manual DataTable actions columns (use #actions): ${manualActionColumns.join(", ")}`);
 

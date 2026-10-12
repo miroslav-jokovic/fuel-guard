@@ -572,4 +572,26 @@ describe("Fuel problems", () => {
     const t = w.text();
     for (const word of ["Dismiss", "Close selected", "Mark as"]) expect(t).not.toContain(word);
   });
+
+  it("clears every filter back to the working queue, and offers no clear on the default", async () => {
+    const clearButton = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.findAll("button").find((b) => b.text() === "Clear filters");
+    // The three working states are where the queue opens — spelled out in a link, still nothing to clear.
+    expect(clearButton((await mountPage("?state=open,investigating,working")).w)).toBeUndefined();
+
+    const { w, router } = await mountPage("?state=closed&kind=recon_amount&owner=me");
+    expect(w.getComponent(FilterBar).props("activeCount")).toBe(3);
+    await clearButton(w)!.trigger("click");
+    await flushPromises();
+
+    const q = router.currentRoute.value.query;
+    for (const key of ["state", "kind", "owner"]) expect(q[key], key).toBeUndefined();
+    // `seen.listQuery` is a snapshot from mount, so read the controls the reader sees instead.
+    const select = (label: string) =>
+      w.findAllComponents({ name: "FilterSelect" }).find((s) => s.props("label") === label)!.props("modelValue");
+    expect(select("Status")).toEqual(["open", "investigating", "working"]);
+    expect(select("Finding")).toEqual([]);
+    expect(select("Owner")).toBe("");
+    expect(clearButton(w)).toBeUndefined();
+  });
 });

@@ -151,6 +151,20 @@ describe("the fleet's kit", () => {
     expect(clears).toHaveLength(0);
   });
 
+  it("offers Clear filters once a filter is set, and clearing puts the kind back to everything", async () => {
+    units.value = { units: [unit()], total: 1 };
+    const w = page();
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    const kind = () => w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Kind")!;
+    const clearButton = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clearButton()).toBeUndefined();
+    kind().vm.$emit("update:modelValue", "tractor");
+    await w.vm.$nextTick();
+    await clearButton()!.trigger("click");
+    expect(kind().props("modelValue")).toBe("");
+    expect(clearButton()).toBeUndefined();
+  });
+
   /** The fleet arrives whole, so the page may filter it — a client search over a complete list is honest. */
   it("finds a unit by number, and says so when none matches", async () => {
     units.value = { units: [unit(), unit({ unitId: REEFER, unitNumber: "R-8800", kind: "reefer_trailer" })], total: 2 };

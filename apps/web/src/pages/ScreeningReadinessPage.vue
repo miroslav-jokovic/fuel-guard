@@ -55,6 +55,15 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 watch([filter, search], () => (page.value = 1));
 
+// "all" is the list's resting value, so it is not a filter — as is `""`, which FilterSelect's ✕ sets.
+const activeFilterCount = computed(
+  () => [search.value.trim(), filter.value !== "all" && filter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  search.value = "";
+  filter.value = "all";
+}
+
 const filtered = computed<ScreeningRow[]>(() => {
   let all = readinessQ.data.value?.rows ?? [];
   if (filter.value === "ready") all = all.filter((r) => r.ready);
@@ -150,6 +159,8 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search driver…"
         :count="filtered.length"
         count-label="drivers"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect

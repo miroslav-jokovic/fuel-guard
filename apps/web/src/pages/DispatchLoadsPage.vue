@@ -301,6 +301,15 @@ function hazmatTone(status: string | null | undefined): string {
 }
 
 
+/**
+ * FilterBar's "Clear filters": Fleet, Dispatched by, Type and the search narrow the list in front of
+ * you. The queue tab and My fleet · All do not — they choose WHICH list it is, so clearing keeps them.
+ */
+const activeFilterCount = computed(
+  () => [search.value.trim(), fleet.value, dispatcher.value, typeFilter.value].filter(Boolean).length,
+);
+const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined, type: undefined });
+
 watch([search, tab, scopeChoice, fleet, dispatcher, typeFilter], () => {
   page.value = 1;
 });
@@ -336,6 +345,8 @@ function openDetail(load: DispatchLoad) {
         :search-placeholder="tab === 'exceptions' ? 'Search what happened, load #, driver…' : 'Search load #, driver, unit, place…'"
         :count="tab === 'exceptions' ? filteredExceptions.length : filtered.length"
         :count-label="tab === 'exceptions' ? 'exceptions' : 'loads'"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <DispatchScopeControls

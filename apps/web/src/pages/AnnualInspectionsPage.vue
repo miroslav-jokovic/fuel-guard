@@ -85,6 +85,13 @@ const status = ref("");
 const outcome = ref("");
 const page = ref(1);
 watch([subjectType, search, status, outcome], () => (page.value = 1));
+// The equipment-type tabs pick WHICH register is read, not a narrowing of it: they never count and clearing leaves them.
+const activeFilterCount = computed(() => [search.value.trim(), status.value, outcome.value].filter(Boolean).length);
+function resetFilters() {
+  search.value = "";
+  status.value = "";
+  outcome.value = "";
+}
 
 const filter = computed(() => ({
   subjectType: subjectType.value,
@@ -203,6 +210,8 @@ async function discardDraft(row: InspectionSummary) {
       search-placeholder="Search unit, decal or inspector…"
       :count="total"
       count-label="inspections"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />

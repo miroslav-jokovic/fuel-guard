@@ -160,3 +160,19 @@ describe("removing a row that was never used", () => {
     expect(toasts[0]!.message).toContain("Retire them instead");
   });
 });
+
+describe("clearing the filters", () => {
+  /** "Active only" is where the register opens, so clearing returns there rather than to an empty value. */
+  it("offers Clear filters once retired inspectors are shown, and clearing goes back to active only", async () => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    const w = page([inspector()]);
+    const show = () => w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!;
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clearFilters()).toBeUndefined();
+    show().vm.$emit("update:modelValue", "all");
+    await nextTick();
+    await clearFilters()!.trigger("click");
+    expect(show().props("modelValue")).toBe("active");
+    expect(clearFilters()).toBeUndefined();
+  });
+});

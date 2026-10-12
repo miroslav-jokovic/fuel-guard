@@ -228,12 +228,11 @@ const boughtSub = computed(() => {
           search-placeholder="Search truck…"
           :count="listedTrucks"
           count-label="trucks"
+          :active-count="activeFilterCount"
+          @clear-all="resetFilters"
         >
           <template #filters>
             <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
-          </template>
-          <template #actions>
-            <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
           </template>
         </FilterBar>
 

@@ -77,7 +77,7 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`DataWorkspace.vue`** | `as?` | default | The **list-page shell** (see §5.2b): one `AppCard padding="none"` with `divide-y divide-edge-subtle`, holding an `embedded` FilterBar row above an `embedded` DataTable. |
 | **`SettingsSection.vue`** | see source | — | Settings-page section wrapper. |
 | **`FilterSelect.vue`** (156 ln) | `modelValue: string`, `options`, `label: string`, `disabled?`, `block?` | — | The **toolbar** filter. Trigger reads `"Risk ▾"` idle / `"Risk: Review ✕"` active with a brand tint (`bg-brand-50/60 text-brand-800 ring-brand-600/30`). `""` option = "no filter". Auto-adds an inline search box when `options.length > 8`. `block` = full width, for use inside the FilterBar `#more` popover. |
-| **`FilterBar.vue`** (146 ln) | `search?`, `searchPlaceholder?` ("Search…"), `count?: number\|null`, `countLabel?` ("results"), `chips?: FilterChip[]`, `moreCount?: number` | `#filters`, `#more`, `#actions`; emits `update:search`, `remove(key)`, `clear-all` | The **one table toolbar**. Full API in §5. |
+| **`FilterBar.vue`** (146 ln) | `search?`, `searchPlaceholder?` ("Search…"), `count?: number\|null`, `countLabel?` ("results"), `chips?: FilterChip[]`, `moreCount?: number`, `activeCount?: number` | `#filters`, `#more`, `#actions`; emits `update:search`, `remove(key)`, `clear-all` | The **one table toolbar**, and the one owner of "Clear filters". Full API in §5. |
 | **`DataTable.vue`** (240 ln) | see §5.2 | see §5.2 | The **one data table**. |
 | **`FileDropzone.vue`** (123 ln) | `accept?`, `multiple?`, `disabled?`, `label?` ("Drag & drop files here"), `hint?`, `busy?`, `busyLabel?` ("Reading…") | emits `files: File[]` | The **only sanctioned uploader**. Drag/drop + click/Enter/Space to browse. Parent owns parsing. |
 | **`BaseModal.vue`** | `open`, `title`, `description?`, `size?: "md"\|"lg"\|"xl"` (md; `xl` = `max-w-4xl`), `printable?` | default, `#footer`; emits `close` | The **one CENTRED dialog** (added DQF plan B5). The boundary vs `SlideOver`: a drawer keeps the list visible beside a form; a modal takes the middle of the screen for content that needs WIDTH (a scanned card at 28rem is not legible). Same scrim/transitions/header anatomy as SlideOver §6.1; `max-h-[90vh]`, body scrolls. `printable` applies `.print-target`, which the `@media print` rules in `style.css` key on. Never build a bespoke overlay in a feature folder. |
@@ -528,12 +528,12 @@ Rendered only in the `#footer` slot:
     [search  w-full lg:w-64 lg:shrink-0]   ← SearchInput, 250 ms debounce, trimmed
     [#filters  flex flex-wrap items-center gap-2]   ← 2–4 PRIMARY FilterSelect / DateRangeFilter
     [Filters ⏷ button + popover]           ← only rendered if #more is provided
-    [lg:ml-auto: count · #actions]
+    [lg:ml-auto: Clear filters (activeCount > 0) · count · #actions]
   [chips row: mt-3 flex flex-wrap items-center gap-2 border-t border-edge-subtle pt-3]
 </BaseCard>
 ```
 
-Props: `search?`, `searchPlaceholder?` (`"Search…"`), `count?: number|null`, `countLabel?` (`"results"`), `chips?: FilterChip[]` (`{key,label,value}`), `moreCount?: number`. Emits `update:search`, `remove(key)`, `clear-all`.
+Props: `search?`, `searchPlaceholder?` (`"Search…"`), `count?: number|null`, `countLabel?` (`"results"`), `chips?: FilterChip[]` (`{key,label,value}`), `moreCount?: number`, `activeCount?: number`. Emits `update:search`, `remove(key)`, `clear-all`.
 
 Rules encoded in the component and honoured by the good pages:
 
@@ -541,7 +541,17 @@ Rules encoded in the component and honoured by the good pages:
 2. `:count="filtered.length"` + `count-label="trailers"` — always a **domain noun**, never "results". Renders `count.toLocaleString()`.
 3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (the trigger shows its own active value — do **not** also add a chip for these).
 4. `#more` holds **secondary** dimensions as `<FilterSelect … block />`. Popover: `w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle`, inner `space-y-3`. `:more-count` badges how many are active.
-5. `:chips` mirror **only the `#more` filters**, with `@remove` and `@clear-all`:
+5. `:active-count` + `@clear-all` on **every** bar with `#filters` or `#more` (`lint:ui-adoption`
+   fails one without). FilterBar then draws the one ghost "Clear filters" button before the count
+   whenever the count is above zero; never draw your own (also gate-checked). The count is how many
+   dimensions narrow the list, **the search included**; a filter at its default is not active.
+   Clearing resets every filter and the search to its default and **keeps the sort** — the sort
+   orders the list, it does not narrow it. A control that switches WHICH list you are looking at (a
+   tab, a queue, a scope) is not a filter and is neither counted nor cleared; nor is a date window
+   that also drives the page's KPI cards (`useIdlingPage.ts`). Until 2026-10-12 nine pages drew this
+   button three different ways and twenty filtered lists had none.
+6. `:chips` mirror **only the `#more` filters**, with `@remove`; the chip row has no "Clear all" of
+   its own, because the bar's "Clear filters" already covers it:
    ```ts
    const chips = computed<FilterChip[]>(() => {
      const out: FilterChip[] = [];
@@ -552,8 +562,8 @@ Rules encoded in the component and honoured by the good pages:
    function removeChip(key: string) { if (key === "driver") filters.value = { ...filters.value, driverId: undefined }; }
    function clearAll() { /* reset every filter, keep sort */ }
    ```
-6. Filters apply live, per-filter. No Apply button. `page` resets to 1 via `watch`.
-7. Never ship a filter no query consumes.
+7. Filters apply live, per-filter. No Apply button. `page` resets to 1 via `watch`.
+8. Never ship a filter no query consumes.
 
 ### 5.6 Row actions
 
@@ -748,7 +758,7 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 
 1. Root `<div class="space-y-6">`. `PageHeader` renders the `<h1>` from `route.meta.title` (or its explicit `title` prop) — do not render a second `<h1>`.
 2. `<PageHeader description="One or two sentences.">` + `#actions` with at most one `variant="primary"`.
-3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove` + `@clear-all`.
+3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove`; always `:active-count` + `@clear-all`.
 4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Use the named `width` scale; reserve `headerClass` for exceptional fixed-width controls. Tone belongs in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
 5. `<DataTable :columns :rows="pageRows" embedded row-key="id" :loading :error :retrying :sort :empty-text @sort @retry>` — never hand-roll loading/error/empty, and never wrap it in a card of your own.
 6. `#actions` → `<KebabMenu v-if="session.canManage">` with `.kebab-item` buttons, destructive last with `.kebab-item-danger`.
@@ -756,4 +766,4 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 8. Badges only via `BADGE_BASE + toneClass` / `StatusBadge`.
 9. Drawer via `<SlideOver>`; actions in `#footer`; body sections `space-y-6` with `h3.text-sm.font-semibold.text-ink`.
 10. Mutations: `try { await mutateAsync(); toast.success("Thing updated"); } catch (e) { toast.error("Could not save thing", e instanceof Error ? e.message : undefined); }`
-11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.
+11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, FilterBar's `:active-count` and hand-built clear buttons, pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.

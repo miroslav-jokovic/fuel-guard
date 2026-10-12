@@ -134,4 +134,23 @@ describe("ReconResultView", () => {
     expect(w.text()).toContain("On Pilot's bill, not in our records");
     expect(w.findAll("button").some((b) => b.text().includes("Download"))).toBe(false);
   });
+
+  it("offers Clear filters once the reader leaves the default view, and clearing returns to it", async () => {
+    const w = view();
+    const clearButton = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    // "Needs a look" is where a check opens — the default, so nothing to clear.
+    expect(clearButton()).toBeUndefined();
+
+    await w.findAll("button").find((b) => b.text().includes("reconciled"))!.trigger("click");
+    await flushPromises();
+    expect(tableText(w)).toContain("701");
+    expect(clearButton(), "no Clear filters").toBeTruthy();
+
+    await clearButton()!.trigger("click");
+    await flushPromises();
+    expect(tableText(w)).not.toContain("701");
+    expect(tableText(w)).toContain("999");
+    expect(w.find('[aria-pressed="true"]').text()).toContain("Needs a look");
+    expect(clearButton()).toBeUndefined();
+  });
 });

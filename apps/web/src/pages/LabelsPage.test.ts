@@ -103,7 +103,7 @@ const stubs = {
   FilterBar: {
     name: "FilterBar",
     template: "<div><slot name='filters' /><slot name='more' /><slot name='actions' /></div>",
-    props: { search: null, count: null, countLabel: null, searchPlaceholder: null, embedded: Boolean },
+    props: { search: null, count: null, countLabel: null, searchPlaceholder: null, embedded: Boolean, activeCount: null },
   },
   DataWorkspace: { name: "DataWorkspace", template: "<section data-testid='data-workspace'><slot /></section>" },
   AppSegmentedControl: {
@@ -186,6 +186,28 @@ describe("picking what to label", () => {
     await wrapper.vm.$nextTick();
 
     expect(facesMutate).toHaveBeenCalledWith([{ kind: "asset", assetId: ASSET }]);
+  });
+
+  /**
+   * "What to label" switches between two lists rather than narrowing one, so only the search counts
+   * as a filter and clearing it leaves the switch on Assets.
+   */
+  it("counts the search as the only filter, and clearing empties it without switching lists", async () => {
+    const wrapper = render();
+    wrapper.findComponent({ name: "AppSegmentedControl" }).vm.$emit("update:modelValue", "assets");
+    await wrapper.vm.$nextTick();
+    const bar = () => wrapper.findComponent({ name: "FilterBar" });
+    expect(bar().props("activeCount")).toBe(0);
+
+    bar().vm.$emit("update:search", "jack");
+    await wrapper.vm.$nextTick();
+    expect(bar().props("activeCount")).toBe(1);
+
+    bar().vm.$emit("clear-all");
+    await wrapper.vm.$nextTick();
+    expect(bar().props("search")).toBe("");
+    expect(bar().props("activeCount")).toBe(0);
+    expect(wrapper.findComponent({ name: "AppSegmentedControl" }).props("modelValue")).toBe("assets");
   });
 });
 
