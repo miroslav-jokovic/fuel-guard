@@ -27,6 +27,18 @@ export function useHazmatProductsQuery(q: Ref<string>, basePath = "/api/hazmat")
   });
 }
 
+/**
+ * Exactly the products these `hmtRef`s name (`GET /products?refs=`) — the BOL reader's prefill holds the
+ * table's own ref for each read line and needs its product, never a search (§7A N6). A ref the dataset
+ * does not hold is simply absent from the answer.
+ */
+export async function fetchProductsByRef(refs: readonly string[], basePath = "/api/hazmat"): Promise<HazmatProduct[]> {
+  if (refs.length === 0) return [];
+  const res = await apiFetch<HazmatProductsResponse>(`${basePath}/products?refs=${encodeURIComponent(refs.join(","))}`);
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Product lookup failed");
+  return res.data.products;
+}
+
 /** Run the calculator. Returns the typed verdict (the API types `verdict` as unknown at the boundary). */
 export function useHazmatCalc(basePath = "/api/hazmat") {
   return useMutation({

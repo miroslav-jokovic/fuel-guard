@@ -10,6 +10,8 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
+import BolFieldNote from "@/features/hazmat/bolRead/BolFieldNote.vue";
+import type { BolLineView } from "@/features/hazmat/bolRead/bolPrefill";
 import {
   linePackagingDerivation,
   stripCitations,
@@ -27,7 +29,11 @@ const props = defineProps<{
   equipmentType: string;
   isTank: boolean;
   basePath: string;
+  /** A line the BOL reader filled → what to show beside its fields (§7A N6); null for a typed line. */
+  bolView?: (line: CalcLineForm) => BolLineView | null;
 }>();
+
+const viewOf = (line: CalcLineForm): BolLineView | null => props.bolView?.(line) ?? null;
 
 const emit = defineEmits<{
   addLine: [];
@@ -116,6 +122,10 @@ function applyGrossSuggestion(line: CalcLineForm) {
         </div>
 
         <div class="space-y-4 p-4">
+          <div v-if="viewOf(line)" class="space-y-1 rounded-control bg-surface-subtle px-3 py-2 text-xs ring-1 ring-inset ring-edge" data-testid="bol-line">
+            <p class="text-ink-secondary">From the BOL: <span class="font-medium text-ink">{{ viewOf(line)!.printed }}</span></p>
+            <p v-for="n in viewOf(line)!.notes" :key="n" class="text-warning-800">{{ n }}</p>
+          </div>
           <template v-if="line.product">
             <div class="flex items-center justify-between gap-2 rounded-control bg-surface px-3 py-2 ring-1 ring-inset ring-edge">
               <span class="truncate text-sm text-ink">{{ line.product.label }}</span>
@@ -123,6 +133,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
             </div>
           </template>
           <ProductPicker v-else :base-path="props.basePath" @select="(p) => emit('selectProduct', i, p)" />
+          <BolFieldNote :note="viewOf(line)?.fields.product" />
 
           <!-- how it's packed -->
           <div class="space-y-3 border-t border-edge pt-4">
@@ -140,6 +151,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                   placeholder="Drums, totes, boxes…"
                   @update:model-value="(v: string) => (line.packageType = v)"
                 />
+                <BolFieldNote :note="viewOf(line)?.fields.packageType" />
               </FormField>
 
               <FormField
@@ -149,6 +161,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                 hint="Count the drums or boxes themselves, not the pallets they ride on."
               >
                 <BaseInput :id="id" v-model="line.packageCount" type="number" inputmode="numeric" min="0" placeholder="1056" />
+                <BolFieldNote :note="viewOf(line)?.fields.packageCount" />
               </FormField>
 
               <FormField v-if="props.isTank && line.packageType === 'bulk_cargo'" v-slot="{ id }" label="Compartment #">
@@ -198,6 +211,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                 <BaseInput :id="id" v-model="line.grossWeightValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="44307" />
                 <ComboSelect v-model="line.grossWeightUnit" class="w-24 shrink-0" :options="GROSS_WEIGHT_UNIT_OPTIONS" />
               </div>
+              <BolFieldNote :note="viewOf(line)?.fields.grossWeight" />
             </FormField>
             <p v-if="grossSuggestion(line) != null" class="text-xs text-ink-muted">
               {{ line.packageCount }} × {{ line.perPackageCapacityValue }} {{ line.perPackageCapacityUnit }} works out to
@@ -220,6 +234,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
             <div class="flex flex-col gap-1 pt-1">
               <BaseCheckbox v-model="line.isResidueLine">Residue only — the packaging is empty but not cleaned</BaseCheckbox>
               <BaseCheckbox v-model="line.isLimitedQuantity">Marked “Limited Quantity” on the BOL</BaseCheckbox>
+              <BolFieldNote :note="viewOf(line)?.fields.limitedQuantity" />
               <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible by the shipper</BaseCheckbox>
             </div>
 

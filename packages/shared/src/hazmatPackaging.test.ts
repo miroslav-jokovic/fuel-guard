@@ -3,7 +3,6 @@ import {
   capacityFromForm,
   classifyByCapacity,
   derivePackaging,
-  normalizeUnit,
   packageTypeFromPrinted,
   packagingKindFor,
   phaseForHazardClass,
@@ -145,11 +144,5 @@ describe("packageTypeFromPrinted — the one reading of a printed packaging phra
     expect(packageTypeFromPrinted("4 totes of drums")).toBe("ibc_tote");
     expect(packageTypeFromPrinted("1 TT")).toBe("");
     expect(packageTypeFromPrinted(null)).toBe("");
-  });
-
-  it("maps printed units to the engine's closed set and refuses the rest", () => {
-    expect(normalizeUnit("GAL.")).toBe("gal");
-    expect(normalizeUnit(" Lbs ")).toBe("lb");
-    expect(normalizeUnit("BBL")).toBeNull();
   });
 });

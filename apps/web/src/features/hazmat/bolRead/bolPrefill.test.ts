@@ -1,87 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { FieldEvidence, HazmatProduct, ReadResponse } from "@silvicom/shared";
-import { bolPrefill, hmtRefsOf } from "./bolPrefill";
+import { bolLineView, bolPrefill, fieldNote, hmtRefsOf, type PrefillField } from "./bolPrefill";
+import { DIESEL, DIESEL_REF, ok, PAINT, PAINT_REF, product, PRODUCTS, read } from "./bolPrefill.fixtures";
 
 /**
  * A read → the calculator's lines (N6). What must hold: the product is only ever the table's own row for
  * what was printed, nothing becomes *Read* that the evidence did not say, a disagreement between the
  * readers is visible on the field, Limited Quantity takes both readers, and nothing is converted that
- * cannot be converted exactly. The evidence is built the way `shippingEvidence.ts` records it.
+ * cannot be converted exactly. The reads are `bolPrefill.fixtures.ts`'s.
  */
-type Line = Record<string, unknown>;
-const LINE_DEFAULTS: Line = {
-  idText: null, descriptionText: null, psn: null, hazardClass: null, pg: null, technicalName: null,
-  quantity: { value: null, unit: null }, grossWeightLb: null, packageCount: null, perPackageWeightLb: null,
-  packaging: null, hmColumnMark: null, marks: [],
-};
-const DIESEL: Line = {
-  idText: "NA1993", descriptionText: "NA1993, Diesel fuel, Combustible liquid, PG III", psn: "Diesel fuel", hazardClass: "3", pg: "III",
-  quantity: { value: 8500, unit: "GAL" }, grossWeightLb: 59500, packageCount: 1, packaging: "1 cargo tank",
-};
-const PAINT: Line = {
-  idText: "UN1263", psn: "PAINT", hazardClass: "3", pg: "II", quantity: { value: null, unit: null },
-  grossWeightLb: 3806, packageCount: 6, packaging: "6 DRUMS",
-};
-const DIESEL_REF = "NA1993-diesel-fuel#III";
-const PAINT_REF = "UN1263-paint#II";
-const product = (hmtRef: string): HazmatProduct => ({
-  hmtRef, entryId: hmtRef.split("#")[0]!, idPrefix: "UN", idNumber: "0000", idLabel: hmtRef, psn: hmtRef, hazardClass: "3",
-  subsidiaryClasses: [], pg: "II", symbols: [], label: hmtRef, isFuelCommon: false, isMarinePollutant: false, marinePollutantSevere: null,
-});
-const PRODUCTS = [product(DIESEL_REF), product(PAINT_REF)];
-
-const JUDGED = ["idText", "psn", "hazardClass", "pg"];
-const ROW = ["packageCount", "grossWeightLb", "quantity.value"];
-const get = (o: Line, key: string): unknown => key.split(".").reduce<unknown>((v, k) => (v as Line | null)?.[k] ?? null, o);
-const KEYS = ["idText", "descriptionText", "psn", "hazardClass", "pg", "technicalName", "quantity.value", "quantity.unit", "grossWeightLb",
-  "packageCount", "perPackageWeightLb", "packaging", "hmColumnMark", "marks"];
-
-interface LineSpec {
-  a: Line | null;
-  b?: Line | null;
-  table?: { consistent: true; hmtRef: string } | { consistent: false; reason: string };
-  /** What the OCR row showed for a row-judged key; absent = no OCR. */
-  ocr?: Record<string, unknown>;
-}
-
-/** Evidence for each line at its index, as shippingEvidence.ts writes it under rule 4. */
-function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLines?: string[] } = {}): ReadResponse {
-  const evidence: FieldEvidence[] = [];
-  const aLines = specs.filter((s) => s.a).map((s) => ({ ...LINE_DEFAULTS, ...s.a }));
-  specs.forEach((s, i) => {
-    const a = s.a ? { ...LINE_DEFAULTS, ...s.a } : null;
-    const b = s.b === undefined ? a : s.b ? { ...LINE_DEFAULTS, ...s.b } : null;
-    for (const key of KEYS) {
-      const path = `hazmat.lines[${i}].${key}`;
-      const av = a ? get(a, key) : undefined;
-      const bv = b ? get(b, key) : undefined;
-      const sources: FieldEvidence["sources"] = [];
-      if (av !== undefined) sources.push({ reader: "passA", page: null, bbox: null, value: av as never });
-      if (bv !== undefined) sources.push({ reader: "passB", page: null, bbox: null, value: bv as never });
-      if (JUDGED.includes(key) && s.table) sources.push({ reader: "table", page: null, bbox: null, value: s.table as never });
-      if (ROW.includes(key) && s.ocr && key in s.ocr) sources.push({ reader: "ocr", page: 1, bbox: null, value: s.ocr[key] as never });
-      const nothing = (av ?? null) === null && (bv ?? null) === null;
-      evidence.push({ path, value: (av ?? bv ?? null) as never, status: nothing ? "not_read" : "check", sources, ruleVersion: "4" });
-    }
-  });
-  const otherLines = over.otherLines ?? [];
-  evidence.push({ path: "otherLines", value: otherLines, status: "check", sources: [], ruleVersion: "4" });
-  return {
-    id: "00000000-0000-4000-8000-000000000001", sourceId: null, assemblyId: "00000000-0000-4000-8000-000000000002",
-    profile: "shipping_document", profileVersion: "1.1.0", status: "done", failureCode: null,
-    result: { hazmat: { lines: aLines }, otherLines }, evidence, pages: [], ...over,
-  } as ReadResponse;
-}
-
-const ok = (hmtRef: string) => ({ consistent: true as const, hmtRef });
-
 describe("bolPrefill", () => {
   it("fills a line from the read, its product the table's own row, every field Check, never Read", () => {
     const p = bolPrefill(read([{ a: DIESEL, table: ok(DIESEL_REF) }]), PRODUCTS, "tanker")!;
     const line = p.lines[0]!;
     expect(line.form).toMatchObject({
-      product: { hmtRef: DIESEL_REF }, packageType: "bulk_cargo", packageCount: "1",
-      quantityValue: "8500", quantityUnit: "gal", grossWeightValue: "59500", grossWeightUnit: "lb",
+      product: { hmtRef: DIESEL_REF }, packageType: "bulk_cargo", packageCount: "",
+      grossWeightValue: "59500", grossWeightUnit: "lb",
       isLimitedQuantity: false, reclassedCombustible: false,
     });
     expect(Object.values(line.fields).map((f) => f.state)).not.toContain("read");
@@ -103,7 +36,8 @@ describe("bolPrefill", () => {
 
   it("shows a disagreement between the readers on the field it concerns, and only there", () => {
     const p = bolPrefill(read([{ a: { ...PAINT, packageCount: 9 }, b: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
-    expect(p.lines[0]!.fields.packageCount.agree).toBe(false);
+    expect(p.lines[0]!.fields.packageCount).toMatchObject({ agree: false, readings: [[9, 6]] });
+    expect(p.lines[0]!.fields.grossWeight.readings).toEqual([]);
     expect(p.lines[0]!.fields.grossWeight.agree).toBe(true);
     expect(p.lines[0]!.form.packageCount).toBe("9");
   });
@@ -127,18 +61,19 @@ describe("bolPrefill", () => {
     expect(worded.fields.limitedQuantity).toMatchObject({ agree: true, reason: null });
   });
 
-  it("leaves a quantity in a unit the calculator does not take blank, saying why", () => {
-    const p = bolPrefill(read([{ a: { ...DIESEL, quantity: { value: 32, unit: "BBL" } }, table: ok(DIESEL_REF) }]), PRODUCTS, "tanker")!;
+  it("fills no quantity, which the form does not show, and keeps reading it for template lines", () => {
+    const p = bolPrefill(read([{ a: DIESEL, table: ok(DIESEL_REF) }]), PRODUCTS, "tanker")!;
     expect(p.lines[0]!.form.quantityValue).toBe("");
-    expect(p.lines[0]!.fields.quantity.reason).toMatch(/"BBL"/);
+    expect(Object.keys(p.lines[0]!.fields)).not.toContain("quantity");
+    const onlyQuantity = { idText: "UN1203", quantity: { value: 55, unit: "gal" } };
+    expect(bolPrefill(read([{ a: onlyQuantity }]), PRODUCTS, "van")!.notLoaded).toEqual([]);
   });
 
   it("keeps the equipment's package type for a phrase it does not know, saying why", () => {
     const p = bolPrefill(read([{ a: { ...DIESEL, packaging: "1 TT" }, table: ok(DIESEL_REF) }]), PRODUCTS, "tanker")!;
     expect(p.lines[0]!.form.packageType).toBe("bulk_cargo");
     expect(p.lines[0]!.fields.packageType.reason).toMatch(/"1 TT"/);
-    // Drums on a dry van: the type is the paper's, and a blank quantity takes the drum's unit, not the van's.
-    expect(bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!.lines[0]!.form).toMatchObject({ packageType: "drum", quantityUnit: "gal" });
+    expect(bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!.lines[0]!.form.packageType).toBe("drum");
   });
 
   it("leaves out a pre-printed line with no count, weight or quantity, and lists it", () => {
@@ -169,6 +104,7 @@ describe("bolPrefill", () => {
   it("is Not read only where every part of the field is, and Check without evidence", () => {
     const p = bolPrefill(read([{ a: { ...PAINT, packaging: null }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!;
     expect(p.lines[0]!.fields.packageType.state).toBe("not_read");
+    expect(bolPrefill(read([{ a: { ...PAINT, packageCount: null }, table: ok(PAINT_REF) }]), PRODUCTS, "van")!.lines[0]!.form.packageCount).toBe("");
     expect(p.lines[0]!.fields.product.state).toBe("check");
     const bare = { ...read([{ a: PAINT }]), evidence: [] };
     expect(bolPrefill(bare, PRODUCTS, "van")!.lines[0]!.fields.grossWeight).toMatchObject({ state: "check", agree: null });
@@ -186,5 +122,50 @@ describe("bolPrefill", () => {
     expect(bolPrefill({ ...read([{ a: PAINT }]), status: "reading" }, PRODUCTS, "van")).toBeNull();
     expect(hmtRefsOf(read([{ a: PAINT, table: ok(PAINT_REF) }, { a: PAINT, table: ok(PAINT_REF) }, { a: DIESEL, table: { consistent: false, reason: "x" } }])))
       .toEqual([PAINT_REF]);
+  });
+});
+
+describe("fieldNote — the line under a filled field", () => {
+  const f = (over: Partial<PrefillField>): PrefillField => ({ state: "check", agree: true, readings: [], ocrBacked: null, reason: null, paths: [], ...over });
+
+  it("asks a person to look where the readers disagree, naming both readings", () => {
+    expect(fieldNote(f({ agree: false, readings: [[9, 6], [3808, 3806]] }), false))
+      .toEqual({ text: "The two readers disagree: 9 or 6; 3,808 or 3,806. Check the page.", tone: "warning" });
+    expect(fieldNote(f({ agree: false, readings: [[null, ["LTD QTY"]]] }), false).text).toBe("The two readers disagree: nothing or LTD QTY. Check the page.");
+    expect(fieldNote(f({ agree: false, readings: [[[], ["LTD QTY"]]] }), false).text).toBe("The two readers disagree: nothing or LTD QTY. Check the page.");
+  });
+
+  it("asks a person to look where only one reader read it, or where the field carries a reason", () => {
+    expect(fieldNote(f({ agree: null }), false).tone).toBe("warning");
+    expect(fieldNote(f({ reason: "Choose the product." }), false)).toEqual({ text: "Choose the product.", tone: "warning" });
+  });
+
+  it("only says where an agreed value came from, with the OCR's word when it found it", () => {
+    expect(fieldNote(f({}), false)).toEqual({ text: "From the BOL · both readers agree", tone: "neutral" });
+    expect(fieldNote(f({ ocrBacked: true }), false).text).toBe("From the BOL · both readers agree · found on the line's printed row");
+    expect(fieldNote(f({ state: "not_read", agree: true }), false).text).toMatch(/^Not read on the BOL/);
+    expect(fieldNote(f({ state: "read" }), false)).toEqual({ text: "Read from the BOL.", tone: "success" });
+  });
+
+  it("stops describing the reader's value once a person changed it", () => {
+    expect(fieldNote(f({ agree: false, readings: [[9, 6]] }), true)).toEqual({ text: "Changed by you.", tone: "neutral" });
+  });
+});
+
+describe("bolLineView", () => {
+  it("marks exactly the field a person changed, against the read's own values", () => {
+    const line = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF) }]), PRODUCTS, "van")!.lines[0]!;
+    const current = { ...line.form };
+    expect(Object.values(bolLineView(line, current).fields).map((n) => n.text)).not.toContain("Changed by you.");
+    current.packageCount = "5";
+    const after = bolLineView(line, current).fields;
+    expect(after.packageCount.text).toBe("Changed by you.");
+    expect(after.grossWeight.text).not.toBe("Changed by you.");
+    current.grossWeightUnit = "kg";
+    current.product = product(DIESEL_REF);
+    current.isLimitedQuantity = true;
+    current.packageType = "box";
+    expect(Object.values(bolLineView(line, current).fields).every((n) => n.text === "Changed by you.")).toBe(true);
+    expect(bolLineView(line, current).printed).toBe("UN1263, PAINT, 3, II");
   });
 });

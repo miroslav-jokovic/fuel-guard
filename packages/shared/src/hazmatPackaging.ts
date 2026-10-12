@@ -157,22 +157,6 @@ export function packageTypeFromPrinted(phrase: string | null): string {
   return "";
 }
 
-const PRINTED_UNITS: Record<string, "gal" | "lb" | "kg" | "L"> = {
-  gal: "gal", gals: "gal", gallon: "gal", gallons: "gal",
-  l: "L", liter: "L", liters: "L", litre: "L", litres: "L",
-  lb: "lb", lbs: "lb", pound: "lb", pounds: "lb",
-  kg: "kg", kgs: "kg", kilogram: "kg", kilograms: "kg",
-};
-/**
- * A printed unit → the engine's closed set, or null when unrecognised — the caller then fails closed
- * rather than guessing. Moved here from the hazmat extractor (`bolFields.ts`, which re-exports it) so
- * the calculator prefill reads a paper's units by the same table.
- */
-export function normalizeUnit(printed: string | null): "gal" | "lb" | "kg" | "L" | null {
-  if (printed == null) return null;
-  return PRINTED_UNITS[printed.trim().toLowerCase().replace(/\.$/, "")] ?? null;
-}
-
 /** Package types that describe the vehicle itself (no meaningful package count). */
 export function isVehiclePackaging(value: string): boolean {
   return value === "bulk_cargo";
