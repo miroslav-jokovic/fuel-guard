@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import {
+  parseYmd,
   CARD_MUTATION_INTENT_LABELS,
   CARD_MUTATION_STATUS_LABELS,
   type CardMutationIntent,
@@ -15,6 +16,7 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useCardMutationLog, type CardMutationLogFilters } from "./useCardControl";
 import { formatDateTime } from "@/lib/format";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * Every card change on the account — the Audit Log page's "Card changes" tab (Step 6.6).
@@ -48,10 +50,29 @@ const props = defineProps<{
 
 const PAGE_SIZE = 25;
 
-const search = ref("");
-const from = ref<string | undefined>(undefined);
-const to = ref<string | undefined>(undefined);
-const page = ref(1);
+/**
+ * The search, the window and the page live in the URL (D-US2): a row links to its card, and Back from
+ * that card has to land on the same narrowed, paged log rather than on page 1 of everything.
+ *
+ * Scoped `cards.` because this is a TAB of the Audit log page, which owns its route's unscoped keys
+ * (`?tab=`, the Activity tab's `?action=`) and `?cardId=` — the card page's entry link, which stays
+ * unscoped because that link is already written in the wild. No window by default, as before: a ledger
+ * this size is read newest first, and "every change" is the honest unfiltered answer. A hand-edited
+ * date that is not a real calendar day reads as no bound, never reaches the API.
+ */
+const qs = useQueryState("cards");
+const search = qs.param("search");
+const fromParam = qs.param("from");
+const toParam = qs.param("to");
+const from = computed<string | undefined>({
+  get: () => parseYmd(fromParam.value) ?? undefined,
+  set: (v) => (fromParam.value = v ?? ""),
+});
+const to = computed<string | undefined>({
+  get: () => parseYmd(toParam.value) ?? undefined,
+  set: (v) => (toParam.value = v ?? ""),
+});
+const page = qs.page();
 
 const filters = computed<CardMutationLogFilters>(() => ({
   ...(props.cardId ? { cardId: props.cardId } : {}),
@@ -61,8 +82,10 @@ const filters = computed<CardMutationLogFilters>(() => ({
 }));
 
 // Any filter change invalidates the page number: staying on page 4 of a narrowed result set shows
-// an empty table that reads as "no card changes" rather than "you are past the end".
-watch(filters, () => { page.value = 1; }, { deep: true });
+// an empty table that reads as "no card changes" rather than "you are past the end". Watched by VALUE,
+// not `deep` on the object: `filters` reads the URL now, so it recomputes on every navigation — the
+// page change included — and an object watch would put every Next press straight back on page 1.
+watch(() => JSON.stringify(filters.value), () => { page.value = 1; });
 
 const query = useCardMutationLog(filters, page, PAGE_SIZE);
 
@@ -98,7 +121,7 @@ const chips = computed<FilterChip[]>(() => [
 ]);
 
 function removeChip(key: string): void {
-  if (key === "dates") { from.value = undefined; to.value = undefined; }
+  if (key === "dates") qs.set({ from: undefined, to: undefined });
 }
 
 // `cardId` is not counted: it is the page this log was opened FROM, not a filter the reader set, and
@@ -106,9 +129,7 @@ function removeChip(key: string): void {
 const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (from.value || to.value ? 1 : 0));
 
 function clearAll(): void {
-  search.value = "";
-  from.value = undefined;
-  to.value = undefined;
+  qs.set({ search: undefined, from: undefined, to: undefined });
 }
 
 const columns: DataTableColumn[] = [

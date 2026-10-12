@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { AppSelect } from "@silvicom/ui";
 import SettingsUsersPage from "@/pages/SettingsUsersPage.vue";
 
@@ -63,8 +64,19 @@ const stubs = { PageHeader: { template: "<div />" }, RouterLink: { template: "<a
 /** One member's row — a `<tr>` on a desktop, a card `<li>` on a phone; jsdom renders the cards. */
 const rowOf = (w: ReturnType<typeof mountPage>, email: string) =>
   w.findAll("tbody tr, ul > li").find((r) => r.text().includes(email))!;
-const mountPage = () =>
-  mount(SettingsUsersPage, { global: { plugins: [createPinia()], stubs }, attachTo: document.body });
+/**
+ * A REAL router since D-US2: the members search lives in the URL through `useQueryState`, which
+ * awaits `router.replace`. The URL is set on the HISTORY rather than pushed, so the helper stays
+ * synchronous: the router's own first navigation (on install) lands on it, and every test already
+ * flushes promises after mounting, which settles that navigation.
+ */
+let router: Router;
+const mountPage = (url = "/settings/users") => {
+  const history = createMemoryHistory();
+  history.replace(url);
+  router = createRouter({ history, routes: [{ path: "/:any(.*)*", component: { template: "<div />" } }] });
+  return mount(SettingsUsersPage, { global: { plugins: [createPinia(), router], stubs }, attachTo: document.body });
+};
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -452,8 +464,25 @@ describe("SettingsUsersPage — members list composition", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     await flushPromises();
     expect(w.text()).toContain("1 member");
-    expect(w.text()).toContain("shop@silvicom.test");
-    expect(w.text()).not.toContain("boss@silvicom.test");
+    expect(rowOf(w, "shop@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "boss@silvicom.test")).toBeUndefined();
+    w.unmount();
+  });
+});
+
+/** D-US2: the members search is the URL, so a reload or Back keeps the member the admin was looking at. */
+describe("SettingsUsersPage — the members search in the URL (D-US2)", () => {
+  it("reads a pasted ?search= into the list, and writes a new search back", async () => {
+    const w = mountPage("/settings/users?search=shop");
+    await flushPromises();
+    expect(rowOf(w, "shop@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "boss@silvicom.test")).toBeUndefined();
+
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "boss");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "boss" });
+    expect(rowOf(w, "boss@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "shop@silvicom.test")).toBeUndefined();
     w.unmount();
   });
 });

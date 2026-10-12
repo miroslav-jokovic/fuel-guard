@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
+import { parseYmd } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
 import { useInvoicesQuery, INVOICES_PAGE_SIZE } from "@/features/billing/useInvoices";
 import { trailingDays } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -27,10 +29,26 @@ import { formatDate as fmtDate } from "@/lib/format";
  * exclusive bound.
  */
 const defaultWindow = trailingDays(90);
-const search = ref("");
-const from = ref<string>(defaultWindow.from);
-const to = ref<string>(defaultWindow.to);
-const page = ref(1);
+/**
+ * The search, the window and the page live in the URL (D-US2), so a reload, a forwarded lookup and
+ * Back all keep the list. The trailing ninety days are each end's FALLBACK: a plain `/billing` opens on
+ * them and they are never written, so a bookmark keeps meaning "the last ninety days" rather than
+ * freezing the window it was saved on. A hand-edited date that is not a real calendar day reads as the
+ * default end; clearing the picker keeps the window it had, as it always did — the query needs one.
+ */
+const qs = useQueryState();
+const search = qs.param("search");
+const fromParam = qs.param("from", undefined, defaultWindow.from);
+const toParam = qs.param("to", undefined, defaultWindow.to);
+const from = computed<string>({
+  get: () => parseYmd(fromParam.value) ?? defaultWindow.from,
+  set: (v) => (fromParam.value = v),
+});
+const to = computed<string>({
+  get: () => parseYmd(toParam.value) ?? defaultWindow.to,
+  set: (v) => (toParam.value = v),
+});
+const page = qs.page();
 watch([search, from, to], () => (page.value = 1));
 // The trailing ninety days is where the page opens, not a narrowing: only a window moved off it counts,
 // and clearing puts it back rather than emptying it.
@@ -38,9 +56,7 @@ const activeFilterCount = computed(
   () => (search.value.trim() ? 1 : 0) + (from.value !== defaultWindow.from || to.value !== defaultWindow.to ? 1 : 0),
 );
 function resetFilters() {
-  search.value = "";
-  from.value = defaultWindow.from;
-  to.value = defaultWindow.to;
+  qs.set({ search: undefined, from: undefined, to: undefined });
 }
 
 const filter = computed(() => ({ q: search.value, from: from.value, to: to.value, page: page.value }));

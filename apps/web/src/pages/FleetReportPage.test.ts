@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { createMemoryHistory, createRouter } from "vue-router";
 import { ref } from "vue";
 import FleetReportPage from "./FleetReportPage.vue";
 import type { FleetReportResponse, FleetTruck } from "@/features/accounting/useFleetReport";
@@ -145,10 +146,15 @@ vi.mock("@/features/accounting/useFleetTrend", () => ({
 
 type W = VueWrapper<InstanceType<typeof FleetReportPage>>;
 
+// A real memory router: the per-dispatcher, per-truck and contractor tabs keep their lists in the
+// URL since D-US2, each under its own scope.
 async function mountPage(): Promise<W> {
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/accounting/fleet", component: { template: "<div />" } }] });
+  await router.push("/accounting/fleet");
+  await router.isReady();
   const w = mount(FleetReportPage, {
     global: {
-      plugins: [createPinia()],
+      plugins: [createPinia(), router],
       stubs: { PageHeader: { template: "<div />" }, BaseChart: { template: "<div />" }, RouterLink: { template: "<a><slot /></a>" } },
     },
     attachTo: document.body,

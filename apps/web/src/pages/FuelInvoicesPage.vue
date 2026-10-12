@@ -14,6 +14,7 @@ import CheckInvoiceDrawer from "@/features/reconcile/CheckInvoiceDrawer.vue";
 import { useReconRunsQuery, type ReconRunSummaryRow } from "@/features/reconcile/useReconRuns";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * Pilot invoices — every invoice check the server recorded, newest week first (FS3, D-FSV8).
@@ -35,7 +36,10 @@ import { useSessionStore } from "@/stores/session";
 const router = useRouter();
 const session = useSessionStore();
 const PAGE_SIZE = 25;
-const page = ref(1);
+// The page is in the URL (D-US2): a row opens its check on its own page, and Back from it must land on
+// the page of checks it was opened from, not on the newest week. It is the list's only state — there
+// is no filter to keep — and FilterBar here only carries the count.
+const page = useQueryState().page();
 const { data, isLoading, isFetching, isError, error, refetch } = useReconRunsQuery(page, PAGE_SIZE);
 const checking = ref(false);
 

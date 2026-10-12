@@ -9,7 +9,9 @@ import { useIdleConfidence } from "./useIdleConfidence";
 import { avoidableCoverageLine, idlePricingLine, idleScopeLine, reducibleCoverageLine } from "./idleEstimateLines";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
-import { sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   APU_TYPE_LABELS,
   BEHAVES_LIKE_LABELS,
@@ -29,10 +31,28 @@ const usd2 = (n: number) => n.toLocaleString(undefined, { style: "currency", cur
 const dateFmt = (iso: string) => formatDisplayDayShort(iso, iso);
 const PAGE_SIZE = 20;
 
+// The page's date window, its tab, and each tab's filters, sort and page live in the URL (D-US2), so
+// reload, a pasted link and Back from a truck keep what the reader was looking at. The window and the
+// tab are the PAGE's (unscoped: `from`, `to`, `tab`); the three tables share one route, so each one's
+// list keys are scoped to its tab (`trucks.search`, `drivers.sort`, `capability.page`) — otherwise all
+// three would own `?search=` and typing into one would filter the other two.
+const qs = useQueryState();
+const trkQs = useQueryState("trucks");
+const drvQs = useQueryState("drivers");
+const capQs = useQueryState("capability");
+/** A hand-edited date that is not a calendar day reads as unset — the default window — not as a query. */
+const isoDay = (key: string) => {
+  const p = qs.param(key);
+  return computed<string | undefined>({
+    get: () => (/^\d{4}-\d{2}-\d{2}$/.test(p.value) && !Number.isNaN(Date.parse(p.value)) ? p.value : undefined),
+    set: (v) => (p.value = v ?? ""),
+  });
+};
+
 // Date range (drives the driver leaderboard, the fleet KPIs, and the avoidable-idles tab). The picker
 // emits YYYY-MM-DD; unset = the default last-30-days window. `to` is made end-of-day inclusive.
-const dateFrom = ref<string | undefined>(undefined);
-const dateTo = ref<string | undefined>(undefined);
+const dateFrom = isoDay("from");
+const dateTo = isoDay("to");
 const dateFilter = computed<IdleDateFilter>(() => ({
   from: dateFrom.value ? `${dateFrom.value}T00:00:00` : undefined,
   to: dateTo.value ? `${dateTo.value}T23:59:59` : undefined,
@@ -127,7 +147,8 @@ const sourceLabel = (s: string | null) =>
 // In `AppTabs`' shape: it owns the roles, the roving tabindex and the arrow keys the hand-rolled strip never
 // had (design verdict, E8). `AppTabs` emits a plain string, so the key is one. A count shows once its read has
 // answered: a pending or failed read is not zero trucks.
-const activeTab = ref("trucks");
+const TAB_KEYS = ["trucks", "drivers", "capability"];
+const activeTab = qs.param("tab", TAB_KEYS, "trucks");
 /** Which reads have answered — the result counts above each table wait on the same thing. */
 const answered = computed(() => ({ trucks: breakdown.value != null, drivers: driverRows.value != null, capability: caps.value != null }));
 const tabs = computed(() => [
@@ -138,11 +159,8 @@ const tabs = computed(() => [
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
 const trkRows = computed<TruckBreakdown[]>(() => breakdown.value?.trucks ?? []);
-const trkSearch = ref("");
-const trkCapFilter = ref("");
-const trkConfidentOnly = ref(false);
-const trkSort = ref<SortState>({ key: null, dir: "asc" });
-const trkPage = ref(1);
+const trkSearch = trkQs.param("search");
+const trkPage = trkQs.page();
 const trkCapOptions = [
   { value: "", label: "All capability" },
   { value: "apu", label: "Engine-off rest" },
@@ -154,10 +172,9 @@ const trkConfOptions = [
   { value: "", label: "All trucks" },
   { value: "confident", label: "Confident data only" },
 ];
-const trkConfSel = computed({
-  get: () => (trkConfidentOnly.value ? "confident" : ""),
-  set: (v: string) => (trkConfidentOnly.value = v === "confident"),
-});
+const trkCapFilter = trkQs.param("capability", trkCapOptions.map((o) => o.value).filter(Boolean));
+const trkConfSel = trkQs.param("data", trkConfOptions.map((o) => o.value).filter(Boolean));
+const trkConfidentOnly = computed(() => trkConfSel.value === "confident");
 const trkFilterCount = computed(() => (trkSearch.value.trim() ? 1 : 0) + (trkCapFilter.value ? 1 : 0) + (trkConfidentOnly.value ? 1 : 0));
 const trkFiltered = computed(() => {
   const q = trkSearch.value.trim().toLowerCase();
@@ -173,11 +190,11 @@ const trkSorted = computed(() =>
 );
 const trkPaged = computed(() => trkSorted.value.slice((trkPage.value - 1) * PAGE_SIZE, trkPage.value * PAGE_SIZE));
 function clearTrk() {
-  trkSearch.value = "";
-  trkCapFilter.value = "";
-  trkConfidentOnly.value = false;
+  trkQs.set({ search: undefined, capability: undefined, data: undefined });
 }
-watch(trkFiltered, () => (trkPage.value = 1));
+// On the inputs, not on `trkFiltered`: the filtered list also changes when the breakdown arrives, and
+// watching it would throw a pasted `?trucks.page=2` away the moment the table loaded (D-US2).
+watch([trkSearch, trkCapFilter, trkConfSel, dateFrom, dateTo], () => (trkPage.value = 1));
 /**
  * The Trucks table leads with money: truck, the two costs and their hours, how much of the running was idle,
  * and whether the data can be trusted — seven columns, so the costs are on screen at a desktop width
@@ -198,6 +215,11 @@ const trkColumns: DataTableColumn[] = [
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
   { key: "coveragePct", label: "Data completeness", sortable: true, numeric: true, cellClass: "text-ink-muted" },
 ];
+const sortableKeys = (cols: DataTableColumn[]) => cols.filter((c) => c.sortable).map((c) => c.key);
+const { sort: trkSort, onSort: onTrkSort } = useUrlSort(
+  trkQs.param("sort", sortableKeys(trkColumns)),
+  trkQs.param("dir", SORT_DIRECTIONS),
+);
 const trkExpanded = ref(new Set<string>());
 function toggleTrk(row: TruckBreakdown) {
   const next = new Set(trkExpanded.value);
@@ -247,13 +269,12 @@ const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 // ── tab 1: driver scorecard ──────────────────────────────────────────────────
 const scoreTone = (s: number) => (s >= 80 ? "text-success-700" : s >= 60 ? "text-warning-600" : "text-danger-700");
 
-const drvSearch = ref("");
+const drvSearch = drvQs.param("search");
 // The date window is NOT counted or cleared by any tab: it also sets the fleet KPI cards above the
 // tabs, so it is the page's scope rather than one table's filter (clearTrk/clearCap never touched it).
 const drvFilterCount = computed(() => (drvSearch.value.trim() ? 1 : 0));
-function clearDrv() { drvSearch.value = ""; }
-const drvSort = ref<SortState>({ key: null, dir: "asc" });
-const drvPage = ref(1);
+function clearDrv() { drvQs.set({ search: undefined }); }
+const drvPage = drvQs.page();
 const drvFiltered = computed(() => {
   const q = drvSearch.value.trim().toLowerCase();
   return q ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q)) : drivers.value;
@@ -265,7 +286,7 @@ const drvPaged = computed(() =>
     .slice((drvPage.value - 1) * PAGE_SIZE, drvPage.value * PAGE_SIZE)
     .map((d, i) => ({ ...d, rank: d.driverId === "__unattributed__" ? null : drvRank(i) })),
 );
-watch(drvFiltered, () => (drvPage.value = 1));
+watch([drvSearch, dateFrom, dateTo], () => (drvPage.value = 1));
 
 const drvColumns: DataTableColumn[] = [
   { key: "rank", label: "#", cellClass: "text-ink-tertiary" },
@@ -277,17 +298,21 @@ const drvColumns: DataTableColumn[] = [
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "avoidableUsd", label: "Estimated avoidable fuel cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
+// Declared after the columns it derives from; `drvSorted` above reads it lazily, so the order is safe.
+const { sort: drvSort, onSort: onDrvSort } = useUrlSort(
+  drvQs.param("sort", sortableKeys(drvColumns)),
+  drvQs.param("dir", SORT_DIRECTIONS),
+);
 
 // ── tab: truck idle capability ───────────────────────────────────────────────
-const capSearch = ref("");
-const capFilter = ref<string>("");
-const capSort = ref<SortState>({ key: null, dir: "asc" });
-const capPage = ref(1);
+const capSearch = capQs.param("search");
+const capPage = capQs.page();
 const capOptions = [
   { value: "", label: "All trucks" },
   { value: "review", label: "Check this truck" },
   ...(Object.keys(BEHAVES_LIKE_LABELS) as BehavesLike[]).map((b) => ({ value: b, label: BEHAVES_LIKE_LABELS[b] })),
 ];
+const capFilter = capQs.param("parks", capOptions.map((o) => o.value).filter(Boolean));
 const capFilterCount = computed(() => (capSearch.value.trim() ? 1 : 0) + (capFilter.value ? 1 : 0));
 const capFiltered = computed(() => {
   const q = capSearch.value.trim().toLowerCase();
@@ -299,8 +324,8 @@ const capFiltered = computed(() => {
 });
 const capSorted = computed(() => (capSort.value.key ? sortRows(capFiltered.value, capSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : capFiltered.value));
 const capPaged = computed(() => capSorted.value.slice((capPage.value - 1) * PAGE_SIZE, capPage.value * PAGE_SIZE));
-function clearCap() { capSearch.value = ""; capFilter.value = ""; }
-watch(capFiltered, () => (capPage.value = 1));
+function clearCap() { capQs.set({ search: undefined, parks: undefined }); }
+watch([capSearch, capFilter], () => (capPage.value = 1));
 
 const capColumns: DataTableColumn[] = [
   { key: "unit_number", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
@@ -311,10 +336,14 @@ const capColumns: DataTableColumn[] = [
   { key: "off_pct", label: "Parks mostly off", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "cross_check", label: "Cross-check" },
 ];
+const { sort: capSort, onSort: onCapSort } = useUrlSort(
+  capQs.param("sort", sortableKeys(capColumns)),
+  capQs.param("dir", SORT_DIRECTIONS),
+);
   return {
     isLoading, isError, error, isFetching, refetch,
     breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
-    trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
+    trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, onTrkSort, trkPage,
     trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
@@ -323,8 +352,8 @@ const capColumns: DataTableColumn[] = [
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     priceSource, fuelPricePerGal, estimate,
-    drvSearch, drvFilterCount, clearDrv, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
-    capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+    drvSearch, drvFilterCount, clearDrv, drvSort, onDrvSort, drvPage, drvFiltered, drvPaged, drvColumns,
+    capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
     capLoading, capIsError, capError, capFetching, capRefetch,
   };
 }

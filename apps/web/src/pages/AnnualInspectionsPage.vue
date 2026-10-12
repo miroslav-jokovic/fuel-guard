@@ -3,7 +3,8 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AppTabs, AppBadge, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
-import type { InspectionSubjectType } from "@silvicom/shared";
+import { INSPECTION_SUBJECT_TYPES, type InspectionSubjectType } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -79,18 +80,34 @@ import { formatDate } from "@/lib/format";
 const router = useRouter();
 const session = useSessionStore();
 
-const subjectType = ref<InspectionSubjectType>("tractor");
-const search = ref("");
-const status = ref("");
-const outcome = ref("");
-const page = ref(1);
+const STATUS_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "draft", label: "In progress" },
+  { value: "final", label: "Completed" },
+];
+const RESULT_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "pass", label: "Passed" },
+  { value: "fail", label: "Failed" },
+];
+// The register's tab, filters and page live in the URL (D-US2), so Back from a report returns to
+// page 3 of the failed trailers rather than to page 1 of the tractors. Tractors is the fallback, so a
+// plain link opens where it always did; the type is read against the shared catalogue's own list.
+const qs = useQueryState();
+const subjectTypeParam = qs.param("type", INSPECTION_SUBJECT_TYPES, "tractor");
+const subjectType = computed({
+  get: () => subjectTypeParam.value as InspectionSubjectType,
+  set: (v: InspectionSubjectType) => (subjectTypeParam.value = v),
+});
+const search = qs.param("search");
+const status = qs.param("status", STATUS_OPTIONS.map((o) => o.value));
+const outcome = qs.param("result", RESULT_OPTIONS.map((o) => o.value));
+const page = qs.page();
 watch([subjectType, search, status, outcome], () => (page.value = 1));
 // The equipment-type tabs pick WHICH register is read, not a narrowing of it: they never count and clearing leaves them.
 const activeFilterCount = computed(() => [search.value.trim(), status.value, outcome.value].filter(Boolean).length);
 function resetFilters() {
-  search.value = "";
-  status.value = "";
-  outcome.value = "";
+  qs.set({ search: undefined, status: undefined, result: undefined });
 }
 
 const filter = computed(() => ({
@@ -114,16 +131,6 @@ const total = computed(() => data.value?.total ?? 0);
 const tabs = [
   { value: "tractor", label: "Tractors" },
   { value: "trailer", label: "Trailers" },
-];
-const STATUS_OPTIONS = [
-  { value: "", label: "Any" },
-  { value: "draft", label: "In progress" },
-  { value: "final", label: "Completed" },
-];
-const RESULT_OPTIONS = [
-  { value: "", label: "Any" },
-  { value: "pass", label: "Passed" },
-  { value: "fail", label: "Failed" },
 ];
 
 const columns: DataTableColumn[] = [

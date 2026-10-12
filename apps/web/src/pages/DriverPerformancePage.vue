@@ -18,12 +18,22 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 
 
 const PAGE_SIZE = 20;
 
-const selectedWeek = ref<string | null>(null); // null = "This week (live)"
+// The week, the list's filters, its sort and its page live in the URL (D-US2), so reload, a pasted link
+// and Back keep the report the reader was looking at. The week is not a closed set this page knows up
+// front (frozen weeks arrive from the server), so a hand-edited value is held to the shape of a date
+// and anything else reads as the live week.
+const qs = useQueryState();
+const weekParam = qs.param("week");
+const selectedWeek = computed<string | null>(() =>
+  /^\d{4}-\d{2}-\d{2}$/.test(weekParam.value) ? weekParam.value : null,
+); // null = "This week (live)"
 const isLive = computed(() => selectedWeek.value === null);
 
 const live = useDriverPerformance();
@@ -65,19 +75,19 @@ const isError = computed(() => (isLive.value ? live.isError.value : frozen.isErr
 // Week scopes the whole report; status and search narrow only the driver list.
 const weekProxy = computed({
   get: () => selectedWeek.value ?? "",
-  set: (v: string) => (selectedWeek.value = v || null),
+  set: (v: string) => (weekParam.value = v),
 });
 const weekOptions = computed(() => [
   { value: "", label: "This week (live)" },
   ...(weeksList.value ?? []).map((w) => ({ value: w.weekStart, label: `${w.weekStart} → ${w.weekEnd}` })),
 ]);
-const statusSel = ref("");
 const statusOptions = [
   { value: "", label: "All drivers" },
   { value: "eligible", label: "Eligible only" },
   { value: "ineligible", label: "Not ranked" },
 ];
-const search = ref("");
+const statusSel = qs.param("status", statusOptions.map((o) => o.value).filter(Boolean));
+const search = qs.param("search");
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -91,8 +101,7 @@ const filtered = computed(() => {
 // The week is not counted or cleared: it chooses which report this is, not which drivers it lists.
 const activeFilterCount = computed(() => [search.value.trim(), statusSel.value].filter(Boolean).length);
 function clearFilters(): void {
-  search.value = "";
-  statusSel.value = "";
+  qs.set({ search: undefined, status: undefined });
 }
 
 // Column keys are display groupings, so map each to the underlying row field for sorting.
@@ -109,12 +118,13 @@ const sortAccessor = (r: PerformanceDisplayRow, k: string): unknown => {
     default: return (r as unknown as Record<string, unknown>)[k];
   }
 };
-const sort = ref<SortState>({ key: null, dir: "asc" });
 const sorted = computed(() => (sort.value.key ? sortRows(filtered.value, sort.value, sortAccessor) : filtered.value));
 
-const page = ref(1);
+const page = qs.page();
 const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
-watch([filtered, () => selectedWeek.value], () => (page.value = 1));
+// On the inputs, not on `filtered`: `filtered` also changes when the scores arrive, and watching it
+// would throw a pasted `?page=2` away the moment the list loaded (D-US2).
+watch([search, statusSel, selectedWeek], () => (page.value = 1));
 
 const weekLabel = computed(() => {
   if (isLive.value) {
@@ -145,6 +155,10 @@ const columns: DataTableColumn[] = [
   { key: "exposure", label: "Miles / hrs", sortable: true, numeric: true, width: "md", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", sortable: true, width: "md" },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 </script>
 
 <template>
@@ -221,7 +235,7 @@ const columns: DataTableColumn[] = [
       :error="isError ? 'Failed to load driver performance' : null"
       :sort="sort"
       empty-text="No driver scores yet. Run “Sync driver scores” on Settings → Data &amp; Sync to pull this week from Samsara."
-      @sort="sort = toggleSort(sort, $event)"
+      @sort="onSort"
     >
       <template #cell-rank="{ row }">
         <span v-if="row.rank" :class="['inline-flex min-w-[1.5rem] justify-center rounded-control px-1 text-xs font-semibold', toneClass(rankTone(row.rank))]">{{ row.rank }}</span>

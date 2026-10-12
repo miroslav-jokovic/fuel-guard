@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
+import { useRoute, RouterLink } from "vue-router";
 import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
@@ -14,7 +14,9 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaJurisdictionQuery,
   type IftaQuarter,
@@ -37,7 +39,10 @@ import { gal, pct1, usd, usd3 } from "@/features/reconcile/format";
  * included, on a row of their own, because they are in the row's total too.
  */
 const route = useRoute();
-const router = useRouter();
+// Quarter, filters, sort and page all read and write through one buffer (D-US2). They were written
+// with `router.replace({ ...route.query })` one at a time, and two writes in one tick — Clear filters
+// while a search is in flight — each spread the same stale query and the second dropped the first.
+const qs = useQueryState();
 const opens = useOpens();
 
 const code = computed(() => String(route.params.jurisdiction ?? "").toUpperCase());
@@ -45,11 +50,14 @@ const name = computed(() => STATE_NAMES[code.value] ?? code.value);
 
 const NOW = new Date();
 const quarters = selectableQuarters(NOW);
-const quarter = computed<IftaQuarter>(() => parseQuarterKey(route.query.q as string) ?? quarters[0]!);
+// Not checked against `quarterOptions`: a forwarded link may name a quarter older than the picker
+// offers, and `parseQuarterKey` is what decides whether it is a quarter at all.
+const qParam = qs.param("q");
+const quarter = computed<IftaQuarter>(() => parseQuarterKey(qParam.value) ?? quarters[0]!);
 const quarterOptions = quarters.map((q) => ({ value: quarterKey(q), label: quarterLabel(q) }));
 const selectedKey = computed<string>({
   get: () => quarterKey(quarter.value),
-  set: (v) => void router.replace({ query: { ...route.query, q: v } }),
+  set: (v) => (qParam.value = v),
 });
 
 const { data, isLoading, isFetching, isError, error, refetch } = useIftaJurisdictionQuery(quarter, code);
@@ -79,14 +87,9 @@ const SHOW_OPTIONS: { value: Show; label: string }[] = [
   { value: "drove", label: "Drove here, bought none" },
   { value: "all", label: "All trucks" },
 ];
-const show = computed<Show>({
-  get: () => (["drove", "all"].includes(String(route.query.show)) ? (route.query.show as Show) : ""),
-  set: (v) => void router.replace({ query: { ...route.query, show: v || undefined } }),
-});
-const search = computed<string>({
-  get: () => String(route.query.search ?? ""),
-  set: (v) => void router.replace({ query: { ...route.query, search: v.trim() ? v : undefined } }),
-});
+const showParam = qs.param("show", SHOW_OPTIONS.map((o) => o.value).filter(Boolean));
+const show = computed<Show>({ get: () => showParam.value as Show, set: (v) => (showParam.value = v) });
+const search = qs.param("search");
 const shows = (t: IftaJurisdictionTruck): boolean =>
   show.value === "all" || (show.value === "drove" ? t.fills.length === 0 : t.fills.length > 0);
 const matches = (t: IftaJurisdictionTruck): boolean => {
@@ -94,9 +97,8 @@ const matches = (t: IftaJurisdictionTruck): boolean => {
   return !q || truckLabel(t).toLowerCase().includes(q);
 };
 const activeFilterCount = computed(() => (show.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
-const resetFilters = () => void router.replace({ query: { ...route.query, show: undefined, search: undefined } });
+const resetFilters = () => qs.set({ show: undefined, search: undefined });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
 const byKey = computed(() => new Map((data.value?.trucks ?? []).map((t) => [keyOf(t), t])));
 const visible = computed(() => (data.value?.trucks ?? []).filter((t) => shows(t) && matches(t)));
 const rows = computed(() =>
@@ -125,15 +127,22 @@ const cols: DataTableColumn[] = [
   { key: "fillCount", label: "Fills", numeric: true, width: "xs", sortable: true },
   { key: "spent", label: "Spent", numeric: true, width: "sm", sortable: true },
 ];
+// After the columns it is checked against; `rows` above reads it lazily, so the order is safe.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", cols.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 /** Trucks, not rows: the fills with no truck sit on a row of their own and are not a truck. */
 const truckCount = computed(() => (data.value?.trucks ?? []).filter((t) => t.vehicleId != null).length);
 const listedTrucks = computed(() => visible.value.filter((t) => t.vehicleId != null).length);
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
 
 /** Client-side pages over the filtered list — a jurisdiction-quarter is at most a few hundred trucks. */
 const PAGE_SIZE = 25;
-const page = ref(1);
-watch([rows, sort], () => (page.value = 1));
+const page = qs.page();
+// On the inputs, not on `rows`: `rows` also changes when the jurisdiction arrives, and watching it
+// would throw a pasted `?page=2` away the moment the list loaded (D-US2).
+watch([show, search, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 /** An empty list says which of the two it is: nothing here at all, or nothing this filter keeps. */

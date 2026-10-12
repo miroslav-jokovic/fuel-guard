@@ -19,6 +19,8 @@ import {
   type Inspector,
 } from "@/features/maintenance/useAnnualInspections";
 import { useSessionStore } from "@/stores/session";
+import { useQueryState } from "@/composables/useQueryState";
+import { INSPECTOR_QUALIFICATION_BASES } from "@silvicom/shared";
 
 /**
  * Who may perform an annual inspection.
@@ -47,15 +49,16 @@ import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
 const toast = useToastStore();
-const showRetired = ref(false);
-const search = ref("");
-const basis = ref("");
+// The register's filters live in the URL (D-US2), so a reload or Back keeps them. "Qualified by" is
+// read against the contract's own list of bases, so a hand-edited value outside it reads as Any.
+const qs = useQueryState();
+const showRetired = qs.flag("retired");
+const search = qs.param("search");
+const basis = qs.param("basis", INSPECTOR_QUALIFICATION_BASES);
 // "Active only" is where the register opens; showing retired inspectors counts as a filter moved off it.
 const activeFilterCount = computed(() => [search.value.trim(), basis.value, showRetired.value].filter(Boolean).length);
 function resetFilters() {
-  search.value = "";
-  basis.value = "";
-  showRetired.value = false;
+  qs.set({ search: undefined, basis: undefined, retired: undefined });
 }
 
 const { data, isLoading, isError, error, refetch, isFetching } = useInspectorsQuery(showRetired);

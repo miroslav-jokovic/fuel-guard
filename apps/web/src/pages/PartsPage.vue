@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { UNIT_OF_MEASURE_LABELS, type StockLineDto } from "@silvicom/shared";
@@ -16,7 +18,7 @@ import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import LocationsDrawer from "@/features/inventory/LocationsDrawer.vue";
 import { INVENTORY_PAGE_SIZE, useLowStockQuery, usePartsQuery } from "@/features/inventory/useInventory";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
 
@@ -68,7 +70,6 @@ import { useOpens } from "@/composables/useOpens";
  * nothing.
  */
 
-const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 const opens = useOpens();
@@ -78,30 +79,25 @@ const STOCK_OPTIONS = [
   { value: "low", label: "At reorder point" },
 ];
 
-const search = ref("");
-const stock = ref<string>(route.query.stock === "low" ? "low" : "");
-const page = ref(1);
+// Filters, sort and page live in the URL (D-US2). The home's low-stock card links here with
+// `?stock=low`, and that link is now simply this parameter rather than a one-time seed the page
+// mirrored back by hand — so the same link also survives a reload and Back from a part.
+const qs = useQueryState();
+const search = qs.param("search");
+const stock = qs.param("stock", STOCK_OPTIONS.map((o) => o.value));
+const page = qs.page();
 watch([search, stock], () => (page.value = 1));
-
-/** The home's low-stock card links here with `?stock=low`; the filter is the page's own state after that. */
-watch(stock, (v) => {
-  void router.replace({ query: v === "low" ? { stock: "low" } : {} });
-});
 
 const lowOnly = computed(() => stock.value === "low");
 const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (stock.value ? 1 : 0));
-/** Clearing `stock` goes through its watcher above, which drops `?stock=low` from the URL. */
 function resetFilters() {
-  search.value = "";
-  stock.value = "";
+  qs.set({ search: undefined, stock: undefined });
 }
 
 const catalogueFilter = computed(() => ({ search: search.value || undefined, page: page.value }));
 const catalogue = usePartsQuery(catalogueFilter);
 const low = useLowStockQuery();
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
 
 const rows = computed(() =>
   lowOnly.value
@@ -132,6 +128,14 @@ const LOW_COLUMNS: DataTableColumn[] = [
 
 const columns = computed(() => (lowOnly.value ? LOW_COLUMNS : CATALOGUE_COLUMNS));
 
+// Only the low-stock view sorts (see the header), so the sort's vocabulary is ITS sortable columns.
+// A sort left in the URL while the catalogue shows is inert — the table is handed `null` — and
+// comes back into force when the reader returns to the low-stock view.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", LOW_COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+
 /**
  * A stock line has no id of its own — it IS the (part, location) pair — so the table is keyed on
  * both. Keying on `partId` alone would collapse the three shelves one part sits on into one row.
@@ -151,10 +155,9 @@ const openPart = (row: Record<string, unknown>) =>
   void router.push({ name: "part", params: { id: String(lowOnly.value ? row.partId : row.id) } });
 
 const locationsOpen = ref(false);
-const creating = ref(route.query.new === "1");
-watch(creating, (open) => {
-  if (!open && route.query.new) void router.replace({ query: {} });
-});
+// `?new=1` opens the drawer. A flag in the same query buffer as the filters (D-US2): closing the
+// drawer removes `new` alone, where `router.replace({ query: {} })` would now also drop the filters.
+const creating = qs.flag("new");
 </script>
 
 <template>

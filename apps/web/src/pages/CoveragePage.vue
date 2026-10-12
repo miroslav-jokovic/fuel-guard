@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -15,6 +15,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import { formatDateTime as fmtDateTime } from "@/lib/format";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
+import { useQueryState } from "@/composables/useQueryState";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
@@ -24,15 +25,19 @@ const opens = useOpens();
 const unit = (id: string) => vehicles.value?.find((v) => v.id === id)?.unit_number ?? id;
 const trucks = computed(() => data.value?.perTruck ?? []);
 
-const search = ref("");
+// Search and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep the list.
+const qs = useQueryState();
+const search = qs.param("search");
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return q ? trucks.value.filter((t) => unit(t.vehicleId).toLowerCase().includes(q)) : trucks.value;
 });
 
 const PAGE_SIZE = 20;
-const page = ref(1);
-watch(filtered, () => (page.value = 1));
+const page = qs.page();
+// Reset on the SEARCH, not on `filtered`: `filtered` also changes when the coverage data arrives, and
+// watching it would throw a pasted `?page=3` away the moment the list loaded (D-US2).
+watch(search, () => (page.value = 1));
 const paged = computed(() =>
   filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );

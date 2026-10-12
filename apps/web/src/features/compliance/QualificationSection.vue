@@ -32,6 +32,7 @@ import CertificationHistory from "@/features/compliance/CertificationHistory.vue
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
 import { useExportDocument } from "@/composables/useDqExports";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -116,7 +117,11 @@ const file = computed(() =>
 const groups = computed(() => dqGroups(file.value));
 const attentionKeys = computed(() => new Set(dqAttention(file.value, today).map((a) => a.key)));
 
-const showAll = ref(false);
+// The requirement list's state lives in the URL (D-US2), so Back from a document returns to the
+// same narrowed list. Scoped `dq.`: this section shares the driver page's route with the page's own
+// `?section=` and with the other sections' lists, and an unscoped `?search=` would be theirs too.
+const qs = useQueryState("dq");
+const showAll = qs.flag("all");
 
 const docById = computed(() => {
   const m = new Map<string, DocumentRow>();
@@ -162,8 +167,9 @@ const toRow = (i: DqFileItem): Row => {
 const rows = computed<Row[]>(() =>
   file.value.items.filter((i) => showAll.value || attentionKeys.value.has(i.spec.key)).map(toRow),
 );
-const requirementSearch = ref("");
-const requirementGroup = ref("");
+const requirementSearch = qs.param("search");
+// Checked against the shared group catalogue rather than a copy of it.
+const requirementGroup = qs.param("group", Object.keys(DQ_GROUP_LABELS));
 const requirementGroupOptions = computed(() => [
   { value: "", label: "All groups" },
   ...Object.entries(DQ_GROUP_LABELS).map(([value, label]) => ({ value, label: String(label) })),
@@ -182,8 +188,7 @@ const requirementFilterCount = computed(
 );
 const hasRequirementFilter = computed(() => requirementFilterCount.value > 0);
 function clearRequirementFilters(): void {
-  requirementSearch.value = "";
-  requirementGroup.value = "";
+  qs.set({ search: undefined, group: undefined });
 }
 
 

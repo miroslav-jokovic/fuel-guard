@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
@@ -409,6 +409,57 @@ const offScaleHeadings = structureViolations.flatMap((item) => item.offScaleHead
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
+ * A filtered list keeps its filters and its sort in the URL (2026-10-12 owner ruling, UI-STANDARDIZATION
+ * D-US2).
+ *
+ * ── WHY THE URL AND NOT A ref ───────────────────────────────────────────────────────────────────
+ * The audit that day found 30 of 44 filtered lists holding their filters in component state, so a
+ * reload, a link pasted into a ticket and Back from a row's detail page all opened the list unfiltered,
+ * page 1, default sort — while the other 14 kept all three. Which list remembers is not something a
+ * reader can predict, so the rule is the same for all of them: `useQueryState` (directly, or through a
+ * composable the file imports), and `useUrlSort` rather than a `ref<SortState>`.
+ *
+ * A list with a real reason to forget — a list inside a drawer that closing should reset — says so
+ * with the marker `ui-adoption: list-state-local — <why>` in a comment, which is read from the raw
+ * file because every other check here strips comments first.
+ */
+const LIST_STATE_LOCAL = /ui-adoption: list-state-local\s+—\s+\S/;
+const resolvedImports = (path, source) =>
+  [...source.matchAll(/from\s+["']((?:@\/|\.{1,2}\/)[^"']+)["']/g)]
+    .map(([, spec]) => (spec.startsWith("@/") ? join(webSrc, spec.slice(2)) : resolve(dirname(path), spec)))
+    .flatMap((base) => [base, `${base}.ts`, `${base}/index.ts`])
+    .filter((candidate) => /\.(ts|vue)$/.test(candidate) && existsSync(candidate));
+function readsQueryState(path, source, depth = 2) {
+  if (/\buseQueryState\(/.test(source)) return true;
+  if (depth === 0) return false;
+  return resolvedImports(path, source).some((dep) =>
+    !/\/components\/ui\/|\/composables\/useQueryState\.ts$/.test(dep) &&
+    readsQueryState(dep, stripComments(readFileSync(dep, "utf8")), depth - 1),
+  );
+}
+function listStateViolations(item) {
+  if (!/<FilterBar\b/.test(item.source)) return { filters: [], sorts: [] };
+  if (LIST_STATE_LOCAL.test(item.raw ?? readFileSync(item.path, "utf8"))) return { filters: [], sorts: [] };
+  return {
+    filters: readsQueryState(item.path, item.source) ? [] : [item.relativePath],
+    sorts: /\bref<SortState>\(/.test(item.source) ? [item.relativePath] : [],
+  };
+}
+function listStateSelfTest() {
+  const fixture = (source) => ({ path: join(webSrc, "self-test.vue"), relativePath: "self-test.vue", source, raw: source });
+  const local = listStateViolations(fixture(`<script setup>const sort = ref<SortState>({ key: null });</script><template><FilterBar /></template>`));
+  const url = listStateViolations(fixture(`<script setup>const qs = useQueryState();</script><template><FilterBar /></template>`));
+  const noBar = listStateViolations(fixture(`<template><DataTable /></template>`));
+  const marked = listStateViolations(fixture(`<!-- ui-adoption: list-state-local — a drawer's list --><template><FilterBar /></template>`));
+  const bareMark = listStateViolations(fixture(`<!-- ui-adoption: list-state-local --><template><FilterBar /></template>`));
+  return local.filters.length === 1 && local.sorts.length === 1 && url.filters.length === 0 &&
+    noBar.filters.length === 0 && marked.filters.length === 0 && bareMark.filters.length === 1;
+}
+const listState = pagesAndFeatures.map(listStateViolations);
+const localListFilters = listState.flatMap((item) => item.filters);
+const localListSorts = listState.flatMap((item) => item.sorts);
+
+/**
  * Pages whose ROUTE asks for the full-bleed outlet (D-DR5, DESIGN-REFRESH-2026-09.md §4).
  *
  * They are exempt from the `PageHeader` rule below, and the exemption is DERIVED rather than typed
@@ -557,6 +608,11 @@ function verifyAdoption() {
   ]);
   const failures = [];
   if (!structureCheckerSelfTest()) failures.push("UI structure checker failed its regression fixture");
+  if (!listStateSelfTest()) failures.push("list-state checker failed its regression fixture");
+  if (localListFilters.length)
+    failures.push(`filtered list holding its filters outside the URL (useQueryState, or mark ui-adoption: list-state-local — <why>): ${localListFilters.join(", ")}`);
+  if (localListSorts.length)
+    failures.push(`filtered list holding its sort in a ref (useUrlSort): ${localListSorts.join(", ")}`);
   const missingHeaders = pageAdoption
     .filter((page) => !page.pageHeader && !page.fullBleed && !allowedHeaderExceptions.has(page.page))
     .map((page) => page.page);

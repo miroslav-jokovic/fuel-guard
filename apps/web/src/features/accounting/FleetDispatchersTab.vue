@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, watch } from "vue";
+import { useRoute } from "vue-router";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { useDispatcherEarningsQuery, type DispatcherEarnings } from "@/composables/useDispatcherEarnings";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { sortRows } from "@/lib/sort";
 import type { FleetReportResponse } from "./useFleetReport";
 import type { MileageCoverageResponse } from "./useMileageCoverage";
 
@@ -38,10 +41,21 @@ const to = computed(() => props.to);
 const { data, isLoading, isError, error, refetch, isFetching } = useDispatcherEarningsQuery(from, to);
 
 const PAGE_SIZE = 20;
-const search = ref("");
-const page = ref(1);
-const sort = ref<SortState>({ key: null, dir: "asc" });
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+// Search, sort and page live in the URL (D-US2), scoped `dispatchers.` because every tab of the
+// fleet report shares one route — an unscoped `?search=` would be read by the trucks tab as a truck
+// number. The sort is wired below the columns, which are its vocabulary.
+const qs = useQueryState("dispatchers");
+const search = qs.param("search");
+const page = qs.page();
+// Leaving this tab for ANOTHER TAB clears its whole scope, which is what remounting used to do
+// for free: a tab's page and filters reset on a tab change (owner ruling 2026-08-29), and D-US2 put
+// them somewhere that outlives the mount. Leaving the ROUTE clears nothing — the route has already
+// changed by the time this runs, and the history entry Back returns to still carries the list.
+const route = useRoute();
+const ownPath = route.path;
+onBeforeUnmount(
+  () => route.path === ownPath && qs.set({ search: undefined, sort: undefined, dir: undefined, page: undefined }),
+);
 watch([search, from, to], () => (page.value = 1));
 
 interface Row extends DispatcherEarnings {
@@ -108,6 +122,11 @@ const columns: DataTableColumn[] = [
   { key: "revenue", label: "Total booked", numeric: true, sortable: true },
   { key: "unpostedLoads", label: "Not booked yet", numeric: true, cellClass: "text-ink-tertiary", sortable: true },
 ];
+// No default sort: the API's own order IS rank order, so "unsorted" already reads as ranked.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 </script>
 
 <template>

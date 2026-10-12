@@ -4,7 +4,9 @@ import { RouterLink } from "vue-router";
 import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import {
+  DQ_DUE_FILTERS,
   DQ_EXPORT_MAX_DRIVERS,
+  DQ_STATE_FILTERS,
   dqDueFilterOptions,
   dqSoonest,
   dqStateFilterOptions,
@@ -22,7 +24,9 @@ import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqFileBadge, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -77,13 +81,18 @@ function buildBinder(): void {
   includeRestricted.value = false;
 }
 
-const search = ref("");
-// v-models so the page's attention strip (C5) can drive the SAME filters — one filter model, the
-// tiles are just another way to set it.
-const stateFilter = defineModel<string>("stateFilter", { default: "" });
-const dueFilter = defineModel<string>("dueFilter", { default: "" });
-const page = ref(1);
-const sort = ref<SortState>({ key: null, dir: "asc" });
+// Search, both filters, the sort and the page live in the URL (D-US2), so Back from a driver's file
+// returns to the same narrowed list. Unscoped: this is the only list on the qualification route (the
+// Exports tab beside it keeps no list state). The filters are checked against the shared vocabulary
+// (R4b) rather than a copy of it, so a hand-edited `?state=` outside it reads as no filter.
+const qs = useQueryState();
+const search = qs.param("search");
+const stateFilter = qs.param("state", DQ_STATE_FILTERS);
+const dueFilter = qs.param("due", DQ_DUE_FILTERS);
+const page = qs.page();
+
+// The page's attention strip (C5) writes the same two parameters, so the tiles and these controls are
+// one filter model — the URL — with nothing mirrored between them (D-US2).
 const expanded = ref<Set<string>>(new Set());
 
 interface FleetRow {
@@ -167,9 +176,7 @@ const activeFilterCount = computed(
   () => [search.value.trim(), stateFilter.value, dueFilter.value].filter(Boolean).length,
 );
 function clearFilters(): void {
-  search.value = "";
-  stateFilter.value = "";
-  dueFilter.value = "";
+  qs.set({ search: undefined, state: undefined, due: undefined });
 }
 
 function toggleExpand(id: string): void {
@@ -222,9 +229,11 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
 ];
-function onSort(key: string): void {
-  sort.value = toggleSort(sort.value, key);
-}
+// No default key: unsorted IS the severity order (`bySeverity`), so the third click returns to it.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 </script>
 
 <template>
