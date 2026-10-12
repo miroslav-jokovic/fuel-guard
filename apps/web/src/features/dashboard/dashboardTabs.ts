@@ -41,7 +41,12 @@ export interface DashboardTab {
  */
 export const DASHBOARD_TABS: readonly DashboardTab[] = [
   { key: "fleet", label: "Fleet overview", gate: "fuel" },
-  { key: "dispatch", label: "Dispatch", gate: "dispatch", defaultFor: ["dispatcher"] },
+  /**
+   * `fleet_manager` lands here too — owner ruling 2026-10-12, "for now": the people running the
+   * fleet day to day open on the live map, and Fleet overview stays one tab away. Taking the role
+   * back out of this list is the whole undo.
+   */
+  { key: "dispatch", label: "Dispatch", gate: "dispatch", defaultFor: ["dispatcher", "fleet_manager"] },
 ];
 
 /** The tabs this caller may see, in catalogue order. `canView` is `session.canView`. */
