@@ -282,7 +282,11 @@ const valueClass = computed(() =>
           </template>
           <template v-else>
             <p :class="[valueClass, valueTone ?? (muted ? 'text-ink-muted' : 'text-ink')]" :title="valueTitle">
-              {{ value }}<span v-if="unit" class="text-base font-normal text-ink-tertiary"> {{ unit }}</span>
+              <!-- `&nbsp;`, not a space: Vue's whitespace condensing drops a leading space inside the
+                   span, which rendered "106cases" on Reports (seen in the browser 2026-10-12, missed
+                   by a test that read `.text()`). Non-breaking also keeps a figure and its unit on
+                   one line. -->
+              {{ value }}<span v-if="unit" class="text-base font-normal text-ink-tertiary">&nbsp;{{ unit }}</span>
             </p>
             <!-- `#sub` lets a caller compose the line from parts in different tones — a change
                  against last month in red beside a year-to-date figure in grey (D-FRUI3) — where

@@ -204,6 +204,8 @@ describe("StatCard — what the hand-built tiles needed (2026-10-12)", () => {
     expect(value.classes()).toContain("text-success-700");
     expect(value.classes()).not.toContain("text-ink");
     expect(value.get("span").text()).toBe("of fills");
+    // The figure and its unit are separate words in the DOM, not "92%of fills".
+    expect(value.element.textContent?.trim()).toBe("92%\u00a0of fills");
     expect(value.get("span").classes()).toEqual(expect.arrayContaining(["text-base", "font-normal", "text-ink-tertiary"]));
   });
 

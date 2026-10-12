@@ -89,7 +89,11 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
 
 <template>
   <component :is="embedded ? 'div' : BaseCard" :padding="embedded ? undefined : 'sm'" :class="embedded ? 'p-4' : ''">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <!-- `lg:flex-wrap`: when the filters and the right-hand group (Clear filters, count, export with
+         its scope sentence) cannot share one line, the right-hand group drops to its own line,
+         still right-aligned, instead of squeezing the filters onto two or three lines beside it.
+         Seen in the browser 2026-10-12 on Fuel costs and Fuel problems at 1440px. -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
       <div v-if="search !== undefined" class="w-full lg:w-64 lg:shrink-0">
         <SearchInput
           :model-value="search"
