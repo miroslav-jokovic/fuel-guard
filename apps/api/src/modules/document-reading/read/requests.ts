@@ -24,7 +24,7 @@ import { auditForRead } from "../evidence/paperAudit.js";
 
 export interface ReaderError {
   code:
-    | "not_found" | "not_reviewable" | "invalid_review" | "invalid_assembly" | "edited_elsewhere"
+    | "not_found" | "not_reviewable" | "invalid_review" | "invalid_assembly" | "edited_elsewhere" | "not_ready"
     | "sign_failed" | "query_failed" | "insert_failed";
   error: string;
 }

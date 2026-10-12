@@ -36,7 +36,7 @@ export const TIER_LIMITS: Readonly<Record<VisionTier, TierLimits>> = {
 
 /**
  * Above 20 images in one request the API applies a stricter per-image limit; the docs' way to stay under
- * it on every platform is neither side over 2,000 px. Today a read sends at most `maxPdfPages` (10) pages,
+ * it on every platform is neither side over 2,000 px. Today a read sends at most `maxPages` (10) pages,
  * so this binds only once an assembly (D-DR14) can be longer.
  */
 export const MANY_IMAGES_THRESHOLD = 20;

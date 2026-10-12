@@ -169,7 +169,7 @@ export async function normalisePdf(bytes: Buffer): Promise<PdfOutcome> {
   const { doc, close } = opened;
   try {
     // Counted before a single page is painted: an 80-page PDF costs nothing to refuse.
-    if (doc.numPages > INTAKE_LIMITS.maxPdfPages) return { ok: false, code: "too_many_pages" };
+    if (doc.numPages > INTAKE_LIMITS.maxPages) return { ok: false, code: "too_many_pages" };
     const pages: CanonicalPage[] = [];
     // Sequential on purpose — one 300 DPI page is ~34 MB of RGBA, and ten in parallel is a worker OOM.
     for (let n = 1; n <= doc.numPages; n++) {

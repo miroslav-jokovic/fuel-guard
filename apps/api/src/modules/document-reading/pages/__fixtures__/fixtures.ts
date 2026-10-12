@@ -72,6 +72,32 @@ export const greyJpeg = () => raw(1600, 1200).toColourspace("b-w").jpeg({ qualit
 
 export const heicFixture = () => readFileSync(new URL("./hevc-page.heic", import.meta.url));
 
+/**
+ * A JPEG with the JFIF APP0 header a Google Voice download carries (`FF D8 FF E0 … "JFIF\0"`) — sharp
+ * writes none, so it is spliced in after the SOI marker. Saved as `.jfif`, it is still a JPEG.
+ */
+export async function jfifJpeg(): Promise<Buffer> {
+  const jpeg = await pageJpeg();
+  const app0 = Buffer.from([0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]);
+  return Buffer.concat([jpeg.subarray(0, 2), app0, jpeg.subarray(2)]);
+}
+export const pageTiff = () => raw(1600, 1200).tiff().toBuffer();
+export const pageGif = () => raw(1600, 1200).gif().toBuffer();
+export const pageAvif = () => raw(1600, 1200).avif({ quality: 70 }).toBuffer();
+
+/** Where page `i` of `multiPageTiff` carries its black square — a different place on each page, so order shows. */
+export const tiffPageMark = (i: number) => ({ left: 200 + i * 120, top: 600, size: 80 });
+
+/** A scanner's or fax gateway's multi-page TIFF: `count` pages of 1600×1200, page `i` marked at `tiffPageMark(i)`. */
+export async function multiPageTiff(count: number): Promise<Buffer> {
+  const pages = await Promise.all(Array.from({ length: count }, (_, i) => {
+    const { left, top, size } = tiffPageMark(i);
+    const square = { create: { width: size, height: size, channels: 3 as const, background: "#000" } };
+    return raw(1600, 1200).composite([{ input: square, left, top }]).png().toBuffer();
+  }));
+  return sharp(pages, { join: { animated: true } }).tiff().toBuffer();
+}
+
 // ── PDFs (pdfkit, Helvetica — one of the 14 standard fonts, so nothing is embedded) ─────────────────
 export const LETTER = { width: 612, height: 792 } as const;
 export const BORN_DIGITAL_LINES = [

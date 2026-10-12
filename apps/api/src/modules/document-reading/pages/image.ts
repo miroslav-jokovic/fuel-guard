@@ -57,10 +57,27 @@ async function toUprightRaster(input: Sharp, applyExif: boolean): Promise<RgbRas
   return { data, width: info.width, height: info.height };
 }
 
-export async function decodeImage(bytes: Buffer, format: Exclude<SourceFormat, "pdf">): Promise<ImageOutcome> {
+/**
+ * How many pages an image file holds. Only a TIFF has more than one that is a PAGE: a scanner's
+ * feeder or a fax gateway writes a whole multi-page document as one TIFF, and reading its first page
+ * alone would lose the rest of the BOL without a word. A GIF's further frames are animation, not
+ * pages, and a HEIC's further images are bursts or thumbnails — each of those reads its first image.
+ * A TIFF libvips cannot parse answers 1 here and is refused by `decodeImage` as unreadable.
+ */
+export async function imagePageCount(bytes: Buffer, format: Exclude<SourceFormat, "pdf">): Promise<number> {
+  if (format !== "tiff") return 1;
+  try {
+    return (await sharp(bytes, DECODE_OPTIONS).metadata()).pages ?? 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** One page of an image file as an upright raster — `page` counts from 0 and only a TIFF has more than one. */
+export async function decodeImage(bytes: Buffer, format: Exclude<SourceFormat, "pdf">, page = 0): Promise<ImageOutcome> {
   let raster: RgbRaster;
   try {
-    const input = format === "heic" ? await decodeHeic(bytes) : sharp(bytes, DECODE_OPTIONS);
+    const input = format === "heic" ? await decodeHeic(bytes) : sharp(bytes, { ...DECODE_OPTIONS, page });
     raster = await toUprightRaster(input, format !== "heic");
   } catch {
     return { ok: false, code: "decode_failed" };

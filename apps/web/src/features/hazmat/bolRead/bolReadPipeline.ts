@@ -70,15 +70,20 @@ async function sendFile(io: BolReadIo, f: BolFile, sha256: string): Promise<stri
   return reg.sourceId;
 }
 
-/** Poll every source until none is still on its way; the files refused, by name, or [] when all are ready. */
+/**
+ * Poll every source until none is still on its way. Answers the files refused, by name, and the source
+ * each registered id RESOLVED to: the same bytes registered twice before either finished become one
+ * source under the first one's id, and only that id has pages to group.
+ */
 async function waitForSources(io: BolReadIo, sent: { id: string; name: string }[], onStage: (s: BolReadStage) => void) {
   const pending = new Map(sent.map((s) => [s.id, s.name]));
   const refused: { name: string; reason: string }[] = [];
+  const resolved = new Map<string, string>();
   const total = sent.length;
   for (let waited = 0; pending.size > 0; waited += POLL_MS) {
     for (const [id, name] of [...pending]) {
       const st = must(await io.api<SourceStatusResponse>(`${BASE}/sources/${id}`), "The file's status");
-      if (st.status === "ready") pending.delete(id);
+      if (st.status === "ready") { pending.delete(id); resolved.set(id, st.sourceId); }
       else if (st.status === "refused") {
         pending.delete(id);
         refused.push({ name, reason: st.refusal ? INTAKE_REFUSALS[st.refusal] : INTAKE_REFUSALS.decode_failed });
@@ -89,7 +94,7 @@ async function waitForSources(io: BolReadIo, sent: { id: string; name: string }[
     if (waited >= SOURCE_TIMEOUT_MS) stop("Preparing the files is taking longer than it should. Press Read again in a minute.");
     await io.sleep(POLL_MS);
   }
-  return refused;
+  return { refused, resolved };
 }
 
 async function waitForRead(io: BolReadIo, readId: string): Promise<BolReadOutcome> {
@@ -119,12 +124,12 @@ export async function readBol(io: BolReadIo, files: readonly BolFile[], onStage:
       bySha.set(sha256, id);
       sent.push({ id, name: f.file.name });
     }
-    const refused = await waitForSources(io, sent, onStage);
+    const { refused, resolved } = await waitForSources(io, sent, onStage);
     if (refused.length > 0) return { kind: "refused", files: refused };
 
     onStage({ kind: "reading" });
     // A file the org already held under another name comes back as the same source; list it once.
-    const sourceIds = [...new Set(sent.map((s) => s.id))];
+    const sourceIds = [...new Set(sent.map((s) => resolved.get(s.id) ?? s.id))];
     const assembly = must(await io.api<CreateAssemblyResponse>(`${BASE}/assemblies`, { method: "POST", body: { sourceIds } }), "Grouping the pages");
     const read = must(await io.api<{ readId: string }>(`${BASE}/reads`, {
       method: "POST", body: { assemblyId: assembly.assemblyId, profile: "shipping_document" },
