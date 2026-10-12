@@ -258,8 +258,6 @@ async function syncDriverAssignments(
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
     const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
-    // One truck per driver, not one driver per truck — see `driverTrucks.ts` for 506 and 807.
-    const links = parseDriverCurrentTrucks(rawAssign);
     const intervals = parseAssignmentIntervals(rawAssign);
     if (intervals.length) {
       const now = new Date().toISOString();
@@ -277,7 +275,7 @@ async function syncDriverAssignments(
         });
       }
     }
-    if (!links.length) return 0;
+    if (!intervals.length) return 0;
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
         .from("vehicles")
@@ -287,25 +285,32 @@ async function syncDriverAssignments(
         .from("drivers")
         .select("id, samsara_driver_id")
         .eq("org_id", orgId)
-        .not("samsara_driver_id", "is", null),
+        .not("samsara_driver_id", "is", null)
+        // An archived row is off the roster (0235) — on 2026-10-12 every inactive, terminated and
+        // applicant row was archived, 16 of 19 inactive ones nameless. Seated, it puts "Unnamed driver"
+        // on a truck the person behind it may never have driven under that row.
+        .is("archived_at", null),
     ]);
     const vehicles = (vRows ?? []) as Array<{ id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null }>;
     const vehById = new Map(vehicles.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id as string, r]));
     const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
-    // Driver id → the one truck Samsara puts them in, for the drivers this pass places.
-    const placed = new Map<string, string>();
-    for (const link of links) {
-      const veh = vehById.get(link.vehicleSamsaraId);
-      const drvId = drvById.get(link.driverSamsaraId);
-      if (!veh || !drvId) continue;
-      placed.set(drvId, veh.id);
+    // One truck per driver, not one driver per truck; only trucks and drivers we carry are ranked, as
+    // the feed carries trailers too. See `driverTrucks.ts` for 506/807, the team on 799, and the tie.
+    const { current, seats } = parseDriverCurrentTrucks(rawAssign, {
+      isTruck: (id) => vehById.has(id),
+      isDriver: (id) => drvById.has(id),
+    });
+    for (const seat of seats) {
+      const veh = vehById.get(seat.vehicleSamsaraId)!;
+      const drvId = drvById.get(seat.driverSamsaraId)!;
       if (veh.assigned_driver_id === drvId) continue; // already right; a no-op write is still a write
       await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", veh.id).eq("org_id", orgId);
     }
-    // ...and off every OTHER truck they still hold. Only drivers placed above: a driver whose current
-    // truck we cannot name in our roster keeps what they have, because clearing it would assert
-    // "drives nothing" on evidence that says "drives something we do not carry". The write repeats
-    // the driver it expects, so an office edit made since the read is not undone.
+    // ...and every driver off every truck but the one they are in now — a teammate who lost the seat
+    // above included. A driver Samsara has in no truck we carry keeps what they have: clearing it
+    // would assert "drives nothing" on evidence that says "drives something we do not carry". The
+    // write repeats the driver it expects, so an office edit made since the read is not undone.
+    const placed = new Map(current.map((c) => [drvById.get(c.driverSamsaraId)!, vehById.get(c.vehicleSamsaraId)!.id]));
     for (const v of vehicles) {
       const drvId = v.assigned_driver_id;
       if (!drvId || !placed.has(drvId) || placed.get(drvId) === v.id) continue;
@@ -316,7 +321,7 @@ async function syncDriverAssignments(
         .eq("org_id", orgId)
         .eq("assigned_driver_id", drvId);
     }
-    return placed.size;
+    return seats.length;
   } catch {
     /* assignments are best-effort */
     return 0;

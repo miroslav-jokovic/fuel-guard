@@ -100,6 +100,49 @@ describe("syncVehiclesFromSamsara — driver assignments", () => {
     expect(driverWrites(rec)).toEqual([]);
   });
 
+  it("does not let a trailer hooked in the same second take a driver off their truck", async () => {
+    // JBURK on 2026-10-12: truck 796 and trailer R533129, both 13:11. The trailer is no vehicle we carry.
+    const { rec, done } = run(
+      [truck("550", "sv-550", "d-gromeo"), truck("796", "281475006180758", null)],
+      [
+        { vehicle: { id: "281474978756816" }, driver: { id: "s-gromeo" }, startTime: "2026-10-12T13:11:00Z" },
+        { vehicle: { id: "281475006180758" }, driver: { id: "s-gromeo" }, startTime: "2026-10-12T13:11:00Z" },
+        { vehicle: { id: "sv-550" }, driver: { id: "s-gromeo" }, startTime: "2026-09-09T10:00:00Z" },
+      ],
+    );
+    await done;
+    expect(driverWrites(rec)).toEqual([
+      { driver: "d-gromeo", filters: { id: "796", org_id: ORG } },
+      { driver: null, filters: { id: "550", org_id: ORG, assigned_driver_id: "d-gromeo" } },
+    ]);
+  });
+
+  it("keeps a team driver in the truck they share and takes them off the one they left (799, 2026-10-12)", async () => {
+    // d-bmorgan stands in for Keno Williams; s-teammate is JFERGUSO, whom our roster does not carry.
+    const { rec, done } = run(
+      [truck("586", "sv-586", "d-bmorgan"), truck("799", "sv-799", "d-bmorgan")],
+      [
+        { vehicle: { id: "sv-799" }, driver: { id: "s-teammate" }, startTime: "2026-10-10T16:36:00Z" },
+        { vehicle: { id: "sv-799" }, driver: { id: "s-bmorgan" }, startTime: "2026-10-10T04:22:00Z" },
+        { vehicle: { id: "sv-586" }, driver: { id: "s-bmorgan" }, startTime: "2026-09-15T17:06:00Z" },
+      ],
+    );
+    await done;
+    expect(driverWrites(rec)).toEqual([
+      { driver: null, filters: { id: "586", org_id: ORG, assigned_driver_id: "d-bmorgan" } },
+    ]);
+  });
+
+  it("ranks only drivers still on the roster — an archived row is never read into a seat", async () => {
+    const { rec, done } = run(
+      [truck("807", "sv-807", null)],
+      [{ vehicle: { id: "sv-807" }, driver: { id: "s-gromeo" }, startTime: "2026-10-12T12:05:02Z" }],
+    );
+    await done;
+    const read = rec.forTable("drivers").find((q) => !q.write)!;
+    expect(read.ops).toContainEqual({ method: "is", args: ["archived_at", null] });
+  });
+
   it("leaves every truck alone when Samsara returns no assignments", async () => {
     const { rec, done } = run([truck("506", "sv-506", "d-gromeo")], []);
     await done;
