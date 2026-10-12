@@ -11,6 +11,7 @@ import ErrorState from "@/components/ErrorState.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
@@ -65,26 +66,25 @@ function loadNewBatch() {
       <h2 class="text-sm font-semibold text-ink">Share of problems caught <span class="font-normal text-ink-tertiary">(all time, from your checks)</span></h2>
       <template v-if="metrics && metrics.audited > 0">
         <div class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Caught</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.estimatedRecall) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">range {{ pct(metrics.recallLow) }}–{{ pct(metrics.recallHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Missed in your checks</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.missRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">likely between {{ pct(metrics.missRateCiLow) }} and {{ pct(metrics.missRateCiHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Fills checked</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.audited.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.missed }} marked Missed</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Likely missed overall</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.estimatedMisses?.toLocaleString() ?? "—" }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">of {{ metrics.coveredClears.toLocaleString() }} unflagged fills Samsara could see</dd>
-          </div>
+          <StatCard
+            embedded
+            label="Caught"
+            :value="pct(metrics.estimatedRecall)"
+            :sub="`range ${pct(metrics.recallLow)}–${pct(metrics.recallHigh)}`"
+          />
+          <StatCard
+            embedded
+            label="Missed in your checks"
+            :value="pct(metrics.missRate)"
+            :sub="`likely between ${pct(metrics.missRateCiLow)} and ${pct(metrics.missRateCiHigh)}`"
+          />
+          <StatCard embedded label="Fills checked" :value="metrics.audited.toLocaleString()" :sub="`${metrics.missed} marked Missed`" />
+          <StatCard
+            embedded
+            label="Likely missed overall"
+            :value="metrics.estimatedMisses?.toLocaleString() ?? '—'"
+            :sub="`of ${metrics.coveredClears.toLocaleString()} unflagged fills Samsara could see`"
+          />
         </div>
         <p class="mt-3 text-xs text-ink-tertiary">These figures are estimates from the fills you checked, and they get closer as you check more. Only fills Samsara could see are shown, so a Missed is a real miss and not a gap in the data.</p>
       </template>

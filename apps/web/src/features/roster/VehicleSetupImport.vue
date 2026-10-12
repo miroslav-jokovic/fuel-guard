@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StatCard from "@/components/ui/StatCard.vue";
 import { AppIcon, AppTable } from "@silvicom/ui";
 import {
   CsvIcon,
@@ -170,20 +171,12 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
       </p>
 
       <!-- Summary stats -->
-      <dl class="grid grid-cols-3 gap-3">
-        <div class="rounded-surface p-3 ring-1" :class="preview.toCreate.length ? 'bg-success-50 ring-success-200' : 'bg-surface-subtle ring-edge'">
-          <dt class="text-xs" :class="preview.toCreate.length ? 'text-success-700' : 'text-ink-muted'">New vehicles</dt>
-          <dd class="text-2xl font-bold" :class="preview.toCreate.length ? 'text-success-800' : 'text-ink-tertiary'">{{ preview.toCreate.length }}</dd>
-        </div>
-        <div class="rounded-surface p-3 ring-1" :class="preview.toUpdate.length ? 'bg-brand-50 ring-brand-200' : 'bg-surface-subtle ring-edge'">
-          <dt class="text-xs" :class="preview.toUpdate.length ? 'text-brand-700' : 'text-ink-muted'">Setup updates</dt>
-          <dd class="text-2xl font-bold" :class="preview.toUpdate.length ? 'text-brand-800' : 'text-ink-tertiary'">{{ preview.toUpdate.length }}</dd>
-        </div>
-        <div class="rounded-surface p-3 ring-1" :class="preview.errors.length ? 'bg-danger-50 ring-danger-200' : 'bg-surface-subtle ring-edge'">
-          <dt class="text-xs" :class="preview.errors.length ? 'text-danger-700' : 'text-ink-muted'">Errors</dt>
-          <dd class="text-2xl font-bold" :class="preview.errors.length ? 'text-danger-800' : 'text-ink-tertiary'">{{ preview.errors.length }}</dd>
-        </div>
-      </dl>
+      <!-- A count only takes its verdict colour once there is something to count; at zero it is muted. -->
+      <div class="grid grid-cols-3 gap-3">
+        <StatCard label="New vehicles" :value="preview.toCreate.length" :value-tone="preview.toCreate.length ? 'text-success-800' : undefined" :muted="!preview.toCreate.length" />
+        <StatCard label="Setup updates" :value="preview.toUpdate.length" :value-tone="preview.toUpdate.length ? 'text-brand-800' : undefined" :muted="!preview.toUpdate.length" />
+        <StatCard label="Errors" :value="preview.errors.length" :value-tone="preview.errors.length ? 'text-danger-800' : undefined" :muted="!preview.errors.length" />
+      </div>
 
       <!-- Errors -->
       <div v-if="preview.errors.length" class="max-h-28 overflow-y-auto rounded-surface bg-danger-50 px-3 py-2 text-xs text-danger-700 ring-1 ring-danger-200">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StatCard from "@/components/ui/StatCard.vue";
 /**
  * Backfill a period from an EFS report file (FUEL-C4, D-FUI3).
  *
@@ -234,36 +235,18 @@ const previewTotal = (p: ImportPreview) =>
             </BaseButton>
           </div>
 
-          <dl class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-3">
             <template v-if="preview.kind === 'transaction'">
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">New fill-ups</dt>
-                <dd class="text-2xl font-semibold text-ink">{{ preview.newFuel.length }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Duplicates</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateFuelCount }}</dd>
-              </div>
-              <div class="rounded-control bg-warning-50 p-3">
-                <dt class="text-xs text-warning-700">Unattributed</dt>
-                <dd class="text-2xl font-semibold text-warning-800">{{ preview.unattributedCount }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Non-fuel skipped</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.skippedCount }}</dd>
-              </div>
+              <StatCard label="New fill-ups" :value="preview.newFuel.length" />
+              <StatCard label="Duplicates" :value="preview.duplicateFuelCount" muted />
+              <StatCard label="Unattributed" :value="preview.unattributedCount" value-tone="text-warning-800" />
+              <StatCard label="Non-fuel skipped" :value="preview.skippedCount" muted />
             </template>
             <template v-else>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">New declined</dt>
-                <dd class="text-2xl font-semibold text-ink">{{ preview.newDeclined.length }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Duplicates</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateDeclinedCount }}</dd>
-              </div>
+              <StatCard label="New declined" :value="preview.newDeclined.length" />
+              <StatCard label="Duplicates" :value="preview.duplicateDeclinedCount" muted />
             </template>
-          </dl>
+          </div>
 
           <p v-if="preview.kind === 'transaction' && preview.unattributedCount > 0" class="text-xs text-warning-700">
             {{ preview.unattributedCount }} fill-up(s) couldn't be matched to a vehicle by Unit number —

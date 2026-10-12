@@ -118,6 +118,26 @@ const props = withDefaults(
      */
     subTone?: string;
     /**
+     * Semantic colour for the VALUE, e.g. "text-success-700" for a coverage figure above its bar.
+     * A class for `subTone`'s reason: only the caller knows whether high is good. Leave it unset for
+     * money — a total says how much, not whether it is good news (Q-FSV15 ruling 2) — and prefer
+     * `muted` for a zero that is worth showing but not worth alarming about.
+     */
+    valueTone?: string;
+    /**
+     * A unit or qualifier printed after the value in the caption's weight — "engine-on h",
+     * "· 412 h". Part of the value line, so it is not a second caption; the Idling cards wrote it as
+     * a hand-styled `<span>` inside a hand-built tile until 2026-10-12.
+     */
+    unit?: string;
+    /**
+     * Drop the tile's own card, for tiles that sit together inside ONE surface — a summary strip
+     * divided by rules, or the stat row inside a report card. The caller then owns the padding. The
+     * same word and the same reason as `DataTable`'s and `FilterBar`'s `embedded`: a card inside a
+     * card is the thing the contract forbids.
+     */
+    embedded?: boolean;
+    /**
      * The period-over-period pill on the head row (DR2b, D-DT6). Absent means no pill at all —
      * not a dash — because a tile whose measure is current state ("Active alerts") has no previous
      * period to compare with, and drawing one there is the category error D-DR12 names. The tone
@@ -141,6 +161,8 @@ const props = withDefaults(
     sparkInline: false,
     subTone: undefined,
     to: undefined,
+    valueTone: undefined,
+    unit: undefined,
   },
 );
 
@@ -182,9 +204,9 @@ const valueClass = computed(() =>
       to ? 'group cursor-pointer' : '',
     ]"
   >
-    <BaseCard
-      :as="isToggle ? 'button' : 'div'"
-      :padding="hero ? 'md' : 'sm'"
+    <component
+      :is="embedded ? (isToggle ? 'button' : 'div') : BaseCard"
+      v-bind="embedded ? {} : { as: isToggle ? 'button' : 'div', padding: hero ? 'md' : 'sm' }"
       :type="isToggle ? 'button' : undefined"
       :aria-pressed="isToggle ? pressed : undefined"
       :class="[
@@ -259,8 +281,8 @@ const valueClass = computed(() =>
             <div class="mt-2 h-3 w-16 animate-pulse rounded-control bg-surface-muted" />
           </template>
           <template v-else>
-            <p :class="[valueClass, muted ? 'text-ink-muted' : 'text-ink']" :title="valueTitle">
-              {{ value }}
+            <p :class="[valueClass, valueTone ?? (muted ? 'text-ink-muted' : 'text-ink')]" :title="valueTitle">
+              {{ value }}<span v-if="unit" class="text-base font-normal text-ink-tertiary"> {{ unit }}</span>
             </p>
             <!-- `#sub` lets a caller compose the line from parts in different tones — a change
                  against last month in red beside a year-to-date figure in grey (D-FRUI3) — where
@@ -277,6 +299,12 @@ const valueClass = computed(() =>
             <div v-if="$slots.delta" class="mt-2">
               <slot name="delta" />
             </div>
+            <!-- Further caption lines that qualify the figure — its coverage, how it was priced — in
+                 the caption's own size and tone, so a tile that needs three lines still reads as the
+                 same component as one that needs one. -->
+            <div v-if="$slots.default" class="mt-0.5 space-y-0.5 text-xs text-ink-tertiary">
+              <slot />
+            </div>
           </template>
             </div>
             <!-- Vertically centred against the value, not the tile: the caption sits below and a
@@ -290,6 +318,6 @@ const valueClass = computed(() =>
       <div v-if="spark && !loading && !inlineSpark" class="mt-3">
         <SparkLine :points="spark" :color="sparkColor ?? 'currentColor'" />
       </div>
-    </BaseCard>
+    </component>
   </component>
 </template>
