@@ -113,6 +113,10 @@ const kinds = computed<FindingKind[]>({
  * routed around. `mine` needs no directory: it is the caller's own id.
  */
 const mine = param("owner", ["me"]);
+const OWNER_OPTIONS = [
+  { value: "", label: "Anyone" },
+  { value: "me", label: "Assigned to me" },
+];
 const assignedTo = computed(() => (mine.value === "me" ? (session.userId ?? null) : null));
 
 /**
@@ -311,6 +315,9 @@ const truckOptions = computed(() =>
       :count="total"
       count-label="problems"
       :active-count="activeFilterCount"
+      :more-count="mine ? 1 : 0"
+      :chips="mine ? [{ key: 'owner', label: 'Owner', value: 'Assigned to me' }] : []"
+      @remove="mine = ''"
       @clear-all="resetFilters"
     >
       <template #filters>
@@ -318,14 +325,11 @@ const truckOptions = computed(() =>
         <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />
         <FilterSelect v-model="kinds" :options="kindOptions" label="Finding" multiple />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Unit" multiple />
-        <FilterSelect
-          v-model="mine"
-          label="Owner"
-          :options="[
-            { value: '', label: 'Anyone' },
-            { value: 'me', label: 'Assigned to me' },
-          ]"
-        />
+      </template>
+      <!-- Owner is the secondary dimension: the contract keeps four controls in the row (§5.5 rule 3),
+           and "assigned to me" is a narrowing a reviewer reaches for after the dates and the kind. -->
+      <template #more>
+        <FilterSelect v-model="mine" label="Owner" :options="OWNER_OPTIONS" block />
       </template>
       <template #actions>
         <MoneyExportActions

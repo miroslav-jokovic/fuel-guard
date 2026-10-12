@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { STATE_NAMES, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelNetwork } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
@@ -95,6 +95,15 @@ const networkOptions = computed<{ value: FuelNetwork; label: string }[]>(() => [
   { value: "out", label: "Out of network" },
   { value: "unknown", label: "Station not identified" },
 ]);
+const networkChips = computed<FilterChip[]>(() =>
+  f.networks.value.length
+    ? [{
+        key: "network",
+        label: "Network",
+        value: f.networks.value.map((n) => networkOptions.value.find((o) => o.value === n)?.label ?? n).join(", "),
+      }]
+    : [],
+);
 const networkModel = computed<string[]>({
   get: () => f.networks.value,
   set: (v) => { f.networks.value = v as FuelNetwork[]; },
@@ -151,6 +160,9 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
       :count="report ? rows.length : null"
       count-label="days"
       :active-count="activeFilterCount"
+      :more-count="f.networks.value.length ? 1 : 0"
+      :chips="networkChips"
+      @remove="f.networks.value = []"
       @clear-all="f.reset()"
     >
       <!-- In #filters: FilterBar has no default slot, and plain children are silently dropped. The two
@@ -160,7 +172,11 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Trucks" multiple />
         <FilterSelect v-model="f.states.value" :options="stateOptions" label="State" multiple />
         <FilterSelect v-model="f.siteIds.value" :options="siteOptions" label="Location" multiple />
-        <FilterSelect v-model="networkModel" :options="networkOptions" label="Network" multiple />
+      </template>
+      <!-- Network is the secondary dimension, in the popover so the row keeps the contract's four
+           controls (§5.5 rule 3): dates and trucks are asked first, where they bought second. -->
+      <template #more>
+        <FilterSelect v-model="networkModel" :options="networkOptions" label="Network" multiple block />
       </template>
       <template #actions>
         <ReportExportButton

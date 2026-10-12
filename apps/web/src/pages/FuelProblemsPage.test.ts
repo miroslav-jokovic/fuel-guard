@@ -591,7 +591,9 @@ describe("Fuel problems", () => {
       w.findAllComponents({ name: "FilterSelect" }).find((s) => s.props("label") === label)!.props("modelValue");
     expect(select("Status")).toEqual(["open", "investigating", "working"]);
     expect(select("Finding")).toEqual([]);
-    expect(select("Owner")).toBe("");
     expect(clearButton(w)).toBeUndefined();
+    // Owner lives in the "Filters" popover, which renders its controls only while open.
+    await w.findAll("button").find((b) => b.text().startsWith("Filters"))!.trigger("click");
+    expect(select("Owner")).toBe("");
   });
 });
