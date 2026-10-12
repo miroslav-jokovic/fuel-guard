@@ -8,17 +8,16 @@ const ORG = "org-1";
 const noVehicles = async () => [];
 const noStats = async () => ({ data: [] });
 
-function run(vehicles: unknown[], assignments: unknown[]) {
+const driver = (id: string, samsaraId: string | null, over: Record<string, unknown> = {}) => ({
+  id, samsara_driver_id: samsaraId, status: "active", archived_at: null, ...over,
+});
+const ROSTER = [driver("d-gromeo", "s-gromeo"), driver("d-bmorgan", "s-bmorgan"), driver("d-elsewhere", "s-elsewhere")];
+
+function run(vehicles: unknown[], assignments: unknown[], drivers: unknown[] = ROSTER) {
   const rec = createSupabaseRecorder({
     tables: {
       vehicles: { data: vehicles },
-      drivers: {
-        data: [
-          { id: "d-gromeo", samsara_driver_id: "s-gromeo" },
-          { id: "d-bmorgan", samsara_driver_id: "s-bmorgan" },
-          { id: "d-elsewhere", samsara_driver_id: "s-elsewhere" },
-        ],
-      },
+      drivers: { data: drivers },
       driver_vehicle_assignments: { data: [] },
     },
   });
@@ -133,14 +132,48 @@ describe("syncVehiclesFromSamsara — driver assignments", () => {
     ]);
   });
 
-  it("ranks only drivers still on the roster — an archived row is never read into a seat", async () => {
+  it("never seats a driver who is terminated, inactive or archived — and seats the active one behind them", async () => {
+    // 2026-10-12: a retire run would have terminated KBOISSEA, the latest driver Samsara had in 647.
     const { rec, done } = run(
-      [truck("807", "sv-807", null)],
+      [truck("647", "sv-647", null)],
+      [
+        { vehicle: { id: "sv-647" }, driver: { id: "s-former" }, startTime: "2026-10-08T20:09:00Z" },
+        { vehicle: { id: "sv-647" }, driver: { id: "s-archived" }, startTime: "2026-10-07T20:09:00Z" },
+        { vehicle: { id: "sv-647" }, driver: { id: "s-gromeo" }, startTime: "2026-09-14T19:47:00Z" },
+      ],
+      [driver("d-former", "s-former", { status: "terminated" }), driver("d-archived", "s-archived", { archived_at: "2026-10-01T00:00:00Z" }), driver("d-gromeo", "s-gromeo")],
+    );
+    await done;
+    expect(driverWrites(rec)).toEqual([{ driver: "d-gromeo", filters: { id: "647", org_id: ORG } }]);
+  });
+
+  it("takes a former driver off a truck they still hold, whoever wrote it — 563, 578, 809 on 2026-10-12", async () => {
+    const { rec, done } = run(
+      [truck("563", "sv-563", "d-mabrown"), truck("809", null, "d-term"), truck("700", "sv-700", "d-leave")],
+      [{ vehicle: { id: "sv-807" }, driver: { id: "s-gromeo" }, startTime: "2026-10-12T12:05:02Z" }],
+      [
+        driver("d-mabrown", "s-mabrown", { status: "inactive", archived_at: "2026-09-14T19:11:20Z" }),
+        driver("d-term", null, { status: "terminated" }),
+        // On leave: still ours, still their truck.
+        driver("d-leave", "s-leave", { status: "on_leave" }),
+        driver("d-gromeo", "s-gromeo"),
+      ],
+    );
+    await done;
+    expect(driverWrites(rec)).toEqual([
+      { driver: null, filters: { id: "563", org_id: ORG, assigned_driver_id: "d-mabrown" } },
+      { driver: null, filters: { id: "809", org_id: ORG, assigned_driver_id: "d-term" } },
+    ]);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("leaves a truck alone when its driver is not in the roster read — unknown is not former", async () => {
+    const { rec, done } = run(
+      [truck("700", "sv-700", "d-unknown")],
       [{ vehicle: { id: "sv-807" }, driver: { id: "s-gromeo" }, startTime: "2026-10-12T12:05:02Z" }],
     );
     await done;
-    const read = rec.forTable("drivers").find((q) => !q.write)!;
-    expect(read.ops).toContainEqual({ method: "is", args: ["archived_at", null] });
+    expect(driverWrites(rec)).toEqual([]);
   });
 
   it("leaves every truck alone when Samsara returns no assignments", async () => {

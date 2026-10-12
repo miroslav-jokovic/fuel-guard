@@ -181,6 +181,15 @@ export const DRIVER_STATUS_LABELS: Record<DriverStatus, string> = {
  */
 export const EMPLOYED_DRIVER_STATUSES = DRIVER_STATUSES.filter((s) => s !== "applicant");
 
+/**
+ * The statuses whose driver may be a truck's driver (`vehicles.assigned_driver_id`). By INCLUSION,
+ * for the reason above, and the same two `complianceOverview` keeps in the §391.51 queue: a driver on
+ * leave still has their truck to come back to. An applicant has never driven for us; an inactive or
+ * terminated driver no longer does. Measured 2026-10-12: trucks 563, 578 and 809 still named a
+ * former driver, and a retire run would have left 583 and 594 the same way.
+ */
+export const DRIVER_STATUSES_THAT_HOLD_A_TRUCK: readonly DriverStatus[] = ["active", "on_leave"];
+
 export const isApplicantStatus = (status: string | null | undefined): boolean =>
   status === "applicant";
 

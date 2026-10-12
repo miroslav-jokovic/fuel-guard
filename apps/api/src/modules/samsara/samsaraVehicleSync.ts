@@ -4,6 +4,7 @@ import {
   parseVehicleStatsOdometer,
   parseVehicleFuelPercents,
   parseDriverCurrentTrucks,
+  planDriverSeats,
   parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
@@ -281,47 +282,36 @@ async function syncDriverAssignments(
         .from("vehicles")
         .select("id, samsara_vehicle_id, assigned_driver_id")
         .eq("org_id", orgId),
+      // Every roster row, not only those with a Samsara id or still employed: the plan must also see
+      // a former driver a truck still names, to take them off it (`planDriverSeats`).
       admin
         .from("drivers")
-        .select("id, samsara_driver_id")
-        .eq("org_id", orgId)
-        .not("samsara_driver_id", "is", null)
-        // An archived row is off the roster (0235) — on 2026-10-12 every inactive, terminated and
-        // applicant row was archived, 16 of 19 inactive ones nameless. Seated, it puts "Unnamed driver"
-        // on a truck the person behind it may never have driven under that row.
-        .is("archived_at", null),
+        .select("id, samsara_driver_id, status, archived_at")
+        .eq("org_id", orgId),
     ]);
-    const vehicles = (vRows ?? []) as Array<{ id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null }>;
-    const vehById = new Map(vehicles.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id as string, r]));
-    const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
-    // One truck per driver, not one driver per truck; only trucks and drivers we carry are ranked, as
-    // the feed carries trailers too. See `driverTrucks.ts` for 506/807, the team on 799, and the tie.
-    const { current, seats } = parseDriverCurrentTrucks(rawAssign, {
-      isTruck: (id) => vehById.has(id),
-      isDriver: (id) => drvById.has(id),
-    });
-    for (const seat of seats) {
-      const veh = vehById.get(seat.vehicleSamsaraId)!;
-      const drvId = drvById.get(seat.driverSamsaraId)!;
-      if (veh.assigned_driver_id === drvId) continue; // already right; a no-op write is still a write
-      await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", veh.id).eq("org_id", orgId);
+    type V = { id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null };
+    type D = { id: string; samsara_driver_id: string | null; status: string | null; archived_at: string | null };
+    // One truck per driver, one driver per truck, former drivers on none — the whole rule, and the
+    // production cases behind it (506/807, the team on 799, the trailer tie, 563), live in
+    // `driverTrucks.ts`. This function only reads and writes.
+    const plan = planDriverSeats(
+      rawAssign,
+      ((vRows ?? []) as V[]).map((v) => ({ id: v.id, samsaraVehicleId: v.samsara_vehicle_id, assignedDriverId: v.assigned_driver_id })),
+      ((dRows ?? []) as D[]).map((d) => ({ id: d.id, samsaraDriverId: d.samsara_driver_id, status: d.status, archived: d.archived_at !== null })),
+    );
+    for (const s of plan.set) {
+      await admin.from("vehicles").update({ assigned_driver_id: s.driverId }).eq("id", s.vehicleId).eq("org_id", orgId);
     }
-    // ...and every driver off every truck but the one they are in now — a teammate who lost the seat
-    // above included. A driver Samsara has in no truck we carry keeps what they have: clearing it
-    // would assert "drives nothing" on evidence that says "drives something we do not carry". The
-    // write repeats the driver it expects, so an office edit made since the read is not undone.
-    const placed = new Map(current.map((c) => [drvById.get(c.driverSamsaraId)!, vehById.get(c.vehicleSamsaraId)!.id]));
-    for (const v of vehicles) {
-      const drvId = v.assigned_driver_id;
-      if (!drvId || !placed.has(drvId) || placed.get(drvId) === v.id) continue;
+    // Each clear repeats the driver it expects, so an office edit made since the read is not undone.
+    for (const c of plan.clear) {
       await admin
         .from("vehicles")
         .update({ assigned_driver_id: null })
-        .eq("id", v.id)
+        .eq("id", c.vehicleId)
         .eq("org_id", orgId)
-        .eq("assigned_driver_id", drvId);
+        .eq("assigned_driver_id", c.driverId);
     }
-    return seats.length;
+    return plan.seated;
   } catch {
     /* assignments are best-effort */
     return 0;

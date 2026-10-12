@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDriverCurrentTrucks } from "./index.js";
+import { parseDriverCurrentTrucks, planDriverSeats } from "./index.js";
 
 /** Every id in these fixtures is a truck and a driver we carry unless a test says otherwise. */
 const all = { isTruck: () => true, isDriver: () => true };
@@ -104,4 +104,36 @@ describe("parseDriverCurrentTrucks (one truck per driver)", () => {
     );
     expect(r.current).toEqual([{ vehicleSamsaraId: "t2", driverSamsaraId: "a" }]);
   });
+});
+
+describe("planDriverSeats (who may hold a truck)", () => {
+  const t = (id: string, sid: string | null, holder: string | null) => ({ id, samsaraVehicleId: sid, assignedDriverId: holder });
+  const d = (id: string, sid: string | null, status = "active", archived = false) => ({ id, samsaraDriverId: sid, status, archived });
+
+  it("seats the latest driver who may hold a truck, skipping a former one who drove it later", () => {
+    const plan = parseRows([row("sv-647", "s-term", "2026-10-08T00:00:00Z"), row("sv-647", "s-a", "2026-09-14T00:00:00Z")],
+      [t("647", "sv-647", null)], [d("term", "s-term", "terminated"), d("a", "s-a")]);
+    expect(plan).toEqual({ set: [{ vehicleId: "647", driverId: "a" }], clear: [], seated: 1 });
+  });
+
+  it("clears a truck a former or archived driver still holds, and keeps one a driver on leave holds", () => {
+    const plan = parseRows([], [t("563", "sv-563", "inact"), t("578", null, "arch"), t("700", "sv-700", "leave")],
+      [d("inact", "s-1", "inactive"), d("arch", null, "active", true), d("leave", "s-3", "on_leave")]);
+    expect(plan.clear).toEqual([{ vehicleId: "563", driverId: "inact" }, { vehicleId: "578", driverId: "arch" }]);
+    expect(plan.set).toEqual([]);
+  });
+
+  it("does not clear a truck whose seat it just gave to someone else", () => {
+    const plan = parseRows([row("sv-1", "s-b", "2026-10-05T00:00:00Z")], [t("1", "sv-1", "former")],
+      [d("former", null, "terminated"), d("b", "s-b")]);
+    expect(plan).toEqual({ set: [{ vehicleId: "1", driverId: "b" }], clear: [], seated: 1 });
+  });
+
+  it("leaves a truck alone whose driver the roster read did not return", () => {
+    expect(parseRows([], [t("1", "sv-1", "ghost")], []).clear).toEqual([]);
+  });
+
+  function parseRows(rows: ReturnType<typeof row>[], trucks: ReturnType<typeof t>[], drivers: ReturnType<typeof d>[]) {
+    return planDriverSeats({ data: rows }, trucks, drivers);
+  }
 });
