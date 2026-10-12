@@ -282,6 +282,21 @@ stops — the same five entries, no new one.
   close. *Recommend (b) while the driver app's duty check-in is unused, and (a) when it ships.* The
   board must not quietly lose an action either way, so cleanup of `GET /api/dispatch/assignments`
   waits on this ruling.
+- **Q-DB11 — Trucks McLeod is winding down (added and RULED 2026-10-12, D-DB11).** The owner saw 506,
+  552 and others on the board as if running. Two causes. (1) A driver stayed on a truck they had left:
+  the Samsara sync only ever set `assigned_driver_id` (23 drivers on two trucks), fixed in
+  `claude/one-driver-one-truck`. (2) The truck itself: all 27 trucks silent for 7+ days are
+  `service_status = 'A'` in McLeod (P4 keeps them, D-FC0) but `tractor_status = 'I'`, fleet '1' and an
+  `outservice_date` set this September/October — sold or being retired, waiting for pickup (Q-FL4).
+  McLeod already says so; nothing carried it. Options: (a) hide them from the board; (b) show them with
+  a badge; (c) ask the carrier to change McLeod. *Recommended (a), keeping them on the Vehicles page,
+  and (c) is wrong — the office has already marked them.* **Owner: "lets proceed and set this
+  properly."** D-DB11: the agent sends `tractor_status = 'I'` as the neutral fact `winding_down` (the
+  letter stops in `roster.mjs`, as `S` → `in_shop` does), the sweep records it on
+  `vehicles.winding_down` (0462) for every placed truck, owned or not (not identity, like the fleet
+  code), and the board leaves out a winding-down truck **unless it is on a load** — a load is work, and
+  hiding work is worse than showing a sold truck. Membership is unchanged: the truck stays `active`
+  until McLeod deactivates it (D-FC0, D-FC9's "never membership" holds).
 
 ## 7. Steps (one PR each unless noted)
 
@@ -543,3 +558,13 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
   parameter both are framed; with `?truck=773` the map opens on Chicago alone with 773's card open and
   its rail row current, and the URL reads `?tab=dispatch` afterwards.
 - **Still owed:** cleanup, which waits on Q-DB10 (End shift; the dead list route is its data); DB7 itself from two weeks after 0453's first row; the fleet code waits on Alex's VM update.
+
+### 2026-10-12 — trucks being wound down leave the board (Q-DB11, D-DB11)
+
+- Merge 1: migration **0462** `vehicles.winding_down`, schema only (`lint:migration-ordering`).
+- Merge 2 (after 0462 is on staging): the agent's `winding_down` fact, the sweep's writer, the board's
+  reader. Production needs the release that carries 0462 first, then the VM's connector update that
+  sends the fact; until the VM sends it every truck is null and the board behaves as before.
+- Measured for the record: 579 and 811 are `service_status = 'I'` in McLeod but still `active` here,
+  because the retire pass is manual-only and last ran 2026-09-14 (`mcleod.roster_reconciled`). 560 is
+  `I` since 2025-09-19 and has no row here at all.
