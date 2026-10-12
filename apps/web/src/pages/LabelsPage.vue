@@ -14,6 +14,7 @@ import { useAssetsQuery } from "@/features/inventory/useAssets";
 import { useStockQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * Printing labels (INVENTORY-PLAN.md I10 PR 2; D-INV25, research §5.15).
@@ -46,7 +47,12 @@ const toast = useToastStore();
 
 type Source = "stock" | "assets";
 const source = ref<Source>("stock");
-const search = ref("");
+// The search is the list's one filter and lives in the URL (D-US2). The source switch and the ticks do
+// not: the ticks cannot (the measurement above), and the switch clears them, so a link that restored
+// the switch would restore it with nothing ticked — a half-state, not the reader's list. Neither is a
+// filter, and the sheet layout beside them (stock, start position, nudge) is a printer setting.
+const qs = useQueryState();
+const search = qs.param("search");
 const selected = ref<Set<string>>(new Set());
 
 const presetId = ref<LabelPresetId>("avery-22805");
@@ -81,11 +87,16 @@ const targets = computed(() =>
   [...selected.value].map(targetOf).filter((t): t is LabelTarget => t !== null),
 );
 
-/** One id may arrive in the URL — a detail page's "print this label". */
+/**
+ * One id may arrive in the URL — a detail page's "print this label".
+ *
+ * Watched as that ONE parameter, not the whole query: the search now writes the query too, and a
+ * watcher on all of it re-ran on every keystroke and threw the reader's ticks back to the one asset.
+ */
 watch(
-  () => route.query,
-  (q) => {
-    const assetId = typeof q.asset === "string" ? q.asset : null;
+  () => route.query.asset,
+  (a) => {
+    const assetId = typeof a === "string" ? a : null;
     if (assetId) {
       source.value = "assets";
       selected.value = new Set([keyOf({ kind: "asset", assetId })]);
@@ -192,7 +203,7 @@ async function print() {
           :count="targets.length"
           count-label="labels"
           :active-count="search.trim() ? 1 : 0"
-          @clear-all="search = ''"
+          @clear-all="qs.set({ search: undefined })"
         >
           <template #filters>
             <AppSegmentedControl

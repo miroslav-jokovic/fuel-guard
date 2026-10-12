@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconRow, type ReconStatus, type ReconSummary } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
@@ -13,6 +13,7 @@ import ExportButton from "@/components/ExportButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * What one invoice check found — the counts, the money and the lines — as the SERVER recorded it.
@@ -103,7 +104,6 @@ function exportRows() {
   );
 }
 
-const statusFilter = ref<ReconStatus | "discrepancies" | "">("discrepancies");
 const statusOptions = [
   { value: "discrepancies", label: "Needs a look" },
   { value: "", label: "All rows" },
@@ -113,9 +113,26 @@ const statusOptions = [
 // "Needs a look" is where a check OPENS, so it is the default rather than a narrowing: counting it
 // would put "Clear filters" on every freshly opened check, and pressing it would widen nothing.
 const DEFAULT_STATUS_FILTER = "discrepancies" as const;
+
+/**
+ * The line filter and the page live in the URL (D-US2), so a check forwarded to accounting as "look at
+ * the amount differences" opens on them, and a reload keeps the page.
+ *
+ * Scoped `lines.` because this view sits INSIDE the check's detail page, whose route is the page's own;
+ * an unscoped `?status=` there would be a word the page never chose. "Needs a look" is the fallback, so
+ * a plain link to a check stays plain and opens where a check opens; "All rows" is written as `any`.
+ * The allowed words are the options' own values, so a hand-edited status the check does not know opens
+ * on "Needs a look" rather than on an empty table.
+ */
+const qs = useQueryState("lines");
+const statusFilter = qs.param(
+  "status",
+  statusOptions.map((o) => o.value).filter(Boolean),
+  DEFAULT_STATUS_FILTER,
+);
 const activeFilterCount = computed(() => (statusFilter.value === DEFAULT_STATUS_FILTER ? 0 : 1));
 function resetFilters() {
-  statusFilter.value = DEFAULT_STATUS_FILTER;
+  qs.set({ status: undefined });
 }
 
 const tableRows = computed(() => {
@@ -143,7 +160,7 @@ const tableRows = computed(() => {
 
 /** Paged, because "All rows" on a monthly export is thousands of rows into the DOM in one pass (X12). */
 const PAGE_SIZE = 50;
-const page = ref(1);
+const page = qs.page();
 // Narrowing while on page nine lands on an empty page that reads as an error rather than a filter.
 watch([statusFilter, () => props.rows], () => { page.value = 1; });
 const pageRows = computed(() => tableRows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));

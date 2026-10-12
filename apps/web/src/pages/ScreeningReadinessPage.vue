@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useQueryState } from "@/composables/useQueryState";
 import { useQueryClient } from "@tanstack/vue-query";
 import { screeningFieldLabel, type ScreeningRow } from "@silvicom/shared";
 import { AppCard as BaseCard, AppButton as BaseButton, AppDateField } from "@silvicom/ui";
@@ -49,10 +50,19 @@ const save = useUpdateDriverProfile();
 // the shipped matrix, which an org's grant or narrowing of the section never reached.
 const canEdit = computed(() => session.can("recruitment"));
 
-const filter = ref("all");
-const search = ref("");
+// The view, search and page live in the URL (D-US2), so a link to "Cannot be screened" is a link to
+// that list, and Back from a driver returns to it. "all" is the fallback — the list's resting value —
+// so a plain link stays plain; `allowed` is read off the options below, never retyped.
+const filterOptions = [
+  { value: "all", label: "Everyone" },
+  { value: "blocked", label: "Cannot be screened" },
+  { value: "ready", label: "Ready to screen" },
+];
+const qs = useQueryState();
+const filter = qs.param("show", filterOptions.map((o) => o.value), "all");
+const search = qs.param("search");
 const PAGE_SIZE = 20;
-const page = ref(1);
+const page = qs.page();
 watch([filter, search], () => (page.value = 1));
 
 // "all" is the list's resting value, so it is not a filter — as is `""`, which FilterSelect's ✕ sets.
@@ -60,8 +70,7 @@ const activeFilterCount = computed(
   () => [search.value.trim(), filter.value !== "all" && filter.value].filter(Boolean).length,
 );
 function clearFilters(): void {
-  search.value = "";
-  filter.value = "all";
+  qs.set({ search: undefined, show: undefined });
 }
 
 const filtered = computed<ScreeningRow[]>(() => {
@@ -166,11 +175,7 @@ const columns: DataTableColumn[] = [
           <FilterSelect
             v-model="filter"
             label="Show"
-            :options="[
-              { value: 'all', label: 'Everyone' },
-              { value: 'blocked', label: 'Cannot be screened' },
-              { value: 'ready', label: 'Ready to screen' },
-            ]"
+            :options="filterOptions"
           />
         </template>
       </FilterBar>

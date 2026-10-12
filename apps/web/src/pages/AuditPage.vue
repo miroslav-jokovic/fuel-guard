@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useQueryState } from "@/composables/useQueryState";
 import { AUDIT_LOG_PAGE_SIZE as PAGE_SIZE } from "@silvicom/shared";
 import { useAuditQuery, type AuditFilters } from "@/features/audit/useAudit";
 import TablePagination from "@/components/TablePagination.vue";
@@ -19,36 +19,56 @@ const TABS: TabItem[] = [
   { value: "activity", label: "Activity" },
   { value: "cards", label: "Card changes" },
 ];
-const route = useRoute();
+const qs = useQueryState();
 
 /**
  * `?tab=cards&cardId=…` is what the card page's "Change history" links to — the per-card question
- * 6.5.5 took off the card page. Read once at mount rather than watched: this is an entry point, not
- * a two-way binding, and re-reading it would fight the operator every time they clicked the tab.
+ * 6.5.5 took off the card page.
+ *
+ * The tab is now a two-way binding over the URL (D-US2). It used to be read once at mount, because a
+ * watch on `route.query` would have fought the operator on every click; through `useQueryState` the
+ * click IS the write, so there is nothing to fight — and Back from a card the Card changes tab linked
+ * to now returns to that tab instead of to Activity. `activity` is the fallback, so a plain link stays
+ * `/audit` and an unknown `?tab=` opens Activity, as it always did.
  */
-const tab = ref<AuditTab>(route.query.tab === "cards" ? "cards" : "activity");
-const cardFilter = computed(() => (typeof route.query.cardId === "string" ? route.query.cardId : undefined));
+const tabParam = qs.param("tab", TABS.map((t) => t.value), "activity");
+const tab = computed<AuditTab>({
+  get: () => (tabParam.value === "cards" ? "cards" : "activity"),
+  set: (v) => (tabParam.value = v),
+});
+const cardFilter = computed(() => qs.one("cardId"));
 
-const filters = ref<AuditFilters>({});
+/**
+ * The action search is in the URL (D-US2) under `?action=`, the same word the API takes — the page owns
+ * the route's unscoped keys; the Card changes tab writes under `cards.`.
+ *
+ * ⚠ The PAGE is deliberately not. This log pages on a keyset cursor (Q-SET5: no count, ~5 M rows), and
+ * page N is only reachable by walking the N − 1 cursors before it, which this page holds in memory. A
+ * `?page=3` read back on a reload would have no cursor to stand on and would show page 1's rows under a
+ * "page 3" label. Putting the cursor itself in the URL would fix reload but not Prev, which needs every
+ * earlier one; that is an API change (a backwards cursor), not a page change, so the walk restarts on
+ * reload, as Assignment history's "Load more" does for the same reason.
+ */
+const action = qs.param("action");
+const filters = computed<AuditFilters>(() => ({ action: action.value.trim() || undefined }));
 const page = ref(1);
 const cursors = ref<(string | null)[]>([null]);
 const cursor = computed(() => cursors.value[page.value - 1] ?? null);
 const { data: auditPage, isLoading, isError, error, isFetching, refetch } = useAuditQuery(filters, cursor);
 
-watch(filters, () => {
+// Watched by VALUE: `filters` reads the URL, so it recomputes on every navigation (a tab click
+// included), and a reset on each of those would throw away the cursor walk for nothing.
+watch(() => filters.value.action, () => {
   page.value = 1;
   cursors.value = [null];
-}, { deep: true });
+});
 watch(() => auditPage.value?.nextCursor, (next) => {
   if (next && cursors.value.length === page.value) cursors.value.push(next);
 });
 const pageRows = computed(() => auditPage.value?.rows ?? []);
 
-/** Two-way proxy for the action search ("" ⇄ undefined). */
-const search = computed({
-  get: () => filters.value.action ?? "",
-  set: (v: string) => (filters.value = { action: v.trim() || undefined }),
-});
+/** The FilterBar's search box, over `?action=`. */
+const search = action;
 
 
 const columns: DataTableColumn[] = [

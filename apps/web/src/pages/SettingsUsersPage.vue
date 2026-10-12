@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { useQueryState } from "@/composables/useQueryState";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -257,7 +258,9 @@ async function sendRole(m: OrgMember, newRole: string) {
 const renaming = ref<OrgMember | null>(null); // 0301 — the drawer owns the save and its step-up
 const resetting = ref<OrgMember | null>(null); // 0363 — the drawer owns the send and its step-up
 // ── search + multi-select (members) ─────────────────────────────────────────
-const search = ref("");
+// In the URL (D-US2), so a reload or Back keeps the member the admin searched for. The page's other
+// list, invitations, has no filter, so the key needs no scope.
+const search = useQueryState().param("search");
 const filteredMembers = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return members.value;

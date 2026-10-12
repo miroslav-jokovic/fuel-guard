@@ -12,6 +12,8 @@ import { BADGE_BASE, toneClass, type BadgeTone } from "@/lib/badges";
 import { useFuelPlanHistory, useDeleteFuelPlan, useDeleteFuelPlans, type PlanHistoryRow } from "./useFuelPlan";
 import { useToastStore } from "@/stores/toast";
 import { formatDateTime as fmtDate } from "@/lib/format";
+import { useQueryState } from "@/composables/useQueryState";
+import { parseYmd } from "@silvicom/shared";
 
 const toast = useToastStore();
 const { data, isLoading, error, isFetching, refetch } = useFuelPlanHistory();
@@ -19,11 +21,29 @@ const rows = computed(() => data.value ?? []);
 const errMsg = computed(() => (error.value ? error.value.message : null));
 
 // ── Search + filters (client-side; the list is one cheap capped select) ──────────────────────────────
-const search = ref("");
-const statusFilter = ref("");
-const truckFilter = ref("");
-const fromDate = ref<string | undefined>(undefined);
-const toDate = ref<string | undefined>(undefined);
+//
+// In the URL (D-US2), scoped `history.` because this is a TAB of Fuel planning and shares its route with
+// the Plan tab. The status is checked against `STATUS` below, the same table that names it; the truck
+// is not checked, because its options are the units present in the loaded history and a pasted link is
+// read before that loads — an unknown unit filters to nothing and the empty state says so. A date that
+// is not a real calendar day reads as no bound.
+//
+// ⚠ The parent page holds WHICH TAB is open in a local ref, so a pasted link carrying `history.*` opens
+// on the Plan tab with the history filters waiting behind it. That half is `FuelPlanningPage`'s, not
+// this list's, and is not routed around here.
+const qs = useQueryState("history");
+const search = qs.param("search");
+const truckFilter = qs.param("truck");
+const fromParam = qs.param("from");
+const toParam = qs.param("to");
+const fromDate = computed<string | undefined>({
+  get: () => parseYmd(fromParam.value) ?? undefined,
+  set: (v) => (fromParam.value = v ?? ""),
+});
+const toDate = computed<string | undefined>({
+  get: () => parseYmd(toParam.value) ?? undefined,
+  set: (v) => (toParam.value = v ?? ""),
+});
 
 const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   ok: { label: "OK", tone: "success" },
@@ -35,6 +55,7 @@ const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   error: { label: "Error", tone: "danger" },
 };
 const statusOf = (s: string) => STATUS[s] ?? { label: s, tone: "neutral" as BadgeTone };
+const statusFilter = qs.param("status", Object.keys(STATUS));
 
 const statusOptions = computed(() => [
   { value: "", label: "All statuses" },
@@ -69,11 +90,7 @@ const activeFilterCount = computed(
     (fromDate.value || toDate.value ? 1 : 0),
 );
 function clearAll() {
-  search.value = "";
-  statusFilter.value = "";
-  truckFilter.value = "";
-  fromDate.value = undefined;
-  toDate.value = undefined;
+  qs.set({ search: undefined, status: undefined, truck: undefined, from: undefined, to: undefined });
 }
 
 // ── Multi-select (DataTable owns the checkboxes) ─────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useQueryState } from "@/composables/useQueryState";
 import { AppButton as BaseButton, AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   ArrowPathIcon,
@@ -18,11 +19,12 @@ import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueli
 import { useToastStore } from "@/stores/toast";
 
 const plan = useFuelPlan();
-const activeTab = ref<"plan" | "history">("plan");
 const tabs: TabItem[] = [
   { value: "plan", label: "Plan" },
   { value: "history", label: "History" },
 ];
+// In the URL beside History's scoped filters (D-US2), so a link to a filtered history opens on it.
+const activeTab = useQueryState().param("tab", tabs.map((t) => t.value), "plan");
 const toast = useToastStore();
 const formRef = ref<InstanceType<typeof FuelPlanForm> | null>(null);
 const result = ref<PlanResult | null>(null);

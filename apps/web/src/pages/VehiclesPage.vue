@@ -4,6 +4,8 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { VEHICLE_STATUSES, isStatusFromTms, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -26,7 +28,7 @@ import VehicleForm from "@/features/roster/VehicleForm.vue";
 import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { formatDate } from "@/lib/format";
 
 const PAGE_SIZE = 20;
@@ -34,8 +36,11 @@ const session = useSessionStore();
 const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
-const search = ref("");
-const statusFilter = ref<string>("active");
+// Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
+// the list. "active" is the fallback, so it stays out of a plain link and "All statuses" writes `any`.
+const qs = useQueryState();
+const search = qs.param("search");
+const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
@@ -43,8 +48,7 @@ const statusOptions = [
 // "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
 const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0));
 function resetFilters() {
-  search.value = "";
-  statusFilter.value = "active";
+  qs.set({ search: undefined, status: undefined });
 }
 
 const filtered = computed(() => {
@@ -58,10 +62,6 @@ const filtered = computed(() => {
   });
 });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
 const getVal = (v: Vehicle, key: string): unknown => {
   const raw = (v as unknown as Record<string, unknown>)[key];
   return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
@@ -82,8 +82,12 @@ const columns: DataTableColumn[] = [
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md" },
   { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 
-const page = ref(1);
+const page = qs.page();
 watch([search, statusFilter], () => (page.value = 1));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();

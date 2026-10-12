@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
+import { parseYmd } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { lastFullMonth } from "@/lib/dateWindow";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -25,16 +27,31 @@ import { useOpens } from "@/composables/useOpens";
  * figure read from the fleet report would fail for the very role the page exists for.
  */
 const defaultWindow = lastFullMonth();
-const from = ref<string>(defaultWindow.from);
-const to = ref<string>(defaultWindow.to);
-const page = ref(1);
+/**
+ * The window and the page live in the URL (D-US2), so a reload, a forwarded month and Back keep the
+ * list. The last full month is each end's FALLBACK — never written — so a plain link, and a bookmark,
+ * keeps opening on whichever month last closed instead of freezing the one it was saved in. A
+ * hand-edited date that is not a real calendar day reads as the default end; clearing the picker keeps
+ * the window it had, as it always did.
+ */
+const qs = useQueryState();
+const fromParam = qs.param("from", undefined, defaultWindow.from);
+const toParam = qs.param("to", undefined, defaultWindow.to);
+const from = computed<string>({
+  get: () => parseYmd(fromParam.value) ?? defaultWindow.from,
+  set: (v) => (fromParam.value = v),
+});
+const to = computed<string>({
+  get: () => parseYmd(toParam.value) ?? defaultWindow.to,
+  set: (v) => (toParam.value = v),
+});
+const page = qs.page();
 watch([from, to], () => (page.value = 1));
 // The window is the page's only filter, and it never empties: the last full month is where it opens,
 // so only a window moved off that counts, and clearing puts it back there.
 const activeFilterCount = computed(() => (from.value !== defaultWindow.from || to.value !== defaultWindow.to ? 1 : 0));
 function resetFilters() {
-  from.value = defaultWindow.from;
-  to.value = defaultWindow.to;
+  qs.set({ from: undefined, to: undefined });
 }
 
 const filter = computed(() => ({ from: from.value, to: to.value, page: page.value }));

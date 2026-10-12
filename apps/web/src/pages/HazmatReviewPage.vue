@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ChevronRightIcon } from "@silvicom/ui/icons";
 import type { HazmatLoadRow } from "@silvicom/shared";
@@ -10,7 +10,8 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useReviewQueueQuery } from "@/features/hazmat/useHazmatReview";
-import { emptyQueueFilter, filterReviewQueue } from "@/features/hazmat/reviewModel";
+import { filterReviewQueue, type QueueFilter } from "@/features/hazmat/reviewModel";
+import { useQueryState } from "@/composables/useQueryState";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { formatDateTime as fmtDate } from "@/lib/format";
@@ -18,12 +19,19 @@ import { formatDateTime as fmtDate } from "@/lib/format";
 const { data: loads, isLoading, isError, error, isFetching, refetch } = useReviewQueueQuery();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
-const filter = ref(emptyQueueFilter());
-const search = computed({ get: () => filter.value.search, set: (value: string) => (filter.value.search = value) });
+// The queue's filters live in the URL (D-US2), so Back from a load's review returns to the same
+// narrowed queue. Truck and driver are ids from live lists, an OPEN vocabulary, so no `allowed` list:
+// a forwarded link naming a truck since retired fails safe — the queue comes back empty and the
+// counted filter says why — rather than being silently widened to every truck.
+const qs = useQueryState();
+const search = qs.param("search");
+const vehicleId = qs.param("truck");
+const driverId = qs.param("driver");
+const filter = computed<QueueFilter>(() => ({ search: search.value, vehicleId: vehicleId.value, driverId: driverId.value }));
 const activeFilterCount = computed(
   () => [filter.value.search.trim(), filter.value.vehicleId, filter.value.driverId].filter(Boolean).length,
 );
-const clearFilters = (): void => void (filter.value = emptyQueueFilter());
+const clearFilters = (): void => qs.set({ search: undefined, truck: undefined, driver: undefined });
 
 const vehicleOptions = computed(() => [
   { value: "", label: "All trucks" },
@@ -80,8 +88,8 @@ const columns: DataTableColumn[] = [
         @clear-all="clearFilters"
       >
         <template #filters>
-          <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />
-          <FilterSelect v-model="filter.driverId" label="Driver" :options="driverOptions" />
+          <FilterSelect v-model="vehicleId" label="Truck" :options="vehicleOptions" />
+          <FilterSelect v-model="driverId" label="Driver" :options="driverOptions" />
         </template>
       </FilterBar>
 

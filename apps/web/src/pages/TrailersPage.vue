@@ -2,6 +2,8 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, isStatusFromTms, type Trailer, type TrailerInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -29,7 +31,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import TrailerForm from "@/features/roster/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -38,9 +40,11 @@ const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
 
 // ── filters ─────────────────────────────────────────────────────────────────────
-const search = ref("");
-const statusFilter = ref("active");
-const reeferFilter = ref(""); // "" | "reefer" | "non"
+// Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back keep the list.
+const qs = useQueryState();
+const search = qs.param("search");
+const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
+const reeferFilter = qs.param("reefer", ["reefer", "non"]);
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
@@ -50,9 +54,7 @@ const activeFilterCount = computed(
   () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (reeferFilter.value ? 1 : 0),
 );
 function resetFilters() {
-  search.value = "";
-  statusFilter.value = "active";
-  reeferFilter.value = "";
+  qs.set({ search: undefined, status: undefined, reefer: undefined });
 }
 const reeferOptions = [
   { value: "", label: "All trailers" },
@@ -73,14 +75,10 @@ const filtered = computed(() => {
   });
 });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
 const getVal = (t: Trailer, key: string): unknown => (t as unknown as Record<string, unknown>)[key];
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
-const page = ref(1);
+const page = qs.page();
 watch([search, statusFilter, reeferFilter], () => (page.value = 1));
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
@@ -104,6 +102,10 @@ const columns: DataTableColumn[] = [
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
   { key: "status", label: "Status", sortable: true },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 
 // ── selection (bulk edit) ─────────────────────────────────────────────────────────
 const selected = ref<Set<string>>(new Set());

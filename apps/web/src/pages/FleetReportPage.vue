@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useQueryState } from "@/composables/useQueryState";
 import { computed, ref, watch } from "vue";
 import { ledgerMonthWhy } from "@silvicom/shared";
 import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
@@ -95,7 +96,10 @@ const TABS: TabItem[] = [
   { value: "contractors", label: "Contractors" },
   { value: "statement", label: "Income statement" },
 ];
-const tab = ref<FleetTab>("overview");
+// The view is in the URL with each tab's own scoped list (D-US2), so a link to "Per truck, sorted by
+// miles" opens on Per truck rather than on Overview with the sort waiting behind it.
+const tabParam = useQueryState().param("tab", TABS.map((t) => t.value), "overview");
+const tab = computed({ get: () => tabParam.value as FleetTab, set: (v: FleetTab) => (tabParam.value = v) });
 
 /**
  * The fleet report (G1/G5) — one call carrying every tab's rows since G7b: the overview, the

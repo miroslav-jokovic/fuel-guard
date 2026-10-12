@@ -12,14 +12,13 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
-import { toggleSort } from "@/lib/sort";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";
 import IdleBurnRatesPanel from "@/features/idle/IdleBurnRatesPanel.vue";
 
 const {
   isLoading, isError, error, isFetching, refetch,
   fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
-  trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
+  trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, onTrkSort, trkPage,
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
@@ -27,8 +26,8 @@ const {
   dateFrom, dateTo, rangeLabel, estimate,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
-  drvSearch, drvFilterCount, clearDrv, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
-  capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+  drvSearch, drvFilterCount, clearDrv, drvSort, onDrvSort, drvPage, drvFiltered, drvPaged, drvColumns,
+  capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   capLoading, capIsError, capError, capFetching, capRefetch,
 } = useIdlingPage();
 </script>
@@ -207,7 +206,7 @@ const {
         :expanded="trkExpanded"
         empty-text="No engine-state data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(t) => (t.confident ? '' : 'opacity-60')"
-        @sort="trkSort = toggleSort(trkSort, $event)"
+        @sort="onTrkSort"
         @retry="trkRefetch"
         @row-click="toggleTrk"
       >
@@ -286,7 +285,7 @@ const {
         :sort="drvSort"
         empty-text="No idle data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(d) => (d.driverId === '__unattributed__' ? 'bg-surface-subtle/60' : '')"
-        @sort="drvSort = toggleSort(drvSort, $event)"
+        @sort="onDrvSort"
         @retry="refetch"
       >
         <template #cell-driverName="{ row }">
@@ -334,7 +333,7 @@ const {
         :sort="capSort"
         empty-text="No trucks match. Recorded equipment is set on the Vehicles page; the long-park columns fill in as trucks park for four hours or more."
         :row-class="(t) => (t.cross_check === 'disagree' ? 'bg-danger-50/40' : '')"
-        @sort="capSort = toggleSort(capSort, $event)"
+        @sort="onCapSort"
         @retry="capRefetch"
       >
         <template #cell-recorded="{ row }">

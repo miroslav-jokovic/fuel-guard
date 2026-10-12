@@ -71,8 +71,9 @@ beforeEach(() => {
   );
 });
 
+let router: ReturnType<typeof createRouter>;
 async function mountPage(path: string) {
-  const router = createRouter({
+  router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: "/ifta", component: { template: "<div/>" }, meta: { title: "IFTA" } },
@@ -229,6 +230,30 @@ describe("IftaJurisdictionPage", () => {
   it("says so when no truck drove there that quarter", async () => {
     trucks.value = iftaJurisdictionTrucks([]);
     expect((await mountPage("/ifta/NV?q=2026-Q3")).text()).toContain("No truck drove or bought fuel in Nevada");
+  });
+
+  // ── D-US2 (2026-10-12): the sort and page join the quarter and filters already in the link ──
+  it("reads a pasted sort and page back into the list", async () => {
+    // Ascending by taxable miles: the no-truck fills (0 miles) first, then 101 (1,000) before 732 (3,000).
+    const w = await mountPage("/ifta/TX?q=2026-Q3&show=all&sort=taxableMiles&dir=asc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "taxableMiles", dir: "asc" });
+    expect(listedUnits(w)[1]).toContain("101");
+
+    trucks.value = iftaJurisdictionTrucks(
+      Array.from({ length: 30 }, (_, i) => raw(String(100 + i), 1_000 + i, 1_000 + i, 3)),
+      Array.from({ length: 30 }, (_, i) => fill(`f${i}`, `v-${100 + i}`, 10, 38, "2026-07-14", "Pilot")),
+    );
+    expect(listedUnits(await mountPage("/ifta/TX?q=2026-Q3&page=2"))).toHaveLength(5);
+  });
+
+  it("writes a sort, and Clear filters keeps the quarter and the sort", async () => {
+    const w = await mountPage("/ifta/TX?q=2026-Q3&show=all&search=7");
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "unit");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3", show: "all", search: "7", sort: "unit", dir: "asc" });
+    w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3", sort: "unit", dir: "asc" });
   });
 
   it("renders the error rather than an empty table", async () => {

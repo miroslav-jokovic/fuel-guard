@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { ref } from "vue";
 import FleetDispatchersTab from "./FleetDispatchersTab.vue";
 import type { MileageCoverageResponse } from "./useMileageCoverage";
@@ -36,8 +37,14 @@ vi.mock("@/composables/useDispatcherEarnings", () => ({
 }));
 
 const coverage: MileageCoverageResponse = { months: [], miles: 1_552_337, trucks: 172, reason: null, billedMiles: 1_326_922, loads: 1_415, billedRevenue: 4_994_450.85 };
-const mountIt = (c: MileageCoverageResponse | null = coverage) =>
-  mount(FleetDispatchersTab, { props: { from: "2026-07-01", to: "2026-07-31", report: null, coverage: c } });
+// A real memory router per mount: search, sort and page live in the URL since D-US2.
+const newRouter = (): Router =>
+  createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div/>" } }] });
+const mountIt = (c: MileageCoverageResponse | null = coverage, router: Router = newRouter()) =>
+  mount(FleetDispatchersTab, {
+    props: { from: "2026-07-01", to: "2026-07-31", report: null, coverage: c },
+    global: { plugins: [router] },
+  });
 
 describe("FleetDispatchersTab", () => {
   it("prints rank, billed miles and rate per mile; a dispatcher without distances reads a dash", () => {
@@ -80,5 +87,44 @@ describe("FleetDispatchersTab", () => {
     } finally {
       state.error = null;
     }
+  });
+});
+
+/**
+ * D-US2 (2026-10-12) — the tab's search, sort and page live in the URL under `dispatchers.`, because
+ * every tab of the fleet report shares one route.
+ */
+describe("FleetDispatchersTab keeps its list in the URL", () => {
+  async function mountAt(url: string) {
+    const router = newRouter();
+    await router.push(url);
+    await router.isReady();
+    const w = mountIt(coverage, router);
+    await flushPromises();
+    return { w, query: () => router.currentRoute.value.query };
+  }
+  const names = (w: ReturnType<typeof mountIt>) => w.findAll("tbody tr").map((r) => r.findAll("td")[1]!.text());
+
+  it("reads the search and the sort back from a pasted link", async () => {
+    const { w } = await mountAt("/accounting/fleet?dispatchers.sort=ratePerMile&dispatchers.dir=asc");
+    expect(names(w)).toEqual(["kane", "pete", "Chris"]);
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "ratePerMile", dir: "asc" });
+
+    const searched = await mountAt("/accounting/fleet?dispatchers.search=chr");
+    expect(names(searched.w)).toEqual(["Chris"]);
+  });
+
+  it("writes the search and a header click under its own scope", async () => {
+    const { w, query } = await mountAt("/accounting/fleet?trucks.search=101");
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "pete");
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "loads");
+    await flushPromises();
+    expect(query()).toEqual({ "trucks.search": "101", "dispatchers.search": "pete", "dispatchers.sort": "loads", "dispatchers.dir": "asc" });
+  });
+
+  it("reads a column it cannot sort as the default rank order", async () => {
+    const { w } = await mountAt("/accounting/fleet?dispatchers.sort=dot");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
+    expect(names(w)).toEqual(["pete", "kane", "Chris"]);
   });
 });

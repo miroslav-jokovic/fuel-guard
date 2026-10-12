@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -12,6 +12,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDate } from "@/lib/format";
+import { useQueryState } from "@/composables/useQueryState";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();
@@ -59,14 +60,17 @@ function tankCapFor(vehicleId: string): number | null {
 }
 
 // ── Search + pairing filter (standard toolbar) ───────────────────────────────
-const search = ref("");
-const pairing = ref(""); // '' (all) | 'paired' | 'unpaired' | 'ambiguous'
+// Both live in the URL (D-US2), so reload, a pasted link and Back from a truck keep the list. The table
+// has no sort and no pages, so there is nothing else of the list's to keep.
+const qs = useQueryState();
+const search = qs.param("search");
 const pairingOptions = [
   { value: "", label: "All pairings" },
   { value: "paired", label: "Paired (1 reefer)" },
   { value: "unpaired", label: "Unpaired" },
   { value: "ambiguous", label: "Ambiguous (2+ reefers)" },
 ];
+const pairing = qs.param("pairing", pairingOptions.map((o) => o.value).filter(Boolean)); // '' = all
 const pairingOf = (vehicleId: string) => {
   const n = (reefersByVehicle.value.get(vehicleId) ?? []).length;
   return n === 0 ? "unpaired" : n === 1 ? "paired" : "ambiguous";
@@ -76,8 +80,7 @@ const pairingOf = (vehicleId: string) => {
 const anyReeferPaired = computed(() => activeAll.value.some((t) => reefersByVehicle.value.has(t.vehicleId)));
 const activeFilterCount = computed(() => (pairing.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
 function resetFilters() {
-  search.value = "";
-  pairing.value = "";
+  qs.set({ search: undefined, pairing: undefined });
 }
 const active = computed(() => {
   const q = search.value.trim().toLowerCase();

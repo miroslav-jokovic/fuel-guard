@@ -488,16 +488,45 @@ New list pages compose toolbar and table as **one surface**:
 
 `DataWorkspace` is one `AppCard padding="none"` with `divide-y divide-edge-subtle`; the `embedded`
 props stop FilterBar and DataTable drawing their own cards. `DriversPage.vue` is the reference.
-The older shape — standalone `FilterBar` card above a standalone `DataTable` card — remains valid
-on existing pages; do not churn them, but do not copy it into new ones either. A lone table with
-no toolbar still uses plain `DataTable` (its own card).
+**Every list with a toolbar uses this shell** (D-US1, `docs/plans/design-system/UI-STANDARDIZATION.md`).
+Until 2026-10-12 this paragraph called the older shape — a standalone `FilterBar` card above a
+standalone `DataTable` card — "valid on existing pages"; by then no list carried it. A lone table
+with no toolbar still uses plain `DataTable` (its own card). A REPORT, where one filter bar governs
+several panels, keeps its `FilterBar` standalone above them, and a report whose only choice is the
+period uses `ReportScopeBar` (D-US1a).
+
+### 5.2c List state lives in the URL (D-US2)
+
+A filtered list keeps its filters, its sort and its page in the URL, so a reload, a link pasted
+into a ticket and Back from a row's detail page all return the same list. `lint:ui-adoption` fails a
+file with `<FilterBar` that holds them anywhere else.
+
+```ts
+const qs = useQueryState();                       // useQueryState("history") when two lists share a route
+const search = qs.param("search");
+const status = qs.param("status", VEHICLE_STATUSES, "active");   // vocabulary, and the value it opens on
+const retired = qs.flag("retired");
+const page = qs.page();
+watch([search, status, retired], () => (page.value = 1));
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+const clearFilters = () => qs.set({ search: undefined, status: undefined, retired: undefined }); // keeps the sort
+```
+
+- The default a list opens on is never written; choosing "All" over a default writes `any`.
+- A value outside the vocabulary reads as the default. Always pass the vocabulary for a closed set,
+  and always for a sort key.
+- A list inside a drawer that should reset on close opts out with the comment
+  `ui-adoption: list-state-local — <why>`. No reason, no exemption.
+
+`pages/TrailersPage.vue` + `pages/trailersListInUrl.test.ts` are the reference conversion.
 
 ### 5.3 Sorting
 
-Client-side (`TrailersPage.vue:63-68`):
+Client-side: the sort comes from `useUrlSort` (§5.2c), then
 ```ts
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) { sort.value = toggleSort(sort.value, key); }
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 ```
 `toggleSort` cycles **none → asc → desc → none**. `sortRows` sorts numbers numerically, strings via `localeCompare(…, {numeric:true})`, **nulls last**. Pass a `get` accessor when a column is derived (`DispatchLoadsPage.vue:162-168`).
@@ -508,7 +537,7 @@ Server-side (`FuelLogPage.vue:39-42`): same `toggleSort`, then push `sortKey`/`s
 
 ```ts
 const PAGE_SIZE = 20;
-const page = ref(1);
+const page = qs.page();   // §5.2c — page 1 is absent from the URL
 watch([search, statusFilter, reeferFilter], () => (page.value = 1));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 ```

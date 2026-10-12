@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
+import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { ref } from "vue";
 import type { LabelFaceDto, LabelTarget } from "@silvicom/shared";
 
@@ -89,8 +90,11 @@ vi.mock("@/features/inventory/useAssets", () => ({
   }),
 }));
 
-const route = { query: {} as Record<string, string> };
-vi.mock("vue-router", () => ({ useRoute: () => route }));
+/**
+ * A real (memory) router: the search lives in the URL (D-US2) and is written with `router.replace`,
+ * which a hand-rolled `useRoute` mock cannot answer. `render` opens the page at `url`.
+ */
+let router: Router;
 
 const toast = { error: vi.fn(), push: vi.fn(), success: vi.fn() };
 vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
@@ -120,17 +124,23 @@ const stubs = {
   LabelStockControls: { name: "LabelStockControls", props: ["presets", "presetId", "startPosition", "nudgeX", "nudgeY"], template: "<div />" },
 };
 
-const render = () => mount(LabelsPage, { global: { stubs } });
+async function render(url = "/labels") {
+  router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/labels", component: { template: "<div/>" } }] });
+  await router.push(url);
+  await router.isReady();
+  const w = mount(LabelsPage, { global: { plugins: [router], stubs } });
+  await flushPromises();
+  return w;
+}
 
 beforeEach(() => {
-  route.query = {};
   facesMutate.mockClear();
   fetchSheet.mockClear();
 });
 
 describe("picking what to label", () => {
-  it("keeps the source control and picker table in one embedded data workspace", () => {
-    const wrapper = render();
+  it("keeps the source control and picker table in one embedded data workspace", async () => {
+    const wrapper = await render();
     const workspace = wrapper.get('[data-testid="data-workspace"]');
 
     expect(workspace.findComponent({ name: "AppSegmentedControl" }).exists()).toBe(true);
@@ -145,7 +155,7 @@ describe("picking what to label", () => {
    * regardless, because every layer below this one is happy with whatever ids it is given.
    */
   it("turns a shelf's row key back into the pair that identifies it", async () => {
-    const wrapper = render();
+    const wrapper = await render();
     const table = wrapper.findComponent({ name: "DataTable" });
     const key = (table.props("rowKey") as (r: Record<string, unknown>) => string)({
       partId: PART,
@@ -164,7 +174,7 @@ describe("picking what to label", () => {
    * what makes that unreachable.
    */
   it("clears the ticks when the source changes", async () => {
-    const wrapper = render();
+    const wrapper = await render();
     const table = wrapper.findComponent({ name: "DataTable" });
     const key = (table.props("rowKey") as (r: Record<string, unknown>) => string)({
       partId: PART,
@@ -181,8 +191,7 @@ describe("picking what to label", () => {
 
   /** The detail page's "print this label" — one id in the URL is not a workaround. */
   it("preselects an asset named in the query", async () => {
-    route.query = { asset: ASSET };
-    const wrapper = render();
+    const wrapper = await render(`/labels?asset=${ASSET}`);
     await wrapper.vm.$nextTick();
 
     expect(facesMutate).toHaveBeenCalledWith([{ kind: "asset", assetId: ASSET }]);
@@ -193,7 +202,7 @@ describe("picking what to label", () => {
    * as a filter and clearing it leaves the switch on Assets.
    */
   it("counts the search as the only filter, and clearing empties it without switching lists", async () => {
-    const wrapper = render();
+    const wrapper = await render();
     wrapper.findComponent({ name: "AppSegmentedControl" }).vm.$emit("update:modelValue", "assets");
     await wrapper.vm.$nextTick();
     const bar = () => wrapper.findComponent({ name: "FilterBar" });
@@ -211,10 +220,42 @@ describe("picking what to label", () => {
   });
 });
 
+// ── D-US2: the list's one filter lives in the URL; the switch, the ticks and the sheet do not ──
+describe("the search in the URL", () => {
+  it("reads a pasted search back into the bar", async () => {
+    const wrapper = await render("/labels?search=filter");
+    expect(wrapper.findComponent({ name: "FilterBar" }).props("search")).toBe("filter");
+    expect(wrapper.findComponent({ name: "FilterBar" }).props("activeCount")).toBe(1);
+  });
+
+  it("writes a typed search, and Clear filters takes it out again", async () => {
+    const wrapper = await render();
+    const bar = () => wrapper.findComponent({ name: "FilterBar" });
+    bar().vm.$emit("update:search", "jack");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "jack" });
+    bar().vm.$emit("clear-all");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("keeps the ticks of a 'print this one' link while the reader searches", async () => {
+    const wrapper = await render(`/labels?asset=${ASSET}`);
+    const table = () => wrapper.findComponent({ name: "DataTable" });
+    const ticked = new Set([`asset:${ASSET}`, "asset:44444444-4444-4444-8444-444444444444"]);
+    table().vm.$emit("update:selected", ticked);
+    await flushPromises();
+    wrapper.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "cab");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ asset: ASSET, search: "cab" });
+    expect(table().props("selected")).toEqual(ticked);
+  });
+});
+
 describe("printing", () => {
   it("sends the ticked run with the chosen stock, and opens the sheet", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    const wrapper = render();
+    const wrapper = await render();
     const table = wrapper.findComponent({ name: "DataTable" });
     const key = (table.props("rowKey") as (r: Record<string, unknown>) => string)({
       partId: PART,
@@ -235,7 +276,7 @@ describe("printing", () => {
   });
 
   it("cannot print an empty run", async () => {
-    const wrapper = render();
+    const wrapper = await render();
     const button = wrapper.findAll("button").find((b) => b.text().startsWith("Print"))!;
     expect(button.attributes("disabled")).toBeDefined();
     expect(fetchSheet).not.toHaveBeenCalled();

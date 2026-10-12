@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@silvicom/shared";
 import ReconResultView from "./ReconResultView.vue";
 import ExportButton from "@/components/ExportButton.vue";
@@ -49,20 +50,31 @@ beforeEach(() => {
   });
 });
 
-const view = (rows = RESULT.rows) =>
-  mount(ReconResultView, { props: { summary: RESULT.summary, rows, exportName: "pilot-test" } });
-const tableText = (w: ReturnType<typeof view>) => w.find("table").text();
+// A real memory router: the line filter and the page are in the URL (D-US2), read through
+// `useQueryState`, which needs a route to read and a `replace` that answers a promise.
+let router: Router;
+const view = async (rows: typeof RESULT.rows | null = RESULT.rows, url = "/fuel-invoices/r1") => {
+  router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/fuel-invoices/:id", component: { template: "<div/>" } }] });
+  await router.push(url);
+  await router.isReady();
+  const w = mount(ReconResultView, { props: { summary: RESULT.summary, rows, exportName: "pilot-test" }, global: { plugins: [router] } });
+  await flushPromises();
+  return w;
+};
+const query = () => router.currentRoute.value.query;
+type Mounted = Awaited<ReturnType<typeof view>>;
+const tableText = (w: Mounted) => w.find("table").text();
 
 describe("ReconResultView", () => {
-  it("keeps the line filter and table in one data workspace", () => {
-    const workspace = view().find("section.divide-y");
+  it("keeps the line filter and table in one data workspace", async () => {
+    const workspace = (await view()).find("section.divide-y");
     expect(workspace.exists()).toBe(true);
     expect(workspace.find("table").exists()).toBe(true);
     expect(workspace.text()).toContain("Needs a look");
   });
 
   it("uses the shared export action for every saved reconciliation line", async () => {
-    const w = view();
+    const w = await view();
     const exportAction = w.getComponent(ExportButton);
     expect(exportAction.props("scope")).toBe(`${RESULT.rows.length} lines`);
     await exportAction.get("button").trigger("click");
@@ -73,8 +85,8 @@ describe("ReconResultView", () => {
     );
   });
 
-  it("names each kind of line in the plan's words, never as a token", () => {
-    const t = view().text();
+  it("names each kind of line in the plan's words, never as a token", async () => {
+    const t = (await view()).text();
     expect(t).toContain("On Pilot's bill, not in our records");
     expect(t).toContain("In our records, not on Pilot's bill");
     expect(t).toContain("Amount differs");
@@ -83,15 +95,15 @@ describe("ReconResultView", () => {
     }
   });
 
-  it("opens on what needs a look, not on the clean majority", () => {
-    const t = tableText(view());
+  it("opens on what needs a look, not on the clean majority", async () => {
+    const t = tableText(await view());
     expect(t).toContain("999"); // on the bill, not ours
     expect(t).toContain("812"); // ours, not billed
     expect(t).not.toContain("701"); // the clean match
   });
 
   it("shows the clean rows once the reader asks for them", async () => {
-    const w = view();
+    const w = await view();
     const clean = w.findAll("button").find((b) => b.text().includes("reconciled"));
     expect(clean, "no tile for clean rows").toBeTruthy();
     await clean!.trigger("click");
@@ -100,10 +112,10 @@ describe("ReconResultView", () => {
     expect(tableText(w)).not.toContain("999");
   });
 
-  it("reports the money apart and never adds it up", () => {
+  it("reports the money apart and never adds it up", async () => {
     // Read from the money card alone: the tiles above repeat two of these figures as hints, so a page
     // that lost the card would still "contain" them.
-    const card = view().findAll("dl").find((d) => d.text().includes("Billed above what we recorded"));
+    const card = (await view()).findAll("dl").find((d) => d.text().includes("Billed above what we recorded"));
     expect(card, "no money card").toBeTruthy();
     const t = card!.text();
     expect(t).toContain("$300"); // on the bill, not ours
@@ -113,21 +125,21 @@ describe("ReconResultView", () => {
     expect(t).not.toContain("$690");
   });
 
-  it("is a toggle group with one pressed member, not a description list holding buttons", () => {
-    const w = view();
+  it("is a toggle group with one pressed member, not a description list holding buttons", async () => {
+    const w = await view();
     for (const dl of w.findAll("dl")) expect(dl.findAll("button")).toHaveLength(0);
     const pressed = w.findAll('[aria-pressed="true"]');
     expect(pressed).toHaveLength(1);
     expect(pressed[0]!.text()).toContain("Needs a look");
   });
 
-  it("dates every line MM/DD/YYYY", () => {
-    expect(tableText(view())).toContain("08/17/2026");
-    expect(tableText(view())).not.toContain("2026-08-17");
+  it("dates every line MM/DD/YYYY", async () => {
+    expect(tableText(await view())).toContain("08/17/2026");
+    expect(tableText(await view())).not.toContain("2026-08-17");
   });
 
-  it("says a check's lines were not kept, instead of an empty table under a non-zero count", () => {
-    const w = view(null as never);
+  it("says a check's lines were not kept, instead of an empty table under a non-zero count", async () => {
+    const w = await view(null);
     expect(w.text()).toContain("lines weren't kept");
     expect(w.find("table").exists()).toBe(false);
     // The totals still show: they were recorded.
@@ -136,7 +148,7 @@ describe("ReconResultView", () => {
   });
 
   it("offers Clear filters once the reader leaves the default view, and clearing returns to it", async () => {
-    const w = view();
+    const w = await view();
     const clearButton = () => w.findAll("button").find((b) => b.text() === "Clear filters");
     // "Needs a look" is where a check opens — the default, so nothing to clear.
     expect(clearButton()).toBeUndefined();
@@ -152,5 +164,39 @@ describe("ReconResultView", () => {
     expect(tableText(w)).toContain("999");
     expect(w.find('[aria-pressed="true"]').text()).toContain("Needs a look");
     expect(clearButton()).toBeUndefined();
+  });
+
+  /**
+   * D-US2 (UI-STANDARDIZATION, 2026-10-12): the line filter and the page are in the URL, scoped `lines.`
+   * because the view sits inside the check's own page. "Needs a look" is the default and stays out of it.
+   */
+  it("opens on what needs a look with nothing in the URL, and a tile writes its group", async () => {
+    const w = await view();
+    expect(query()).toEqual({});
+    await w.findAll("button").find((b) => b.text().includes("reconciled"))!.trigger("click");
+    await flushPromises();
+    expect(query()).toEqual({ "lines.status": "clean" });
+  });
+
+  it("reads a pasted link's group back into the table, and All rows as its own word", async () => {
+    const w = await view(RESULT.rows, "/fuel-invoices/r1?lines.status=clean");
+    expect(tableText(w)).toContain("701");
+    expect(tableText(w)).not.toContain("999");
+
+    const all = await view(RESULT.rows, "/fuel-invoices/r1?lines.status=any");
+    expect(tableText(all)).toContain("701");
+    expect(tableText(all)).toContain("999");
+  });
+
+  it("reads a group the check does not know as where a check opens", async () => {
+    const w = await view(RESULT.rows, "/fuel-invoices/r1?lines.status=sold");
+    expect(w.find('[aria-pressed="true"]').text()).toContain("Needs a look");
+  });
+
+  it("Clear filters takes the group out of the URL", async () => {
+    const w = await view(RESULT.rows, "/fuel-invoices/r1?lines.status=clean");
+    await w.findAll("button").find((b) => b.text() === "Clear filters")!.trigger("click");
+    await flushPromises();
+    expect(query()).toEqual({});
   });
 });

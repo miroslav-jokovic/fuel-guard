@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import type { DqAttentionItem, DriverOverviewRow } from "@silvicom/shared";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -75,17 +76,33 @@ const DRIVERS: DriverOverviewRow[] = [
   row({ driver_id: "done", driver_name: "Cora Complete", state: "complete" }),
 ];
 
-const mountTable = () => {
+// A real memory router per mount: the table keeps its filters in the URL since D-US2, and
+// `useQueryState` holds one write buffer per router, so a shared router would leak one test's
+// filters into the next.
+const newRouter = (): Router =>
+  createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div/>" } }] });
+
+const mountTable = (router: Router = newRouter()) => {
   overview.value = { drivers: DRIVERS, includesHazmat: true, truncated: false };
   return mount(QualificationFleetTable, {
-    props: { stateFilter: "", dueFilter: "" },
-    global: { stubs: { RouterLink: { props: ["to"], template: "<a><slot /></a>" } } },
+    global: { plugins: [router], stubs: { RouterLink: { props: ["to"], template: "<a><slot /></a>" } } },
   });
 };
 
+// The filter is the URL's `state` and `due` (D-US2) — the one model the page's tiles also write.
+async function mountAt(url: string) {
+  const router = newRouter();
+  await router.push(url);
+  await router.isReady();
+  const w = mountTable(router);
+  await flushPromises();
+  return { w, router, query: () => router.currentRoute.value.query };
+}
+const at = (state: string, due: string) =>
+  `/compliance?${new URLSearchParams(Object.entries({ state, due }).filter(([, v]) => v)).toString()}`;
+
 const namesFor = async (stateFilter: string, dueFilter: string): Promise<string[]> => {
-  const w = mountTable();
-  await w.setProps({ stateFilter, dueFilter });
+  const { w } = await mountAt(at(stateFilter, dueFilter));
   // The name is the row's link, not a fixed column index: this table carries a selection checkbox
   // and an expand toggle ahead of it, and counting columns made every assertion here fail at once.
   return w.findAll("tbody tr").map((r) => r.findAll("a")[0]?.text().trim() ?? "").filter(Boolean);
@@ -100,15 +117,17 @@ describe("QualificationFleetTable — the filter vocabulary R4b promotes", () =>
   });
 
   it("offers Clear filters on a narrowed table, and clearing shows every driver again", async () => {
-    const w = mountTable();
+    const { w, router, query } = await mountAt("/compliance");
     const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
     expect(clear()).toBeUndefined();
-    await w.setProps({ stateFilter: "expired" });
+    await router.replace("/compliance?state=expired");
+    await flushPromises();
     expect(w.findAll("tbody tr")).toHaveLength(1);
 
     await clear()!.trigger("click");
+    await flushPromises();
 
-    expect(w.emitted("update:stateFilter")!.at(-1)).toEqual([""]);
+    expect(query().state).toBeUndefined();
     expect(w.findAll("tbody tr")).toHaveLength(DRIVERS.length);
     expect(clear()).toBeUndefined();
   });
@@ -175,5 +194,42 @@ describe("QualificationFleetTable — the filter vocabulary R4b promotes", () =>
     // Expired items AND due within 30: Ellen qualifies on both (soonest -5 is inside 30).
     expect(await namesFor("expired", "30")).toEqual(["Ellen Expired"]);
     expect(await namesFor("complete", "30")).toEqual([]);
+  });
+});
+
+/**
+ * D-US2 (2026-10-12) — the table's filters, sort and page live in the URL, so Back from a driver's
+ * file returns to the same narrowed list. The page's attention tiles write the same two parameters
+ * (CompliancePage.test.ts pins that side), so there is one filter model and nothing to mirror.
+ */
+describe("QualificationFleetTable keeps its list in the URL", () => {
+  const names = (w: ReturnType<typeof mountTable>) =>
+    w.findAll("tbody tr").map((r) => r.findAll("a")[0]?.text().trim() ?? "").filter(Boolean);
+
+  it("reads the filter and the sort back from a pasted link", async () => {
+    const { w } = await mountAt("/compliance?state=expiring&sort=driver_name&dir=desc");
+    expect(names(w)).toEqual(["Sam Soon", "Lena Later"]);
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "driver_name", dir: "desc" });
+  });
+
+  it("writes a control's filter to the URL beside one already there", async () => {
+    const { w, query } = await mountAt("/compliance?state=expired");
+
+    w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === "Due")!.vm.$emit("update:modelValue", "30");
+    await flushPromises();
+    expect(query()).toMatchObject({ state: "expired", due: "30" });
+  });
+
+  it("Clear filters keeps the sort", async () => {
+    const { w, query } = await mountAt("/compliance?state=expired&due=30&search=el&sort=driver_name&dir=asc&page=2");
+    w.findComponent(FilterBar).vm.$emit("clear-all");
+    await flushPromises();
+    expect(query()).toEqual({ sort: "driver_name", dir: "asc" });
+  });
+
+  it("reads a filter outside the shared vocabulary as no filter", async () => {
+    const { w } = await mountAt("/compliance?state=bogus&sort=declined_at");
+    expect(names(w)).toHaveLength(DRIVERS.length);
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
   });
 });

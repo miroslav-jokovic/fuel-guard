@@ -21,11 +21,13 @@ const truck = (o: Partial<TruckIdleVerdict>): TruckIdleVerdict => ({
 });
 
 const rows = vi.hoisted(() => ({ trucks: [] as unknown[] }));
+/** The date window the breakdown was asked for — what the summary tiles read too. */
+const seen = vi.hoisted(() => ({ filter: null as null | { value: unknown } }));
 const query = (data: unknown) => ({
   data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn(),
 });
 vi.mock("@/composables/useIdleBreakdown", () => ({
-  useIdleBreakdown: () => query({
+  useIdleBreakdown: (filter: { value: unknown }) => (seen.filter = filter, query({
     trucks: rows.trucks,
     fleet: {
       engineOnH: 1000, driveH: 700, idleH: 300, offH: 0, drivePct: 70, idlePct: 30, avoidableH: 20, avoidableUsd: 80,
@@ -34,7 +36,7 @@ vi.mock("@/composables/useIdleBreakdown", () => ({
       avoidablePricing: { blendedPricePerGal: 5.912, pricedDays: 27, unpricedDays: 3 },
       reduciblePricing: { blendedPricePerGal: 5.9, pricedDays: 30, unpricedDays: 0 },
     },
-  }),
+  })),
 }));
 vi.mock("@/features/idle/useIdleDrivers", () => ({ useIdleDrivers: () => query([]) }));
 vi.mock("@/composables/useIdleCostBasis", () => ({
@@ -76,10 +78,11 @@ beforeEach(() => {
   });
 });
 
-async function mountPage() {
+let router: ReturnType<typeof createRouter>;
+async function mountPage(url = "/idling") {
   // PageHeader reads the route's meta for its title.
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/idling", component: { template: "<div/>" }, meta: { title: "Idling" } }] });
-  await router.push("/idling");
+  router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/idling", component: { template: "<div/>" }, meta: { title: "Idling" } }] });
+  await router.push(url);
   await router.isReady();
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -280,5 +283,43 @@ describe("IdlingPage — Clear filters on the Drivers tab", () => {
     await flushPromises();
     expect(panel().get<HTMLInputElement>('input[placeholder="Search driver…"]').element.value).toBe("");
     expect(clear()).toHaveLength(0);
+  });
+});
+
+// ── D-US2 (2026-10-12): the date window, the tab, and each tab's filters, sort and page live in the URL ──
+describe("IdlingPage keeps what the reader was looking at in the URL", () => {
+  const query = () => router.currentRoute.value.query;
+  const units = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((r) => r.find("td").text());
+
+  it("asks for the pasted date window — which the tiles above the tabs read too — and ignores one that is not a day", async () => {
+    await mountPage("/idling?from=2026-09-01&to=2026-09-30");
+    expect(seen.filter!.value).toEqual({ from: "2026-09-01T00:00:00", to: "2026-09-30T23:59:59" });
+    await mountPage("/idling?from=yesterday");
+    expect(seen.filter!.value).toEqual({ from: undefined, to: undefined });
+  });
+
+  it("opens the tab the link names, and each tab's list reads its own scoped keys", async () => {
+    const w = await mountPage("/idling?tab=drivers&trucks.search=701");
+    expect(w.findAll('[role="tab"]').map((t) => t.attributes("aria-selected"))).toEqual(["false", "true", "false"]);
+    // The Trucks search is not the Drivers search.
+    expect(w.get('input[placeholder="Search driver…"]').element).toHaveProperty("value", "");
+  });
+
+  it("reads the Trucks tab's filter and sort back from a pasted link", async () => {
+    const w = await mountPage("/idling?trucks.sort=unit&trucks.dir=desc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "unit", dir: "desc" });
+    expect(units(w)).toEqual(["754", "701"]);
+    const narrowed = await mountPage("/idling?trucks.capability=continuous_only");
+    expect(units(narrowed)).toEqual(["754"]);
+  });
+
+  it("writes a chosen capability under the tab's scope; Clear filters keeps the window and the sort", async () => {
+    const w = await mountPage("/idling?from=2026-09-01&trucks.sort=unit&trucks.dir=desc");
+    w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === "Capability")!.vm.$emit("update:modelValue", "apu");
+    await flushPromises();
+    expect(query()).toEqual({ from: "2026-09-01", "trucks.sort": "unit", "trucks.dir": "desc", "trucks.capability": "apu" });
+    w.findComponent(FilterBar).vm.$emit("clear-all");
+    await flushPromises();
+    expect(query()).toEqual({ from: "2026-09-01", "trucks.sort": "unit", "trucks.dir": "desc" });
   });
 });

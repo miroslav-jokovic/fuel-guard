@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { shiftDuration, type AssignmentHistoryRow } from "@silvicom/shared";
+import { parseYmd, shiftDuration, type AssignmentHistoryRow } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
@@ -16,6 +16,7 @@ import {
   type AssignmentHistoryFilters,
 } from "@/features/dispatch/useAssignments";
 import { formatDateTime } from "@/lib/format";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * The attribution trail (loads plan L5 / D-L6).
@@ -38,11 +39,37 @@ const daysAgo = (n: number): string => iso(new Date(Date.now() - n * 86_400_000)
 // a dispatcher usually has. Widening it is one click; a silent unbounded default is a table scan.
 const DEFAULT_FROM = daysAgo(7);
 const DEFAULT_TO = iso(new Date());
-const from = ref<string | undefined>(DEFAULT_FROM);
-const to = ref<string | undefined>(DEFAULT_TO);
-const driverId = ref("");
-const vehicleId = ref("");
-const trailerId = ref("");
+/**
+ * The filters live in the URL (D-US2), so reload, a pasted link and Back from a driver's or a truck's
+ * page all reopen the same trail.
+ *
+ * Scoped `history.` because this list SHARES ITS ROUTE with the dispatch board: `/assignments` already
+ * owns `?search=`, `?fleet=`, `?dispatcher=`, `?queue=`, `?sort=`, `?dir=` and `?truck=`, and this tab
+ * is reached as `?queue=history` on that same route. It is a tab, not a drawer, so its state is worth
+ * keeping — "who held 773 last Tuesday" is exactly the question a dispatcher forwards as a link.
+ *
+ * The week is the FALLBACK, so a plain link opens on it and the default is never written. A hand-edited
+ * date that is not a real calendar day reads as the default rather than reaching the endpoint, whose
+ * contract only says `min(1)`. Clearing the picker puts the week back: the query cannot run without a
+ * range, and an emptied picker over a table still answering for last week told the reader nothing.
+ * The driver, truck and trailer ids are not checked against a list — the lists are loaded after the
+ * page opens, and an id nobody matches is a filter that matches nothing, which the endpoint rejects as
+ * a non-uuid rather than widening.
+ */
+const qs = useQueryState("history");
+const fromParam = qs.param("from", undefined, DEFAULT_FROM);
+const toParam = qs.param("to", undefined, DEFAULT_TO);
+const from = computed<string | undefined>({
+  get: () => parseYmd(fromParam.value) ?? DEFAULT_FROM,
+  set: (v) => (fromParam.value = v ?? DEFAULT_FROM),
+});
+const to = computed<string | undefined>({
+  get: () => parseYmd(toParam.value) ?? DEFAULT_TO,
+  set: (v) => (toParam.value = v ?? DEFAULT_TO),
+});
+const driverId = qs.param("driver");
+const vehicleId = qs.param("vehicle");
+const trailerId = qs.param("trailer");
 
 const drivers = useDriversQuery();
 const vehicles = useVehiclesQuery();
@@ -111,16 +138,15 @@ const activeCount = computed(
     [driverId.value, vehicleId.value, trailerId.value].filter(Boolean).length,
 );
 function clearAll(): void {
-  from.value = DEFAULT_FROM;
-  to.value = DEFAULT_TO;
-  driverId.value = "";
-  vehicleId.value = "";
-  trailerId.value = "";
+  // One patch, not five: the buffer would coalesce them anyway, but one write says what this is.
+  qs.set({ from: undefined, to: undefined, driver: undefined, vehicle: undefined, trailer: undefined });
 }
 
 // Changing a filter starts a new keyset walk; without this the accumulated pages would be a mix of
-// two different questions.
-watch(filters, () => void query.refetch());
+// two different questions. Watched by VALUE: `filters` now reads the URL (D-US2), so it recomputes on
+// every navigation — once when a write lands in `useQueryState`'s buffer and again when the router
+// settles on the same values — and a watch on the object would restart the walk twice per change.
+watch(() => JSON.stringify(filters.value), () => void query.refetch());
 
 const nowMs = ref(Date.now());
 const held = (row: AssignmentHistoryRow): string =>

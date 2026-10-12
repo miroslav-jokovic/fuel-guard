@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { useQueryState, oneParam, type QueryState } from "./useQueryState";
+import { useQueryState, oneParam, ANY_PARAM, type QueryState } from "./useQueryState";
 
 /**
  * The buffer promoted out of `features/reconcile/useSpendFilters.ts` at R3a (D-ROS14).
@@ -13,6 +13,24 @@ import { useQueryState, oneParam, type QueryState } from "./useQueryState";
  * writes columns through the same buffer, it is pinned here in the general form — any two parameters,
  * any two writers, one tick.
  */
+async function mountStates(initial: string, scopes: (string | undefined)[]): Promise<{ states: QueryState[]; router: Router }> {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/t", component: { template: "<div/>" } }],
+  });
+  const states: QueryState[] = [];
+  const C = defineComponent({
+    setup() {
+      for (const scope of scopes) states.push(useQueryState(scope));
+      return () => h("div");
+    },
+  });
+  await router.push(initial);
+  await router.isReady();
+  mount(C, { global: { plugins: [router] } });
+  return { states, router };
+}
+
 async function mountState(initial = "/t"): Promise<{ s: QueryState; router: Router }> {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -128,6 +146,87 @@ describe("useQueryState().param", () => {
     b.value = "P1";
     await settle();
     expect(router.currentRoute.value.query).toMatchObject({ state: "TX", policy: "P1" });
+  });
+});
+
+/**
+ * 2026-10-12, when every filtered list moved its state into the URL: a list that opens narrowed keeps
+ * that default out of the URL, and its "All" needs a spelling of its own.
+ */
+describe("useQueryState().param with the value the list opens on", () => {
+  it("reads the default while absent and never writes it", async () => {
+    const { s, router } = await mountState();
+    const status = s.param("status", ["active", "retired"], "active");
+    expect(status.value).toBe("active");
+    status.value = "retired";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBe("retired");
+    status.value = "active";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBeUndefined();
+  });
+
+  it("writes the reader's 'All' as its own word, so it does not snap back to the default", async () => {
+    const { s, router } = await mountState();
+    const status = s.param("status", ["active", "retired"], "active");
+    status.value = "";
+    await settle();
+    expect(router.currentRoute.value.query.status).toBe(ANY_PARAM);
+    expect(status.value).toBe("");
+  });
+
+  it("reads a stale value as the default a plain link opens on, not as 'All'", async () => {
+    const { s } = await mountState("/t?status=scrapped");
+    expect(s.param("status", ["active", "retired"], "active").value).toBe("active");
+  });
+});
+
+describe("useQueryState().flag and .page", () => {
+  it("holds an on/off filter as 1 or nothing", async () => {
+    const { s, router } = await mountState("/t?retired=yes");
+    const retired = s.flag("retired");
+    expect(retired.value).toBe(false);
+    retired.value = true;
+    await settle();
+    expect(router.currentRoute.value.query.retired).toBe("1");
+    retired.value = false;
+    await settle();
+    expect(router.currentRoute.value.query.retired).toBeUndefined();
+  });
+
+  it("keeps page 1 out of the URL and reads nonsense as page 1", async () => {
+    const { s, router } = await mountState("/t?page=-4");
+    const page = s.page();
+    expect(page.value).toBe(1);
+    page.value = 3;
+    await settle();
+    expect(router.currentRoute.value.query.page).toBe("3");
+    page.value = 1;
+    await settle();
+    expect(router.currentRoute.value.query.page).toBeUndefined();
+  });
+});
+
+/**
+ * A page and the tab inside it both call `useQueryState`. Until 2026-10-12 each call had its own
+ * buffer, so their writes in one tick raced exactly as the header describes for one caller.
+ */
+describe("useQueryState across callers on one route", () => {
+  it("keeps both writes when two callers write in the same tick", async () => {
+    const { states: [page, tab], router } = await mountStates("/t", [undefined, undefined]);
+    page!.set({ queue: "late" });
+    tab!.set({ search: "506" });
+    await settle();
+    expect(router.currentRoute.value.query).toMatchObject({ queue: "late", search: "506" });
+  });
+
+  it("gives a scoped list its own keys, so two lists on one page do not share ?search=", async () => {
+    const { states: [board, history], router } = await mountStates("/t?search=506", [undefined, "history"]);
+    expect(history!.param("search").value).toBe("");
+    history!.param("search").value = "Smith";
+    await settle();
+    expect(router.currentRoute.value.query).toMatchObject({ search: "506", "history.search": "Smith" });
+    expect(board!.param("search").value).toBe("506");
   });
 });
 

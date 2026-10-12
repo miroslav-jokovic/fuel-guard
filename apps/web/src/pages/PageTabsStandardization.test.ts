@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { enableAutoUnmount, mount } from "@vue/test-utils";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter } from "vue-router";
 
 // Imported child components declare API-backed composables even though this suite stubs their
 // rendered surfaces. Keep module evaluation local so tab behavior never requires Supabase config.
@@ -115,8 +116,13 @@ const selectedTab = (wrapper: ReturnType<typeof mount>) =>
 
 describe("standard page tabs", () => {
   it("switches the fuel-planning model and labelled panels", async () => {
+    // The tab is in the URL (D-US2), so the page needs a router of its own.
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div/>" } }] });
+    await router.push("/fuel-planning");
+    await router.isReady();
     const wrapper = mount(FuelPlanningPage, {
       global: {
+        plugins: [router],
         stubs: {
           PageHeader: { template: "<header><slot name='actions' /></header>" },
           FuelPlanForm: { template: "<div>Plan form</div>", methods: { reset: vi.fn() } },
@@ -136,8 +142,10 @@ describe("standard page tabs", () => {
     expect(wrapper.get("#fuel-planning-panel-history").isVisible()).toBe(false);
 
     await tabs(wrapper).find((tab) => tab.text() === "History")!.trigger("click");
+    await flushPromises();
 
     expect(selectedTab(wrapper).text()).toBe("History");
+    expect(router.currentRoute.value.query.tab).toBe("history");
     expect(wrapper.get("#fuel-planning-panel-plan").attributes("style")).toContain("display: none");
     expect(wrapper.get("#fuel-planning-panel-history").attributes("style")).not.toContain("display: none");
     expect(wrapper.get("#fuel-planning-panel-history").attributes("aria-labelledby"))
