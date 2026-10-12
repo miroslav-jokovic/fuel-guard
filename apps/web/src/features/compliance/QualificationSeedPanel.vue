@@ -7,8 +7,9 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppDateField } from "@silvicom/ui";
 import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppTable } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 
@@ -42,6 +43,14 @@ const rows = reactive<SeedRow[]>(
     .filter((d) => d.state !== "qualified")
     .map((d) => ({ driverId: d.id, name: d.full_name, state: d.state, cdl: "", medical: "", h: false, n: false, x: false, trainingDate: "" })),
 );
+// D-US4: the entry grid is a DataTable whose cells hold the inputs; each slot's row is the reactive row.
+const seedColumns: DataTableColumn[] = [
+  { key: "name", label: "Driver", cellClass: "font-medium text-ink" },
+  { key: "cdl", label: "CDL expires" },
+  { key: "medical", label: "Medical expires" },
+  { key: "endorsements", label: "Endorsements" },
+  { key: "trainingDate", label: "Hazmat training completed" },
+];
 const trainingProvider = ref("");
 const orgPhmsa = ref("");
 const orgFinancial = ref("");
@@ -147,37 +156,28 @@ async function save() {
         <BaseInput :id="id" v-model="trainingProvider" placeholder="e.g. J. J. Keller & Associates" />
       </FormField>
 
-      <div class="mt-4 overflow-x-auto">
-        <AppTable class="w-full min-w-[52rem] text-sm">
-          <thead>
-            <tr class="border-b border-edge text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
-              <th class="py-2 pr-3">Driver</th>
-              <th class="py-2 pr-3">CDL expires</th>
-              <th class="py-2 pr-3">Medical expires</th>
-              <th class="py-2 pr-3">Endorsements</th>
-              <th class="py-2">Hazmat training completed</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in rows" :key="r.driverId" class="border-b border-edge-subtle align-middle">
-              <td class="py-2 pr-3 font-medium text-ink">{{ r.name }}</td>
-              <td class="py-2 pr-3"><AppDateField v-model="r.cdl" :aria-label="`CDL expiry for ${r.name}`" /></td>
-              <td class="py-2 pr-3"><AppDateField v-model="r.medical" :aria-label="`Medical expiry for ${r.name}`" /></td>
-              <td class="py-2 pr-3">
-                <div class="flex items-center gap-3 whitespace-nowrap">
-                  <BaseCheckbox v-model="r.h">H</BaseCheckbox>
-                  <BaseCheckbox v-model="r.n">N</BaseCheckbox>
-                  <BaseCheckbox v-model="r.x">X</BaseCheckbox>
-                </div>
-              </td>
-              <td class="py-2"><AppDateField v-model="r.trainingDate" :aria-label="`Training completion for ${r.name}`" /></td>
-            </tr>
-            <tr v-if="rows.length === 0">
-              <td colspan="5" class="py-6 text-center text-ink-muted">Every driver already has a qualification file under way. 🎉</td>
-            </tr>
-          </tbody>
-        </AppTable>
-      </div>
+      <DataTable
+        class="mt-4"
+        embedded
+        :sticky-header="false"
+        :columns="seedColumns"
+        :rows="rows"
+        row-key="driverId"
+        empty-text="Every driver already has a qualification file under way. 🎉"
+      >
+        <template #cell-cdl="{ row }"><AppDateField v-model="row.cdl" :aria-label="`CDL expiry for ${row.name}`" /></template>
+        <template #cell-medical="{ row }"><AppDateField v-model="row.medical" :aria-label="`Medical expiry for ${row.name}`" /></template>
+        <template #cell-endorsements="{ row }">
+          <div class="flex items-center gap-3">
+            <BaseCheckbox v-model="row.h">H</BaseCheckbox>
+            <BaseCheckbox v-model="row.n">N</BaseCheckbox>
+            <BaseCheckbox v-model="row.x">X</BaseCheckbox>
+          </div>
+        </template>
+        <template #cell-trainingDate="{ row }">
+          <AppDateField v-model="row.trainingDate" :aria-label="`Training completion for ${row.name}`" />
+        </template>
+      </DataTable>
 
       <div class="mt-4 flex items-center gap-3">
         <BaseButton variant="primary" :disabled="!canSave || seed.isPending.value" @click="save">

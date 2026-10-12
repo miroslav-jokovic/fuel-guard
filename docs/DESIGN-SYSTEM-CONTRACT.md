@@ -62,6 +62,10 @@ The barrel (`packages/ui/src/index.ts`) exports: `AppButton`, `AppInput` (alias 
 `BaseButton→AppButton`, `BaseInput→AppInput`, `BaseCheckbox→AppCheckbox`, `BaseSwitch→AppSwitch`,
 `FormField→AppFormField`, `ComboSelect→AppCombobox`, `SearchInput→AppSearchField`.
 
+`AppTable` is the ADMIN console's table. In the web app every table is `DataTable` — a small one
+inside a drawer or panel is `DataTable embedded dense` — and `lint:ui-adoption` refuses `AppTable`
+there, save the published privacy policy (D-US4, `docs/plans/design-system/UI-STANDARDIZATION.md`).
+
 Anatomy is the source file, not this table — the load-bearing token facts as of 2026-08-20:
 buttons are `rounded-control`; cards are `rounded-surface bg-surface shadow-card ring-1
 ring-edge-subtle` (variants `bordered`/`raised`, paddings `none|sm|md`); shadows come only from the
