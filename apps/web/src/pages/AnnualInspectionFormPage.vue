@@ -343,7 +343,7 @@ async function openPdf(kind: "report" | "preview") {
       </BaseCard>
 
       <BaseCard v-for="group in groups" :key="group.number" as="section" padding="none">
-        <h3 class="border-b border-edge-subtle px-4 py-3 text-base font-semibold text-ink">
+        <h3 class="border-b border-edge-subtle px-4 py-3 text-sm font-semibold text-ink">
           {{ group.number }}. {{ group.title }}
         </h3>
         <InspectionItemRow

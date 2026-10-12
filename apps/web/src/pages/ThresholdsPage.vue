@@ -92,7 +92,7 @@ const numFields: { key: string; label: string }[] = [
 
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Limits</h3>
+        <h3 class="text-sm font-semibold text-ink">Limits</h3>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-for="f in numFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
             <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
@@ -101,7 +101,7 @@ const numFields: { key: string; label: string }[] = [
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Checks turned off</h3>
+        <h3 class="text-sm font-semibold text-ink">Checks turned off</h3>
         <p class="mt-1 text-xs text-ink-muted">A ticked check is turned off. Every other check stays on.</p>
         <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <BaseCheckbox
@@ -119,7 +119,7 @@ const numFields: { key: string; label: string }[] = [
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">AI verification</h3>
+        <h3 class="text-sm font-semibold text-ink">AI verification</h3>
         <div class="mt-3">
           <BaseCheckbox v-model="(form.ai_verification_enabled as boolean)">
             Ask AI for a second opinion on flagged fills

@@ -160,7 +160,7 @@ async function run(): Promise<void> {
     <BaseCard v-if="!stepUp && settings">
       <div class="space-y-4">
         <div class="flex flex-wrap items-center gap-3">
-          <h2 class="text-sm font-medium text-ink">Card actions</h2>
+          <h2 class="text-sm font-semibold text-ink">Card actions</h2>
           <span :class="[BADGE_BASE, toneClass(settings.enabled ? 'success' : 'neutral')]">
             {{ settings.enabled ? "On" : "Off" }}
           </span>
@@ -209,7 +209,7 @@ async function run(): Promise<void> {
     <BaseCard v-if="!stepUp && query.data.value">
       <div class="space-y-4">
         <div class="space-y-1">
-          <h2 class="text-sm font-medium text-ink">Who may change a card</h2>
+          <h2 class="text-sm font-semibold text-ink">Who may change a card</h2>
           <p class="text-sm text-ink-muted">
             Card changes are limited to
             {{ (query.data.value.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }}. A dispatcher
@@ -233,7 +233,7 @@ async function run(): Promise<void> {
     <BaseCard v-if="!stepUp">
       <div class="space-y-4">
         <div class="space-y-1">
-          <h2 class="text-sm font-medium text-ink">Run the check</h2>
+          <h2 class="text-sm font-semibold text-ink">Run the check</h2>
           <p class="text-sm text-ink-muted">
             Use a spare card that WEX has agreed you may test with, and use the EFS test environment
             first. The card number is never saved. Only its last four digits appear in the audit log.
@@ -278,7 +278,7 @@ async function run(): Promise<void> {
     <BaseCard v-if="result">
       <div class="space-y-4">
         <div class="flex flex-wrap items-center gap-3">
-          <h2 class="text-sm font-medium text-ink">Result</h2>
+          <h2 class="text-sm font-semibold text-ink">Result</h2>
           <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement))]">EFS write access: {{ entitlementLabel(result.entitlement) }}</span>
           <span class="text-sm text-ink-muted">{{ result.environment }}</span>
         </div>
@@ -320,7 +320,7 @@ async function run(): Promise<void> {
           and nothing else; the field names tell an engineer where to look.
         -->
         <div v-if="result.changed?.length" class="rounded-surface border border-danger-200 bg-danger-50 p-3">
-          <h3 class="text-sm font-medium text-danger-700">
+          <h3 class="text-sm font-semibold text-danger-700">
             Our request changed {{ result.changed.length }} field(s) it should have left alone
           </h3>
           <ul class="mt-2 space-y-1 font-mono text-xs text-danger-700">

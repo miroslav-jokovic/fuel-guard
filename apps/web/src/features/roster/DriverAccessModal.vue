@@ -272,7 +272,7 @@ async function copyCredentials() {
         >
           <AppIcon :icon="confirmation.icon" class="size-6" aria-hidden="true" />
         </div>
-        <h3 class="mt-4 text-base font-semibold text-ink">{{ confirmation.title }}</h3>
+        <h3 class="mt-4 text-sm font-semibold text-ink">{{ confirmation.title }}</h3>
         <p class="mt-2 max-w-sm text-sm leading-6 text-ink-muted">{{ confirmation.body }}</p>
       </div>
 

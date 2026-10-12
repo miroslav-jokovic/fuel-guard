@@ -69,7 +69,7 @@ async function onSave() {
              every carrier alert, not only the anomaly emails it used to name — so turning it off to stop
              those silenced the rest without saying so. The list is each reader of the column in
              apps/api (grep `notifications_enabled`); a new reader adds its line here. -->
-        <h3 class="text-base font-semibold text-ink">The carrier's alerts</h3>
+        <h3 class="text-sm font-semibold text-ink">The carrier's alerts</h3>
         <p class="mt-1 text-xs text-ink-muted">
           One switch for all of them. Off, none of these is sent: high and critical anomalies, drivers who
           stopped part-way through an application, driver qualification expirations, the weekly digest,

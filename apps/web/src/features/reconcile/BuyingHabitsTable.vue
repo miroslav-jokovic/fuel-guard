@@ -56,7 +56,7 @@ const shown = computed(() =>
 <template>
   <section class="space-y-2" aria-labelledby="buying-habits-heading">
     <div class="flex flex-wrap items-baseline justify-between gap-3">
-      <h3 id="buying-habits-heading" class="text-base font-semibold text-ink">Buying habits</h3>
+      <h3 id="buying-habits-heading" class="text-sm font-semibold text-ink">Buying habits</h3>
       <p v-if="table && !error" class="text-sm text-ink-secondary">
         <span class="font-semibold tabular-nums text-ink" data-testid="buying-habits-total">{{ usd2(table.total) }}</span>
         paid above the fleet's price in these months

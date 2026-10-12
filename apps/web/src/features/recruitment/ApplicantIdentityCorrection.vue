@@ -82,7 +82,7 @@ async function save(): Promise<void> {
 <template>
   <section class="space-y-3 border-t border-edge pt-4">
     <div>
-      <h3 class="text-xs font-semibold text-ink">Date of birth and licence</h3>
+      <h3 class="text-sm font-semibold text-ink">Date of birth and licence</h3>
       <p class="mt-0.5 text-2xs text-ink-muted">
         PSP, the driving record and the Clearinghouse query run on these. A correction changes the
         applicant's record and their application together.

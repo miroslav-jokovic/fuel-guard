@@ -209,7 +209,7 @@ const previewTotal = (p: ImportPreview) =>
 
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
+              <h3 class="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
                 <AppIcon :icon="DocumentTextIcon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
                 <span class="truncate">{{ preview.filename }}</span>
                 <span :class="[BADGE_BASE, toneClass(preview.kind === 'reject' ? 'warning' : 'brand')]">

@@ -123,6 +123,9 @@ function templateStructureViolations(item) {
   const handBuiltStatTiles = [];
   const crowdedFilterRows = [];
   const offPatternSearchCopy = [];
+  const offScaleHeadings = [];
+  // The applicant's flow renders in ApplyLayout with its own public typography (H5b).
+  const applicantFlow = /\/features\/apply\//.test(item.relativePath);
   let previousEnd = tags[0]?.end ?? 0;
   const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
 
@@ -180,6 +183,16 @@ function templateStructureViolations(item) {
     // and three ways to tint a verdict before 2026-10-12.
     if (tag.name === "dd" && /class="[^"]*\btext-(2|3)xl\b/.test(tag.raw)) handBuiltStatTiles.push(at(tag.start));
 
+    // Two heading sizes (2026-10-12 owner ruling): `text-lg` for a section of the page, `text-sm` for
+    // a title inside a card, drawer or panel — both `font-semibold`. An eyebrow (`text-xs uppercase`)
+    // is a label rather than a heading and is left alone. The audit that day found seven variants.
+    const headingClass = /^h[23]$/.test(tag.name) && !applicantFlow ? tag.raw.match(/\sclass="([^"]*)"/)?.[1] : undefined;
+    if (headingClass !== undefined) {
+      const eyebrow = /\btext-xs\b/.test(headingClass) && /\buppercase\b/.test(headingClass);
+      const onScale = /\btext-(sm|lg)\b/.test(headingClass) && /\bfont-semibold\b/.test(headingClass);
+      if (!eyebrow && !onScale) offScaleHeadings.push(at(tag.start));
+    }
+
     if (tag.name === "DataTable" && stack.some((entry) => entry.name === "BaseCard") &&
         !hasStaticBooleanAttribute(tag.raw, "embedded")) {
       nestedTables.push(at(tag.start));
@@ -207,6 +220,7 @@ function templateStructureViolations(item) {
     handBuiltStatTiles,
     crowdedFilterRows,
     offPatternSearchCopy,
+    offScaleHeadings,
   };
 }
 
@@ -318,6 +332,7 @@ function structureCheckerSelfTest() {
         <dl><dt>Fills</dt><dd class="mt-1 text-2xl font-bold">12</dd><dd class="text-xs">caption</dd></dl>
         <FilterBar :active-count="n" search-placeholder="Search"><template #filters><A /><B /><C /><D /><E /></template></FilterBar>
         <FilterBar :active-count="n" search-placeholder="Search unit, driver…"><template #filters><A /><B /><C /><D /></template></FilterBar>
+        <h3 class="text-base font-semibold text-ink">Card</h3><h3 class="text-sm font-semibold">Ok</h3><h2 class="text-xs font-semibold uppercase">Eyebrow</h2>
       </div>
     </template>`),
   };
@@ -345,6 +360,7 @@ function structureCheckerSelfTest() {
     JSON.stringify(result.handBuiltStatTiles) === JSON.stringify(["self-test.vue:24"]) &&
     JSON.stringify(result.crowdedFilterRows) === JSON.stringify(["self-test.vue:25"]) &&
     JSON.stringify(result.offPatternSearchCopy) === JSON.stringify(["self-test.vue:25"]) &&
+    JSON.stringify(result.offScaleHeadings) === JSON.stringify(["self-test.vue:27"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -389,6 +405,7 @@ const handBuiltBulkBars = structureViolations.flatMap((item) => item.handBuiltBu
 const handBuiltStatTiles = structureViolations.flatMap((item) => item.handBuiltStatTiles);
 const crowdedFilterRows = structureViolations.flatMap((item) => item.crowdedFilterRows);
 const offPatternSearchCopy = structureViolations.flatMap((item) => item.offPatternSearchCopy);
+const offScaleHeadings = structureViolations.flatMap((item) => item.offScaleHeadings);
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -557,6 +574,8 @@ function verifyAdoption() {
     failures.push(`FilterBar #filters with more than 4 controls (move the rest to #more): ${crowdedFilterRows.join(", ")}`);
   if (offPatternSearchCopy.length)
     failures.push(`FilterBar search-placeholder not "Search <what>…": ${offPatternSearchCopy.join(", ")}`);
+  if (offScaleHeadings.length)
+    failures.push(`h2/h3 off the two-size scale (text-lg page section, text-sm in a card or drawer; font-semibold): ${offScaleHeadings.join(", ")}`);
   if (handBuiltStatTiles.length)
     failures.push(`hand-built KPI tile, a <dd> at text-2xl/3xl (use StatCard): ${handBuiltStatTiles.join(", ")}`);
   if (handBuiltBulkBars.length)

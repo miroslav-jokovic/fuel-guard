@@ -87,7 +87,7 @@ function when(at: string | null): string {
             :class="state === 'on' ? 'text-success-500' : state === 'no_key' ? 'text-brand-500' : 'text-caution-500'"
           />
           <div class="min-w-0 text-sm">
-            <h2 class="font-semibold text-ink">
+            <h2 class="text-sm font-semibold text-ink">
               {{
                 state === "on" ? "Connected, sweeping every " + (s!.syncHours === 1 ? "hour" : s!.syncHours + " hours")
                 : state === "no_key" ? "Not connected"
@@ -114,7 +114,7 @@ function when(at: string | null): string {
       </BaseCard>
 
       <BaseCard v-else as="section">
-        <h2 class="text-base font-semibold text-ink">{{ s!.hasKey ? "Replace the API key" : "API key" }}</h2>
+        <h2 class="text-sm font-semibold text-ink">{{ s!.hasKey ? "Replace the API key" : "API key" }}</h2>
         <p class="mt-1 text-xs text-ink-muted">
           FleetPal checks the key before it is saved. It is stored encrypted and never shown again. The key
           reads with the role of the FleetPal user who issued it, so issue it from a user who can see work
@@ -163,7 +163,7 @@ function when(at: string | null): string {
       />
 
       <BaseCard v-if="s!.resources.length > 0" as="section">
-        <h2 class="text-base font-semibold text-ink">What each collection last brought in</h2>
+        <h2 class="text-sm font-semibold text-ink">What each collection last brought in</h2>
         <AppTable class="mt-3 w-full text-sm">
           <thead>
             <tr class="text-left text-xs text-ink-muted">

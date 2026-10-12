@@ -100,7 +100,7 @@ async function onSave() {
     <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Organization</h3>
+        <h3 class="text-sm font-semibold text-ink">Organization</h3>
         <FormField v-slot="{ id }" class="mt-4" label="Name" :error="fieldErr.name">
           <BaseInput :id="id" v-model="form.name" :invalid="Boolean(fieldErr.name)" />
         </FormField>
@@ -157,7 +157,7 @@ async function onSave() {
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Operating hours</h3>
+        <h3 class="text-sm font-semibold text-ink">Operating hours</h3>
         <p class="mt-1 text-xs text-ink-muted">
           Used by the off-hours anomaly rule. Turn on 24/7 if the fleet runs around the clock — the
           rule then never flags a fill for its time of day.

@@ -262,7 +262,7 @@ const facts = computed(() => {
       <!-- The honest answer to "why can't I lock it?", shown instead of the actions. -->
       <BaseCard v-if="notice && notice.mode === 'disabled'">
         <div class="space-y-2">
-          <h2 class="text-sm font-medium text-ink">Card actions</h2>
+          <h2 class="text-sm font-semibold text-ink">Card actions</h2>
           <p class="text-sm text-ink-muted">{{ notice.message }}</p>
           <BaseButton
             v-if="notice.actionTo"
