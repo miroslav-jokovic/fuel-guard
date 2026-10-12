@@ -49,6 +49,14 @@ describe("initialTab", () => {
     expect(initialTab(tabs, "dispatcher")!.key).toBe("dispatch");
   });
 
+  it("lands a fleet manager on Dispatch, with Fleet overview still one tab away", () => {
+    // Owner ruling 2026-10-12 (D-DW2). They hold `dispatch: manage` AND `fuel`, so both tabs show
+    // and the default alone decides which opens.
+    const tabs = visibleTabs(forRole("fleet_manager"));
+    expect(tabs.map((t) => t.key)).toEqual(["fleet", "dispatch"]);
+    expect(initialTab(tabs, "fleet_manager")!.key).toBe("dispatch");
+  });
+
   it("lands an admin on the first tab, because no tab names them", () => {
     const tabs = visibleTabs(forRole("admin"));
     expect(initialTab(tabs, "admin")!.key).toBe("fleet");

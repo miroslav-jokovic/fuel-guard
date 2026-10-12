@@ -360,6 +360,9 @@ citation, so none was renumbered.)*
   ["dispatcher"]` and an order index. An admin who wants the map gets it by granting themselves the
   widget, and an org that gives `dispatch` to its safety manager gets it for free, because the
   answer is derived from the matrix rather than restated in a layout file.
+  **Amended 2026-10-12 (owner):** `fleet_manager` joins the list "for now" — fleet managers open
+  on the Dispatch live map instead of Fleet overview, which stays one tab away. Still a default,
+  never a gate; removing the role from `defaultFor` is the whole undo.
 
 - **D-DW3 — a user may reorder and hide their own widgets, and the stored value has three states.**
   `null` = inherit the role default, which is not the same as an empty layout. This is the same
