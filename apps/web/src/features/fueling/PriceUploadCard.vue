@@ -103,6 +103,7 @@ async function onFiles(files: File[]) {
       <FileDropzone accept=".xls,.xlsx,.xlsm,.csv,.htm,.html" multiple :disabled="loading" @files="onFiles" />
     </div>
 
+    <!-- ui-adoption: not-a-page-state — progress through a dropped batch of files, not a fetch. -->
     <p v-if="progress" class="mt-3 text-sm text-ink-secondary">
       Loading {{ progress.done + 1 }} of {{ progress.total }} — {{ progress.current }}…
       <span class="text-ink-tertiary">the first load geocodes new sites and can take a moment.</span>
@@ -128,6 +129,7 @@ async function onFiles(files: File[]) {
         <strong>drop the same files again</strong> to finish the rest, which will be quick.
       </p>
 
+      <!-- ui-adoption: not-a-notice — the per-file list of what this drop could not read; the toast points here because a toast cannot hold the list. -->
       <div v-if="failed.length" class="mt-3 rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700 ring-1 ring-danger-100">
         <p class="font-medium">{{ failed.length }} file(s) could not be read</p>
         <ul class="mt-1 space-y-0.5">

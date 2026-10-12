@@ -8,6 +8,7 @@ import {
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import DocumentPreview from "@/components/DocumentPreview.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
@@ -238,134 +239,144 @@ async function approveIt(): Promise<void> {
         </span>
       </div>
 
-      <p v-if="review.isLoading.value" class="text-sm text-ink-muted">Loading…</p>
+      <!-- D-US5: everything below waits on the read. A failed read used to fall through to
+           `state`'s default and tell the reviewer the applicant was "still filling this in" — a
+           sentence about the applicant that was really about the network. -->
+      <QueryState
+        :loading="review.isLoading.value"
+        :error="review.isError.value ? review.error.value : null"
+        :retrying="review.isFetching.value"
+        loading-text="Loading the application…"
+        error-text="Could not load the application."
+        @retry="review.refetch()"
+      >
+        <AppCallout v-if="state === 'filling'" tone="info">
+          The applicant is still filling this in. You will be able to read it and correct it once they
+          send it to you.
+        </AppCallout>
 
-      <AppCallout v-else-if="state === 'filling'" tone="info">
-        The applicant is still filling this in. You will be able to read it and correct it once they
-        send it to you.
-      </AppCallout>
+        <!-- ⚠ Says WHY the controls are gone rather than simply not rendering them. -->
+        <AppCallout v-else-if="state === 'approved'" tone="caution">
+          You approved this and asked the applicant to sign it, so the answers are fixed now. If
+          something still needs changing, ask them for a new application.
+        </AppCallout>
+        <AppCallout v-else-if="state === 'certified'" tone="success">
+          Signed and filed. These answers are part of the qualification file.
+        </AppCallout>
 
-      <!-- ⚠ Says WHY the controls are gone rather than simply not rendering them. -->
-      <AppCallout v-else-if="state === 'approved'" tone="caution">
-        You approved this and asked the applicant to sign it, so the answers are fixed now. If
-        something still needs changing, ask them for a new application.
-      </AppCallout>
-      <AppCallout v-else-if="state === 'certified'" tone="success">
-        Signed and filed. These answers are part of the qualification file.
-      </AppCallout>
+        <!-- C3c2c2: before the answers — it may say one of them is wrong. The correction it asks for sits
+             right under it (Q-AW36), open while the office can still correct anything: until approval. -->
+        <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
+          <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
+          <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
+        </AppCallout>
+        <PartOneCorrection
+          v-if="invitationId && review.data.value?.partOne && state !== 'approved' && state !== 'certified'"
+          :invitation-id="invitationId"
+          :facts="review.data.value.partOne"
+        />
 
-      <!-- C3c2c2: before the answers — it may say one of them is wrong. The correction it asks for sits
-           right under it (Q-AW36), open while the office can still correct anything: until approval. -->
-      <AppCallout v-if="correctionNote" tone="caution" data-correction-note>
-        <p class="font-medium">The applicant says something from the start of their application is wrong:</p>
-        <p class="mt-1 whitespace-pre-line">{{ correctionNote }}</p>
-      </AppCallout>
-      <PartOneCorrection
-        v-if="invitationId && review.data.value?.partOne && state !== 'approved' && state !== 'certified'"
-        :invitation-id="invitationId"
-        :facts="review.data.value.partOne"
-      />
-
-      <template v-if="summary.length">
-        <section v-for="group in summary" :key="group.section" class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">{{ group.heading }}</h3>
-          <div
-            v-for="(card, i) in group.groups"
-            :key="i"
-            class="space-y-2 rounded-surface bg-surface-muted p-3"
-          >
-            <p v-if="card.title" class="text-xs font-medium text-ink-tertiary">{{ card.title }}</p>
+        <template v-if="summary.length">
+          <section v-for="group in summary" :key="group.section" class="space-y-2">
+            <h3 class="text-sm font-semibold text-ink">{{ group.heading }}</h3>
             <div
-              v-for="entry in card.entries"
-              :key="entry.label"
-              class="flex flex-col gap-x-3 gap-y-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between"
+              v-for="(card, i) in group.groups"
+              :key="i"
+              class="space-y-2 rounded-surface bg-surface-muted p-3"
             >
-              <!-- `min-w-0` + `break-words` on both halves: a driver's answer is arbitrary text, and
-                   an unbroken 40-character employer name is how a summary row escapes its card. -->
-              <span class="min-w-0 break-words text-ink-muted">
-                {{ entry.label }}
-              </span>
-              <span
-                class="min-w-0 break-words sm:text-right"
-                :class="entry.muted ? 'text-ink-tertiary' : 'text-ink'"
+              <p v-if="card.title" class="text-xs font-medium text-ink-tertiary">{{ card.title }}</p>
+              <div
+                v-for="entry in card.entries"
+                :key="entry.label"
+                class="flex flex-col gap-x-3 gap-y-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between"
               >
-                {{ entry.value }}
-              </span>
+                <!-- `min-w-0` + `break-words` on both halves: a driver's answer is arbitrary text, and
+                     an unbroken 40-character employer name is how a summary row escapes its card. -->
+                <span class="min-w-0 break-words text-ink-muted">
+                  {{ entry.label }}
+                </span>
+                <span
+                  class="min-w-0 break-words sm:text-right"
+                  :class="entry.muted ? 'text-ink-tertiary' : 'text-ink'"
+                >
+                  {{ entry.value }}
+                </span>
+              </div>
             </div>
-          </div>
-        </section>
-      </template>
+          </section>
+        </template>
 
-      <!-- Correcting answers. Every field the payload carries, addressed by its contract path, which
-           is the same vocabulary the driver's errors and the edit log use. -->
-      <section v-if="editable && fields.length" class="space-y-3">
-        <div>
-          <h3 class="text-sm font-semibold text-ink">Correct an answer</h3>
-          <p class="mt-1 text-xs text-ink-muted">
-            Each change is saved on its own, and the applicant is shown what you changed before they
-            sign.
-          </p>
-        </div>
-        <ApplicationAnswerList
-          :fields="fields"
-          :corrected="corrected"
-          :pending="edit.isPending.value"
-          @save="save"
-        />
-      </section>
-
-      <!-- ⚠ Adding an employer the driver left out — the correction an office visit is actually for.
-           Separate from "Correct an answer" above because it CREATES a row rather than changing one,
-           and `editableFields` refuses to create by design. See AddEmployerForm's header. -->
-      <section v-if="editable" class="space-y-3">
-        <div>
-          <h3 class="text-sm font-semibold text-ink">Add an employer</h3>
-          <p class="mt-1 text-xs text-ink-muted">
-            For a job the applicant did not list. It is added at the end and the applicant is shown it
-            before they sign. §391.21 asks for three years of all work, and ten years of driving work.
-          </p>
-        </div>
-        <AddEmployerForm
-          :next-index="employerCount"
-          :pending="edit.isPending.value"
-          @add="addEmployer"
-        />
-      </section>
-
-      <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
-           As a sibling of `SlideOver` it rendered correctly and still broke: HeadlessUI decides which
-           dialog owns Escape from the DOM TREE, and two dialogs that are siblings are both "topmost",
-           so one Escape closed the viewer AND the drawer behind it — throwing the reviewer out of the
-           record, which is the one thing this step exists to prevent. Nested in the tree, HeadlessUI
-           registers the viewer as the child and Escape closes only it. Both dialogs still portal to
-           the body, so nesting here costs nothing in layout. -->
-      <DocumentPreview
-        :open="previewing"
-        label="Application preview"
-        :rendered="previewDocument"
-        @close="previewing = false"
-      />
-
-      <!-- What has been changed, and when. §391.21(b)(12) is the applicant's own statement that the
-           entries are true, so a correction is something somebody has to be able to account for. -->
-      <section v-if="edits.length" class="space-y-2">
-        <h3 class="text-sm font-semibold text-ink">What you changed</h3>
-        <ul class="space-y-2">
-          <li
-            v-for="(row, i) in edits"
-            :key="i"
-            class="rounded-surface bg-surface-muted p-3 text-sm"
-          >
-            <p class="font-medium text-ink">{{ describeField(row.path) }}</p>
-            <p class="break-words text-ink-muted">
-              <span class="line-through">{{ row.before ?? "—" }}</span>
-              →
-              <span class="text-ink">{{ row.after ?? "—" }}</span>
+        <!-- Correcting answers. Every field the payload carries, addressed by its contract path, which
+             is the same vocabulary the driver's errors and the edit log use. -->
+        <section v-if="editable && fields.length" class="space-y-3">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">Correct an answer</h3>
+            <p class="mt-1 text-xs text-ink-muted">
+              Each change is saved on its own, and the applicant is shown what you changed before they
+              sign.
             </p>
-            <p class="text-2xs text-ink-tertiary">{{ formatDateTime(row.editedAt) }}</p>
-          </li>
-        </ul>
-      </section>
+          </div>
+          <ApplicationAnswerList
+            :fields="fields"
+            :corrected="corrected"
+            :pending="edit.isPending.value"
+            @save="save"
+          />
+        </section>
+
+        <!-- ⚠ Adding an employer the driver left out — the correction an office visit is actually for.
+             Separate from "Correct an answer" above because it CREATES a row rather than changing one,
+             and `editableFields` refuses to create by design. See AddEmployerForm's header. -->
+        <section v-if="editable" class="space-y-3">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">Add an employer</h3>
+            <p class="mt-1 text-xs text-ink-muted">
+              For a job the applicant did not list. It is added at the end and the applicant is shown it
+              before they sign. §391.21 asks for three years of all work, and ten years of driving work.
+            </p>
+          </div>
+          <AddEmployerForm
+            :next-index="employerCount"
+            :pending="edit.isPending.value"
+            @add="addEmployer"
+          />
+        </section>
+
+        <!-- ⚠ INSIDE the drawer's body, and that placement is the whole fix (B8, measured 2026-09-18).
+             As a sibling of `SlideOver` it rendered correctly and still broke: HeadlessUI decides which
+             dialog owns Escape from the DOM TREE, and two dialogs that are siblings are both "topmost",
+             so one Escape closed the viewer AND the drawer behind it — throwing the reviewer out of the
+             record, which is the one thing this step exists to prevent. Nested in the tree, HeadlessUI
+             registers the viewer as the child and Escape closes only it. Both dialogs still portal to
+             the body, so nesting here costs nothing in layout. -->
+        <DocumentPreview
+          :open="previewing"
+          label="Application preview"
+          :rendered="previewDocument"
+          @close="previewing = false"
+        />
+
+        <!-- What has been changed, and when. §391.21(b)(12) is the applicant's own statement that the
+             entries are true, so a correction is something somebody has to be able to account for. -->
+        <section v-if="edits.length" class="space-y-2">
+          <h3 class="text-sm font-semibold text-ink">What you changed</h3>
+          <ul class="space-y-2">
+            <li
+              v-for="(row, i) in edits"
+              :key="i"
+              class="rounded-surface bg-surface-muted p-3 text-sm"
+            >
+              <p class="font-medium text-ink">{{ describeField(row.path) }}</p>
+              <p class="break-words text-ink-muted">
+                <span class="line-through">{{ row.before ?? "—" }}</span>
+                →
+                <span class="text-ink">{{ row.after ?? "—" }}</span>
+              </p>
+              <p class="text-2xs text-ink-tertiary">{{ formatDateTime(row.editedAt) }}</p>
+            </li>
+          </ul>
+        </section>
+      </QueryState>
     </div>
 
     <template #footer>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { AppCallout } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -53,9 +55,16 @@ const cells = computed(() => cellData.value ?? []);
 // The quote tile reads four database sums (Q-FSV18, `fuel_contract_totals`) and the rows behind it only when
 // it is opened: before, its headline waited on every `fuel_spend_lines` row, nine seconds with the card
 // absent. Neither request holds the grades up, and the card keeps its own states.
-const { data: totals, isLoading: totalsLoading, isError: totalsError } = useContractTotalsQuery(queryFilters);
+const {
+  data: totals,
+  isLoading: totalsLoading,
+  isError: totalsError,
+  error: totalsErr,
+  isFetching: totalsFetching,
+  refetch: refetchTotals,
+} = useContractTotalsQuery(queryFilters);
 const quoteOpen = ref(false);
-const { data: feedData, isLoading: feedLoading, isError: feedError } = useSpendLinesQuery(queryFilters, quoteOpen);
+const { data: feedData, isLoading: feedLoading, isError: feedError, refetch: refetchFeed } = useSpendLinesQuery(queryFilters, quoteOpen);
 const lines = computed(() => feedData.value ?? []);
 const policy = useFuelPolicy();
 // `useFuelPolicy` answers with defaults while the settings are pending or failed, which reads as "no
@@ -80,12 +89,7 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
   <div class="space-y-6">
     <PageHeader description="Fuel carried out of a dearer state into a cheaper one, the fuel targets graded, and fills billed above Pilot's quote." />
 
-    <p
-      v-if="f.windowNotice.value"
-      class="rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100"
-    >
-      {{ f.windowNotice.value }}
-    </p>
+    <AppCallout v-if="f.windowNotice.value" tone="caution">{{ f.windowNotice.value }}</AppCallout>
 
     <!-- No count until the fills answer: a pending or failed read is not "0 fills" (verdict E8). -->
     <FilterBar
@@ -115,20 +119,26 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
 
     <!-- The quote tile reads four sums. Pending or failed, an empty default would say "no fill matched a
          quote", which is a finding about the fills and not about the request. -->
-    <p v-if="totalsError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the purchases to compare with Pilot's quote. Reload to try again.
-    </p>
-    <p v-else-if="totalsLoading || !totals" class="text-sm text-ink-muted">Loading the purchases to compare with Pilot's quote…</p>
-    <DiscountCaptureCard
-      v-else
-      v-model:open="quoteOpen"
-      :totals="totals"
-      :lines="lines"
-      :lines-loading="feedLoading"
-      :lines-error="feedError"
-      :from="f.from.value"
-      :to="f.to.value"
-      @narrow="(a, b) => f.setWindow(a, b)"
-    />
+    <QueryState
+      :loading="!totalsError && (totalsLoading || !totals)"
+      :error="totalsError ? (totalsErr ?? true) : null"
+      :retrying="totalsFetching"
+      loading-text="Loading the purchases to compare with Pilot's quote…"
+      error-text="Could not load the purchases to compare with Pilot's quote."
+      @retry="refetchTotals()"
+    >
+      <DiscountCaptureCard
+        v-if="totals"
+        v-model:open="quoteOpen"
+        :totals="totals"
+        :lines="lines"
+        :lines-loading="feedLoading"
+        :lines-error="feedError"
+        @retry="refetchFeed()"
+        :from="f.from.value"
+        :to="f.to.value"
+        @narrow="(a, b) => f.setWindow(a, b)"
+      />
+    </QueryState>
   </div>
 </template>

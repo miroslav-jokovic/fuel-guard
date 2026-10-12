@@ -10,6 +10,7 @@ import {
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField, AppSelect } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useApplicantTravelQuery, useBookTravel, useCancelTravel } from "@/features/recruitment/useApplicantTravel";
 
 /**
@@ -97,23 +98,33 @@ async function cancelLive(): Promise<void> {
   <div class="space-y-6">
     <div>
       <p class="text-sm font-medium text-ink">Booked</p>
-      <p v-if="travelQ.isLoading.value" class="mt-1 text-xs text-ink-muted">Loading…</p>
-      <p v-else-if="travelQ.error.value" class="mt-1 text-xs text-danger-700">The trips could not be loaded.</p>
-      <p v-else-if="!live" class="mt-1 text-xs text-ink-muted">No trip booked.</p>
-      <div v-else class="mt-2 space-y-1">
-        <p class="text-xs">
-          <span class="font-medium text-ink">{{ TRAVEL_MODE_LABELS[live.mode] }}</span>
-          <span class="text-ink-secondary"> · leaves {{ at(live.departAt) }} · arrives {{ at(live.arriveAt) }}</span>
-        </p>
-        <p v-if="live.confirmationRef" class="text-2xs text-ink-secondary">
-          Confirmation <span class="font-mono">{{ live.confirmationRef }}</span>
-        </p>
-        <div v-if="canBook && !changing" class="flex gap-2 pt-2">
-          <BaseButton size="sm" @click="changing = true">Change the trip</BaseButton>
-          <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">
-            Cancel it
-          </BaseButton>
-        </div>
+      <div class="mt-1">
+        <QueryState
+          :loading="travelQ.isLoading.value"
+          :error="travelQ.isError.value ? travelQ.error.value : null"
+          :retrying="travelQ.isFetching.value"
+          loading-text="Loading the trips…"
+          error-text="Could not load the trips."
+          compact
+          @retry="travelQ.refetch()"
+        >
+          <p v-if="!live" class="text-xs text-ink-muted">No trip booked.</p>
+          <div v-else class="mt-1 space-y-1">
+            <p class="text-xs">
+              <span class="font-medium text-ink">{{ TRAVEL_MODE_LABELS[live.mode] }}</span>
+              <span class="text-ink-secondary"> · leaves {{ at(live.departAt) }} · arrives {{ at(live.arriveAt) }}</span>
+            </p>
+            <p v-if="live.confirmationRef" class="text-2xs text-ink-secondary">
+              Confirmation <span class="font-mono">{{ live.confirmationRef }}</span>
+            </p>
+            <div v-if="canBook && !changing" class="flex gap-2 pt-2">
+              <BaseButton size="sm" @click="changing = true">Change the trip</BaseButton>
+              <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">
+                Cancel it
+              </BaseButton>
+            </div>
+          </div>
+        </QueryState>
       </div>
     </div>
 

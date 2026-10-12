@@ -5,6 +5,7 @@ import { SELFIE_VERDICTS, SELFIE_VERDICT_LABELS, type SelfieVerdict } from "@sil
 import { formatDateTime } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useRecordSelfieVerdict, useSelfieCheckQuery } from "@/features/recruitment/useSelfieCheck";
 
 /**
@@ -70,64 +71,71 @@ function loaded(): void {
       </p>
     </div>
 
-    <p v-if="check.isLoading.value" class="text-xs text-ink-muted">Loading the photos…</p>
-    <p v-else-if="check.isError.value" class="text-xs text-danger-700" role="alert">The photos could not be loaded.</p>
+    <QueryState
+      :loading="check.isLoading.value"
+      :error="check.isError.value ? check.error.value : null"
+      :retrying="check.isFetching.value"
+      loading-text="Loading the photos…"
+      error-text="Could not load the photos."
+      compact
+      @retry="check.refetch()"
+    >
+      <template v-if="data?.selfie">
+        <div class="grid grid-cols-2 gap-3">
+          <figure class="space-y-1">
+            <img
+              :src="data.licenceFront?.url"
+              alt="Front of their licence"
+              class="aspect-[3/4] w-full rounded-surface bg-surface-muted object-contain ring-1 ring-edge"
+              @error="lapsed"
+              @load="loaded"
+            >
+            <figcaption class="text-2xs text-ink-tertiary">
+              {{ data.licenceFront ? "Their licence" : "No licence photo on file" }}
+            </figcaption>
+          </figure>
+          <figure class="space-y-1">
+            <img
+              :src="data.selfie.url"
+              alt="The photo they took of themselves"
+              class="aspect-[3/4] w-full rounded-surface bg-surface-muted object-contain ring-1 ring-edge"
+              @error="lapsed"
+              @load="loaded"
+            >
+            <figcaption class="text-2xs text-ink-tertiary">Their photo, {{ formatDateTime(data.selfie.capturedAt) }}</figcaption>
+          </figure>
+        </div>
 
-    <template v-else-if="data?.selfie">
-      <div class="grid grid-cols-2 gap-3">
-        <figure class="space-y-1">
-          <img
-            :src="data.licenceFront?.url"
-            alt="Front of their licence"
-            class="aspect-[3/4] w-full rounded-surface bg-surface-muted object-contain ring-1 ring-edge"
-            @error="lapsed"
-            @load="loaded"
+        <p v-if="data.verdict" class="text-xs text-ink-secondary" data-selfie-verdict>
+          Reading on file: <span class="font-medium text-ink">{{ SELFIE_VERDICT_LABELS[data.verdict.verdict] }}</span>,
+          {{ formatDateTime(data.verdict.at) }}.
+        </p>
+        <p v-if="data.verdict?.verdict === 'does_not_match' || data.verdict?.verdict === 'unclear'" class="text-xs text-warning-700">
+          Check their licence against them in person when they come to the office.
+        </p>
+
+        <div v-if="canRecord" class="flex flex-wrap gap-2">
+          <BaseButton
+            v-for="v in SELFIE_VERDICTS"
+            :key="v"
+            size="sm"
+            :variant="data.verdict?.verdict === v ? 'primary' : 'secondary'"
+            :aria-pressed="data.verdict?.verdict === v"
+            :disabled="record.isPending.value"
+            @click="say(v)"
           >
-          <figcaption class="text-2xs text-ink-tertiary">
-            {{ data.licenceFront ? "Their licence" : "No licence photo on file" }}
-          </figcaption>
-        </figure>
-        <figure class="space-y-1">
-          <img
-            :src="data.selfie.url"
-            alt="The photo they took of themselves"
-            class="aspect-[3/4] w-full rounded-surface bg-surface-muted object-contain ring-1 ring-edge"
-            @error="lapsed"
-            @load="loaded"
-          >
-          <figcaption class="text-2xs text-ink-tertiary">Their photo, {{ formatDateTime(data.selfie.capturedAt) }}</figcaption>
-        </figure>
-      </div>
+            {{ SELFIE_VERDICT_LABELS[v] }}
+          </BaseButton>
+        </div>
+      </template>
 
-      <p v-if="data.verdict" class="text-xs text-ink-secondary" data-selfie-verdict>
-        Reading on file: <span class="font-medium text-ink">{{ SELFIE_VERDICT_LABELS[data.verdict.verdict] }}</span>,
-        {{ formatDateTime(data.verdict.at) }}.
+      <p v-else-if="data?.partOneDone" class="text-xs text-ink-secondary">
+        They finished Part 1 without a photo of themselves. Check their licence against them in person when
+        they come to the office.
       </p>
-      <p v-if="data.verdict?.verdict === 'does_not_match' || data.verdict?.verdict === 'unclear'" class="text-xs text-warning-700">
-        Check their licence against them in person when they come to the office.
+      <p v-else class="text-xs text-ink-muted">
+        No photo yet — they take it near the end of Part 1.
       </p>
-
-      <div v-if="canRecord" class="flex flex-wrap gap-2">
-        <BaseButton
-          v-for="v in SELFIE_VERDICTS"
-          :key="v"
-          size="sm"
-          :variant="data.verdict?.verdict === v ? 'primary' : 'secondary'"
-          :aria-pressed="data.verdict?.verdict === v"
-          :disabled="record.isPending.value"
-          @click="say(v)"
-        >
-          {{ SELFIE_VERDICT_LABELS[v] }}
-        </BaseButton>
-      </div>
-    </template>
-
-    <p v-else-if="data?.partOneDone" class="text-xs text-ink-secondary">
-      They finished Part 1 without a photo of themselves. Check their licence against them in person when
-      they come to the office.
-    </p>
-    <p v-else class="text-xs text-ink-muted">
-      No photo yet — they take it near the end of Part 1.
-    </p>
+    </QueryState>
   </div>
 </template>

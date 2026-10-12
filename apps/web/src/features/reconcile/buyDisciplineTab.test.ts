@@ -240,10 +240,10 @@ describe("BuyDisciplineTab", () => {
   // A pending or failed sequence is not an empty one: "$0 at least" and "0 purchases" are answers. The
   // targets read their own sums and must stay (verdict E8, 2026-10-04).
   it("says the fill sequence is loading or failed in place of its figures, and keeps the targets", async () => {
-    for (const [fillsState, say] of [["loading", "Loading the fill sequence…"], ["error", "Couldn't load the fill sequence for this window."]] as const) {
+    for (const [fillsState, role, say] of [["loading", "status", "Loading the fill sequence…"], ["error", "alert", "Could not load the fill sequence for this window."]] as const) {
       const w = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState });
       const t = w.text();
-      expect(w.get('[data-testid="carried-state"]').text(), fillsState).toBe(say);
+      expect(w.get(`[data-testid="carried-state"] [role=${role}]`).text(), fillsState).toContain(say);
       expect(w.find('[data-testid="carried-basis"]').exists(), fillsState).toBe(false);
       expect(t, fillsState).not.toContain("$0");
       expect(t, fillsState).not.toContain("at least, over this window");
@@ -252,8 +252,9 @@ describe("BuyDisciplineTab", () => {
       expect(t, fillsState).toContain("On the preferred network");
       expect(t, fillsState).toContain("90.0%");
     }
+    // The headline's own failure carries a Retry beside it (D-US5), not only the table's further down.
     const failed = mountTab([], targets({ onNetworkPct: 95 }), { lines: FEED, fillsState: "error" });
-    await failed.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    await failed.get('[data-testid="carried-state"]').findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
     expect(failed.emitted("retry")).toHaveLength(1);
   });
 

@@ -11,6 +11,7 @@ import { AppButton, AppIcon } from "@silvicom/ui";
 import { CheckCircleIcon, ClockIcon } from "@silvicom/ui/icons";
 import { formatDate, formatDateTime } from "@/lib/format";
 import DocumentPreview from "@/components/DocumentPreview.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import type { RenderedDocument } from "@/lib/documentDownload";
 import type { AuthorizationDetail } from "@/features/recruitment/useAuthorizations";
 import PaperAuthorizationForm from "@/features/recruitment/PaperAuthorizationForm.vue";
@@ -58,7 +59,14 @@ const props = defineProps<{
   invitationId?: string | null;
   /** Set to offer "Record a paper signature" (MV3). */
   driverId?: string | null;
+  /** The drawer's query is fetching again — the failure's Retry spins while it does (D-US5). */
+  retrying?: boolean;
 }>();
+/**
+ * The releases failed to load and the reader asked again (D-US5). The panel does not own the query —
+ * the step drawer fetched it, so the drawer refetches it.
+ */
+const emit = defineEmits<{ retry: [] }>();
 
 /**
  * G-8 (APPLICATION-FLOW-V2-PLAN.md): the paper door is a WRITE, so it is offered only to a role that
@@ -135,32 +143,39 @@ const releases = computed<ReleaseRow[]>(() =>
 
 <template>
   <div class="space-y-4">
-    <p v-if="loading" class="text-xs text-ink-muted">Loading the signed releases…</p>
-    <p v-else-if="error" class="text-xs text-danger-700">{{ error }}</p>
-
-    <ul v-else class="divide-y divide-edge border-y border-edge">
-      <li v-for="release in releases" :key="release.purpose" class="flex items-start gap-3 py-3">
-        <AppIcon
-          :icon="release.live ? CheckCircleIcon : ClockIcon"
-          class="mt-0.5 size-4 shrink-0"
-          :class="release.live ? 'text-success-600' : 'text-ink-muted'"
-          aria-hidden="true"
-        />
-        <div class="min-w-0 flex-1">
-          <p class="text-xs font-medium text-ink">{{ release.label }}</p>
-          <!-- ⚠ The version, always, and never only the date. A dispute under FCRA §604(b)(2) is
-               about the wording somebody was shown, and this is the only field that answers it. -->
-          <p v-if="release.live" class="mt-0.5 text-2xs text-ink-secondary">
-            <!-- G-9: a paper signature's day is the one on the page; the recording instant is not it. -->
-            <template v-if="release.live.signed_on">Signed on paper {{ formatDate(release.live.signed_on) }} ·</template>
-            <template v-else>Signed {{ formatDateTime(release.live.accepted_at) }} ·</template>
-            wording {{ release.live.disclosure_version }}
-            <span v-if="release.live.signed_name"> · typed “{{ release.live.signed_name }}”</span>
-          </p>
-          <p v-else class="mt-0.5 text-2xs text-ink-muted">Not signed yet.</p>
-        </div>
-      </li>
-    </ul>
+    <QueryState
+      :loading="Boolean(loading)"
+      :error="error || null"
+      :error-text="error || undefined"
+      :retrying="retrying"
+      loading-text="Loading the signed releases…"
+      compact
+      @retry="emit('retry')"
+    >
+      <ul class="divide-y divide-edge border-y border-edge">
+        <li v-for="release in releases" :key="release.purpose" class="flex items-start gap-3 py-3">
+          <AppIcon
+            :icon="release.live ? CheckCircleIcon : ClockIcon"
+            class="mt-0.5 size-4 shrink-0"
+            :class="release.live ? 'text-success-600' : 'text-ink-muted'"
+            aria-hidden="true"
+          />
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium text-ink">{{ release.label }}</p>
+            <!-- ⚠ The version, always, and never only the date. A dispute under FCRA §604(b)(2) is
+                 about the wording somebody was shown, and this is the only field that answers it. -->
+            <p v-if="release.live" class="mt-0.5 text-2xs text-ink-secondary">
+              <!-- G-9: a paper signature's day is the one on the page; the recording instant is not it. -->
+              <template v-if="release.live.signed_on">Signed on paper {{ formatDate(release.live.signed_on) }} ·</template>
+              <template v-else>Signed {{ formatDateTime(release.live.accepted_at) }} ·</template>
+              wording {{ release.live.disclosure_version }}
+              <span v-if="release.live.signed_name"> · typed “{{ release.live.signed_name }}”</span>
+            </p>
+            <p v-else class="mt-0.5 text-2xs text-ink-muted">Not signed yet.</p>
+          </div>
+        </li>
+      </ul>
+    </QueryState>
 
     <div class="flex flex-wrap gap-3">
       <AppButton v-if="canPrint" size="sm" variant="secondary" @click="viewing = true">

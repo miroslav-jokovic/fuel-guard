@@ -39,6 +39,7 @@ const opportunities = useFuelOpportunitiesQuery(computed(() => ({ from: props.ra
       :rows="opportunities.data.value"
       :loading="opportunities.isLoading.value"
       :error="opportunities.isError.value"
+      @retry="opportunities.refetch()"
       :from="range.from"
       :to="range.to"
       :vehicle-ids="[]"

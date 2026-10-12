@@ -14,7 +14,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import ErrorState from "@/components/ErrorState.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
@@ -38,8 +38,8 @@ import { formatDateTime } from "@/lib/format";
  *
  * ── THE PAGE IS SHAPED LIKE THE OTHER ENTITY PAGES, ON PURPOSE (2026-09-10) ───────────────────
  * A titled summary card with the status badge top-right, facts as `dt text-ink-muted` /
- * `dd font-medium`, `text-sm font-semibold` section headings, `ErrorState` for a failed fetch and a
- * loading line before the card — the anatomy `VehicleDetailPage.vue`, `DriverDetailPage.vue` and
+ * `dd font-medium`, `text-sm font-semibold` section headings, and `QueryState` (D-US5) for the
+ * loading line and the failed fetch with its retry before the card — the anatomy `VehicleDetailPage.vue`, `DriverDetailPage.vue` and
  * `FuelCardDetailPage.vue` share. This page and its two siblings shipped with their own recipe
  * (headless card, uppercase KPI-style labels, badge under the facts, a hand-rolled "Try again"
  * card, `text-lg` headings), and the 2026-09-10 critique measured it as the pages reading foreign
@@ -69,7 +69,7 @@ const session = useSessionStore();
 const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
-const { data, isLoading, isError, error, refetch } = usePartQuery(id);
+const { data, isLoading, isError, error, refetch, isFetching } = usePartQuery(id);
 /**
  * ⚠ `includeInactive: true`, and only here. This list resolves NAMES for the ledger, and a movement
  * made into a bay that has since been closed still happened — an active-only list would render it
@@ -179,142 +179,143 @@ function detailOf(m: {
       </template>
     </PageHeader>
 
-    <ErrorState
-      v-if="isError"
-      :message="error instanceof Error ? error.message : 'Could not load the part.'"
-      @retry="() => refetch()"
-    />
-
-    <p v-else-if="isLoading && !part" class="text-sm text-ink-tertiary">Loading the part…</p>
-
-    <template v-else-if="part">
-      <BaseCard>
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open overnight
-                 refetches rather than rendering a broken image. -->
-            <img
-              v-if="data?.photoUrl"
-              :src="data.photoUrl"
-              :alt="`Photo of ${part.partNumber}`"
-              class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
-            />
-            <h2 class="text-sm font-semibold text-ink">Part summary</h2>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <BaseButton
-              v-if="canManage && !data?.photoUrl && !addingPhoto"
-              variant="ghost"
-              size="sm"
-              @click="addingPhoto = true"
-            >
-              Add a photo
-            </BaseButton>
-            <span v-if="!part.active" :class="[BADGE_BASE, toneClass('neutral')]">Retired</span>
-          </div>
-        </div>
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <div><dt class="text-ink-muted">Manufacturer</dt><dd class="font-medium text-ink">{{ part.manufacturer ?? "—" }}</dd></div>
-          <div><dt class="text-ink-muted">Category</dt><dd class="font-medium text-ink">{{ part.category ?? "—" }}</dd></div>
-          <div><dt class="text-ink-muted">Counted in</dt><dd class="font-medium text-ink">{{ UNIT_OF_MEASURE_LABELS[part.unitOfMeasure] }}</dd></div>
-          <div><dt class="text-ink-muted">Barcode</dt><dd class="font-mono text-xs text-ink">{{ part.upc ?? "—" }}</dd></div>
-          <div v-if="part.notes" class="col-span-2 sm:col-span-4">
-            <dt class="text-ink-muted">Notes</dt>
-            <dd class="text-ink-secondary">{{ part.notes }}</dd>
-          </div>
-        </dl>
-        <p v-if="!part.active" class="mt-3 text-xs text-ink-tertiary">
-          No longer carried. Its history stays, and it is not offered when issuing.
-        </p>
-        <FileDropzone
-          v-if="addingPhoto && canManage"
-          class="mt-4"
-          accept=".jpg,.jpeg,.png,.webp,.heic"
-          label="Add a photo"
-          hint="So the next person picks the right one off the shelf."
-          :busy="photo.isPending.value"
-          @files="onPhoto"
-        />
-      </BaseCard>
-
-      <section class="space-y-3">
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="text-sm font-semibold text-ink">Shelves</h2>
-          <BaseButton v-if="canManage" @click="shelfAdding = true">
-            <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add a shelf
-          </BaseButton>
-        </div>
-          <DataTable
-            :columns="SHELF_COLUMNS"
-            :rows="shelves"
-            :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
-            :loading="isLoading"
-          >
-            <template #cell-quantityOnHand="{ row }">
-              <StockLevelCell :line="row" />
-            </template>
-            <template #actions="{ row }">
-              <KebabMenu v-if="canManage">
-                <BaseButton class="kebab-item" @click="moving = { verb: 'received', line: row }">
-                  Receive
-                </BaseButton>
-                <BaseButton class="kebab-item" @click="moving = { verb: 'issued', line: row }">
-                  Issue
-                </BaseButton>
-                <BaseButton class="kebab-item" @click="moving = { verb: 'transferred', line: row }">
-                  Move
-                </BaseButton>
-                <BaseButton class="kebab-item" @click="shelfEditing = row">Edit shelf</BaseButton>
-                <!-- Last, and separated: an adjustment is the only verb that admits an unexplained
-                     decrease, which is why the contract demands a reason for it and no other. -->
-                <BaseButton class="kebab-item" @click="moving = { verb: 'adjusted', line: row }">
-                  Adjust the count
-                </BaseButton>
-              </KebabMenu>
-            </template>
-            <template #empty>
-              <p>
-                This part is not stocked anywhere yet. Add a shelf to say where it lives and how many
-                is enough — the count itself comes from receiving it.
-              </p>
-            </template>
-          </DataTable>
-      </section>
-
-      <section class="space-y-3">
-        <h2 class="text-sm font-semibold text-ink">History</h2>
-          <DataTable
-            :columns="LEDGER_COLUMNS"
-            :rows="movements.data.value?.movements ?? []"
-            :loading="movements.isLoading.value"
-            :error="movements.isError.value ? 'Could not load the movement history' : null"
-            @retry="() => movements.refetch()"
-          >
-            <template #cell-occurredAt="{ value }">{{ fmtWhen(value) }}</template>
-            <template #cell-reason="{ value }">
-              {{ PART_MOVEMENT_REASON_LABELS[value as keyof typeof PART_MOVEMENT_REASON_LABELS] }}
-            </template>
-            <template #cell-quantityDelta="{ value }">
-              <span :class="value < 0 ? 'font-semibold text-danger-700' : 'font-semibold text-ink'">
-                {{ value > 0 ? `+${value}` : value }}
-              </span>
-            </template>
-            <template #cell-locationId="{ value }">{{ locationName(value) }}</template>
-            <template #cell-note="{ row }">{{ detailOf(row) }}</template>
-            <template #empty>
-              <p>Nothing has moved yet. Receiving the first delivery starts the history.</p>
-            </template>
-            <template #footer>
-              <TablePagination
-                :page="page"
-                :page-size="INVENTORY_PAGE_SIZE"
-                :total="movements.data.value?.total ?? 0"
-                @update:page="page = $event"
+    <QueryState
+      :loading="isLoading && !part"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the part…"
+      error-text="Could not load the part."
+      @retry="refetch()"
+    >
+      <template v-if="part">
+        <BaseCard>
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open overnight
+                   refetches rather than rendering a broken image. -->
+              <img
+                v-if="data?.photoUrl"
+                :src="data.photoUrl"
+                :alt="`Photo of ${part.partNumber}`"
+                class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
               />
-            </template>
-          </DataTable>
-      </section>
-    </template>
+              <h2 class="text-sm font-semibold text-ink">Part summary</h2>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <BaseButton
+                v-if="canManage && !data?.photoUrl && !addingPhoto"
+                variant="ghost"
+                size="sm"
+                @click="addingPhoto = true"
+              >
+                Add a photo
+              </BaseButton>
+              <span v-if="!part.active" :class="[BADGE_BASE, toneClass('neutral')]">Retired</span>
+            </div>
+          </div>
+          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div><dt class="text-ink-muted">Manufacturer</dt><dd class="font-medium text-ink">{{ part.manufacturer ?? "—" }}</dd></div>
+            <div><dt class="text-ink-muted">Category</dt><dd class="font-medium text-ink">{{ part.category ?? "—" }}</dd></div>
+            <div><dt class="text-ink-muted">Counted in</dt><dd class="font-medium text-ink">{{ UNIT_OF_MEASURE_LABELS[part.unitOfMeasure] }}</dd></div>
+            <div><dt class="text-ink-muted">Barcode</dt><dd class="font-mono text-xs text-ink">{{ part.upc ?? "—" }}</dd></div>
+            <div v-if="part.notes" class="col-span-2 sm:col-span-4">
+              <dt class="text-ink-muted">Notes</dt>
+              <dd class="text-ink-secondary">{{ part.notes }}</dd>
+            </div>
+          </dl>
+          <p v-if="!part.active" class="mt-3 text-xs text-ink-tertiary">
+            No longer carried. Its history stays, and it is not offered when issuing.
+          </p>
+          <FileDropzone
+            v-if="addingPhoto && canManage"
+            class="mt-4"
+            accept=".jpg,.jpeg,.png,.webp,.heic"
+            label="Add a photo"
+            hint="So the next person picks the right one off the shelf."
+            :busy="photo.isPending.value"
+            @files="onPhoto"
+          />
+        </BaseCard>
+
+        <section class="space-y-3">
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="text-sm font-semibold text-ink">Shelves</h2>
+            <BaseButton v-if="canManage" @click="shelfAdding = true">
+              <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Add a shelf
+            </BaseButton>
+          </div>
+            <DataTable
+              :columns="SHELF_COLUMNS"
+              :rows="shelves"
+              :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
+              :loading="isLoading"
+            >
+              <template #cell-quantityOnHand="{ row }">
+                <StockLevelCell :line="row" />
+              </template>
+              <template #actions="{ row }">
+                <KebabMenu v-if="canManage">
+                  <BaseButton class="kebab-item" @click="moving = { verb: 'received', line: row }">
+                    Receive
+                  </BaseButton>
+                  <BaseButton class="kebab-item" @click="moving = { verb: 'issued', line: row }">
+                    Issue
+                  </BaseButton>
+                  <BaseButton class="kebab-item" @click="moving = { verb: 'transferred', line: row }">
+                    Move
+                  </BaseButton>
+                  <BaseButton class="kebab-item" @click="shelfEditing = row">Edit shelf</BaseButton>
+                  <!-- Last, and separated: an adjustment is the only verb that admits an unexplained
+                       decrease, which is why the contract demands a reason for it and no other. -->
+                  <BaseButton class="kebab-item" @click="moving = { verb: 'adjusted', line: row }">
+                    Adjust the count
+                  </BaseButton>
+                </KebabMenu>
+              </template>
+              <template #empty>
+                <p>
+                  This part is not stocked anywhere yet. Add a shelf to say where it lives and how many
+                  is enough — the count itself comes from receiving it.
+                </p>
+              </template>
+            </DataTable>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-sm font-semibold text-ink">History</h2>
+            <DataTable
+              :columns="LEDGER_COLUMNS"
+              :rows="movements.data.value?.movements ?? []"
+              :loading="movements.isLoading.value"
+              :error="movements.isError.value ? 'Could not load the movement history' : null"
+              @retry="() => movements.refetch()"
+            >
+              <template #cell-occurredAt="{ value }">{{ fmtWhen(value) }}</template>
+              <template #cell-reason="{ value }">
+                {{ PART_MOVEMENT_REASON_LABELS[value as keyof typeof PART_MOVEMENT_REASON_LABELS] }}
+              </template>
+              <template #cell-quantityDelta="{ value }">
+                <span :class="value < 0 ? 'font-semibold text-danger-700' : 'font-semibold text-ink'">
+                  {{ value > 0 ? `+${value}` : value }}
+                </span>
+              </template>
+              <template #cell-locationId="{ value }">{{ locationName(value) }}</template>
+              <template #cell-note="{ row }">{{ detailOf(row) }}</template>
+              <template #empty>
+                <p>Nothing has moved yet. Receiving the first delivery starts the history.</p>
+              </template>
+              <template #footer>
+                <TablePagination
+                  :page="page"
+                  :page-size="INVENTORY_PAGE_SIZE"
+                  :total="movements.data.value?.total ?? 0"
+                  @update:page="page = $event"
+                />
+              </template>
+            </DataTable>
+        </section>
+      </template>
+    </QueryState>
 
     <PartDrawer v-if="part" :open="editing" :part="part" @close="editing = false" />
     <StockLineDrawer

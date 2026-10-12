@@ -24,6 +24,7 @@ vi.mock("./usePriceCoverage", () => ({
 }));
 
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
+import DiscountCaptureCard from "./DiscountCaptureCard.vue";
 import ExceptionsTab from "./ExceptionsTab.vue";
 import ExportButton from "@/components/ExportButton.vue";
 
@@ -353,5 +354,20 @@ describe("saying what is measured", () => {
     }).text();
     expect(t).toContain("Which trucks");
     expect(t).toContain("754");
+  });
+});
+
+// D-US5: the fills behind the tile used to fail with "close it and open it again to retry".
+describe("DiscountCaptureCard", () => {
+  it("says the fills could not be loaded and offers a Retry that asks the page to read them again", async () => {
+    const totals = { measuredLines: 4, measuredGallons: 400, measuredPaid: 1500, measuredExpected: 1480, unmeasuredLines: 0, unmeasuredPaid: 0 };
+    const w = mount(DiscountCaptureCard, {
+      props: { totals, lines: [], linesError: true, open: true, from: "2026-08-01", to: "2026-08-31" },
+      ...withRouter,
+    });
+    expect(w.text()).toContain("Could not load the fills behind this figure.");
+    expect(w.text()).not.toContain("open it again");
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
   });
 });

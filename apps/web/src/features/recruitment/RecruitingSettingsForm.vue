@@ -11,6 +11,7 @@ import {
 import { AppButton as BaseButton, AppFormField as FormField, AppInput as BaseInput, AppSwitch } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useRecruitingSettings, useSaveRecruitingSettings } from "@/features/recruitment/useRecruitingSettings";
 
 /**
@@ -89,57 +90,62 @@ async function submit(): Promise<void> {
 
 <template>
   <div class="space-y-5">
-    <p v-if="settingsQ.isLoading.value" class="text-xs text-ink-muted">Loading…</p>
-    <p v-else-if="settingsQ.isError.value" class="text-xs text-danger-700">
-      {{ settingsQ.error.value?.message ?? "Could not load the recruiting settings." }}
-    </p>
+    <QueryState
+      :loading="settingsQ.isLoading.value"
+      :error="settingsQ.isError.value ? settingsQ.error.value : null"
+      :error-text="settingsQ.error.value?.message || 'Could not load the recruiting settings.'"
+      :retrying="settingsQ.isFetching.value"
+      loading-text="Loading the recruiting settings…"
+      compact
+      @retry="settingsQ.refetch()"
+    >
+      <template v-if="settingsQ.data.value">
+        <p class="text-xs text-ink-muted">
+          {{ settingsQ.data.value.isDefault
+            ? "These are the product's defaults. Nobody has changed them for this carrier."
+            : `Last changed ${formatDisplayDateTime(settingsQ.data.value.updatedAt)}.` }}
+        </p>
 
-    <template v-else-if="settingsQ.data.value">
-      <p class="text-xs text-ink-muted">
-        {{ settingsQ.data.value.isDefault
-          ? "These are the product's defaults. Nobody has changed them for this carrier."
-          : `Last changed ${formatDisplayDateTime(settingsQ.data.value.updatedAt)}.` }}
-      </p>
+        <FormField
+          v-slot="{ id }"
+          label="How long an application link stays open"
+          :hint="`In days, 1 to ${INVITE_TTL_DAYS_MAX}. Every send, reminder and signing step opens it for this long again.`"
+          :error="daysError"
+        >
+          <BaseInput :id="id" v-model="form.days" type="number" min="1" :max="INVITE_TTL_DAYS_MAX" inputmode="numeric" :disabled="!canManage" class="max-w-32" />
+        </FormField>
 
-      <FormField
-        v-slot="{ id }"
-        label="How long an application link stays open"
-        :hint="`In days, 1 to ${INVITE_TTL_DAYS_MAX}. Every send, reminder and signing step opens it for this long again.`"
-        :error="daysError"
-      >
-        <BaseInput :id="id" v-model="form.days" type="number" min="1" :max="INVITE_TTL_DAYS_MAX" inputmode="numeric" :disabled="!canManage" class="max-w-32" />
-      </FormField>
-
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-sm font-medium text-ink">Remind a driver who stops</p>
-          <p class="mt-1 text-xs text-ink-secondary">
-            One email, and a text if they agreed to texts, once per part of the application. Off, the office is
-            still told that they stopped. The office's alerts are stopped only by turning off the carrier's
-            notifications in Settings → Notifications, which stops its other alerts too.
-          </p>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-ink">Remind a driver who stops</p>
+            <p class="mt-1 text-xs text-ink-secondary">
+              One email, and a text if they agreed to texts, once per part of the application. Off, the office is
+              still told that they stopped. The office's alerts are stopped only by turning off the carrier's
+              notifications in Settings → Notifications, which stops its other alerts too.
+            </p>
+          </div>
+          <AppSwitch v-model="form.enabled" :disabled="!canManage" label="Remind a driver who stops" />
         </div>
-        <AppSwitch v-model="form.enabled" :disabled="!canManage" label="Remind a driver who stops" />
-      </div>
 
-      <FormField
-        v-slot="{ id }"
-        label="Count a driver as stopped after"
-        :hint="`In hours without progress, ${REMINDER_AFTER_HOURS_MIN} to ${REMINDER_AFTER_HOURS_MAX}. The office is alerted then${form.enabled ? ', and the driver is reminded' : ''}; it can be up to six hours later than this.`"
-        :error="hoursError"
-      >
-        <BaseInput :id="id" v-model="form.hours" type="number" :min="REMINDER_AFTER_HOURS_MIN" :max="REMINDER_AFTER_HOURS_MAX" inputmode="numeric" :disabled="!canManage" class="max-w-32" />
-      </FormField>
+        <FormField
+          v-slot="{ id }"
+          label="Count a driver as stopped after"
+          :hint="`In hours without progress, ${REMINDER_AFTER_HOURS_MIN} to ${REMINDER_AFTER_HOURS_MAX}. The office is alerted then${form.enabled ? ', and the driver is reminded' : ''}; it can be up to six hours later than this.`"
+          :error="hoursError"
+        >
+          <BaseInput :id="id" v-model="form.hours" type="number" :min="REMINDER_AFTER_HOURS_MIN" :max="REMINDER_AFTER_HOURS_MAX" inputmode="numeric" :disabled="!canManage" class="max-w-32" />
+        </FormField>
 
-      <BaseButton
-        v-if="canManage"
-        variant="primary"
-        size="sm"
-        :disabled="!changed || !parsed.success || save.isPending.value"
-        @click="submit"
-      >
-        {{ save.isPending.value ? "Saving…" : "Save" }}
-      </BaseButton>
-    </template>
+        <BaseButton
+          v-if="canManage"
+          variant="primary"
+          size="sm"
+          :disabled="!changed || !parsed.success || save.isPending.value"
+          @click="submit"
+        >
+          {{ save.isPending.value ? "Saving…" : "Save" }}
+        </BaseButton>
+      </template>
+    </QueryState>
   </div>
 </template>

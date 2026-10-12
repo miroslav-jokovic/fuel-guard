@@ -15,6 +15,7 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppSelect } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRule } from "@/features/fueling/useDiscountRules";
 
@@ -27,7 +28,7 @@ import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRu
  * because they were constants or read from columns that did not exist (0335 gave them columns). The
  * owner's words for the standard: "fueled when it gets to 20% to the top … without any overcomplications".
  */
-const { data, isLoading } = useRouteFuelSettings();
+const { data, isLoading, isError, error, isFetching, refetch } = useRouteFuelSettings();
 const save = useSaveRouteFuelSettings();
 const toast = useToastStore();
 
@@ -163,157 +164,167 @@ const truck: NumField[] = [
   <div class="space-y-6">
     <PageHeader description="How the planner places fuel stops, in the order it applies the rules: the tank, then the stations it may use, then emergencies, then prices. Every field here is read by the planner. Applies company-wide." />
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-
-    <form v-else class="space-y-6" @submit.prevent="onSave">
-      <BaseCard>
-        <h3 class="text-sm font-semibold text-ink">1. Tank and safety</h3>
-        <p class="mt-1 text-sm text-ink-muted">
-          A stop goes where the tank needs it and nowhere else: full to the fill target, placed so the truck never
-          drops below the reserve.
-          <span v-if="exampleMiles != null">
-            With these values a {{ REF_TANK_GAL }}-gal truck at {{ REF_MPG }} MPG runs about
-            <strong class="text-ink">{{ exampleMiles.toLocaleString() }} mi</strong> between fills.
-          </span>
-        </p>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <FormField v-for="f in tank" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
-          </FormField>
-        </div>
-      </BaseCard>
-
-      <BaseCard>
-        <h3 class="text-sm font-semibold text-ink">2. Stations</h3>
-        <p class="mt-1 text-sm text-ink-muted">
-          Networks turned on are the only ones the planner ever considers. Within them, a planned fill goes to a
-          preferred brand first, cheapest wins; an enabled brand that is neither preferred nor avoided is used only
-          when no preferred station is in range, and the stop is flagged off-network; an avoided brand, or any
-          station in an avoided state, is an emergency only.
-        </p>
-        <div class="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div>
-            <p class="text-sm font-medium text-ink-secondary">Networks on</p>
-            <p class="text-xs text-ink-muted">Turn one on once its locations and prices are loaded.</p>
-            <div class="mt-2 space-y-1.5">
-              <BaseCheckbox v-for="opt in networkOptions" :key="opt.value" :model-value="inList('enabled_brands', opt.value)" @update:model-value="(v: boolean) => toggleNetwork(opt.value, v)">
-                {{ opt.label }}
-              </BaseCheckbox>
-            </div>
-            <p v-if="fieldErr.enabled_brands" class="mt-2 text-sm text-danger-600">{{ fieldErr.enabled_brands }}</p>
-          </div>
-          <div>
-            <p class="text-sm font-medium text-ink-secondary">Preferred</p>
-            <p class="text-xs text-ink-muted">Planned fills go here first.</p>
-            <div class="mt-2 space-y-1.5">
-              <BaseCheckbox v-for="opt in enabledOptions" :key="opt.value" :model-value="inList('preferred_brands', opt.value)" @update:model-value="(v: boolean) => togglePreferred(opt.value, v)">
-                {{ opt.label }}
-              </BaseCheckbox>
-            </div>
-          </div>
-          <div>
-            <p class="text-sm font-medium text-ink-secondary">Emergency only</p>
-            <p class="text-xs text-ink-muted">Used only when nothing else is in range, and then a splash, never a fill.</p>
-            <div class="mt-2 space-y-1.5">
-              <BaseCheckbox v-for="opt in enabledOptions" :key="opt.value" :model-value="inList('avoid_brands', opt.value)" @update:model-value="(v: boolean) => toggleAvoided(opt.value, v)">
-                {{ opt.label }}
-              </BaseCheckbox>
-            </div>
-          </div>
-        </div>
-        <p class="mt-3 text-xs text-ink-muted">
-          <template v-if="offNetworkBrands.length">Off-network when nothing preferred is in range: {{ offNetworkBrands.join(", ") }}.</template>
-          <template v-else>Every enabled network is either preferred or emergency-only, so no stop can be off-network.</template>
-        </p>
-
-        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Avoided states" hint="Two-letter codes, comma-separated. Fuel here is emergency only, and the truck tops off before crossing in — the California rule." :error="fieldErr.avoid_states">
-            <BaseInput :id="id" v-model="avoidStates" placeholder="CA" />
-            <div v-if="form.avoid_states.length" class="mt-1.5 flex flex-wrap gap-1">
-              <span v-for="c in stateChips(form.avoid_states)" :key="c.code" :class="[BADGE_BASE, toneClass(c.name ? 'neutral' : 'warning')]">{{ c.code }}<template v-if="c.name"> · {{ c.name }}</template><template v-else> · not a state code</template></span>
-            </div>
-          </FormField>
-          <FormField v-slot="{ id }" label="Fuel-before states" hint="Top off before entering (sparse fueling, e.g. Massachusetts). Stations inside stay usable." :error="fieldErr.fuel_before_states">
-            <BaseInput :id="id" v-model="fuelBeforeStates" placeholder="MA" />
-            <div v-if="form.fuel_before_states.length" class="mt-1.5 flex flex-wrap gap-1">
-              <span v-for="c in stateChips(form.fuel_before_states)" :key="c.code" :class="[BADGE_BASE, toneClass(c.name ? 'neutral' : 'warning')]">{{ c.code }}<template v-if="c.name"> · {{ c.name }}</template><template v-else> · not a state code</template></span>
-            </div>
-          </FormField>
-        </div>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-for="f in corridor" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
-          </FormField>
-        </div>
-
-        <!--
-          Targets, beside the lists they grade (C8, D-FUI10). Deliberately in this card and not in a
-          section of their own: a target belongs to the rule it qualifies, and "at least 90% on the
-          preferred network" is unreadable three cards away from which brands those are.
-
-          Every one is optional and BLANK BY DEFAULT. The product does not invent a carrier's own
-          standard — see `optionalTarget` in the settings schema for what a blank field must not
-          become, and 0325 for why these three columns break this table's not-null convention.
-        -->
-        <div class="mt-6 border-t border-edge pt-4">
-          <h4 class="text-sm font-semibold text-ink">Targets</h4>
+    <!-- The form waits for the failure as well as the fetch (D-US5): before, a failed read fell
+         through to the form filled with the planner's defaults, and saving that page would have
+         replaced the company's real rules with them. -->
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the planner settings…"
+      error-text="Could not load the planner settings."
+      @retry="refetch()"
+    >
+      <form class="space-y-6" @submit.prevent="onSave">
+        <BaseCard>
+          <h3 class="text-sm font-semibold text-ink">1. Tank and safety</h3>
           <p class="mt-1 text-sm text-ink-muted">
-            What you hold the fleet to. Leave a target blank and the matching figure is reported without a
-            standard beside it — nothing here is assumed on your behalf.
+            A stop goes where the tank needs it and nowhere else: full to the fill target, placed so the truck never
+            drops below the reserve.
+            <span v-if="exampleMiles != null">
+              With these values a {{ REF_TANK_GAL }}-gal truck at {{ REF_MPG }} MPG runs about
+              <strong class="text-ink">{{ exampleMiles.toLocaleString() }} mi</strong> between fills.
+            </span>
           </p>
-          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FormField v-slot="{ id }" label="On-network share (%)" hint="At least this share of gallons at your preferred brands." :error="fieldErr.target_on_network_pct">
-              <BaseInput :id="id" v-model="form.target_on_network_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
-            </FormField>
-            <FormField v-slot="{ id }" label="Discount capture (%)" hint="At least this share of the discount available to you, actually taken." :error="fieldErr.target_discount_capture_pct">
-              <BaseInput :id="id" v-model="form.target_discount_capture_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
-            </FormField>
-            <FormField v-slot="{ id }" :label="`Avoided-state gallons / ${AVOIDED_STATE_TARGET_PERIOD}`" :hint="`At most this many gallons a ${AVOIDED_STATE_TARGET_PERIOD} bought in the states above. A ceiling, not a floor.`" :error="fieldErr.target_avoided_state_gal">
-              <BaseInput :id="id" v-model="form.target_avoided_state_gal" type="number" min="0" step="10" placeholder="No target" />
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormField v-for="f in tank" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
             </FormField>
           </div>
-        </div>
-      </BaseCard>
+        </BaseCard>
 
-      <BaseCard>
-        <h3 class="text-sm font-semibold text-ink">3. Emergencies</h3>
-        <p class="mt-1 text-sm text-ink-muted">A planned stop is always a full fill. An emergency — nothing preferred in range and the tank at the critical level, or only an avoided pump in reach — is the one time the planner buys less.</p>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-for="f in emergencies" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
+        <BaseCard>
+          <h3 class="text-sm font-semibold text-ink">2. Stations</h3>
+          <p class="mt-1 text-sm text-ink-muted">
+            Networks turned on are the only ones the planner ever considers. Within them, a planned fill goes to a
+            preferred brand first, cheapest wins; an enabled brand that is neither preferred nor avoided is used only
+            when no preferred station is in range, and the stop is flagged off-network; an avoided brand, or any
+            station in an avoided state, is an emergency only.
+          </p>
+          <div class="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div>
+              <p class="text-sm font-medium text-ink-secondary">Networks on</p>
+              <p class="text-xs text-ink-muted">Turn one on once its locations and prices are loaded.</p>
+              <div class="mt-2 space-y-1.5">
+                <BaseCheckbox v-for="opt in networkOptions" :key="opt.value" :model-value="inList('enabled_brands', opt.value)" @update:model-value="(v: boolean) => toggleNetwork(opt.value, v)">
+                  {{ opt.label }}
+                </BaseCheckbox>
+              </div>
+              <p v-if="fieldErr.enabled_brands" class="mt-2 text-sm text-danger-600">{{ fieldErr.enabled_brands }}</p>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-ink-secondary">Preferred</p>
+              <p class="text-xs text-ink-muted">Planned fills go here first.</p>
+              <div class="mt-2 space-y-1.5">
+                <BaseCheckbox v-for="opt in enabledOptions" :key="opt.value" :model-value="inList('preferred_brands', opt.value)" @update:model-value="(v: boolean) => togglePreferred(opt.value, v)">
+                  {{ opt.label }}
+                </BaseCheckbox>
+              </div>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-ink-secondary">Emergency only</p>
+              <p class="text-xs text-ink-muted">Used only when nothing else is in range, and then a splash, never a fill.</p>
+              <div class="mt-2 space-y-1.5">
+                <BaseCheckbox v-for="opt in enabledOptions" :key="opt.value" :model-value="inList('avoid_brands', opt.value)" @update:model-value="(v: boolean) => toggleAvoided(opt.value, v)">
+                  {{ opt.label }}
+                </BaseCheckbox>
+              </div>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-ink-muted">
+            <template v-if="offNetworkBrands.length">Off-network when nothing preferred is in range: {{ offNetworkBrands.join(", ") }}.</template>
+            <template v-else>Every enabled network is either preferred or emergency-only, so no stop can be off-network.</template>
+          </p>
+
+          <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField v-slot="{ id }" label="Avoided states" hint="Two-letter codes, comma-separated. Fuel here is emergency only, and the truck tops off before crossing in — the California rule." :error="fieldErr.avoid_states">
+              <BaseInput :id="id" v-model="avoidStates" placeholder="CA" />
+              <div v-if="form.avoid_states.length" class="mt-1.5 flex flex-wrap gap-1">
+                <span v-for="c in stateChips(form.avoid_states)" :key="c.code" :class="[BADGE_BASE, toneClass(c.name ? 'neutral' : 'warning')]">{{ c.code }}<template v-if="c.name"> · {{ c.name }}</template><template v-else> · not a state code</template></span>
+              </div>
+            </FormField>
+            <FormField v-slot="{ id }" label="Fuel-before states" hint="Top off before entering (sparse fueling, e.g. Massachusetts). Stations inside stay usable." :error="fieldErr.fuel_before_states">
+              <BaseInput :id="id" v-model="fuelBeforeStates" placeholder="MA" />
+              <div v-if="form.fuel_before_states.length" class="mt-1.5 flex flex-wrap gap-1">
+                <span v-for="c in stateChips(form.fuel_before_states)" :key="c.code" :class="[BADGE_BASE, toneClass(c.name ? 'neutral' : 'warning')]">{{ c.code }}<template v-if="c.name"> · {{ c.name }}</template><template v-else> · not a state code</template></span>
+              </div>
+            </FormField>
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField v-for="f in corridor" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
+            </FormField>
+          </div>
+
+          <!--
+            Targets, beside the lists they grade (C8, D-FUI10). Deliberately in this card and not in a
+            section of their own: a target belongs to the rule it qualifies, and "at least 90% on the
+            preferred network" is unreadable three cards away from which brands those are.
+
+            Every one is optional and BLANK BY DEFAULT. The product does not invent a carrier's own
+            standard — see `optionalTarget` in the settings schema for what a blank field must not
+            become, and 0325 for why these three columns break this table's not-null convention.
+          -->
+          <div class="mt-6 border-t border-edge pt-4">
+            <h4 class="text-sm font-semibold text-ink">Targets</h4>
+            <p class="mt-1 text-sm text-ink-muted">
+              What you hold the fleet to. Leave a target blank and the matching figure is reported without a
+              standard beside it — nothing here is assumed on your behalf.
+            </p>
+            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <FormField v-slot="{ id }" label="On-network share (%)" hint="At least this share of gallons at your preferred brands." :error="fieldErr.target_on_network_pct">
+                <BaseInput :id="id" v-model="form.target_on_network_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
+              </FormField>
+              <FormField v-slot="{ id }" label="Discount capture (%)" hint="At least this share of the discount available to you, actually taken." :error="fieldErr.target_discount_capture_pct">
+                <BaseInput :id="id" v-model="form.target_discount_capture_pct" type="number" min="0" max="100" step="1" placeholder="No target" />
+              </FormField>
+              <FormField v-slot="{ id }" :label="`Avoided-state gallons / ${AVOIDED_STATE_TARGET_PERIOD}`" :hint="`At most this many gallons a ${AVOIDED_STATE_TARGET_PERIOD} bought in the states above. A ceiling, not a floor.`" :error="fieldErr.target_avoided_state_gal">
+                <BaseInput :id="id" v-model="form.target_avoided_state_gal" type="number" min="0" step="10" placeholder="No target" />
+              </FormField>
+            </div>
+          </div>
+        </BaseCard>
+
+        <BaseCard>
+          <h3 class="text-sm font-semibold text-ink">3. Emergencies</h3>
+          <p class="mt-1 text-sm text-ink-muted">A planned stop is always a full fill. An emergency — nothing preferred in range and the tank at the critical level, or only an avoided pump in reach — is the one time the planner buys less.</p>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField v-for="f in emergencies" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="decimal" :invalid="!!fieldErr[f.key]" />
+            </FormField>
+          </div>
+        </BaseCard>
+
+        <BaseCard>
+          <h3 class="text-sm font-semibold text-ink">4. Prices</h3>
+          <p class="mt-1 text-sm text-ink-muted">Every stop shows the pump price and your price. Your daily report already carries both; a posted-only network needs a discount rule below to know yours.</p>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField v-for="f in prices" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="numeric" :invalid="!!fieldErr[f.key]" />
+            </FormField>
+          </div>
+        </BaseCard>
+
+        <BaseCard>
+          <h3 class="text-sm font-semibold text-ink">5. Load and truck defaults</h3>
+          <p class="mt-1 text-sm text-ink-muted">Your fleet's usual trailer pre-fills every new plan so hazmat is never assumed; dispatchers can still change it per load. The truck profile is used for routing when a vehicle has no stored dimensions.</p>
+          <FormField v-slot="{ id }" label="Default equipment / trailer" class="mt-4 sm:max-w-xs">
+            <AppSelect :id="id" v-model="form.default_equipment_type" :options="EQUIPMENT_TYPES" />
           </FormField>
-        </div>
-      </BaseCard>
+          <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <FormField v-for="f in truck" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="numeric" :invalid="!!fieldErr[f.key]" />
+            </FormField>
+          </div>
+        </BaseCard>
 
-      <BaseCard>
-        <h3 class="text-sm font-semibold text-ink">4. Prices</h3>
-        <p class="mt-1 text-sm text-ink-muted">Every stop shows the pump price and your price. Your daily report already carries both; a posted-only network needs a discount rule below to know yours.</p>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-for="f in prices" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="numeric" :invalid="!!fieldErr[f.key]" />
-          </FormField>
+        <div class="flex justify-end">
+          <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
+            {{ save.isPending.value ? "Saving…" : "Save settings" }}
+          </BaseButton>
         </div>
-      </BaseCard>
-
-      <BaseCard>
-        <h3 class="text-sm font-semibold text-ink">5. Load and truck defaults</h3>
-        <p class="mt-1 text-sm text-ink-muted">Your fleet's usual trailer pre-fills every new plan so hazmat is never assumed; dispatchers can still change it per load. The truck profile is used for routing when a vehicle has no stored dimensions.</p>
-        <FormField v-slot="{ id }" label="Default equipment / trailer" class="mt-4 sm:max-w-xs">
-          <AppSelect :id="id" v-model="form.default_equipment_type" :options="EQUIPMENT_TYPES" />
-        </FormField>
-        <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <FormField v-for="f in truck" :key="f.key" v-slot="{ id }" :label="f.label" :hint="f.hint" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="numeric" :invalid="!!fieldErr[f.key]" />
-          </FormField>
-        </div>
-      </BaseCard>
-
-      <div class="flex justify-end">
-        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save settings" }}
-        </BaseButton>
-      </div>
-    </form>
+      </form>
+    </QueryState>
 
     <BaseCard>
       <h3 class="text-sm font-semibold text-ink">Chain discount rules</h3>

@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { HANDBOOK_PLACEMENTS, formatDisplayDate, formatDisplayDateTime } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCombobox as ComboSelect, AppFormField as FormField } from "@silvicom/ui";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import SignatoryRegister from "@/features/recruitment/SignatoryRegister.vue";
 import {
   useCountersignHandbook,
@@ -81,42 +82,51 @@ async function countersignAndFile(): Promise<void> {
 
 <template>
   <div class="space-y-6">
-    <p v-if="statusQ.isLoading.value" class="text-xs text-ink-muted">Loading…</p>
-
-    <template v-else-if="status">
-      <p v-if="status.filedAt" class="text-sm text-ink">
-        Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook and the countersigned
-        application are in the driver's file.
-      </p>
-
-      <p v-else-if="!status.canOpen" class="text-sm text-ink-secondary">
-        The handbook is signed after the application. It opens here once the application is signed and filed.
-      </p>
-
-      <div v-else class="space-y-3">
-        <p class="text-sm font-medium text-ink">
-          {{ status.driverComplete ? "The driver has signed every place" : `The driver has signed ${signedCount} of ${driverPlaces.length}` }}
+    <!-- D-US5: a failed read used to draw nothing at all here — no status, no reason. -->
+    <QueryState
+      :loading="statusQ.isLoading.value"
+      :error="statusQ.isError.value ? statusQ.error.value : null"
+      :retrying="statusQ.isFetching.value"
+      loading-text="Loading the handbook…"
+      error-text="Could not load where the handbook stands."
+      compact
+      @retry="statusQ.refetch()"
+    >
+      <template v-if="status">
+        <p v-if="status.filedAt" class="text-sm text-ink">
+          Signed and filed on {{ formatDisplayDate(status.filedAt, "") }}. The signed handbook and the countersigned
+          application are in the driver's file.
         </p>
-        <ul class="divide-y divide-edge border-y border-edge">
-          <li v-for="place in driverPlaces" :key="place.id" class="flex items-start justify-between gap-3 py-2 text-xs">
-            <span class="text-ink">{{ place.what }}</span>
-            <span :class="status.driverSigned.includes(place.id) ? 'text-ink' : 'text-ink-muted'">
-              {{ status.driverSigned.includes(place.id) ? "Signed" : "Not yet" }}
-            </span>
-          </li>
-        </ul>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <p class="text-xs" :class="linkExpired ? 'text-danger-700' : 'text-ink-secondary'">
-            {{ linkExpired
-              ? `The driver's link expired on ${formatDisplayDateTime(status.linkExpiresAt)}. Extend it before they sign or you countersign.`
-              : `The driver's link is open until ${formatDisplayDateTime(status.linkExpiresAt)}.` }}
+
+        <p v-else-if="!status.canOpen" class="text-sm text-ink-secondary">
+          The handbook is signed after the application. It opens here once the application is signed and filed.
+        </p>
+
+        <div v-else class="space-y-3">
+          <p class="text-sm font-medium text-ink">
+            {{ status.driverComplete ? "The driver has signed every place" : `The driver has signed ${signedCount} of ${driverPlaces.length}` }}
           </p>
-          <BaseButton variant="secondary" size="sm" :disabled="extend.isPending.value" @click="extendLink">
-            {{ extend.isPending.value ? "Extending…" : "Extend the driver's link" }}
-          </BaseButton>
+          <ul class="divide-y divide-edge border-y border-edge">
+            <li v-for="place in driverPlaces" :key="place.id" class="flex items-start justify-between gap-3 py-2 text-xs">
+              <span class="text-ink">{{ place.what }}</span>
+              <span :class="status.driverSigned.includes(place.id) ? 'text-ink' : 'text-ink-muted'">
+                {{ status.driverSigned.includes(place.id) ? "Signed" : "Not yet" }}
+              </span>
+            </li>
+          </ul>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs" :class="linkExpired ? 'text-danger-700' : 'text-ink-secondary'">
+              {{ linkExpired
+                ? `The driver's link expired on ${formatDisplayDateTime(status.linkExpiresAt)}. Extend it before they sign or you countersign.`
+                : `The driver's link is open until ${formatDisplayDateTime(status.linkExpiresAt)}.` }}
+            </p>
+            <BaseButton variant="secondary" size="sm" :disabled="extend.isPending.value" @click="extendLink">
+              {{ extend.isPending.value ? "Extending…" : "Extend the driver's link" }}
+            </BaseButton>
+          </div>
         </div>
-      </div>
-    </template>
+      </template>
+    </QueryState>
 
     <!-- The countersignature: only once the driver is done, and never after filing. -->
     <div v-if="status?.driverComplete && !status.filedAt" class="space-y-4">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon } from "@silvicom/ui";
 import {
   CheckCircleIcon,
   CopyIcon,
@@ -24,22 +24,13 @@ const emit = defineEmits<{
 
 <template>
   <div class="space-y-6" aria-live="polite">
-    <div class="rounded-surface bg-success-50 p-4 ring-1 ring-inset ring-success-200">
-      <div class="flex gap-3">
-        <AppIcon
-          :icon="CheckCircleIcon"
-          class="mt-0.5 size-5 shrink-0 text-success-700"
-          aria-hidden="true"
-        />
-        <div>
-          <h3 class="text-sm font-semibold text-success-800">Login ready to hand off</h3>
-          <p class="mt-1 text-sm leading-5 text-success-700">
-            Copy these details now. The password disappears when you close this drawer and cannot be
-            recovered.
-          </p>
-        </div>
-      </div>
-    </div>
+    <!-- A callout, not a toast: it stays true for as long as the drawer holds the password — copy
+         now, because closing loses it — which is exactly what a callout is for (D-US3). -->
+    <AppCallout tone="success" :icon="CheckCircleIcon">
+      <strong class="font-semibold">Login ready to hand off.</strong>
+      Copy these details now. The password disappears when you close this drawer and cannot be
+      recovered.
+    </AppCallout>
 
     <BaseCard padding="none">
       <dl class="divide-y divide-edge-subtle">

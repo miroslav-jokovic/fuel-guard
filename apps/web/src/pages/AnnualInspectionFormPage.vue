@@ -8,6 +8,7 @@ import {
   type InspectionResult,
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppBadge, AppCard as BaseCard } from "@silvicom/ui";
+import QueryState from "@/components/ui/QueryState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import InspectionHeaderFields from "@/features/maintenance/InspectionHeaderFields.vue";
 import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
@@ -47,7 +48,7 @@ const session = useSessionStore();
 const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
-const { data, isLoading, isError, error, refetch } = useInspectionQuery(id);
+const { data, isLoading, isError, error, refetch, isFetching } = useInspectionQuery(id);
 const patch = usePatchInspection(id);
 const finalize = useFinalizeInspection(id);
 const correct = useCorrectInspection();
@@ -238,145 +239,145 @@ async function openPdf(kind: "report" | "preview") {
   <div class="space-y-6">
     <PageHeader description="Every part below carries a result before this inspection can be completed." />
 
-    <AppCallout v-if="isError" tone="danger">
-      {{ error?.message ?? "Could not load this inspection." }}
-      <BaseButton size="sm" variant="secondary" class="ml-2" @click="() => refetch()">Retry</BaseButton>
-    </AppCallout>
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the inspection…"
+      error-text="Could not load this inspection."
+      @retry="refetch()"
+    >
+      <template v-if="report">
+        <!-- The verdict, derived. There is no control here that sets it. -->
+        <AppCallout :tone="isFinal ? (report.outcome === 'pass' ? 'success' : 'danger') : outcome === 'pass' ? 'success' : 'caution'">
+          <span v-if="isFinal">
+            Completed — {{ report.outcome === "pass" ? "PASSED" : "FAILED" }}{{ report.outcome === "pass" ? `, next due ${report.next_due_on}` : "" }}.
+            A completed inspection cannot be edited; a correction is a new one.
+          </span>
+          <span v-else-if="derived && !derived.ok">
+            Not ready to complete: {{ derived.issues.map((i) => i.itemKeys.length).reduce((a, b) => a + b, 0) }}
+            part(s) still need an answer.
+          </span>
+          <span v-else>
+            Result so far: <strong>{{ outcome === "pass" ? "PASSED" : "FAILED" }}</strong>.
+            <template v-if="openDefects.length">
+              {{ openDefects.length }} part(s) need repair with no repair date.
+            </template>
+            <template v-if="stillDefault"> · {{ stillDefault }} part(s) still on the opening answer.</template>
+            <template v-if="outcome === 'pass' && !report.decal_serial">
+              · No sticker number recorded — a passing inspection normally gets a decal, and that
+              sticker is what an officer reads off the vehicle.
+            </template>
+          </span>
+        </AppCallout>
 
-    <p v-else-if="isLoading" class="text-sm text-ink-tertiary">Loading the inspection…</p>
+        <!-- Not a toast: this is a standing condition of the report rather than feedback on an action,
+             and it has to be readable at the moment somebody is choosing between the two buttons
+             underneath it. -->
+        <AppCallout v-if="filedDrawingIsStale" tone="caution">
+          This report was filed on an earlier version of the printed form, so it will not look like one
+          completed today. The filed copy is the evidence and prints exactly as it was certified — it is
+          never re-drawn. To put the current form on paper, record a correction, which files a new
+          report.
+        </AppCallout>
 
-    <template v-else-if="report">
-      <!-- The verdict, derived. There is no control here that sets it. -->
-      <AppCallout :tone="isFinal ? (report.outcome === 'pass' ? 'success' : 'danger') : outcome === 'pass' ? 'success' : 'caution'">
-        <span v-if="isFinal">
-          Completed — {{ report.outcome === "pass" ? "PASSED" : "FAILED" }}{{ report.outcome === "pass" ? `, next due ${report.next_due_on}` : "" }}.
-          A completed inspection cannot be edited; a correction is a new one.
-        </span>
-        <span v-else-if="derived && !derived.ok">
-          Not ready to complete: {{ derived.issues.map((i) => i.itemKeys.length).reduce((a, b) => a + b, 0) }}
-          part(s) still need an answer.
-        </span>
-        <span v-else>
-          Result so far: <strong>{{ outcome === "pass" ? "PASSED" : "FAILED" }}</strong>.
-          <template v-if="openDefects.length">
-            {{ openDefects.length }} part(s) need repair with no repair date.
-          </template>
-          <template v-if="stillDefault"> · {{ stillDefault }} part(s) still on the opening answer.</template>
-          <template v-if="outcome === 'pass' && !report.decal_serial">
-            · No sticker number recorded — a passing inspection normally gets a decal, and that
-            sticker is what an officer reads off the vehicle.
-          </template>
-        </span>
-      </AppCallout>
+        <div class="flex flex-wrap items-center gap-2">
+          <BaseButton v-if="isFinal && session.can('maintenance')" variant="secondary" @click="startCorrection">
+            Record a correction
+          </BaseButton>
+          <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
+            Discard
+          </BaseButton>
+          <!-- ── NOT ON A CERTIFIED REPORT, AND THAT IS THE POINT ──────────────────────────────
+               A preview is drawn NOW; a certified report serves the bytes it was FILED with and is
+               never re-rendered. Same renderer, same template, same coordinate map — different
+               moment. So the day the drawing changes, an older filing and a fresh preview of it are
+               two different-looking pages, and offering both on one screen invites a comparison
+               whose answer is "the code moved", which is not something the office should have to
+               know. Preview exists so they can see what will print BEFORE they certify (D-AVI14).
+               After that the page exists and there is exactly one of it. -->
+          <BaseButton v-if="!isFinal" variant="secondary" @click="() => openPdf('preview')">
+            Preview the printed page
+          </BaseButton>
+          <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
+            Print
+          </BaseButton>
+          <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="completeInspection">
+            Complete inspection
+          </BaseButton>
+          <!-- Deliberately last, and `ghost` rather than `danger`: the destructive control should be
+               findable, not the thing the eye lands on first. The drawer is where it gets loud. -->
+          <BaseButton v-if="canDeleteRecord" variant="ghost" @click="deleting = true">
+            Delete this record
+          </BaseButton>
+          <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
+        </div>
 
-      <!-- Not a toast: this is a standing condition of the report rather than feedback on an action,
-           and it has to be readable at the moment somebody is choosing between the two buttons
-           underneath it. -->
-      <AppCallout v-if="filedDrawingIsStale" tone="caution">
-        This report was filed on an earlier version of the printed form, so it will not look like one
-        completed today. The filed copy is the evidence and prints exactly as it was certified — it is
-        never re-drawn. To put the current form on paper, record a correction, which files a new
-        report.
-      </AppCallout>
+        <!-- The one refusal that is NOT a toast, and the reason is the list under it. §5.8's rule is
+             about mutation FEEDBACK — "saved", "could not save" — and a toast is the right shape for a
+             sentence that expires. This one names the components that still need an answer, which is a
+             worklist: it has to stay on screen next to the rows it is talking about, and it has to
+             survive the four seconds a toast lives for. -->
+        <AppCallout v-if="refusal" tone="danger">
+          {{ refusal.message }}
+          <ul v-if="refusal.issues?.length" class="mt-2 list-disc pl-5 text-sm">
+            <li v-for="issue in refusal.issues" :key="issue.code">
+              {{ issue.code.replaceAll("_", " ") }}: {{ issue.itemKeys.join(", ") }}
+            </li>
+          </ul>
+        </AppCallout>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <BaseButton v-if="isFinal && session.can('maintenance')" variant="secondary" @click="startCorrection">
-          Record a correction
-        </BaseButton>
-        <BaseButton v-if="!isFinal && session.can('maintenance')" variant="ghost" @click="discardDraft">
-          Discard
-        </BaseButton>
-        <!-- ── NOT ON A CERTIFIED REPORT, AND THAT IS THE POINT ──────────────────────────────
-             A preview is drawn NOW; a certified report serves the bytes it was FILED with and is
-             never re-rendered. Same renderer, same template, same coordinate map — different
-             moment. So the day the drawing changes, an older filing and a fresh preview of it are
-             two different-looking pages, and offering both on one screen invites a comparison
-             whose answer is "the code moved", which is not something the office should have to
-             know. Preview exists so they can see what will print BEFORE they certify (D-AVI14).
-             After that the page exists and there is exactly one of it. -->
-        <BaseButton v-if="!isFinal" variant="secondary" @click="() => openPdf('preview')">
-          Preview the printed page
-        </BaseButton>
-        <BaseButton v-if="isFinal" variant="secondary" @click="printing = true">
-          Print
-        </BaseButton>
-        <BaseButton v-else variant="primary" :disabled="patch.isPending.value" @click="completeInspection">
-          Complete inspection
-        </BaseButton>
-        <!-- Deliberately last, and `ghost` rather than `danger`: the destructive control should be
-             findable, not the thing the eye lands on first. The drawer is where it gets loud. -->
-        <BaseButton v-if="canDeleteRecord" variant="ghost" @click="deleting = true">
-          Delete this record
-        </BaseButton>
-        <AppBadge v-if="patch.isPending.value" tone="info">Saving…</AppBadge>
-      </div>
+        <!-- `BaseCard` rather than a hand-rolled panel: a bordered surface with a heading is exactly
+             what it is, and the contract's rule against bespoke chrome applies to a page as much as to
+             an overlay. Heading is `text-base` — the card-section size — not the drawer's `text-sm`. -->
+        <!-- The header block the printed page carries and the item rows do not: the decal serial and
+             who performed the inspection. Shown for a completed report too, read-only, because a filed
+             report has to be readable in full from the page that represents it. -->
+        <BaseCard as="section" padding="md">
+          <InspectionHeaderFields
+            :decal-serial="report.decal_serial"
+            :agency="report.inspection_agency_location"
+            :carrier-name="carrierName"
+            :disabled="isFinal"
+            @update:decal-serial="setDecalSerial"
+            @update:agency="setAgency"
+          />
+        </BaseCard>
 
-      <!-- The one refusal that is NOT a toast, and the reason is the list under it. §5.8's rule is
-           about mutation FEEDBACK — "saved", "could not save" — and a toast is the right shape for a
-           sentence that expires. This one names the components that still need an answer, which is a
-           worklist: it has to stay on screen next to the rows it is talking about, and it has to
-           survive the four seconds a toast lives for. -->
-      <AppCallout v-if="refusal" tone="danger">
-        {{ refusal.message }}
-        <ul v-if="refusal.issues?.length" class="mt-2 list-disc pl-5 text-sm">
-          <li v-for="issue in refusal.issues" :key="issue.code">
-            {{ issue.code.replaceAll("_", " ") }}: {{ issue.itemKeys.join(", ") }}
-          </li>
-        </ul>
-      </AppCallout>
+        <BaseCard v-for="group in groups" :key="group.number" as="section" padding="none">
+          <h3 class="border-b border-edge-subtle px-4 py-3 text-sm font-semibold text-ink">
+            {{ group.number }}. {{ group.title }}
+          </h3>
+          <InspectionItemRow
+            v-for="item in group.items"
+            :key="item.key"
+            :item="item"
+            :result="byKey.get(item.key)?.result ?? 'na'"
+            :source="byKey.get(item.key)?.source ?? 'default'"
+            :repaired-at="byKey.get(item.key)?.repairedAt ?? null"
+            :disabled="isFinal"
+            @set="(r) => setResult(item.key, r)"
+            @set-repaired="(v) => setRepaired(item.key, v)"
+          />
+        </BaseCard>
 
-      <!-- `BaseCard` rather than a hand-rolled panel: a bordered surface with a heading is exactly
-           what it is, and the contract's rule against bespoke chrome applies to a page as much as to
-           an overlay. Heading is `text-base` — the card-section size — not the drawer's `text-sm`. -->
-      <!-- The header block the printed page carries and the item rows do not: the decal serial and
-           who performed the inspection. Shown for a completed report too, read-only, because a filed
-           report has to be readable in full from the page that represents it. -->
-      <BaseCard as="section" padding="md">
-        <InspectionHeaderFields
-          :decal-serial="report.decal_serial"
-          :agency="report.inspection_agency_location"
-          :carrier-name="carrierName"
-          :disabled="isFinal"
-          @update:decal-serial="setDecalSerial"
-          @update:agency="setAgency"
+        <PrintInspectionDrawer
+          :open="printing"
+          :inspection-id="id"
+          :can-manage="session.can('maintenance')"
+          @close="printing = false"
         />
-      </BaseCard>
-
-      <BaseCard v-for="group in groups" :key="group.number" as="section" padding="none">
-        <h3 class="border-b border-edge-subtle px-4 py-3 text-sm font-semibold text-ink">
-          {{ group.number }}. {{ group.title }}
-        </h3>
-        <InspectionItemRow
-          v-for="item in group.items"
-          :key="item.key"
-          :item="item"
-          :result="byKey.get(item.key)?.result ?? 'na'"
-          :source="byKey.get(item.key)?.source ?? 'default'"
-          :repaired-at="byKey.get(item.key)?.repairedAt ?? null"
-          :disabled="isFinal"
-          @set="(r) => setResult(item.key, r)"
-          @set-repaired="(v) => setRepaired(item.key, v)"
+        <DeleteInspectionDrawer
+          :open="deleting"
+          :inspection-id="id"
+          :unit-number="report.unit_number ?? ''"
+          :subject-type="report.subject_type"
+          :status="report.status"
+          @close="deleting = false"
+          @deleted="onDeleted"
         />
-      </BaseCard>
 
-      <PrintInspectionDrawer
-        :open="printing"
-        :inspection-id="id"
-        :can-manage="session.can('maintenance')"
-        @close="printing = false"
-      />
-      <DeleteInspectionDrawer
-        :open="deleting"
-        :inspection-id="id"
-        :unit-number="report.unit_number ?? ''"
-        :subject-type="report.subject_type"
-        :status="report.status"
-        @close="deleting = false"
-        @deleted="onDeleted"
-      />
-
-
-
-    </template>
+      </template>
+    </QueryState>
   </div>
 </template>

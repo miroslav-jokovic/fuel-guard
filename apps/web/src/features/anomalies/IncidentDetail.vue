@@ -6,6 +6,7 @@ import {
   type AnomalyDisposition, type CardFraudIncidentTransition,
 } from "@silvicom/shared";
 import { formatDateTime } from "@/lib/format";
+import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -24,7 +25,7 @@ const emit = defineEmits<{ changed: [] }>();
 
 const session = useSessionStore();
 const toast = useToastStore();
-const { data: incident, isLoading, isError, error } = useCardFraudIncident(toRef(props, "id"));
+const { data: incident, isLoading, isError, error, isFetching, refetch } = useCardFraudIncident(toRef(props, "id"));
 const transition = useCardFraudIncidentTransition();
 
 const story = computed(() => (incident.value ? incidentStory(incident.value) : []));
@@ -66,12 +67,16 @@ async function move(status: CardFraudIncidentTransition["status"]): Promise<void
 
 <template>
   <div class="space-y-6">
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="isError" class="text-sm text-danger-700">
-      Couldn't load the incident: {{ error instanceof Error ? error.message : "unknown error" }}
-    </p>
-
-    <template v-else-if="incident">
+    <!-- The incident is the whole drawer body, so its failure is the block form with a Retry (D-US5). -->
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the incident…"
+      error-text="Could not load the incident."
+      @retry="refetch()"
+    >
+    <template v-if="incident">
       <div class="space-y-1.5">
         <span :class="[BADGE_BASE, toneClass(incident.level === 'escalated' ? 'danger' : 'warning')]">
           {{ incident.level === "escalated" ? "Escalated" : "Alert" }}
@@ -128,5 +133,6 @@ async function move(status: CardFraudIncidentTransition["status"]): Promise<void
         </BaseButton>
       </div>
     </template>
+    </QueryState>
   </div>
 </template>

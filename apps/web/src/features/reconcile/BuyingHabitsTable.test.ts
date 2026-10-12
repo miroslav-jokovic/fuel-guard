@@ -42,8 +42,16 @@ describe("the buying-habits table", () => {
 
   it("says the read failed rather than showing an empty table or a zero", () => {
     const w = mountTable({ table: undefined, error: true });
-    expect(w.text()).toContain("Couldn't load the buying habits");
+    expect(w.text()).toContain("Could not load the buying habits.");
     expect(w.find("table").exists()).toBe(false);
     expect(w.find("[data-testid='buying-habits-total']").exists()).toBe(false);
+  });
+
+  // D-US5: a failure carries a Retry that asks the page to refetch, never "Reload to try again".
+  it("offers a Retry on a failed read that asks the page to read again", async () => {
+    const w = mountTable({ table: undefined, error: true });
+    expect(w.text()).not.toContain("Reload");
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
   });
 });

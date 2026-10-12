@@ -18,6 +18,7 @@ import {
   type ApplicantDispositionOutcome,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDispositionsQuery, useRecordDisposition } from "@/features/recruitment/useDispositions";
@@ -112,30 +113,43 @@ async function submit(): Promise<void> {
       <BaseButton v-if="canDecide" class="shrink-0" @click="open = true">Record a decision</BaseButton>
     </div>
 
-    <p v-if="dispositionsQ.isLoading.value" class="mt-4 text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="!current" class="mt-4 text-sm text-ink-muted">
-      Still open. Nothing has been decided about this application.
-    </p>
-    <ul v-else class="mt-4 space-y-2">
-      <li
-        v-for="(d, i) in dispositionsQ.data.value"
-        :key="d.id"
-        class="rounded-surface bg-surface-muted p-3"
+    <!-- D-US5: a failed read is said, with a retry, rather than falling through to "Still open" — which
+         would tell the office no decision exists when it simply could not be read. -->
+    <div class="mt-4">
+      <QueryState
+        :loading="dispositionsQ.isLoading.value"
+        :error="dispositionsQ.isError.value ? dispositionsQ.error.value : null"
+        :retrying="dispositionsQ.isFetching.value"
+        loading-text="Loading the decisions…"
+        error-text="Could not load the decisions on this application."
+        compact
+        @retry="dispositionsQ.refetch()"
       >
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <p class="text-sm font-medium text-ink">
-            {{ APPLICANT_DISPOSITION_LABELS[d.outcome] }} on {{ d.decided_on }}
-          </p>
-          <!-- Newest first, so the top row is the answer that stands. A change of mind is a new row. -->
-          <span v-if="i === 0" class="text-xs text-ink-muted">Current</span>
-        </div>
-        <p v-if="d.reason" class="mt-1 text-sm text-ink-secondary">{{ d.reason }}</p>
-        <!-- ⚠ Shown because it is the fact somebody will need later, and it is only knowable now. -->
-        <p v-if="d.rested_on_consumer_report" class="mt-1 text-xs text-ink-muted">
-          A report the carrier paid for was part of this decision.
+        <p v-if="!current" class="text-sm text-ink-muted">
+          Still open. Nothing has been decided about this application.
         </p>
-      </li>
-    </ul>
+        <ul v-else class="space-y-2">
+          <li
+            v-for="(d, i) in dispositionsQ.data.value"
+            :key="d.id"
+            class="rounded-surface bg-surface-muted p-3"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <p class="text-sm font-medium text-ink">
+                {{ APPLICANT_DISPOSITION_LABELS[d.outcome] }} on {{ d.decided_on }}
+              </p>
+              <!-- Newest first, so the top row is the answer that stands. A change of mind is a new row. -->
+              <span v-if="i === 0" class="text-xs text-ink-muted">Current</span>
+            </div>
+            <p v-if="d.reason" class="mt-1 text-sm text-ink-secondary">{{ d.reason }}</p>
+            <!-- ⚠ Shown because it is the fact somebody will need later, and it is only knowable now. -->
+            <p v-if="d.rested_on_consumer_report" class="mt-1 text-xs text-ink-muted">
+              A report the carrier paid for was part of this decision.
+            </p>
+          </li>
+        </ul>
+      </QueryState>
+    </div>
 
     <SlideOver :open="open" title="Record a decision" @close="open = false">
       <div class="space-y-5">

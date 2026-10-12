@@ -10,6 +10,7 @@ import {
 import { AppButton as BaseButton, AppCallout, AppCombobox as ComboSelect, AppFormField } from "@silvicom/ui";
 import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import AccessCard from "./AccessCard.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
@@ -235,17 +236,27 @@ async function followRoleEverywhere() {
             description="Outlined rows follow their role. Pick a value to give this person their own answer."
             note="Applies within an hour, when their sign-in refreshes."
           >
-            <p v-if="memberSections.isPending.value" class="px-5 py-4 text-sm text-ink-muted">Loading…</p>
-            <SectionRows
-              v-else-if="memberSections.data.value"
-              :rows="sectionRows"
-              :disabled="busy || !editable"
-              @set="saveSection"
-              @reset="(section) => saveSection({ section, access: null })"
-            />
-            <p v-else class="px-5 py-4 text-sm text-ink-muted">
-              Could not load their access. Reload the page to try again.
-            </p>
+            <!-- The rows carry their own inset; the loading line and the failure get the card's (D-US5:
+                 the failure used to say "Reload the page", which also threw away the member picked). -->
+            <div :class="memberSections.data.value ? '' : 'px-5 py-4'">
+              <QueryState
+                compact
+                :loading="memberSections.isPending.value && !memberSections.isError.value"
+                :error="memberSections.isError.value ? memberSections.error.value : null"
+                :retrying="memberSections.isFetching.value"
+                loading-text="Loading their sections…"
+                error-text="Could not load their access."
+                @retry="memberSections.refetch()"
+              >
+                <SectionRows
+                  v-if="memberSections.data.value"
+                  :rows="sectionRows"
+                  :disabled="busy || !editable"
+                  @set="saveSection"
+                  @reset="(section) => saveSection({ section, access: null })"
+                />
+              </QueryState>
+            </div>
           </AccessCard>
 
           <AccessCard
@@ -253,21 +264,29 @@ async function followRoleEverywhere() {
             description="Which pages this person sees. A screen can only narrow a section they hold."
             note="Applies the next time they load a page."
           >
-            <p v-if="memberSurfaces.isPending.value" class="px-5 py-4 text-sm text-ink-muted">Loading…</p>
-            <template v-else-if="memberSurfaces.data.value">
-              <ScreenRows
-                :groups="screens.groups"
-                :disabled="busy || !editable"
-                @set="saveSurface"
-                @reset="(surfaceKey) => saveSurface({ surfaceKey, allowed: null })"
-              />
-              <p v-if="screens.unlisted.length > 0" class="border-t border-edge-subtle px-5 py-3 text-xs text-ink-muted">
-                Not listed: {{ screens.unlisted.join(", ") }} — they hold none of those sections.
-              </p>
-            </template>
-            <p v-else class="px-5 py-4 text-sm text-ink-muted">
-              Could not load their screens. Reload the page to try again.
-            </p>
+            <div :class="memberSurfaces.data.value ? '' : 'px-5 py-4'">
+              <QueryState
+                compact
+                :loading="memberSurfaces.isPending.value && !memberSurfaces.isError.value"
+                :error="memberSurfaces.isError.value ? memberSurfaces.error.value : null"
+                :retrying="memberSurfaces.isFetching.value"
+                loading-text="Loading their screens…"
+                error-text="Could not load their screens."
+                @retry="memberSurfaces.refetch()"
+              >
+                <template v-if="memberSurfaces.data.value">
+                  <ScreenRows
+                    :groups="screens.groups"
+                    :disabled="busy || !editable"
+                    @set="saveSurface"
+                    @reset="(surfaceKey) => saveSurface({ surfaceKey, allowed: null })"
+                  />
+                  <p v-if="screens.unlisted.length > 0" class="border-t border-edge-subtle px-5 py-3 text-xs text-ink-muted">
+                    Not listed: {{ screens.unlisted.join(", ") }} — they hold none of those sections.
+                  </p>
+                </template>
+              </QueryState>
+            </div>
           </AccessCard>
         </div>
 

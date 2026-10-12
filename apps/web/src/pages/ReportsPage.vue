@@ -23,6 +23,7 @@ import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 
 const toast = useToastStore();
@@ -118,10 +119,14 @@ onMounted(loadAccuracy);
 // ── Detection accuracy (measured precision from reviewer dispositions) ────────
 const metrics = ref<DetectionMetrics | null>(null);
 const metricsLoading = ref(false);
+/** A failed read, kept apart from "nothing reviewed yet": before D-US5 a failure fell through to the
+ *  empty sentence, which told the office it had labelled nothing when the request had simply failed. */
+const metricsError = ref(false);
 async function loadMetrics() {
   metricsLoading.value = true;
   const res = await apiFetch<DetectionMetrics>("/api/reports/detection-metrics");
   metricsLoading.value = false;
+  metricsError.value = !res.ok;
   metrics.value = res.ok && res.data ? res.data : null;
 }
 onMounted(loadMetrics);
@@ -168,7 +173,16 @@ async function sendDigest() {
         </div>
       </div>
 
-      <div v-if="metricsLoading" class="mt-4 text-sm text-ink-tertiary">Loading…</div>
+      <div v-if="metricsLoading || metricsError" class="mt-4">
+        <QueryState
+          compact
+          :loading="metricsLoading"
+          :error="metricsError"
+          loading-text="Loading the detection accuracy…"
+          error-text="Could not load the detection accuracy."
+          @retry="loadMetrics()"
+        />
+      </div>
       <template v-else-if="metrics && metrics.decided > 0">
         <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard

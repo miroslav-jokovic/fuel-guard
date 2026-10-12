@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
@@ -82,12 +83,16 @@ function when(at: string | null): string {
       costs, defects and purchase invoices every hour. It never writes to FleetPal.
     </PageHeader>
 
-    <div v-if="state === 'loading'" class="text-sm text-ink-muted">Loading the connection…</div>
-    <BaseCard v-else-if="state === 'error'">
-      <p class="text-sm text-danger-600">Could not load the FleetPal connection. Reload the page to try again.</p>
-    </BaseCard>
-
-    <template v-else>
+    <!-- `state` already folds "no data and not loading" into `error`; the query's own error is passed
+         through when there is one, and `true` when the read simply came back empty. -->
+    <QueryState
+      :loading="state === 'loading'"
+      :error="state === 'error' ? (status.error.value ?? true) : null"
+      :retrying="status.isFetching.value"
+      loading-text="Loading the connection…"
+      error-text="Could not load the FleetPal connection."
+      @retry="status.refetch()"
+    >
       <BaseCard>
         <div class="flex items-start gap-3">
           <AppIcon
@@ -190,6 +195,6 @@ function when(at: string | null): string {
           <template #cell-lastRunAt="{ row }">{{ when(row.lastRunAt) }}</template>
         </DataTable>
       </BaseCard>
-    </template>
+    </QueryState>
   </div>
 </template>

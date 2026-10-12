@@ -55,6 +55,8 @@ function fixture(params: FuelReportParams): FuelReport {
 const seen = { params: null as Ref<FuelReportParams> | null };
 /** The report read's state; a test flips it, `beforeEach` puts it back. */
 const reportState = vi.hoisted(() => ({ value: "ready" as "ready" | "loading" | "error" }));
+/** The report's `refetch`, kept so the failure's Retry can be seen to reach it (D-US5). */
+const reportRefetch = vi.hoisted(() => vi.fn());
 vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/useFuelReport")>();
   return {
@@ -65,6 +67,7 @@ vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
         data: computed(() => (reportState.value === "ready" ? fixture(params.value) : undefined)),
         isLoading: ref(reportState.value === "loading"), isError: ref(reportState.value === "error"),
         error: ref(reportState.value === "error" ? new Error("boom") : null), isFetching: ref(false),
+        refetch: reportRefetch,
       };
     },
   };
@@ -77,13 +80,15 @@ vi.mock("@/composables/useVehicles", () => ({
 }));
 /** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
 const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+/** The two side reads' failures and refetches, so their Retry can be seen to reach them (D-US5). */
+const side = vi.hoisted(() => ({ habitsError: false, stripError: false, habitsRefetch: vi.fn(), stripRefetch: vi.fn() }));
 vi.mock("@/features/reconcile/useBuyingHabits", () => ({
-  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(false) }),
+  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(side.habitsError), refetch: side.habitsRefetch }),
 }));
 vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
   useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
     strip.params = params;
-    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(false) };
+    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(side.stripError), refetch: side.stripRefetch };
   },
 }));
 const opensAll = vi.hoisted(() => ({ value: true }));
@@ -92,6 +97,10 @@ vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => opensAll.value 
 import FuelCostsPage from "./FuelCostsPage.vue";
 
 beforeEach(() => {
+  side.habitsError = false;
+  side.stripError = false;
+  side.habitsRefetch.mockClear();
+  side.stripRefetch.mockClear();
   seen.params = null;
   reportState.value = "ready";
   opensAll.value = true;
@@ -305,6 +314,15 @@ describe("FuelCostsPage — where the rest went", () => {
       expect(dayCount((await mountPage()).w), state).toBeNull();
     }
   });
+
+  it("says the report could not load and retries it in place (D-US5)", async () => {
+    reportState.value = "error";
+    reportRefetch.mockClear();
+    const { w } = await mountPage();
+    expect(w.text()).toContain("Could not load the fuel report.");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(reportRefetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("FuelCostsPage — Network is a secondary filter", () => {
@@ -316,5 +334,25 @@ describe("FuelCostsPage — Network is a secondary filter", () => {
     await flushPromises();
     expect(router.currentRoute.value.query.networks).toBeUndefined();
     expect(w.find('button[aria-label^="Remove filter Network"]').exists()).toBe(false);
+  });
+});
+
+describe("FuelCostsPage — a side panel's failure retries that panel's read (D-US5)", () => {
+  it("Retry on the buying-habits table reads the habits again", async () => {
+    side.habitsError = true;
+    const { w } = await mountPage();
+    const retries = w.findAll("button").filter((b) => b.text() === "Retry");
+    expect(retries.length).toBeGreaterThan(0);
+    for (const r of retries) await r.trigger("click");
+    expect(side.habitsRefetch).toHaveBeenCalled();
+    expect(side.stripRefetch).not.toHaveBeenCalled();
+  });
+
+  it("Retry on the savings strip reads the opportunities again", async () => {
+    side.stripError = true;
+    const { w } = await mountPage();
+    for (const r of w.findAll("button").filter((b) => b.text() === "Retry")) await r.trigger("click");
+    expect(side.stripRefetch).toHaveBeenCalled();
+    expect(side.habitsRefetch).not.toHaveBeenCalled();
   });
 });

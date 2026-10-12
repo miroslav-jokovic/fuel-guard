@@ -418,6 +418,7 @@ const columns: DataTableColumn[] = [
           <span v-else class="text-xs text-ink-tertiary">Clear</span>
         </div>
 
+        <!-- ui-adoption: not-a-notice — the decline's own record (code badge, plain reason, the raw EFS string, the policy), structured content on a tint rather than a sentence about the page. -->
         <div class="rounded-control bg-danger-50 p-3 ring-1 ring-danger-100">
           <div class="flex items-center gap-2">
             <span :class="[BADGE_BASE, toneClass('danger')]">{{ selectedRow.error_code }}</span>

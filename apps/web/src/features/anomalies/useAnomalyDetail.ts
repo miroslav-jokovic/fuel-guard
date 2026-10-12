@@ -14,7 +14,11 @@ export function useAnomalyDetail(
 ) {
 // ── data fetching ────────────────────────────────────────────────────────────
 const txnId = computed(() => props.anomaly.transaction_id);
-const { data: txn } = useTransaction(txnId);
+// The load state rides along so the drawer can say "Could not load the transaction." with a Retry
+// instead of "Loading transaction…" forever when the read fails (D-US5).
+const {
+  data: txn, isLoading: txnLoading, error: txnError, isFetching: txnFetching, refetch: refetchTxn,
+} = useTransaction(txnId);
 const transition = useAnomalyTransition();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -47,7 +51,10 @@ const windowHours = computed(() => {
     return Number(ev.value.windowHours ?? 48);
   return 48;
 });
-const { data: siblingFills, isLoading: siblingLoading } = useRelatedCardFills(
+const {
+  data: siblingFills, isLoading: siblingLoading, error: siblingError, isFetching: siblingFetching,
+  refetch: refetchSiblings,
+} = useRelatedCardFills(
   cardRef,
   controlId,
   fueledAt,
@@ -147,9 +154,10 @@ async function doFalseAlarm() {
 }
 
   return {
-    txn, transition,
+    txn, txnLoading, txnError, txnFetching, refetchTxn, transition,
     caseSignals, isCase, caseScore, caseLevel, caseAxes, evidenceRows,
     hasCardSignal, cardRef, windowHours, siblingFills, siblingLoading,
+    siblingError, siblingFetching, refetchSiblings,
     driverName, unitNumber, vehicleDesc,
     tab, orgTz, odometerOffset,
     axisClass, weightBarClass,

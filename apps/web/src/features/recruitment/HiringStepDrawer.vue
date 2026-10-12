@@ -177,7 +177,9 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
           :driver-id="driverId"
           :rows="authorizationsQ.data.value ?? []"
           :loading="authorizationsQ.isLoading.value"
-          :error="authorizationsQ.error.value ? 'The signed releases could not be loaded.' : null"
+          :error="authorizationsQ.error.value ? 'Could not load the signed releases.' : null"
+          :retrying="authorizationsQ.isFetching.value"
+          @retry="authorizationsQ.refetch()"
         />
         <!-- AF3/D-AF8: identity is given with the permissions, and corrected here before screening. -->
         <ApplicantIdentityCorrection

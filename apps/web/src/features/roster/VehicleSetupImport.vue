@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import StatCard from "@/components/ui/StatCard.vue";
-import { AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon } from "@silvicom/ui";
 import {
   CsvIcon,
 } from "@silvicom/ui/icons";
@@ -237,9 +237,11 @@ const updateRows = computed(() =>
       </div>
 
       <!-- Errors -->
-      <div v-if="preview.errors.length" class="max-h-28 overflow-y-auto rounded-surface bg-danger-50 px-3 py-2 text-xs text-danger-700 ring-1 ring-danger-200">
-        <p v-for="(err, i) in preview.errors" :key="i">{{ err }}</p>
-      </div>
+      <AppCallout v-if="preview.errors.length" tone="danger">
+        <ul class="max-h-28 overflow-y-auto text-xs font-normal">
+          <li v-for="(err, i) in preview.errors" :key="i">{{ err }}</li>
+        </ul>
+      </AppCallout>
 
       <!-- New vehicles table -->
       <div v-if="preview.toCreate.length" class="overflow-hidden rounded-surface ring-1 ring-edge">

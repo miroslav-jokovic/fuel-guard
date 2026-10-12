@@ -124,6 +124,8 @@ function templateStructureViolations(item) {
   const crowdedFilterRows = [];
   const offPatternSearchCopy = [];
   const offScaleHeadings = [];
+  const handBuiltLoading = [];
+  const handBuiltNotices = [];
   // The applicant's flow renders in ApplyLayout with its own public typography (H5b).
   const applicantFlow = /\/features\/apply\//.test(item.relativePath);
   let previousEnd = tags[0]?.end ?? 0;
@@ -133,6 +135,12 @@ function templateStructureViolations(item) {
     const parent = stack.at(-1);
     // BulkActionBar owns the "N selected" strip: seven pages drew it six ways before 2026-10-12.
     if (/\}\}\s*selected\b/.test(item.source.slice(previousEnd, tag.start))) handBuiltBulkBars.push(at(previousEnd));
+    // QueryState owns the loading line outside a table (D-US5): 65 were written by hand in six styles
+    // on 2026-10-12. A button's own busy label ("Loading…" in place of its text) is not a page state.
+    const text = item.source.slice(previousEnd, tag.start).trim();
+    if (/^Loading\b[^]*(…|\.\.\.)$/.test(text) && !stack.some((entry) => /^(BaseButton|AppButton|button)$/.test(entry.name))) {
+      handBuiltLoading.push(at(previousEnd));
+    }
     if (parent?.name === "FilterBar" && item.source.slice(previousEnd, tag.start).trim()) {
       filterBarChildren.push(at(previousEnd));
     }
@@ -178,6 +186,14 @@ function templateStructureViolations(item) {
       }
     }
 
+    // AppCallout owns the tinted notice (D-US3): `bg-<tone>-50` with a `ring-1` is its exact recipe,
+    // and 36 of them were written by hand in at least five variants on 2026-10-12.
+    if (/^(div|p|section|aside)$/.test(tag.name) &&
+        /\sclass="[^"]*\bbg-(brand|info|caution|warning|danger|success)-50\b[^"]*"/.test(tag.raw) &&
+        /\sclass="[^"]*\bring-1\b[^"]*"/.test(tag.raw)) {
+      handBuiltNotices.push(at(tag.start));
+    }
+
     // StatCard owns the KPI tile: a `<dd>` set at display size is a figure under a label, drawn by
     // hand. Thirty-three of them across seven files mixed bold and semibold, three label styles
     // and three ways to tint a verdict before 2026-10-12.
@@ -221,6 +237,8 @@ function templateStructureViolations(item) {
     crowdedFilterRows,
     offPatternSearchCopy,
     offScaleHeadings,
+    handBuiltLoading,
+    handBuiltNotices,
   };
 }
 
@@ -333,6 +351,8 @@ function structureCheckerSelfTest() {
         <FilterBar :active-count="n" search-placeholder="Search"><template #filters><A /><B /><C /><D /><E /></template></FilterBar>
         <FilterBar :active-count="n" search-placeholder="Search unit, driver…"><template #filters><A /><B /><C /><D /></template></FilterBar>
         <h3 class="text-base font-semibold text-ink">Card</h3><h3 class="text-sm font-semibold">Ok</h3><h2 class="text-xs font-semibold uppercase">Eyebrow</h2>
+        <p v-if="isLoading" class="text-sm text-ink-muted">Loading the part…</p><BaseButton>Loading…</BaseButton>
+        <p class="rounded-surface bg-danger-50 px-4 py-3 ring-1 ring-danger-100">Could not load.</p><tr class="bg-brand-50"></tr>
       </div>
     </template>`),
   };
@@ -361,6 +381,8 @@ function structureCheckerSelfTest() {
     JSON.stringify(result.crowdedFilterRows) === JSON.stringify(["self-test.vue:25"]) &&
     JSON.stringify(result.offPatternSearchCopy) === JSON.stringify(["self-test.vue:25"]) &&
     JSON.stringify(result.offScaleHeadings) === JSON.stringify(["self-test.vue:27"]) &&
+    JSON.stringify(result.handBuiltLoading) === JSON.stringify(["self-test.vue:28"]) &&
+    JSON.stringify(result.handBuiltNotices) === JSON.stringify(["self-test.vue:29"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -406,6 +428,28 @@ const handBuiltStatTiles = structureViolations.flatMap((item) => item.handBuiltS
 const crowdedFilterRows = structureViolations.flatMap((item) => item.crowdedFilterRows);
 const offPatternSearchCopy = structureViolations.flatMap((item) => item.offPatternSearchCopy);
 const offScaleHeadings = structureViolations.flatMap((item) => item.offScaleHeadings);
+/**
+ * A site that matches a rule's recipe without being what the rule is about says so where it stands:
+ * a comment ending on the line above it (or on its own line) reading `ui-adoption: not-a-notice — <why>`
+ * or `ui-adoption: not-a-page-state — <why>`. Read from the raw file, since every check here strips
+ * comments; a marker with no reason exempts nothing. On 2026-10-12 three sites earned it: a decline's
+ * record panel (structured content on a tint, not a sentence about the page), and an upload's progress
+ * line and per-file failure list (feedback on a file drop, not a fetch and not a page notice).
+ */
+const siteMarked = (location, kind, rawOf = (path) => readFileSync(join(root, path), "utf8")) => {
+  const [path, line] = [location.slice(0, location.lastIndexOf(":")), Number(location.slice(location.lastIndexOf(":") + 1))];
+  const lines = rawOf(path).split("\n");
+  const near = lines.slice(Math.max(0, line - 3), line).join("\n");
+  return new RegExp(`ui-adoption: ${kind}\\s+—\\s+\\S`).test(near);
+};
+const handBuiltLoading = structureViolations.flatMap((item) => item.handBuiltLoading).filter((at) => !siteMarked(at, "not-a-page-state"));
+const handBuiltNotices = structureViolations.flatMap((item) => item.handBuiltNotices).filter((at) => !siteMarked(at, "not-a-notice"));
+function siteMarkerSelfTest() {
+  const raw = ["<div>", "  <!-- ui-adoption: not-a-notice — a record panel -->", "  <div class=\"bg-danger-50 ring-1\">", "  <!-- ui-adoption: not-a-notice -->", "  <p class=\"bg-info-50 ring-1\">x</p>"].join("\n");
+  const rawOf = () => raw;
+  return siteMarked("f.vue:3", "not-a-notice", rawOf) && !siteMarked("f.vue:5", "not-a-notice", rawOf) &&
+    !siteMarked("f.vue:3", "not-a-page-state", rawOf);
+}
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -609,6 +653,7 @@ function verifyAdoption() {
   const failures = [];
   if (!structureCheckerSelfTest()) failures.push("UI structure checker failed its regression fixture");
   if (!listStateSelfTest()) failures.push("list-state checker failed its regression fixture");
+  if (!siteMarkerSelfTest()) failures.push("site-marker checker failed its regression fixture");
   if (localListFilters.length)
     failures.push(`filtered list holding its filters outside the URL (useQueryState, or mark ui-adoption: list-state-local — <why>): ${localListFilters.join(", ")}`);
   if (localListSorts.length)
@@ -648,6 +693,10 @@ function verifyAdoption() {
     failures.push(`FilterBar search-placeholder not "Search <what>…": ${offPatternSearchCopy.join(", ")}`);
   if (offScaleHeadings.length)
     failures.push(`h2/h3 off the two-size scale (text-lg page section, text-sm in a card or drawer; font-semibold): ${offScaleHeadings.join(", ")}`);
+  if (handBuiltLoading.length)
+    failures.push(`hand-written loading line (use QueryState): ${handBuiltLoading.join(", ")}`);
+  if (handBuiltNotices.length)
+    failures.push(`hand-tinted notice, bg-<tone>-50 with ring-1 (use AppCallout): ${handBuiltNotices.join(", ")}`);
   if (handBuiltStatTiles.length)
     failures.push(`hand-built KPI tile, a <dd> at text-2xl/3xl (use StatCard): ${handBuiltStatTiles.join(", ")}`);
   if (handBuiltBulkBars.length)

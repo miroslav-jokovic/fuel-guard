@@ -19,6 +19,7 @@ const query = vi.hoisted(() => ({
   isLoading: { value: false },
   isError: { value: false },
   lastArgs: { value: null as unknown },
+  refetches: { value: 0 },
 }));
 
 /**
@@ -36,6 +37,9 @@ vi.mock("./useFleetTrend", async () => {
         data: ref(query.data.value),
         isLoading: ref(query.isLoading.value),
         isError: ref(query.isError.value),
+        error: ref(query.isError.value ? new Error("timeout") : null),
+        isFetching: ref(false),
+        refetch: () => { query.refetches.value += 1; },
       };
     },
   };
@@ -95,6 +99,7 @@ beforeEach(() => {
   config = null;
   query.isLoading.value = false;
   query.isError.value = false;
+  query.refetches.value = 0;
   respond();
 });
 
@@ -189,11 +194,14 @@ describe("FleetTrendChart", () => {
     expect(query.lastArgs.value).toEqual({ to: "2026-04-30", months: 12 });
   });
 
-  it("says so when the trend could not be loaded, rather than showing an empty chart", () => {
+  it("says so when the trend could not be loaded, rather than showing an empty chart", async () => {
     query.isError.value = true;
     const w = render();
     expect(w.find('[data-testid="chart"]').exists()).toBe(false);
-    expect(w.text()).toContain("could not be loaded");
+    expect(w.text()).toContain("Could not load the trend.");
+    // D-US5: the failure carries a Retry that reads the trend again, not "try the period again".
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(query.refetches.value).toBe(1);
   });
 
   /**

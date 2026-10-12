@@ -9,6 +9,7 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import QuantityStepper from "@/components/ui/QuantityStepper.vue";
@@ -81,9 +82,15 @@ const toast = useToastStore();
 const session = useSessionStore();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
 
-const { data: walk, isLoading: walkLoading, isError: walkFailed } = useCountSessionQuery(sessionId);
+const { data: walk } = useCountSessionQuery(sessionId);
 const locationId = computed(() => walk.value?.locationId ?? undefined);
-const { data: stock, isLoading: stockLoading } = useStockQuery(locationId);
+// The shelf's own failure is read too (D-US5): with no stock the walk has no lines left, and a
+// failed read used to fall through to "Every line is counted" — a success callout for a shelf
+// nobody had seen.
+const {
+  data: stock, isLoading: stockLoading, isError: stockFailed, error: stockError, isFetching: stockFetching,
+  refetch: refetchStock,
+} = useStockQuery(locationId);
 const record = useRecordMovement();
 const closeWalk = useCloseCountSession();
 const wakeLock = useWakeLock();
@@ -307,9 +314,10 @@ async function close() {
 
 <template>
   <div class="space-y-6 pb-20 sm:pb-0">
-    <AppCallout v-if="walkFailed" tone="danger">That count is not on file.</AppCallout>
-
-    <template v-else-if="walk">
+    <!-- The walk's own load and failure are drawn by CountSessionPage, the one place that reads the
+         session and decides which body to mount (D-INV19); this body is mounted only once the walk
+         has arrived, so it draws no second "not on file" of its own (D-US5). -->
+    <template v-if="walk">
       <PageHeader :title="walk.holderLabel ?? 'Count'" :description="progress">
         <template v-if="walk.status === 'open'" #actions>
           <WalkActions :actions="actions" />
@@ -322,9 +330,15 @@ async function close() {
         Saving on this phone — will sync when connected. {{ queued }} waiting.
       </AppCallout>
 
-      <p v-if="walkLoading || stockLoading" class="text-sm text-ink-tertiary">Loading the shelf…</p>
-
-      <BaseCard v-else-if="!reviewing && current">
+      <QueryState
+        :loading="stockLoading"
+        :error="stockFailed ? stockError : null"
+        :retrying="stockFetching"
+        loading-text="Loading the shelf…"
+        error-text="Could not load the shelf."
+        @retry="refetchStock()"
+      >
+      <BaseCard v-if="!reviewing && current">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <h2 class="text-sm font-semibold text-ink">Now counting</h2>
@@ -363,6 +377,7 @@ async function close() {
           </template>
         </DataTable>
       </section>
+      </QueryState>
 
       <WalkActions v-if="walk.status === 'open'" :actions="actions" bar />
     </template>

@@ -98,6 +98,7 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`TablePagination.vue`** (80) | `page`, `pageSize?` (20), `total`, `loading?`; emits `update:page` | The table `#footer`. `flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6`. Left: `Showing <b>1</b>–<b>20</b> of <b>1,204</b>` / `No results`. Right: "Page [n] of N" jump input (hidden below `sm`, only when `totalPages > 1`) + Prev/Next `BaseButton size="sm"`. |
 | **`TableSkeleton.vue`** (17) | `rows?` (6), `cols?` (5) | Shimmer rows. Only DataTable calls it; you should not. |
 | **`ErrorState.vue`** (24) | `message?` ("Something went wrong while loading this data."), `retrying?`; emits `retry` | Warning icon + message + Retry button (`Retrying…` while busy). Only DataTable calls it directly; use it standalone for non-table fetch failures. |
+| **`ui/QueryState.vue`** | `loading`, `error?`, `errorText?`, `retrying?`, `loadingText?` ("Loading…"), `compact?`; emits `retry`; default slot = content | Loading → failure WITH retry → content, for anything that fetches and is not a table (D-US5). `compact` = one line, for a panel or a drawer. `lint:ui-adoption` refuses a hand-written "Loading…" line. |
 | *(search box)* | — | `AppSearchField` from `@silvicom/ui` (the local `SearchInput.vue` clone is gate-banned). FilterBar owns it; use directly only outside a table. |
 | *(form select)* | — | `AppSelect` from `@silvicom/ui`. Non-searchable form select; trigger matches the input metrics, panel matches the KebabMenu recipe. |
 | **`DateRangeFilter.vue`** (105) | `from?`, `to?`, `presets?` (true), `label?` ("Dates"), `maxDate?` (today) | Toolbar date range on VueDatePicker. Trigger is byte-identical to FilterSelect's trigger classes. Values are `YYYY-MM-DD`; pass `maxDate=null` for future-facing ranges such as DQ deadlines. `partialRange` MUST stay false. **v14 regrouped its props** — `time-config`, not `enable-time-picker`; an unknown one is silently accepted as an HTML attribute (D-DS17). |
@@ -106,6 +107,9 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`DocumentPreview.vue`** (121) | `open`, `label`, `doc: DocumentRow \| null`; emits `close` | The **sanctioned document viewer** (DQF plan B6) — the only place a compliance scan renders full-size. In `BaseModal size="xl" printable`. Images show the `normalized` variant (original only via the server-signed Download); PDFs get the browser's viewer in an iframe and **no Print button** (D-DQ9). Do not build a second viewer. |
 | **`ToastContainer.vue`** (126) | — | Renders `useToastStore()`. Card: `rounded-surface border-l-4 shadow-overlay ring-1 ring-edge-subtle`, title `text-sm font-semibold text-ink`, message `mt-0.5 text-sm leading-snug text-ink-muted`, progress bar `h-0.5`. |
 | **`UpdateBanner.vue`**, **`AppLogo.vue`**, **`BaseChart.vue`**, **`SparkLine.vue`** | — | App-update prompt; logo; ECharts/canvas wrapper; inline sparkline. |
+
+**A page notice is `AppCallout`** — `lint:ui-adoption` refuses a hand-tinted `bg-<tone>-50 … ring-1`
+block (D-US3). A load failure is not a notice: it is `QueryState`'s, and it carries a retry.
 
 **There is no `EmptyState` component and no `Skeleton` component.** Empty state = `DataTable`'s `empty-text` prop / `#empty` slot (`px-6 py-10 text-center text-sm text-ink-muted`). Skeleton = `TableSkeleton`, invoked only by DataTable. `SortableTh` and `TableToolbar` are referenced by `docs/DESIGN-SYSTEM.md` but **were deleted** (commit `df8a2c2`) — sorting is inside DataTable, the toolbar is FilterBar. Do not resurrect them.
 

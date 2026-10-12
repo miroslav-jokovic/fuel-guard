@@ -2,7 +2,9 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { STATE_NAMES, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelNetwork } from "@silvicom/shared";
+import { AppCallout } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import StatCard from "@/components/ui/StatCard.vue";
@@ -60,7 +62,7 @@ const activeFilterCount = computed(
     [f.vehicleIds.value, f.states.value, f.siteIds.value, f.networks.value].filter((l) => l.length > 0).length,
 );
 const opens = useOpens();
-const { data: report, isLoading, isError, error, isFetching } = useFuelReportQuery(f.params);
+const { data: report, isLoading, isError, error, isFetching, refetch } = useFuelReportQuery(f.params);
 
 /** How current the daily fuel roll-up is — MPG's gallons come from it (`fleetMpg.ts`). */
 /** The open findings waiting for review in these dates and trucks — the strip under the cards (FS-STRIP). */
@@ -140,20 +142,12 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
     <PageHeader description="What fuel cost, where it was bought, and how far it went — against the same number of days before." />
 
     <!-- A link with a backwards or future range was quietly corrected; say so (X4). -->
-    <p
-      v-if="f.windowNotice.value"
-      class="rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100"
-    >
-      {{ f.windowNotice.value }}
-    </p>
-    <p
-      v-if="freshness.data.value?.lead"
-      :class="freshness.data.value.stale
-        ? 'rounded-surface bg-caution-50 px-4 py-2.5 text-sm text-caution-800 ring-1 ring-caution-100'
-        : 'text-xs text-ink-tertiary'"
-    >
-      {{ freshness.data.value.lead }}
-    </p>
+    <AppCallout v-if="f.windowNotice.value" tone="caution">{{ f.windowNotice.value }}</AppCallout>
+    <!-- The freshness lead is a caution only when the roll-up is stale; current, it is a footnote. -->
+    <template v-if="freshness.data.value?.lead">
+      <AppCallout v-if="freshness.data.value.stale" tone="caution">{{ freshness.data.value.lead }}</AppCallout>
+      <p v-else class="text-xs text-ink-tertiary">{{ freshness.data.value.lead }}</p>
+    </template>
 
     <!-- No count until the report answers: a pending or failed read is not "0 days" (verdict E8). -->
     <FilterBar
@@ -189,98 +183,103 @@ const toneClass = (t: "good" | "bad" | null) => (t === "good" ? "text-success-70
       </template>
     </FilterBar>
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the fuel report: {{ error instanceof Error ? error.message : "unknown error" }}
-    </p>
-
-    <template v-else-if="report">
-      <!-- Spend and what to review, side by side so both are on the first screen (design verdict, move 2). -->
-      <div class="grid gap-4 lg:grid-cols-5">
-        <StatCard
-          v-if="spendCard"
-          class="lg:col-span-2 lg:self-start"
-          size="hero"
-          :label="spendCard.label"
-          :value="spendCard.value"
-          :value-title="spendCard.previous"
-          :title="spendCard.term"
-        >
-          <template #sub>
-            <span>
-              <span class="block text-ink" data-testid="spend-change">{{ change }}</span>
-              <span v-if="network" class="mt-1 block text-ink-tertiary">{{ network }}</span>
-            </span>
-          </template>
-        </StatCard>
-        <FuelOpportunitiesStrip
-          class="lg:col-span-3"
-          :rows="opportunities.data.value"
-          :loading="opportunities.isLoading.value"
-          :error="opportunities.isError.value"
-          :from="f.from.value"
-          :to="f.to.value"
-          :vehicle-ids="f.vehicleIds.value"
-          :can-open-inbox="opens('/fuel-problems')"
-        />
-      </div>
-
-      <section class="space-y-3" aria-labelledby="fuel-costs-figures-heading">
-        <h3 id="fuel-costs-figures-heading" class="text-sm font-semibold text-ink">The figures behind it</h3>
-        <p class="text-xs text-ink-tertiary">{{ comparing }}. Tractor fuel only.</p>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the fuel report…"
+      error-text="Could not load the fuel report."
+      @retry="refetch()"
+    >
+      <template v-if="report">
+        <!-- Spend and what to review, side by side so both are on the first screen (design verdict, move 2). -->
+        <div class="grid gap-4 lg:grid-cols-5">
           <StatCard
-            v-for="c in figureCards"
-            :key="c.key"
-            :label="c.label"
-            :value="c.value"
-            :value-title="c.previous"
-            :sub="c.sub"
-            :sub-tone="toneClass(c.tone)"
-            :title="c.term"
+            v-if="spendCard"
+            class="lg:col-span-2 lg:self-start"
+            size="hero"
+            :label="spendCard.label"
+            :value="spendCard.value"
+            :value-title="spendCard.previous"
+            :title="spendCard.term"
+          >
+            <template #sub>
+              <span>
+                <span class="block text-ink" data-testid="spend-change">{{ change }}</span>
+                <span v-if="network" class="mt-1 block text-ink-tertiary">{{ network }}</span>
+              </span>
+            </template>
+          </StatCard>
+          <FuelOpportunitiesStrip
+            class="lg:col-span-3"
+            :rows="opportunities.data.value"
+            :loading="opportunities.isLoading.value"
+            :error="opportunities.isError.value"
+            @retry="opportunities.refetch()"
+            :from="f.from.value"
+            :to="f.to.value"
+            :vehicle-ids="f.vehicleIds.value"
+            :can-open-inbox="opens('/fuel-problems')"
           />
         </div>
-        <p v-if="!truckFigures" class="text-xs text-ink-tertiary">{{ FUEL_REPORT_TRUCK_FIGURES_NOTE }}</p>
-        <p v-else-if="mpgCoverage" class="text-xs text-ink-tertiary">{{ mpgCoverage }}</p>
-        <p v-if="reefer" class="text-xs text-ink-tertiary">{{ reefer }}</p>
-      </section>
 
-      <FuelCostDaysTable
-        :rows="rows"
-        :with-mpg="truckFigures"
-        :loading="isFetching"
-        :filename="`fuel-costs-${f.from.value}-to-${f.to.value}`"
-      />
+        <section class="space-y-3" aria-labelledby="fuel-costs-figures-heading">
+          <h3 id="fuel-costs-figures-heading" class="text-sm font-semibold text-ink">The figures behind it</h3>
+          <p class="text-xs text-ink-tertiary">{{ comparing }}. Tractor fuel only.</p>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <StatCard
+              v-for="c in figureCards"
+              :key="c.key"
+              :label="c.label"
+              :value="c.value"
+              :value-title="c.previous"
+              :sub="c.sub"
+              :sub-tone="toneClass(c.tone)"
+              :title="c.term"
+            />
+          </div>
+          <p v-if="!truckFigures" class="text-xs text-ink-tertiary">{{ FUEL_REPORT_TRUCK_FIGURES_NOTE }}</p>
+          <p v-else-if="mpgCoverage" class="text-xs text-ink-tertiary">{{ mpgCoverage }}</p>
+          <p v-if="reefer" class="text-xs text-ink-tertiary">{{ reefer }}</p>
+        </section>
 
-      <BuyingHabitsTable :table="habits.data.value" :loading="habits.isFetching.value" :error="habits.isError.value" />
+        <FuelCostDaysTable
+          :rows="rows"
+          :with-mpg="truckFigures"
+          :loading="isFetching"
+          :filename="`fuel-costs-${f.from.value}-to-${f.to.value}`"
+        />
 
-      <p class="text-sm text-ink-muted">
-        Fuel carried out of a dearer state, and the fuel targets graded:
-        <RouterLink v-if="opens('/fuel-buy-discipline')" :to="buyLink" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
-        <template v-else>Buy discipline</template>
-        <template v-if="f.stationFiltered.value"> (it opens on every station: it can't narrow by state, location or network)</template>.
-        A vendor bill is checked on
-        <RouterLink v-if="opens('/fuel-invoices')" to="/fuel-invoices" class="text-link hover:text-link-hover">Pilot invoices</RouterLink>
-        <template v-else>Pilot invoices</template>.
-      </p>
+        <BuyingHabitsTable :table="habits.data.value" :loading="habits.isFetching.value" :error="habits.isError.value" @retry="habits.refetch()" />
 
-      <ExplainerPanel summary="How these figures are worked out">
-        <p>
-          Spend, gallons and prices are every EFS fuel purchase in the range, on the day it was bought in the
-          carrier's time zone. "In network" is {{ brandList(report.inNetworkBrands) }}, from Settings → Planned
-          fueling; a fill whose station we couldn't identify is counted on its own, never on either side.
+        <p class="text-sm text-ink-muted">
+          Fuel carried out of a dearer state, and the fuel targets graded:
+          <RouterLink v-if="opens('/fuel-buy-discipline')" :to="buyLink" class="text-link hover:text-link-hover">Buy discipline</RouterLink>
+          <template v-else>Buy discipline</template>
+          <template v-if="f.stationFiltered.value"> (it opens on every station: it can't narrow by state, location or network)</template>.
+          A vendor bill is checked on
+          <RouterLink v-if="opens('/fuel-invoices')" to="/fuel-invoices" class="text-link hover:text-link-hover">Pilot invoices</RouterLink>
+          <template v-else>Pilot invoices</template>.
         </p>
-        <p>
-          Miles are the odometer distance Samsara reported for each truck that bought fuel, and MPG divides them
-          by that fuel — a figure is left out, with the reason, when too little of the fuel has a measured
-          distance behind it. A day's MPG is over that day and the six before it, because one day's purchases
-          don't measure one day's driving. Cost per mile is the average price per gallon divided by MPG.
-        </p>
-        <p>
-          "Paid vs Pilot quote" is what we paid minus Pilot's quoted price, on the fills Pilot's daily price
-          report covered. Every card compares with the same number of days just before the range.
-        </p>
-      </ExplainerPanel>
-    </template>
+
+        <ExplainerPanel summary="How these figures are worked out">
+          <p>
+            Spend, gallons and prices are every EFS fuel purchase in the range, on the day it was bought in the
+            carrier's time zone. "In network" is {{ brandList(report.inNetworkBrands) }}, from Settings → Planned
+            fueling; a fill whose station we couldn't identify is counted on its own, never on either side.
+          </p>
+          <p>
+            Miles are the odometer distance Samsara reported for each truck that bought fuel, and MPG divides them
+            by that fuel — a figure is left out, with the reason, when too little of the fuel has a measured
+            distance behind it. A day's MPG is over that day and the six before it, because one day's purchases
+            don't measure one day's driving. Cost per mile is the average price per gallon divided by MPG.
+          </p>
+          <p>
+            "Paid vs Pilot quote" is what we paid minus Pilot's quoted price, on the fills Pilot's daily price
+            report covered. Every card compares with the same number of days just before the range.
+          </p>
+        </ExplainerPanel>
+      </template>
+    </QueryState>
   </div>
 </template>

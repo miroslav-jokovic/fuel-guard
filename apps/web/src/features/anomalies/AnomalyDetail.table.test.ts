@@ -17,8 +17,12 @@ const fill = (id: string, extra: Record<string, unknown> = {}) => ({
   gallons: 101.5, price_per_gal: 3.5, location_text: null, city: "Joliet", state: "IL", ...extra,
 });
 
+const load = vi.hoisted(() => ({ siblingsFail: false, refetches: 0 }));
 vi.mock("@/features/anomalies/useAnomalyDetail", () => ({
   useAnomalyDetail: () => ({
+    txnLoading: ref(false), txnError: ref(null), txnFetching: ref(false), refetchTxn: vi.fn(),
+    siblingError: ref(load.siblingsFail ? new Error("timeout") : null), siblingFetching: ref(false),
+    refetchSiblings: () => { load.refetches++; },
     txn: ref({ ...fill("t1"), source: "efs", import_id: null, card_ref: "1234", total_cost: null, computed_mpg: null, samsara_location_matched: null }),
     transition: { isPending: ref(false), mutateAsync: vi.fn() },
     caseSignals: ref([]), isCase: ref(false), caseScore: ref(null), caseLevel: ref(undefined), caseAxes: ref([]),
@@ -66,5 +70,24 @@ describe("same-card fills table", () => {
     expect(other!.findAll("td").map((td) => td.text())).toEqual([
       "655", "10/01 07:00", "101.5", "—", "—", "Ann Lee", "—",
     ]);
+  });
+});
+
+describe("same-card fills that fail to load (D-US5)", () => {
+  it("says so and reads them again on Retry", async () => {
+    load.siblingsFail = true;
+    const w = mount(AnomalyDetail, {
+      props: {
+        anomaly: { id: "a1", rule_id: "card_multi_vehicle", severity: "high", status: "open", message: "m", evidence: {} } as never,
+        vehicleUnit: "654",
+      },
+      global: { stubs: { EntityHistory: true, AnomalyAudit: true, StatusBadge: true } },
+    });
+    load.siblingsFail = false;
+    expect(w.findComponent(DataTable).exists()).toBe(false);
+    const alert = w.get("[role=alert]");
+    expect(alert.text()).toContain("Could not load the related fills.");
+    await alert.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(load.refetches).toBe(1);
   });
 });

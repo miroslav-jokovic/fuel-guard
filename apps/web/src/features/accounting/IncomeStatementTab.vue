@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { AppSearchField, AppSegmentedControl, type SegmentOption } from "@silvicom/ui";
 import StatCard from "@/components/ui/StatCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { monthKey, shiftMonth, type ReportPeriod } from "@/lib/reportPeriod";
 import FamilySummaryTable from "./FamilySummaryTable.vue";
 import IncomeStatementTable from "./IncomeStatementTable.vue";
@@ -19,7 +20,8 @@ import type { IncomeStatementResponse, StatementCompare, StatementSection } from
  * (it changes the request), so it arrives as a `v-model`; the search is this tab's own, because it
  * only narrows what is already on screen. Two queries feed the tab and both are passed in, so the
  * page shell stays the only place a period turns into a request. A failed fetch is said in words,
- * never swallowed into an empty state (D-FIN15).
+ * never swallowed into an empty state (D-FIN15), and since D-US5 it carries a Retry: the tab emits
+ * `retry` and the page shell, which owns the query, refetches it.
  *
  * `print-target` marks the whole tab as what "Print statement" puts on paper; the tools row and
  * the headline cards carry `print-hide` because the printed document is the statement itself.
@@ -29,12 +31,14 @@ const props = defineProps<{
   statement: IncomeStatementResponse | null;
   statementLoading: boolean;
   statementError: boolean;
+  /** The page's statement query is refetching — the Retry shows it is working. */
+  statementRetrying?: boolean;
   fleet: FleetReportResponse | null;
   fleetLoading: boolean;
   period: ReportPeriod;
   compare: StatementCompare;
 }>();
-const emit = defineEmits<{ "update:compare": [value: StatementCompare] }>();
+const emit = defineEmits<{ "update:compare": [value: StatementCompare]; retry: [] }>();
 
 const fmtUsd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -93,86 +97,89 @@ const shownCount = computed(() => sections.value.reduce((a, s) => a + s.lines.le
 
 <template>
   <div class="print-target space-y-4">
-    <p v-if="statementError" class="text-sm text-danger-600">
-      The income statement could not be loaded. Try the period again in a moment.
-    </p>
-
-    <template v-else-if="statement">
-      <div class="print-hide grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Earned" :value="fmtUsd(statement.revenue)" :sub="compareSub(statement.toDateRevenue)" />
-        <StatCard label="Spent" :value="fmtUsd(statement.expenses)" :sub="compareSub(statement.toDateExpenses)" />
-        <StatCard
-          label="Kept"
-          :value="fmtUsd(statement.net)"
-          :sub="compareSub(statement.toDateNet)"
-          :sub-tone="statement.net < 0 ? 'text-danger-600' : undefined"
-        />
-      </div>
-
-      <!-- A month the sweep reached mid-month is not a month the sweep has not reached: its rows
-           are staged and real, and they are left out because part of a month reported as the
-           month is a precise wrong answer (G11). -->
-      <p v-if="statement.ledgerReason" class="text-sm text-warning-700">{{ statement.ledgerReason }}</p>
-      <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
-        The McLeod sweep has not reached
-        {{ statement.monthsMissing.join(", ") }}, so
-        {{ statement.monthsMissing.length === 1 ? "that month is" : "those months are" }}
-        missing from these figures.
-      </p>
-      <p v-if="statement.unrecognisedNet !== 0" class="text-sm text-warning-700">
-        {{ fmtUsd(statement.unrecognisedNet) }} sits in an account group this report does not
-        recognise. It is shown below and counted in neither total.
-      </p>
-
-      <!-- The family summary (G6) leads the statement. Ninety-four rows is the document the owner
-           reconciles; ten rows is the answer a boss acts on, and the second cannot be derived from
-           the first — the grouping is signed (see glFamilies.ts). Its comparative is the fleet
-           report's own year to date, whatever the statement below compares with. -->
-      <FamilySummaryTable
-        v-if="fleet"
-        :families="fleet.families"
-        :show-to-date="fleet.statement.toDateRevenue !== null"
-        :loading="fleetLoading"
-      />
-
-      <div class="print-hide flex flex-wrap items-center gap-3">
-        <div class="w-full sm:w-72">
-          <AppSearchField v-model="search" placeholder="Find an account or code…" label="Find an account" />
+    <QueryState
+      :loading="!statementError && !statement"
+      :error="statementError"
+      :retrying="statementRetrying"
+      loading-text="Loading the income statement…"
+      error-text="Could not load the income statement."
+      @retry="emit('retry')"
+    >
+      <template v-if="statement">
+        <div class="print-hide grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Earned" :value="fmtUsd(statement.revenue)" :sub="compareSub(statement.toDateRevenue)" />
+          <StatCard label="Spent" :value="fmtUsd(statement.expenses)" :sub="compareSub(statement.toDateExpenses)" />
+          <StatCard
+            label="Kept"
+            :value="fmtUsd(statement.net)"
+            :sub="compareSub(statement.toDateNet)"
+            :sub-tone="statement.net < 0 ? 'text-danger-600' : undefined"
+          />
         </div>
-        <AppSegmentedControl :model-value="compare" :options="COMPARE_OPTIONS" label="Compare the statement to" @update:model-value="(v) => emit('update:compare', v as StatementCompare)" />
-        <p v-if="query" class="text-xs text-ink-tertiary">{{ shownCount }} of {{ accountCount }} accounts</p>
-      </div>
-      <p v-if="comparisonKind !== 'none' && comparisonMissing.length" class="text-sm text-warning-700">
-        The McLeod sweep has not reached {{ comparisonMissing.join(", ") }} in the comparison, so
-        {{ comparisonMissing.length === 1 ? "that month is" : "those months are" }} missing from the
-        {{ compareLabel }} column.
-      </p>
 
-      <IncomeStatementTable
-        v-for="section in sections"
-        :key="section.typeId ?? 'unclassified'"
-        class="print-section"
-        :section="section"
-        :loading="statementLoading"
-        :show-to-date="showCompare"
-        :compare-label="compareLabel"
-      />
-      <p v-if="query && !sections.length" class="text-sm text-ink-secondary">
-        No account matches “{{ search }}”. Try the code, or part of the name as McLeod prints it.
-      </p>
+        <!-- A month the sweep reached mid-month is not a month the sweep has not reached: its rows
+             are staged and real, and they are left out because part of a month reported as the
+             month is a precise wrong answer (G11). -->
+        <p v-if="statement.ledgerReason" class="text-sm text-warning-700">{{ statement.ledgerReason }}</p>
+        <p v-if="statement.monthsMissing.length" class="text-sm text-warning-700">
+          The McLeod sweep has not reached
+          {{ statement.monthsMissing.join(", ") }}, so
+          {{ statement.monthsMissing.length === 1 ? "that month is" : "those months are" }}
+          missing from these figures.
+        </p>
+        <p v-if="statement.unrecognisedNet !== 0" class="text-sm text-warning-700">
+          {{ fmtUsd(statement.unrecognisedNet) }} sits in an account group this report does not
+          recognise. It is shown below and counted in neither total.
+        </p>
 
-      <p class="text-xs text-ink-tertiary">
-        Straight from McLeod's own ledger, grouped and ordered the way McLeod prints it. Money is
-        reported by whole calendar month, because that is the grain the ledger keeps — a period
-        that covers part of a month shows the whole month
-        <template v-if="statement.monthsCovered.length">
-          ({{ statement.monthsCovered.join(", ") }})</template
-        >.
-        <template v-if="showCompare && comparisonKind === 'ytd'">Year to date runs from {{ statement.toDateFrom }}.</template>
-        <template v-else-if="showCompare">The comparison column is {{ compareLabel }}.</template>
-      </p>
-    </template>
+        <!-- The family summary (G6) leads the statement. Ninety-four rows is the document the owner
+             reconciles; ten rows is the answer a boss acts on, and the second cannot be derived from
+             the first — the grouping is signed (see glFamilies.ts). Its comparative is the fleet
+             report's own year to date, whatever the statement below compares with. -->
+        <FamilySummaryTable
+          v-if="fleet"
+          :families="fleet.families"
+          :show-to-date="fleet.statement.toDateRevenue !== null"
+          :loading="fleetLoading"
+        />
 
-    <p v-else class="text-sm text-ink-secondary">Loading the income statement…</p>
+        <div class="print-hide flex flex-wrap items-center gap-3">
+          <div class="w-full sm:w-72">
+            <AppSearchField v-model="search" placeholder="Find an account or code…" label="Find an account" />
+          </div>
+          <AppSegmentedControl :model-value="compare" :options="COMPARE_OPTIONS" label="Compare the statement to" @update:model-value="(v) => emit('update:compare', v as StatementCompare)" />
+          <p v-if="query" class="text-xs text-ink-tertiary">{{ shownCount }} of {{ accountCount }} accounts</p>
+        </div>
+        <p v-if="comparisonKind !== 'none' && comparisonMissing.length" class="text-sm text-warning-700">
+          The McLeod sweep has not reached {{ comparisonMissing.join(", ") }} in the comparison, so
+          {{ comparisonMissing.length === 1 ? "that month is" : "those months are" }} missing from the
+          {{ compareLabel }} column.
+        </p>
+
+        <IncomeStatementTable
+          v-for="section in sections"
+          :key="section.typeId ?? 'unclassified'"
+          class="print-section"
+          :section="section"
+          :loading="statementLoading"
+          :show-to-date="showCompare"
+          :compare-label="compareLabel"
+        />
+        <p v-if="query && !sections.length" class="text-sm text-ink-secondary">
+          No account matches “{{ search }}”. Try the code, or part of the name as McLeod prints it.
+        </p>
+
+        <p class="text-xs text-ink-tertiary">
+          Straight from McLeod's own ledger, grouped and ordered the way McLeod prints it. Money is
+          reported by whole calendar month, because that is the grain the ledger keeps — a period
+          that covers part of a month shows the whole month
+          <template v-if="statement.monthsCovered.length">
+            ({{ statement.monthsCovered.join(", ") }})</template
+          >.
+          <template v-if="showCompare && comparisonKind === 'ytd'">Year to date runs from {{ statement.toDateFrom }}.</template>
+          <template v-else-if="showCompare">The comparison column is {{ compareLabel }}.</template>
+        </p>
+      </template>
+    </QueryState>
   </div>
 </template>

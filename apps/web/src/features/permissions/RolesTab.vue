@@ -10,6 +10,7 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import { useModulesQuery } from "@/composables/useModules";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import RoleAccessStrip from "./RoleAccessStrip.vue";
 import ScreenRows from "./ScreenRows.vue";
 import SectionRows, { type SectionRowModel } from "./SectionRows.vue";
@@ -202,18 +203,33 @@ async function resetRole() {
   }
 }
 
+const loadingPermissions = computed(
+  () => (sections.isPending.value && !sections.isError.value) || (surfaces.isPending.value && !surfaces.isError.value),
+);
+const permissionsError = computed(() =>
+  sections.isError.value ? sections.error.value : surfaces.isError.value ? surfaces.error.value : null,
+);
+function retryPermissions(): void {
+  if (sections.isError.value) void sections.refetch();
+  if (surfaces.isError.value) void surfaces.refetch();
+}
+
 const previewSections = computed(() => (role.value ? (sections.data.value?.overrides[role.value] ?? {}) : {}));
 const previewSurfaces = computed(() => (role.value ? (surfaces.data.value?.overrides[role.value] ?? {}) : {}));
 </script>
 
 <template>
-  <p v-if="sections.isPending.value || surfaces.isPending.value" class="text-sm text-ink-muted">
-    Loading permissions…
-  </p>
-  <p v-else-if="!sections.data.value || !surfaces.data.value" class="text-sm text-ink-muted">
-    Could not load permissions. Reload the page to try again.
-  </p>
-  <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+  <!-- Two reads behind one page: either failing is the page failing, and Retry reads again only the
+       one that failed (D-US5; it used to say "Reload the page to try again"). -->
+  <QueryState
+    :loading="loadingPermissions"
+    :error="permissionsError"
+    :retrying="sections.isFetching.value || surfaces.isFetching.value"
+    loading-text="Loading permissions…"
+    error-text="Could not load permissions."
+    @retry="retryPermissions"
+  >
+  <div v-if="sections.data.value && surfaces.data.value" class="grid grid-cols-1 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
     <div class="lg:hidden">
       <AppTabs v-model="rail" :tabs="railTabs" label="Roles" scrollable />
     </div>
@@ -284,4 +300,5 @@ const previewSurfaces = computed(() => (role.value ? (surfaces.data.value?.overr
       </p>
     </div>
   </div>
+  </QueryState>
 </template>

@@ -16,6 +16,7 @@ import {
 import { AppBadge, AppFormField, AppCombobox as ComboSelect } from "@silvicom/ui";
 import ExportButton, { type ExportRetry } from "@/components/ExportButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
 import { reviewLayerTag } from "./rows";
@@ -167,11 +168,17 @@ function handleExportError(error: unknown, retry: ExportRetry): boolean {
       />
     </div>
 
-    <p v-if="review.isPending.value" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="!review.data.value" class="text-sm text-ink-muted">
-      Could not load who has access. Reload the page to try again.
-    </p>
-    <p v-else-if="!result" class="text-sm text-ink-muted">
+    <!-- D-US5: the failure used to say "Reload the page to try again", which also dropped the screen
+         or section picked above; Retry reads the review again in place. -->
+    <QueryState
+      :loading="review.isPending.value && !review.isError.value"
+      :error="review.isError.value ? review.error.value : null"
+      :retrying="review.isFetching.value"
+      loading-text="Loading who has access…"
+      error-text="Could not load who has access."
+      @retry="review.refetch()"
+    >
+    <p v-if="!result" class="text-sm text-ink-muted">
       Pick a screen or section to see everyone who has it, why, and who does not.
     </p>
 
@@ -218,5 +225,6 @@ function handleExportError(error: unknown, retry: ExportRetry): boolean {
         </DataTable>
       </AccessCard>
     </template>
+    </QueryState>
   </div>
 </template>

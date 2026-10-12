@@ -13,6 +13,7 @@ import {
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField, AppSelect } from "@silvicom/ui";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useEmployerCallsQuery, useRecordEmployerCall } from "@/features/recruitment/useApplicantScreening";
 
 /**
@@ -109,52 +110,60 @@ async function save(): Promise<void> {
         </template>
       </p>
     </div>
-    <p v-if="listQ.isLoading.value" class="text-xs text-ink-muted">Loading…</p>
-    <p v-else-if="listQ.error.value" class="text-xs text-danger-700">The calls could not be loaded.</p>
-    <p v-else-if="!data?.employers.length" class="text-xs text-ink-muted">The application names no employer yet.</p>
+    <QueryState
+      :loading="listQ.isLoading.value"
+      :error="listQ.isError.value ? listQ.error.value : null"
+      :retrying="listQ.isFetching.value"
+      loading-text="Loading the employer calls…"
+      error-text="Could not load the employer calls."
+      compact
+      @retry="listQ.refetch()"
+    >
+      <p v-if="!data?.employers.length" class="text-xs text-ink-muted">The application names no employer yet.</p>
 
-    <ul v-else class="space-y-4">
-      <li v-for="(e, i) in data.employers" :key="e.key ?? `unkeyed-${i}`" class="space-y-2">
-        <p class="text-xs">
-          <span class="font-medium text-ink">{{ e.name }}</span>
-          <span v-if="e.phone" class="text-ink-secondary"> · {{ e.phone }}</span>
-        </p>
-        <ul v-if="callsFor(e.key).length" class="space-y-1">
-          <li v-for="c in callsFor(e.key)" :key="c.id" class="text-2xs text-ink-secondary">
-            {{ at(c.calledAt) }} · {{ c.answeredBy }} ·
-            {{ VERIFICATION_QUESTIONS.map((q) => `${VERIFICATION_QUESTION_LABELS[q]}: ${VERIFICATION_OUTCOME_LABELS[c.outcomes[q]]}`).join("; ") }}
-            <template v-if="c.copiedInquiryId"> · on the inquiry list</template>
-          </li>
-        </ul>
-        <p v-if="e.key === null" class="text-2xs text-ink-muted">
-          Entered before employers carried a reference, so a call can't be recorded against it until filing puts it on the inquiry list.
-        </p>
-        <template v-else-if="canRecord && !data.filed">
-          <BaseButton v-if="openKey !== e.key" size="sm" @click="start(e)">Record a call</BaseButton>
-          <div v-else class="space-y-3 rounded-surface border border-edge p-3">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FormField v-slot="{ id }" label="Who answered">
-                <BaseInput :id="id" v-model="form.answeredBy" placeholder="Name and role" />
-              </FormField>
-              <FormField v-slot="{ id }" label="Called at">
-                <AppDateTimeField :id="id" v-model="form.calledAt" />
-              </FormField>
+      <ul v-else class="space-y-4">
+        <li v-for="(e, i) in data.employers" :key="e.key ?? `unkeyed-${i}`" class="space-y-2">
+          <p class="text-xs">
+            <span class="font-medium text-ink">{{ e.name }}</span>
+            <span v-if="e.phone" class="text-ink-secondary"> · {{ e.phone }}</span>
+          </p>
+          <ul v-if="callsFor(e.key).length" class="space-y-1">
+            <li v-for="c in callsFor(e.key)" :key="c.id" class="text-2xs text-ink-secondary">
+              {{ at(c.calledAt) }} · {{ c.answeredBy }} ·
+              {{ VERIFICATION_QUESTIONS.map((q) => `${VERIFICATION_QUESTION_LABELS[q]}: ${VERIFICATION_OUTCOME_LABELS[c.outcomes[q]]}`).join("; ") }}
+              <template v-if="c.copiedInquiryId"> · on the inquiry list</template>
+            </li>
+          </ul>
+          <p v-if="e.key === null" class="text-2xs text-ink-muted">
+            Entered before employers carried a reference, so a call can't be recorded against it until filing puts it on the inquiry list.
+          </p>
+          <template v-else-if="canRecord && !data.filed">
+            <BaseButton v-if="openKey !== e.key" size="sm" @click="start(e)">Record a call</BaseButton>
+            <div v-else class="space-y-3 rounded-surface border border-edge p-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField v-slot="{ id }" label="Who answered">
+                  <BaseInput :id="id" v-model="form.answeredBy" placeholder="Name and role" />
+                </FormField>
+                <FormField v-slot="{ id }" label="Called at">
+                  <AppDateTimeField :id="id" v-model="form.calledAt" />
+                </FormField>
+              </div>
+              <div v-for="q in VERIFICATION_QUESTIONS" :key="q" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <FormField v-slot="{ id }" :label="VERIFICATION_QUESTION_LABELS[q]">
+                  <AppSelect :id="id" v-model="form.outcomes[q]" :options="OUTCOME_OPTIONS" />
+                </FormField>
+                <FormField v-if="form.outcomes[q] === 'corrected'" v-slot="{ id }" label="What they said instead">
+                  <BaseInput :id="id" v-model="form.corrections[q]" />
+                </FormField>
+              </div>
+              <div class="flex gap-2">
+                <BaseButton size="sm" variant="primary" :disabled="!ready || record.isPending.value" @click="save">Record the call</BaseButton>
+                <BaseButton size="sm" variant="ghost" @click="openKey = null">Cancel</BaseButton>
+              </div>
             </div>
-            <div v-for="q in VERIFICATION_QUESTIONS" :key="q" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <FormField v-slot="{ id }" :label="VERIFICATION_QUESTION_LABELS[q]">
-                <AppSelect :id="id" v-model="form.outcomes[q]" :options="OUTCOME_OPTIONS" />
-              </FormField>
-              <FormField v-if="form.outcomes[q] === 'corrected'" v-slot="{ id }" label="What they said instead">
-                <BaseInput :id="id" v-model="form.corrections[q]" />
-              </FormField>
-            </div>
-            <div class="flex gap-2">
-              <BaseButton size="sm" variant="primary" :disabled="!ready || record.isPending.value" @click="save">Record the call</BaseButton>
-              <BaseButton size="sm" variant="ghost" @click="openKey = null">Cancel</BaseButton>
-            </div>
-          </div>
-        </template>
-      </li>
-    </ul>
+          </template>
+        </li>
+      </ul>
+    </QueryState>
   </div>
 </template>

@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import { formatDisplayDateTime, type DrugTestAppointment } from "@silvicom/shared";
 import { AppButton as BaseButton, AppInput as BaseInput, AppDateTimeField, AppFormField as FormField } from "@silvicom/ui";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -104,27 +105,37 @@ async function cancelLive(): Promise<void> {
   <div v-if="!done || live" class="space-y-6 border-t border-edge pt-6">
     <div>
       <p class="text-sm font-medium text-ink">Appointment</p>
-      <p v-if="listQ.isLoading.value" class="mt-1 text-xs text-ink-muted">Loading…</p>
-      <p v-else-if="listQ.error.value" class="mt-1 text-xs text-danger-700">The appointments could not be loaded.</p>
-      <p v-else-if="!live" class="mt-1 text-xs text-ink-muted">None arranged.</p>
-      <div v-else class="mt-2 space-y-1">
-        <p class="text-xs">
-          <span class="font-medium text-ink">{{ live.siteName }}</span>
-          <span class="text-ink-secondary"> · {{ live.siteAddress }}</span>
-          <span v-if="live.sitePhone" class="text-ink-secondary"> · {{ live.sitePhone }}</span>
-        </p>
-        <p class="text-2xs text-ink-secondary">
-          From {{ at(live.windowStart) }}<template v-if="live.windowEnd"> to {{ at(live.windowEnd) }}</template>
-          <template v-if="live.donorReference"> · reference <span class="font-mono">{{ live.donorReference }}</span></template>
-        </p>
-        <p v-if="live.sentToDriverAt" class="text-2xs text-ink-muted">Texted to the driver {{ at(live.sentToDriverAt) }}.</p>
-        <div v-if="canArrange && !changing && !done" class="flex gap-2 pt-2">
-          <BaseButton size="sm" :disabled="sendIt.isPending.value" @click="textLive">
-            {{ live.sentToDriverAt ? "Text it again" : "Text it to the driver" }}
-          </BaseButton>
-          <BaseButton size="sm" @click="changing = true">Change it</BaseButton>
-          <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">Cancel it</BaseButton>
-        </div>
+      <div class="mt-1">
+        <QueryState
+          :loading="listQ.isLoading.value"
+          :error="listQ.isError.value ? listQ.error.value : null"
+          :retrying="listQ.isFetching.value"
+          loading-text="Loading the appointments…"
+          error-text="Could not load the appointments."
+          compact
+          @retry="listQ.refetch()"
+        >
+          <p v-if="!live" class="text-xs text-ink-muted">None arranged.</p>
+          <div v-else class="mt-1 space-y-1">
+            <p class="text-xs">
+              <span class="font-medium text-ink">{{ live.siteName }}</span>
+              <span class="text-ink-secondary"> · {{ live.siteAddress }}</span>
+              <span v-if="live.sitePhone" class="text-ink-secondary"> · {{ live.sitePhone }}</span>
+            </p>
+            <p class="text-2xs text-ink-secondary">
+              From {{ at(live.windowStart) }}<template v-if="live.windowEnd"> to {{ at(live.windowEnd) }}</template>
+              <template v-if="live.donorReference"> · reference <span class="font-mono">{{ live.donorReference }}</span></template>
+            </p>
+            <p v-if="live.sentToDriverAt" class="text-2xs text-ink-muted">Texted to the driver {{ at(live.sentToDriverAt) }}.</p>
+            <div v-if="canArrange && !changing && !done" class="flex gap-2 pt-2">
+              <BaseButton size="sm" :disabled="sendIt.isPending.value" @click="textLive">
+                {{ live.sentToDriverAt ? "Text it again" : "Text it to the driver" }}
+              </BaseButton>
+              <BaseButton size="sm" @click="changing = true">Change it</BaseButton>
+              <BaseButton size="sm" variant="ghost" :disabled="cancel.isPending.value" @click="cancelLive">Cancel it</BaseButton>
+            </div>
+          </div>
+        </QueryState>
       </div>
     </div>
 

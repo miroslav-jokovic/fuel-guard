@@ -47,7 +47,9 @@ const toneClass = computed(() => TONE[props.tone]);
     :class="toneClass"
   >
     <AppIcon v-if="icon" :icon="icon" class="size-4 shrink-0" aria-hidden="true" />
-    <span class="min-w-0"><slot /></span>
+    <!-- A div, not a span: a notice may carry a list ("these 4 rows could not be read"), and a list
+         inside a span is invalid markup. Inline copy renders the same either way (D-US3, 2026-10-12). -->
+    <div class="min-w-0"><slot /></div>
     <!-- Actions sit hard right so a one-line callout reads as statement-then-remedy. -->
     <span v-if="$slots.actions" class="ml-auto flex shrink-0 items-center gap-2"><slot name="actions" /></span>
   </div>

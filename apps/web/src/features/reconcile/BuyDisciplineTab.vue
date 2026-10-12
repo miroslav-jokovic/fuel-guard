@@ -9,6 +9,7 @@ import {
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import ExportButton from "@/components/ExportButton.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -77,8 +78,8 @@ const props = withDefaults(defineProps<{
    */
   inputs?: "ready" | "loading" | "error";
 }>(), { fleetWide: true, fillsState: "ready", inputs: "ready" });
-const FILLS_FAILED = "Couldn't load the fill sequence for this window.";
-/** The purchases table's Retry: the page owns the read. */
+const FILLS_FAILED = "Could not load the fill sequence for this window.";
+/** The headline's and the purchases table's Retry: the page owns the read. */
 const emit = defineEmits<{ retry: [] }>();
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
@@ -272,15 +273,24 @@ function exportRows() {
 
       <!-- The one qualification that changes how the figure is read stays beside it: half the trips are
            estimated from miles, and that estimate undercounts roughly fivefold, so the total is a minimum. -->
-      <p v-if="fillsState === 'loading'" class="mt-3 text-sm text-ink-muted" data-testid="carried-state">Loading the fill sequence…</p>
-      <p v-else-if="fillsState === 'error'" class="mt-3 text-sm text-danger-700" data-testid="carried-state">{{ FILLS_FAILED }}</p>
-      <p v-else class="mt-3 text-xs text-ink-tertiary" data-testid="carried-basis">
-        {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
-        {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
-        ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
-        miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which undercounts —
-        so the total is a minimum.
-      </p>
+      <div class="mt-3" data-testid="carried-state">
+        <QueryState
+          compact
+          :loading="fillsState === 'loading'"
+          :error="fillsState === 'error'"
+          loading-text="Loading the fill sequence…"
+          :error-text="FILLS_FAILED"
+          @retry="emit('retry')"
+        >
+          <p class="text-xs text-ink-tertiary" data-testid="carried-basis">
+            {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
+            {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
+            ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
+            miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which undercounts —
+            so the total is a minimum.
+          </p>
+        </QueryState>
+      </div>
 
       <!--
         Until 2026-09-10 a callout here offered the planner's min-drawdown switch, priced. The owner retired

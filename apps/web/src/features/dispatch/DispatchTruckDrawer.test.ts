@@ -15,10 +15,13 @@ import type { DispatchBoardRow } from "@silvicom/shared";
  */
 const LOAD = "11111111-2222-4333-8444-000000000001";
 
-const calls = vi.hoisted(() => ({ gets: [] as string[] }));
+const calls = vi.hoisted(() => ({ gets: [] as string[], routeFails: false }));
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(async (url: string) => {
     calls.gets.push(url);
+    if (url.endsWith("/route") && calls.routeFails) {
+      return { ok: true, data: { ok: false, error: { message: "No stop on this load has a position." } } };
+    }
     if (url.endsWith("/route")) {
       return {
         ok: true,
@@ -93,6 +96,7 @@ async function mountIt(row: DispatchBoardRow | null) {
 
 beforeEach(() => {
   calls.gets.length = 0;
+  calls.routeFails = false;
 });
 
 describe("DispatchTruckDrawer", () => {
@@ -137,6 +141,17 @@ describe("DispatchTruckDrawer", () => {
       "812 mi pickup to delivery · 512 mi still ahead · about 13h 30m of driving",
     );
     expect(w.text()).toContain("Next fuel stop: Pilot 412, Joplin, MO, 89 mi ahead");
+  });
+
+  it("says why the route could not be drawn and reads it again on Retry (D-US5)", async () => {
+    calls.routeFails = true;
+    const w = await mountIt(loaded);
+    const alert = w.get("[role=alert]");
+    expect(alert.text()).toContain("No stop on this load has a position.");
+    calls.gets.length = 0;
+    await alert.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    await flushPromises();
+    expect(calls.gets).toEqual([`/api/livemap/loads/${LOAD}/route`]);
   });
 
   it("opens the truck's, the driver's and the load's own pages", async () => {

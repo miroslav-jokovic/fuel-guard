@@ -4,6 +4,7 @@ import { AppCard as BaseCard, AppButton as BaseButton, AppInput as BaseInput } f
 import type { ClosureRequest } from "@silvicom/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useToastStore } from "@/stores/toast";
 import { useClosureRequestsQuery, useResolveClosureRequest } from "./useClosureRequests";
 
@@ -62,17 +63,22 @@ async function act(request: ClosureRequest, outcome: "complete" | "decline") {
       49 CFR §391.51 and is not part of this.
     </p>
 
-    <p v-if="requests.isLoading.value" class="mt-4 text-sm text-ink-muted">Loading requests…</p>
-    <p v-else-if="requests.isError.value" class="mt-4 text-sm text-danger-700">
-      {{ requests.error.value instanceof Error ? requests.error.value.message : "Could not load requests." }}
-    </p>
-
-    <template v-else>
-      <p v-if="open.length === 0" class="mt-4 text-sm text-ink-muted">
+    <!-- The api's own sentence when it gave one, as before; the Retry is new (D-US5). Compact: this
+         is one card on the settings page. -->
+    <div class="mt-4">
+    <QueryState
+      compact
+      :loading="requests.isLoading.value"
+      :error="requests.isError.value ? requests.error.value : null"
+      :retrying="requests.isFetching.value"
+      loading-text="Loading the closure requests…"
+      @retry="requests.refetch()"
+    >
+      <p v-if="open.length === 0" class="text-sm text-ink-muted">
         No open requests. Drivers can ask from More → Close my account in the app.
       </p>
 
-      <ul v-else class="mt-4 space-y-4">
+      <ul v-else class="space-y-4">
         <li v-for="r in open" :key="r.id" class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-sm font-medium text-ink">{{ r.driver_name ?? "Driver" }}</span>
@@ -112,6 +118,7 @@ async function act(request: ClosureRequest, outcome: "complete" | "decline") {
           </li>
         </ul>
       </div>
-    </template>
+    </QueryState>
+    </div>
   </BaseCard>
 </template>

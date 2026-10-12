@@ -109,6 +109,7 @@ function onSubmit() {
     </FormField>
 
     <!-- H-C2: a tank is a trailer — its cargo data lives here, not on a separate hazmat page. -->
+    <!-- ui-adoption: not-a-notice — a tinted group of form fields (the cargo tank's capacity and compartments). -->
     <div v-if="form.trailer_type === 'tanker'" class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <p class="text-sm font-medium text-ink">Cargo tank</p>
       <p class="mt-0.5 text-xs text-ink-muted">Used by HazmatGuard load analysis. This is the CARGO tank, not a fuel tank.</p>
@@ -122,6 +123,7 @@ function onSubmit() {
       </div>
     </div>
 
+    <!-- ui-adoption: not-a-notice — a tinted frame around the reefer checkbox, a form control. -->
     <div class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <BaseCheckbox v-model="form.is_reefer">
         <span class="text-sm">

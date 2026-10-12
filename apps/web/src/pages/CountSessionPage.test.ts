@@ -74,12 +74,21 @@ const record = vi.hoisted(() => ({
   mutateAsync: vi.fn(async (_movement: Record<string, unknown>) => ({ id: "m" })),
   isPending: { value: false },
 }));
+/** D-US5: flipped by the one test that asks what a walk that will not load looks like. */
+const sessionFail = vi.hoisted(() => ({ on: false, refetch: vi.fn() }));
 const closeWalk = vi.hoisted(() => ({ mutateAsync: vi.fn(async () => ({})), isPending: { value: false } }));
 
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
   return {
-    useCountSessionQuery: () => ({ data: walk, isLoading: r(false), isError: r(false) }),
+    useCountSessionQuery: () => ({
+      data: walk,
+      isLoading: r(false),
+      isError: r(sessionFail.on),
+      error: r(sessionFail.on ? new Error("404") : null),
+      isFetching: r(false),
+      refetch: sessionFail.refetch,
+    }),
     useStockQuery: () => ({ data: r({ lines: lines.value, total: lines.value.length }), isLoading: r(false) }),
     useRecordMovement: () => record,
     useCloseCountSession: () => closeWalk,
@@ -151,6 +160,19 @@ beforeEach(() => {
   document.body.innerHTML = "";
   withBar();
   vi.spyOn(window, "confirm").mockReturnValue(true);
+  sessionFail.on = false;
+  sessionFail.refetch.mockReset();
+});
+
+/** D-US5: a walk that will not load says so and offers a Retry, not the browser's reload. */
+describe("a walk that will not load", () => {
+  it("says it could not load the walk and retries the fetch in place", async () => {
+    sessionFail.on = true;
+    const w = page();
+    expect(w.text()).toContain("Could not load this walk. It may not be on file.");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(sessionFail.refetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 /** D-INV17 as amended 2026-09-10: the walk is a page in the app's own shell, not a phone screen of its own. */

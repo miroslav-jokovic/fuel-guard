@@ -113,7 +113,9 @@ function openReview(invitation: string): void {
       :driver-id="id"
       :checklist="checklistQ.data.value ?? null"
       :loading="checklistQ.isLoading.value"
-      :error="checklistQ.error.value ? 'The hiring checklist could not be loaded.' : null"
+      :error="checklistQ.error.value ? 'Could not load the hiring checklist.' : null"
+      :retrying="checklistQ.isFetching.value"
+      @retry="checklistQ.refetch()"
       @open="openStepKey = $event.key"
     />
 

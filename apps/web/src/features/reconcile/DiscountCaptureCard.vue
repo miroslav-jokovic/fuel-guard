@@ -31,6 +31,7 @@
 import { computed } from "vue";
 import { contractHeadline, type ContractTotals, type SpendLine } from "@silvicom/shared";
 import StatCard from "@/components/ui/StatCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import { usd, pct1 } from "./format";
 
@@ -46,7 +47,11 @@ const props = defineProps<{
 }>();
 /** Whether the fills behind the tile are showing. The page owns the request that waits on it. */
 const open = defineModel<boolean>("open", { default: false });
-const emit = defineEmits<{ narrow: [from: string, to: string] }>();
+/**
+ * `retry` is the fills' failure asking the page to read them again (D-US5). It used to say "close it and
+ * open it again to retry", which was a retry by ritual; the page owns the request, so it refetches.
+ */
+const emit = defineEmits<{ narrow: [from: string, to: string]; retry: [] }>();
 
 /**
  * The tile is `contractHeadline` over the database's four sums; the fills under it are
@@ -94,16 +99,20 @@ const subTone = computed(() =>
     </div>
 
     <!-- The fills behind it, unchanged: the same component the tab rendered, with the same props. -->
-    <p v-if="open && linesError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the fills behind this figure. Close it and open it again to retry.
-    </p>
-    <p v-else-if="open && linesLoading" class="text-sm text-ink-muted">Loading the fills behind this figure…</p>
-    <DiscountCaptureTab
-      v-else-if="open"
-      :lines="lines"
-      :from="from"
-      :to="to"
-      @narrow="(f, t) => emit('narrow', f, t)"
-    />
+    <QueryState
+      v-if="open"
+      :loading="!!linesLoading"
+      :error="linesError"
+      loading-text="Loading the fills behind this figure…"
+      error-text="Could not load the fills behind this figure."
+      @retry="emit('retry')"
+    >
+      <DiscountCaptureTab
+        :lines="lines"
+        :from="from"
+        :to="to"
+        @narrow="(f, t) => emit('narrow', f, t)"
+      />
+    </QueryState>
   </div>
 </template>

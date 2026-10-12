@@ -4,7 +4,7 @@ import type { HazmatLoadRow, HazmatRunRow } from "@silvicom/shared";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
-import { AppTextarea } from "@silvicom/ui";
+import { AppCallout, AppTextarea } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   ATTESTATION_TEXT,
@@ -145,7 +145,7 @@ async function reject() {
 
     <!-- hard block: provisional dataset or unusable read — cannot clear, must reject/re-run -->
     <div v-if="hardBlock" class="mt-4 space-y-3 border-t border-edge pt-4">
-      <p class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20">{{ hardBlock }}</p>
+      <AppCallout tone="warning">{{ hardBlock }}</AppCallout>
       <BaseButton variant="danger" size="sm" :disabled="busy" @click="reject">Reject (illegible / wrong document)</BaseButton>
       <p v-if="actionError" class="text-sm text-danger-600">{{ actionError }}</p>
     </div>
