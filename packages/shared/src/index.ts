@@ -201,6 +201,7 @@ export * from "./aamvaBarcode.js";
 export * from "./aamvaIssuers.js";
 export * from "./savedViewContract.js";
 export * from "./dqFleetFilter.js";
+export * from "./fleetChecks.js";
 export * from "./driverEditMeaning.js";
 export * from "./cardControlLedger.js";
 export * from "./efs/types.js";

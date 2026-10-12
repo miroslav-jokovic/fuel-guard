@@ -32,8 +32,26 @@ import ActivityWidget from "@/features/dashboard/widgets/ActivityWidget.vue";
 import ConcentrationWidget from "@/features/dashboard/widgets/ConcentrationWidget.vue";
 import SavingsWidget from "@/features/reconcile/SavingsWidget.vue";
 import LiveMapWorkspace from "@/features/livemap/LiveMapWorkspace.vue";
+import FleetNowWidget from "@/features/dispatch/FleetNowWidget.vue";
+import RoadAttentionWidget from "@/features/dispatch/RoadAttentionWidget.vue";
+import DriverFilesWidget from "@/features/compliance/DriverFilesWidget.vue";
+import SeatsWidget from "@/features/roster/SeatsWidget.vue";
+import TruckPapersWidget from "@/features/roster/TruckPapersWidget.vue";
+import OpsFuelWidget from "@/features/dashboard/widgets/OpsFuelWidget.vue";
+import HazmatReviewWidget from "@/features/hazmat/HazmatReviewWidget.vue";
+import HiringWidget from "@/features/recruitment/HiringWidget.vue";
 
 export const WIDGET_COMPONENTS: Record<string, Component> = {
+  // Operations (FLEET-MANAGER-HOME-PLAN §4). Each card lives in the feature that owns its data (D-FM8);
+  // none takes the page's range — the tab is NOW, and the fuel card fixes its own window (D-FM5).
+  "ops.fleet-now": FleetNowWidget,
+  "ops.road-attention": RoadAttentionWidget,
+  "ops.driver-files": DriverFilesWidget,
+  "ops.seats": SeatsWidget,
+  "ops.truck-papers": TruckPapersWidget,
+  "ops.fuel": OpsFuelWidget,
+  "ops.hazmat": HazmatReviewWidget,
+  "ops.hiring": HiringWidget,
   "fleet.fuel": FuelWidget,
   "fleet.efficiency": EfficiencyWidget,
   "fleet.attention": AttentionWidget,

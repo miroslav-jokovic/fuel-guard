@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import type { AppSection, UserRole } from "@silvicom/shared";
+import type { AppSection, SectionClaim, UserRole } from "@silvicom/shared";
 
 /**
  * The Dashboard SHELL — LM-T / D-DW6.
@@ -25,6 +25,13 @@ import type { AppSection, UserRole } from "@silvicom/shared";
 /** Mutable between tests — each one installs the answers it wants before mounting. */
 const sessionMock = {
   role: "admin" as UserRole | null,
+  /**
+   * The org's section claim. Since FM1 the TABS are asked through `surfaceGateAllows(tab, role,
+   * sections)` — the gate evaluator widgets and sidebar entries use — because the Operations tab
+   * needs `manage` and `canView` cannot say it. So the tab set follows `role` + `sections` (the real
+   * matrix), while `canView` still drives what INSIDE the page asks it (the Export menu).
+   */
+  sections: null as SectionClaim | null,
   canView: (_s: AppSection) => true,
   can: (_s: AppSection) => true,
   readOnly: false,
@@ -126,29 +133,42 @@ function mountShell() {
 beforeEach(() => {
   setActivePinia(createPinia());
   sessionMock.role = "admin";
+  sessionMock.sections = null;
   sessionMock.canView = () => true;
   sessionMock.can = () => true;
   sessionMock.readOnly = false;
 });
 
+/** Click a tab in the strip by its label — the way a reader leaves the tab they landed on. */
+async function openTab(w: ReturnType<typeof mountShell>, label: string) {
+  const tab = w.findAll('[role="tab"]').find((t) => t.text().includes(label));
+  expect(tab, `a ${label} tab should be in the strip`).toBeTruthy();
+  await tab!.trigger("click");
+}
+
 describe("which dashboard a caller gets", () => {
-  it("gives an admin both tabs and opens the fleet overview", () => {
+  it("gives an admin every tab and opens Operations, the first", () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
-    expect(w.findAll('[role="tab"]')).toHaveLength(2);
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(true);
-    expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(false);
+    expect(w.findAll('[role="tab"]')).toHaveLength(3);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
+    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+  });
+
+  it("opens a fleet manager on Operations (FLEET-MANAGER-HOME-PLAN D-FM3)", () => {
+    sessionMock.role = "fleet_manager";
+    const w = mountShell();
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
+    expect(replaced.at(-1)?.query).toMatchObject({ tab: "ops" });
   });
 
   it("opens a dispatcher on the DISPATCH tab, not on the first one in the catalogue", () => {
     // The defaultFor rule. Without it a dispatcher would land on Fleet overview, which is the tab
     // they care least about — and the whole reason this split was asked for.
     sessionMock.role = "dispatcher";
-    sessionMock.canView = grants("fuel", "dispatch");
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(false);
 
     /**
      * ⚠ D-DR24: and the URL followed, which is not cosmetic. `AppShell` reads `?tab=` to decide
@@ -182,10 +202,9 @@ describe("which dashboard a caller gets", () => {
     // it. A component that tested `role === 'dispatcher'` would render identically twice and fail
     // exactly here.
     sessionMock.role = "safety_manager";
-    sessionMock.canView = grants("fuel");
     expect(mountShell().findAll('[role="tab"]')).toHaveLength(0);
 
-    sessionMock.canView = grants("fuel", "dispatch");
+    sessionMock.sections = { dispatch: "view" };
     const granted = mountShell();
     expect(granted.findAll('[role="tab"]')).toHaveLength(2);
     expect(granted.text()).toContain("Dispatch");
@@ -195,9 +214,8 @@ describe("which dashboard a caller gets", () => {
 describe("the tab strip actually switches the dashboard", () => {
   it("renders the dispatch tab after the admin picks it", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(true);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
 
     const dispatchTab = w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"));
     expect(dispatchTab, "a Dispatch tab should be in the strip").toBeTruthy();
@@ -230,7 +248,6 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("keeps the strip after picking the workspace tab, so there is a way back", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
     await w
@@ -259,7 +276,6 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("keeps the Customize teleport target on the workspace tab", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
     await w
@@ -281,7 +297,6 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("lets the workspace tab's widgets shrink to whatever the row leaves them", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
     await w
@@ -304,9 +319,9 @@ describe("the tab strip actually switches the dashboard", () => {
  * truck silently, in a production build, with no warning.
  */
 describe("the control row", () => {
-  it("keeps the tab strip and the scope controls in one row", () => {
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+  it("keeps the tab strip and the scope controls in one row", async () => {
     const w = mountShell();
+    await openTab(w, "Fleet overview");
 
     const tablist = w.find('[role="tablist"]');
     const actions = w.find("#dashboard-actions");
@@ -322,17 +337,17 @@ describe("the control row", () => {
 });
 
 describe("the header's fleet-only controls", () => {
-  it("offers the range filter and exports on the fleet tab", () => {
+  it("offers the range filter and exports on the fleet tab", async () => {
     sessionMock.role = "admin";
     sessionMock.canView = grants("fuel", "dispatch", "accounting", "settings");
     const w = mountShell();
+    await openTab(w, "Fleet overview");
     expect(w.find('[data-test="range-filter"]').exists()).toBe(true);
     expect(w.findComponent(ExportButton).exists()).toBe(true);
   });
 
   it("hides them on the dispatch tab, which has no range and nothing to export", () => {
     sessionMock.role = "dispatcher";
-    sessionMock.canView = grants("fuel", "dispatch");
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
     expect(w.find('[data-test="range-filter"]').exists()).toBe(false);
@@ -352,6 +367,8 @@ describe("the window the page asks about", () => {
 
   beforeEach(() => {
     // `settings` because the exports are `/api/reports/*`, `settings` view, and the menu asks that (SP5).
+    // A role that LANDS on Fleet overview, which is the tab that has a window.
+    sessionMock.role = "safety_manager";
     sessionMock.canView = grants("fuel", "dispatch", "settings");
     vi.useFakeTimers();
     vi.setSystemTime(AFTER_UTC_ROLLOVER);

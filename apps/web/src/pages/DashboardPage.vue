@@ -25,6 +25,7 @@ import {
   dayRangeInstants,
   formatDisplayDate,
   shiftDay,
+  surfaceGateAllows,
   tabIsWorkspace,
   todayInZone,
 } from "@silvicom/shared";
@@ -74,7 +75,7 @@ const range = computed(() => {
  */
 const greetingLine = computed(() => greeting(new Date(), session.fullName));
 
-const tabs = computed(() => visibleTabs((s) => session.canView(s)));
+const tabs = computed(() => visibleTabs((t) => surfaceGateAllows(t, session.role, session.sections)));
 const tabItems = computed<TabItem[]>(() =>
   tabs.value.map((t) => ({ value: t.key, label: t.label })),
 );

@@ -37,10 +37,12 @@ import {
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
   matchesDqFilters,
+  seatedDriverIds,
   dqStateFilterOptions,
   dqDueFilterOptions,
 } from "@silvicom/shared";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import {
   useRosterFilters,
   ROSTER_PAGE_SIZE,
@@ -147,9 +149,11 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, dqState, dqDue, dqRequirement,
+  search, status: statusFilter, dqState, dqDue, dqRequirement, seat,
   view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
+const { data: vehicles } = useVehiclesQuery();
+const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
 
 /**
  * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
@@ -159,7 +163,7 @@ const {
  */
 const activeFilterCount = computed(
   () =>
-    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value].filter(Boolean).length +
+    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value, seat.value].filter(Boolean).length +
     (showArchived.value ? 1 : 0),
 );
 
@@ -224,6 +228,7 @@ const filtered = computed(() => {
   return (drivers.value ?? []).filter((d) => {
     if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
+    if (seat.value === "none" && seated.value.has(d.id)) return false;
     if (filteringDq) {
       const row = overviewRows.value.get(d.id);
       // A driver the rollup does not return (an EFS stub, a terminated file) has no §391.51 picture

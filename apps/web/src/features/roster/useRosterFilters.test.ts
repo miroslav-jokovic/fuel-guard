@@ -166,6 +166,21 @@ describe("useRosterFilters", () => {
     expect(router.currentRoute.value.query).toEqual({});
   });
 
+  it("reads the Seats card's door, and clears it with everything else", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM9: no control sets `seat` — the Operations tab's Seats card does.
+    const { f, router } = await mountFilters("/drivers?status=active&seat=none");
+    expect(f.seat.value).toBe("none");
+    expect(f.active.value).toBe(true);
+    f.reset();
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("reads any other seat value as no filter, because it arrives from a URL", async () => {
+    const { f } = await mountFilters("/drivers?seat=banana");
+    expect(f.seat.value).toBe("");
+  });
+
   it("does not count the column choice as a narrowed roster", async () => {
     // `hide` belongs to the reader's table, not to which drivers are on it (R3b).
     const { f } = await mountFilters("/drivers?hide=phone");

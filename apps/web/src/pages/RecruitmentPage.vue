@@ -29,7 +29,7 @@ import { sortRows } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";
-import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
+import { countWaitingOn, usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
@@ -127,8 +127,7 @@ const all = computed(() => {
   return (pipelineQ.data.value ?? []).filter((a) => (q ? a.full_name.toLowerCase().includes(q) : true));
 });
 
-const countWaiting = (who: "us" | "them") =>
-  all.value.filter((a) => a.checklist?.waiting_on === who).length;
+const countWaiting = (who: "us" | "them") => countWaitingOn(all.value, who);
 
 /**
  * ⚠ The counts are recomputed from `all` rather than from `rows`, so each option says how many rows
