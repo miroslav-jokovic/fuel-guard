@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput, AppTable } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
@@ -60,6 +62,13 @@ async function onToggle(enabled: boolean) {
     toast.error("Could not change the sweep", e instanceof Error ? e.message : undefined);
   }
 }
+
+// D-US4: the per-collection table is a DataTable inside the section's card.
+const resourceColumns: DataTableColumn[] = [
+  { key: "resource", label: "Collection", cellClass: "font-medium text-ink" },
+  { key: "rowsSeen", label: "Rows read", numeric: true },
+  { key: "lastRunAt", label: "Last run", cellClass: "text-ink-muted" },
+];
 
 function when(at: string | null): string {
   return at ? formatDateTime(at) : "never";
@@ -164,25 +173,22 @@ function when(at: string | null): string {
 
       <BaseCard v-if="s!.resources.length > 0" as="section">
         <h2 class="text-sm font-semibold text-ink">What each collection last brought in</h2>
-        <AppTable class="mt-3 w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs text-ink-muted">
-              <th scope="col" class="py-1 font-medium">Collection</th>
-              <th scope="col" class="py-1 text-right font-medium">Rows read</th>
-              <th scope="col" class="py-1 pl-4 font-medium">Last run</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in s!.resources" :key="r.resource" class="border-t border-edge-subtle">
-              <td class="py-1.5 text-ink">
-                {{ r.resource }}
-                <span v-if="r.lastError" class="block text-xs text-caution-700">{{ r.lastError.slice(0, 200) }}</span>
-              </td>
-              <td class="py-1.5 text-right tabular-nums">{{ r.rowsSeen.toLocaleString() }}</td>
-              <td class="py-1.5 pl-4 text-ink-muted">{{ when(r.lastRunAt) }}</td>
-            </tr>
-          </tbody>
-        </AppTable>
+        <DataTable
+          class="mt-3"
+          embedded
+          dense
+          :sticky-header="false"
+          :columns="resourceColumns"
+          :rows="s!.resources"
+          row-key="resource"
+        >
+          <template #cell-resource="{ row }">
+            {{ row.resource }}
+            <span v-if="row.lastError" class="block whitespace-normal text-xs font-normal text-caution-700">{{ row.lastError.slice(0, 200) }}</span>
+          </template>
+          <template #cell-rowsSeen="{ row }">{{ row.rowsSeen.toLocaleString() }}</template>
+          <template #cell-lastRunAt="{ row }">{{ when(row.lastRunAt) }}</template>
+        </DataTable>
       </BaseCard>
     </template>
   </div>

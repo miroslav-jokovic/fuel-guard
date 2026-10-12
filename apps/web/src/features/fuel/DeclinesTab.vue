@@ -28,7 +28,6 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppTable } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
@@ -111,11 +110,18 @@ const cardList = computed(() =>
   (cardRows.value ?? []).map((c) => ({
     id: c.id,
     card: maskCardRef(c.card_ref, c.card_last4),
-    unit: c.vehicle_id ? (unitByVehicleId.value.get(c.vehicle_id) ?? "?") : "—",
+    unit: c.vehicle_id ? (unitByVehicleId.value.get(c.vehicle_id) ?? "?") : null,
     source: c.assignment_source ?? "manual",
     updated: c.updated_at,
   })),
 );
+
+// D-US4: the drawer's table is a DataTable like every other; an unassigned card's blank truck renders as its em dash.
+const cardColumns: DataTableColumn[] = [
+  { key: "card", label: "Card", cellClass: "font-mono text-ink" },
+  { key: "unit", label: "Assigned truck", cellClass: "text-ink" },
+  { key: "source", label: "Source" },
+];
 
 /** The shared half, proxied for the controls that write it back to the URL. */
 const unit = computed<string[]>({
@@ -382,24 +388,14 @@ const columns: DataTableColumn[] = [
         <p v-if="!cardList.length" class="text-ink-tertiary">
           No card has a truck yet. Assignments appear when a card has enough fills, or after Recheck.
         </p>
-        <AppTable v-else class="w-full text-left text-sm">
-          <thead>
-            <tr class="text-xs uppercase tracking-wide text-ink-muted">
-              <th class="py-1.5 pr-3 font-semibold">Card</th>
-              <th class="py-1.5 pr-3 font-semibold">Assigned truck</th>
-              <th class="py-1.5 font-semibold">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in cardList" :key="c.id" class="border-t border-edge-subtle">
-              <td class="py-1.5 pr-3 font-mono text-ink">{{ c.card }}</td>
-              <td class="py-1.5 pr-3 text-ink">{{ c.unit }}</td>
-              <td class="py-1.5">
-                <span :class="[BADGE_BASE, toneClass(c.source === 'manual' ? 'brand' : 'neutral')]">{{ c.source }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </AppTable>
+        <DataTable
+          v-else embedded dense :sticky-header="false"
+          :columns="cardColumns" :rows="cardList" row-key="id"
+        >
+          <template #cell-source="{ row }">
+            <span :class="[BADGE_BASE, toneClass(row.source === 'manual' ? 'brand' : 'neutral')]">{{ row.source }}</span>
+          </template>
+        </DataTable>
       </div>
     </SlideOver>
 
