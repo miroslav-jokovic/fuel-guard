@@ -32,6 +32,12 @@ export interface FleetIdentity {
    * through `recordVehicleFleetCodes`; read here for the reason `unitNumber` is.
    */
   fleetCode: string | null;
+  /**
+   * The TMS is winding this truck down — sold and awaiting pickup, or retiring — while it is still in
+   * service (DISPATCH-BOARD-PLAN D-DB11, 0462). False when the TMS says otherwise OR has not reported
+   * yet: until a sweep records it, every truck is shown as it was before the fact existed.
+   */
+  windingDown: boolean;
 }
 
 const PAGE_CAP = 1000;
@@ -45,6 +51,7 @@ type VehicleRow = {
   samsara_fuel_percent: number | string | null;
   samsara_fuel_at: string | null;
   mcleod_fleet_code: string | null;
+  winding_down: boolean | null;
 };
 type DriverRow = { id: string; first_name: string | null; last_name: string | null };
 
@@ -96,7 +103,7 @@ export async function readFleetIdentities(
 ): Promise<{ byVehicleId: Map<string, FleetIdentity>; truncated: boolean }> {
   const { data: vData, error: vErr } = await admin
     .from("vehicles")
-    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code")
+    .select("id, unit_number, status, assigned_driver_id, samsara_fuel_percent, samsara_fuel_at, mcleod_fleet_code, winding_down")
     .eq("org_id", orgId)
     .limit(PAGE_CAP);
   if (vErr) throw new Error(vErr.message);
@@ -127,6 +134,7 @@ export async function readFleetIdentities(
       driver: d ? { id: d.id, name: displayName(d) } : null,
       fuel: toFuel(v),
       fleetCode: v.mcleod_fleet_code?.trim() || null,
+      windingDown: v.winding_down === true,
     });
   }
   return { byVehicleId, truncated: vehicles.length >= PAGE_CAP };

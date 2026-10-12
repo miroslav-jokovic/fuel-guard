@@ -568,3 +568,10 @@ users; **Q-DB4** distance ETA first, measured before HERE; **Q-DB5** "Dispatch b
 - Measured for the record: 579 and 811 are `service_status = 'I'` in McLeod but still `active` here,
   because the retire pass is manual-only and last ran 2026-09-14 (`mcleod.roster_reconciled`). 560 is
   `I` since 2025-09-19 and has no row here at all.
+- Merge 2 as built: `roster.mjs` sends `winding_down` (`tractor_status = 'I'`; absent when the column
+  was not read) — **no new SQL**: the identity query has read `tractor_status` since D-FC9, so the VM
+  needs only the code refresh, not a review of a new read. The contract field is optional and the
+  object is not strict, so an old agent on a new API and a new agent on an old API both work. Roster's
+  `recordVehicleWindingDown` shares the fleet code's write-on-change helper; the board drops a
+  winding-down truck with neither a current nor a next load. The first sweep records `false` on every
+  running truck once (null → false), then writes only on change.

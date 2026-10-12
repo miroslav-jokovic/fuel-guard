@@ -52,6 +52,17 @@ test("the sub-status is read for display, and the letter itself never leaves thi
   assert.ok(!/tractor_status/.test(vehicles("link")), "link mode reads no sub-status");
 });
 
+test("McLeod's winding-down letter becomes a fact, and a row that never read it sends no fact", () => {
+  // DISPATCH-BOARD-PLAN D-DB11: 'I' is a truck still in service but on its way out (506 on 2026-10-12).
+  const fact = (r) => MAP.vehicles({ external_id: "506", make: "Freightliner", ...r }).winding_down;
+  assert.equal(fact({ tractor_status: "I" }), true);
+  assert.equal(fact({ tractor_status: " I " }), true);
+  assert.equal(fact({ tractor_status: "A" }), false);
+  assert.equal(fact({ tractor_status: "S" }), false);
+  assert.equal(fact({ tractor_status: null }), false);
+  assert.equal(fact({}), undefined);
+});
+
 test("the fuel-tax switch is read in identity mode, and link mode still reads nothing extra", () => {
   // IFTA-PRECISION-PLAN IP4: McLeod's own exclusion from its fuel-tax module. 'N' on every tractor on
   // 2026-10-05; roster.mjs turns the letter into the neutral fuel_tax_excluded fact.
