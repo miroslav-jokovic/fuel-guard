@@ -30,7 +30,7 @@ import {
 import { startManualAnalysis } from "../hazmatAnalysis.js";
 import { startExtractionAnalysis } from "../hazmatExtraction/orchestrate.js";
 import { computeCalc } from "../hazmatCalc.js";
-import { searchProducts } from "../hazmatProducts.js";
+import { productsByRef, searchProducts } from "../hazmatProducts.js";
 import { notifyDriverOfOutcome } from "../hazmatNotify.js";
 import { gatherPacketData, renderPacketPdf } from "../defensePacket.js";
 import { reproduceRun } from "../reproduce.js";
@@ -80,7 +80,9 @@ export function hazmatRouter(): Router {
     const parsed = hazmatProductsQuerySchema.safeParse(req.query);
     if (!parsed.success) { res.status(400).json(apiError("invalid_query", parsed.error.issues[0]?.message ?? "Invalid query")); return; }
     const dataset = loadDataset();
-    const products = searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit, marinePollutants: dataset.marinePollutants });
+    const products = parsed.data.refs
+      ? productsByRef(dataset.entries, parsed.data.refs, dataset.marinePollutants)
+      : searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit, marinePollutants: dataset.marinePollutants });
     const response: HazmatProductsResponse = { datasetVersion: dataset.version, products };
     res.json(response);
   }));

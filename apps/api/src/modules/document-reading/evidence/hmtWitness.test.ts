@@ -40,4 +40,11 @@ describe("hmtVerdict", () => {
     expect(hmtVerdict(line({ idText: "UN1263", psn: "PAINT", hazardClass: "8", pg: "II" }))).toEqual(
       expect.objectContaining({ consistent: false, reason: "class_mismatch" }));
   });
+
+  it("finds diesel printed as Combustible liquid consistent, and still refuses the word on gasoline", () => {
+    expect(hmtVerdict(line({ idText: "NA1993", psn: "Diesel fuel", hazardClass: "Combustible liquid", pg: "III" }))).toEqual(
+      expect.objectContaining({ consistent: true, hmtRef: "NA1993-diesel-fuel#III" }));
+    expect(hmtVerdict(line({ idText: "UN1203", psn: "Gasoline", hazardClass: "Combustible liquid", pg: "II" }))).toEqual(
+      expect.objectContaining({ consistent: false, reason: "class_mismatch" }));
+  });
 });

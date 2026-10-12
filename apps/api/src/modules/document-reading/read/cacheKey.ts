@@ -33,8 +33,11 @@ import { createHash } from "node:crypto";
  *   3    — 2026-10-11, §7B A5: a hazmat line's count, weight and quantity also carry the OCR engine's
  *          row-bound word (PP-OCRv6 medium at the revision ocrModels.ts pins); statuses unchanged.
  *          A model or revision change there is a new rule, as this one was.
+ *   4    — 2026-10-12, §7A N6: the table judges a line printed "Combustible liquid" with the §173.150(f)
+ *          election the paper states, as the hazmat extractor's mapper always has (mapBolLines.ts) —
+ *          under 3 every correctly printed combustible diesel line was a class mismatch.
  */
-export const ACCEPTANCE_RULE_VERSION = "3";
+export const ACCEPTANCE_RULE_VERSION = "4";
 
 export interface CacheKeyInput {
   profileVersion: string;

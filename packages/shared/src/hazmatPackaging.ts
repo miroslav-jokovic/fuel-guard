@@ -130,6 +130,49 @@ export function packagingKindFor(value: string): PackagingKind | null {
   return packageTypeSpec(value)?.packagingKind ?? null;
 }
 
+/**
+ * A packaging phrase as a bill of lading prints it ("10 DRUMS", "1 cargo tank", "4 TOTES") → the package
+ * type above, or "" when the phrase names none. The ONE reading of that phrase: the hazmat extractor
+ * takes its bulk/non-bulk answer from it (`mapBolLines.ts`) and the document reader's calculator prefill
+ * its package type (`bolPrefill.ts`), so the two cannot classify one paper differently.
+ *
+ * Bulk words win when both appear, as they always have in the extractor (D2: toward bulk). Stems are
+ * plural-tolerant because real papers print "4 TOTES"; a singular-only boundary once matched nothing and
+ * every phrase fell through to the vehicle default (2026-08-08). A bare "tank" is other bulk, not a cargo
+ * tank — the paper has not said which. "" is the honest answer for a phrase this does not know: the form
+ * then asks, as it does on a fresh line, rather than inheriting a guess.
+ */
+export function packageTypeFromPrinted(phrase: string | null): string {
+  const t = (phrase ?? "").toLowerCase();
+  if (/\b(portable tanks?|iso tanks?)\b/.test(t)) return "portable_tank";
+  if (/\b(totes?|ibcs?)\b/.test(t)) return "ibc_tote";
+  if (/\b(cargo tanks?|bulk|hoppers?|pneumatics?)\b/.test(t)) return "bulk_cargo";
+  if (/\btanks?\b/.test(t)) return "other_bulk";
+  if (/\bdrums?\b/.test(t)) return "drum";
+  if (/\b(pails?|jerricans?)\b/.test(t)) return "pail";
+  if (/\bcylinders?\b/.test(t)) return "cylinder";
+  if (/\b(cases?|cartons?|boxes|box)\b/.test(t)) return "box";
+  if (/\bbags?\b/.test(t)) return "bag";
+  if (/\bpackages?\b/.test(t)) return "other_non_bulk";
+  return "";
+}
+
+const PRINTED_UNITS: Record<string, "gal" | "lb" | "kg" | "L"> = {
+  gal: "gal", gals: "gal", gallon: "gal", gallons: "gal",
+  l: "L", liter: "L", liters: "L", litre: "L", litres: "L",
+  lb: "lb", lbs: "lb", pound: "lb", pounds: "lb",
+  kg: "kg", kgs: "kg", kilogram: "kg", kilograms: "kg",
+};
+/**
+ * A printed unit → the engine's closed set, or null when unrecognised — the caller then fails closed
+ * rather than guessing. Moved here from the hazmat extractor (`bolFields.ts`, which re-exports it) so
+ * the calculator prefill reads a paper's units by the same table.
+ */
+export function normalizeUnit(printed: string | null): "gal" | "lb" | "kg" | "L" | null {
+  if (printed == null) return null;
+  return PRINTED_UNITS[printed.trim().toLowerCase().replace(/\.$/, "")] ?? null;
+}
+
 /** Package types that describe the vehicle itself (no meaningful package count). */
 export function isVehiclePackaging(value: string): boolean {
   return value === "bulk_cargo";

@@ -31,10 +31,25 @@ function datasetIndex(): { version: string; index: DatasetIndex } {
   return index;
 }
 
-/** Pure over the dataset: the table's verdict on one printed line. */
+/**
+ * Pure over the dataset: the table's verdict on one printed line.
+ *
+ * A class printed "Combustible liquid" is resolved WITH the §173.150(f) election, exactly as the hazmat
+ * extractor's mapper does (`mapBolLines.ts`): the resolver then accepts it only on a Class 3 entry the
+ * election can apply to, and still refuses it on gasoline or an acid. Without it, NA1993 "Diesel fuel,
+ * Combustible liquid, PG III" — how most fuel BOLs print diesel — was a class mismatch (found 2026-10-12
+ * building N6's prefill, which takes the line's product from this verdict). Whether the election applies
+ * to the placard is the offeror's to confirm and not this witness's question.
+ */
 export function hmtVerdict(line: Pick<PrintedHazmatLine, "idText" | "psn" | "hazardClass" | "pg">): HmtVerdict {
   const { version, index: idx } = datasetIndex();
-  const r = resolveHmtLine(idx, { idText: line.idText, psn: line.psn, hazardClass: line.hazardClass, pg: line.pg });
+  const r = resolveHmtLine(idx, {
+    idText: line.idText,
+    psn: line.psn,
+    hazardClass: line.hazardClass,
+    pg: line.pg,
+    reclassedCombustible: /combustible/i.test(line.hazardClass ?? ""),
+  });
   return r.ok
     ? { consistent: true, dataset: version, hmtRef: r.hmtRef, findings: [...r.findings] }
     : { consistent: false, dataset: version, reason: r.reason };

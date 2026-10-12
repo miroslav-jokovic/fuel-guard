@@ -57,35 +57,12 @@ export function parseBolFields(raw: unknown): BolFields {
 }
 
 // ── unit normalization (printed → the engine's closed set) ─────────────────────────────────────────
-const UNIT_MAP: Record<string, "gal" | "lb" | "kg" | "L"> = {
-  gal: "gal", gals: "gal", gallon: "gal", gallons: "gal",
-  l: "L", liter: "L", liters: "L", litre: "L", litres: "L",
-  lb: "lb", lbs: "lb", pound: "lb", pounds: "lb",
-  kg: "kg", kgs: "kg", kilogram: "kg", kilograms: "kg",
-};
-/** Map a printed unit to the engine's closed set, or null if unrecognized (→ fail-closed at the mapper). */
-export function normalizeUnit(printed: string | null): "gal" | "lb" | "kg" | "L" | null {
-  if (printed == null) return null;
-  return UNIT_MAP[printed.trim().toLowerCase().replace(/\.$/, "")] ?? null;
-}
+// Lives in shared since the calculator prefill reads a paper's units too (document reader N6).
+export { normalizeUnit } from "@silvicom/shared";
 
-// ── pre-printed catalog lines (plan H6 step 4c2 — verified real-world pattern) ──────────────────────
-export type LineLoadState = "loaded" | "preprinted_not_loaded" | "partial";
-/**
- * Shipper templates pre-print every product they ever ship; only lines with handwritten counts/weights are
- * aboard. A line with NO quantity, NO count AND NO weight is a dormant template line (surfaced as a one-tap
- * "not loaded — correct?" confirmation, never a hard flag). A count without a weight (or vice versa) is a
- * `partial` — a normal flag, because a half-filled line is a real error until confirmed.
- */
-export function classifyLineLoadState(line: BolLineFields): LineLoadState {
-  const hasQty = line.quantity.value != null && line.quantity.value > 0;
-  const hasCount = line.packageCount != null && line.packageCount > 0;
-  const hasWeight = line.grossWeightLb != null && line.grossWeightLb > 0;
-  if (!hasQty && !hasCount && !hasWeight) return "preprinted_not_loaded";
-  if (hasQty || (hasCount && hasWeight)) return "loaded";
-  return "partial";
-}
-
+// ── pre-printed catalog lines (plan H6 step 4c2) ───────────────────────────────────────────────────
+// Lives in shared since the calculator prefill leaves template lines out by the same rule (document reader N6).
+export { classifyLineLoadState, type LineLoadState } from "@silvicom/shared";
 
 // ── H-LQ: the §172.203(b)/§172.315 notation as printed ─────────────────────────────────────────────
 /**
