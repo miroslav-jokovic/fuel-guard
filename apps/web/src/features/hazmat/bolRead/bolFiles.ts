@@ -1,4 +1,7 @@
-import { ASSEMBLY_MAX_PAGES, INTAKE_LIMITS, INTAKE_MIMES, INTAKE_REFUSALS } from "@silvicom/shared";
+import {
+  ASSEMBLY_MAX_PAGES, FORMAT_EXTENSIONS, FORMAT_MIMES, INTAKE_LIMITS, INTAKE_REFUSALS, SNIFF_BYTES, SOURCE_FORMATS,
+  sniffFormat, type SourceFormat,
+} from "@silvicom/shared";
 
 /**
  * The photos a dispatcher has picked for ONE bill of lading, before anything is sent (DOCUMENT-READER-PLAN
@@ -7,10 +10,12 @@ import { ASSEMBLY_MAX_PAGES, INTAKE_LIMITS, INTAKE_MIMES, INTAKE_REFUSALS } from
  * dispatcher can untick a photo (a placard shot, a retake) and move one earlier or later; the order of the
  * ticked files is the order `POST /api/documents/assemblies` receives, and so the order the reader reads.
  *
- * Pure, so the list's rules are tested without a browser; the panel only renders it.
+ * Pure apart from reading each file's first bytes, so the list's rules are tested without a browser; the
+ * panel only renders it.
  */
 
-export type IntakeMime = (typeof INTAKE_MIMES)[number];
+/** The canonical mime of each format — what the upload declares once the bytes have said what the file is. */
+export type IntakeMime = (typeof FORMAT_MIMES)[SourceFormat][0];
 
 export interface BolFile {
   /** Stable across reorders, for `v-for` keys and the thumbnail's object URL. */
@@ -20,28 +25,27 @@ export interface BolFile {
   included: boolean;
 }
 
-/** What the browser's file picker offers: the intake's formats by extension, so phones show camera + gallery + files. */
-export const BOL_ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif";
-
-const BY_EXTENSION: Record<string, IntakeMime> = {
-  pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif",
-};
+/**
+ * What the browser's file picker offers. `image/*` so a phone shows camera + gallery and nothing image-like is
+ * greyed out; then every format's extensions, because a desktop dialog filters by name and Google Voice saves
+ * a JPEG as `.jfif`. The picker only steers — `formatOf` reads the bytes and decides.
+ */
+export const BOL_ACCEPT = ["image/*", "application/pdf", ...SOURCE_FORMATS.flatMap((f) => FORMAT_EXTENSIONS[f])].join(",");
 
 /**
- * The file's intake type. The browser's own `type` first; then the extension, because Chrome and Firefox
- * on a desktop report an iPhone's HEIC photo as `""` — refusing it would refuse the photos drivers send.
+ * What the file IS, from its first bytes — the intake's own sniff, so a file is never refused here that the
+ * server would read. The name and the browser's `type` are not asked: desktop Chrome reports an iPhone HEIC as
+ * `""`, and a Google Voice photo is a JPEG named `.jfif`.
  */
-export function mimeOf(file: Pick<File, "name" | "type">): IntakeMime | null {
-  if ((INTAKE_MIMES as readonly string[]).includes(file.type)) return file.type as IntakeMime;
-  const ext = file.name.toLowerCase().split(".").pop() ?? "";
-  return BY_EXTENSION[ext] ?? null;
+export async function formatOf(file: Blob): Promise<SourceFormat | null> {
+  return sniffFormat(new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer()));
 }
 
 /** Why a file cannot be sent at all, in the intake's own sentence — the same one the server would answer. */
-export function fileProblem(file: Pick<File, "name" | "type" | "size">): string | null {
-  if (!mimeOf(file)) return INTAKE_REFUSALS.unsupported_format;
-  if (file.size > INTAKE_LIMITS.maxBytes) return INTAKE_REFUSALS.too_large;
+export function fileProblem(file: Pick<File, "size">, format: SourceFormat | null): string | null {
   if (file.size === 0) return INTAKE_REFUSALS.decode_failed;
+  if (!format) return INTAKE_REFUSALS.unsupported_format;
+  if (file.size > INTAKE_LIMITS.maxBytes) return INTAKE_REFUSALS.too_large;
   return null;
 }
 
@@ -59,12 +63,13 @@ export interface AddResult {
  * are already in the list, and any past `ASSEMBLY_MAX_PAGES` files (one document's page limit — a PDF can
  * still carry more pages than files, and the server counts those).
  */
-export function addFiles(current: readonly BolFile[], picked: readonly File[], newKey: () => string): AddResult {
+export async function addFiles(current: readonly BolFile[], picked: readonly File[], newKey: () => string): Promise<AddResult> {
   const files = [...current];
   const skipped: AddResult["skipped"] = [];
   const seen = new Set(current.map((f) => identity(f.file)));
   for (const file of picked) {
-    const problem = fileProblem(file);
+    const format = file.size > 0 ? await formatOf(file) : null;
+    const problem = fileProblem(file, format);
     if (problem) { skipped.push({ name: file.name, reason: problem }); continue; }
     if (seen.has(identity(file))) { skipped.push({ name: file.name, reason: "Already added." }); continue; }
     if (files.length >= ASSEMBLY_MAX_PAGES) {
@@ -72,7 +77,7 @@ export function addFiles(current: readonly BolFile[], picked: readonly File[], n
       continue;
     }
     seen.add(identity(file));
-    files.push({ key: newKey(), file, mime: mimeOf(file)!, included: true });
+    files.push({ key: newKey(), file, mime: FORMAT_MIMES[format!][0], included: true });
   }
   return { files, skipped };
 }
@@ -94,5 +99,6 @@ export const removeFile = (files: readonly BolFile[], key: string): BolFile[] =>
 /** The ticked files, in the order shown — the document's pages. */
 export const includedFiles = (files: readonly BolFile[]): BolFile[] => files.filter((f) => f.included);
 
-/** A thumbnail the browser can draw itself; PDF and HEIC show a file tile instead. */
-export const canPreview = (mime: IntakeMime): boolean => mime === "image/jpeg" || mime === "image/png" || mime === "image/webp";
+/** A thumbnail every browser can draw itself; PDF, HEIC and TIFF show a file tile instead. */
+const PREVIEWABLE: readonly IntakeMime[] = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+export const canPreview = (mime: IntakeMime): boolean => PREVIEWABLE.includes(mime);

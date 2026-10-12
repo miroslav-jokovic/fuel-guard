@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppCheckbox, AppIcon, AppIconButton } from "@silvicom/ui";
 import { ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, XMarkIcon } from "@silvicom/ui/icons";
-import { INTAKE_LIMITS, type ReadResponse } from "@silvicom/shared";
+import { INTAKE_LIMITS, READABLE_FORMATS_TEXT, type ReadResponse } from "@silvicom/shared";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { apiFetch } from "@/lib/api";
 import { sha256Hex } from "@/composables/useCompliance";
@@ -49,8 +49,8 @@ watch(files, (now) => {
 });
 onBeforeUnmount(() => { for (const url of previews.values()) URL.revokeObjectURL(url); });
 
-function onFiles(picked: File[]) {
-  const { files: next, skipped } = addFiles(files.value, picked, () => `f${++keySeq}`);
+async function onFiles(picked: File[]) {
+  const { files: next, skipped } = await addFiles(files.value, picked, () => `f${++keySeq}`);
   files.value = next;
   outcome.value = null;
   if (skipped.length === 1) toast.warning(`${skipped[0]!.name} was not added`, skipped[0]!.reason);
@@ -94,7 +94,7 @@ const stageText = computed(() => {
 
 const readPages = computed(() => (outcome.value?.kind === "done" ? outcome.value.read.pages : []));
 const bolPages = computed(() => readPages.value.filter((p) => p.pageClass === null || p.pageClass === "bol" || p.pageClass === "delivery_copy").length);
-const hint = `Several photos of one BOL are its pages, read in the order shown. PDF, JPEG, PNG, WebP or HEIC, up to ${INTAKE_LIMITS.maxBytes / 1024 / 1024} MB each.`;
+const hint = `Several photos of one BOL are its pages, read in the order shown. ${READABLE_FORMATS_TEXT}, up to ${INTAKE_LIMITS.maxBytes / 1024 / 1024} MB each.`;
 </script>
 
 <template>

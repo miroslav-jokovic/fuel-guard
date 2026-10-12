@@ -15,10 +15,11 @@ const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
 const V1 = "33333333-3333-4333-8333-333333333333";
 
-function world(opts: { sources?: string[]; pages?: unknown[]; rpc?: unknown } = {}) {
+function world(opts: { sources?: string[]; pages?: unknown[]; rpc?: unknown; pageCounts?: Record<string, number> } = {}) {
+  const counts: Record<string, number> = { [A]: 1, [B]: 2, ...opts.pageCounts };
   return createSupabaseRecorder({
     tables: {
-      document_sources: (opts.sources ?? [A, B]).map((id) => ({ id })),
+      document_sources: (opts.sources ?? [A, B]).map((id) => ({ id, page_count: counts[id] ?? 1 })),
       // Returned in no useful order: the files' order, then page order, is the function's to impose.
       document_pages: opts.pages ?? [
         { id: "a1", source_id: A, page_number: 1 },
@@ -45,9 +46,18 @@ describe("createAssembly — the sender's files", () => {
     expect(rpcArgs(rec)).toBeUndefined();
   });
 
+  it("answers not_ready for a file whose pages are not all stored yet, writing nothing — never an empty page list", async () => {
+    const none = world({ sources: [A], pages: [] });
+    expect(await createAssembly(none.client, ORG, USER, { sourceIds: [A] })).toMatchObject({ code: "not_ready" });
+    expect(rpcArgs(none)).toBeUndefined();
+    const partway = world({ pages: [{ id: "a1", source_id: A, page_number: 1 }, { id: "b1", source_id: B, page_number: 1 }] });
+    expect(await createAssembly(partway.client, ORG, USER, { sourceIds: [A, B] })).toMatchObject({ code: "not_ready" });
+    expect(rpcArgs(partway)).toBeUndefined();
+  });
+
   it("refuses files that hold more pages than one document may, before writing anything", async () => {
     const pages = Array.from({ length: ASSEMBLY_MAX_PAGES + 1 }, (_, i) => ({ id: `p${i}`, source_id: A, page_number: i + 1 }));
-    const rec = world({ sources: [A], pages });
+    const rec = world({ sources: [A], pages, pageCounts: { [A]: ASSEMBLY_MAX_PAGES + 1 } });
     expect(await createAssembly(rec.client, ORG, USER, { sourceIds: [A] })).toMatchObject({ code: "invalid_assembly" });
     expect(rpcArgs(rec)).toBeUndefined();
   });

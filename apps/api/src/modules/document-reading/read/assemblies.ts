@@ -27,15 +27,22 @@ const PG_CODES: Record<string, Pick<ReaderError, "code" | "error">> = {
 
 /** The sender's files → their pages, files in the order given, each file's pages in page order. */
 async function pagesOfSources(admin: SupabaseClient, orgId: string, sourceIds: readonly string[]): Promise<string[] | ReaderError> {
-  const { data: sources, error: sErr } = await admin.from("document_sources").select("id").eq("org_id", orgId).in("id", sourceIds);
+  const { data: sources, error: sErr } = await admin.from("document_sources").select("id, page_count").eq("org_id", orgId).in("id", sourceIds);
   if (sErr) return fail("query_failed", sErr.message);
   if ((sources ?? []).length !== sourceIds.length) return fail("not_found", "A file is not in this organization.");
   const { data, error } = await admin
     .from("document_pages").select("id, source_id, page_number")
     .eq("org_id", orgId).in("source_id", sourceIds);
   if (error) return fail("query_failed", error.message);
+  const pages = (data ?? []) as { id: string; source_id: string; page_number: number }[];
+  // A source row is written before its pages (intake.ts `sourceStatus`): one still short of its page
+  // count is being prepared, and grouping it now would silently drop pages — or, for a one-page photo,
+  // reach the function as an empty list and come back as "needs at least one page".
+  const short = (sources as { id: string; page_count: number }[])
+    .some((src) => pages.filter((p) => p.source_id === src.id).length < src.page_count);
+  if (short) return fail("not_ready", "A file is still being prepared. Press Read again in a moment.");
   const rank = new Map(sourceIds.map((id, i) => [id, i]));
-  return ((data ?? []) as { id: string; source_id: string; page_number: number }[])
+  return pages
     .sort((a, b) => rank.get(a.source_id)! - rank.get(b.source_id)! || a.page_number - b.page_number)
     .map((p) => p.id);
 }

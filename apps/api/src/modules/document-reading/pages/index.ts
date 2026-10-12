@@ -1,6 +1,6 @@
 import { INTAKE_LIMITS, type IntakeRefusalCode } from "@silvicom/shared";
 import { toCanonicalPage, type CanonicalPage } from "./canonical.js";
-import { decodeImage } from "./image.js";
+import { decodeImage, imagePageCount } from "./image.js";
 import { normalisePdf } from "./pdf.js";
 import { FORMAT_MIMES, sniffFormat, type SourceFormat } from "./sniff.js";
 
@@ -8,7 +8,8 @@ import { FORMAT_MIMES, sniffFormat, type SourceFormat } from "./sniff.js";
  * PAGES — the D-DR13 normalisation stage (DOCUMENT-READER-PLAN.md §2, Step 1.3).
  *
  * Whatever arrives — an iPhone HEIC, an MMS JPEG a carrier already recompressed, a CMYK scan, a
- * screenshot PNG with transparency, a WebP, a born-digital or scanned PDF — leaves here as canonical
+ * screenshot PNG with transparency, a WebP, a Google Voice `.jfif`, a scanner's multi-page TIFF, a born-digital
+ * or scanned PDF — leaves here as canonical
  * pages, and nothing downstream (classifier, model, text-layer comparison, crops, review UI) knows
  * which format came in. A file the stage cannot turn into pages is refused with an
  * `IntakeRefusalCode` whose sentence names the limit; it is never passed through.
@@ -33,8 +34,10 @@ export type { SourceFormat } from "./sniff.js";
  *         text-layer words apportioned along pdf.js runs.
  * 1.1.0 — 2026-10-10: pdf.js given its `wasmUrl`/`iccUrl` — CCITT, JBIG2 and JPEG 2000 images and
  *         ICC colour now decode; under 1.0.0 a page made of them rendered as blank white (pdf.ts).
+ * 1.2.0 — 2026-10-12: TIFF (every page of a multi-page one), GIF (first frame) and AVIF are read; under
+ *         1.1.0 each was refused as `unsupported_format`. No existing format's pixels change.
  */
-export const NORMALISER_VERSION = "1.1.0";
+export const NORMALISER_VERSION = "1.2.0";
 
 export type NormaliseOutcome =
   | {
@@ -59,15 +62,20 @@ export async function normaliseSource(bytes: Buffer, declaredMime: string): Prom
   if (bytes.byteLength > INTAKE_LIMITS.maxBytes) return { ok: false, code: "too_large" };
   const format = sniffFormat(bytes);
   if (format === null) return { ok: false, code: "unsupported_format" };
-  const declaredMimeMatches = FORMAT_MIMES[format].includes(declaredMime.trim().toLowerCase());
+  const declaredMimeMatches = (FORMAT_MIMES[format] as readonly string[]).includes(declaredMime.trim().toLowerCase());
 
   if (format === "pdf") {
     const pdf = await normalisePdf(bytes);
     return pdf.ok ? { ok: true, format, declaredMimeMatches, pages: pdf.pages } : pdf;
   }
-  const image = await decodeImage(bytes, format);
-  if (!image.ok) return image;
-  // A photo has no text layer (D-DR3: only a born-digital PDF carries one) and no physical size.
-  const page = await toCanonicalPage(image.raster, 1, null, null);
-  return { ok: true, format, declaredMimeMatches, pages: [page] };
+  const count = await imagePageCount(bytes, format);
+  if (count > INTAKE_LIMITS.maxPages) return { ok: false, code: "too_many_pages" };
+  const pages: CanonicalPage[] = [];
+  for (let i = 0; i < count; i++) {
+    const image = await decodeImage(bytes, format, i);
+    if (!image.ok) return image;
+    // A photo or a scan has no text layer (D-DR3: only a born-digital PDF carries one) and no physical size.
+    pages.push(await toCanonicalPage(image.raster, i + 1, null, null));
+  }
+  return { ok: true, format, declaredMimeMatches, pages };
 }

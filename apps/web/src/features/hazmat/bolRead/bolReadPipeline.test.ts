@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { INTAKE_REFUSALS, READ_FAILURES } from "@silvicom/shared";
 import type { ApiResult } from "@/lib/api";
-import { addFiles } from "./bolFiles";
+import type { BolFile } from "./bolFiles";
 import { READ_TIMEOUT_MS, POLL_MS, readBol, type BolReadIo, type BolReadStage } from "./bolReadPipeline";
 
 /**
@@ -19,6 +19,8 @@ interface Script {
   read?: { status: string; failureCode?: string }[];
   completeStatus?: number;
   putFails?: boolean;
+  /** The source a file's intake resolved to, when not its own registration (the same bytes registered twice). */
+  resolvesTo?: Record<string, string>;
 }
 
 function fakeIo(s: Script = {}) {
@@ -45,7 +47,7 @@ function fakeIo(s: Script = {}) {
         const seq = s.statuses?.[name] ?? ["ready"];
         const i = Math.min(polls[name] ?? 0, seq.length - 1);
         polls[name] = (polls[name] ?? 0) + 1;
-        return ok({ sourceId: `src-${name}`, status: seq[i], refusal: s.refusal?.[name] ?? null, pageCount: 1, readId: null }) as ApiResult<T>;
+        return ok({ sourceId: s.resolvesTo?.[name] ?? `src-${name}`, status: seq[i], refusal: s.refusal?.[name] ?? null, pageCount: 1, readId: null }) as ApiResult<T>;
       }
       if (path.endsWith("/assemblies")) return ok({ assemblyId: "asm-1", pageCount: 2 }, 201) as ApiResult<T>;
       if (path.endsWith("/reads")) return ok({ readId: "read-1" }, 201) as ApiResult<T>;
@@ -65,7 +67,10 @@ function fakeIo(s: Script = {}) {
   };
   return { io, calls, puts };
 }
-const picked = (...names: string[]) => addFiles([], names.map((n) => file(n)), (() => { let k = 0; return () => `k${++k}`; })()).files;
+// Built directly, not through `addFiles`: these files hold their names as text, which the picker's sniff
+// would rightly refuse — what the picker accepts is `bolFiles.test.ts`'s to prove.
+const asPages = (files: File[]): BolFile[] => files.map((f, i) => ({ key: `k${i + 1}`, file: f, mime: "image/jpeg", included: true }));
+const picked = (...names: string[]) => asPages(names.map((n) => file(n)));
 
 describe("readBol", () => {
   it("uploads each file, then groups them in the order shown and reads the group", async () => {
@@ -92,9 +97,15 @@ describe("readBol", () => {
     expect(calls.find((c) => c.path.endsWith("/assemblies"))!.body).toEqual({ sourceIds: ["src-a.jpg", "src-b.jpg"] });
   });
 
+  it("groups the source each file's intake resolved to, not the id it registered under", async () => {
+    const { io, calls } = fakeIo({ resolvesTo: { "b.jpg": "src-first" } });
+    await readBol(io, picked("a.jpg", "b.jpg"), () => {});
+    expect(calls.find((c) => c.path.endsWith("/assemblies"))!.body).toEqual({ sourceIds: ["src-a.jpg", "src-first"] });
+  });
+
   it("sends the same bytes under two names once, and lists them once", async () => {
     const { io, calls, puts } = fakeIo();
-    const same = addFiles([], [file("a.jpg", "X"), new File(["X"], "copy.jpg", { type: "image/jpeg", lastModified: 2 })], (() => { let k = 0; return () => `k${++k}`; })()).files;
+    const same = asPages([file("a.jpg", "X"), new File(["X"], "copy.jpg", { type: "image/jpeg", lastModified: 2 })]);
     await readBol(io, same, () => {});
     expect(puts).toHaveLength(1);
     expect(calls.find((c) => c.path.endsWith("/assemblies"))!.body).toEqual({ sourceIds: ["src-a.jpg"] });
