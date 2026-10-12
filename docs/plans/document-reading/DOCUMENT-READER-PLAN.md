@@ -736,12 +736,13 @@ second Sonnet-class read per BOL.
 weight column is read into `grossWeightLb` ONLY, and `quantity` holds a volume or mass printed in the
 description (one printed number, one field — the readers split 6 papers in 10 when told to copy it). Both
 readers already left `quantity` null on weight-only lines before 1.2.0, so nothing moves today, but two
-consumers read `quantity` alone: `paperQuantityPresent` (`hazmat-engine/src/bol`) would answer *missing* for a
-line whose total is printed as its gross weight — which §172.202(a)(5) allows ("by mass … net or gross") — and
-the calculator's prefill (N6) needs a quantity for the engine. *Default:* unchanged until N6. *Recommendation:*
-both DERIVE it from `grossWeightLb` (lb) when `quantity` is null — the audit passing with a "weight_printed"
-reason and its own words in `bolFindingCatalogue.ts`, the prefill filling quantity with the weight in lb —
-rather than asking the model to write the number twice.
+consumers read `quantity` alone: `paperQuantityPresent` (`hazmat-engine/src/bol`) answered *missing* for a line
+that prints only its weight, and the calculator's prefill (N6). **Settled by N6 (2026-10-12), not as first
+recommended:** §172.202(a)(5) asks for the total quantity "by mass or volume" and never says whether a gross
+weight counts — "gross" appears only in (a)(6), for aircraft (eCFR checked 2026-10-12; this question's first
+draft quoted "net or gross", which the text does not contain). So the audit answers `cannot_tell` /
+`weight_only`, naming the weight, for a person to judge (#1470); and the prefill fills no quantity at all,
+because the calculator does not show that field (#1468). Nothing derives a quantity from the weight.
 
 ## 8. Measurement — the four numbers
 
