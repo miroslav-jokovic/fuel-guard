@@ -15,6 +15,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
@@ -190,15 +191,13 @@ async function onRetire(v: Vehicle) {
     </FilterBar>
 
     <!-- Bulk idle-reduction capability: select trucks, then set APU / Optimized-Idle on all of them at once. -->
-    <div v-if="session.can('equipment') && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <span class="text-xs text-brand-700">Set idle-reduction capability:</span>
+    <BulkActionBar v-if="session.can('equipment')" :count="selectedCount" @clear="selected = new Set()">
+      <template #note>Set idle-reduction capability:</template>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: true }, 'Marked as having an APU')">Has APU</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: false, apu_type: 'none' }, 'Marked as no APU')">No APU</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: true }, 'Marked as having Optimized-Idle')">Has Optimized-Idle</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: false }, 'Marked as no Optimized-Idle')">No Optimized-Idle</BaseButton>
-      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-    </div>
+    </BulkActionBar>
 
     <DataTable
       embedded

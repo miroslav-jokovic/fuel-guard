@@ -4,6 +4,7 @@ import { computed, ref, watch } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -155,22 +156,11 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
       </template>
     </FilterBar>
 
-    <div
-      v-if="selectedIds.size > 0"
-      class="flex items-center justify-between bg-brand-50 px-4 py-2.5 text-sm sm:px-6"
-    >
-      <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
-      <div class="flex items-center gap-3">
-        <BaseButton
-          :disabled="bulkBusy"
-          class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50"
-          @click="bulkDelete"
-        >
-          {{ bulkBusy ? "Deleting…" : "Delete" }}
-        </BaseButton>
-        <BaseButton class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</BaseButton>
-      </div>
-    </div>
+    <BulkActionBar :count="selectedIds.size" @clear="selectedIds = new Set()">
+      <BaseButton variant="danger" size="sm" :disabled="bulkBusy" @click="bulkDelete">
+        {{ bulkBusy ? "Deleting…" : "Delete" }}
+      </BaseButton>
+    </BulkActionBar>
 
     <DataTable
       embedded

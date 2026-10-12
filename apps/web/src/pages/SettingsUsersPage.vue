@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -381,13 +382,9 @@ onMounted(load);
         count-label="members"
       />
 
-      <div v-if="selectedIds.size > 0" class="flex flex-wrap items-center justify-between gap-2 bg-brand-50 px-4 py-2.5 text-sm">
-        <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
-        <div class="flex items-center gap-2">
-          <BaseButton variant="danger" size="sm" :disabled="bulkBusy" @click="bulkRemove">Remove</BaseButton>
-          <BaseButton variant="ghost" size="sm" @click="selectedIds = new Set()">Clear</BaseButton>
-        </div>
-      </div>
+      <BulkActionBar :count="selectedIds.size" @clear="selectedIds = new Set()">
+        <BaseButton variant="danger" size="sm" :disabled="bulkBusy" @click="bulkRemove">Remove</BaseButton>
+      </BulkActionBar>
 
       <DataTable
         embedded
