@@ -9,6 +9,7 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -84,18 +85,11 @@ const VIEW_TABS: TabItem[] = [
     </FilterBar>
 
     <!-- Bulk action bar -->
-    <div
-      v-if="selectedCount > 0"
-      class="flex flex-col gap-2 bg-brand-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-    >
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <div class="flex flex-wrap gap-2">
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="setSelected(new Set())">Clear</BaseButton>
-      </div>
-    </div>
+    <BulkActionBar :count="selectedCount" @clear="setSelected(new Set())">
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
+    </BulkActionBar>
 
     <!-- Table -->
     <DataTable

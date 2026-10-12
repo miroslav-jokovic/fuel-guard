@@ -16,6 +16,7 @@ import {
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -249,25 +250,18 @@ function onSort(key: string): void {
       Narrow the filters, or tell us so we can page it.
     </p>
 
-    <div
-      v-if="selected.size > 0"
-      class="flex flex-wrap items-center gap-2 bg-brand-50 px-4 py-2.5 sm:px-6"
-    >
-      <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
-      <span v-if="atCap" class="text-sm text-brand-800">
+    <BulkActionBar :count="selected.size" @clear="selected = new Set()">
+      <template v-if="atCap" #note>
         That is the most drivers one binder holds. Send the rest as a second binder.
-      </span>
-      <div class="ml-auto flex items-center gap-3">
-        <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
-          Include restricted records
-        </BaseCheckbox>
-        <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-        <BaseButton variant="primary" size="sm" :disabled="props.building" @click="buildBinder">
-          <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-          {{ props.building ? "Building…" : "Build audit binder" }}
-        </BaseButton>
-      </div>
-    </div>
+      </template>
+      <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
+        Include restricted records
+      </BaseCheckbox>
+      <BaseButton variant="primary" size="sm" :disabled="props.building" @click="buildBinder">
+        <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
+        {{ props.building ? "Building…" : "Build audit binder" }}
+      </BaseButton>
+    </BulkActionBar>
 
     <DataTable
       embedded

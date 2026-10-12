@@ -119,11 +119,14 @@ function templateStructureViolations(item) {
   const paginationOutsideFooter = [];
   const filterBarsWithoutActiveCount = [];
   const localClearButtons = [];
+  const handBuiltBulkBars = [];
   let previousEnd = tags[0]?.end ?? 0;
   const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
 
   for (const tag of tags.slice(1)) {
     const parent = stack.at(-1);
+    // BulkActionBar owns the "N selected" strip: seven pages drew it six ways before 2026-10-12.
+    if (/\}\}\s*selected\b/.test(item.source.slice(previousEnd, tag.start))) handBuiltBulkBars.push(at(previousEnd));
     if (parent?.name === "FilterBar" && item.source.slice(previousEnd, tag.start).trim()) {
       filterBarChildren.push(at(previousEnd));
     }
@@ -181,6 +184,7 @@ function templateStructureViolations(item) {
     paginationOutsideFooter,
     filterBarsWithoutActiveCount,
     localClearButtons,
+    handBuiltBulkBars,
   };
 }
 
@@ -287,6 +291,8 @@ function structureCheckerSelfTest() {
         <FilterBar v-model:search="q" />
         <BaseButton variant="ghost">Clear filters</BaseButton>
         <BaseButton>Clear</BaseButton>
+        <div class="bg-brand-50"><span>{{ picked.size }} selected</span></div>
+        <BulkActionBar :count="picked.size" />
       </div>
     </template>`),
   };
@@ -310,6 +316,7 @@ function structureCheckerSelfTest() {
     result.paginationOutsideFooter[0] === "self-test.vue:16" &&
     JSON.stringify(result.filterBarsWithoutActiveCount) === JSON.stringify(["self-test.vue:17"]) &&
     JSON.stringify(result.localClearButtons) === JSON.stringify(["self-test.vue:20"]) &&
+    JSON.stringify(result.handBuiltBulkBars) === JSON.stringify(["self-test.vue:22"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -350,6 +357,7 @@ const filterBarChildren = structureViolations.flatMap((item) => item.filterBarCh
 const paginationOutsideFooter = structureViolations.flatMap((item) => item.paginationOutsideFooter);
 const filterBarsWithoutActiveCount = structureViolations.flatMap((item) => item.filterBarsWithoutActiveCount);
 const localClearButtons = structureViolations.flatMap((item) => item.localClearButtons);
+const handBuiltBulkBars = structureViolations.flatMap((item) => item.handBuiltBulkBars);
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -514,6 +522,8 @@ function verifyAdoption() {
     failures.push(`FilterBar with #filters/#more but no :active-count (it owns Clear filters): ${filterBarsWithoutActiveCount.join(", ")}`);
   if (localClearButtons.length)
     failures.push(`hand-built Clear filters button (pass :active-count to FilterBar instead): ${localClearButtons.join(", ")}`);
+  if (handBuiltBulkBars.length)
+    failures.push(`hand-built "N selected" strip (use BulkActionBar): ${handBuiltBulkBars.join(", ")}`);
   if (manualActionColumns.length)
     failures.push(`manual DataTable actions columns (use #actions): ${manualActionColumns.join(", ")}`);
 

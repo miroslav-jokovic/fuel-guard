@@ -19,6 +19,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
@@ -212,32 +213,11 @@ async function onRetire(t: Trailer) {
     </FilterBar>
 
     <!-- Bulk action bar -->
-    <div
-      v-if="session.can('equipment') && selectedCount > 0"
-      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-    >
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <BaseButton
-        :disabled="bulkUpdate.isPending.value"
-        class="rounded-control bg-surface px-3 py-1.5 text-sm font-medium text-info-700 ring-1 ring-info-300 ring-inset hover:bg-info-50 disabled:opacity-50"
-        @click="bulkSet({ is_reefer: true })"
-      >
-        Mark as reefer
-      </BaseButton>
-      <BaseButton
-        size="sm"
-        :disabled="bulkUpdate.isPending.value"
-        @click="bulkSet({ is_reefer: false })"
-        >Unmark reefer</BaseButton
-      >
-      <BaseButton
-        size="sm"
-        :disabled="bulkUpdate.isPending.value"
-        @click="bulkSet({ status: 'retired' })"
-        >Retire</BaseButton
-      >
-      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-    </div>
+    <BulkActionBar v-if="session.can('equipment')" :count="selectedCount" @clear="selected = new Set()">
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ is_reefer: true })">Mark as reefer</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ is_reefer: false })">Unmark reefer</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ status: 'retired' })">Retire</BaseButton>
+    </BulkActionBar>
 
     <DataTable
       embedded

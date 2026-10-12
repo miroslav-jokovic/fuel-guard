@@ -9,6 +9,7 @@ import {
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -351,11 +352,11 @@ const truckOptions = computed(() =>
       an assignee who cannot close every finding in the batch — so offering a name it would reject is
       a control that exists to produce an error message.
     -->
-    <div
-      v-if="picked.size"
-      class="flex flex-wrap items-center gap-3 bg-surface-muted px-4 py-3 sm:px-6"
-    >
-      <span class="text-sm font-medium text-ink">{{ picked.size }} selected</span>
+    <BulkActionBar :count="picked.size" @clear="picked = new Set()">
+      <template v-if="!assigneeSection" #note>
+        This selection spans money findings and theft cases, which different people close. Narrow it to one kind to
+        assign it.
+      </template>
       <template v-if="assigneeSection">
         <FilterSelect
           :model-value="''"
@@ -363,16 +364,11 @@ const truckOptions = computed(() =>
           label="Assign to"
           @update:model-value="assignPicked(String($event) || null)"
         />
-        <BaseButton variant="secondary" :disabled="assignMutation.isPending.value" @click="assignPicked(null)">
+        <BaseButton size="sm" :disabled="assignMutation.isPending.value" @click="assignPicked(null)">
           Unassign
         </BaseButton>
       </template>
-      <span v-else class="text-sm text-ink-muted">
-        This selection spans money findings and theft cases, which different people close. Narrow it to one kind to
-        assign it.
-      </span>
-      <BaseButton variant="ghost" @click="picked = new Set()">Clear</BaseButton>
-    </div>
+    </BulkActionBar>
 
     <p v-if="isError" class="bg-danger-50 px-4 py-3 text-sm text-danger-700 sm:px-6">
       Couldn't load fuel problems: {{ error instanceof Error ? error.message : "unknown error" }}
