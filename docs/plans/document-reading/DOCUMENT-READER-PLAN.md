@@ -1333,3 +1333,23 @@ Append dated lines at the end; never edit a row above.
   extractor fallback 1); the survivors on the way removed a redundant filter and fixed an order test that had
   passed on the dataset's own order. Not yet on screen: the panel still emits the read; part 2 applies it to
   the form with each field's state, part 3 adds the paper audit's findings.
+
+- **2026-10-12 — N6 part 2: the read fills the calculator on screen.** The panel's finished read goes to the form
+  (`HazmatCalculatorPage` → `HazmatCalculatorForm`'s `bolRead`), which fetches each line's product by the table's
+  exact ref and replaces the empty line with one filled line per printed product. Every filled line shows the
+  description as printed and its notes (combustible election, a line only one reader saw); under each filled
+  field, one sentence from `fieldNote`: where the value came from, whether the two readers agree — naming both
+  readings when they do not ("6 or 9") — whether the OCR found it on the line's row, or why it is blank; once a
+  person edits the field it says "Changed by you." A summary callout counts the lines, the ones the table did not
+  match, and the template lines left out. A paper listing non-hazmat freight answers "rest of the load" yes.
+  **Re-reading never doubles a weight:** a new read replaces the lines an earlier read filled and keeps every line
+  a person typed. A failed product lookup changes nothing and says so.
+  **Two corrections to part 1, found putting it on screen:** (1) the prefill no longer fills a line's QUANTITY —
+  the calculator does not show that field (its header: the ladder runs on gross pounds), so a read quantity would
+  have reached the engine unseen and uncorrectable; the printed-unit table goes back to the extractor, its only
+  user. (2) A tank line gets no package count: the form hides the field and the engine takes none, and the
+  browser check showed "59,500 lb per package" under a cargo tank.
+  **Seen in a browser** (built bundle, dev-bypass session, API stubbed with a rule-4 read and the real dataset's
+  products) at 1440 and 390 px: no horizontal overflow at 390. Twenty-nine mutants killed (wording and change
+  detection 14, form 7, product lines 3, page 2, note 1, tank count 2), two survivors fixed with tests on the way.
+  Next: part 3, the paper audit's findings ("what the shipper left out") beside the lines.

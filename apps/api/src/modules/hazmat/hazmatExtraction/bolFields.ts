@@ -57,8 +57,17 @@ export function parseBolFields(raw: unknown): BolFields {
 }
 
 // ── unit normalization (printed → the engine's closed set) ─────────────────────────────────────────
-// Lives in shared since the calculator prefill reads a paper's units too (document reader N6).
-export { normalizeUnit } from "@silvicom/shared";
+const UNIT_MAP: Record<string, "gal" | "lb" | "kg" | "L"> = {
+  gal: "gal", gals: "gal", gallon: "gal", gallons: "gal",
+  l: "L", liter: "L", liters: "L", litre: "L", litres: "L",
+  lb: "lb", lbs: "lb", pound: "lb", pounds: "lb",
+  kg: "kg", kgs: "kg", kilogram: "kg", kilograms: "kg",
+};
+/** Map a printed unit to the engine's closed set, or null if unrecognized (→ fail-closed at the mapper). */
+export function normalizeUnit(printed: string | null): "gal" | "lb" | "kg" | "L" | null {
+  if (printed == null) return null;
+  return UNIT_MAP[printed.trim().toLowerCase().replace(/\.$/, "")] ?? null;
+}
 
 // ── pre-printed catalog lines (plan H6 step 4c2) ───────────────────────────────────────────────────
 // Lives in shared since the calculator prefill leaves template lines out by the same rule (document reader N6).

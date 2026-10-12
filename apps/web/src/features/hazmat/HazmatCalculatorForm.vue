@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, toRaw, watch } from "vue";
+import type { ReadResponse } from "@silvicom/shared";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import { AppCard as BaseCard, AppCallout, AppTabs } from "@silvicom/ui";
@@ -9,6 +10,7 @@ import { AppFormField as FormField } from "@silvicom/ui";
 import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import HazmatProductLines from "@/features/hazmat/HazmatProductLines.vue";
+import { bolLineView, bolPrefill, hmtRefsOf, type PrefillLine } from "@/features/hazmat/bolRead/bolPrefill";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import {
   buildCalcRequest,
@@ -17,6 +19,7 @@ import {
   emptyLine,
   equipmentFromTrailerType,
   equipmentSpec,
+  fetchProductsByRef,
   useHazmatCalc,
   EQUIPMENT_OPTIONS,
   OTHER_FREIGHT_OPTIONS,
@@ -50,9 +53,10 @@ import {
  *    §172.301(a)(3) no-other-material condition instead of leaving it a standing assumption. It never
  *    touches the placard aggregate (hazmat-only by CFR).
  */
-const props = withDefaults(defineProps<{ basePath?: string; fleet?: boolean }>(), {
+const props = withDefaults(defineProps<{ basePath?: string; fleet?: boolean; bolRead?: ReadResponse | null }>(), {
   basePath: "/api/hazmat",
   fleet: false,
+  bolRead: null,
 });
 
 const form = reactive<CalcForm>(emptyForm());
@@ -149,6 +153,43 @@ const trailerTypeMissing = computed(
 );
 
 const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind === "cargo_tank");
+
+// ── a BOL read fills the lines (DOCUMENT-READER-PLAN §7A N6) ────────────────────────────────────────────
+// Each filled line is the read's own snapshot, kept beside the form's copy so a note can tell the reader's
+// value from a person's change; keyed by the raw line so the reactive proxy and the array find the same one.
+const prefilled = new WeakMap<object, PrefillLine>();
+const bolSummary = ref<{ added: number; unmatched: number; notLoaded: string[] } | null>(null);
+const bolError = ref<string | null>(null);
+const bolView = (line: (typeof form.lines)[number]) => {
+  const p = prefilled.get(toRaw(line));
+  return p ? bolLineView(p, line) : null;
+};
+/** A line nobody has touched — replaced by the read rather than left above it. */
+const untouched = (l: (typeof form.lines)[number]) => l.product === null && l.packageCount === "" && l.grossWeightValue === "";
+
+watch(() => props.bolRead, async (read) => {
+  if (!read) return;
+  bolError.value = null;
+  let products;
+  try {
+    products = await fetchProductsByRef(hmtRefsOf(read), props.basePath);
+  } catch (e) {
+    bolError.value = `The products on the BOL could not be looked up: ${e instanceof Error ? e.message : "try again"}.`;
+    return;
+  }
+  const p = bolPrefill(read, products, form.equipmentType);
+  if (!p) { bolError.value = "The read could not be used. Read the BOL again."; return; }
+  // A new read replaces the lines an earlier read filled — reading the same BOL twice must never count its
+  // weight twice — and keeps every line a person typed. Several BOLs of one load are read together: their
+  // photos in one read are one set of lines.
+  const kept = form.lines.filter((l) => !untouched(l) && !prefilled.has(toRaw(l)));
+  const added = p.lines.map((l) => { const copy = { ...l.form }; prefilled.set(copy, l); return copy; });
+  form.lines = [...kept, ...added];
+  if (form.lines.length === 0) form.lines = [emptyLine(form.equipmentType)];
+  if (p.otherFreight === "yes") form.otherFreight = "yes";
+  bolSummary.value = { added: added.length, unmatched: added.filter((l) => l.product === null).length, notLoaded: p.notLoaded };
+  result.value = null;
+});
 async function calculate() {
   result.value = await calc.mutateAsync(buildCalcRequest(form));
 }
@@ -158,6 +199,8 @@ function resetAll() {
   sourceMode.value = props.fleet ? "fleet" : "manual";
   Object.assign(form, emptyForm());
   result.value = null;
+  bolSummary.value = null;
+  bolError.value = null;
   calc.reset();
 }
 </script>
@@ -250,8 +293,26 @@ function resetAll() {
         </AppCallout>
       </BaseCard>
 
+      <AppCallout v-if="bolError" tone="danger" data-testid="bol-prefill">{{ bolError }}</AppCallout>
+      <AppCallout v-else-if="bolSummary" tone="info" data-testid="bol-prefill">
+        <div class="space-y-1">
+          <p>
+            Filled {{ bolSummary.added }} {{ bolSummary.added === 1 ? "product" : "products" }} from the BOL. Under each filled
+            field it says what the two readers found — check each one against the page before you calculate.
+          </p>
+          <p v-if="bolSummary.unmatched">
+            {{ bolSummary.unmatched }} {{ bolSummary.unmatched === 1 ? "line is" : "lines are" }} not matched to the
+            Hazardous Materials Table; choose the product, as the line says why.
+          </p>
+          <p v-if="bolSummary.notLoaded.length">
+            Left out, printed with no count, weight or quantity: {{ bolSummary.notLoaded.join("; ") }}. Add a product if it is aboard.
+          </p>
+        </div>
+      </AppCallout>
+
       <HazmatProductLines
         :lines="form.lines"
+        :bol-view="bolView"
         :equipment-type="form.equipmentType"
         :is-tank="isTank"
         :base-path="props.basePath"

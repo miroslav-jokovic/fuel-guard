@@ -1,8 +1,7 @@
 import {
   classifyLineLoadState,
-  normalizeUnit,
+  isVehiclePackaging,
   packageTypeFromPrinted,
-  packageTypeSpec,
   readersAgree,
   shippingDocumentSchema,
   valueAtPath,
@@ -36,20 +35,25 @@ import { emptyLine, type CalcLineForm } from "../calcModel";
  *   - It sets Limited Quantity only when BOTH readers read the notation, as the extractor requires
  *     (`extract.ts`): a wrong LQ is the one reading error that could UNDER-placard. The engine still checks
  *     the claim against HMT column 8A and the 66-lb cap.
- *   - It converts nothing it cannot convert exactly: an unrecognised unit leaves the quantity blank.
+ *   - It fills nothing the form does not show. The calculator no longer asks a line's net quantity (its
+ *     header: the placard ladder runs on gross pounds, and the field double-asked the packaging), so a read
+ *     quantity would reach the engine as a value nobody could see or correct; the line keeps the blank,
+ *     unknown quantity the manual form sends.
  *
  * Template lines a shipper pre-prints with no count, weight or quantity (`classifyLineLoadState`) are left
  * out and listed, as the extractor treats them; a person adds one back if it is aboard.
  */
 
 /** The calculator fields a read can fill. */
-export type PrefillKey = "product" | "packageType" | "packageCount" | "quantity" | "grossWeight" | "limitedQuantity";
+export type PrefillKey = "product" | "packageType" | "packageCount" | "grossWeight" | "limitedQuantity";
 
 export interface PrefillField {
   /** The acceptance rule's verdict (`FieldEvidence.status`); `check` when the read recorded no evidence. */
   state: FieldStatus;
   /** Both model readers read the same value (true), different values (false), or only one read it (null). */
   agree: boolean | null;
+  /** Where the readers disagree: what each read, pass A first, one pair per disagreeing path. */
+  readings: [unknown, unknown][];
   /** The OCR engine found this value on the line's own printed row (true), judged the row and did not (false), or did not judge (null). */
   ocrBacked: boolean | null;
   /** Why the field is blank or needs a person, in words for the screen; null when there is nothing to say. */
@@ -182,18 +186,9 @@ function prefillLine(
   if (packageType) form.packageType = packageType;
   const packageReason = line.packaging && !packageType ? `"${line.packaging}" is not a package type the calculator knows; choose one.` : null;
 
-  if (line.packageCount != null) form.packageCount = String(line.packageCount);
-
-  // Quantity: only a unit the engine's closed set holds; never a guessed conversion.
-  const unit = normalizeUnit(line.quantity.unit);
-  let quantityReason: string | null = null;
-  if (line.quantity.value != null && unit) {
-    form.quantityValue = String(line.quantity.value);
-    form.quantityUnit = unit;
-  } else {
-    form.quantityUnit = packageTypeSpec(form.packageType)?.defaultUnit ?? form.quantityUnit;
-    if (line.quantity.value != null) quantityReason = `The unit "${line.quantity.unit ?? ""}" is not one the calculator takes; enter the quantity.`;
-  }
+  // A tank is the packaging itself: the form hides the count there and the engine never takes one
+  // (`buildEngineLine`), so a printed "1 cargo tank" would only sit unseen behind a per-package weight note.
+  if (line.packageCount != null && !isVehiclePackaging(form.packageType)) form.packageCount = String(line.packageCount);
 
   if (line.grossWeightLb != null) {
     form.grossWeightValue = String(line.grossWeightLb);
@@ -222,7 +217,6 @@ function prefillLine(
       product: field([p("idText"), p("psn"), p("hazardClass"), p("pg")], productReason),
       packageType: field([p("packaging")], packageReason),
       packageCount: field([p("packageCount")]),
-      quantity: field([p("quantity.value"), p("quantity.unit")], quantityReason),
       grossWeight: field([p("grossWeightLb")]),
       limitedQuantity: lq,
     },
@@ -247,5 +241,62 @@ function judged(es: (FieldEvidence | undefined)[], paths: string[], reason: stri
     return s ? [s.value === null ? false : valuesAgree(s.value, e.value)] : [];
   });
   const ocrBacked = ocr.length === 0 ? null : ocr.every(Boolean);
-  return { state, agree, ocrBacked, reason, paths };
+  const readings = known.flatMap((e): [unknown, unknown][] => {
+    if (readersAgree(e) !== false) return [];
+    const of = (r: string) => e.sources.find((x) => x.reader === r)?.value ?? null;
+    return [[of("passA"), of("passB")]];
+  });
+  return { state, agree, readings, ocrBacked, reason, paths };
+}
+
+// ── what the form shows under each filled field ───────────────────────────────────────────────────────
+
+export type NoteTone = "neutral" | "warning" | "success";
+export interface FieldNote { text: string; tone: NoteTone }
+
+/** The form's value of each prefilled field, to tell a person's change from the reader's value. */
+const FORM_VALUE: Record<PrefillKey, (l: CalcLineForm) => unknown> = {
+  product: (l) => l.product?.hmtRef ?? null,
+  packageType: (l) => l.packageType,
+  packageCount: (l) => l.packageCount.trim(),
+  grossWeight: (l) => `${l.grossWeightValue.trim()} ${l.grossWeightUnit}`,
+  limitedQuantity: (l) => l.isLimitedQuantity,
+};
+
+const shown = (v: unknown): string =>
+  v == null || v === "" ? "nothing" : Array.isArray(v) ? (v.length ? v.join(", ") : "nothing") : typeof v === "number" ? v.toLocaleString("en-US") : String(v);
+
+/**
+ * One sentence under a filled field: what the witnesses found, in the dispatcher's words. A warning is what
+ * a person must look at — the readers disagree, only one read it, or the reason it is blank; the neutral
+ * note says where the value came from without asking for anything the panel's callout has not already asked.
+ * Once the person changes the value, the reader's account no longer describes it, so the note says so.
+ */
+export function fieldNote(field: PrefillField, changed: boolean): FieldNote {
+  if (changed) return { text: "Changed by you.", tone: "neutral" };
+  if (field.reason) return { text: field.reason, tone: "warning" };
+  if (field.state === "not_read") return { text: "Not read on the BOL. Enter it if the paper shows it.", tone: "neutral" };
+  if (field.agree === false) {
+    const pairs = field.readings.map(([a, b]) => `${shown(a)} or ${shown(b)}`).join("; ");
+    return { text: `The two readers disagree: ${pairs}. Check the page.`, tone: "warning" };
+  }
+  if (field.agree === null) return { text: "Only one reader read this. Check it against the page.", tone: "warning" };
+  if (field.state === "read") return { text: "Read from the BOL.", tone: "success" };
+  return { text: field.ocrBacked ? "From the BOL · both readers agree · found on the line's printed row" : "From the BOL · both readers agree", tone: "neutral" };
+}
+
+export interface BolLineView {
+  printed: string;
+  notes: string[];
+  fields: Record<PrefillKey, FieldNote>;
+}
+
+/** A prefilled line as it stands now: its notes, and each field's note against the value the read put there. */
+export function bolLineView(prefill: PrefillLine, current: CalcLineForm): BolLineView {
+  const fields = Object.fromEntries(
+    (Object.keys(FORM_VALUE) as PrefillKey[]).map((k) => [
+      k, fieldNote(prefill.fields[k], !valuesAgree(FORM_VALUE[k](current), FORM_VALUE[k](prefill.form))),
+    ]),
+  ) as Record<PrefillKey, FieldNote>;
+  return { printed: prefill.printed, notes: prefill.notes, fields };
 }

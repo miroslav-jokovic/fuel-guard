@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, shallowRef } from "vue";
+import type { ReadResponse } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
 import BolReadPanel from "@/features/hazmat/bolRead/BolReadPanel.vue";
@@ -9,14 +10,16 @@ import { useSessionStore } from "@/stores/session";
 // from the same APP_SECTIONS matrix, so the panel is absent for exactly the people the API would refuse.
 const session = useSessionStore();
 const canRead = computed(() => session.can("hazmat"));
+// shallowRef: the read's `result` is a JSON value, and a deep ref of it is a type vue-tsc cannot finish.
+const bolRead = shallowRef<ReadResponse | null>(null);
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader description="Enter the vehicle context and regulated products to calculate placards, ID displays, compatibility, and eligibility." />
 
-    <BolReadPanel v-if="canRead" />
+    <BolReadPanel v-if="canRead" @read="bolRead = $event" />
 
-    <HazmatCalculatorForm fleet />
+    <HazmatCalculatorForm fleet :bol-read="bolRead" />
   </div>
 </template>
