@@ -539,9 +539,9 @@ Props: `search?`, `searchPlaceholder?` (`"Search…"`), `count?: number|null`, `
 
 Rules encoded in the component and honoured by the good pages:
 
-1. `v-model:search` + `search-placeholder` naming the searchable fields: `"Search unit, make, model, plate…"`, `"Search load #, driver, unit, commodity…"`, `"Search name, driver ID, employee ID, phone…"`. Ellipsis is `…`, not `...`.
+1. `v-model:search` + `search-placeholder` naming the searchable fields, always `"Search <what>…"` (gate-checked when static): `"Search unit, make, model, plate…"`, `"Search load #, driver, unit, commodity…"`, `"Search name, driver ID, employee ID, phone…"`. Ellipsis is `…`, not `...`.
 2. `:count="filtered.length"` + `count-label="trailers"` — always a **domain noun**, never "results". Renders `count.toLocaleString()`.
-3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (the trigger shows its own active value — do **not** also add a chip for these).
+3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (`lint:ui-adoption` fails a fifth — Fuel costs' Network and Fuel problems' Owner moved to `#more` on 2026-10-12) (the trigger shows its own active value — do **not** also add a chip for these).
 4. `#more` holds **secondary** dimensions as `<FilterSelect … block />`. Popover: `w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle`, inner `space-y-3`. `:more-count` badges how many are active.
 5. `:active-count` + `@clear-all` on **every** bar with `#filters` or `#more` (`lint:ui-adoption`
    fails one without). FilterBar then draws the one ghost "Clear filters" button before the count
@@ -768,4 +768,4 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 8. Badges only via `BADGE_BASE + toneClass` / `StatusBadge`.
 9. Drawer via `<SlideOver>`; actions in `#footer`; body sections `space-y-6` with `h3.text-sm.font-semibold.text-ink`.
 10. Mutations: `try { await mutateAsync(); toast.success("Thing updated"); } catch (e) { toast.error("Could not save thing", e instanceof Error ? e.message : undefined); }`
-11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, FilterBar's `:active-count` and hand-built clear buttons, hand-built "N selected" strips, hand-built KPI tiles, pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.
+11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, FilterBar's `:active-count` and hand-built clear buttons, hand-built "N selected" strips, hand-built KPI tiles, more than four controls in `#filters`, search copy that is not "Search <what>…", pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.

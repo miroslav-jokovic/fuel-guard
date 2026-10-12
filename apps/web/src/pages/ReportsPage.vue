@@ -13,6 +13,7 @@ import { dayRangeInstants, shiftDay, todayInZone } from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { AppSelect } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -216,15 +217,11 @@ async function sendDigest() {
       </p>
     </BaseCard>
 
-    <BaseCard padding="sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-ink">Report period</h2>
-          <p class="text-sm text-ink-muted">{{ rangeLabel }}</p>
-        </div>
+    <ReportScopeBar title="Report period" :description="rangeLabel">
+      <template #control>
         <DateRangeFilter v-model:from="from" v-model:to="to" />
-      </div>
-    </BaseCard>
+      </template>
+    </ReportScopeBar>
 
     <BaseCard padding="sm" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>

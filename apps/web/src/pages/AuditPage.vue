@@ -79,7 +79,7 @@ const columns: DataTableColumn[] = [
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Search by action (e.g. invite, anomaly, threshold)"
+        search-placeholder="Search action, e.g. invite, anomaly…"
       />
 
       <DataTable

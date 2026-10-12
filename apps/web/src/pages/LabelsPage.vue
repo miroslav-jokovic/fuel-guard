@@ -188,7 +188,7 @@ async function print() {
         <FilterBar
           embedded
           v-model:search="search"
-          search-placeholder="Search"
+          :search-placeholder="source === 'assets' ? 'Search number, name, serial or tag…' : 'Search part #, description, location…'"
           :count="targets.length"
           count-label="labels"
           :active-count="search.trim() ? 1 : 0"

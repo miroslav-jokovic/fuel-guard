@@ -335,7 +335,7 @@ const mileageOpen = ref(false);
       <FilterBar
         v-model:search="search"
         embedded
-        search-placeholder="Last four, unit or driver ID…"
+        search-placeholder="Search last four, unit, driver ID…"
         :count="rows.length"
         count-label="cards"
         :chips="chips"

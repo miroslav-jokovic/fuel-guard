@@ -44,6 +44,7 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";
 const activeTab = ref<SettingsTab>("features");
@@ -428,10 +429,7 @@ async function removeOverride(featureKey: string) {
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-sm font-semibold text-ink">{{ featureLabel(override.feature_key) }}</span>
-                  <span
-                    class="rounded-full px-2 py-0.5 text-xs font-medium"
-                    :class="override.enabled ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'"
-                  >
+                  <span :class="[BADGE_BASE, toneClass(override.enabled ? 'success' : 'danger')]">
                     {{ override.enabled ? "Allowed" : "Disabled" }}
                   </span>
                 </div>

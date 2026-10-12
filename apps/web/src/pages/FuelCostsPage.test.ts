@@ -225,6 +225,8 @@ describe("FuelCostsPage — every filter reaches the query", () => {
 
   it("offers the states and locations this range was fuelled in", async () => {
     const { w } = await mountPage();
+    // Network lives in the "Filters" popover, which renders its controls only while open.
+    await w.findAll("button").find((b) => b.text().startsWith("Filters"))!.trigger("click");
     const labels = w.findAllComponents({ name: "FilterSelect" }).map((c) => [c.props("label"), c.props("options").map((o: { label: string }) => o.label)]);
     const menu = Object.fromEntries(labels) as Record<string, string[]>;
     expect(menu.State).toEqual(["California", "Texas"]);
@@ -302,5 +304,17 @@ describe("FuelCostsPage — where the rest went", () => {
       reportState.value = state;
       expect(dayCount((await mountPage()).w), state).toBeNull();
     }
+  });
+});
+
+describe("FuelCostsPage — Network is a secondary filter", () => {
+  it("shows a set network as a removable chip, and removing it clears the network", async () => {
+    const { w, router } = await mountPage("?networks=out");
+    const chip = w.find('button[aria-label="Remove filter Network: Out of network"]');
+    expect(chip.exists()).toBe(true);
+    await chip.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query.networks).toBeUndefined();
+    expect(w.find('button[aria-label^="Remove filter Network"]').exists()).toBe(false);
   });
 });

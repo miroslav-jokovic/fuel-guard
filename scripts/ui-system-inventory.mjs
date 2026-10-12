@@ -121,6 +121,8 @@ function templateStructureViolations(item) {
   const localClearButtons = [];
   const handBuiltBulkBars = [];
   const handBuiltStatTiles = [];
+  const crowdedFilterRows = [];
+  const offPatternSearchCopy = [];
   let previousEnd = tags[0]?.end ?? 0;
   const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
 
@@ -132,6 +134,9 @@ function templateStructureViolations(item) {
       filterBarChildren.push(at(previousEnd));
     }
 
+    if (tag.closing && tag.name === "template" && parent?.name === "template" && parent.primaryControls > 4) {
+      crowdedFilterRows.push(at(parent.start));
+    }
     if (tag.closing) {
       if (tag.name === "FilterBar") {
         const bar = stack.findLast((entry) => entry.name === "FilterBar");
@@ -149,7 +154,15 @@ function templateStructureViolations(item) {
         : undefined;
       if (!slot || !FILTER_BAR_SLOTS.has(slot)) filterBarChildren.push(at(tag.start));
       if (slot === "filters" || slot === "more") parent.narrows = true;
+      if (slot === "filters") tag.primaryControls = 0;
     }
+    // The contract keeps 2–4 primary controls in the row (§5.5 rule 3); the rest go in #more.
+    const filtersSlot = stack.findLast((entry) => entry.name === "template" && entry.primaryControls !== undefined);
+    if (filtersSlot && stack.at(-1) === filtersSlot && !tag.closing) filtersSlot.primaryControls += 1;
+
+    // Search copy names what it searches, as a sentence that trails off: "Search unit, driver…".
+    const placeholder = tag.name === "FilterBar" ? tag.raw.match(/\ssearch-placeholder="([^"]*)"/)?.[1] : undefined;
+    if (placeholder !== undefined && !/^Search \S.*…$/.test(placeholder)) offPatternSearchCopy.push(at(tag.start));
 
     // FilterBar owns "Clear filters" (one place, one look, one meaning: every filter and the search,
     // never the sort). A page drawing its own is the drift the 2026-10-12 audit counted nine times.
@@ -192,6 +205,8 @@ function templateStructureViolations(item) {
     localClearButtons,
     handBuiltBulkBars,
     handBuiltStatTiles,
+    crowdedFilterRows,
+    offPatternSearchCopy,
   };
 }
 
@@ -301,6 +316,8 @@ function structureCheckerSelfTest() {
         <div class="bg-brand-50"><span>{{ picked.size }} selected</span></div>
         <BulkActionBar :count="picked.size" />
         <dl><dt>Fills</dt><dd class="mt-1 text-2xl font-bold">12</dd><dd class="text-xs">caption</dd></dl>
+        <FilterBar :active-count="n" search-placeholder="Search"><template #filters><A /><B /><C /><D /><E /></template></FilterBar>
+        <FilterBar :active-count="n" search-placeholder="Search unit, driver…"><template #filters><A /><B /><C /><D /></template></FilterBar>
       </div>
     </template>`),
   };
@@ -326,6 +343,8 @@ function structureCheckerSelfTest() {
     JSON.stringify(result.localClearButtons) === JSON.stringify(["self-test.vue:20"]) &&
     JSON.stringify(result.handBuiltBulkBars) === JSON.stringify(["self-test.vue:22"]) &&
     JSON.stringify(result.handBuiltStatTiles) === JSON.stringify(["self-test.vue:24"]) &&
+    JSON.stringify(result.crowdedFilterRows) === JSON.stringify(["self-test.vue:25"]) &&
+    JSON.stringify(result.offPatternSearchCopy) === JSON.stringify(["self-test.vue:25"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -368,6 +387,8 @@ const filterBarsWithoutActiveCount = structureViolations.flatMap((item) => item.
 const localClearButtons = structureViolations.flatMap((item) => item.localClearButtons);
 const handBuiltBulkBars = structureViolations.flatMap((item) => item.handBuiltBulkBars);
 const handBuiltStatTiles = structureViolations.flatMap((item) => item.handBuiltStatTiles);
+const crowdedFilterRows = structureViolations.flatMap((item) => item.crowdedFilterRows);
+const offPatternSearchCopy = structureViolations.flatMap((item) => item.offPatternSearchCopy);
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -532,6 +553,10 @@ function verifyAdoption() {
     failures.push(`FilterBar with #filters/#more but no :active-count (it owns Clear filters): ${filterBarsWithoutActiveCount.join(", ")}`);
   if (localClearButtons.length)
     failures.push(`hand-built Clear filters button (pass :active-count to FilterBar instead): ${localClearButtons.join(", ")}`);
+  if (crowdedFilterRows.length)
+    failures.push(`FilterBar #filters with more than 4 controls (move the rest to #more): ${crowdedFilterRows.join(", ")}`);
+  if (offPatternSearchCopy.length)
+    failures.push(`FilterBar search-placeholder not "Search <what>…": ${offPatternSearchCopy.join(", ")}`);
   if (handBuiltStatTiles.length)
     failures.push(`hand-built KPI tile, a <dd> at text-2xl/3xl (use StatCard): ${handBuiltStatTiles.join(", ")}`);
   if (handBuiltBulkBars.length)
