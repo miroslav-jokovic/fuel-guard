@@ -39,6 +39,12 @@ const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
+// "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
+const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0));
+function resetFilters() {
+  search.value = "";
+  statusFilter.value = "active";
+}
 
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
@@ -175,6 +181,8 @@ async function onRetire(v: Vehicle) {
       search-placeholder="Search unit, make, model, plate, VIN…"
       :count="filtered.length"
       count-label="vehicles"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />

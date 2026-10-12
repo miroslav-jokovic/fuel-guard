@@ -36,8 +36,10 @@ const daysAgo = (n: number): string => iso(new Date(Date.now() - n * 86_400_000)
 
 // A range, not "everything": the endpoint requires one, and opening on the last week is the question
 // a dispatcher usually has. Widening it is one click; a silent unbounded default is a table scan.
-const from = ref<string | undefined>(daysAgo(7));
-const to = ref<string | undefined>(iso(new Date()));
+const DEFAULT_FROM = daysAgo(7);
+const DEFAULT_TO = iso(new Date());
+const from = ref<string | undefined>(DEFAULT_FROM);
+const to = ref<string | undefined>(DEFAULT_TO);
 const driverId = ref("");
 const vehicleId = ref("");
 const trailerId = ref("");
@@ -98,7 +100,20 @@ function removeChip(key: string): void {
   if (key === "vehicle") vehicleId.value = "";
   if (key === "trailer") trailerId.value = "";
 }
+/**
+ * The opening week is the default, not a filter somebody set, so the range counts only once it has
+ * moved off it — and clearing puts it back rather than emptying it, which `filters` would read as the
+ * same week anyway.
+ */
+const activeCount = computed(
+  () =>
+    (from.value !== DEFAULT_FROM || to.value !== DEFAULT_TO ? 1 : 0) +
+    [driverId.value, vehicleId.value, trailerId.value].filter(Boolean).length,
+);
 function clearAll(): void {
+  from.value = DEFAULT_FROM;
+  to.value = DEFAULT_TO;
+  driverId.value = "";
   vehicleId.value = "";
   trailerId.value = "";
 }
@@ -153,6 +168,7 @@ const stamp = (v: string): string => formatDateTime(v);
       count-label="segments loaded"
       :chips="chips"
       :more-count="moreCount"
+      :active-count="activeCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >

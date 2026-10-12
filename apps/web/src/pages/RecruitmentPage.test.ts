@@ -268,6 +268,28 @@ describe("clearing a filter shows more, never nothing", () => {
   });
 });
 
+describe("Clear filters", () => {
+  const clearButton = (wrapper: Awaited<ReturnType<typeof mountBoard>>) =>
+    wrapper.findAll("button").find((b) => b.text() === "Clear filters");
+
+  /**
+   * ⚠ *Waiting on you* is the board's default, not a filter somebody set — so it must not offer
+   * "Clear filters" on arrival, and clearing must come back to it rather than to *Everyone*.
+   */
+  it("returns a widened board to what is waiting on the office, then goes away", async () => {
+    const wrapper = await mountBoard();
+    expect(clearButton(wrapper)).toBeUndefined();
+
+    await choose(wrapper, "Waiting on", /Everyone/);
+    expect(names(wrapper)).toHaveLength(4);
+    await clearButton(wrapper)!.trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(new Set(names(wrapper))).toEqual(new Set(["Mine One", "Mine Two"]));
+    expect(clearButton(wrapper)).toBeUndefined();
+  });
+});
+
 describe("a decided application is not work", () => {
   it("keeps it out of the office's own queue", async () => {
     const wrapper = await mountBoard();

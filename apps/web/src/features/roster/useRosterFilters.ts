@@ -128,12 +128,14 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one("q") || one("status") || one("show") || one("sort") || one("dq") || one("due") || one("req")),
+    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req")),
   );
 
+  // Clears what narrows the roster and keeps the sort: the sort orders the list rather than
+  // narrowing it, and "Clear filters" means the same on every list (DESIGN-SYSTEM-CONTRACT §5.5).
   const reset = (): void =>
     set({
-      q: undefined, status: undefined, show: undefined, sort: undefined, dir: undefined,
+      q: undefined, status: undefined, show: undefined,
       dq: undefined, due: undefined, req: undefined, page: undefined,
     });
 

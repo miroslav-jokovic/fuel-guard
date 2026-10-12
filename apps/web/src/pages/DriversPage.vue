@@ -148,8 +148,20 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  */
 const {
   search, status: statusFilter, dqState, dqDue, dqRequirement,
-  view, showArchived, sort, onSort, page, active, reset,
+  view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
+
+/**
+ * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
+ * `active` is only a yes/no; a re-sort counts in neither. The requirement (`req`)
+ * counts although no control shows it — a built-in view sets it, and the reader still needs the
+ * way back from it.
+ */
+const activeFilterCount = computed(
+  () =>
+    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value].filter(Boolean).length +
+    (showArchived.value ? 1 : 0),
+);
 
 /**
  * Saved views (R3c-2): a name and this page's query string, applied by navigating — the wiring is
@@ -285,12 +297,16 @@ async function onSubmit(input: DriverInput) {
     </PageHeader>
 
     <DataWorkspace>
+    <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a way back
+         that does not require knowing which controls were set — FilterBar's "Clear filters". -->
     <FilterBar
       v-model:search="search"
       embedded
       search-placeholder="Search name, driver ID, employee ID, phone…"
       :count="filtered.length"
       count-label="drivers"
+      :active-count="activeFilterCount"
+      @clear-all="reset"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
@@ -300,9 +316,6 @@ async function onSubmit(input: DriverInput) {
         <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
       </template>
       <template #actions>
-        <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a
-             way back that does not require knowing which controls were set (OdometerPage's shape). -->
-        <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
         <SavedViewMenu
           :built-ins="viewMenu.builtIns"
           :views="viewMenu.views.value"

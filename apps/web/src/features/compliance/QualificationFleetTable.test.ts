@@ -99,6 +99,20 @@ describe("QualificationFleetTable — the filter vocabulary R4b promotes", () =>
     expect(workspace.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
   });
 
+  it("offers Clear filters on a narrowed table, and clearing shows every driver again", async () => {
+    const w = mountTable();
+    const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clear()).toBeUndefined();
+    await w.setProps({ stateFilter: "expired" });
+    expect(w.findAll("tbody tr")).toHaveLength(1);
+
+    await clear()!.trigger("click");
+
+    expect(w.emitted("update:stateFilter")!.at(-1)).toEqual([""]);
+    expect(w.findAll("tbody tr")).toHaveLength(DRIVERS.length);
+    expect(clear()).toBeUndefined();
+  });
+
   it("shows every driver when nothing is filtered", async () => {
     expect(await namesFor("", "")).toHaveLength(DRIVERS.length);
   });

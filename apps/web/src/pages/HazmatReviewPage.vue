@@ -20,6 +20,10 @@ const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 const filter = ref(emptyQueueFilter());
 const search = computed({ get: () => filter.value.search, set: (value: string) => (filter.value.search = value) });
+const activeFilterCount = computed(
+  () => [filter.value.search.trim(), filter.value.vehicleId, filter.value.driverId].filter(Boolean).length,
+);
+const clearFilters = (): void => void (filter.value = emptyQueueFilter());
 
 const vehicleOptions = computed(() => [
   { value: "", label: "All trucks" },
@@ -72,6 +76,8 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search load number or product…"
         :count="visible.length"
         count-label="loads"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />

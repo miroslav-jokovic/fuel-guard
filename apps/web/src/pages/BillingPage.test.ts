@@ -71,4 +71,22 @@ describe("BillingPage — invoices (R7)", () => {
       state.error = null;
     }
   });
+
+  /** The trailing ninety days is where the page opens, so clearing puts the window back there, not to nothing. */
+  it("offers Clear filters once the window moves, and clearing returns it to the trailing ninety days", async () => {
+    const { trailingDays } = await import("@/lib/dateWindow");
+    const DateRangeFilter = (await import("@/components/DateRangeFilter.vue")).default;
+    const w = await mountPage();
+    const range = () => w.findComponent(DateRangeFilter);
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    const opening = range().props("from");
+    expect(opening).toBe(trailingDays(90).from);
+    expect(clearFilters()).toBeUndefined();
+
+    range().vm.$emit("update:from", "2026-01-01");
+    await flushPromises();
+    await clearFilters()!.trigger("click");
+    expect(range().props("from")).toBe(opening);
+    expect(clearFilters()).toBeUndefined();
+  });
 });

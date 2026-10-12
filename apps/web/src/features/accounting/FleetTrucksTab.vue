@@ -84,6 +84,8 @@ function resetFilters() {
       search-placeholder="Search by truck number…"
       :count="visible.length"
       count-label="trucks"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="minMiles" label="Least miles" :options="minMilesOptions" />
@@ -97,7 +99,6 @@ function resetFilters() {
         >
           {{ includeOwnerOperators ? "Contractor trucks included" : "Company trucks only" }}
         </BaseButton>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
     </FilterBar>
 

@@ -89,6 +89,12 @@ watch(stock, (v) => {
 });
 
 const lowOnly = computed(() => stock.value === "low");
+const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (stock.value ? 1 : 0));
+/** Clearing `stock` goes through its watcher above, which drops `?stock=low` from the URL. */
+function resetFilters() {
+  search.value = "";
+  stock.value = "";
+}
 
 const catalogueFilter = computed(() => ({ search: search.value || undefined, page: page.value }));
 const catalogue = usePartsQuery(catalogueFilter);
@@ -177,6 +183,8 @@ watch(creating, (open) => {
         search-placeholder="Search part number, description, barcode…"
         :count="total"
         :count-label="lowOnly ? 'shelves' : 'parts'"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="stock" label="Stock" :options="STOCK_OPTIONS" />

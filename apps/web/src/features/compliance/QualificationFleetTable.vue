@@ -162,6 +162,15 @@ const pageRows = computed(() =>
 );
 watch([search, stateFilter, dueFilter], () => (page.value = 1));
 
+const activeFilterCount = computed(
+  () => [search.value.trim(), stateFilter.value, dueFilter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  search.value = "";
+  stateFilter.value = "";
+  dueFilter.value = "";
+}
+
 function toggleExpand(id: string): void {
   const next = new Set(expanded.value);
   if (next.has(id)) next.delete(id);
@@ -226,6 +235,8 @@ function onSort(key: string): void {
       search-placeholder="Search drivers…"
       :count="filtered.length"
       count-label="drivers"
+      :active-count="activeFilterCount"
+      @clear-all="clearFilters"
     >
       <template #filters>
         <FilterSelect v-model="stateFilter" label="File status" :options="stateOptions" />

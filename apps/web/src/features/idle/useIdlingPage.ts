@@ -248,6 +248,10 @@ const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 const scoreTone = (s: number) => (s >= 80 ? "text-success-700" : s >= 60 ? "text-warning-600" : "text-danger-700");
 
 const drvSearch = ref("");
+// The date window is NOT counted or cleared by any tab: it also sets the fleet KPI cards above the
+// tabs, so it is the page's scope rather than one table's filter (clearTrk/clearCap never touched it).
+const drvFilterCount = computed(() => (drvSearch.value.trim() ? 1 : 0));
+function clearDrv() { drvSearch.value = ""; }
 const drvSort = ref<SortState>({ key: null, dir: "asc" });
 const drvPage = ref(1);
 const drvFiltered = computed(() => {
@@ -319,7 +323,7 @@ const capColumns: DataTableColumn[] = [
     capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     priceSource, fuelPricePerGal, estimate,
-    drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
+    drvSearch, drvFilterCount, clearDrv, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
     capLoading, capIsError, capError, capFetching, capRefetch,
   };

@@ -50,6 +50,13 @@ const toast = useToastStore();
 const showRetired = ref(false);
 const search = ref("");
 const basis = ref("");
+// "Active only" is where the register opens; showing retired inspectors counts as a filter moved off it.
+const activeFilterCount = computed(() => [search.value.trim(), basis.value, showRetired.value].filter(Boolean).length);
+function resetFilters() {
+  search.value = "";
+  basis.value = "";
+  showRetired.value = false;
+}
 
 const { data, isLoading, isError, error, refetch, isFetching } = useInspectorsQuery(showRetired);
 const setPeriod = useSetInspectorPeriod();
@@ -155,6 +162,8 @@ async function remove(i: Inspector) {
       search-placeholder="Search by name…"
       :count="rows.length"
       count-label="inspectors"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="basis" label="Qualified by" :options="BASIS_OPTIONS" />

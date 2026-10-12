@@ -29,6 +29,13 @@ const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
 const page = ref(1);
 watch([from, to], () => (page.value = 1));
+// The window is the page's only filter, and it never empties: the last full month is where it opens,
+// so only a window moved off that counts, and clearing puts it back there.
+const activeFilterCount = computed(() => (from.value !== defaultWindow.from || to.value !== defaultWindow.to ? 1 : 0));
+function resetFilters() {
+  from.value = defaultWindow.from;
+  to.value = defaultWindow.to;
+}
 
 const filter = computed(() => ({ from: from.value, to: to.value, page: page.value }));
 const { data, isLoading, isError, error, refetch, isFetching } = useMaintenanceSpendQuery(filter);
@@ -65,7 +72,7 @@ const columns: DataTableColumn[] = [
     </PageHeader>
 
     <DataWorkspace>
-      <FilterBar embedded :count="total" count-label="entries">
+      <FilterBar embedded :count="total" count-label="entries" :active-count="activeFilterCount" @clear-all="resetFilters">
         <template #filters>
           <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>

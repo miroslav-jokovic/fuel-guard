@@ -65,6 +65,15 @@ const filtered = computed(() => {
     return [r.name, r.storeNumber, r.state, r.brand].some((v) => String(v ?? "").toLowerCase().includes(q));
   });
 });
+const activeFilterCount = computed(
+  () => [search.value.trim(), stateFilter.value, brandFilter.value, priceFilter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  search.value = "";
+  stateFilter.value = "";
+  brandFilter.value = "";
+  priceFilter.value = "";
+}
 const sorted = computed(() => sortRows(filtered.value, sort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]));
 const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 function onSort(key: string) { sort.value = toggleSort(sort.value, key); }
@@ -103,6 +112,8 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search stop, store #, state…"
         :count="isLoading || isError ? null : filtered.length"
         count-label="truck stops"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="brandFilter" label="Network" :options="brandOptions" />

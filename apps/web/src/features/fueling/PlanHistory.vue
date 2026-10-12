@@ -62,7 +62,11 @@ const filtered = computed<PlanHistoryRow[]>(() => {
   return out;
 });
 
-const anyFilter = computed(() => !!(search.value || statusFilter.value || truckFilter.value || fromDate.value || toDate.value));
+const activeFilterCount = computed(
+  () =>
+    [search.value.trim(), statusFilter.value, truckFilter.value].filter(Boolean).length +
+    (fromDate.value || toDate.value ? 1 : 0),
+);
 function clearAll() {
   search.value = "";
   statusFilter.value = "";
@@ -141,19 +145,13 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
       search-placeholder="Search route, truck, creator…"
       :count="filtered.length"
       count-label="plans"
+      :active-count="activeFilterCount"
+      @clear-all="clearAll"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="truckFilter" label="Truck" :options="truckOptions" />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="fromDate = $event" @update:to="toDate = $event" />
-        <BaseButton
-          v-if="anyFilter"
-          type="button"
-          class="text-sm font-medium text-ink-muted hover:text-ink-secondary"
-          @click="clearAll"
-        >
-          Clear all
-        </BaseButton>
       </template>
     </FilterBar>
 

@@ -258,3 +258,24 @@ describe("IdlingPage — the dollar totals carry no direction (Q-FSV15 ruling 2,
     }
   });
 });
+
+describe("IdlingPage — Clear filters on the Drivers tab", () => {
+  it("clears the driver search but leaves the page's date window alone", async () => {
+    const w = await mountPage();
+    await w.findAll('[role="tab"]')[1]!.trigger("click");
+    const panel = () => w.get('[role="tabpanel"]');
+    const clear = () => panel().findAll("button").filter((b) => b.text() === "Clear filters");
+    expect(clear()).toHaveLength(0);
+
+    await panel().get('input[placeholder="Search driver…"]').setValue("smith");
+    // AppSearchField debounces its emit by 250 ms; the count follows the emitted value.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(clear()).toHaveLength(1);
+
+    await clear()[0]!.trigger("click");
+    await flushPromises();
+    expect(panel().get<HTMLInputElement>('input[placeholder="Search driver…"]').element.value).toBe("");
+    expect(clear()).toHaveLength(0);
+  });
+});

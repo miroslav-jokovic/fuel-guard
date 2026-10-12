@@ -216,6 +216,16 @@ function removeChip(key: string) {
  * stays — it is how the list is ordered, not how it is narrowed. Every assignment is one `set` in
  * the same tick, which `useQueryState`'s buffer coalesces into one navigation.
  */
+/**
+ * What `clearAll` would undo, counted the way FilterBar reads it: the unit list is one filter however
+ * many trucks it holds, and the window is one however many ends it has.
+ */
+const activeFilterCount = computed(
+  () =>
+    [tankTypeFilter.value, driverFilter.value, searchBind.value].filter(Boolean).length +
+    (props.shared.units.value.length ? 1 : 0) +
+    (props.shared.from.value || props.shared.to.value ? 1 : 0),
+);
 function clearAll() {
   tankTypeFilter.value = "";
   driverFilter.value = "";
@@ -342,6 +352,7 @@ const columns: DataTableColumn[] = [
       count-label="fill-ups"
       :chips="chips"
       :more-count="moreCount"
+      :active-count="activeFilterCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >

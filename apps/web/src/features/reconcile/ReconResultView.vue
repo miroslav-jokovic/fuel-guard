@@ -110,6 +110,14 @@ const statusOptions = [
   ...(Object.keys(RECON_STATUS_LABELS) as ReconStatus[]).map((k) => ({ value: k, label: RECON_STATUS_LABELS[k] })),
 ];
 
+// "Needs a look" is where a check OPENS, so it is the default rather than a narrowing: counting it
+// would put "Clear filters" on every freshly opened check, and pressing it would widen nothing.
+const DEFAULT_STATUS_FILTER = "discrepancies" as const;
+const activeFilterCount = computed(() => (statusFilter.value === DEFAULT_STATUS_FILTER ? 0 : 1));
+function resetFilters() {
+  statusFilter.value = DEFAULT_STATUS_FILTER;
+}
+
 const tableRows = computed(() => {
   const all = props.rows ?? [];
   const f = statusFilter.value;
@@ -200,7 +208,13 @@ const columns: DataTableColumn[] = [
     </AppCallout>
 
     <DataWorkspace v-else>
-      <FilterBar embedded :count="tableRows.length" count-label="lines">
+      <FilterBar
+        embedded
+        :count="tableRows.length"
+        count-label="lines"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
+      >
         <template #filters>
           <FilterSelect v-model="statusFilter" label="Show" :options="statusOptions" />
         </template>

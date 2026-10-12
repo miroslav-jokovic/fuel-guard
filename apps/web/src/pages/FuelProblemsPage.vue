@@ -58,7 +58,7 @@ import { useProblemDrawer } from "./fuelProblems/useProblemDrawer";
 const toast = useToastStore();
 const session = useSessionStore();
 const f = useSpendFilters();
-const { param } = useQueryState();
+const { param, set } = useQueryState();
 
 /**
  * ── EVERY FILTER ON THIS PAGE IS NOW IN THE URL (FUEL-C3, D-FUI8, finished at P3) ───────────────
@@ -113,6 +113,33 @@ const kinds = computed<FindingKind[]>({
  */
 const mine = param("owner", ["me"]);
 const assignedTo = computed(() => (mine.value === "me" ? (session.userId ?? null) : null));
+
+/**
+ * What "Clear filters" would undo. The status filter OPENS on the three working states, so a status
+ * list equal to that default is not a narrowing — counting it would light the button on every visit.
+ * Grain is not counted: `useSpendFilters` carries it, but this page offers no control for it.
+ */
+const isDefaultStates = computed(
+  () => states.value.length === DEFAULT_STATES.length && DEFAULT_STATES.every((s) => states.value.includes(s)),
+);
+const activeFilterCount = computed(
+  () =>
+    (f.isDefaultWindow.value ? 0 : 1) +
+    (f.vehicleIds.value.length ? 1 : 0) +
+    (isDefaultStates.value ? 0 : 1) +
+    (kinds.value.length ? 1 : 0) +
+    (mine.value ? 1 : 0),
+);
+/**
+ * ONE patch through this page's own `useQueryState`, not `f.reset()` beside three `param` writes:
+ * `useSpendFilters` holds a second instance with its own buffer, and two instances writing in the
+ * same tick is the lost write that buffer exists to prevent — the later `router.replace` supersedes
+ * the earlier one. The window and truck keys are restated for that reason, as `useFuelCostFilters`'
+ * own `reset` restates them.
+ */
+function resetFilters(): void {
+  set({ from: undefined, to: undefined, trucks: undefined, grain: undefined, state: undefined, kind: undefined, owner: undefined });
+}
 
 const page = ref(1);
 const PAGE_SIZE = 25;
@@ -278,7 +305,13 @@ const truckOptions = computed(() =>
     </div>
 
     <DataWorkspace>
-    <FilterBar embedded :count="total" count-label="problems">
+    <FilterBar
+      embedded
+      :count="total"
+      count-label="problems"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
+    >
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />

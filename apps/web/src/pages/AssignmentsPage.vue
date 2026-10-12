@@ -78,6 +78,13 @@ const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => 
 const search = qs.param("search");
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
+/**
+ * FilterBar's "Clear filters": Fleet, Dispatched by and the search narrow the board. The queue tab and
+ * My fleet · All choose WHICH board it is, and the sort and an open truck are not filters, so clearing
+ * keeps all four.
+ */
+const activeFilterCount = computed(() => [search.value.trim(), fleet.value, dispatcher.value].filter(Boolean).length);
+const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined });
 const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
 
 /**
@@ -147,6 +154,8 @@ const emptyText = computed(() =>
           search-placeholder="Search truck, driver, load, customer, city…"
           :count="filtered.length"
           count-label="trucks"
+          :active-count="activeFilterCount"
+          @clear-all="clearFilters"
         >
           <template #filters>
             <DispatchScopeControls

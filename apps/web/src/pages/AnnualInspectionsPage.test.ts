@@ -223,3 +223,18 @@ describe("destroying a record is a row action too, and a different one from Disc
     expect(labels).toContain("Open report");
   });
 });
+
+describe("clearing the filters", () => {
+  it("offers Clear filters once a status is chosen, and clearing puts it back to any", async () => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    const w = page([row()]);
+    const status = () => w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Status")!;
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clearFilters()).toBeUndefined();
+    status().vm.$emit("update:modelValue", "draft");
+    await nextTick();
+    await clearFilters()!.trigger("click");
+    expect(status().props("modelValue")).toBe("");
+    expect(clearFilters()).toBeUndefined();
+  });
+});

@@ -32,6 +32,16 @@ const from = ref<string>(defaultWindow.from);
 const to = ref<string>(defaultWindow.to);
 const page = ref(1);
 watch([search, from, to], () => (page.value = 1));
+// The trailing ninety days is where the page opens, not a narrowing: only a window moved off it counts,
+// and clearing puts it back rather than emptying it.
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (from.value !== defaultWindow.from || to.value !== defaultWindow.to ? 1 : 0),
+);
+function resetFilters() {
+  search.value = "";
+  from.value = defaultWindow.from;
+  to.value = defaultWindow.to;
+}
 
 const filter = computed(() => ({ q: search.value, from: from.value, to: to.value, page: page.value }));
 const { data, isLoading, isError, error, refetch, isFetching } = useInvoicesQuery(filter);
@@ -71,7 +81,15 @@ const columns: DataTableColumn[] = [
     </ExplainerPanel>
 
     <DataWorkspace>
-      <FilterBar v-model:search="search" embedded search-placeholder="Search by invoice reference…" :count="total" count-label="invoices">
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search by invoice reference…"
+        :count="total"
+        count-label="invoices"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
+      >
         <template #filters>
           <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v ?? from)" @update:to="(v) => (to = v ?? to)" />
         </template>

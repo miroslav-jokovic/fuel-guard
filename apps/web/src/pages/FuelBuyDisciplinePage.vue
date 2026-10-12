@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -66,6 +65,14 @@ const { isLoading: settingsLoading, isError: settingsError } = useRouteFuelSetti
 const inputs = computed<"ready" | "loading" | "error">(() =>
   cellsError.value || settingsError.value ? "error" : cellsLoading.value || settingsLoading.value ? "loading" : "ready",
 );
+/**
+ * The window off its default and the trucks picked. Grain is left out for the reason FuelCostsPage
+ * gives: this page offers no grain control, so a stale `?grain=` link would light up a "Clear
+ * filters" that clears nothing the reader can see.
+ */
+const activeFilterCount = computed(
+  () => (f.isDefaultWindow.value ? 0 : 1) + (f.vehicleIds.value.length ? 1 : 0),
+);
 const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).length);
 </script>
 
@@ -81,11 +88,15 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
     </p>
 
     <!-- No count until the fills answer: a pending or failed read is not "0 fills" (verdict E8). -->
-    <FilterBar :count="buyFillData ? legs : null" count-label="fills in sequence">
+    <FilterBar
+      :count="buyFillData ? legs : null"
+      count-label="fills in sequence"
+      :active-count="activeFilterCount"
+      @clear-all="f.reset()"
+    >
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Trucks" multiple />
-        <BaseButton v-if="f.active.value" variant="ghost" @click="f.reset()">Clear filters</BaseButton>
       </template>
     </FilterBar>
 

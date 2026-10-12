@@ -168,6 +168,17 @@ describe("the Loads page beside the dispatch board", () => {
     expect(w.text()).not.toContain("Clear all");
   });
 
+  it("clears a narrowed list back to every load, keeping the queue and the scope it was opened on", async () => {
+    board.value = response(true);
+    const w = await mountPage("/loads?queue=in_transit&scope=all&fleet=VLADI");
+    const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    await clear()!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ queue: "in_transit", scope: "all" });
+    expect(refs(w)).toEqual(["L-mine-fleet", "L-i-dispatch", "L-not-mine"]);
+    expect(clear()).toBeUndefined();
+  });
+
   it("writes the queue and the sort into the URL", async () => {
     board.value = response(false);
     const w = await mountPage();

@@ -161,6 +161,17 @@ describe("the dispatch board page", () => {
     expect(w.text()).not.toContain("Clear all");
   });
 
+  it("clears a narrowed board back to every truck in its scope, keeping the scope and the sort", async () => {
+    board.value = response(true);
+    const w = await mountPage("/assignments?scope=all&fleet=VLADI&sort=unit&dir=asc");
+    const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    await clear()!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ scope: "all", sort: "unit", dir: "asc" });
+    expect(units(w)).toEqual(["669", "773", "801"]);
+    expect(clear()).toBeUndefined();
+  });
+
   it("shows the columns a link leaves in, never hiding the truck, and offers the column picker", async () => {
     board.value = response(true);
     const w = await mountPage("/assignments?hide=empties,next,unit");

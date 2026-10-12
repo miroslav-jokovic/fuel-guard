@@ -101,6 +101,10 @@ function removeChip(key: string): void {
   if (key === "dates") { from.value = undefined; to.value = undefined; }
 }
 
+// `cardId` is not counted: it is the page this log was opened FROM, not a filter the reader set, and
+// `clearAll` leaves it alone for the same reason.
+const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (from.value || to.value ? 1 : 0));
+
 function clearAll(): void {
   search.value = "";
   from.value = undefined;
@@ -125,6 +129,7 @@ const columns: DataTableColumn[] = [
       :count="total"
       count-label="changes"
       :chips="chips"
+      :active-count="activeFilterCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >

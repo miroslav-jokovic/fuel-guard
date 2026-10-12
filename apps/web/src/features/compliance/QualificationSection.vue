@@ -175,9 +175,16 @@ const filteredRows = computed(() => {
     return !term || row.label.toLowerCase().includes(term);
   });
 });
-const hasRequirementFilter = computed(
-  () => Boolean(requirementSearch.value.trim() || requirementGroup.value),
+// "Show all N requirements" is not counted or cleared: it chooses which list this is (what needs
+// attention, or the whole file) and has its own toggle; search and group narrow whichever is shown.
+const requirementFilterCount = computed(
+  () => [requirementSearch.value.trim(), requirementGroup.value].filter(Boolean).length,
 );
+const hasRequirementFilter = computed(() => requirementFilterCount.value > 0);
+function clearRequirementFilters(): void {
+  requirementSearch.value = "";
+  requirementGroup.value = "";
+}
 
 
 // ── releasing a document (D-BD10) ─────────────────────────────────────────────────────
@@ -284,6 +291,8 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
         :count="filteredRows.length"
         count-label="requirements"
         embedded
+        :active-count="requirementFilterCount"
+        @clear-all="clearRequirementFilters"
       >
         <template #filters>
           <FilterSelect

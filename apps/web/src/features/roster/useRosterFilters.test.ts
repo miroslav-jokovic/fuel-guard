@@ -128,11 +128,16 @@ describe("useRosterFilters", () => {
     expect(f.view.value).toBe("live");
   });
 
-  it("clears everything at once and leaves no parameters behind", async () => {
+  it("clears every filter at once and keeps the sort, which orders the roster rather than narrowing it", async () => {
     const { f, router } = await mountFilters("/drivers?q=reyes&status=active&show=archived&sort=phone&dir=desc&page=2");
     f.reset();
     await settle();
-    expect(router.currentRoute.value.query).toEqual({});
+    expect(router.currentRoute.value.query).toEqual({ sort: "phone", dir: "desc" });
+    expect(f.active.value).toBe(false);
+  });
+
+  it("does not count a re-sort as a narrowed roster", async () => {
+    const { f } = await mountFilters("/drivers?sort=phone&dir=desc");
     expect(f.active.value).toBe(false);
   });
 

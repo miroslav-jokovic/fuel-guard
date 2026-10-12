@@ -241,6 +241,23 @@ const view = computed({
   },
 });
 
+/**
+ * For FilterBar's "Clear filters". The state filter's default is the one `view` sets — *waiting on
+ * you* on the live board, *Everyone* on the archived one — so it counts only when moved off THAT,
+ * and clearing goes through `view` so the default comes back with it.
+ */
+const activeFilterCount = computed(
+  () =>
+    [search.value.trim(), phase.value].filter(Boolean).length +
+    (waitingOn.value !== (showArchived.value ? "" : "us") ? 1 : 0) +
+    (showArchived.value ? 1 : 0),
+);
+function clearFilters(): void {
+  search.value = "";
+  phase.value = "";
+  view.value = "";
+}
+
 async function setArchived(applicant: PipelineApplicant, archived: boolean) {
   try {
     await archiveDriver.mutateAsync({ id: applicant.driver_id, archived });
@@ -298,6 +315,8 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         search-placeholder="Search applicants…"
         :count="rows.length"
         count-label="applicants"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="waitingOn" label="Waiting on" :options="WAITING_FILTERS" />

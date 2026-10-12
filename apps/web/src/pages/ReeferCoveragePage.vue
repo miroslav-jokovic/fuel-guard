@@ -7,7 +7,6 @@ import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -149,12 +148,11 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search truck, trailer or driver…"
         :count="active.length"
         count-label="trucks"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
       <template #filters>
         <FilterSelect v-model="pairing" label="Pairing" :options="pairingOptions" />
-      </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
       </FilterBar>
 

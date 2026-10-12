@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import FuelStationsPage from "@/pages/FuelStationsPage.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 
 const state = vi.hoisted(() => ({
   data: undefined as undefined | { stations: Record<string, unknown>[] },
@@ -62,5 +63,29 @@ describe("FuelStationsPage", () => {
       ],
     };
     expect(page().find("filter-bar-stub").attributes("count")).toBe("2");
+  });
+
+  it("hands FilterBar its active filters and returns them to default on clear-all", async () => {
+    state.data = {
+      stations: [
+        { id: "one", name: "Pilot 1", state: "TX", brand: "pilot", netPrice: 3.1 },
+        { id: "two", name: "Pilot 2", state: "OK", brand: "pilot", netPrice: 3.2 },
+      ],
+    };
+    const w = page();
+    const bar = w.getComponent(FilterBar);
+    expect(bar.props("activeCount")).toBe(0);
+
+    // Through the search, because shallowMount does not render FilterBar's slots (the selects live there).
+    bar.vm.$emit("update:search", "Pilot 1");
+    await w.vm.$nextTick();
+    expect(bar.props("activeCount")).toBe(1);
+    expect(bar.props("count")).toBe(1);
+
+    bar.vm.$emit("clear-all");
+    await w.vm.$nextTick();
+    expect(bar.props("activeCount")).toBe(0);
+    expect(bar.props("search")).toBe("");
+    expect(bar.props("count")).toBe(2);
   });
 });

@@ -41,6 +41,15 @@ const PAGE_SIZE = 20;
 const page = ref(1);
 watch([filter, search], () => (page.value = 1));
 
+// "all" is the queue's resting value, so it is not a filter — as is `""`, which FilterSelect's ✕ sets.
+const activeFilterCount = computed(
+  () => [search.value.trim(), filter.value !== "all" && filter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  search.value = "";
+  filter.value = "all";
+}
+
 const filtered = computed<InquiryQueueRow[]>(() => {
   let all = queueQ.data.value?.rows ?? [];
   if (filter.value === "overdue") all = all.filter((r) => r.daysToDeadline !== null && r.daysToDeadline < 0);
@@ -123,6 +132,8 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search driver, former employer…"
         :count="filtered.length"
         count-label="files"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect

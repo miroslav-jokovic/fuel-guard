@@ -182,7 +182,18 @@ async function print() {
     <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <div class="space-y-4">
         <DataWorkspace>
-        <FilterBar embedded v-model:search="search" search-placeholder="Search" :count="targets.length" count-label="labels">
+        <!-- "What to label" switches between two lists (shelves read from stock, assets from the asset
+             register, each its own table and selection), so it is not a filter: only the search counts,
+             and clearing leaves the switch where it is. -->
+        <FilterBar
+          embedded
+          v-model:search="search"
+          search-placeholder="Search"
+          :count="targets.length"
+          count-label="labels"
+          :active-count="search.trim() ? 1 : 0"
+          @clear-all="search = ''"
+        >
           <template #filters>
             <AppSegmentedControl
               label="What to label"

@@ -26,7 +26,7 @@ const {
   dateFrom, dateTo, rangeLabel, estimate,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
-  drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
+  drvSearch, drvFilterCount, clearDrv, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   capLoading, capIsError, capError, capFetching, capRefetch,
 } = useIdlingPage();
@@ -183,14 +183,13 @@ const {
         search-placeholder="Search truck…"
         :count="answered.trucks ? trkFiltered.length : null"
         count-label="trucks"
+        :active-count="trkFilterCount"
+        @clear-all="clearTrk"
       >
         <template #filters>
           <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
           <FilterSelect v-model="trkCapFilter" label="Capability" :options="trkCapOptions" />
           <FilterSelect v-model="trkConfSel" label="Data" :options="trkConfOptions" />
-        </template>
-        <template #actions>
-          <BaseButton v-if="trkFilterCount" variant="ghost" size="sm" @click="clearTrk">Clear filters</BaseButton>
         </template>
       </FilterBar>
       <DataTable
@@ -266,6 +265,8 @@ const {
         search-placeholder="Search driver…"
         :count="answered.drivers ? drvFiltered.length : null"
         count-label="drivers"
+        :active-count="drvFilterCount"
+        @clear-all="clearDrv"
       >
         <template #filters>
           <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
@@ -312,12 +313,11 @@ const {
         search-placeholder="Search truck or batch…"
         :count="answered.capability ? capFiltered.length : null"
         count-label="trucks"
+        :active-count="capFilterCount"
+        @clear-all="clearCap"
       >
         <template #filters>
           <FilterSelect v-model="capFilter" label="Long parks" :options="capOptions" />
-        </template>
-        <template #actions>
-          <BaseButton v-if="capFilterCount" variant="ghost" size="sm" @click="clearCap">Clear filters</BaseButton>
         </template>
       </FilterBar>
       <DataTable
