@@ -127,7 +127,7 @@ function add(): void {
     </div>
 
     <div class="space-y-3 rounded-control border border-dashed border-edge p-3">
-      <h3 class="text-sm font-medium text-ink">Name someone</h3>
+      <h3 class="text-sm font-semibold text-ink">Name someone</h3>
       <p v-if="addable.length === 0" class="text-sm text-ink-muted">
         Everyone eligible is already named. Card changes are limited to {{ roleWords }} — change a
         person's role first if you need someone else on this list.

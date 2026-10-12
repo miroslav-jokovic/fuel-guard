@@ -201,9 +201,8 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 |---|---|---|
 | Page title | `text-base font-semibold text-ink` | `AppShell.vue:333` — **you never write this.** Set `route.meta.title`. |
 | Page description | `text-sm text-ink-muted` | `PageHeader.vue:12` |
-| Section heading (page level, h2) | `text-lg font-semibold text-ink` | `DashboardPage.vue:289`, `DriverAppSettingsPage.vue:252` |
-| Card/panel heading (h3) | `text-base font-semibold text-ink` | `SettingsUsersPage.vue:199`, `OrgSettingsPage.vue:83`, `ThresholdsPage.vue:88` |
-| **Drawer section heading (h3)** | `text-sm font-semibold text-ink` | `DriverAccessModal.vue:298,372`, `CertManager.vue:73,92`, `DqFilePanel.vue:115` |
+| Section heading (page level, h2) | `text-lg font-semibold text-ink` | A section of the page, outside any card — `DashboardPage.vue`, `SettingsUsersPage.vue`. **One of only two heading sizes** (owner ruling 2026-10-12; `lint:ui-adoption` fails any other on an h2/h3, eyebrows aside). |
+| Card, panel or drawer title (h2/h3) | `text-sm font-semibold text-ink` | Any heading inside a card, drawer or panel — the other of the two sizes. Until 2026-10-12 this table gave settings cards `text-base` while §5 said `text-sm` "**not** `text-base`"; 155 headings already used `text-sm` against 22 at `text-base`, and the 22 moved. |
 | Eyebrow / group label | `text-xs font-semibold uppercase tracking-wider text-ink-muted` | `HazmatPage.vue:53` |
 | Drawer title | `text-base font-semibold text-ink` | `SlideOver.vue:63` |
 | Drawer description | `mt-1 text-sm text-ink-muted` | `SlideOver.vue:66` |

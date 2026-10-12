@@ -100,7 +100,7 @@ const emit = defineEmits<{
         aria-hidden="true"
       />
       <div>
-        <h3 class="text-sm font-medium text-ink">Driver handoff</h3>
+        <h3 class="text-sm font-semibold text-ink">Driver handoff</h3>
         <p class="mt-1 text-sm leading-5 text-ink-muted">
           Send both values through a trusted channel and ask the driver to sign in before you leave
           this screen.

@@ -56,7 +56,7 @@ function exportCsv(): void {
 <template>
   <div>
     <div class="mb-2 flex items-center justify-between gap-3">
-      <h3 class="text-base font-semibold text-ink">By day</h3>
+      <h3 class="text-sm font-semibold text-ink">By day</h3>
       <ExportButton
         :run="exportCsv"
         :scope="`${rows.length.toLocaleString()} days`"

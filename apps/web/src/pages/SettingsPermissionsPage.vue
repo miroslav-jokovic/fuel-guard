@@ -103,7 +103,7 @@ const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
         belong to an organisation. Each one is recorded with its reason; nothing else in the product
         decides access anywhere but here.
       </p>
-      <h3 class="mt-4 text-sm font-medium text-ink">Admin only</h3>
+      <h3 class="mt-4 text-sm font-semibold text-ink">Admin only</h3>
       <p class="mt-1 max-w-prose text-sm text-ink-muted">
         These stay with the Admin role and cannot be given to another role or person.
       </p>

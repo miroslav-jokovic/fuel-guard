@@ -304,7 +304,7 @@ onMounted(load);
     <BaseCard as="section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 class="text-base font-semibold text-ink">Invite a user</h3>
+          <h3 class="text-sm font-semibold text-ink">Invite a user</h3>
           <p class="mt-1 text-sm text-ink-muted">Only addresses on your organization's allowed domain can be invited.</p>
         </div>
         <BaseButton
@@ -371,7 +371,7 @@ onMounted(load);
     </BaseCard>
 
     <section class="space-y-3">
-      <h3 class="text-base font-semibold text-ink">Active members</h3>
+      <h3 class="text-lg font-semibold text-ink">Active members</h3>
 
       <DataWorkspace>
       <FilterBar
@@ -429,7 +429,7 @@ onMounted(load);
          rendered in exactly one place now — a second copy here would be the restated fact the
          no-workarounds rule names. -->
     <section class="space-y-3">
-      <h3 class="text-base font-semibold text-ink">Roles &amp; permissions</h3>
+      <h3 class="text-lg font-semibold text-ink">Roles &amp; permissions</h3>
       <BaseCard as="section">
         <p class="text-sm text-ink-muted">
           Access follows a member's role. See what each role can reach, and what a given member sees
@@ -446,7 +446,7 @@ onMounted(load);
     <MemberPasswordResetDrawer :member="resetting" @close="resetting = null" />
 
     <section class="space-y-3">
-      <h3 class="text-base font-semibold text-ink">Invitations</h3>
+      <h3 class="text-lg font-semibold text-ink">Invitations</h3>
       <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
         <template #cell-full_name="{ row }">
           <span v-if="row.full_name" class="font-medium text-ink">{{ row.full_name }}</span>

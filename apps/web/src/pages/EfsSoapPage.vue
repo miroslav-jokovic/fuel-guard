@@ -274,7 +274,7 @@ const testChipClass = computed(() => {
 
       <!-- ── Credentials form ─────────────────────────────────────────────────── -->
       <BaseCard v-else as="section">
-        <h3 class="text-base font-semibold text-ink">
+        <h3 class="text-sm font-semibold text-ink">
           {{ isConfigured ? "Change the sign-in" : "Enter the sign-in" }}
         </h3>
         <p class="mt-1 text-xs text-ink-muted">
@@ -373,7 +373,7 @@ const testChipClass = computed(() => {
       <BaseCard v-if="isConfigured" as="section">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <h3 class="text-base font-semibold text-ink">Test connection</h3>
+            <h3 class="text-sm font-semibold text-ink">Test connection</h3>
             <p class="mt-1 text-xs text-ink-muted">
               Sends one request to EFS with the saved sign-in and shows how long EFS took to answer.
               Use it after saving, and after EFS confirms that our address is allowed.

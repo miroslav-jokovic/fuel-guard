@@ -101,7 +101,7 @@ const hint = `Several photos of one BOL are its pages, read in the order shown. 
   <BaseCard>
     <div class="space-y-4">
       <div>
-        <h2 class="text-base font-semibold text-ink">Read from a bill of lading</h2>
+        <h2 class="text-sm font-semibold text-ink">Read from a bill of lading</h2>
         <p class="mt-1 text-sm text-ink-secondary">
           Add the photos or the PDF of one BOL. Untick anything that is not the BOL, and put the pages in order.
         </p>

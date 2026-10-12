@@ -84,7 +84,7 @@ const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
     <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Weights</h3>
+        <h3 class="text-sm font-semibold text-ink">Weights</h3>
         <p class="mt-1 text-xs text-ink-muted">Relative importance of each component (renormalized, so 0.5 / 0.25 / 0.25 and 2 / 1 / 1 behave the same).</p>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField v-for="f in weightFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
@@ -94,7 +94,7 @@ const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Method & eligibility</h3>
+        <h3 class="text-sm font-semibold text-ink">Method & eligibility</h3>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-slot="{ id }" label="Normalization method">
             <AppSelect :id="id" v-model="(form.normalization_method as string)" :options="normalizationOptions" />
@@ -112,7 +112,7 @@ const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
       </BaseCard>
 
       <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Efficiency feed</h3>
+        <h3 class="text-sm font-semibold text-ink">Efficiency feed</h3>
         <div class="mt-3">
           <BaseCheckbox v-model="(form.efficiency_enabled as boolean)">
             Include the Samsara Driver Efficiency component (beta feed; auto-degrades if unavailable)
