@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FORMAT_MIMES, READABLE_FORMATS_TEXT, SOURCE_FORMATS, type SourceFormat } from "./documentFormats.js";
 import { fieldEvidenceSchema, fieldPathSchema, leafFieldPaths, parseFieldPath } from "./fieldEvidenceContract.js";
 import {
   SHIPPING_DOCUMENT_PROFILE_VERSION,
@@ -111,11 +112,11 @@ export type ReadFailureKind = (typeof READ_FAILURE_KIND)[ReadFailureCode];
 
 /** Why intake refused a file before any read (§3). Each names the limit, so the sender can fix it. */
 export const INTAKE_REFUSALS = {
-  unsupported_format: "Only PDF, JPEG, PNG, WebP and HEIC files can be read.",
+  unsupported_format: `Only ${READABLE_FORMATS_TEXT} files can be read.`,
   decode_failed: "This file could not be opened as an image or a PDF.",
   too_small: "The image is too small to read — its long edge must be at least 1200 pixels.",
   too_large: "The file is larger than 25 MB.",
-  too_many_pages: "The PDF has more than 10 pages.",
+  too_many_pages: "The file has more than 10 pages.",
   encrypted_pdf: "The PDF is password-protected.",
   // The two below are the upload channel's, not the file's: a signed-URL upload that never arrived, and
   // bytes whose SHA-256 is not the one announced when the upload was registered (a truncated PUT, or a
@@ -126,7 +127,7 @@ export const INTAKE_REFUSALS = {
 export type IntakeRefusalCode = keyof typeof INTAKE_REFUSALS;
 
 /** The limits the refusals above name — one definition, read by intake and by the sentences' tests. */
-export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPdfPages: 10, minLongEdgePx: 1200 } as const;
+export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPages: 10, minLongEdgePx: 1200 } as const;
 
 export const REVIEW_ACTIONS = ["confirmed", "corrected", "unreadable"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
@@ -266,8 +267,13 @@ export function mergeSections(profile: DocumentProfile, parts: Readonly<Record<s
 
 // ── routes ─────────────────────────────────────────────────────────────────────────────────────────
 const SHA256_RX = /^[0-9a-f]{64}$/;
-/** What intake accepts — the browser's picker and its pre-check read this list too (N2). */
-export const INTAKE_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+/**
+ * The mimes a registration may declare — every format's field names, derived from `FORMAT_MIMES`. The
+ * browser sniffs the bytes and declares the canonical one; the rest are accepted because a declaration
+ * only feeds the "did the claim match" flag, never the decoder.
+ */
+type IntakeMimeName = (typeof FORMAT_MIMES)[SourceFormat][number];
+export const INTAKE_MIMES = SOURCE_FORMATS.flatMap((f) => FORMAT_MIMES[f]) as [IntakeMimeName, ...IntakeMimeName[]];
 
 /**
  * `POST /api/documents/sources` — register an upload; the response carries a signed PUT URL.

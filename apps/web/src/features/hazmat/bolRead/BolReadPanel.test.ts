@@ -33,7 +33,8 @@ vi.mock("@/lib/api", () => ({
 
 import BolReadPanel from "./BolReadPanel.vue";
 
-const photo = (name: string) => new File([name], name, { type: "image/jpeg", lastModified: 1 });
+// A JPEG's leading bytes, then the name — the picker reads what a file IS from its bytes (bolFiles.ts `formatOf`).
+const photo = (name: string) => new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), name], name, { type: "image/jpeg", lastModified: 1 });
 
 beforeEach(() => {
   setActivePinia(createPinia());

@@ -4,10 +4,12 @@ import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import { AppTextarea } from "@silvicom/ui";
-import { AppTable } from "@silvicom/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
+import { computed } from "vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const DETAIL_TABS: TabItem[] = [
   { value: "overview", label: "Overview" },
@@ -28,6 +30,29 @@ const {
   note, disposition, DISPOSITION_OPTIONS,
   doTransition, doFalseAlarm,
 } = useAnomalyDetail(props, emit);
+
+// D-US4: the same-card fills are a DataTable; a blank price, odometer or place shows its em dash.
+const siblingColumns: DataTableColumn[] = [
+  { key: "vehicle", label: "Vehicle" },
+  { key: "when", label: "When" },
+  { key: "gallons", label: "Gallons", numeric: true, cellClass: "font-medium text-ink" },
+  { key: "price", label: "$/gal", numeric: true },
+  { key: "odo", label: "Odometer", numeric: true },
+  { key: "driver", label: "Driver" },
+  { key: "place", label: "Location", cellClass: "text-ink-muted" },
+];
+const siblingRows = computed(() =>
+  (siblingFills.value ?? []).map((f) => ({
+    ...f,
+    when: fmtShort(f.fueled_at, f.state),
+    price: f.price_per_gal != null ? fmtMoney(f.price_per_gal) : null,
+    odo: f.odometer != null ? fmtOdo(f.odometer) : null,
+    driver: driverName(f.driver_id),
+    place: [f.city, f.state].filter(Boolean).join(", ") || f.location_text || null,
+  })),
+);
+const thisFillClass = (row: { id: string }) =>
+  row.id === txn.value?.id ? "bg-warning-100 ring-1 ring-inset ring-warning-300" : "";
 </script>
 
 <template>
@@ -174,46 +199,24 @@ const {
       <p v-else-if="siblingLoading" class="text-sm text-ink-tertiary">Loading related fills…</p>
       <p v-else-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
 
-      <div v-else class="-mx-1 overflow-x-auto">
-        <AppTable class="min-w-full text-sm">
-          <thead>
-            <tr class="border-b border-warning-200 text-xs text-ink-muted">
-              <th class="px-2 py-1.5 text-left font-medium">Vehicle</th>
-              <th class="px-2 py-1.5 text-left font-medium">When</th>
-              <th class="px-2 py-1.5 text-right font-medium">Gallons</th>
-              <th class="px-2 py-1.5 text-right font-medium">$/gal</th>
-              <th class="px-2 py-1.5 text-right font-medium">Odometer</th>
-              <th class="px-2 py-1.5 text-left font-medium">Driver</th>
-              <th class="px-2 py-1.5 text-left font-medium">Location</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-warning-100">
-            <tr
-              v-for="fill in siblingFills"
-              :key="fill.id"
-              :class="fill.id === txn?.id
-                ? 'bg-warning-100 ring-1 ring-inset ring-warning-300'
-                : 'bg-surface/70 hover:bg-warning-50'"
-            >
-              <td class="px-2 py-2">
-                <div class="font-semibold text-ink">{{ unitNumber(fill.vehicle_id) }}</div>
-                <div class="text-xs text-ink-tertiary">{{ vehicleDesc(fill.vehicle_id) }}</div>
-                <span v-if="fill.id === txn?.id" class="mt-0.5 inline-flex rounded-control bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
-                  this fill
-                </span>
-              </td>
-              <td class="whitespace-nowrap px-2 py-2 text-ink-secondary">{{ fmtShort(fill.fueled_at, fill.state) }}</td>
-              <td class="px-2 py-2 text-right font-medium text-ink">{{ fill.gallons }}</td>
-              <td class="px-2 py-2 text-right text-ink-secondary">{{ fmtMoney(fill.price_per_gal) }}</td>
-              <td class="px-2 py-2 text-right text-ink-secondary">{{ fmtOdo(fill.odometer) }}</td>
-              <td class="px-2 py-2 text-ink-secondary">{{ driverName(fill.driver_id) }}</td>
-              <td class="px-2 py-2 text-xs text-ink-muted">
-                {{ [fill.city, fill.state].filter(Boolean).join(", ") || fill.location_text || "—" }}
-              </td>
-            </tr>
-          </tbody>
-        </AppTable>
-      </div>
+      <DataTable
+        v-else
+        embedded
+        dense
+        :sticky-header="false"
+        :columns="siblingColumns"
+        :rows="siblingRows"
+        row-key="id"
+        :row-class="thisFillClass"
+      >
+        <template #cell-vehicle="{ row }">
+          <div class="font-medium text-ink">{{ unitNumber(row.vehicle_id) }}</div>
+          <div class="text-ink-tertiary">{{ vehicleDesc(row.vehicle_id) }}</div>
+          <span v-if="row.id === txn?.id" class="mt-0.5 inline-flex rounded-control bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
+            this fill
+          </span>
+        </template>
+      </DataTable>
       </div>
 
     <!-- ⑤ Transaction details (full) -->

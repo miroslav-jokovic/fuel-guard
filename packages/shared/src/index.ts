@@ -14,6 +14,7 @@ export * from "./shippingDocumentContract.js";
 export * from "./fieldEvidenceContract.js";
 export * from "./bolFindingCatalogue.js";
 export * from "./documentReadingContract.js";
+export * from "./documentFormats.js";
 export * from "./documentFieldMatch.js";
 export * from "./documentScoring.js";
 export * from "./qualificationGate.js";

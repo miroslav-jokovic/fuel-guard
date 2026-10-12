@@ -167,13 +167,19 @@ describe("runIntake", () => {
 });
 
 describe("sourceStatus", () => {
-  function statusWorld(job: { status: string; stats?: unknown } | null, sourceIds: Record<string, number> = {}) {
+  /** `sourceIds`: each source row's page_count. `stored`: how many of its pages exist — all of them unless said. */
+  function statusWorld(job: { status: string; stats?: unknown } | null, sourceIds: Record<string, number> = {}, stored: Record<string, number> = {}) {
     return createSupabaseRecorder({
       tables: {
         jobs: job ? [{ status: job.status, stats: job.stats ?? null }] : [],
         document_sources: (q) => {
           const id = q.filters().find((f) => f.col === "id")?.val as string;
           return id in sourceIds ? [{ id, page_count: sourceIds[id] }] : [];
+        },
+        document_pages: (q) => {
+          const id = q.filters().find((f) => f.col === "source_id")?.val as string;
+          const n = stored[id] ?? sourceIds[id] ?? 0;
+          return Array.from({ length: n }, (_, i) => ({ page_number: i + 1 }));
         },
       },
     });
@@ -197,6 +203,20 @@ describe("sourceStatus", () => {
       ]));
       expectOrgScoped(rec, ORG);
     }
+  });
+
+  it("is not ready while the source row is written but its pages are not — the 10/12/2026 'at least one page' refusal", async () => {
+    const running = statusWorld({ status: "running" }, { [SOURCE]: 1 }, { [SOURCE]: 0 });
+    expect(await sourceStatus(running.client, ORG, SOURCE)).toEqual({ ...base, status: "normalising" });
+    expectOrgScoped(running, ORG);
+    const partway = statusWorld({ status: "running" }, { [SOURCE]: 3 }, { [SOURCE]: 2 });
+    expect(await sourceStatus(partway.client, ORG, SOURCE)).toEqual({ ...base, status: "normalising" });
+    expect(partway.forTable("document_pages")[0]!.filters()).toEqual(expect.arrayContaining([{ col: "source_id", val: SOURCE }]));
+  });
+
+  it("answers failed for an intake that gave up between the row and its pages, so pressing complete again finishes it", async () => {
+    const rec = statusWorld({ status: "failed" }, { [SOURCE]: 2 }, { [SOURCE]: 1 });
+    expect(await sourceStatus(rec.client, ORG, SOURCE)).toEqual({ ...base, status: "failed" });
   });
 
   it("answers a duplicate's intake with the source it resolved to", async () => {

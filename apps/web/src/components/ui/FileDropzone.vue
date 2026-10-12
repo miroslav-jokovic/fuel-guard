@@ -7,8 +7,12 @@ import { ref } from "vue";
 
 /**
  * Drag-and-drop upload area (click / Enter / Space to browse). Emits the
- * chosen File list; the parent owns parsing and validation. `accept` is a
- * comma list of extensions used for both the picker and a drop-time filter.
+ * chosen File list; the parent owns parsing and validation. `accept` is the
+ * input's own comma list — extensions (`.csv`), mimes (`application/pdf`) and
+ * wildcards (`image/*`) — used for both the picker and a drop-time filter that
+ * matches it the way the picker does: a dropped file passes on its name OR its
+ * type. Matching names only threw away a dropped `.jfif` photo under
+ * `image/*` without a word.
  */
 const props = withDefaults(
   defineProps<{
@@ -36,16 +40,22 @@ const emit = defineEmits<{ files: [files: File[]] }>();
 const inputRef = ref<HTMLInputElement | null>(null);
 const dragging = ref(0); // counter — dragenter/leave fire for every child
 
-const exts = () =>
+const tokens = () =>
   (props.accept ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.startsWith("."));
+    .filter(Boolean);
 
 function acceptFile(f: File): boolean {
-  const allowed = exts();
+  const allowed = tokens();
   if (!allowed.length) return true;
-  return allowed.some((e) => f.name.toLowerCase().endsWith(e));
+  const name = f.name.toLowerCase();
+  const type = f.type.toLowerCase();
+  return allowed.some((t) =>
+    t.startsWith(".") ? name.endsWith(t)
+    : t.endsWith("/*") ? type.startsWith(t.slice(0, -1))
+    : type === t,
+  );
 }
 
 function handle(list: FileList | null | undefined) {

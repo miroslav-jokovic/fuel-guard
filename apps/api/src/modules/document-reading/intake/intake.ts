@@ -171,7 +171,12 @@ export async function runIntake(admin: SupabaseClient, orgId: string, job: Intak
 export const intakeDedupKey = (sourceId: string): string => `document_intake:${sourceId}`;
 
 /**
- * Where an upload stands. A source row means `ready`. Before one exists the answer is the latest
+ * Where an upload stands. A source row WITH ALL ITS PAGES means `ready`: `runIntake` inserts the row
+ * first (the pages reference it) and the pages after, so between the two the row exists with none of
+ * them. Answering `ready` from the row alone sent the browser on to `POST /assemblies` in that gap —
+ * on 10/12/2026 a one-photo BOL was refused "A document needs at least one page", its source row
+ * written at 18:48:12.76 and its page a moment after. A short source is still `normalising`.
+ * Before a row exists the answer is the latest
  * `document_intake` job for this id: none → still `uploading` (complete not pressed yet); queued or
  * running → `normalising`; done → its stats (a refusal, or the source it resolved to — a duplicate's
  * is another id); failed → `failed`, ours to own, and pressing complete again starts a new job.
@@ -191,7 +196,18 @@ export async function sourceStatus(admin: SupabaseClient, orgId: string, sourceI
     .from("document_sources").select("id, page_count").eq("org_id", orgId).eq("id", resolvedId).maybeSingle();
   if (sErr) return fail("query_failed", sErr.message);
   const base = { sourceId: resolvedId, refusal: null, pageCount: null, readId };
-  if (source) return { ...base, status: "ready", pageCount: (source as { page_count: number }).page_count };
+  if (source) {
+    const pageCount = (source as { page_count: number }).page_count;
+    let stored: Set<number>;
+    try {
+      stored = await storedPageNumbers(admin, orgId, resolvedId);
+    } catch (e) {
+      return fail("query_failed", (e as Error).message);
+    }
+    if (stored.size >= pageCount) return { ...base, status: "ready", pageCount };
+    // An intake that gave up between the row and its pages: pressing complete again stores the rest.
+    return { ...base, status: j?.status === "failed" ? "failed" : "normalising" };
+  }
   if (stats?.outcome === "refused") return { ...base, status: "refused", refusal: stats.refusal };
   if (!j) return { ...base, status: "uploading" };
   if (j.status === "failed") return { ...base, status: "failed" };

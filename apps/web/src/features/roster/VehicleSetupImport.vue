@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import StatCard from "@/components/ui/StatCard.vue";
-import { AppIcon, AppTable } from "@silvicom/ui";
+import { AppIcon } from "@silvicom/ui";
 import {
   CsvIcon,
 } from "@silvicom/ui/icons";
@@ -16,6 +16,8 @@ import {
 import { useToastStore } from "@/stores/toast";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const props = defineProps<{ vehicles: Vehicle[] }>();
 const emit = defineEmits<{ done: [] }>();
@@ -68,13 +70,80 @@ async function onCommit() {
 
 const actionCount = computed(() => (preview.value?.toCreate.length ?? 0) + (preview.value?.toUpdate.length ?? 0));
 const fmt         = (n: number | null) => (n == null ? "—" : String(n));
-const equipLabel  = (apu: string | null, opt: boolean | null) => {
+/** null when nothing is known, so the table's own em dash shows it. */
+const equipLabel  = (apu: string | null, opt: boolean | null): string | null => {
   const parts: string[] = [];
   if (apu && apu !== "none") parts.push(apu);
   if (opt) parts.push("Optimized idle");
   if (parts.length) return parts.join(" + ");
-  return apu === "none" ? "None" : "—";
+  return apu === "none" ? "None" : null;
 };
+
+// ── tables (D-US4: drawn by DataTable, never a hand-styled <table>) ──────────
+type Need = "yes" | "new" | "recommended" | "no";
+const NEED_LABEL: Record<Need, string> = { yes: "Yes", new: "New only", recommended: "Recommended", no: "No" };
+const NEED_TONE: Record<Need, string> = {
+  yes: "font-medium text-danger-600",
+  new: "font-medium text-danger-600",
+  recommended: "font-medium text-warning-600",
+  no: "text-ink-tertiary",
+};
+const FIELD_REFERENCE: Array<{ column: string; need: Need; notes: string }> = [
+  { column: "unit_number", need: "yes", notes: "Unique truck ID (e.g. T-101). Used to match existing vehicles." },
+  { column: "fuel_type", need: "new", notes: "diesel / gasoline / def / electric / other" },
+  { column: "make", need: "no", notes: "e.g. Freightliner, Ford, Kenworth" },
+  { column: "model", need: "no", notes: "e.g. Cascadia, F-450, T680" },
+  { column: "year", need: "no", notes: "4-digit model year (e.g. 2021)" },
+  { column: "plate", need: "no", notes: "License plate number" },
+  { column: "vin", need: "no", notes: "17-character VIN" },
+  { column: "tank_capacity_gal", need: "recommended", notes: "Full tank size in gallons. Required for theft detection." },
+  { column: "baseline_mpg", need: "recommended", notes: "Average MPG. Required for consumption anomaly rules." },
+  { column: "current_odometer", need: "no", notes: "Current odometer reading in miles" },
+  { column: "status", need: "no", notes: "active / maintenance / retired (default: active)" },
+  { column: "apu_type", need: "no", notes: "diesel_apu / battery_hvac / fuel_heater / shore_power / none — idle-reduction equipment" },
+  { column: "has_optimized_idle", need: "no", notes: "yes / no — OEM optimized idle (e.g. Freightliner Cascadia)" },
+];
+const referenceColumns: DataTableColumn[] = [
+  { key: "column", label: "Column", cellClass: "font-mono text-ink" },
+  { key: "need", label: "Required" },
+  { key: "notes", label: "Notes" },
+];
+
+const PREVIEW_LIMIT = 50;
+const createColumns: DataTableColumn[] = [
+  { key: "unit_number", label: "Unit", cellClass: "font-medium text-ink" },
+  { key: "fuel_type", label: "Fuel type", cellClass: "capitalize" },
+  { key: "make_model_year", label: "Make / Model / Year" },
+  { key: "plate_vin", label: "Plate / VIN" },
+  { key: "tank", label: "Tank (gal)", numeric: true },
+  { key: "baseline_mpg", label: "MPG", numeric: true },
+  { key: "odometer", label: "Odometer", numeric: true },
+  { key: "status", label: "Status", cellClass: "capitalize" },
+  { key: "idle", label: "Idle equipment" },
+];
+const createRows = computed(() =>
+  (preview.value?.toCreate ?? []).slice(0, PREVIEW_LIMIT).map((r) => ({
+    ...r,
+    make_model_year: [r.make, r.model, r.year].filter(Boolean).join(" ") || null,
+    // A zero tank or odometer is "not given" in the template, not a reading.
+    tank: r.tank_capacity_gal || null,
+    odometer: r.current_odometer ? r.current_odometer.toLocaleString() : null,
+    idle: equipLabel(r.apu_type, r.has_optimized_idle),
+  })),
+);
+
+const updateColumns: DataTableColumn[] = [
+  { key: "unit_number", label: "Unit", cellClass: "font-medium text-ink" },
+  { key: "tank", label: "Tank (gal)", numeric: true },
+  { key: "mpg", label: "Baseline MPG", numeric: true },
+  { key: "idle", label: "Idle equipment", cellClass: "font-medium text-ink" },
+];
+const updateRows = computed(() =>
+  (preview.value?.toUpdate ?? []).slice(0, PREVIEW_LIMIT).map((c) => ({
+    ...c,
+    idle: c.equip_changed ? equipLabel(c.apu_type_after ?? null, c.has_optimized_idle_after ?? null) : null,
+  })),
+);
 </script>
 
 <template>
@@ -118,32 +187,21 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
         <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink-secondary">
           CSV field reference ▾
         </summary>
-        <div class="overflow-x-auto border-t border-edge px-4 pb-3 pt-2">
-          <AppTable class="min-w-full text-xs">
-            <thead>
-              <tr class="border-b border-edge text-left text-ink-muted">
-                <th class="pb-1.5 pr-4 font-medium">Column</th>
-                <th class="pb-1.5 pr-4 font-medium">Required</th>
-                <th class="pb-1.5 font-medium">Notes</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-edge-subtle text-ink-secondary">
-              <tr><td class="py-1.5 pr-4 font-mono">unit_number</td><td class="pr-4 text-danger-600 font-medium">Yes</td><td>Unique truck ID (e.g. T-101). Used to match existing vehicles.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">fuel_type</td><td class="pr-4 text-danger-600 font-medium">New only</td><td>diesel / gasoline / def / electric / other</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">make</td><td class="pr-4 text-ink-tertiary">No</td><td>e.g. Freightliner, Ford, Kenworth</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">model</td><td class="pr-4 text-ink-tertiary">No</td><td>e.g. Cascadia, F-450, T680</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">year</td><td class="pr-4 text-ink-tertiary">No</td><td>4-digit model year (e.g. 2021)</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">plate</td><td class="pr-4 text-ink-tertiary">No</td><td>License plate number</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">vin</td><td class="pr-4 text-ink-tertiary">No</td><td>17-character VIN</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">tank_capacity_gal</td><td class="pr-4 text-warning-600 font-medium">Recommended</td><td>Full tank size in gallons. Required for theft detection.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">baseline_mpg</td><td class="pr-4 text-warning-600 font-medium">Recommended</td><td>Average MPG. Required for consumption anomaly rules.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">current_odometer</td><td class="pr-4 text-ink-tertiary">No</td><td>Current odometer reading in miles</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">status</td><td class="pr-4 text-ink-tertiary">No</td><td>active / maintenance / retired (default: active)</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">apu_type</td><td class="pr-4 text-ink-tertiary">No</td><td>diesel_apu / battery_hvac / fuel_heater / shore_power / none — idle-reduction equipment</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">has_optimized_idle</td><td class="pr-4 text-ink-tertiary">No</td><td>yes / no — OEM optimized idle (e.g. Freightliner Cascadia)</td></tr>
-            </tbody>
-          </AppTable>
-          <p class="mt-2 text-xs text-ink-muted">
+        <div class="border-t border-edge">
+          <DataTable
+            embedded
+            dense
+            :sticky-header="false"
+            :nowrap="false"
+            :columns="referenceColumns"
+            :rows="FIELD_REFERENCE"
+            row-key="column"
+          >
+            <template #cell-need="{ row }">
+              <span :class="NEED_TONE[row.need as Need]">{{ NEED_LABEL[row.need as Need] }}</span>
+            </template>
+          </DataTable>
+          <p class="px-4 pb-3 pt-2 text-xs text-ink-muted">
             Existing vehicles are matched by <strong>unit_number</strong> — <em>tank_capacity_gal</em>, <em>baseline_mpg</em>, and idle equipment (<em>apu_type</em>, <em>has_optimized_idle</em>) are updated.
             Unrecognised units create new vehicles.
           </p>
@@ -188,41 +246,21 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
         <div class="bg-success-50 px-3 py-2 text-xs font-semibold text-success-800 border-b border-success-100">
           New vehicles ({{ preview.toCreate.length }})
         </div>
-        <div class="overflow-x-auto">
-          <AppTable class="min-w-full divide-y divide-edge-subtle text-sm">
-            <thead class="bg-surface-subtle text-left text-xs text-ink-muted">
-              <tr>
-                <th class="px-3 py-2 font-medium">Unit</th>
-                <th class="px-3 py-2 font-medium">Fuel type</th>
-                <th class="px-3 py-2 font-medium">Make / Model / Year</th>
-                <th class="px-3 py-2 font-medium">Plate / VIN</th>
-                <th class="px-3 py-2 font-medium text-right">Tank (gal)</th>
-                <th class="px-3 py-2 font-medium text-right">MPG</th>
-                <th class="px-3 py-2 font-medium text-right">Odometer</th>
-                <th class="px-3 py-2 font-medium">Status</th>
-                <th class="px-3 py-2 font-medium">Idle equipment</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-edge-subtle">
-              <tr v-for="r in preview.toCreate.slice(0, 50)" :key="r.unit_number" class="hover:bg-surface-subtle">
-                <td class="px-3 py-1.5 font-semibold text-ink">{{ r.unit_number }}</td>
-                <td class="px-3 py-1.5 capitalize text-ink-secondary">{{ r.fuel_type }}</td>
-                <td class="px-3 py-1.5 text-ink-secondary">{{ [r.make, r.model, r.year].filter(Boolean).join(" ") || "—" }}</td>
-                <td class="px-3 py-1.5 text-ink-muted text-xs">
-                  <div v-if="r.plate">{{ r.plate }}</div>
-                  <div v-if="r.vin" class="font-mono">{{ r.vin }}</div>
-                  <span v-if="!r.plate && !r.vin">—</span>
-                </td>
-                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ r.tank_capacity_gal || "—" }}</td>
-                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ fmt(r.baseline_mpg) }}</td>
-                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ r.current_odometer ? r.current_odometer.toLocaleString() : "—" }}</td>
-                <td class="px-3 py-1.5 capitalize text-ink-secondary">{{ r.status }}</td>
-                <td class="px-3 py-1.5 text-ink-secondary">{{ equipLabel(r.apu_type, r.has_optimized_idle) }}</td>
-              </tr>
-            </tbody>
-          </AppTable>
-          <p v-if="preview.toCreate.length > 50" class="px-3 py-2 text-xs text-ink-tertiary">+{{ preview.toCreate.length - 50 }} more…</p>
-        </div>
+        <DataTable
+          embedded
+          dense
+          :sticky-header="false"
+          :columns="createColumns"
+          :rows="createRows"
+          row-key="unit_number"
+        >
+          <template #cell-plate_vin="{ row }">
+            <div v-if="row.plate">{{ row.plate }}</div>
+            <div v-if="row.vin" class="font-mono">{{ row.vin }}</div>
+            <span v-if="!row.plate && !row.vin" class="text-ink-tertiary">—</span>
+          </template>
+        </DataTable>
+        <p v-if="preview.toCreate.length > PREVIEW_LIMIT" class="px-3 py-2 text-xs text-ink-tertiary">+{{ preview.toCreate.length - PREVIEW_LIMIT }} more…</p>
       </div>
 
       <!-- Setup updates table -->
@@ -230,36 +268,24 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
         <div class="bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-800 border-b border-brand-100">
           Setup updates ({{ preview.toUpdate.length }}) — existing vehicles, tank &amp; MPG only
         </div>
-        <div class="overflow-x-auto">
-          <AppTable class="min-w-full divide-y divide-edge-subtle text-sm">
-            <thead class="bg-surface-subtle text-left text-xs text-ink-muted">
-              <tr>
-                <th class="px-3 py-2 font-medium">Unit</th>
-                <th class="px-3 py-2 font-medium">Tank (gal)</th>
-                <th class="px-3 py-2 font-medium">Baseline MPG</th>
-                <th class="px-3 py-2 font-medium">Idle equipment</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-edge-subtle">
-              <tr v-for="c in preview.toUpdate.slice(0, 50)" :key="c.id" class="hover:bg-surface-subtle">
-                <td class="px-3 py-1.5 font-medium text-ink">{{ c.unit_number }}</td>
-                <td class="px-3 py-1.5 text-ink-secondary">
-                  <span :class="c.tank_before !== c.tank_after ? 'text-ink-tertiary line-through' : ''">{{ fmt(c.tank_before) }}</span>
-                  <span v-if="c.tank_before !== c.tank_after" class="font-medium text-ink"> → {{ fmt(c.tank_after) }}</span>
-                </td>
-                <td class="px-3 py-1.5 text-ink-secondary">
-                  <span :class="c.mpg_before !== c.mpg_after ? 'text-ink-tertiary line-through' : ''">{{ fmt(c.mpg_before) }}</span>
-                  <span v-if="c.mpg_before !== c.mpg_after" class="font-medium text-ink"> → {{ fmt(c.mpg_after) }}</span>
-                </td>
-                <td class="px-3 py-1.5 text-ink-secondary">
-                  <span v-if="c.equip_changed" class="font-medium text-ink">{{ equipLabel(c.apu_type_after ?? null, c.has_optimized_idle_after ?? null) }}</span>
-                  <span v-else class="text-ink-tertiary">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </AppTable>
-          <p v-if="preview.toUpdate.length > 50" class="px-3 py-2 text-xs text-ink-tertiary">+{{ preview.toUpdate.length - 50 }} more…</p>
-        </div>
+        <DataTable
+          embedded
+          dense
+          :sticky-header="false"
+          :columns="updateColumns"
+          :rows="updateRows"
+          row-key="id"
+        >
+          <template #cell-tank="{ row }">
+            <span :class="row.tank_before !== row.tank_after ? 'text-ink-tertiary line-through' : ''">{{ fmt(row.tank_before) }}</span>
+            <span v-if="row.tank_before !== row.tank_after" class="font-medium text-ink"> → {{ fmt(row.tank_after) }}</span>
+          </template>
+          <template #cell-mpg="{ row }">
+            <span :class="row.mpg_before !== row.mpg_after ? 'text-ink-tertiary line-through' : ''">{{ fmt(row.mpg_before) }}</span>
+            <span v-if="row.mpg_before !== row.mpg_after" class="font-medium text-ink"> → {{ fmt(row.mpg_after) }}</span>
+          </template>
+        </DataTable>
+        <p v-if="preview.toUpdate.length > PREVIEW_LIMIT" class="px-3 py-2 text-xs text-ink-tertiary">+{{ preview.toUpdate.length - PREVIEW_LIMIT }} more…</p>
       </div>
 
       <!-- No changes -->

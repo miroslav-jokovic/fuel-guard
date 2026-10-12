@@ -120,7 +120,7 @@ describe("routes and refusals", () => {
   it("says the limit it refuses on, read from the one definition", () => {
     expect(INTAKE_REFUSALS.too_small).toContain(String(INTAKE_LIMITS.minLongEdgePx));
     expect(INTAKE_REFUSALS.too_large).toContain(`${INTAKE_LIMITS.maxBytes / 1024 / 1024} MB`);
-    expect(INTAKE_REFUSALS.too_many_pages).toContain(String(INTAKE_LIMITS.maxPdfPages));
+    expect(INTAKE_REFUSALS.too_many_pages).toContain(String(INTAKE_LIMITS.maxPages));
   });
 
   it("gives every read failure code a kind, reader or operational, and no kind to a code that does not exist", () => {
@@ -134,7 +134,8 @@ describe("routes and refusals", () => {
     expect(createSourceRequestSchema.safeParse(ok).success).toBe(true);
     expect(createSourceRequestSchema.safeParse({ ...ok, byteSize: INTAKE_LIMITS.maxBytes + 1 }).success).toBe(false);
     expect(createSourceRequestSchema.safeParse({ ...ok, sha256: "A".repeat(64) }).success).toBe(false);
-    expect(createSourceRequestSchema.safeParse({ ...ok, mime: "image/gif" }).success).toBe(false);
+    expect(createSourceRequestSchema.safeParse({ ...ok, mime: "image/gif" }).success).toBe(true);
+    expect(createSourceRequestSchema.safeParse({ ...ok, mime: "application/msword" }).success).toBe(false);
   });
 
   it("accepts a review batch only on field paths", () => {

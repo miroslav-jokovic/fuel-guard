@@ -503,6 +503,20 @@ const pageAdoption = webPages.map((item) => ({
   rawTableCount: countMatches(item.source, /<table\b/g),
 }));
 
+/**
+ * `AppTable` in the web app is a raw table with a different name (D-US4, UI-STANDARDIZATION.md).
+ *
+ * It is `@silvicom/ui`'s bare `<table>` wrapper — the admin console's table — and in the web app it was
+ * how a table got past the raw-table count above: on 2026-10-12 six web files used it, each with its
+ * own hand-written header (five recipes). The web's table is `DataTable`, and a small table inside a
+ * drawer or panel is `DataTable embedded dense`. The one exception is a published legal document,
+ * which renders in `PublicLayout` with document typography rather than data-table chrome.
+ */
+const APP_TABLE_ALLOWED = new Set(["apps/web/src/pages/legal/PrivacyPolicyPage.vue"]);
+const webAppTables = pagesAndFeatures
+  .filter((item) => /<AppTable\b/.test(item.source) && !APP_TABLE_ALLOWED.has(item.relativePath))
+  .map((item) => item.relativePath);
+
 const rawTableFiles = pagesAndFeatures
   .map((item) => ({
     file: item.relativePath,
@@ -610,6 +624,8 @@ function verifyAdoption() {
     failures.push(`${inventory.summary.rawInputsInPagesAndFeatures} raw page/feature inputs`);
   if (inventory.summary.rawSelectsInPagesAndFeatures)
     failures.push(`${inventory.summary.rawSelectsInPagesAndFeatures} raw page/feature selects`);
+  if (webAppTables.length)
+    failures.push(`AppTable in the web app (use DataTable; embedded dense inside a drawer or panel): ${webAppTables.join(", ")}`);
   if (inventory.summary.visibleRawWebTables)
     failures.push(`${inventory.summary.visibleRawWebTables} visible raw web tables`);
   if (inventory.summary.rawAdminTables)
