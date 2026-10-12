@@ -14,6 +14,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -276,46 +277,50 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       </BaseCard>
     </div>
 
-    <FilterBar
-      v-model:search="requirementSearch"
-      search-placeholder="Search requirements…"
-      :count="filteredRows.length"
-      count-label="requirements"
-    >
-      <template #filters>
-        <FilterSelect
-          v-model="requirementGroup"
-          label="Group"
-          :options="requirementGroupOptions"
-        />
-      </template>
-      <template #actions>
-        <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
-          {{
-            showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
-          }}
-        </BaseButton>
-      </template>
-    </FilterBar>
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="requirementSearch"
+        search-placeholder="Search requirements…"
+        :count="filteredRows.length"
+        count-label="requirements"
+        embedded
+      >
+        <template #filters>
+          <FilterSelect
+            v-model="requirementGroup"
+            label="Group"
+            :options="requirementGroupOptions"
+          />
+        </template>
+        <template #actions>
+          <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
+            {{
+              showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
+            }}
+          </BaseButton>
+        </template>
+      </FilterBar>
 
-    <RequirementTable
-      :rows="filteredRows"
-      :loading="loading"
-      :error="errorMessage"
-      :retrying="retrying"
-      :empty-text="
-        hasRequirementFilter
-          ? 'No requirements match these filters.'
-          : showAll
-            ? 'Nothing on file yet. Drop a document below to start.'
-            : 'Nothing needs attention. This file is complete.'
-      "
-      :releasing-key="releasing"
-      @retry="retry"
-      @open="openKey = $event"
-      @preview="openPreview"
-      @release="release"
-    />
+      <RequirementTable
+        :rows="filteredRows"
+        :loading="loading"
+        :error="errorMessage"
+        :retrying="retrying"
+        :empty-text="
+          hasRequirementFilter
+            ? 'No requirements match these filters.'
+            : showAll
+              ? 'Nothing on file yet. Drop a document below to start.'
+              : 'Nothing needs attention. This file is complete.'
+        "
+        :releasing-key="releasing"
+        embedded
+        @retry="retry"
+        @open="openKey = $event"
+        @preview="openPreview"
+        @release="release"
+      />
+    </DataWorkspace>
 
     <DocumentDropCard
       v-if="session.can('roster')"

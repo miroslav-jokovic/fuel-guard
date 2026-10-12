@@ -22,7 +22,10 @@ const toasts = vi.hoisted(() => ({ success: [] as string[], error: [] as string[
 vi.mock("./useAccessReview", async () => {
   const { computed, ref } = await import("vue");
   return {
-    useAccessReviewQuery: () => ({ data: computed(() => state.data), isPending: ref(state.pending) }),
+    useAccessReviewQuery: () => ({
+      data: computed(() => state.data),
+      isPending: ref(state.pending),
+    }),
     downloadAccessReview: vi.fn(async () => {
       calls.downloads++;
       if (calls.stepUp) {
@@ -39,6 +42,7 @@ vi.mock("@/stores/toast", () => ({
     error: (t: string, m?: string) => toasts.error.push(`${t}: ${m}`),
   }),
 }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn(async () => undefined) }));
 
 const member = (userId: string, fullName: string, role: string, extra: object = {}) => ({
   userId,
@@ -76,7 +80,8 @@ const holdForStepUp = (e: unknown, retry: () => Promise<void>) => {
   held.retry = retry;
   return true;
 };
-const mountTab = () => mount(WhoHasAccessTab, { attachTo: document.body, props: { holdForStepUp } });
+const mountTab = () =>
+  mount(WhoHasAccessTab, { attachTo: document.body, props: { holdForStepUp } });
 
 async function pick(w: ReturnType<typeof mountTab>, value: string) {
   w.findComponent(AppCombobox).vm.$emit("update:modelValue", value);
@@ -89,7 +94,11 @@ const tableRows = (w: ReturnType<typeof mountTab>, title: string) => {
   if (!card.exists()) return null;
   return card.findAll("tbody tr").map((tr) => {
     const cells = tr.findAll("td").map((td) => td.text());
-    return `${cells[0]!.split("\n")[0]!.trim().replace(/u-\w+@carrier\.test$/, "").trim()}|${cells[2]}|${cells[3]}`;
+    return `${cells[0]!
+      .split("\n")[0]!
+      .trim()
+      .replace(/u-\w+@carrier\.test$/, "")
+      .trim()}|${cells[2]}|${cells[3]}`;
   });
 };
 
@@ -123,7 +132,10 @@ describe("Who has access", () => {
   it("asks for a pick first and offers every section and reviewed screen", async () => {
     const w = mountTab();
     expect(w.text()).toContain("Pick a screen or section");
-    const labels = w.findComponent(AppCombobox).props("options").map((o: { label: string }) => o.label);
+    const labels = w
+      .findComponent(AppCombobox)
+      .props("options")
+      .map((o: { label: string }) => o.label);
     expect(labels).toContain("Section · Safety");
     expect(labels).toContain("Screen · Settings › Card control");
     expect(labels).toHaveLength(12 + REVIEW_SCREENS.length);
@@ -148,7 +160,9 @@ describe("Who has access", () => {
   it("draws each layer with the People tab's own tag", async () => {
     const w = mountTab();
     await pick(w, "section:safety");
-    const found = w.find('section[aria-label="Has access"]').findAllComponents(AppBadge) as unknown as Array<{
+    const found = w
+      .find('section[aria-label="Has access"]')
+      .findAllComponents(AppBadge) as unknown as Array<{
       text(): string;
       props(): Record<string, unknown>;
     }>;
@@ -175,15 +189,21 @@ describe("Who has access", () => {
   });
 
   it("says so when nobody has it", async () => {
-    state.data = { ...fixture(), members: [member("u-ted", "Ted", "technician")] as AccessReviewState["members"] };
+    state.data = {
+      ...fixture(),
+      members: [member("u-ted", "Ted", "technician")] as AccessReviewState["members"],
+    };
     const w = mountTab();
     await pick(w, "section:accounting");
     expect(w.text()).toContain("0 of 1 active members have access.");
-    expect(w.find('section[aria-label="Has access"]').text()).toContain("Nobody in this organisation has this.");
+    expect(w.find('section[aria-label="Has access"]').text()).toContain(
+      "Nobody in this organisation has this.",
+    );
   });
 
   it("exports through the API and says the export was recorded", async () => {
     const w = mountTab();
+    expect(w.text()).toContain("All active members and permissions");
     const button = w.findAll("button").find((b) => b.text() === "Export access review (CSV)")!;
     await button.trigger("click");
     await flushPromises();
@@ -194,7 +214,10 @@ describe("Who has access", () => {
   it("reports a refused export with the server's words", async () => {
     calls.fail = "Could not record the export, so it was not produced.";
     const w = mountTab();
-    await w.findAll("button").find((b) => b.text() === "Export access review (CSV)")!.trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Export access review (CSV)")!
+      .trigger("click");
     await flushPromises();
     expect(toasts.error[0]).toContain("Could not record the export");
   });
@@ -202,7 +225,10 @@ describe("Who has access", () => {
   it("holds a step-up refusal for the page's password prompt, then downloads on the retry (SP9)", async () => {
     calls.stepUp = true;
     const w = mountTab();
-    await w.findAll("button").find((b) => b.text() === "Export access review (CSV)")!.trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Export access review (CSV)")!
+      .trigger("click");
     await flushPromises();
     expect(held.retry).not.toBeNull();
     expect(toasts.error).toEqual([]);

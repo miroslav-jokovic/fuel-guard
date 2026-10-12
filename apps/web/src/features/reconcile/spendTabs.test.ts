@@ -15,19 +15,22 @@ vi.mock("@/stores/session", async () => {
 
 // The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
 // the strip has its own; stubbed to "fully covered" so it renders without asserting anything here.
-vi.mock("./usePriceCoverage", async (orig) => {
-  const actual = await orig<typeof import("./usePriceCoverage")>();
-  return {
-    ...actual,
-    usePriceCoverageQuery: () => ({
-      data: computed(() => ({ days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null })),
-      isLoading: ref(false), isError: ref(false), error: ref(null),
-    }),
-  };
-});
+vi.mock("./usePriceCoverage", () => ({
+  usePriceCoverageQuery: () => ({
+    data: computed(() => ({ days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null })),
+    isLoading: ref(false), isError: ref(false), error: ref(null),
+  }),
+  pricedRangeIsNarrower: () => false,
+}));
 
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
 import ExceptionsTab from "./ExceptionsTab.vue";
+import ExportButton from "@/components/ExportButton.vue";
+
+const downloadCsv = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/csv", () => ({ downloadCsv }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ error: vi.fn() }) }));
 
 /**
  * These tabs are the only place the fuel-spend analytics are ever seen. The functions are covered in
@@ -51,6 +54,7 @@ const withRouter = { global: { plugins: [router] } };
 
 // DataTable branches on `matchMedia`; jsdom has none, so it renders its narrow card view by default.
 beforeEach(() => {
+  downloadCsv.mockReset();
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
     value: (query: string) => ({
@@ -97,6 +101,21 @@ describe("DiscountCaptureTab", () => {
       contractAmount: l.site === "3" ? l.netAmount! - 0.1 * l.gallons : l.netAmount,
       quoteStaleDays: 0,
     }));
+
+  it("uses the shared export action for every contract exception", async () => {
+    const w = mount(DiscountCaptureTab, {
+      props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" },
+      ...withRouter,
+    });
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toMatch(/\d+ exceptions/);
+    await exportAction.get("button").trigger("click");
+    expect(downloadCsv).toHaveBeenCalledWith(
+      "fuel-contract-reconciliation",
+      expect.any(Array),
+      expect.any(Array),
+    );
+  });
 
   it("compares what was billed against what was quoted, and names the gap", () => {
     const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
@@ -169,6 +188,21 @@ describe("DiscountCaptureTab", () => {
 
 describe("ExceptionsTab", () => {
   const ex = () => analyzePolicyExceptions(eightWeeks());
+
+  it("uses the shared export action for all policy-exception fills", async () => {
+    const report = ex().avoidedBrands;
+    const w = mount(ExceptionsTab, {
+      props: { title: "ONE9", blurb: "…", report, slug: "one9" },
+    });
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toBe(`${report.fills.length} fills`);
+    await exportAction.get("button").trigger("click");
+    expect(downloadCsv).toHaveBeenCalledWith(
+      "fuel-one9",
+      expect.any(Array),
+      expect.any(Array),
+    );
+  });
 
   it("prices an avoided brand against the rest of the fleet", () => {
     const t = mount(ExceptionsTab, {

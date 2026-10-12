@@ -9,6 +9,7 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
@@ -53,7 +54,9 @@ const VIEW_TABS: TabItem[] = [
       </p>
     </BaseCard>
 
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search message or vehicle…"
       :count="total"
@@ -82,7 +85,7 @@ const VIEW_TABS: TabItem[] = [
     <!-- Bulk action bar -->
     <div
       v-if="selectedCount > 0"
-      class="flex flex-col gap-2 rounded-surface bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col gap-2 bg-brand-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6"
     >
       <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
@@ -95,6 +98,7 @@ const VIEW_TABS: TabItem[] = [
 
     <!-- Table -->
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -137,6 +141,7 @@ const VIEW_TABS: TabItem[] = [
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <SlideOver :open="!!selectedRow" title="Alert" @close="selectedRow = null">
       <AnomalyDetail v-if="selectedRow" :anomaly="selectedRow" :vehicle-unit="unit(selectedRow.vehicle_id)" @changed="selectedRow = null" />

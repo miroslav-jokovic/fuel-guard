@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import {
   QUEUE_FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
@@ -11,6 +11,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -276,7 +277,8 @@ const truckOptions = computed(() =>
       <StatCard v-for="t in tiles" :key="t.label" :label="t.label" :value="t.value" :sub="t.sub" :value-tone="t.tone" />
     </div>
 
-    <FilterBar :count="total" count-label="problems">
+    <DataWorkspace>
+    <FilterBar embedded :count="total" count-label="problems">
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />
@@ -305,7 +307,7 @@ const truckOptions = computed(() =>
     </FilterBar>
 
     <!-- A queue that is missing rows and does not say so is worse than one that refuses to load. -->
-    <p v-if="truncated" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-700 ring-1 ring-warning-100">
+    <p v-if="truncated" class="bg-warning-50 px-4 py-3 text-sm text-warning-700 sm:px-6">
       There are more problems than this page can hold at once. Narrow the window or the trucks to be sure you are
       seeing all of them.
     </p>
@@ -318,7 +320,7 @@ const truckOptions = computed(() =>
     -->
     <div
       v-if="picked.size"
-      class="flex flex-wrap items-center gap-3 rounded-surface bg-surface-muted px-4 py-3 ring-1 ring-edge"
+      class="flex flex-wrap items-center gap-3 bg-surface-muted px-4 py-3 sm:px-6"
     >
       <span class="text-sm font-medium text-ink">{{ picked.size }} selected</span>
       <template v-if="assigneeSection">
@@ -339,12 +341,13 @@ const truckOptions = computed(() =>
       <BaseButton variant="ghost" @click="picked = new Set()">Clear</BaseButton>
     </div>
 
-    <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+    <p v-if="isError" class="bg-danger-50 px-4 py-3 text-sm text-danger-700 sm:px-6">
       Couldn't load fuel problems: {{ error instanceof Error ? error.message : "unknown error" }}
     </p>
 
-    <BaseCard v-else padding="none">
       <DataTable
+        v-else
+        embedded
         :columns="columns"
         :rows="tableRows"
         row-key="id"
@@ -372,7 +375,7 @@ const truckOptions = computed(() =>
           <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
         </template>
       </DataTable>
-    </BaseCard>
+    </DataWorkspace>
 
     <ExceptionSlideOver :id="drawer.findingId.value" @close="drawer.close" />
     <CaseDrawers

@@ -196,6 +196,7 @@ const columns: DataTableColumn[] = [
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="invitesQ.data.value ?? []"
         row-key="id"

@@ -55,12 +55,12 @@ export interface DataTableColumn {
   numeric?: boolean;
   /** Override the default (text → left, `numeric` → right). `center` is for control columns only. */
   align?: "left" | "right" | "center";
-  /** Extra th classes — widths live here (min-w-[8rem], w-32, …). */
   /**
    * Minimum column width, from the scale below. Replaces 173 hand-picked `min-w-[Nrem]` values
    * spread across 26 files in 15 different sizes, none of which agreed with each other (D-DS5).
    */
   width?: ColumnWidth;
+  /** Extra th classes for exceptional non-scale overrides; use `width` for column sizing. */
   headerClass?: string;
   /** Extra td classes — truncation, tone overrides, … */
   cellClass?: string;

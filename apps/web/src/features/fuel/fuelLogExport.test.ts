@@ -72,7 +72,7 @@ vi.mock("./useEfsData", () => ({
 vi.mock("@/composables/useFuelLog", () => ({
   FUEL_PAGE_SIZE: 20,
   useFuelTransactions: () => listOf(),
-  useFuelRangeTotals: () => ({ data: ref(null) }),
+  useFuelRangeTotals: () => ({ data: ref(null), isError: ref(false), isPlaceholderData: ref(false) }),
 }));
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref([]) }) }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
@@ -175,7 +175,10 @@ describe("a flagged fill's row (SP5)", () => {
     const w = mount(FillsTab, {
       shallow: true,
       props: { shared: sharedStub() },
-      global: { plugins: [VueQueryPlugin, createPinia()] },
+      global: {
+        plugins: [VueQueryPlugin, createPinia()],
+        stubs: { DataWorkspace: { template: "<div><slot /></div>" } },
+      },
     });
     await flushPromises();
     return w.findComponent({ name: "DataTable" });

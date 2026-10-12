@@ -197,6 +197,7 @@ const sourceLabel = (s: string): string =>
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="historyQ.data.value ?? []"
         row-key="id"

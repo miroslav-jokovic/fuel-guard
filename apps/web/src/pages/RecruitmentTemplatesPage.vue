@@ -32,7 +32,6 @@ const columns: DataTableColumn[] = [
   { key: "label", label: "Document" },
   { key: "group", label: "Stage" },
   { key: "when", label: "When it is signed" },
-  { key: "actions", label: "", align: "center" },
 ];
 
 const rows = computed(() =>
@@ -71,7 +70,7 @@ const rendered = computed<RenderedDocument | null>(() =>
     </BaseCard>
 
     <BaseCard padding="none">
-      <DataTable :columns="columns" :rows="rows" row-key="key" empty-text="No templates.">
+      <DataTable embedded :columns="columns" :rows="rows" row-key="key" empty-text="No templates.">
         <template #cell-label="{ row }">
           <span class="font-medium text-ink">{{ row.label }}</span>
         </template>
@@ -81,7 +80,7 @@ const rendered = computed<RenderedDocument | null>(() =>
         <template #cell-when="{ row }">
           <span class="text-xs text-ink-muted">{{ row.when }}</span>
         </template>
-        <template #cell-actions="{ row }">
+        <template #actions="{ row }">
           <BaseButton size="sm" variant="secondary" @click="viewing = row">Preview and print</BaseButton>
         </template>
       </DataTable>

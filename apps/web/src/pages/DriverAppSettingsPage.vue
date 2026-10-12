@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   ArrowsRightLeftIcon,
   BellIcon,
@@ -47,10 +47,10 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";
 const activeTab = ref<SettingsTab>("features");
-const tabs: { key: SettingsTab; label: string }[] = [
-  { key: "features", label: "Features" },
-  { key: "app", label: "App controls" },
-  { key: "exceptions", label: "Driver exceptions" },
+const tabs: TabItem[] = [
+  { value: "features", label: "Features" },
+  { value: "app", label: "App controls" },
+  { value: "exceptions", label: "Driver exceptions" },
 ];
 const toast = useToastStore();
 const modulesQ = useModulesQuery();
@@ -220,22 +220,13 @@ async function removeOverride(featureKey: string) {
       <p class="text-sm font-semibold text-danger-600">Driver App settings could not be loaded.</p>
       <p class="mt-1 text-sm text-ink-muted">{{ rowsQ.error.value?.message }} The controls remain unavailable until the connection is restored.</p>
     </BaseCard>
-    <nav class="flex gap-1 overflow-x-auto rounded-surface bg-surface-muted p-1" role="tablist" aria-label="Driver App settings">
-      <BaseButton
-        v-for="tab in tabs"
-        :id="`driver-app-tab-${tab.key}`"
-        :key="tab.key"
-        type="button"
-        role="tab"
-        class="shrink-0 rounded-control px-3 py-2 text-sm font-medium transition"
-        :class="activeTab === tab.key ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        :aria-selected="activeTab === tab.key"
-        :aria-controls="`driver-app-panel-${tab.key}`"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </BaseButton>
-    </nav>
+    <AppTabs
+      v-model="activeTab"
+      :tabs="tabs"
+      label="Driver App settings"
+      id-prefix="driver-app"
+      scrollable
+    />
     <section
       v-if="activeTab === 'features'"
       id="driver-app-panel-features"

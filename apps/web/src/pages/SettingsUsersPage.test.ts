@@ -438,3 +438,22 @@ describe("SettingsUsersPage — a write asks for the password, then happens", ()
     w.unmount();
   });
 });
+
+describe("SettingsUsersPage — members list composition", () => {
+  it("searches members from the shared FilterBar and counts what is left", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const search = w.find<HTMLInputElement>('input[placeholder="Search members…"]');
+    expect(search.exists()).toBe(true);
+    expect(w.text()).toContain("2 members");
+
+    await search.setValue("shop@");
+    // AppSearchField debounces its emit by 250 ms; the list filters on the emitted value.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(w.text()).toContain("1 member");
+    expect(w.text()).toContain("shop@silvicom.test");
+    expect(w.text()).not.toContain("boss@silvicom.test");
+    w.unmount();
+  });
+});

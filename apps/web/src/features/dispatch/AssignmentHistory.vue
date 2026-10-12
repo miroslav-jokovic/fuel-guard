@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { shiftDuration, type AssignmentHistoryRow } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -145,8 +146,9 @@ const stamp = (v: string): string => formatDateTime(v);
 </script>
 
 <template>
-  <div class="space-y-6">
+  <DataWorkspace>
     <FilterBar
+      embedded
       :count="rows.length"
       count-label="segments loaded"
       :chips="chips"
@@ -165,6 +167,7 @@ const stamp = (v: string): string => formatDateTime(v);
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="segment_id"
@@ -209,5 +212,5 @@ const stamp = (v: string): string => formatDateTime(v);
         </div>
       </template>
     </DataTable>
-  </div>
+  </DataWorkspace>
 </template>

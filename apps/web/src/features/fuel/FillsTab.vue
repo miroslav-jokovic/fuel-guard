@@ -38,7 +38,6 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
@@ -47,6 +46,7 @@ import { fuelLogExportTarget } from "./fuelLogExport";
 import { flaggedCasesLink } from "./flaggedCasesLink";
 import DoorLink from "@/components/ui/DoorLink.vue";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
 
@@ -333,8 +333,10 @@ const columns: DataTableColumn[] = [
     <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
     <RowCoverageLine :coverage="coverage" />
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="searchBind"
+      embedded
       search-placeholder="Search vehicle, driver, location, card…"
       :count="total"
       count-label="fill-ups"
@@ -363,10 +365,10 @@ const columns: DataTableColumn[] = [
 
     <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
          tabs mean EFS's Central day, so they say it in the one shared sentence. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
+    <p class="px-4 py-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <!-- Summary stats block -->
-    <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
+    <section v-if="!isLoading && !isError && total > 0" aria-label="Fuel summary">
       <dl class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total fill-ups</dt>
@@ -405,9 +407,10 @@ const columns: DataTableColumn[] = [
           <dd class="mt-0.5 text-xs text-ink-tertiary">{{ avgMpgNote }}</dd>
         </div>
       </dl>
-    </BaseCard>
+    </section>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
@@ -475,5 +478,6 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

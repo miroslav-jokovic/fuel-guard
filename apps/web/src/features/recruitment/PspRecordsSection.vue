@@ -183,6 +183,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="rows"
         row-key="id"

@@ -17,17 +17,22 @@
  * to `initialTab`, which decides which tab OPENS — never which tabs exist. `dashboardTabs.ts` carries
  * the reasoning and a test that flips a grant rather than a role.
  */
-import { AppButton as BaseButton, AppCard as BaseCard, AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
-import { ArrowDownTrayIcon, ChevronDownIcon, CsvIcon, PdfIcon } from "@silvicom/ui/icons";
+import { AppCard as BaseCard, AppTabs, type TabItem } from "@silvicom/ui";
+import { CsvIcon, PdfIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import { useRoute, useRouter } from "vue-router";
-import { dayRangeInstants, shiftDay, tabIsWorkspace, todayInZone } from "@silvicom/shared";
+import {
+  dayRangeInstants,
+  formatDisplayDate,
+  shiftDay,
+  tabIsWorkspace,
+  todayInZone,
+} from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
-import { useToastStore } from "@/stores/toast";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import FleetLeadLine from "@/features/dashboard/FleetLeadLine.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -70,13 +75,17 @@ const range = computed(() => {
 const greetingLine = computed(() => greeting(new Date(), session.fullName));
 
 const tabs = computed(() => visibleTabs((s) => session.canView(s)));
-const tabItems = computed<TabItem[]>(() => tabs.value.map((t) => ({ value: t.key, label: t.label })));
+const tabItems = computed<TabItem[]>(() =>
+  tabs.value.map((t) => ({ value: t.key, label: t.label })),
+);
 const showsStrip = computed(() => showsTabStrip(tabs.value));
 /**
  * Seeded once from the caller's role and the `?tab=` they arrived with, then owned by the strip.
  * A `computed` here would fight the user: picking a tab would be overwritten on the next render.
  */
-const activeKey = ref(initialTab(tabs.value, session.role, String(route.query.tab ?? "") || undefined)?.key ?? "");
+const activeKey = ref(
+  initialTab(tabs.value, session.role, String(route.query.tab ?? "") || undefined)?.key ?? "",
+);
 
 /**
  * The open tab is written back into `?tab=`, which it never was before D-DR24.
@@ -107,32 +116,43 @@ watch(
 const workspace = computed(() => tabIsWorkspace(activeKey.value));
 
 // Exports
-const toast = useToastStore();
-const exporting = ref(false);
+const exportScope = computed(() => {
+  const start = formatDisplayDate(range.value.from, range.value.from);
+  const end = formatDisplayDate(range.value.to, range.value.to);
+  return start === end ? start : `${start} – ${end}`;
+});
+
 async function exportReport(path: string, filename: string) {
-  exporting.value = true;
-  try {
-    /*
-     * Match the on-screen window exactly. These endpoints filter `fuel_transactions.fueled_at`, a
-     * `timestamptz` — so unlike the cards above, this range genuinely IS an instant interval, and
-     * the only defensible zone for it is the carrier's (D-PREC5 case 2). Built at the browser's
-     * midnight until 2026-09-21, which is how a CSV could hold a different set of fills than the
-     * screen it was exported from.
-     */
-    const { start, endExclusive } = dayRangeInstants(range.value.from, range.value.to, zone.value);
-    await downloadReport(
-      `${path}?from=${encodeURIComponent(start)}&to=${encodeURIComponent(endExclusive)}`,
-      filename,
-    );
-  } catch (e) {
-    toast.error("Export failed", e instanceof Error ? e.message : undefined);
-  } finally {
-    exporting.value = false;
-  }
+  /*
+   * Match the on-screen window exactly. These endpoints filter `fuel_transactions.fueled_at`, a
+   * `timestamptz` — so unlike the cards above, this range genuinely IS an instant interval, and
+   * the only defensible zone for it is the carrier's (D-PREC5 case 2). Built at the browser's
+   * midnight until 2026-09-21, which is how a CSV could hold a different set of fills than the
+   * screen it was exported from.
+   */
+  const { start, endExclusive } = dayRangeInstants(range.value.from, range.value.to, zone.value);
+  await downloadReport(
+    `${path}?from=${encodeURIComponent(start)}&to=${encodeURIComponent(endExclusive)}`,
+    filename,
+  );
 }
-const EXPORTS = [
-  { label: "Transactions CSV", description: "Every fill in the selected range", icon: CsvIcon, run: () => exportReport("/api/reports/transactions.csv", "transactions.csv") },
-  { label: "Summary PDF", description: "Executive summary of this dashboard", icon: PdfIcon, run: () => exportReport("/api/reports/summary.pdf", "summary.pdf") },
+const EXPORTS: readonly ExportItem[] = [
+  {
+    key: "transactions",
+    label: "Transactions CSV",
+    description: "Every fill in the selected range",
+    icon: CsvIcon,
+    errorTitle: "Export failed",
+    run: () => exportReport("/api/reports/transactions.csv", "transactions.csv"),
+  },
+  {
+    key: "summary",
+    label: "Summary PDF",
+    description: "Executive summary of this dashboard",
+    icon: PdfIcon,
+    errorTitle: "Export failed",
+    run: () => exportReport("/api/reports/summary.pdf", "summary.pdf"),
+  },
 ];
 </script>
 
@@ -222,45 +242,11 @@ const EXPORTS = [
 
           <!-- SP5: both exports are `/api/reports/*`, `requireSection("settings", "view")` — ask that, not
                manage-or-auditor, which missed a role the org granted view and kept one it narrowed. -->
-          <Menu v-if="session.canView('settings')" as="div" class="relative">
-            <MenuButton
-              :disabled="exporting"
-              class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"
-            >
-              <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-              {{ exporting ? "Exporting…" : "Export" }}
-              <AppIcon :icon="ChevronDownIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
-            </MenuButton>
-            <transition
-              enter-active-class="transition duration-100 ease-out"
-              enter-from-class="scale-95 opacity-0"
-              enter-to-class="scale-100 opacity-100"
-              leave-active-class="transition duration-75 ease-in"
-              leave-from-class="scale-100 opacity-100"
-              leave-to-class="scale-95 opacity-0"
-            >
-              <MenuItems class="absolute right-0 z-sticky-lead mt-2 w-64 origin-top-right overflow-hidden rounded-control bg-surface py-1 text-sm shadow-overlay focus:outline-none">
-                <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
-                  <BaseButton
-                    type="button"
-                    variant="ghost"
-                    block
-                    :class="[
-                      '!h-auto !justify-start !gap-3 !whitespace-normal !rounded-none !px-3 !py-2 !text-left !font-normal',
-                      active ? 'bg-surface-subtle' : '',
-                    ]"
-                    @click="exp.run()"
-                  >
-                    <AppIcon :icon="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
-                    <span class="min-w-0">
-                      <span class="block font-medium text-ink">{{ exp.label }}</span>
-                      <span class="mt-0.5 block text-xs leading-4 text-ink-muted">{{ exp.description }}</span>
-                    </span>
-                  </BaseButton>
-                </MenuItem>
-              </MenuItems>
-            </transition>
-          </Menu>
+          <ExportButton
+            v-if="session.canView('settings')"
+            :items="EXPORTS"
+            :scope="exportScope"
+          />
         </template>
       </div>
     </div>
@@ -270,7 +256,12 @@ const EXPORTS = [
       templates this replaced were two roles' dashboards written out by hand; a new widget is now a
       row of data and a component, and adding one needs no edit here at all.
     -->
-    <TabWidgets v-if="activeKey" :tab="activeKey" :range="range" :class="workspace ? 'min-h-0 flex-1' : ''" />
+    <TabWidgets
+      v-if="activeKey"
+      :tab="activeKey"
+      :range="range"
+      :class="workspace ? 'min-h-0 flex-1' : ''"
+    />
     <!-- Q-LM-T1: a driver holds every section at `none`, so they match no tab. They still reach this
          route, because `surfaces.ts` gates it ALWAYS and the matrix treats the Dashboard as an
          ungated nav item for them. An honest empty state is the answer until somebody decides what a
@@ -278,7 +269,9 @@ const EXPORTS = [
     <BaseCard v-else as="section">
       <div class="flex min-h-64 flex-col items-center justify-center gap-2 text-center">
         <h2 class="text-lg font-semibold text-ink">Nothing to show here yet</h2>
-        <p class="max-w-md text-sm text-ink-muted">Your account does not have a dashboard view. Use the menu to reach your work.</p>
+        <p class="max-w-md text-sm text-ink-muted">
+          Your account does not have a dashboard view. Use the menu to reach your work.
+        </p>
       </div>
     </BaseCard>
   </div>

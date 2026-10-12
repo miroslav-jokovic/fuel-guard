@@ -70,7 +70,7 @@ const shown = computed(() =>
       Couldn't load the buying habits. Reload to try again.
     </p>
     <BaseCard v-else padding="none">
-      <DataTable :columns="columns" :rows="shown" row-key="id" :loading="loading" empty-text="No premiums paid in these months.">
+      <DataTable embedded :columns="columns" :rows="shown" row-key="id" :loading="loading" empty-text="No premiums paid in these months.">
         <template #cell-total="{ row }">
           <span class="font-medium tabular-nums text-ink">{{ row.total }}</span>
         </template>

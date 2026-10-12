@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const webSrc = join(root, "apps/web/src");
@@ -32,10 +33,262 @@ function countMatches(source, pattern) {
  * and every count it produced was inflated by however many comments happened to quote a tag.
  */
 function stripComments(source) {
+  const blank = (comment) => comment.replace(/[^\n]/g, " ");
   return source
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, "$1");
+    .replace(/<!--[\s\S]*?-->/g, blank)
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, (comment, prefix) =>
+      prefix + " ".repeat(comment.length - prefix.length),
+    );
+}
+
+/**
+ * Read the SFC template as tags rather than trying to span nested components with one regex.
+ *
+ * This is deliberately a small scanner, not a second Vue compiler: it only needs tag ancestry and
+ * quoted attributes. Respecting quotes matters because Vue expressions commonly contain `=>`, so
+ * "read until the next >" would split a perfectly valid opening tag and make structural checks
+ * depend on how a row-key accessor happened to be written.
+ */
+function templateTags(source) {
+  const start = source.indexOf("<template");
+  if (start === -1) return [];
+
+  const tags = [];
+  let cursor = start;
+  let templateDepth = 0;
+  while (cursor < source.length) {
+    const open = source.indexOf("<", cursor);
+    if (open === -1) break;
+    const marker = source[open + 1];
+    if (marker !== "/" && !/[A-Za-z]/.test(marker ?? "")) {
+      cursor = open + 1;
+      continue;
+    }
+
+    let quote = null;
+    let close = open + 1;
+    for (; close < source.length; close += 1) {
+      const char = source[close];
+      if (quote) {
+        if (char === quote) quote = null;
+      } else if (char === '"' || char === "'") quote = char;
+      else if (char === ">") break;
+    }
+    if (close >= source.length) break;
+
+    const raw = source.slice(open, close + 1);
+    const match = raw.match(/^<\/?\s*([A-Za-z][\w.-]*)/);
+    if (!match) {
+      cursor = close + 1;
+      continue;
+    }
+    const tag = {
+      name: match[1],
+      raw,
+      start: open,
+      end: close + 1,
+      closing: /^<\//.test(raw),
+      selfClosing: /\/\s*>$/.test(raw),
+    };
+    tags.push(tag);
+
+    if (tag.name === "template") {
+      if (tag.closing) templateDepth -= 1;
+      else if (!tag.selfClosing) templateDepth += 1;
+      if (templateDepth === 0) break;
+    }
+    cursor = close + 1;
+  }
+  return tags;
+}
+
+const VOID_ELEMENTS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+  "source", "track", "wbr",
+]);
+const FILTER_BAR_SLOTS = new Set(["filters", "more", "actions"]);
+const hasStaticBooleanAttribute = (tag, attribute) =>
+  new RegExp(`\\s${attribute}(?=\\s|/?>)`).test(tag);
+
+function templateStructureViolations(item) {
+  const tags = templateTags(item.source);
+  const stack = [];
+  const nestedTables = [];
+  const filterBarChildren = [];
+  const paginationOutsideFooter = [];
+  let previousEnd = tags[0]?.end ?? 0;
+  const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
+
+  for (const tag of tags.slice(1)) {
+    const parent = stack.at(-1);
+    if (parent?.name === "FilterBar" && item.source.slice(previousEnd, tag.start).trim()) {
+      filterBarChildren.push(at(previousEnd));
+    }
+
+    if (tag.closing) {
+      const match = stack.findLastIndex((entry) => entry.name === tag.name);
+      if (match !== -1) stack.splice(match);
+      previousEnd = tag.end;
+      continue;
+    }
+
+    if (parent?.name === "FilterBar") {
+      const slot = tag.name === "template"
+        ? tag.raw.match(/(?:#|v-slot:)([\w-]+)/)?.[1]
+        : undefined;
+      if (!slot || !FILTER_BAR_SLOTS.has(slot)) filterBarChildren.push(at(tag.start));
+    }
+
+    if (tag.name === "DataTable" && stack.some((entry) => entry.name === "BaseCard") &&
+        !hasStaticBooleanAttribute(tag.raw, "embedded")) {
+      nestedTables.push(at(tag.start));
+    }
+
+    if (tag.name === "TablePagination") {
+      const tableIndex = stack.findLastIndex((entry) => entry.name === "DataTable");
+      const inFooter = tableIndex !== -1 && stack.slice(tableIndex + 1).some((entry) =>
+        entry.name === "template" && /(?:#|v-slot:)footer\b/.test(entry.raw),
+      );
+      if (!inFooter) paginationOutsideFooter.push(at(tag.start));
+    }
+
+    if (!tag.selfClosing && !VOID_ELEMENTS.has(tag.name.toLowerCase())) stack.push(tag);
+    previousEnd = tag.end;
+  }
+
+  return { nestedTables, filterBarChildren, paginationOutsideFooter };
+}
+
+/**
+ * Find `key: "actions"` only in arrays actually supplied to a DataTable's `columns` prop.
+ * A plain text scan is too broad: command catalogues and router metadata may legitimately have an
+ * object whose key happens to be `actions`, and neither one declares a table column.
+ */
+function manualActionColumnViolations(item) {
+  const columnBindings = new Set();
+  for (const tag of templateTags(item.source)) {
+    if (tag.name !== "DataTable" || tag.closing) continue;
+    const value = tag.raw.match(/\s:columns\s*=\s*["']([^"']+)["']/)?.[1];
+    if (value) {
+      const expression = ts.createSourceFile(
+        "columns.ts",
+        `const __columns = (${value});`,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS,
+      );
+      const collect = (node) => {
+        if (ts.isIdentifier(node)) columnBindings.add(node.text);
+        ts.forEachChild(node, collect);
+      };
+      const declaration = expression.statements[0]?.declarationList?.declarations?.[0];
+      if (declaration?.initializer) collect(declaration.initializer);
+    } else if (/\s:columns(?=\s|\/?>)/.test(tag.raw)) columnBindings.add("columns");
+  }
+  if (!columnBindings.size) return [];
+
+  const scriptOpen = item.source.match(/<script\b[^>]*>/);
+  if (!scriptOpen || scriptOpen.index == null) return [];
+  const scriptStart = scriptOpen.index + scriptOpen[0].length;
+  const scriptEnd = item.source.indexOf("</script>", scriptStart);
+  if (scriptEnd === -1) return [];
+  const script = item.source.slice(scriptStart, scriptEnd);
+  const sourceFile = ts.createSourceFile(
+    item.relativePath,
+    script,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const violations = [];
+  const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
+
+  const actionKeyInColumnArray = (initializer) => {
+    let actionKey = null;
+    const visit = (node) => {
+      if (actionKey) return;
+      if (ts.isObjectLiteralExpression(node) && ts.isArrayLiteralExpression(node.parent)) {
+        for (const property of node.properties) {
+          if (!ts.isPropertyAssignment(property)) continue;
+          const propertyName = ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)
+            ? property.name.text
+            : property.name?.getText(sourceFile);
+          if (propertyName !== "key") continue;
+          if (ts.isStringLiteralLike(property.initializer) && property.initializer.text === "actions") {
+            actionKey = property.initializer;
+            return;
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(initializer);
+    return actionKey;
+  };
+
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+        columnBindings.has(node.name.text) && node.initializer) {
+      const actionKey = actionKeyInColumnArray(node.initializer);
+      if (actionKey) violations.push(at(scriptStart + actionKey.getStart(sourceFile)));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return violations;
+}
+
+function structureCheckerSelfTest() {
+  const item = {
+    relativePath: "self-test.vue",
+    source: stripComments(`<script setup lang="ts">
+      const columns = [{ key: "name", label: "Name" }, { key: "actions", label: "" }];
+      const unrelated = { key: "actions", command: "archive" };
+    </script>
+    <!-- This multiline comment must not shift the diagnostic lines below.
+         It deliberately occupies two lines. -->
+    <template>
+      <div>
+        <BaseCard><DataTable :row-key="(row) => row.id" /></BaseCard>
+        <BaseCard><DataTable :embedded="false" /></BaseCard>
+        <BaseCard><DataTable :embedded="isCompact" /></BaseCard>
+        <BaseCard><DataTable not-embedded /></BaseCard>
+        <BaseCard><DataTable embedded /></BaseCard>
+        <FilterBar><AppSegmentedControl /></FilterBar>
+        <DataTable :columns="columns"><template #footer><TablePagination /></template></DataTable>
+        <TablePagination />
+      </div>
+    </template>`),
+  };
+  const result = templateStructureViolations(item);
+  const actionColumns = manualActionColumnViolations(item);
+  const legitimateItem = {
+    relativePath: "legitimate-self-test.vue",
+    source: `<script setup lang="ts">
+      const columns = [{ key: "name", label: "Name" }];
+      const unrelated = { key: "actions", command: "archive" };
+    </script>
+    <template><DataTable :columns="columns" /></template>`,
+  };
+  const passed = JSON.stringify(result.nestedTables) === JSON.stringify([
+    "self-test.vue:9",
+    "self-test.vue:10",
+    "self-test.vue:11",
+    "self-test.vue:12",
+  ]) &&
+    result.filterBarChildren[0] === "self-test.vue:14" &&
+    result.paginationOutsideFooter[0] === "self-test.vue:16" &&
+    actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
+    manualActionColumnViolations(legitimateItem).length === 0;
+  if (!passed) {
+    console.error("UI structure checker regression fixture details:", {
+      ...result,
+      actionColumns,
+      legitimateActionColumns: manualActionColumnViolations(legitimateItem),
+    });
+  }
+  return passed;
 }
 
 function inspectFiles(files) {
@@ -60,6 +313,11 @@ const pagesAndFeatures = webVue.filter(
     item.relativePath.startsWith("apps/web/src/pages/") ||
     item.relativePath.startsWith("apps/web/src/features/"),
 );
+const structureViolations = pagesAndFeatures.map(templateStructureViolations);
+const nestedTables = structureViolations.flatMap((item) => item.nestedTables);
+const filterBarChildren = structureViolations.flatMap((item) => item.filterBarChildren);
+const paginationOutsideFooter = structureViolations.flatMap((item) => item.paginationOutsideFooter);
+const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
  * Pages whose ROUTE asks for the full-bleed outlet (D-DR5, DESIGN-REFRESH-2026-09.md §4).
@@ -195,6 +453,7 @@ function verifyAdoption() {
     "legal/SmsTermsPage.vue",
   ]);
   const failures = [];
+  if (!structureCheckerSelfTest()) failures.push("UI structure checker failed its regression fixture");
   const missingHeaders = pageAdoption
     .filter((page) => !page.pageHeader && !page.fullBleed && !allowedHeaderExceptions.has(page.page))
     .map((page) => page.page);
@@ -212,6 +471,14 @@ function verifyAdoption() {
     failures.push(`${inventory.summary.rawAdminTables} raw admin tables`);
   if (inventory.summary.inkSubtleUtilities)
     failures.push(`${inventory.summary.inkSubtleUtilities} deprecated text-ink-subtle utilities`);
+  if (nestedTables.length)
+    failures.push(`non-embedded DataTable nested in BaseCard: ${nestedTables.join(", ")}`);
+  if (filterBarChildren.length)
+    failures.push(`FilterBar content outside #filters/#more/#actions: ${filterBarChildren.join(", ")}`);
+  if (paginationOutsideFooter.length)
+    failures.push(`TablePagination outside DataTable #footer: ${paginationOutsideFooter.join(", ")}`);
+  if (manualActionColumns.length)
+    failures.push(`manual DataTable actions columns (use #actions): ${manualActionColumns.join(", ")}`);
 
   const cloneNames = [
     "BaseButton.vue",

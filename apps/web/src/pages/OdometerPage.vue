@@ -8,6 +8,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
@@ -134,12 +135,14 @@ const columns: DataTableColumn[] = [
          daily odometer tier — this table is empty for a fill telematics has not reached. -->
     <SamsaraFeedLine :feeds="['telematics']" />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck or driver…"
-      :count="filtered.length"
-      count-label="readings"
-    >
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search truck or driver…"
+        :count="filtered.length"
+        count-label="readings"
+      >
       <template #filters>
         <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v)" @update:to="(v) => (to = v)" />
@@ -147,19 +150,20 @@ const columns: DataTableColumn[] = [
       <template #actions>
         <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
-    </FilterBar>
+      </FilterBar>
 
-    <DataTable
-      :columns="columns"
-      :rows="paged"
-      row-key="id"
-      :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-      :retrying="isFetching"
-      :sort="sort"
-      @sort="onSort($event)"
-      @retry="refetch"
-    >
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="paged"
+        row-key="id"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :retrying="isFetching"
+        :sort="sort"
+        @sort="onSort($event)"
+        @retry="refetch"
+      >
       <template #empty>
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
         <p class="mt-1 text-ink-tertiary">
@@ -194,7 +198,8 @@ const columns: DataTableColumn[] = [
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
-    </DataTable>
+      </DataTable>
+    </DataWorkspace>
 
     <!-- Repeat offenders (drivers who most often mis-enter the odometer) — coaching list, not alerts. -->
     <BaseCard v-if="offenders.length > 1" padding="sm">

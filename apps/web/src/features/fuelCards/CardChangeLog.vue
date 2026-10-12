@@ -7,6 +7,7 @@ import {
   type CardMutationStatus,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -116,8 +117,9 @@ const columns: DataTableColumn[] = [
 </script>
 
 <template>
-  <div class="space-y-4">
+  <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search card, unit or driver…"
       :count="total"
@@ -137,6 +139,7 @@ const columns: DataTableColumn[] = [
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
@@ -181,5 +184,5 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
-  </div>
+  </DataWorkspace>
 </template>

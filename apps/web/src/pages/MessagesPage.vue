@@ -143,7 +143,7 @@ function timeLabel(iso: string): string {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-6">
     <PageHeader description="Driver conversations — the last 90 days. Messages can't be deleted; they're part of the record.">
       <template #actions>
         <BaseButton @click="composing = !composing">{{ composing ? "Cancel" : "New message" }}</BaseButton>

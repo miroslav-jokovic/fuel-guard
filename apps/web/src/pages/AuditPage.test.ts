@@ -62,6 +62,26 @@ beforeEach(() => {
 });
 
 describe("the Audit log page (SP4)", () => {
+  it("switches the canonical tabs and exposes the matching labelled panel", async () => {
+    const w = await page();
+    expect(w.get('[role="tab"][aria-selected="true"]').text()).toBe("Activity");
+    expect(w.get("#audit-panel-activity").attributes("aria-labelledby")).toBe("audit-tab-activity");
+
+    await button(w, "Card changes").trigger("click");
+
+    expect(w.get('[role="tab"][aria-selected="true"]').text()).toBe("Card changes");
+    expect(w.get("#audit-panel-cards").attributes("aria-labelledby")).toBe("audit-tab-cards");
+    expect(w.find("#audit-panel-activity").exists()).toBe(false);
+  });
+
+  it("keeps the activity toolbar and table in one data workspace", async () => {
+    const w = await page();
+    const workspace = w.find("section.divide-y");
+    expect(workspace.exists()).toBe(true);
+    expect(workspace.find('input[type="search"], input').exists()).toBe(true);
+    expect(workspace.text()).toContain("No audit entries.");
+  });
+
   it("reads the API, not PostgREST, and says it has nothing when there is nothing", async () => {
     const w = await page();
     expect(state.urls).toEqual(["/api/audit/log?"]);

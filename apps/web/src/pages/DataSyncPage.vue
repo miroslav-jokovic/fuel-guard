@@ -412,7 +412,7 @@ const integrity = computed(() => {
         </p>
 
         <div v-if="coverage.byMonth.length" class="mt-4">
-          <DataTable :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
+          <DataTable embedded :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
             <template #cell-month="{ row }">{{ monthLabel(row.month) }}</template>
             <template #cell-noData="{ row }">
               <span :class="row.noData ? 'text-warning-600' : 'text-ink-tertiary'">{{ row.noData.toLocaleString() }}</span>

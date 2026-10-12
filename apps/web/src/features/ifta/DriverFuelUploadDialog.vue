@@ -225,7 +225,7 @@ const uploadCols: DataTableColumn[] = [
         </div>
 
         <BaseCard padding="none">
-          <DataTable :columns="previewCols" :rows="previewRows" row-key="id" empty-text="No fills in this file.">
+          <DataTable embedded :columns="previewCols" :rows="previewRows" row-key="id" empty-text="No fills in this file.">
             <template #cell-truck="{ row }">
               {{ row.truck }}
               <span v-if="row.basis" class="block text-xs text-ink-tertiary">{{ row.basis }}</span>
@@ -244,7 +244,7 @@ const uploadCols: DataTableColumn[] = [
       <section class="space-y-2">
         <h3 class="text-sm font-semibold text-ink">Uploads so far</h3>
         <BaseCard padding="none">
-          <DataTable :columns="uploadCols" :rows="uploadRows" row-key="id" empty-text="Nothing uploaded yet.">
+          <DataTable embedded :columns="uploadCols" :rows="uploadRows" row-key="id" empty-text="Nothing uploaded yet.">
             <template #cell-state="{ row }">
               <span v-if="!row.live" class="text-xs text-ink-tertiary">{{ row.state }}</span>
               <BaseButton v-else-if="canManage" size="sm" variant="ghost" @click="undoing = String(row.id)">Undo</BaseButton>

@@ -3,6 +3,8 @@ import { ref } from "vue";
 import { mount } from "@vue/test-utils";
 import type { DqAttentionItem, DriverOverviewRow } from "@silvicom/shared";
 import QualificationFleetTable from "@/features/compliance/QualificationFleetTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 
 /**
  * The fleet table's filter semantics — pinned BEFORE R4b moves them into `@silvicom/shared`.
@@ -90,6 +92,13 @@ const namesFor = async (stateFilter: string, dueFilter: string): Promise<string[
 };
 
 describe("QualificationFleetTable — the filter vocabulary R4b promotes", () => {
+  it("keeps its toolbar, context rows and table in one embedded data workspace", () => {
+    const workspace = mountTable().getComponent(DataWorkspace);
+
+    expect(workspace.getComponent(FilterBar).props("embedded")).toBe(true);
+    expect(workspace.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
+  });
+
   it("shows every driver when nothing is filtered", async () => {
     expect(await namesFor("", "")).toHaveLength(DRIVERS.length);
   });

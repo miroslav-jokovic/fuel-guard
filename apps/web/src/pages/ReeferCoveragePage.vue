@@ -10,6 +10,7 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDate } from "@/lib/format";
 
@@ -129,20 +130,6 @@ const columns: DataTableColumn[] = [
       Reefer (ULSR) fuel by truck over the last 90 days<template v-if="median != null"> — fleet median {{ median }}% reefer share</template>.
     </PageHeader>
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck, trailer or driver…"
-      :count="active.length"
-      count-label="trucks"
-    >
-      <template #filters>
-        <FilterSelect v-model="pairing" label="Pairing" :options="pairingOptions" />
-      </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-      </template>
-    </FilterBar>
-
     <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
     <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
       <p class="font-medium">No reefer trailers are paired to trucks yet.</p>
@@ -155,16 +142,33 @@ const columns: DataTableColumn[] = [
       </p>
     </div>
 
-    <DataTable
-      :columns="columns"
-      :rows="active"
-      row-key="vehicleId"
-      :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-      :retrying="isFetching"
-      empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
-      @retry="refetch"
-    >
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search truck, trailer or driver…"
+        :count="active.length"
+        count-label="trucks"
+      >
+      <template #filters>
+        <FilterSelect v-model="pairing" label="Pairing" :options="pairingOptions" />
+      </template>
+      <template #actions>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+      </template>
+      </FilterBar>
+
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="active"
+        row-key="vehicleId"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :retrying="isFetching"
+        empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
+        @retry="refetch"
+      >
       <template #cell-vehicleId="{ row }">{{ unit(row.vehicleId) }}</template>
       <template #cell-trailer="{ row }">
         <span :class="trailerFor(row.vehicleId).tone" :title="trailerFor(row.vehicleId).title">{{ trailerFor(row.vehicleId).text }}</span>
@@ -186,6 +190,7 @@ const columns: DataTableColumn[] = [
         <span :class="staleTone(value)">{{ value ?? "—" }}</span>
       </template>
       <template #cell-primaryDriverId="{ row }">{{ driverName(row.primaryDriverId) }}</template>
-    </DataTable>
+      </DataTable>
+    </DataWorkspace>
   </div>
 </template>

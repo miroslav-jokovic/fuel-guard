@@ -73,7 +73,7 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 
 | Component | Props (defaults) | Slots / events | What it is FOR |
 |---|---|---|---|
-| **`PageHeader.vue`** | `description?: string` | default (overrides description), `#actions` | The **first row of every page**. The page *title* is NOT here — it lives in the AppShell top bar from `route.meta.title`. This is only a muted one-line description + right-aligned actions. |
+| **`PageHeader.vue`** | `title?: string`, `description?: string` | default (overrides description), `#freshness`, `#actions` | The **first row of every page**. It owns the page `<h1>`: `title` overrides `route.meta.title`, with `"Silvicom 360"` only as a final fallback. Below it are the breadcrumb, optional muted description/freshness, and right-aligned actions. |
 | **`DataWorkspace.vue`** | `as?` | default | The **list-page shell** (see §5.2b): one `AppCard padding="none"` with `divide-y divide-edge-subtle`, holding an `embedded` FilterBar row above an `embedded` DataTable. |
 | **`SettingsSection.vue`** | see source | — | Settings-page section wrapper. |
 | **`FilterSelect.vue`** (156 ln) | `modelValue: string`, `options`, `label: string`, `disabled?`, `block?` | — | The **toolbar** filter. Trigger reads `"Risk ▾"` idle / `"Risk: Review ✕"` active with a brand tint (`bg-brand-50/60 text-brand-800 ring-brand-600/30`). `""` option = "no filter". Auto-adds an inline search box when `options.length > 8`. `block` = full width, for use inside the FilterBar `#more` popover. |
@@ -434,9 +434,10 @@ export interface DataTableColumn {
   key: string;
   label: string;
   sortable?: boolean;
-  numeric?: boolean;                       // adds tabular-nums — does NOT right-align
+  numeric?: boolean;                       // right-aligns and adds tabular-nums
   align?: "left" | "right" | "center";
-  headerClass?: string;                    // widths live here: "min-w-[8rem]" / "w-32"
+  width?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
+  headerClass?: string;                    // non-scale overrides only (for example `w-32`)
   cellClass?: string;                      // tone/truncation overrides
 }
 ```
@@ -455,8 +456,10 @@ Behaviour it owns, so you don't:
   non-embedded DataTable draws a card inside a card (this shipped twice in recruitment before R0b
   caught it).
 - **State precedence** (`:150-157`): `loading` → `<TableSkeleton :cols="…">`; else `error` → `<ErrorState :message :retrying @retry>`; else `rows.length === 0` → `<div class="px-6 py-10 text-center text-sm text-ink-muted">{{ emptyText }}</div>`; else the table + `#footer`. **The footer/pagination does not render in any of the three non-happy states.**
-- **Alignment** (`:128-129`): `align === "left" → text-left`, `align === "right" → text-right`, **everything else → `text-center`**. This is deliberate (commit `5c5449b` "uniform center-aligned grid"). ⚠️ **Landmine:** `numeric: true` only adds `tabular-nums`; it does **not** right-align. The docblock at `DataTable.vue:29-31` and `docs/DESIGN-SYSTEM.md §3` both still claim "text left, numeric right" and are **stale**.
-  **Rule: omit `align` entirely.** 20+ pages do. The four that pass `align: "left"` (CompliancePage, HazmatLoadsPage, HazmatEquipmentPage, HazmatReviewPage) are a visible fork.
+- **Alignment**: text columns left-align by default. `numeric: true` right-aligns and adds
+  `tabular-nums`; headers follow the same alignment as their cells. An explicit `align` overrides
+  that inference, and `align: "center"` is reserved for control columns such as a checkbox, icon or
+  status dot. **Rule: omit `align` for ordinary text and quantities.**
 - **Padding** (`:131-140`): `px-4 py-3`, or `px-4 py-2` when `dense`. First column gets `pl-6` (unless `selectable`); last gets `pr-6` (unless there's an actions column).
 - **Header**: `bg-surface-subtle text-ink-muted shadow-[inset_0_-1px_0_0_var(--edge)]`, `sticky top-0 z-10` inside a `max-h-[70vh] overflow-y-auto` scroller. Sortable headers are a `<button class="group inline-flex items-center gap-1 hover:text-ink-secondary">` with `ChevronUp`/`ChevronDown`/`ChevronUpDown` at `size-3.5`.
 - **Body**: `divide-y divide-edge-subtle`; rows `hover:bg-surface-subtle`; selected rows `bg-brand-50/40`.
@@ -735,7 +738,7 @@ All of these pass `lint:tokens`. They are structural and typographic violations,
 |---|---|
 | `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | Hand-rolled `rounded-full px-2(.5) py-0.5 text-xs font-medium` badges. Badges are `BADGE_BASE + toneClass` and `rounded-detail`, never `rounded-full`. |
 | `features/hazmat/ReviewPanel.vue:161`, `features/anomalies/AnomalyDetail.vue:297`, `features/settings/EfsClientCertCard.vue:232,242,259` | The full `BaseInput`/textarea class string copy-pasted inline (including `focus:ring-brand-500` — the system's focus ring is `brand-600`). |
-| `docs/DESIGN-SYSTEM.md` §2, §3 | Stale: lists `TableToolbar` and `SortableTh` (deleted), says DataTable is "text left; `numeric` right" (it centres by default and `numeric` does not right-align), and says FilterBar search is `w-72` (it is `w-full lg:w-64`). `DataTable.vue` carries the same stale alignment claim in its docblock. |
+| Legacy table guidance | Do not use the deleted `TableToolbar` or `SortableTh` patterns, or the former `w-72` FilterBar search width. The current FilterBar search is `w-full lg:w-64`; for table alignment use §5.2 above: text defaults left and `numeric` defaults right with tabular figures. |
 
 ### 8.3 Vocabulary rule the compliance rewrite established (D4)
 
@@ -743,14 +746,14 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 
 ## Quick checklist for a new list page
 
-1. Root `<div class="space-y-6">`. Title comes from `route.meta.title` — do not render an `<h1>`.
+1. Root `<div class="space-y-6">`. `PageHeader` renders the `<h1>` from `route.meta.title` (or its explicit `title` prop) — do not render a second `<h1>`.
 2. `<PageHeader description="One or two sentences.">` + `#actions` with at most one `variant="primary"`.
 3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove` + `@clear-all`.
-4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Widths in `headerClass`. Tone in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
+4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Use the named `width` scale; reserve `headerClass` for exceptional fixed-width controls. Tone belongs in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
 5. `<DataTable :columns :rows="pageRows" embedded row-key="id" :loading :error :retrying :sort :empty-text @sort @retry>` — never hand-roll loading/error/empty, and never wrap it in a card of your own.
 6. `#actions` → `<KebabMenu v-if="session.canManage">` with `.kebab-item` buttons, destructive last with `.kebab-item-danger`.
 7. `#footer` → `<TablePagination :page :page-size="PAGE_SIZE" :total="filtered.length" @update:page>`; `watch` every filter to reset `page` to 1.
 8. Badges only via `BADGE_BASE + toneClass` / `StatusBadge`.
 9. Drawer via `<SlideOver>`; actions in `#footer`; body sections `space-y-6` with `h3.text-sm.font-semibold.text-ink`.
 10. Mutations: `try { await mutateAsync(); toast.success("Thing updated"); } catch (e) { toast.error("Could not save thing", e instanceof Error ? e.message : undefined); }`
-11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption` — between them they catch colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones and `text-ink-subtle`. The remaining structural rules above are on you.
+11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.

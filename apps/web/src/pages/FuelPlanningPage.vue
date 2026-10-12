@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   ArrowPathIcon,
 } from "@silvicom/ui/icons";
 import { ref, watch, computed } from "vue";
 import { planFlagCopy } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
 import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
@@ -20,6 +19,10 @@ import { useToastStore } from "@/stores/toast";
 
 const plan = useFuelPlan();
 const activeTab = ref<"plan" | "history">("plan");
+const tabs: TabItem[] = [
+  { value: "plan", label: "Plan" },
+  { value: "history", label: "History" },
+];
 const toast = useToastStore();
 const formRef = ref<InstanceType<typeof FuelPlanForm> | null>(null);
 const result = ref<PlanResult | null>(null);
@@ -90,59 +93,59 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
       </template>
     </PageHeader>
 
-    <div class="flex w-fit gap-1 rounded-surface bg-surface-muted p-1 text-sm">
-      <BaseButton
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'plan' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="activeTab = 'plan'"
-      >Plan</BaseButton>
-      <BaseButton
-        class="rounded-control px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'history' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        @click="activeTab = 'history'"
-      >History</BaseButton>
+    <AppTabs v-model="activeTab" :tabs="tabs" label="Fuel planning views" id-prefix="fuel-planning" />
+
+    <div
+      v-show="activeTab === 'plan'"
+      id="fuel-planning-panel-plan"
+      role="tabpanel"
+      aria-labelledby="fuel-planning-tab-plan"
+      class="space-y-6"
+    >
+      <FuelPlanForm ref="formRef" :loading="plan.isPending.value" @submit="onSubmit" />
+
+      <template v-if="result">
+        <PlanStatusBanner :status="result.status" :message="result.message" />
+        <ManualTelematicsPanel
+          v-if="result.status === 'telematics_unavailable'"
+          :message="result.message"
+          :loading="plan.isPending.value"
+          @submit="onManualSubmit"
+        />
+        <ul v-if="notes.length" class="space-y-1 rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
+          <li v-for="n in notes" :key="n.flag">{{ n.text }}</li>
+        </ul>
+        <FuelPlanSummary v-if="result.plan" :result="result" />
+        <RouteSummary
+          v-if="result.route"
+          :route="result.route"
+          :origin="routeLabels?.origin"
+          :destination="routeLabels?.destination"
+          :waypoints="routeLabels?.waypoints"
+          :stop-count="result.plan?.stops.length"
+          :truck="result.truck"
+          :break-advice="result.breakAdvice"
+        />
+        <RouteMap v-if="result.route" :route="result.route" :stops="(result.plan?.stops ?? []).filter((s) => s.kind === 'fuel')" :origin="result.origin" :destination="result.destination" />
+        <TripPlan
+          v-if="result.plan && result.route"
+          :stops="result.plan.stops"
+          :origin="routeLabels?.origin"
+          :destination="routeLabels?.destination"
+          :start-fuel-pct="result.truck?.fuelPct ?? null"
+          :tank-capacity-gal="result.truck?.tankCapacityGal ?? null"
+          :distance-miles="result.route.distanceMiles"
+          :arrival-fuel-pct="result.plan.arrivalFuelPct"
+          :directions="result.route.directions"
+        />
+      </template>
     </div>
 
-    <div v-show="activeTab === 'plan'" class="space-y-6">
-    <FuelPlanForm ref="formRef" :loading="plan.isPending.value" @submit="onSubmit" />
-
-    <template v-if="result">
-      <PlanStatusBanner :status="result.status" :message="result.message" />
-      <ManualTelematicsPanel
-        v-if="result.status === 'telematics_unavailable'"
-        :message="result.message"
-        :loading="plan.isPending.value"
-        @submit="onManualSubmit"
-      />
-      <ul v-if="notes.length" class="space-y-1 rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
-        <li v-for="n in notes" :key="n.flag">{{ n.text }}</li>
-      </ul>
-      <FuelPlanSummary v-if="result.plan" :result="result" />
-      <RouteSummary
-        v-if="result.route"
-        :route="result.route"
-        :origin="routeLabels?.origin"
-        :destination="routeLabels?.destination"
-        :waypoints="routeLabels?.waypoints"
-        :stop-count="result.plan?.stops.length"
-        :truck="result.truck"
-        :break-advice="result.breakAdvice"
-      />
-      <RouteMap v-if="result.route" :route="result.route" :stops="(result.plan?.stops ?? []).filter((s) => s.kind === 'fuel')" :origin="result.origin" :destination="result.destination" />
-      <TripPlan
-        v-if="result.plan && result.route"
-        :stops="result.plan.stops"
-        :origin="routeLabels?.origin"
-        :destination="routeLabels?.destination"
-        :start-fuel-pct="result.truck?.fuelPct ?? null"
-        :tank-capacity-gal="result.truck?.tankCapacityGal ?? null"
-        :distance-miles="result.route.distanceMiles"
-        :arrival-fuel-pct="result.plan.arrivalFuelPct"
-        :directions="result.route.directions"
-      />
-    </template>
-    </div>
-
-    <PlanHistory v-show="activeTab === 'history'" />
+    <PlanHistory
+      v-show="activeTab === 'history'"
+      id="fuel-planning-panel-history"
+      role="tabpanel"
+      aria-labelledby="fuel-planning-tab-history"
+    />
   </div>
 </template>

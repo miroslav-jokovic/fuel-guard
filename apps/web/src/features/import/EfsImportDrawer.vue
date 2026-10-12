@@ -276,6 +276,7 @@ const previewTotal = (p: ImportPreview) =>
               Preview (first {{ Math.min(previewTotal(preview), 10) }} of {{ previewTotal(preview) }})
             </p>
             <DataTable
+              embedded
               dense
               :sticky-header="false"
               :columns="preview.kind === 'transaction' ? txnColumns : rejColumns"

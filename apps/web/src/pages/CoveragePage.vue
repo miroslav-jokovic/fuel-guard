@@ -4,6 +4,7 @@ import { RouterLink } from "vue-router";
 import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -217,18 +218,20 @@ const columns: DataTableColumn[] = [
       </div>
     </BaseCard>
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck…"
-      :count="filtered.length"
-      count-label="trucks"
-    />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search truck…"
+        :count="filtered.length"
+        count-label="trucks"
+      />
 
-    <div class="space-y-2">
-      <p v-if="!isLoading && !isError && trucks.length > 0" class="text-xs text-ink-muted">
+      <p v-if="!isLoading && !isError && trucks.length > 0" class="px-4 py-3 text-xs text-ink-muted">
         Trucks with the most unmatched fills first. These are where the checks are weakest.
       </p>
       <DataTable
+        embedded
         :columns="columns"
         :rows="paged"
         row-key="vehicleId"
@@ -270,6 +273,6 @@ const columns: DataTableColumn[] = [
           />
         </template>
       </DataTable>
-    </div>
+    </DataWorkspace>
   </div>
 </template>

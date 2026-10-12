@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { downloadCsv } from "@/lib/csv";
+import ExportButton from "@/components/ExportButton.vue";
 import { usd, usd3, gal, pct1 } from "./format";
 import PriceCoverageStrip from "./PriceCoverageStrip.vue";
 
@@ -214,11 +215,15 @@ function exportLines() {
             <span v-if="capture.exceptions.length > EXCEPTION_CAP" class="text-2xs text-ink-tertiary">
               showing {{ EXCEPTION_CAP }} of {{ capture.exceptions.length.toLocaleString() }}
             </span>
-            <BaseButton variant="ghost" @click="exportLines">Download every exception (CSV)</BaseButton>
+            <ExportButton
+              :run="exportLines"
+              :scope="`${capture.exceptions.length.toLocaleString()} exceptions`"
+              label="Download every exception (CSV)"
+            />
           </div>
         </div>
         <BaseCard padding="none">
-          <DataTable :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
+          <DataTable embedded :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
         </BaseCard>
       </div>
 
@@ -230,7 +235,7 @@ function exportLines() {
           </span>
         </div>
         <BaseCard padding="none">
-          <DataTable :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
+          <DataTable embedded :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
         </BaseCard>
       </div>
 

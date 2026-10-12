@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -10,6 +10,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
@@ -198,20 +200,14 @@ const boughtSub = computed(() => {
       :description="`Every truck that drove or bought fuel in ${name} in ${quarterLabel(quarter)}: its miles there and its fills there.`"
     />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck…"
-      :count="listedTrucks"
-      count-label="trucks"
+    <ReportScopeBar
+      title="Reporting quarter"
+      description="The summary and truck detail use this filing period."
     >
-      <template #filters>
+      <template #control>
         <FilterSelect v-model="selectedKey" :options="quarterOptions" label="Quarter" />
-        <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
       </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-      </template>
-    </FilterBar>
+    </ReportScopeBar>
 
     <AppCallout v-if="isError" tone="danger">
       Couldn't load {{ name }}: {{ error instanceof Error ? error.message : "unknown error" }}
@@ -225,13 +221,29 @@ const boughtSub = computed(() => {
         <StatCard label="Trucks" :value="truckCount.toLocaleString('en-US')" :sub="`drove or fuelled in ${name}`" />
       </div>
 
-      <p v-if="data && listedTrucks !== truckCount" class="text-xs text-ink-tertiary" data-testid="narrower">
-        Listing {{ listedTrucks.toLocaleString("en-US") }} of {{ truckCount.toLocaleString("en-US") }} trucks. The
-        figures above are the whole of {{ name }} for the quarter.
-      </p>
+      <DataWorkspace>
+        <FilterBar
+          v-model:search="search"
+          embedded
+          search-placeholder="Search truck…"
+          :count="listedTrucks"
+          count-label="trucks"
+        >
+          <template #filters>
+            <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
+          </template>
+          <template #actions>
+            <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+          </template>
+        </FilterBar>
 
-      <BaseCard padding="none">
+        <p v-if="data && listedTrucks !== truckCount" class="px-4 py-3 text-xs text-ink-tertiary" data-testid="narrower">
+          Listing {{ listedTrucks.toLocaleString("en-US") }} of {{ truckCount.toLocaleString("en-US") }} trucks. The
+          figures above are the whole of {{ name }} for the quarter.
+        </p>
+
         <DataTable
+          embedded
           :columns="cols"
           :rows="paged"
           row-key="id"
@@ -286,7 +298,7 @@ const boughtSub = computed(() => {
             <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
           </template>
         </DataTable>
-      </BaseCard>
+      </DataWorkspace>
 
       <p class="text-xs text-ink-tertiary">
         Miles are Samsara's monthly jurisdiction report for each truck, added up over the quarter. Fills are
