@@ -15,7 +15,7 @@ import WhoHasAccessTab from "./WhoHasAccessTab.vue";
  * pinned here is that the tab SHOWS them: holders apart from non-holders, the layer tag on each, the
  * suspended apart from both, an empty list that says so, and an export that goes to the API.
  */
-const state = vi.hoisted(() => ({ data: null as unknown, pending: false }));
+const state = vi.hoisted(() => ({ data: null as unknown, pending: false, failed: false, refetches: 0 }));
 const calls = vi.hoisted(() => ({ downloads: 0, fail: null as string | null, stepUp: false }));
 const toasts = vi.hoisted(() => ({ success: [] as string[], error: [] as string[] }));
 
@@ -25,6 +25,10 @@ vi.mock("./useAccessReview", async () => {
     useAccessReviewQuery: () => ({
       data: computed(() => state.data),
       isPending: ref(state.pending),
+      isError: ref(state.failed),
+      error: ref(state.failed ? new Error("boom") : null),
+      isFetching: ref(false),
+      refetch: () => { state.refetches++; },
     }),
     downloadAccessReview: vi.fn(async () => {
       calls.downloads++;
@@ -122,6 +126,8 @@ beforeEach(() => {
   setActivePinia(createPinia());
   state.data = fixture();
   state.pending = false;
+  state.failed = false;
+  state.refetches = 0;
   calls.downloads = 0;
   calls.fail = null;
   toasts.success = [];
@@ -129,6 +135,16 @@ beforeEach(() => {
 });
 
 describe("Who has access", () => {
+  it("says the review could not load and reads it again on Retry, keeping the page (D-US5)", async () => {
+    state.failed = true;
+    state.data = undefined;
+    const w = mountTab();
+    expect(w.get("[role=alert]").text()).toContain("Could not load who has access.");
+    expect(w.text()).not.toContain("Reload the page");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(state.refetches).toBe(1);
+  });
+
   it("asks for a pick first and offers every section and reviewed screen", async () => {
     const w = mountTab();
     expect(w.text()).toContain("Pick a screen or section");

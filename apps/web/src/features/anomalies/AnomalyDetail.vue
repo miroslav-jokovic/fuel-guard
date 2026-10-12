@@ -9,6 +9,7 @@ import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
 import { computed } from "vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const DETAIL_TABS: TabItem[] = [
@@ -20,9 +21,10 @@ const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const {
-  txn, transition,
+  txn, txnLoading, txnError, txnFetching, refetchTxn, transition,
   caseSignals, isCase, caseScore, caseLevel, caseAxes, evidenceRows,
   hasCardSignal, cardRef, windowHours, siblingFills, siblingLoading,
+  siblingError, siblingFetching, refetchSiblings,
   driverName, unitNumber, vehicleDesc,
   tab, orgTz, odometerOffset,
   axisClass, weightBarClass,
@@ -90,6 +92,7 @@ const thisFillClass = (row: { id: string }) =>
     <EntityHistory :anomaly-id="anomaly.id" />
 
     <!-- ② Case score banner (theft_case only) -->
+    <!-- ui-adoption: not-a-notice — the case score meter (bar, threshold, axis chips), a measurement on a tint rather than a sentence about the page. -->
     <div
       v-if="isCase && caseScore != null"
       class="flex flex-wrap items-center gap-4 rounded-surface bg-warning-50 px-4 py-3 ring-1 ring-warning-200"
@@ -129,8 +132,18 @@ const thisFillClass = (row: { id: string }) =>
       role="tabpanel"
       aria-labelledby="anomaly-detail-tab-audit"
     >
-      <AnomalyAudit v-if="txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
-      <p v-else class="text-sm text-ink-tertiary italic">Loading transaction…</p>
+      <QueryState
+        compact
+        :loading="txnLoading"
+        :error="txnError"
+        :retrying="txnFetching"
+        loading-text="Loading the transaction…"
+        error-text="Could not load the transaction."
+        @retry="refetchTxn()"
+      >
+        <AnomalyAudit v-if="txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
+        <p v-else class="text-sm text-ink-tertiary italic">No fuel transaction is linked to this anomaly.</p>
+      </QueryState>
     </div>
 
     <!-- OVERVIEW TAB -->
@@ -194,10 +207,30 @@ const thisFillClass = (row: { id: string }) =>
         <span class="text-xs text-ink-tertiary">· ±{{ windowHours }}h window</span>
       </div>
 
-      <p v-if="!txn" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
-      <p v-else-if="!cardRef" class="text-sm text-ink-tertiary italic">No card reference on this transaction.</p>
-      <p v-else-if="siblingLoading" class="text-sm text-ink-tertiary">Loading related fills…</p>
-      <p v-else-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
+      <!-- Two reads in a row: the transaction gives the card, the card gives its sibling fills. Each
+           has its own Retry, so a failed sibling scan does not send the reviewer back to reload the
+           whole drawer (D-US5). -->
+      <QueryState
+        compact
+        :loading="txnLoading"
+        :error="txnError"
+        :retrying="txnFetching"
+        loading-text="Loading the transaction…"
+        error-text="Could not load the transaction."
+        @retry="refetchTxn()"
+      >
+      <p v-if="!cardRef" class="text-sm text-ink-tertiary italic">No card reference on this transaction.</p>
+      <QueryState
+        v-else
+        compact
+        :loading="siblingLoading"
+        :error="siblingError"
+        :retrying="siblingFetching"
+        loading-text="Loading related fills…"
+        error-text="Could not load the related fills."
+        @retry="refetchSiblings()"
+      >
+      <p v-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
 
       <DataTable
         v-else
@@ -217,6 +250,8 @@ const thisFillClass = (row: { id: string }) =>
           </span>
         </template>
       </DataTable>
+      </QueryState>
+      </QueryState>
       </div>
 
     <!-- ⑤ Transaction details (full) -->

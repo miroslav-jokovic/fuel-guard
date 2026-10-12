@@ -9,6 +9,7 @@ import {
 } from "@silvicom/ui";
 import { sevenDayTotal, sevenDayWindow, type SevenDayEntry } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -108,11 +109,23 @@ async function submit(): Promise<void> {
       <BaseButton v-if="canRecord" class="shrink-0" @click="open = true">Record one</BaseButton>
     </div>
 
-    <p v-if="statementsQ.isLoading.value" class="mt-4 text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="(statementsQ.data.value ?? []).length === 0" class="mt-4 text-sm text-ink-muted">
+    <!-- ⚠ A failed read used to fall through to "No statement on file" — on a compliance record, the
+         one sentence that sends somebody to collect a statement the driver already signed. It now
+         says it could not load, with a Retry (D-US5). -->
+    <div class="mt-4">
+    <QueryState
+      compact
+      :loading="statementsQ.isLoading.value"
+      :error="statementsQ.isError.value ? statementsQ.error.value : null"
+      :retrying="statementsQ.isFetching.value"
+      loading-text="Loading the statements…"
+      error-text="Could not load the seven-day statements."
+      @retry="statementsQ.refetch()"
+    >
+    <p v-if="(statementsQ.data.value ?? []).length === 0" class="text-sm text-ink-muted">
       No statement on file. Record one from the paper the driver signed.
     </p>
-    <ul v-else class="mt-4 space-y-2">
+    <ul v-else class="space-y-2">
       <li
         v-for="(s, i) in statementsQ.data.value"
         :key="s.id"
@@ -131,6 +144,8 @@ async function submit(): Promise<void> {
         </p>
       </li>
     </ul>
+    </QueryState>
+    </div>
 
     <SlideOver :open="open" title="Record a seven-day statement" @close="open = false">
       <div class="space-y-5">

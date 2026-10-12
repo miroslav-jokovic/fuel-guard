@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { AppCallout } from "@silvicom/ui";
 import GatedLink from "@/components/GatedLink.vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -133,16 +134,16 @@ const columns: DataTableColumn[] = [
     </PageHeader>
 
     <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
-    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
-      <p class="font-medium">No reefer trailers are paired to trucks yet.</p>
-      <p class="mt-0.5 text-warning-700">
+    <AppCallout v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" tone="warning">
+      <span class="block">No reefer trailers are paired to trucks yet.</span>
+      <span class="mt-0.5 block font-normal">
         Reefer fuel can't be attributed to a specific trailer until each reefer is identified and paired. On the
         <!-- SP5: text where Trailers (`equipment` view) does not open; this page is a Settings screen. -->
         <GatedLink to="/trailers" class="font-medium underline">Trailers</GatedLink> page, mark each refrigerated
         trailer as a reefer and set its paired tractor. Samsara auto-pairs trailers that have a powered Asset
         Gateway; trucks/reefers without one must be paired manually here.
-      </p>
-    </div>
+      </span>
+    </AppCallout>
 
     <DataWorkspace>
       <FilterBar

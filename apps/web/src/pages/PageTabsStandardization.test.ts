@@ -54,6 +54,8 @@ vi.mock("@/features/settings/useDriverAppFeatures", async () => {
     isLoading: ref(false),
     isError: ref(false),
     error: ref(null),
+    isFetching: ref(false),
+    refetch: vi.fn(),
   });
   const mutation = () => ({ mutateAsync: vi.fn(), isPending: ref(false) });
   return {

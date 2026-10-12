@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon } from "@silvicom/ui";
 import { ChevronRightIcon, ShieldExclamationIcon } from "@silvicom/ui/icons";
 import {
   HAZMAT_LOAD_STATUS_LABELS,
@@ -204,10 +204,10 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
 
     <!-- No record yet: the entry point IS the load (H-C1). -->
     <div v-if="!record" class="mt-4">
-      <p class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
+      <AppCallout tone="warning">
         No placards can be determined and nothing can clear until the hazmat record exists. Starting it
         copies the equipment, driver and pickup time dispatch already entered.
-      </p>
+      </AppCallout>
       <BaseButton v-if="canManage" class="mt-3" variant="primary" size="sm" :disabled="busy" @click="startRecord">
         {{ busy ? "Starting…" : "Start hazmat record" }}
       </BaseButton>

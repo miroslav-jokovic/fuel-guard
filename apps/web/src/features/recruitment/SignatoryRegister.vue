@@ -5,6 +5,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useDeleteRepresentative, useRepresentatives } from "@/features/recruitment/useHandbook";
 import { useRetireRoadTestExaminer, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
 
@@ -43,8 +44,10 @@ const listQ = props.kind === "representative" ? useRepresentatives() : useRoadTe
 const takeOff = props.kind === "representative" ? useDeleteRepresentative() : useRetireRoadTestExaminer();
 const people = computed(() => listQ.data.value ?? []);
 
-const COPY: Record<Kind, { empty: string; add: string; act: string; ask: (name: string) => string; done: string; failed: string }> = {
+const COPY: Record<Kind, { loading: string; loadFailed: string; empty: string; add: string; act: string; ask: (name: string) => string; done: string; failed: string }> = {
   representative: {
+    loading: "Loading the representatives…",
+    loadFailed: "Could not load the representatives.",
     empty: "Nobody signs for the carrier yet. Add a representative to countersign handbooks.",
     add: "Add a representative",
     act: "Remove",
@@ -54,6 +57,8 @@ const COPY: Record<Kind, { empty: string; add: string; act: string; ask: (name: 
     failed: "Could not remove the representative",
   },
   examiner: {
+    loading: "Loading the examiners…",
+    loadFailed: "Could not load the examiners.",
     empty: "No examiner is on file yet. Add one to record a road test.",
     add: "Add an examiner",
     act: "Retire",
@@ -85,28 +90,35 @@ async function takeOffList(id: string, name: string): Promise<void> {
 
 <template>
   <div class="space-y-3">
-    <p v-if="listQ.isLoading.value" class="text-xs text-ink-muted">Loading…</p>
-    <p v-else-if="listQ.isError.value" class="text-xs text-danger-700">
-      {{ listQ.error.value?.message ?? "Could not load the list." }}
-    </p>
-    <p v-else-if="people.length === 0" class="text-xs text-ink-muted">{{ copy.empty }}</p>
-    <ul v-else class="divide-y divide-edge border-y border-edge">
-      <li v-for="person in people" :key="person.id" class="flex items-center justify-between gap-3 py-2 text-xs">
-        <span class="text-ink">
-          {{ person.full_name }} <span class="text-ink-secondary">· {{ person.title }}</span>
-          <span class="text-ink-muted"> · added {{ formatDisplayDate(person.created_at, "") }}</span>
-        </span>
-        <BaseButton
-          v-if="canManage"
-          variant="ghost"
-          size="sm"
-          :disabled="takeOff.isPending.value"
-          @click="takeOffList(person.id, person.full_name)"
-        >
-          {{ copy.act }}
-        </BaseButton>
-      </li>
-    </ul>
+    <!-- The api's own sentence when it gave one, as before; the retry is new (D-US5). -->
+    <QueryState
+      :loading="listQ.isLoading.value"
+      :error="listQ.isError.value ? listQ.error.value : null"
+      :error-text="listQ.error.value?.message || copy.loadFailed"
+      :retrying="listQ.isFetching.value"
+      :loading-text="copy.loading"
+      compact
+      @retry="listQ.refetch()"
+    >
+      <p v-if="people.length === 0" class="text-xs text-ink-muted">{{ copy.empty }}</p>
+      <ul v-else class="divide-y divide-edge border-y border-edge">
+        <li v-for="person in people" :key="person.id" class="flex items-center justify-between gap-3 py-2 text-xs">
+          <span class="text-ink">
+            {{ person.full_name }} <span class="text-ink-secondary">· {{ person.title }}</span>
+            <span class="text-ink-muted"> · added {{ formatDisplayDate(person.created_at, "") }}</span>
+          </span>
+          <BaseButton
+            v-if="canManage"
+            variant="ghost"
+            size="sm"
+            :disabled="takeOff.isPending.value"
+            @click="takeOffList(person.id, person.full_name)"
+          >
+            {{ copy.act }}
+          </BaseButton>
+        </li>
+      </ul>
+    </QueryState>
 
     <template v-if="canManage && !listQ.isLoading.value && !listQ.isError.value">
       <SignatoryAddForm

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
-import { AppCallout, AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
@@ -149,12 +150,19 @@ const description = computed(() => {
 
       <section v-if="row.current" aria-labelledby="truck-stops-heading" class="space-y-2">
         <h3 id="truck-stops-heading" class="text-sm font-semibold text-ink">Stops</h3>
-        <p v-if="detail.isLoading.value" class="text-sm text-ink-muted">Loading the stops…</p>
-        <AppCallout v-else-if="detail.isError.value" tone="caution">
-          {{ detail.error.value instanceof Error ? detail.error.value.message : "Could not load the stops." }}
-        </AppCallout>
+        <!-- A failed read is a failure with a Retry, not a caution notice (D-US5): a notice says
+             something true about the load, and "the stops did not arrive" is not about the load. -->
+        <QueryState
+          compact
+          :loading="detail.isLoading.value"
+          :error="detail.isError.value ? detail.error.value : null"
+          :retrying="detail.isFetching.value"
+          loading-text="Loading the stops…"
+          error-text="Could not load the stops."
+          @retry="detail.refetch()"
+        >
         <!-- The rail draws nothing for no entries, by design; the emptiness is said here. -->
-        <p v-else-if="stopEntries.length === 0" class="text-sm text-ink-muted">McLeod lists no stops on this load.</p>
+        <p v-if="stopEntries.length === 0" class="text-sm text-ink-muted">McLeod lists no stops on this load.</p>
         <TimelineRail v-else :entries="stopEntries" order="given" data-testid="truck-stops">
           <template #entry="{ entry }">
             <template v-for="s in [stopById.get(entry.key)!]" :key="s.id">
@@ -170,15 +178,22 @@ const description = computed(() => {
             </template>
           </template>
         </TimelineRail>
+        </QueryState>
       </section>
 
       <section v-if="row.current" aria-labelledby="truck-route-heading" class="space-y-2">
         <h3 id="truck-route-heading" class="text-sm font-semibold text-ink">Route</h3>
-        <p v-if="route.isLoading.value" class="text-sm text-ink-muted">Planning the route…</p>
-        <AppCallout v-else-if="route.isError.value" tone="caution">
-          {{ route.error.value instanceof Error ? route.error.value.message : "Could not draw this route." }}
-        </AppCallout>
-        <template v-else-if="routeSummary">
+        <!-- No error-text: the route reader's own message says WHY it could not draw (no position, no
+             stop coordinates), which "Could not draw this route." alone would hide. -->
+        <QueryState
+          compact
+          :loading="route.isLoading.value"
+          :error="route.isError.value ? route.error.value : null"
+          :retrying="route.isFetching.value"
+          loading-text="Planning the route…"
+          @retry="route.refetch()"
+        >
+        <template v-if="routeSummary">
           <p class="text-sm text-ink" data-testid="truck-route-summary">{{ routeSummary.line }}</p>
           <p v-if="routeSummary.offRoute" class="text-xs text-caution-700">{{ routeSummary.offRoute }}</p>
           <p v-if="routeSummary.fuel" class="text-xs text-ink-muted">
@@ -190,6 +205,7 @@ const description = computed(() => {
             Routed without hazmat restrictions: no cleared hazmat record for this load yet.
           </p>
         </template>
+        </QueryState>
       </section>
 
       <section aria-labelledby="truck-next-heading" class="space-y-1">

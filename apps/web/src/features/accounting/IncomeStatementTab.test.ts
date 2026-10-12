@@ -92,4 +92,15 @@ describe("IncomeStatementTab", () => {
     const w = mountIt(statement({ comparison: { kind: "previous", from: "2026-04-01", to: "2026-06-01", monthsCovered: ["2026-05"], monthsMissing: ["2026-04"] } }));
     expect(w.text()).toContain("has not reached 2026-04 in the comparison");
   });
+
+  // D-US5: a failed statement says so with a Retry the page answers by refetching, rather than
+  // "try the period again in a moment".
+  it("says the statement could not be loaded and offers a Retry that asks the page to read it again", async () => {
+    const w = mount(IncomeStatementTab, {
+      props: { statement: null, statementLoading: false, statementError: true, fleet: null, fleetLoading: false, period: periodForMonth("2026-07"), compare: "previous" as StatementCompare },
+    });
+    expect(w.text()).toContain("Could not load the income statement.");
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
+  });
 });

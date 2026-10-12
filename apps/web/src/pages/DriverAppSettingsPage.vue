@@ -44,6 +44,7 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";
@@ -217,10 +218,11 @@ async function removeOverride(featureKey: string) {
 <template>
   <div class="mx-auto max-w-5xl space-y-6">
     <PageHeader description="Shape the Driver App experience for your fleet. Changes reach drivers on their next refresh—no app update required." />
-    <BaseCard v-if="rowsQ.isError.value" padding="sm">
-      <p class="text-sm font-semibold text-danger-600">Driver App settings could not be loaded.</p>
-      <p class="mt-1 text-sm text-ink-muted">{{ rowsQ.error.value?.message }} The controls remain unavailable until the connection is restored.</p>
-    </BaseCard>
+    <!-- The catalogue below draws from code, so it stays on screen (switches disabled) while the org's
+         choices are missing; only the failure is drawn here, with a Retry (D-US5). Empty slot on purpose. -->
+    <QueryState :loading="false" :error="rowsQ.isError.value ? rowsQ.error.value : null" :retrying="rowsQ.isFetching.value"
+                error-text="Could not load the Driver App settings. The controls stay unavailable until they load."
+                @retry="rowsQ.refetch()" />
     <AppTabs
       v-model="activeTab"
       :tabs="tabs"
@@ -240,10 +242,9 @@ async function removeOverride(featureKey: string) {
           <h2 class="text-lg font-semibold text-ink">Driver experience</h2>
           <p class="mt-1 text-sm text-ink-muted">Choose the tools and information drivers can use in the app.</p>
         </div>
-        <p class="text-sm font-medium text-ink-secondary">
-          <template v-if="rowsQ.isLoading.value || modulesQ.isLoading.value">Loading settings…</template>
-          <template v-else>{{ activeFeatureCount }} of {{ availableFeatureCount }} available features on</template>
-        </p>
+        <QueryState :loading="rowsQ.isLoading.value || modulesQ.isLoading.value" loading-text="Loading settings…">
+          <p class="text-sm font-medium text-ink-secondary">{{ activeFeatureCount }} of {{ availableFeatureCount }} available features on</p>
+        </QueryState>
       </div>
       <BaseCard as="section" padding="none">
         <div class="border-b border-edge-subtle px-5 py-4">
@@ -412,7 +413,10 @@ async function removeOverride(featureKey: string) {
                   :disabled="driversQ.isLoading.value || driversQ.isError.value"
                 />
               </FormField>
-              <p v-if="driversQ.isError.value" class="mt-2 text-sm text-danger-600">Drivers could not be loaded.</p>
+              <div v-if="driversQ.isError.value" class="mt-2">
+                <QueryState compact :loading="false" error error-text="Could not load the drivers."
+                  :retrying="driversQ.isFetching.value" @retry="driversQ.refetch()" />
+              </div>
             </div>
           </div>
         </div>
@@ -423,7 +427,11 @@ async function removeOverride(featureKey: string) {
             <h3 class="text-sm font-semibold text-ink">Current exceptions</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ selectedDriverName }}</p>
           </div>
-          <p v-if="overridesQ.isLoading.value" class="p-5 text-sm text-ink-muted">Loading exceptions…</p>
+          <div v-if="overridesQ.isLoading.value || overridesQ.isError.value" class="p-5">
+            <QueryState compact :loading="overridesQ.isLoading.value" :error="overridesQ.isError.value ? overridesQ.error.value : null"
+                        :retrying="overridesQ.isFetching.value" loading-text="Loading exceptions…"
+                        error-text="Could not load this driver's exceptions." @retry="overridesQ.refetch()" />
+          </div>
           <ul v-else-if="(overridesQ.data.value ?? []).length" class="divide-y divide-edge-subtle">
             <li v-for="override in overridesQ.data.value" :key="override.feature_key" class="flex items-start justify-between gap-3 p-5">
               <div class="min-w-0">

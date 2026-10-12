@@ -275,3 +275,22 @@ describe("the header and the summary", () => {
     expect(wrapper.text()).toContain("Not ready to travel — 3 steps outstanding.");
   });
 });
+
+/**
+ * D-US5: the card does not own the query (the page does, by the same boundary as `open`), so a failure
+ * is said in the page's sentence with a Retry that asks the PAGE to refetch.
+ */
+describe("when the checklist cannot be read (D-US5)", () => {
+  it("says the page's sentence, and Retry asks the page to fetch it again", async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes });
+    await router.push(`/recruitment/${DRIVER}`);
+    await router.isReady();
+    const w = mount(HiringChecklistCard, {
+      props: { driverId: DRIVER, checklist: null, loading: false, error: "Could not load the hiring checklist." },
+      global: { plugins: [router] },
+    });
+    expect(w.get("[role=alert]").text()).toContain("Could not load the hiring checklist.");
+    await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
+  });
+});

@@ -23,7 +23,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import ErrorState from "@/components/ErrorState.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
@@ -61,7 +61,7 @@ import { formatDate as fmtDate, formatDateTime as fmtWhen } from "@/lib/format";
  *
  * ── SHAPED LIKE THE OTHER ENTITY PAGES (2026-09-10) ───────────────────────────────────────────
  * Titled summary card, status badge top-right, plain fact labels, `text-sm` section headings,
- * `ErrorState`, a loading line, plain `DataTable` for the lone table, and the photo dropzone only
+ * `QueryState` for the loading line and the failure with its retry, plain `DataTable` for the lone table, and the photo dropzone only
  * while somebody is adding one. `PartDetailPage.vue` carries the reasoning in full.
  */
 
@@ -70,7 +70,7 @@ const session = useSessionStore();
 const toast = useToastStore();
 const id = computed(() => String(route.params.id ?? ""));
 
-const { data, isLoading, isError, error, refetch } = useAssetQuery(id);
+const { data, isLoading, isError, error, refetch, isFetching } = useAssetQuery(id);
 const asset = computed(() => data.value?.asset ?? null);
 const canManage = computed(() => session.can("maintenance"));
 
@@ -158,153 +158,154 @@ async function onPhoto(files: File[]) {
       </template>
     </PageHeader>
 
-    <ErrorState
-      v-if="isError"
-      :message="error instanceof Error ? error.message : 'Could not load the asset.'"
-      @retry="() => refetch()"
-    />
-
-    <p v-else-if="isLoading && !asset" class="text-sm text-ink-tertiary">Loading the asset…</p>
-
-    <template v-else-if="asset">
-      <BaseCard>
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-3">
-            <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open
-                 overnight refetches rather than rendering a broken image. -->
-            <img
-              v-if="data?.photoUrl"
-              :src="data.photoUrl"
-              :alt="`Photo of ${asset.displayNo}`"
-              class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
-            />
-            <h2 class="text-sm font-semibold text-ink">Asset summary</h2>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <BaseButton
-              v-if="canManage && !data?.photoUrl && !addingPhoto"
-              variant="ghost"
-              size="sm"
-              @click="addingPhoto = true"
-            >
-              Add a photo
-            </BaseButton>
-            <!-- `[BADGE_BASE, toneClass(...)]`: the rule `apps/web/CLAUDE.md` states for every badge. -->
-            <span
-              v-if="assetStatusBadge(asset.status)"
-              :class="[BADGE_BASE, toneClass(assetStatusBadge(asset.status)!.tone)]"
-            >
-              {{ assetStatusBadge(asset.status)!.label }}
-            </span>
-          </div>
-        </div>
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt class="text-ink-muted">Where it is</dt>
-            <dd class="font-medium text-ink">
-              {{ asset.holder.label ?? "Not placed" }}
-              <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
-                   stored nowhere. There is no handover and no signature anywhere in this feature. -->
-              <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">
-                with {{ asset.holder.inferredDriverName }}
-              </span>
-            </dd>
-          </div>
-          <div><dt class="text-ink-muted">Since</dt><dd class="font-medium text-ink">{{ asset.holder.since ? fmtWhen(asset.holder.since) : "—" }}</dd></div>
-          <div><dt class="text-ink-muted">Kind</dt><dd class="font-medium text-ink">{{ asset.assetTypeName }}</dd></div>
-          <div><dt class="text-ink-muted">Condition</dt><dd class="font-medium text-ink">{{ ITEM_CONDITION_LABELS[asset.condition] }}</dd></div>
-          <div><dt class="text-ink-muted">Serial</dt><dd class="font-mono text-xs text-ink">{{ asset.serialNumber ?? "—" }}</dd></div>
-          <div><dt class="text-ink-muted">Make and model</dt><dd class="font-medium text-ink">{{ [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" }}</dd></div>
-          <div><dt class="text-ink-muted">Bought</dt><dd class="font-medium text-ink">{{ fmtDate(asset.purchasedAt) }}</dd></div>
-          <div><dt class="text-ink-muted">Warranty until</dt><dd class="font-medium text-ink">{{ fmtDate(asset.warrantyExpiresAt) }}</dd></div>
-          <div v-if="asset.notes" class="col-span-2 sm:col-span-4">
-            <dt class="text-ink-muted">Notes</dt>
-            <dd class="text-ink-secondary">{{ asset.notes }}</dd>
-          </div>
-        </dl>
-        <p v-if="asset.status === 'retired'" class="mt-3 text-xs text-ink-tertiary">
-          Off the fleet. Its history stays, and its number is never reused.
-        </p>
-        <p v-else-if="asset.status === 'in_repair'" class="mt-3 text-xs text-ink-tertiary">
-          Still counted as its unit's, and still missing from it.
-        </p>
-        <FileDropzone
-          v-if="addingPhoto && canManage"
-          class="mt-4"
-          accept=".jpg,.jpeg,.png,.webp,.heic"
-          label="Add a photo"
-          hint="So the next person knows what to look for."
-          :busy="photo.isPending.value"
-          @files="onPhoto"
-        />
-      </BaseCard>
-
-      <section class="space-y-3">
-        <h2 class="text-sm font-semibold text-ink">History</h2>
-
-        <!-- The phone's read: a rail with sticky day headers. -->
-        <BaseCard v-if="rows.length" padding="md" class="lg:hidden">
-          <TimelineRail :entries="entries" group-by-day>
-            <template #entry="{ entry }">
-              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <AppIcon
-                  :icon="REASON_ICONS[byKey.get(entry.key)!.reason]"
-                  class="size-4 shrink-0 text-ink-tertiary"
-                  aria-hidden="true"
-                />
-                <span class="font-medium text-ink">
-                  {{ ASSET_MOVEMENT_REASON_LABELS[byKey.get(entry.key)!.reason] }}
-                  {{ whereTo(byKey.get(entry.key)!) }}
-                </span>
-                <span class="text-2xs text-ink-tertiary">{{ fmtTime(entry.at) }}</span>
-              </div>
-              <p class="text-xs text-ink-muted">
-                {{ byKey.get(entry.key)!.actorName ?? "Somebody" }}
-                <template v-if="byKey.get(entry.key)!.note">· {{ byKey.get(entry.key)!.note }}</template>
-              </p>
-            </template>
-          </TimelineRail>
-        </BaseCard>
-
-        <!-- The desk's read: the same page of movements, comparable column by column. -->
-          <DataTable
-            class="hidden lg:block"
-            :columns="LEDGER_COLUMNS"
-            :rows="rows"
-            :loading="movements.isLoading.value"
-            :error="movements.isError.value ? 'Could not load the history' : null"
-            @retry="() => movements.refetch()"
-          >
-            <template #cell-occurredAt="{ value }">{{ fmtWhen(value) }}</template>
-            <template #cell-reason="{ value }">
-              {{ ASSET_MOVEMENT_REASON_LABELS[value as AssetMovementReason] }}
-            </template>
-            <template #cell-toHolder="{ row }">{{ whereTo(row) || "—" }}</template>
-            <template #cell-condition="{ value }">
-              {{ value ? ITEM_CONDITION_LABELS[value as keyof typeof ITEM_CONDITION_LABELS] : "—" }}
-            </template>
-            <template #empty>
-              <p>Nothing has happened to it yet. Moving it onto a truck starts the history.</p>
-            </template>
-            <template #footer>
-              <TablePagination
-                :page="page"
-                :page-size="ASSETS_PAGE_SIZE"
-                :total="movements.data.value?.total ?? 0"
-                @update:page="page = $event"
+    <QueryState
+      :loading="isLoading && !asset"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the asset…"
+      error-text="Could not load the asset."
+      @retry="refetch()"
+    >
+      <template v-if="asset">
+        <BaseCard>
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <!-- Signed for 300 s (D-INV8) and re-signed with the query, so a page left open
+                   overnight refetches rather than rendering a broken image. -->
+              <img
+                v-if="data?.photoUrl"
+                :src="data.photoUrl"
+                :alt="`Photo of ${asset.displayNo}`"
+                class="size-12 shrink-0 rounded-surface object-cover ring-1 ring-edge"
               />
-            </template>
-          </DataTable>
-
-        <!-- The rail renders nothing when empty (an empty rail is furniture that reports a
-             finding), so the phone gets its own sentence rather than a blank card. -->
-        <BaseCard v-if="!rows.length && !movements.isLoading.value" padding="md" class="lg:hidden">
-          <p class="text-sm text-ink-secondary">
-            Nothing has happened to it yet. Moving it onto a truck starts the history.
+              <h2 class="text-sm font-semibold text-ink">Asset summary</h2>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <BaseButton
+                v-if="canManage && !data?.photoUrl && !addingPhoto"
+                variant="ghost"
+                size="sm"
+                @click="addingPhoto = true"
+              >
+                Add a photo
+              </BaseButton>
+              <!-- `[BADGE_BASE, toneClass(...)]`: the rule `apps/web/CLAUDE.md` states for every badge. -->
+              <span
+                v-if="assetStatusBadge(asset.status)"
+                :class="[BADGE_BASE, toneClass(assetStatusBadge(asset.status)!.tone)]"
+              >
+                {{ assetStatusBadge(asset.status)!.label }}
+              </span>
+            </div>
+          </div>
+          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt class="text-ink-muted">Where it is</dt>
+              <dd class="font-medium text-ink">
+                {{ asset.holder.label ?? "Not placed" }}
+                <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
+                     stored nowhere. There is no handover and no signature anywhere in this feature. -->
+                <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">
+                  with {{ asset.holder.inferredDriverName }}
+                </span>
+              </dd>
+            </div>
+            <div><dt class="text-ink-muted">Since</dt><dd class="font-medium text-ink">{{ asset.holder.since ? fmtWhen(asset.holder.since) : "—" }}</dd></div>
+            <div><dt class="text-ink-muted">Kind</dt><dd class="font-medium text-ink">{{ asset.assetTypeName }}</dd></div>
+            <div><dt class="text-ink-muted">Condition</dt><dd class="font-medium text-ink">{{ ITEM_CONDITION_LABELS[asset.condition] }}</dd></div>
+            <div><dt class="text-ink-muted">Serial</dt><dd class="font-mono text-xs text-ink">{{ asset.serialNumber ?? "—" }}</dd></div>
+            <div><dt class="text-ink-muted">Make and model</dt><dd class="font-medium text-ink">{{ [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" }}</dd></div>
+            <div><dt class="text-ink-muted">Bought</dt><dd class="font-medium text-ink">{{ fmtDate(asset.purchasedAt) }}</dd></div>
+            <div><dt class="text-ink-muted">Warranty until</dt><dd class="font-medium text-ink">{{ fmtDate(asset.warrantyExpiresAt) }}</dd></div>
+            <div v-if="asset.notes" class="col-span-2 sm:col-span-4">
+              <dt class="text-ink-muted">Notes</dt>
+              <dd class="text-ink-secondary">{{ asset.notes }}</dd>
+            </div>
+          </dl>
+          <p v-if="asset.status === 'retired'" class="mt-3 text-xs text-ink-tertiary">
+            Off the fleet. Its history stays, and its number is never reused.
           </p>
+          <p v-else-if="asset.status === 'in_repair'" class="mt-3 text-xs text-ink-tertiary">
+            Still counted as its unit's, and still missing from it.
+          </p>
+          <FileDropzone
+            v-if="addingPhoto && canManage"
+            class="mt-4"
+            accept=".jpg,.jpeg,.png,.webp,.heic"
+            label="Add a photo"
+            hint="So the next person knows what to look for."
+            :busy="photo.isPending.value"
+            @files="onPhoto"
+          />
         </BaseCard>
-      </section>
-    </template>
+
+        <section class="space-y-3">
+          <h2 class="text-sm font-semibold text-ink">History</h2>
+
+          <!-- The phone's read: a rail with sticky day headers. -->
+          <BaseCard v-if="rows.length" padding="md" class="lg:hidden">
+            <TimelineRail :entries="entries" group-by-day>
+              <template #entry="{ entry }">
+                <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <AppIcon
+                    :icon="REASON_ICONS[byKey.get(entry.key)!.reason]"
+                    class="size-4 shrink-0 text-ink-tertiary"
+                    aria-hidden="true"
+                  />
+                  <span class="font-medium text-ink">
+                    {{ ASSET_MOVEMENT_REASON_LABELS[byKey.get(entry.key)!.reason] }}
+                    {{ whereTo(byKey.get(entry.key)!) }}
+                  </span>
+                  <span class="text-2xs text-ink-tertiary">{{ fmtTime(entry.at) }}</span>
+                </div>
+                <p class="text-xs text-ink-muted">
+                  {{ byKey.get(entry.key)!.actorName ?? "Somebody" }}
+                  <template v-if="byKey.get(entry.key)!.note">· {{ byKey.get(entry.key)!.note }}</template>
+                </p>
+              </template>
+            </TimelineRail>
+          </BaseCard>
+
+          <!-- The desk's read: the same page of movements, comparable column by column. -->
+            <DataTable
+              class="hidden lg:block"
+              :columns="LEDGER_COLUMNS"
+              :rows="rows"
+              :loading="movements.isLoading.value"
+              :error="movements.isError.value ? 'Could not load the history' : null"
+              @retry="() => movements.refetch()"
+            >
+              <template #cell-occurredAt="{ value }">{{ fmtWhen(value) }}</template>
+              <template #cell-reason="{ value }">
+                {{ ASSET_MOVEMENT_REASON_LABELS[value as AssetMovementReason] }}
+              </template>
+              <template #cell-toHolder="{ row }">{{ whereTo(row) || "—" }}</template>
+              <template #cell-condition="{ value }">
+                {{ value ? ITEM_CONDITION_LABELS[value as keyof typeof ITEM_CONDITION_LABELS] : "—" }}
+              </template>
+              <template #empty>
+                <p>Nothing has happened to it yet. Moving it onto a truck starts the history.</p>
+              </template>
+              <template #footer>
+                <TablePagination
+                  :page="page"
+                  :page-size="ASSETS_PAGE_SIZE"
+                  :total="movements.data.value?.total ?? 0"
+                  @update:page="page = $event"
+                />
+              </template>
+            </DataTable>
+
+          <!-- The rail renders nothing when empty (an empty rail is furniture that reports a
+               finding), so the phone gets its own sentence rather than a blank card. -->
+          <BaseCard v-if="!rows.length && !movements.isLoading.value" padding="md" class="lg:hidden">
+            <p class="text-sm text-ink-secondary">
+              Nothing has happened to it yet. Moving it onto a truck starts the history.
+            </p>
+          </BaseCard>
+        </section>
+      </template>
+    </QueryState>
 
     <AssetDrawer v-if="asset" :open="editing" :asset="asset" @close="editing = false" />
     <AssetMoveDrawer

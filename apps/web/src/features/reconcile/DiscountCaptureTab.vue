@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { downloadCsv } from "@/lib/csv";
@@ -192,10 +192,7 @@ function exportLines() {
       <!-- How the figures above were resolved. Both caveats are independent: a window can be fully
            measured and still lean on carried-forward quotes, and an earlier version nested the second
            inside the first so it disappeared exactly when every fill WAS measurable. -->
-      <p
-        v-if="capture.unmeasuredLines > 0 || capture.carriedForwardLines > 0"
-        class="rounded-surface bg-caution-50 px-4 py-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
-      >
+      <AppCallout v-if="capture.unmeasuredLines > 0 || capture.carriedForwardLines > 0" tone="caution">
         <template v-if="capture.unmeasuredLines > 0">
           {{ capture.unmeasuredLines.toLocaleString() }} of {{ inScope.toLocaleString() }} fills
           ({{ gal(capture.unmeasuredGallons) }} gallons, {{ usd(capture.unmeasuredPaid) }}) had no quote in range — an
@@ -206,7 +203,7 @@ function exportLines() {
           {{ capture.carriedForwardLines.toLocaleString() }} fill{{ capture.carriedForwardLines === 1 ? " was" : "s were" }}
           measured against the previous day's quote, the report not having been issued that day.
         </template>
-      </p>
+      </AppCallout>
 
       <div v-if="exceptionRows.length">
         <div class="mb-2 flex items-center justify-between">

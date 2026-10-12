@@ -32,6 +32,8 @@ vi.mock("@/features/ifta/DriverFuelUploadDialog.vue", () => ({
 const period = ref<IftaPeriodData | null>(null);
 const loading = ref(false);
 const errored = ref(false);
+/** The period's `refetch`, kept so the failure's Retry can be seen to reach it (D-US5). */
+const refetch = vi.fn();
 
 vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
   const actual = await orig<typeof import("@/features/ifta/useIftaPeriod")>();
@@ -41,7 +43,9 @@ vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
       data: computed(() => period.value),
       isLoading: loading,
       isError: errored,
-      error: ref(null),
+      error: computed(() => (errored.value ? new Error("timeout") : null)),
+      isFetching: ref(false),
+      refetch,
     }),
   };
 });
@@ -251,7 +255,12 @@ describe("IftaLedgerPage", () => {
   it("renders the error state rather than a blank page", async () => {
     errored.value = true;
     period.value = null;
-    expect((await mountPage()).w.text()).toContain("Couldn't load this quarter");
+    const { w } = await mountPage();
+    expect(w.text()).toContain("Could not load this quarter.");
+    // A Retry that asks again, rather than leaving the browser's reload as the only way out (D-US5).
+    refetch.mockClear();
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   // ── the return as a file (IP9) ──────────────────────────────────────────────────────────────────

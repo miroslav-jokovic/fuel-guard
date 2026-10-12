@@ -21,12 +21,12 @@ const RUN = {
   },
 };
 
-const answer = vi.hoisted(() => ({ value: undefined as unknown, error: false }));
+const answer = vi.hoisted(() => ({ value: undefined as unknown, error: false, refetch: vi.fn() }));
 const askedFor: string[] = [];
 vi.mock("@/features/reconcile/useReconRuns", () => ({
   useReconRunQuery: (id: Ref<string>) => {
     askedFor.push(id.value);
-    return { data: ref(answer.value), isLoading: ref(false), isError: ref(answer.error), error: ref(answer.error ? new Error("Could not load that invoice check") : null) };
+    return { data: ref(answer.value), isLoading: ref(false), isError: ref(answer.error), error: ref(answer.error ? new Error("Could not load that invoice check") : null), isFetching: ref(false), refetch: answer.refetch };
   },
 }));
 vi.mock("@/features/reconcile/ReconResultView.vue", () => ({
@@ -90,5 +90,14 @@ describe("FuelInvoiceCheckPage", () => {
     const failed = (await mountAt("/fuel-invoices/r1")).text();
     expect(failed).toContain("Could not load that invoice check");
     expect(failed).not.toContain("no invoice check with that link");
+  });
+
+  it("offers a Retry on a check that failed to load, which asks again (D-US5)", async () => {
+    answer.value = undefined;
+    answer.error = true;
+    answer.refetch.mockClear();
+    const w = await mountAt("/fuel-invoices/r1");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(answer.refetch).toHaveBeenCalledTimes(1);
   });
 });

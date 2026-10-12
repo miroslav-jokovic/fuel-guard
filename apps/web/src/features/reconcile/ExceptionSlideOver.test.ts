@@ -9,9 +9,16 @@ import type { FuelException } from "./useExceptions";
  * is "closing an item takes ≤ 3 clicks", counted from the queue's row (ruled 2026-10-08): the row is one,
  * so a close here must be one click, and a credit two (Credited, then Save credit) with the amount typed.
  */
-const state = { ex: null as FuelException | null, calls: [] as unknown[] };
+const state = { ex: null as FuelException | null, calls: [] as unknown[], failed: false, refetches: 0 };
 vi.mock("./useExceptions", () => ({
-  useExceptionQuery: () => ({ data: computed(() => (state.ex ? { exception: state.ex, events: [] } : null)), isLoading: ref(false) }),
+  useExceptionQuery: () => ({
+    data: computed(() => (state.ex ? { exception: state.ex, events: [] } : null)),
+    isLoading: ref(false),
+    isError: ref(state.failed),
+    error: ref(state.failed ? new Error("timeout") : null),
+    isFetching: ref(false),
+    refetch: () => { state.refetches += 1; },
+  }),
   useMoveException: () => ({ mutateAsync: async (v: unknown) => { state.calls.push(v); }, isPending: ref(false) }),
 }));
 vi.mock("@/stores/session", async () => {
@@ -35,6 +42,8 @@ beforeEach(() => {
   document.body.innerHTML = "";
   state.ex = finding();
   state.calls = [];
+  state.failed = false;
+  state.refetches = 0;
   session.role = "admin";
 });
 const mountDrawer = async () => {
@@ -76,5 +85,17 @@ describe("closing a money finding", () => {
     await mountDrawer();
     expect(button("Dismissed")).toBeUndefined();
     expect(document.body.textContent).toContain("Paid above Pilot");
+  });
+});
+
+// D-US5: a finding that failed to load used to leave the drawer blank under its title.
+describe("a finding that could not be loaded", () => {
+  it("says so in the drawer and offers a Retry that reads it again", async () => {
+    state.ex = null;
+    state.failed = true;
+    await mountDrawer();
+    expect(document.body.textContent).toContain("Could not load this finding.");
+    await click("Retry");
+    expect(state.refetches).toBe(1);
   });
 });

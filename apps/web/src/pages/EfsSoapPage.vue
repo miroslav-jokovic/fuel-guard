@@ -21,6 +21,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { AppSelect, type SelectOption } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
@@ -226,10 +227,18 @@ const testChipClass = computed(() => {
       attempts EFS declined. One sign-in covers both.
     </PageHeader>
 
-    <!-- ── Loading ────────────────────────────────────────────────────────────── -->
-    <div v-if="overallState === 'loading'" class="text-sm text-ink-muted">Loading configuration…</div>
-
-    <template v-else>
+    <!-- ── Loading / failure ──────────────────────────────────────────────────── -->
+    <!-- A failed read is a failure, not "not configured": before D-US5 it fell through to the setup
+         form, which told an office whose connection was working that it had none. Only a failure
+         with nothing cached stops the page; a background refetch that fails keeps what is shown. -->
+    <QueryState
+      :loading="overallState === 'loading'"
+      :error="status.isError.value && !status.data.value ? status.error.value : null"
+      :retrying="status.isFetching.value"
+      loading-text="Loading the EFS configuration…"
+      error-text="Could not load the EFS configuration."
+      @retry="status.refetch()"
+    >
       <!-- ── Overall state banner ─────────────────────────────────────────────── -->
       <BaseCard>
         <div class="flex items-start gap-3">
@@ -440,6 +449,6 @@ const testChipClass = computed(() => {
           </div>
         </div>
       </section>
-    </template>
+    </QueryState>
   </div>
 </template>

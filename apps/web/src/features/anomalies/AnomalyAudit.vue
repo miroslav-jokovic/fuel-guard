@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { stateTimeZone } from "@silvicom/shared";
+import { AppCallout } from "@silvicom/ui";
 import type { AnomalyTxnDetail } from "./useAnomalies";
 
 const props = defineProps<{
@@ -84,12 +85,12 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
 
 <template>
   <div class="space-y-4">
-    <p v-if="!reconciled" class="rounded-control bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
+    <AppCallout v-if="!reconciled" tone="warning">
       This fill hasn't been reconciled against Samsara yet. Run <strong>Re-sync Samsara</strong> from Settings → Data & Sync to populate these.
-    </p>
-    <p v-else-if="reconStatus === 'failed'" class="rounded-control bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
+    </AppCallout>
+    <AppCallout v-else-if="reconStatus === 'failed'" tone="warning">
       The latest Samsara refresh failed{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
-    </p>
+    </AppCallout>
     <p v-else-if="reconStatus === 'no_data'" class="rounded-control bg-surface-muted px-3 py-2 text-xs text-ink-secondary ring-1 ring-edge">
       Samsara returned no data on the latest refresh{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
     </p>

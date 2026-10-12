@@ -21,6 +21,12 @@ const props = defineProps<{
   loading: boolean;
   error: boolean;
 }>();
+/**
+ * A failed read is the table's own failure, drawn by `DataTable` with its Retry (D-US5). It used to be a
+ * danger-tinted line that said "Reload to try again", which reset the rest of the page; the page owns
+ * the query, so the Retry asks it to refetch.
+ */
+const emit = defineEmits<{ retry: [] }>();
 
 const PAGE_SIZE = 20;
 const page = ref(1);
@@ -66,11 +72,17 @@ const shown = computed(() =>
       Fuel bought in an avoided state, at an avoided brand or off the network, per truck and month. Whole months are
       shown. There is no vendor to claim these back from, so they are not in Fuel problems.
     </p>
-    <p v-if="error" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the buying habits. Reload to try again.
-    </p>
-    <BaseCard v-else padding="none">
-      <DataTable embedded :columns="columns" :rows="shown" row-key="id" :loading="loading" empty-text="No premiums paid in these months.">
+    <BaseCard padding="none">
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="shown"
+        row-key="id"
+        :loading="loading"
+        :error="error ? 'Could not load the buying habits.' : null"
+        empty-text="No premiums paid in these months."
+        @retry="emit('retry')"
+      >
         <template #cell-total="{ row }">
           <span class="font-medium tabular-nums text-ink">{{ row.total }}</span>
         </template>

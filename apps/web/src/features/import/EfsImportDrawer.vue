@@ -27,9 +27,10 @@ import StatCard from "@/components/ui/StatCard.vue";
  * **Repair fuel data**, which moved to Settings → Data & Sync where the other repair actions already
  * live and where it gains the progress and freshness a job-backed action should have had.
  */
-import { AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon } from "@silvicom/ui";
 import {
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   XMarkIcon,
 } from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
@@ -197,15 +198,12 @@ const previewTotal = (p: ImportPreview) =>
       <template v-if="previews.length">
         <BaseCard v-for="(preview, i) in previews" :key="preview.filename" class="space-y-5">
           <!-- Duplicate-file warning -->
-          <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-control bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
-            <span class="mt-0.5 shrink-0 text-warning-500">⚠</span>
-            <p>
-              <strong>This file was already imported.</strong>
-              Re-committing is safe: rows already in Silvicom 360 are skipped, and any rows that are missing
-              (e.g. from an earlier partial import) will be added. Check "New fill-ups" below — if it shows 0
-              but the dashboard is missing days, use <em>Repair fuel data</em> in Settings → Data &amp; sync instead.
-            </p>
-          </div>
+          <AppCallout v-if="preview.alreadyImported" tone="warning" :icon="ExclamationTriangleIcon">
+            <strong>This file was already imported.</strong>
+            Re-committing is safe: rows already in Silvicom 360 are skipped, and any rows that are missing
+            (e.g. from an earlier partial import) will be added. Check "New fill-ups" below — if it shows 0
+            but the dashboard is missing days, use <em>Repair fuel data</em> in Settings → Data &amp; sync instead.
+          </AppCallout>
 
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import type { SelfieCheck } from "@silvicom/shared";
 import SelfieCheckPanel from "@/features/recruitment/SelfieCheckPanel.vue";
+import { apiFetch } from "@/lib/api";
 
 /**
  * The selfie beside the licence photo (AW6, §6.7). Pinned: both photos are shown and nothing suggests
@@ -135,5 +136,41 @@ describe("the selfie beside the licence", () => {
     await w.findAll("img")[0]!.trigger("error");
     await settle(w);
     expect(state.reads).toBe(3);
+  });
+});
+
+/**
+ * D-US5: a photo read that fails says so in a sentence and offers a Retry that asks the API again.
+ * Before, the failure was a tinted line with no way back but the browser's reload, which resets
+ * everything else the recruiter had open. `retry: false` so the first failure is the one shown.
+ */
+describe("when the photo read fails (D-US5)", () => {
+  it("says what could not be loaded, and Retry asks the API again", async () => {
+    const real = vi.mocked(apiFetch).getMockImplementation()!;
+    let failing = true;
+    const asked = (): number =>
+      vi.mocked(apiFetch).mock.calls.filter(([u, o]) => String(u).includes("/intake") && !(o as { method?: string } | undefined)?.method).length;
+    vi.mocked(apiFetch).mockImplementation(((url: string, opts?: { method?: string }) =>
+      failing && !opts?.method && url.includes("/intake")
+        ? Promise.resolve({ ok: false, status: 500, data: null, error: { message: "The API is down." } })
+        : real(url as never, opts as never)) as never);
+    try {
+      const w = mount(SelfieCheckPanel, {
+        props: { driverId: "d1" },
+        global: {
+          plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
+        },
+      });
+      await settle(w as never);
+      expect(w.text()).toContain("Could not load the photos.");
+      const before = asked();
+      failing = false;
+      await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+      await settle(w as never);
+      expect(asked()).toBe(before + 1);
+      expect(w.text()).not.toContain("Could not load the photos.");
+    } finally {
+      vi.mocked(apiFetch).mockImplementation(real);
+    }
   });
 });

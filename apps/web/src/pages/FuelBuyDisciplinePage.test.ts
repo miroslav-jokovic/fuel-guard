@@ -66,6 +66,7 @@ const seen = {
   /** Whether the row feed was switched on, read live: it must stay off until the quote tile is opened. */
   rowsEnabled: null as (() => boolean) | null,
   fillsRefetch: null as ReturnType<typeof vi.fn> | null,
+  totalsRefetch: null as ReturnType<typeof vi.fn> | null,
 };
 /** The four sums the quote tile reads: 2 measured fills at +$14 net, $820 of $1,260 billed dollars priced. */
 const TOTALS: ContractTotals = {
@@ -88,7 +89,11 @@ vi.mock("@/features/reconcile/useSpendLines", () => ({
   },
 }));
 vi.mock("@/features/reconcile/useContractTotals", () => ({
-  useContractTotalsQuery: () => withState(TOTALS, inputState.totals),
+  useContractTotalsQuery: () => {
+    const q = withState(TOTALS, inputState.totals);
+    seen.totalsRefetch = q.refetch;
+    return q;
+  },
 }));
 vi.mock("@/features/reconcile/usePolicyGallons", () => ({
   usePolicyGallonsQuery: () => withState(policyGallonCells(FEED), inputState.cells),
@@ -160,7 +165,7 @@ describe("FuelBuyDisciplinePage", () => {
   it("keeps the targets on screen when only the fill sequence failed, and says which read failed", async () => {
     inputState.fills = "error";
     const t = (await mountPage()).text();
-    expect(t).toContain("Couldn't load the fill sequence for this window.");
+    expect(t).toContain("Could not load the fill sequence for this window.");
     expect(t).toContain("On the preferred network");
     expect(t).toContain("Paid vs Pilot quote");
   });
@@ -207,12 +212,21 @@ describe("FuelBuyDisciplinePage", () => {
 
   it("says the quote comparison is unavailable, not that no fill matched, when the sums fail or are pending", async () => {
     expect((await mountPage()).text()).toContain("Paid vs Pilot quote");
-    for (const [state, say] of [["error", "Couldn't load"], ["loading", "Loading the purchases"]] as const) {
+    for (const [state, say] of [["error", "Could not load the purchases"], ["loading", "Loading the purchases"]] as const) {
       inputState.totals = state;
       const t = (await mountPage()).text();
       expect(t, state).toContain(say);
       expect(t, state).not.toContain("no fill in this window matched a quote");
     }
+  });
+
+  // D-US5: the failure used to say "Reload to try again"; it now carries a Retry that refetches the sums.
+  it("retries the quote sums in place when they fail", async () => {
+    inputState.totals = "error";
+    const w = await mountPage();
+    expect(w.text()).not.toContain("Reload to try again");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(seen.totalsRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("states the tile from the database's sums: +$14 over contract, 65.1% of the bill priced (Q-FSV18)", async () => {
@@ -235,7 +249,7 @@ describe("FuelBuyDisciplinePage", () => {
   });
 
   it("keeps the tile on screen when the row feed is slow or fails, and says so inside the opened fills only", async () => {
-    for (const [state, say] of [["loading", "Loading the fills behind this figure"], ["error", "Couldn't load the fills behind this figure"]] as const) {
+    for (const [state, say] of [["loading", "Loading the fills behind this figure"], ["error", "Could not load the fills behind this figure"]] as const) {
       inputState.feed = state;
       const w = await mountPage();
       expect(w.text(), state).toContain("65.1% of this window's fuel priced");

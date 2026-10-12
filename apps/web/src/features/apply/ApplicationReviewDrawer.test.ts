@@ -416,3 +416,32 @@ describe("printing it", () => {
     );
   });
 });
+
+/**
+ * D-US5: a failed read is said, with a Retry. Before it fell through to `state`'s default and told the
+ * reviewer "The applicant is still filling this in" — a sentence about the applicant that was really
+ * about the network, and one that sends an office to chase a driver who may have finished days ago.
+ */
+describe("when the application cannot be read (D-US5)", () => {
+  it("says so instead of saying the applicant is still filling it in, and Retry asks again", async () => {
+    apiFetch.mockResolvedValueOnce({ ok: false, status: 500, data: null, error: { message: "The API is down." } });
+    const { QueryClient } = await import("@tanstack/vue-query");
+    const w = mount(ApplicationReviewDrawer, {
+      props: { open: true, invitationId: "inv-1" },
+      global: {
+        plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }], pinia],
+        stubs: { SlideOver: SlideOverStub, BaseModal: BaseModalStub },
+      },
+    });
+    await settle(w);
+    expect(w.text()).toContain("Could not load the application.");
+    expect(w.text()).not.toContain("still filling this in");
+
+    await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+    await settle(w);
+
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(w.text()).not.toContain("Could not load the application.");
+    expect(w.text()).toContain("Correct an answer");
+  });
+});

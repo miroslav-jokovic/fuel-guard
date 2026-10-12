@@ -1,6 +1,6 @@
 # UI standardization — every page and component on one set of rules
 
-**Status:** IN EXECUTION — US0, US1, US2, US4 built (2026-10-12); US3, US5–US7 planned.
+**Status:** IN EXECUTION — US0–US2 and US4 merged (2026-10-12); US3+US5 building; US6–US7 planned.
 **Owner ruling:** "proceed as suggested and let's do this properly so we have all pages and components
 100% production ready" (2026-10-12).
 **Canonical rules it feeds:** `docs/DESIGN-SYSTEM-CONTRACT.md` (what a page must look like) and
@@ -64,11 +64,12 @@ merged result: nothing in it is missing from `main`.
 |---|---|---|
 | US0 | This document; contract §5 brought up to date; adoption baseline regenerated | DONE 2026-10-12 |
 | US1 | `useQueryState` grows what every list needs: a default that stays out of the URL, on/off flags, the page, a scope for two lists on one route, and ONE buffer per router (D-US2) | DONE 2026-10-12 |
-| US2 | All 33 lists onto the URL; gate rule so a new list cannot skip it (closes G1) | BUILT 2026-10-12 |
-| US3 | Every page notice through `AppCallout`, gated (closes G2) | planned |
-| US4 | `AppTable` call sites onto `DataTable` or a labelled exception; the gate counts `AppTable` as a raw table (closes G3) | BUILT 2026-10-12 (claude/ui-std-tables) |
-| US5 | One loading / error / empty vocabulary outside tables, gated (G4); drawer footers (G6) | planned |
-| US6 | Detail-page anatomy (G5), then a browser pass of every routed page at 1280 px and 390 px | planned |
+| US2 | All 33 lists onto the URL; gate rule so a new list cannot skip it (closes G1) | MERGED 2026-10-12 |
+| US3 | Every page notice through `AppCallout`, gated (closes G2) | BUILT 2026-10-12 with US5 (claude/ui-std-states) |
+| US4 | `AppTable` call sites onto `DataTable` or a labelled exception; the gate counts `AppTable` as a raw table (closes G3) | MERGED 2026-10-12 |
+| US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | BUILT 2026-10-12 |
+| US5b | The three roster form drawers put Save in the footer; gate (G6) | planned, after US3+US5 |
+| US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated; then a browser pass of every routed page at 1280 px and 390 px | planned |
 | US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
@@ -112,6 +113,16 @@ pasted into a ticket and Back from a row's detail page all return the same list.
 Gate: `lint:ui-adoption` fails a file with `<FilterBar` that reads no `useQueryState` (directly or
 through a composable it imports) or holds sort in a `ref<SortState>`.
 
+**D-US3 — A page notice is `AppCallout`.** The component existed since U4 for exactly this, and 29
+hand-tinted blocks had grown back beside it. The gate now refuses `bg-<tone>-50` with `ring-1` on a
+`div`/`p`/`section`/`aside`. A save result is still a toast, never a callout.
+
+**D-US5 — Anything that fetches and is not a table draws its states through `QueryState`.** The
+table's order — loading, then failure, then content — and the failure always has a Retry. Before:
+59 hand-written loading lines in six styles, and failures that said "Reload to try again", which
+resets everything else the reader had open. `compact` is the one-line form for a panel or drawer.
+The gate refuses a "Loading…" text outside a button's busy label.
+
 ## 6. Open questions
 
 **Q-US1 — Does the admin console adopt the web list composites?** `DataWorkspace`, `FilterBar` and
@@ -146,3 +157,40 @@ Truck stops lists open on a default sort, so their third header click ("no sort"
 
 **2026-10-12 — US4 built** on its own branch: the five web `AppTable`s are `DataTable embedded
 dense`, and the gate refuses `AppTable` in the web app save the published privacy policy.
+
+**2026-10-12 — G6 measured per drawer, not per file.** A first count by FILE (51 files render a
+`SlideOver`, 8 have no `#footer`) was the wrong unit: a file with one footered drawer hid a second
+drawer without one. Counted per drawer, by whether a submit button reaches the drawer's scrolling
+body — directly or through a `*Form` child — exactly three fail: the roster's new/edit drawers on
+Vehicles, Drivers and Trailers, where Save sits at the end of a long form. The sanctioned shape is
+already in the repo (`InspectorDrawer.vue`, `NewInspectionDrawer.vue`): the form carries an `id`,
+and the footer's submit button names it with `form="…"`. The other footerless drawers host a panel
+that owns its own actions or per-row buttons, which is not what the footer rule is for.
+
+**2026-10-12 — G5 measured.** The nine detail pages already share a shape — `PageHeader`, a facts card,
+then sections — so the anatomy is not the drift. The facts are: 47 hand-written `<dl>`s across pages
+and features, their `<dt>` labels in eight styles (`text-ink-muted` 57×, `text-xs text-ink-muted` 31×,
+`text-ink-tertiary` 20×, `text-xs text-ink-tertiary` 15×, and four rarer) and their grids in a dozen
+column/gap recipes. US6 is therefore one `FactList` (label, value, an em dash for a blank, one grid)
+and a gate on a hand-written `<dl>` — not a page template.
+
+**2026-10-12 — US3 and US5 built.** 59 loading lines and 29 tinted notices across 66 files, plus the
+parents that own the queries. What converting them FOUND matters more than the count — a failed read
+on these surfaces had been drawing a confident wrong answer:
+
+- **Three settings forms rendered their built-in defaults on a failed read** (Driver performance, Fuel
+  planning, Thresholds); saving would have written those defaults over the org's real values. A
+  failure now shows a Retry and no form.
+- Failures that read as findings: "No reviewed cases yet" (Reports), "No statement on file" (the 7-day
+  statement), "Every line is counted" / "Every item has been looked at" (the count and the unit
+  check), "The applicant is still filling this in", "Still open. Nothing has been decided", the EFS
+  page's "Not configured" setup form, an anomaly's entity history reading as "no history".
+- Failures that drew nothing (the handbook panel, an exception's drawer) or said "Reload the page".
+
+Every one now says "Could not …" with a Retry that refetches the read that failed, and each parent
+that owns a query is wired to it (tests click Retry and assert the refetch; the wiring was proven by
+removing it). `AppCallout`'s slot became a `div` so a notice can carry a list (the import's row
+errors). Eight sites match a recipe without being what the rule is about, and say so where they
+stand with `ui-adoption: not-a-notice — <why>` / `not-a-page-state — <why>`: a decline's record
+panel, an anomaly's score meter, two tinted form-field groups on the trailer form, an upload's
+progress line and per-file failure list, and two table cells standing in for a document link.

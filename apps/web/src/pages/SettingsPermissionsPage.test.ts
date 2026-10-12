@@ -74,7 +74,11 @@ const stepUp = vi.hoisted(() => ({ refusals: 0 }));
 
 vi.mock("@/features/permissions/usePermissions", async () => {
   const { ref: r, computed } = await import("vue");
-  const query = (get: () => unknown) => ({ data: computed(get), isPending: r(false) });
+  // The whole query shape the tabs read since D-US5 (they draw a failure with a Retry through QueryState).
+  const query = (get: () => unknown) => ({
+    data: computed(get), isPending: r(false), isLoading: r(false), isFetching: r(false),
+    isError: r(false), error: r(null), refetch: vi.fn(),
+  });
   const mutation = (sink: unknown[]) => ({
     mutateAsync: vi.fn(async (v: unknown) => {
       // SP9: the API refuses a write without a step-up token, as `usePermissions.put` throws it — an

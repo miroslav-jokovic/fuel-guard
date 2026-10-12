@@ -24,12 +24,19 @@ vi.mock("@/stores/toast", () => {
   return { useToastStore: () => ({ success: push, error: push, info: push, warning: push }) };
 });
 
-const efs = vi.hoisted(() => ({ status: null as unknown, test: null as unknown }));
+const efs = vi.hoisted(() => ({ status: null as unknown, test: null as unknown, failed: false, refetch: vi.fn() }));
 vi.mock("@/features/settings/useEfsSoap", async () => {
   const { ref } = await import("vue");
   const mutation = (run: () => unknown) => ({ isPending: ref(false), mutateAsync: vi.fn(async () => run()) });
   return {
-    useEfsSoapStatus: () => ({ data: ref(efs.status), isLoading: ref(false) }),
+    useEfsSoapStatus: () => ({
+      data: ref(efs.status),
+      isLoading: ref(false),
+      isError: ref(efs.failed),
+      error: ref(efs.failed ? new Error("502") : null),
+      isFetching: ref(false),
+      refetch: efs.refetch,
+    }),
     useEnableEfsSoap: () => mutation(() => ({ enabled: true })),
     useDisableEfsSoap: () => mutation(() => ({ enabled: false })),
     useTestEfsSoapConnection: () => mutation(() => efs.test),
@@ -90,6 +97,21 @@ describe("the EFS integration page reads as plain words (W2)", () => {
       w.unmount();
     });
   }
+
+  // D-US5: before it, a failed read fell through to the setup form and said "not set up".
+  it("says the configuration could not load, not that EFS is unset, and retries in place", async () => {
+    efs.status = undefined;
+    efs.failed = true;
+    efs.refetch.mockReset();
+    const { default: Page } = await import("./EfsSoapPage.vue");
+    const w = mount(Page, { global: { stubs } });
+    expect(w.text()).toContain("Could not load the EFS configuration.");
+    expect(w.text()).not.toContain("Not configured");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(efs.refetch).toHaveBeenCalledTimes(1);
+    efs.failed = false;
+    w.unmount();
+  });
 
   it("names both feeds by what they hold, and says which one is which", async () => {
     efs.status = status(true, true);

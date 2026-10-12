@@ -6,6 +6,7 @@ import {
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -34,7 +35,7 @@ const session = useSessionStore();
 /** The PATCH route is `fuel: manage`; a viewer is shown the record and no buttons that would 403. */
 const canAct = computed(() => session.can("fuel"));
 const id = computed(() => props.id);
-const { data, isLoading } = useExceptionQuery(id);
+const { data, isLoading, isError, error, isFetching, refetch } = useExceptionQuery(id);
 const move = useMoveException();
 
 const ex = computed(() => data.value?.exception ?? null);
@@ -101,9 +102,18 @@ const evidenceRows = computed(() =>
 
 <template>
   <SlideOver :open="id != null" :title="ex ? FUEL_EXCEPTION_KIND_LABELS[ex.kind] : 'Finding'" size="lg" @close="emit('close')">
-    <p v-if="isLoading && !ex" class="text-sm text-ink-muted">Loading…</p>
-
-    <div v-else-if="ex" class="space-y-6">
+    <!-- A finding that failed to load used to leave the drawer blank under its title; it now says so
+         and offers a Retry (D-US5). Compact: this is a drawer, and the block form would crowd it. -->
+    <QueryState
+      compact
+      :loading="isLoading && !ex"
+      :error="isError && !ex ? (error ?? true) : null"
+      :retrying="isFetching"
+      loading-text="Loading the finding…"
+      error-text="Could not load this finding."
+      @retry="refetch()"
+    >
+    <div v-if="ex" class="space-y-6">
       <div class="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <p class="text-2xl font-bold" :class="ex.amount_kind === 'unrecorded' ? 'text-danger-700' : 'text-ink'">
@@ -150,6 +160,7 @@ const evidenceRows = computed(() =>
         </ul>
       </div>
     </div>
+    </QueryState>
 
     <template #footer>
       <div v-if="ex && canAct" class="flex w-full flex-col gap-3">
