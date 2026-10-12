@@ -289,9 +289,19 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   return done(a.document, evidence, false, total.input, total.output, pages.length);
 }
 
-/** The read the queue gave up on: its last attempt ended on a transient model error (0451). */
-export async function failUnavailableRead(admin: SupabaseClient, orgId: string, readId: string): Promise<void> {
-  const { data } = await admin.from("document_reads").select("status").eq("org_id", orgId).eq("id", readId).maybeSingle();
-  if ((data as { status: string } | null)?.status !== "reading") return;
+/**
+ * The read whose job will never finish it — the queue's last attempt failed, or a failure no retry mends
+ * (a bad key, an empty credit balance) — ended `failed: model_unavailable`, an OPERATIONAL failure that is
+ * never counted against the reader (READ_FAILURE_KIND). A read still `queued` (its job died before the
+ * first transition) passes through `reading`, the only road the state machine (0448) has to `failed`.
+ * Answers whether it ended the read; a read already terminal is left as it is.
+ */
+export async function failUnavailableRead(admin: SupabaseClient, orgId: string, readId: string): Promise<boolean> {
+  const { data, error } = await admin.from("document_reads").select("status").eq("org_id", orgId).eq("id", readId).maybeSingle();
+  if (error) throw new Error(`document_reads: ${error.message}`);
+  const status = (data as { status: string } | null)?.status;
+  if (status !== "reading" && status !== "queued") return false;
+  if (status === "queued") await transition(admin, orgId, readId, "reading");
   await transition(admin, orgId, readId, "failed", { p_failure_code: "model_unavailable" });
+  return true;
 }

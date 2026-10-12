@@ -77,9 +77,11 @@ export const READ_FAILURES = {
   no_readable_page: "None of the pages is a bill of lading or a signed delivery copy.",
   budget_exhausted: "This month's document-reading budget is used up.",
   integrity_mismatch: "A stored page no longer matches the bytes that were received, so it was not read.",
-  // Step 1.6 (0451). The queue retries a transient model error with backoff; this is the read the last
-  // retry left — without it the read would sit in `reading` forever with nobody told.
-  model_unavailable: "The reading service could not be reached after several tries. Start the read again.",
+  // Step 1.6 (0451). The read whose job will never finish it: the last retry of a transient model error,
+  // or (since 10/12/2026) a failure no retry mends — a bad key, an empty credit balance. Without it the read
+  // sits in `reading` forever with nobody told. Not "after several tries": in-process mode makes one try,
+  // and a billing refusal is not a connection problem. The cause is in the job's error, for whoever fixes it.
+  model_unavailable: "The reading service is not available right now. Try again in a few minutes; if it keeps happening, tell your administrator.",
   // Step 1.6 (0451). The consumer's module was switched off for the organization (entitlement or the
   // module's kill switch) between the read being queued and a worker reaching it.
   reading_disabled: "Document reading is turned off for this organization.",
