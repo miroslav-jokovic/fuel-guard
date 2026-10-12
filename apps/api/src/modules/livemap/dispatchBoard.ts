@@ -12,6 +12,13 @@
  * computed here against ONE clock, so a slow read cannot rank two trucks by when each row happened to
  * be processed. The browser filters and sorts; it decides nothing.
  *
+ * ── EVERY TRUCK THAT CAN BE DISPATCHED ───────────────────────────────────────────────────────────
+ * Two kinds of truck are left out. A retired one (the live map's Q-LM8a). And one the TMS is winding
+ * down — sold and awaiting pickup, or retiring — unless it holds a load (D-DB11, 2026-10-12): 506 and
+ * 26 others sat on the board as if running while McLeod already had them as `tractor_status = 'I'`.
+ * A load is work, and hiding work is worse than showing a sold truck, so a winding-down truck that
+ * still has a current or next load stays. Both stay on the Vehicles page; this is the board's rule.
+ *
  * ── ALL TRUCKS, AND THE SCOPE BESIDE THEM ────────────────────────────────────────────────────────
  * The rows are the whole fleet and `scope` says which are the caller's: My fleet / All is a filter, not
  * a permission (plan §4 #2) — anyone with `dispatch: view` may already see every truck on the live map.
@@ -76,6 +83,7 @@ export async function readBoardRows(
     if (id.status === HIDDEN_VEHICLE_STATUS) continue;
     const p = positionOf.get(id.vehicleId);
     const plan = plans.byVehicleId.get(id.vehicleId) ?? { current: null, next: null };
+    if (id.windingDown && !plan.current && !plan.next) continue;
     // The roster's assigned driver — the map's pairing (Q-DB6), so the board and the map name one person.
     const driver = id.driver;
     const hos = freshHos(driver ? (clocks.byDriverId.get(driver.id) ?? null) : null, now);

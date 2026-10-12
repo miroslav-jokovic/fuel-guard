@@ -311,6 +311,9 @@ export const tmsVehicleInputSchema = z.object({
    * must never close a period it could not see.
    */
   fuel_tax_excluded: z.boolean().nullish(),
+  /** The TMS is winding the truck down (sold or retiring, still in service; D-DB11, 0462) — a neutral
+   *  fact like `in_shop`, never membership. Absent = not read, which must never clear it. */
+  winding_down: z.boolean().nullish(),
   /**
    * The truck's home fleet in the TMS, verbatim ('VINNIEV', 'KANE', '1'): which dispatcher's group
    * OWNS it, as opposed to the load's dispatcher, who is MOVING it today (DISPATCH-BOARD-PLAN D-DB1).
