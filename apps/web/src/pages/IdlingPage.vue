@@ -9,6 +9,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort } from "@/lib/sort";
@@ -54,29 +55,31 @@ const {
          plain ink, as on Fuel Costs (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
          whether it is good news — avoidable idle is a coaching queue and "Needs an APU" an investment case. -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.engineOnH.toLocaleString() }} <span class="text-base font-normal text-ink-tertiary">engine-on h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">{{ fleet.driveH.toLocaleString() }} h driving · {{ fleet.idleH.toLocaleString() }} h idling</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Idle share of runtime</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.idlePct }}%</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">of engine-on time was spent idling ({{ fleet.drivePct }}% driving)</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="avoidable-usd">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</dd>
-        <dd v-if="estimate?.avoidablePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="reducible-usd">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</dd>
-        <dd v-if="estimate?.reduciblePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</dd>
-      </BaseCard>
+      <StatCard
+        label="Fleet running time"
+        :value="fleet.engineOnH.toLocaleString()"
+        unit="engine-on h"
+        :sub="`${fleet.driveH.toLocaleString()} h driving · ${fleet.idleH.toLocaleString()} h idling`"
+      />
+      <StatCard
+        label="Idle share of runtime"
+        :value="`${fleet.idlePct}%`"
+        :sub="`of engine-on time was spent idling (${fleet.drivePct}% driving)`"
+      />
+      <StatCard label="Avoidable idle" :value="usd(fleet.avoidableUsd)" :unit="`· ${fleet.avoidableH.toLocaleString()} h`" data-testid="avoidable-usd">
+        <template #sub><span data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</span></template>
+        <p v-if="estimate?.avoidablePricing" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</p>
+      </StatCard>
+      <StatCard
+        label="Needs an APU"
+        :value="usd(fleet.reducibleUsd)"
+        :unit="`· ${fleet.reducibleH.toLocaleString()} h`"
+        sub="rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach"
+        data-testid="reducible-usd"
+      >
+        <p data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</p>
+        <p v-if="estimate?.reduciblePricing" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</p>
+      </StatCard>
     </div>
 
     <!-- Tab strip + the two disclosures. The strip was hand-rolled buttons with no tab semantics and the

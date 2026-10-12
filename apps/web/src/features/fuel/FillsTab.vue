@@ -35,6 +35,7 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
@@ -380,44 +381,34 @@ const columns: DataTableColumn[] = [
 
     <!-- Summary stats block -->
     <section v-if="!isLoading && !isError && total > 0" aria-label="Fuel summary">
-      <dl class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total fill-ups</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ total.toLocaleString() }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">matching current filters</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ totalsReady ? flaggedCount : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs" :class="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
-            {{ !totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
-          </dd>
-          <dd v-if="flaggedLink" class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ totalsReady ? clearCount : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE }}</dd>
-          <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
-               needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
-               never did. -->
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ !totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink" :title="avgMpgNote">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ avgMpgNote }}</dd>
-        </div>
-      </dl>
+      <div class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
+        <StatCard embedded class="px-5 py-4" label="Total fill-ups" :value="total.toLocaleString()" sub="matching current filters" />
+        <StatCard embedded class="px-5 py-4" label="Total miles" :value="totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE"
+          :sub="totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE" />
+        <StatCard
+          embedded
+          class="px-5 py-4"
+          label="Flagged"
+          :value="totalsReady ? flaggedCount : NO_FIGURE"
+          :value-tone="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'"
+          :sub="!totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range'"
+          :sub-tone="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'"
+        >
+          <template v-if="flaggedLink" #default>
+            <p class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></p>
+          </template>
+        </StatCard>
+        <StatCard embedded class="px-5 py-4" label="Clear" :value="totalsReady ? clearCount : NO_FIGURE"
+          :value-tone="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'"
+          :sub="totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE" />
+        <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
+             needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
+             never did. -->
+        <StatCard embedded class="px-5 py-4" label="Gallons" :value="totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE"
+          :sub="!totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range'" />
+        <StatCard embedded class="px-5 py-4" label="Avg MPG" :value="avgMpg != null ? avgMpg.toFixed(1) : '—'"
+          :value-title="avgMpgNote" :sub="avgMpgNote" />
+      </div>
     </section>
 
     <DataTable

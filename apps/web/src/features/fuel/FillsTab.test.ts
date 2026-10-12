@@ -127,12 +127,12 @@ const TOTALS = {
   fillUps: 2, fillsWithVehicle: 2, totalMiles: 1234, totalGallons: 225, totalCost: 877.28,
   hasCost: true, flagged: 0, clear: 2,
 };
-/** The six tiles, as label → [figure, sub-line]. */
+/** The six tiles, as label → [figure, sub-line]. Each tile is a StatCard: its `<p>`s read label, value, caption. */
 const tiles = (w: ReturnType<typeof render>["w"]) =>
   Object.fromEntries(
-    w.findAll("dl > div").map((d) => {
-      const dds = d.findAll("dd").map((x) => x.text());
-      return [d.find("dt").text(), dds];
+    w.findAll('[aria-label="Fuel summary"] > div > div').map((d) => {
+      const [label, ...rest] = d.findAll("p").map((x) => x.text());
+      return [label, rest];
     }),
   );
 

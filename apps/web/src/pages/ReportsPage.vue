@@ -22,6 +22,7 @@ import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 
 const toast = useToastStore();
 /**
@@ -169,26 +170,22 @@ async function sendDigest() {
       <div v-if="metricsLoading" class="mt-4 text-sm text-ink-tertiary">Loading…</div>
       <template v-else-if="metrics && metrics.decided > 0">
         <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Precision</dt>
-            <dd class="mt-1 text-2xl font-bold" :class="precisionTone">{{ pct(metrics.precision) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Non-issue rate</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.nonIssueRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">false alarms + legitimate, explained</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Reviewed</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-ink-tertiary"> cases</span></dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Awaiting review</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.pending.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">label these to sharpen the number</dd>
-          </div>
+          <StatCard
+            embedded
+            label="Precision"
+            :value="pct(metrics.precision)"
+            :value-tone="precisionTone"
+            :sub="`95% CI ${pct(metrics.precisionCiLow)}–${pct(metrics.precisionCiHigh)}`"
+          />
+          <StatCard embedded label="Non-issue rate" :value="pct(metrics.nonIssueRate)" sub="false alarms + legitimate, explained" />
+          <StatCard
+            embedded
+            label="Reviewed"
+            :value="metrics.decided.toLocaleString()"
+            unit="cases"
+            :sub="`${metrics.confirmed} confirmed · ${metrics.inconclusive} inconclusive`"
+          />
+          <StatCard embedded label="Awaiting review" :value="metrics.pending.toLocaleString()" sub="label these to sharpen the number" />
         </div>
 
         <div v-if="metrics.perLeadRule.length" class="mt-5">

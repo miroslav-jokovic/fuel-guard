@@ -252,7 +252,10 @@ describe("IdlingPage — the dollar totals carry no direction (Q-FSV15 ruling 2,
   it("prints both money figures in the same ink as the other cards, with no danger or warning tone", async () => {
     const w = await mountPage();
     for (const id of ["avoidable-usd", "reducible-usd"]) {
-      const cls = w.get(`[data-testid="${id}"]`).classes();
+      // The testid sits on the StatCard; the figure is its line that starts with the dollar sign.
+      const value = w.get(`[data-testid="${id}"]`).findAll("p").find((p) => p.text().startsWith("$"));
+      expect(value, id).toBeTruthy();
+      const cls = value!.classes();
       expect(cls, id).toContain("text-ink");
       expect(cls.filter((c) => /^text-(danger|warning|success)/.test(c)), id).toEqual([]);
     }

@@ -196,3 +196,32 @@ describe("delta pill", () => {
     expect(w.find("[data-direction]").exists()).toBe(false);
   });
 });
+
+describe("StatCard — what the hand-built tiles needed (2026-10-12)", () => {
+  it("colours the value with the caller's verdict, and prints a unit in the caption's weight", () => {
+    const w = mount(StatCard, { props: { label: "Attributed", value: "92%", valueTone: "text-success-700", unit: "of fills" } });
+    const value = w.findAll("p")[1]!;
+    expect(value.classes()).toContain("text-success-700");
+    expect(value.classes()).not.toContain("text-ink");
+    expect(value.get("span").text()).toBe("of fills");
+    expect(value.get("span").classes()).toEqual(expect.arrayContaining(["text-base", "font-normal", "text-ink-tertiary"]));
+  });
+
+  it("renders further caption lines from the default slot under the caption", () => {
+    const w = mount(StatCard, {
+      props: { label: "Avoidable idle", value: "$1,204", sub: "first line" },
+      slots: { default: '<p data-test="extra">priced at $3.80/gal</p>' },
+    });
+    expect(w.get('[data-test="extra"]').text()).toBe("priced at $3.80/gal");
+    expect(w.text().indexOf("first line")).toBeLessThan(w.text().indexOf("priced at"));
+  });
+
+  it("draws no card of its own when embedded in a shared surface", () => {
+    const card = mount(StatCard, { props: { label: "Fills", value: 12 } });
+    const bare = mount(StatCard, { props: { label: "Fills", value: 12, embedded: true } });
+    expect(card.html()).toMatch(/rounded-(surface|dialog)[^"]*\b(ring|shadow)/);
+    expect(bare.find('[class*="shadow"]').exists()).toBe(false);
+    expect(bare.find('[class*="ring-1"]').exists()).toBe(false);
+    expect(bare.text()).toContain("Fills");
+  });
+});

@@ -120,6 +120,7 @@ function templateStructureViolations(item) {
   const filterBarsWithoutActiveCount = [];
   const localClearButtons = [];
   const handBuiltBulkBars = [];
+  const handBuiltStatTiles = [];
   let previousEnd = tags[0]?.end ?? 0;
   const at = (offset) => `${item.relativePath}:${item.source.slice(0, offset).split("\n").length}`;
 
@@ -161,6 +162,11 @@ function templateStructureViolations(item) {
       }
     }
 
+    // StatCard owns the KPI tile: a `<dd>` set at display size is a figure under a label, drawn by
+    // hand. Thirty-three of them across seven files mixed bold and semibold, three label styles
+    // and three ways to tint a verdict before 2026-10-12.
+    if (tag.name === "dd" && /class="[^"]*\btext-(2|3)xl\b/.test(tag.raw)) handBuiltStatTiles.push(at(tag.start));
+
     if (tag.name === "DataTable" && stack.some((entry) => entry.name === "BaseCard") &&
         !hasStaticBooleanAttribute(tag.raw, "embedded")) {
       nestedTables.push(at(tag.start));
@@ -185,6 +191,7 @@ function templateStructureViolations(item) {
     filterBarsWithoutActiveCount,
     localClearButtons,
     handBuiltBulkBars,
+    handBuiltStatTiles,
   };
 }
 
@@ -293,6 +300,7 @@ function structureCheckerSelfTest() {
         <BaseButton>Clear</BaseButton>
         <div class="bg-brand-50"><span>{{ picked.size }} selected</span></div>
         <BulkActionBar :count="picked.size" />
+        <dl><dt>Fills</dt><dd class="mt-1 text-2xl font-bold">12</dd><dd class="text-xs">caption</dd></dl>
       </div>
     </template>`),
   };
@@ -317,6 +325,7 @@ function structureCheckerSelfTest() {
     JSON.stringify(result.filterBarsWithoutActiveCount) === JSON.stringify(["self-test.vue:17"]) &&
     JSON.stringify(result.localClearButtons) === JSON.stringify(["self-test.vue:20"]) &&
     JSON.stringify(result.handBuiltBulkBars) === JSON.stringify(["self-test.vue:22"]) &&
+    JSON.stringify(result.handBuiltStatTiles) === JSON.stringify(["self-test.vue:24"]) &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -358,6 +367,7 @@ const paginationOutsideFooter = structureViolations.flatMap((item) => item.pagin
 const filterBarsWithoutActiveCount = structureViolations.flatMap((item) => item.filterBarsWithoutActiveCount);
 const localClearButtons = structureViolations.flatMap((item) => item.localClearButtons);
 const handBuiltBulkBars = structureViolations.flatMap((item) => item.handBuiltBulkBars);
+const handBuiltStatTiles = structureViolations.flatMap((item) => item.handBuiltStatTiles);
 const manualActionColumns = pagesAndFeatures.flatMap(manualActionColumnViolations);
 
 /**
@@ -522,6 +532,8 @@ function verifyAdoption() {
     failures.push(`FilterBar with #filters/#more but no :active-count (it owns Clear filters): ${filterBarsWithoutActiveCount.join(", ")}`);
   if (localClearButtons.length)
     failures.push(`hand-built Clear filters button (pass :active-count to FilterBar instead): ${localClearButtons.join(", ")}`);
+  if (handBuiltStatTiles.length)
+    failures.push(`hand-built KPI tile, a <dd> at text-2xl/3xl (use StatCard): ${handBuiltStatTiles.join(", ")}`);
   if (handBuiltBulkBars.length)
     failures.push(`hand-built "N selected" strip (use BulkActionBar): ${handBuiltBulkBars.join(", ")}`);
   if (manualActionColumns.length)
