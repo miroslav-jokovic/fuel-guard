@@ -11,6 +11,7 @@ import {
 import { workingSizeOf } from "../pages/canonical.js";
 import { DOCUMENT_BUCKET, PAGE_URL_TTL_SEC } from "../storage.js";
 import { targetColumn, targetIds, targetOfRow, targetPages, type ReadTarget } from "./readTarget.js";
+import { auditForRead } from "../evidence/paperAudit.js";
 
 /**
  * The read-side requests behind `/api/documents/reads` (DOCUMENT-READER-PLAN Step 1.6b): queue a read,
@@ -140,6 +141,7 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
   // A review screen with a page silently absent is a review of a different document.
   if (missing) return fail("sign_failed", `Page ${missing.position} could not be shown.`);
 
+  const evidence = fieldEvidenceSchema.array().parse(read.evidence ?? []);
   return {
     id: read.id,
     ...targetIds(target),
@@ -148,7 +150,8 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
     status: read.status,
     failureCode: read.failure_code,
     result: read.result,
-    evidence: fieldEvidenceSchema.array().parse(read.evidence ?? []),
+    evidence,
+    paperAudit: read.status === "done" && read.profile === "shipping_document" ? auditForRead(read.result, evidence) : null,
     pages: pages.map((p) => ({
       page: p.position,
       pageClass: classOf.get(p.id) ?? null,

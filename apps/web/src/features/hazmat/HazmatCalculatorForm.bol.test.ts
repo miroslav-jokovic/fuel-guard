@@ -64,6 +64,27 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect((w.findAll("input[placeholder='44307']").map((i) => (i.element as HTMLInputElement).value))).toEqual(["100", "59500"]);
   });
 
+  it("shows the paper audit above the lines, and clears it on Reset", async () => {
+    const w = mountForm();
+    const paperAudit = { datasetVersion: "t", results: [{ ruleId: "paper_quantity_present", outcome: "fail" as const, reason: "missing", lineIndex: 0, facts: { lineLabel: "UN1263" } }] };
+    await w.setProps({ bolRead: read([{ a: PAINT, table: ok(PAINT_REF) }], { paperAudit }) });
+    await flushPromises();
+    expect(w.find("[data-testid='bol-finding-wrong'] p").text()).toBe("UN1263 shows no total quantity.");
+    await w.findAll("button").find((b) => b.text() === "Reset")!.trigger("click");
+    expect(w.find("[data-testid='bol-findings']").exists()).toBe(false);
+  });
+
+  it("never leaves an earlier read's audit up when the next read cannot be used", async () => {
+    const w = mountForm();
+    const paperAudit = { datasetVersion: "t", results: [{ ruleId: "paper_quantity_present", outcome: "fail" as const, reason: "missing", lineIndex: 0, facts: { lineLabel: "UN1263" } }] };
+    await w.setProps({ bolRead: read([{ a: PAINT, table: ok(PAINT_REF) }], { paperAudit }) });
+    await flushPromises();
+    api.fail = true;
+    await w.setProps({ bolRead: read([{ a: DIESEL, table: ok(DIESEL_REF) }], { paperAudit }) });
+    await flushPromises();
+    expect(w.find("[data-testid='bol-findings']").exists()).toBe(false);
+  });
+
   it("changes nothing when the products cannot be looked up, and says so", async () => {
     api.fail = true;
     const w = mountForm();
@@ -71,6 +92,7 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     await flushPromises();
     expect(lines(w)).toEqual([]);
     expect(w.find("[data-testid='bol-prefill']").text()).toBe("The products on the BOL could not be looked up: Busy.");
+    expect(w.find("[data-testid='bol-findings']").exists()).toBe(false);
   });
 
   it("counts a line the table did not match, and answers the rest-of-load question from the paper", async () => {

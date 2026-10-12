@@ -114,6 +114,16 @@ describe("getRead", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("carries the paper audit for a finished shipping-document read, and none for a read still in flight", async () => {
+    const result = { hazmat: { lines: [{ idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II", quantity: { value: 8000, unit: "gal" }, packageCount: 1, packaging: "1 cargo tank" }] } };
+    const done = await getRead(world(signAll, { ...readRow, result }).client, ORG, READ);
+    expect("paperAudit" in done && done.paperAudit?.results.find((r) => r.ruleId === "paper_psn_matches_hmt")).toMatchObject({ outcome: "pass", lineIndex: 0 });
+    const reading = await getRead(world(signAll, { ...readRow, result: null, status: "reading" }).client, ORG, READ);
+    expect("paperAudit" in reading && reading.paperAudit).toBeNull();
+    const failed = await getRead(world(signAll, { ...readRow, result, status: "failed" }).client, ORG, READ);
+    expect("paperAudit" in failed && failed.paperAudit).toBeNull();
+  });
+
   it("refuses to show a read with a page it could not sign, rather than a document missing a page", async () => {
     const rec = world((paths) => ({ data: [{ path: paths[0], signedUrl: "https://signed.example.test/1" }, { path: paths[1], signedUrl: null, error: "x" }], error: null }));
     expect(await getRead(rec.client, ORG, READ)).toEqual({ code: "sign_failed", error: "Page 2 could not be shown." });

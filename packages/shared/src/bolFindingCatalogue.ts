@@ -28,6 +28,11 @@ export interface BolFindingContext {
 }
 
 export interface BolFindingEntry {
+  /**
+   * What a line rule checks, as a sentence names it ("the RQ marking"); absent on the document rules. Read by
+   * `bolBlockedSentence`, which says once what stopped several rules on one line.
+   */
+  subject?: string;
   sentence(ctx: BolFindingContext): string;
   cite: string;
   actor: BolFindingActor;
@@ -55,13 +60,35 @@ const exceptionText = (v: BolFactValue | undefined): string =>
   (Array.isArray(v) ? v : [v]).map((x) => EXCEPTION_WORDS[String(x)] ?? String(x)).join(" or ");
 
 /**
+ * A field path the audit could not confirm (`hazmat.lines[0].quantity.value`) in the dispatcher's words. The
+ * line is already named by the sentence, so only the field is said; a path this table does not know is shown
+ * as it is rather than dropped.
+ */
+const FIELD_WORDS: Record<string, string> = {
+  idText: "the UN/NA number", descriptionText: "the description", psn: "the shipping name", hazardClass: "the hazard class",
+  pg: "the packing group", technicalName: "the technical name", quantity: "the quantity", grossWeightLb: "the weight",
+  packageCount: "the package count", packaging: "the packaging", hmColumnMark: "the HM column mark", marks: "the marks",
+  emergencyPhone: "the emergency phone number", emergencyContactText: "the words beside the emergency number",
+  shipperCertification: "the shipper's certification", pageOf: "the page numbers", printedPageNumbers: "the page numbers",
+};
+function fieldWords(v: BolFactValue | undefined): string {
+  const paths = Array.isArray(v) ? v.map(String) : v == null ? [] : [String(v)];
+  // The path's named segment: `quantity.value` is the quantity, `identity.pageOf.of` the page numbers.
+  const words = paths.map((p) => {
+    const key = p.split(/[.[\]]+/).find((seg) => Object.hasOwn(FIELD_WORDS, seg));
+    return key ? FIELD_WORDS[key]! : p;
+  });
+  return joinWords([...new Set(words)]);
+}
+
+/**
  * The three reasons any rule can share. They say why the audit stopped short, and name what would let it
  * answer — never implying the paper passed.
  */
 function common(ctx: BolFindingContext, subject: string): string | null {
   switch (ctx.reason) {
     case "field_unconfirmed":
-      return `Can't check ${subject} on ${line(ctx)} yet: the reader isn't sure of ${s(ctx.facts.unconfirmed)} — confirm it against the paper first.`;
+      return `Can't check ${subject} on ${line(ctx)} yet: the reader isn't sure of ${fieldWords(ctx.facts.unconfirmed)} — confirm it against the paper first.`;
     case "line_unresolved":
       return `Can't check ${subject} on ${line(ctx)}: the line doesn't match one Hazardous Materials Table entry, so there is nothing to compare it with. Pick the right entry first.`;
     case "requirement_not_in_dataset":
@@ -71,13 +98,28 @@ function common(ctx: BolFindingContext, subject: string): string | null {
   }
 }
 
+/** What each line rule checks, as its sentences name it — one table, read by `common` and `bolBlockedSentence`. */
+const SUBJECT = {
+  paper_sequence: "the basic description",
+  paper_psn_matches_hmt: "the shipping name",
+  paper_class_pg_match: "the class and packing group",
+  paper_technical_name: "the technical name",
+  paper_rq: "the RQ marking",
+  paper_lq: "the Limited Quantity marking",
+  paper_marine_pollutant: "the marine-pollutant marking",
+  paper_quantity_present: "the quantity",
+  paper_package_count: "the number and type of packages",
+  paper_hm_column: "the HM column",
+} as const;
+
 export const BOL_FINDING_CATALOGUE = {
   paper_sequence: {
+    subject: SUBJECT.paper_sequence,
     cite: "49 CFR 172.202(a), (b)",
     actor: "driver_must_not_accept",
     howToFix: "Ask the shipper for a corrected BOL whose hazmat description gives the UN or NA number, proper shipping name, hazard class and packing group one after another, with nothing else printed between them.",
     sentence(ctx) {
-      const c = common(ctx, "the basic description");
+      const c = common(ctx, SUBJECT.paper_sequence);
       if (c) return c;
       switch (ctx.reason) {
         case "elements_missing": {
@@ -98,11 +140,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_psn_matches_hmt: {
+    subject: SUBJECT.paper_psn_matches_hmt,
     cite: "49 CFR 172.202(a)(2)",
     actor: "shipper_must_correct",
     howToFix: "The shipper reprints the description with the proper shipping name exactly as the Hazardous Materials Table gives it.",
     sentence(ctx) {
-      const c = common(ctx, "the shipping name");
+      const c = common(ctx, SUBJECT.paper_psn_matches_hmt);
       if (c) return c;
       if (ctx.reason === "psn_not_in_hmt") {
         return `The BOL calls ${line(ctx)} "${s(ctx.facts.printedPsn)}", which is not a proper shipping name for that number (the table lists: ${s(ctx.facts.candidatePsns)}).`;
@@ -112,11 +155,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_class_pg_match: {
+    subject: SUBJECT.paper_class_pg_match,
     cite: "49 CFR 172.202(a)(3)-(4)",
     actor: "driver_must_not_accept",
     howToFix: "Ask the shipper for a corrected BOL with the hazard class and packing group the Hazardous Materials Table gives for this entry.",
     sentence(ctx) {
-      const c = common(ctx, "the class and packing group");
+      const c = common(ctx, SUBJECT.paper_class_pg_match);
       if (c) return c;
       if (ctx.outcome === "pass") return `${line(ctx)}'s class ${s(ctx.facts.requiredClass)} and ${pgText(ctx.facts.requiredPg)} match the table.`;
       const parts: string[] = [];
@@ -129,11 +173,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_technical_name: {
+    subject: SUBJECT.paper_technical_name,
     cite: "49 CFR 172.203(k)",
     actor: "shipper_must_correct",
     howToFix: "The shipper adds the technical name of the hazardous component in parentheses after the shipping name — the two that contribute most to the hazard, for a mixture of two or more hazardous materials.",
     sentence(ctx) {
-      const c = common(ctx, "the technical name");
+      const c = common(ctx, SUBJECT.paper_technical_name);
       if (c) return c;
       switch (ctx.reason) {
         case "missing":
@@ -158,11 +203,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_rq: {
+    subject: SUBJECT.paper_rq,
     cite: "49 CFR 172.203(c)",
     actor: "shipper_must_correct",
     howToFix: "The shipper adds \"RQ\" before or after the description (or in the HM column).",
     sentence(ctx) {
-      const c = common(ctx, "the RQ marking");
+      const c = common(ctx, SUBJECT.paper_rq);
       if (c) return c;
       const amount = `${s(ctx.facts.perPackage)} ${s(ctx.facts.unit)} per package`;
       switch (ctx.reason) {
@@ -186,11 +232,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_lq: {
+    subject: SUBJECT.paper_lq,
     cite: "49 CFR 172.203(b)",
     actor: "shipper_must_correct",
     howToFix: "The shipper adds \"Limited Quantity\" (or \"Ltd Qty\") after the description — or removes it if the material may not ship as one.",
     sentence(ctx) {
-      const c = common(ctx, "the Limited Quantity marking");
+      const c = common(ctx, SUBJECT.paper_lq);
       if (c) return c;
       switch (ctx.reason) {
         case "claimed_not_printed":
@@ -209,11 +256,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_marine_pollutant: {
+    subject: SUBJECT.paper_marine_pollutant,
     cite: "49 CFR 172.203(l)",
     actor: "shipper_must_correct",
     howToFix: "The shipper adds the words \"Marine Pollutant\" to the description.",
     sentence(ctx) {
-      const c = common(ctx, "the marine-pollutant marking");
+      const c = common(ctx, SUBJECT.paper_marine_pollutant);
       if (c) return c;
       switch (ctx.reason) {
         case "required_not_printed":
@@ -242,17 +290,20 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_quantity_present: {
+    subject: SUBJECT.paper_quantity_present,
     cite: "49 CFR 172.202(a)(5)",
     actor: "shipper_must_correct",
     howToFix: "The shipper writes the total quantity with its unit (gallons, pounds, …) on the line — or, for bulk packages or cylinders, how many (\"1 cargo tank\", \"2 IBCs\", \"10 cylinders\").",
     sentence(ctx) {
-      const c = common(ctx, "the quantity");
+      const c = common(ctx, SUBJECT.paper_quantity_present);
       if (c) return c;
       switch (ctx.reason) {
         case "unit_missing":
           return `${line(ctx)} shows ${s(ctx.facts.value)} with no unit — gallons, pounds or another unit has to be printed.`;
         case "missing":
           return `${line(ctx)} shows no total quantity.`;
+        case "weight_only":
+          return `${line(ctx)} prints only a weight, ${typeof ctx.facts.weightLb === "number" ? ctx.facts.weightLb.toLocaleString("en-US") : s(ctx.facts.weightLb)} lb, and no separate quantity — check whether that weight is the material's total quantity or includes the packaging.`;
         case "bulk_package_count":
           return `${line(ctx)} gives its quantity as "${s(ctx.facts.packaging)}", which a bulk load may.`;
         case "cylinder_count":
@@ -265,11 +316,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_package_count: {
+    subject: SUBJECT.paper_package_count,
     cite: "49 CFR 172.202(a)(7)",
     actor: "shipper_must_correct",
     howToFix: "The shipper writes how many packages and what kind they are on the line (\"12 drums\", \"1 cargo tank\").",
     sentence(ctx) {
-      const c = common(ctx, "the number and type of packages");
+      const c = common(ctx, SUBJECT.paper_package_count);
       if (c) return c;
       switch (ctx.reason) {
         case "count_missing":
@@ -284,11 +336,12 @@ export const BOL_FINDING_CATALOGUE = {
     },
   },
   paper_hm_column: {
+    subject: SUBJECT.paper_hm_column,
     cite: "49 CFR 172.201(a)(1)",
     actor: "information_only",
     howToFix: "If other freight shares the paper, the hazmat lines must be listed first, in a contrasting colour, or marked \"X\" in a column headed \"HM\".",
     sentence(ctx) {
-      const c = common(ctx, "the HM column");
+      const c = common(ctx, SUBJECT.paper_hm_column);
       if (c) return c;
       if (ctx.reason === "marked") return `${line(ctx)} is marked "${s(ctx.facts.mark)}" in the HM column.`;
       if (ctx.reason === "not_mixed") return `The paper carries only hazmat, so ${line(ctx)} needs no HM-column mark.`;
@@ -385,3 +438,15 @@ export const BOL_FINDING_CATALOGUE = {
 
 export type BolFindingRuleId = keyof typeof BOL_FINDING_CATALOGUE;
 export const BOL_FINDING_RULE_IDS = Object.keys(BOL_FINDING_CATALOGUE) as BolFindingRuleId[];
+
+/**
+ * One sentence for several line rules stopped by the same thing (§7A N6 part 3): a line the table could not
+ * match stops every rule that needs its row, and one unsure field stops every rule that reads it — said once,
+ * naming the checks it stopped, instead of once per rule. `reason` is `line_unresolved` or `field_unconfirmed`.
+ */
+export function bolBlockedSentence(reason: string, lineLabel: string, ruleIds: readonly string[], unconfirmed: BolFactValue = null): string {
+  const subjects = joinWords(ruleIds.map((id) => (BOL_FINDING_CATALOGUE as Record<string, BolFindingEntry>)[id]?.subject ?? id));
+  return reason === "line_unresolved"
+    ? `Can't check ${subjects} on ${lineLabel}: the line doesn't match one Hazardous Materials Table entry, so there is nothing to compare it with. Pick the right entry first.`
+    : `Can't check ${subjects} on ${lineLabel} yet: the reader isn't sure of ${fieldWords(unconfirmed)} — confirm it against the paper first.`;
+}

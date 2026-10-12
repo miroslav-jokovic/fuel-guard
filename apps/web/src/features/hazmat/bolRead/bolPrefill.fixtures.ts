@@ -66,7 +66,7 @@ export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLin
   return {
     id: "00000000-0000-4000-8000-000000000001", sourceId: null, assemblyId: "00000000-0000-4000-8000-000000000002",
     profile: "shipping_document", profileVersion: "1.1.0", status: "done", failureCode: null,
-    result: { hazmat: { lines: aLines }, otherLines }, evidence, pages: [], ...over,
+    result: { hazmat: { lines: aLines }, otherLines }, evidence, pages: [], paperAudit: null, ...over,
   } as ReadResponse;
 }
 

@@ -11,6 +11,8 @@ import { AppCombobox as ComboSelect } from "@silvicom/ui";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import HazmatProductLines from "@/features/hazmat/HazmatProductLines.vue";
 import { bolLineView, bolPrefill, hmtRefsOf, type PrefillLine } from "@/features/hazmat/bolRead/bolPrefill";
+import BolFindingsPanel from "@/features/hazmat/bolRead/BolFindingsPanel.vue";
+import { bolFindings, type BolFindings } from "@/features/hazmat/bolRead/bolFindings";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import {
   buildCalcRequest,
@@ -160,6 +162,7 @@ const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind ===
 const prefilled = new WeakMap<object, PrefillLine>();
 const bolSummary = ref<{ added: number; unmatched: number; notLoaded: string[] } | null>(null);
 const bolError = ref<string | null>(null);
+const findings = ref<BolFindings | null>(null);
 const bolView = (line: (typeof form.lines)[number]) => {
   const p = prefilled.get(toRaw(line));
   return p ? bolLineView(p, line) : null;
@@ -170,6 +173,7 @@ const untouched = (l: (typeof form.lines)[number]) => l.product === null && l.pa
 watch(() => props.bolRead, async (read) => {
   if (!read) return;
   bolError.value = null;
+  findings.value = null;
   let products;
   try {
     products = await fetchProductsByRef(hmtRefsOf(read), props.basePath);
@@ -179,6 +183,7 @@ watch(() => props.bolRead, async (read) => {
   }
   const p = bolPrefill(read, products, form.equipmentType);
   if (!p) { bolError.value = "The read could not be used. Read the BOL again."; return; }
+  findings.value = bolFindings(read.paperAudit);
   // A new read replaces the lines an earlier read filled — reading the same BOL twice must never count its
   // weight twice — and keeps every line a person typed. Several BOLs of one load are read together: their
   // photos in one read are one set of lines.
@@ -201,6 +206,7 @@ function resetAll() {
   result.value = null;
   bolSummary.value = null;
   bolError.value = null;
+  findings.value = null;
   calc.reset();
 }
 </script>
@@ -293,6 +299,7 @@ function resetAll() {
         </AppCallout>
       </BaseCard>
 
+      <BolFindingsPanel v-if="findings" :findings="findings" />
       <AppCallout v-if="bolError" tone="danger" data-testid="bol-prefill">{{ bolError }}</AppCallout>
       <AppCallout v-else-if="bolSummary" tone="info" data-testid="bol-prefill">
         <div class="space-y-1">

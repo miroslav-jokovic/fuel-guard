@@ -367,6 +367,22 @@ export const readPageSchema = z.object({
 });
 export type ReadPage = z.infer<typeof readPageSchema>;
 
+/**
+ * The printed-paper audit of a finished shipping-document read (§5.1, D-DR6; §7A N6 part 3): one result per
+ * rule per line plus the document rules, exactly `auditPrintedPaper`'s answer, worded on screen through
+ * `BOL_FINDING_CATALOGUE` (D-DR7). Worked out when the read is fetched, never stored: it follows the
+ * dataset and the rules in force, and a stored copy would be a second answer to the same question.
+ */
+export const paperAuditResultSchema = z.object({
+  ruleId: z.string().min(1),
+  outcome: z.enum(["pass", "fail", "cannot_tell"]),
+  lineIndex: z.number().int().min(0).nullable(),
+  reason: z.string().min(1),
+  facts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string()), z.array(z.number())])),
+});
+export const paperAuditSchema = z.object({ datasetVersion: z.string(), results: z.array(paperAuditResultSchema) });
+export type PaperAuditView = z.infer<typeof paperAuditSchema>;
+
 /** `GET /api/documents/reads/:id` — the dispatcher's page polls this until `status` is terminal. */
 export const readResponseSchema = z.object({
   id: z.uuid(),
@@ -381,6 +397,8 @@ export const readResponseSchema = z.object({
   result: z.json().nullable(),
   evidence: z.array(fieldEvidenceSchema),
   pages: z.array(readPageSchema),
+  /** The paper audit, for a `done` shipping-document read; null for any other read. */
+  paperAudit: paperAuditSchema.nullable(),
 });
 export type ReadResponse = z.infer<typeof readResponseSchema>;
 

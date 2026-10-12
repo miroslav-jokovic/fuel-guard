@@ -128,10 +128,17 @@ function leadingCount(packaging: string | null): number | null {
  * quantity is shown, for example, "1 cargo tank" or "2 IBCs."", "(B) Cylinders, provided some indication
  * of the total quantity is shown, for example, "10 cylinders."" and "(C) Packages containing only
  * residue." Bulk is the caller's derivation (`packagingKind`) or a bulk packaging named in the phrase.
+ *
+ * A line that prints only its weight column is NOT `missing`, and not a pass either. (a)(5) asks for the
+ * total quantity "by mass or volume"; whether a line's printed weight is that total — net of the packaging,
+ * or gross with it — is not something the paper says, and (a)(5) itself never uses the word "gross" (it
+ * appears only in (a)(6), for aircraft). So the rule answers `cannot_tell` with the weight in its facts and
+ * leaves the judgement to a person (found 2026-10-12 auditing the office BOLs: every weight-only line read
+ * as "shows no total quantity", which the paper plainly contradicts).
  */
 export function paperQuantityPresent(ctx: LineCtx): PaperRuleResult {
   const r = make("paper_quantity_present", ctx.index);
-  const g = gated(ctx, r, ["quantity", "packaging", "packageCount", "marks"]);
+  const g = gated(ctx, r, ["quantity", "packaging", "packageCount", "marks", "grossWeightLb"]);
   if (g) return g;
   const p = ctx.printed;
   const label = lineLabel(ctx);
@@ -144,6 +151,7 @@ export function paperQuantityPresent(ctx: LineCtx): PaperRuleResult {
   if (counted && CYLINDER_NAME.test(p.packaging!)) return r("pass", "cylinder_count", { lineLabel: label, packaging: p.packaging!.trim() });
   if ([...p.marks, p.psn ?? ""].some((s) => /\bresidue\b/i.test(s))) return r("pass", "residue", { lineLabel: label });
   if (value != null && blank(unit)) return r("fail", "unit_missing", { lineLabel: label, value });
+  if (p.grossWeightLb != null && p.grossWeightLb > 0) return r("cannot_tell", "weight_only", { lineLabel: label, weightLb: p.grossWeightLb });
   return r("fail", "missing", { lineLabel: label });
 }
 
