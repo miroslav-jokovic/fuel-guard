@@ -2,6 +2,7 @@ import sharp, { type Sharp } from "sharp";
 import { INTAKE_LIMITS, type IntakeRefusalCode } from "@silvicom/shared";
 import type { RgbRaster } from "./canonical.js";
 import type { SourceFormat } from "./sniff.js";
+import { aspectCorrection, needsStretch, tiffResolution } from "./tiffResolution.js";
 
 /**
  * A photo or screenshot → one upright, flattened, 8-bit sRGB raster (D-DR13).
@@ -73,12 +74,32 @@ export async function imagePageCount(bytes: Buffer, format: Exclude<SourceFormat
   }
 }
 
+/**
+ * A TIFF page drawn with square pixels: a "normal"-mode fax (204 × 98 dpi) is stretched down its short
+ * axis to its real height (tiffResolution.ts). Every other format, and a TIFF whose resolution is square
+ * or unreadable, is the decoder's output as stored.
+ *
+ * The stretch is its own pass over the STORED pixels, because the resolution tags describe the stored
+ * axes and sharp always applies a rotation before a resize in one pipeline — a TIFF carrying an
+ * orientation tag would be stretched along the wrong axis. The pass drops that tag; a fax gateway writes
+ * none, and a scanner's TIFF (square pixels) never takes this path.
+ */
+async function squarePixels(input: Sharp, bytes: Buffer, format: Exclude<SourceFormat, "pdf">, page: number): Promise<Sharp> {
+  if (format !== "tiff") return input;
+  const res = tiffResolution(bytes, page);
+  if (!needsStretch(res)) return input;
+  const { data, info } = await input.clone().raw().toBuffer({ resolveWithObject: true });
+  const size = aspectCorrection(info.width, info.height, res);
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
+    .resize(size.width, size.height, { fit: "fill", kernel: "lanczos3" });
+}
+
 /** One page of an image file as an upright raster — `page` counts from 0 and only a TIFF has more than one. */
 export async function decodeImage(bytes: Buffer, format: Exclude<SourceFormat, "pdf">, page = 0): Promise<ImageOutcome> {
   let raster: RgbRaster;
   try {
     const input = format === "heic" ? await decodeHeic(bytes) : sharp(bytes, { ...DECODE_OPTIONS, page });
-    raster = await toUprightRaster(input, format !== "heic");
+    raster = await toUprightRaster(await squarePixels(input, bytes, format, page), format !== "heic");
   } catch {
     return { ok: false, code: "decode_failed" };
   }

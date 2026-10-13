@@ -36,8 +36,11 @@ export type { SourceFormat } from "./sniff.js";
  *         ICC colour now decode; under 1.0.0 a page made of them rendered as blank white (pdf.ts).
  * 1.2.0 — 2026-10-12: TIFF (every page of a multi-page one), GIF (first frame) and AVIF are read; under
  *         1.1.0 each was refused as `unsupported_format`. No existing format's pixels change.
+ * 1.3.0 — 2026-10-13: a TIFF page whose resolution is not square (a "normal"-mode fax, 204 × 98 dpi) is
+ *         stretched along its low-resolution axis to square pixels (tiffResolution.ts); under 1.2.0 it was
+ *         read squashed to half height. Every other page's pixels are unchanged.
  */
-export const NORMALISER_VERSION = "1.2.0";
+export const NORMALISER_VERSION = "1.3.0";
 
 export type NormaliseOutcome =
   | {
