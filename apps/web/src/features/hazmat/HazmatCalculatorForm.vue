@@ -291,7 +291,7 @@ function resetAll() {
               hint="Optional — used when capacity affects the cargo-tank requirements."
             >
               <div class="flex items-stretch gap-2">
-                <BaseInput :id="id" v-model="form.cargoTankCapacityGal" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="9200" />
+                <BaseInput :id="id" v-model="form.cargoTankCapacityGal" class="min-w-0 flex-1" type="number" inputmode="decimal" step="any" min="0" placeholder="9200" />
                 <span class="flex shrink-0 items-center rounded-control bg-surface-subtle px-3 text-sm text-ink-muted ring-1 ring-inset ring-edge">gal</span>
               </div>
             </FormField>
