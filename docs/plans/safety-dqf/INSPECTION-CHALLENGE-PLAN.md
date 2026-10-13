@@ -627,3 +627,10 @@ about three merges.
   both turning to a caution when late. Migration 0470 adds the notification category
   `roadside_feed_stale`; its emitter (the scheduler's daily alert to safety readers) is the next merge,
   so the CHECK is on every database before anything inserts it.
+- **2026-10-13 — IC1c, second merge: the alert.** Every scheduler tick, for every org with a USDOT
+  number, asks `roadsideFeedState` — after a run, after a failed run, and when no run was due (`tickOrg`;
+  a check inside the run would silence the org whose fetch keeps failing). When late, the safety
+  section's managers (`usersWhoManage("safety")`) get a `roadside_feed_stale` warning that names the
+  time on the org's clock and says whose side stopped. Deduped per state per UTC day, so a broken fetch
+  is a daily reminder, not an hourly one. Recorded as the first sender of a feed-stale category:
+  `efs_feed_stale` (0154) still has none.

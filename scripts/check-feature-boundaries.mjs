@@ -373,6 +373,11 @@ const API_ALLOW = new Set([
   //   through `notify()` like every other office alert (F-5).
   "medstop -> evidence",
   "medstop -> messaging",
+  // · inspections -> messaging, inspections -> org — the stale-FMCSA-record alert (IC1c,
+  //   `feed/staleAlert.ts`): `notify()` like every other office alert, to `usersWhoManage("safety")`,
+  //   the matrix's own answer for who acts on the safety section. Neither module imports inspections.
+  "inspections -> messaging",
+  "inspections -> org",
   // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
   //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
   //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing
