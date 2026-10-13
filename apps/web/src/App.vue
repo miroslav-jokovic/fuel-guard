@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import AppShell from "@/layouts/AppShell.vue";
 import AuthLayout from "@/layouts/AuthLayout.vue";
 import PublicLayout from "@/layouts/PublicLayout.vue";
@@ -17,9 +17,27 @@ import { useSessionStore } from "@/stores/session";
 import { resolveLayout } from "@/lib/layout";
 
 const route = useRoute();
+const router = useRouter();
 const session = useSessionStore();
-/** G1 — one route can render in two shells depending on the session; the rule is in `lib/layout.ts`. */
-const layout = computed(() => resolveLayout(route.meta, session.isAuthenticated));
+/**
+ * No shell until the router has resolved the first URL (2026-10-13).
+ *
+ * Before that, `route` is the router's start location: no meta, so `resolveLayout` answers
+ * `undefined` — the signed-in `AppShell` — for every URL, `/login` included. The shell mounted for a
+ * moment on the sign-in page and fired its reads with no session: `/api/me/notifications` answered 401,
+ * and `org_modules` answered `[]` with the anon key, which the cache kept for five minutes, so the
+ * person who then signed in had no Loads, no Dispatch board and no dispatch cards until a reload
+ * (measured on staging as a fleet manager; `useModules.ts` carries the other half of the fix). The
+ * banners above the shells stay, so the first frame still says which deployment this is.
+ */
+const routerReady = ref(false);
+void router.isReady().then(() => (routerReady.value = true));
+/**
+ * G1 — one route can render in two shells depending on the session; the rule is in `lib/layout.ts`.
+ * `null` until the router is ready, so no layout — and no `isShellLayout` reader, the skip link and
+ * the assistant launcher included — acts on the start location.
+ */
+const layout = computed(() => (routerReady.value ? resolveLayout(route.meta, session.isAuthenticated) : null));
 /** The page knows the carrier's name only after the invitation resolves; the header shows it then. */
 const applyCarrier = ref<string | null>(null);
 const isAuthLayout = computed(() => layout.value === "auth");
@@ -66,7 +84,8 @@ const isShellLayout = computed(() => layout.value === undefined);
   <!-- First in the tab order, over the banners too; only over the shell, whose sidebar is the block to bypass.
        The other layouts put at most one control before their content, and a link past one is noise. -->
   <SkipLink v-if="isShellLayout" />
-  <RouterView v-if="isLabLayout" />
+  <template v-if="layout === null" />
+  <RouterView v-else-if="isLabLayout" />
   <AuthLayout v-else-if="isAuthLayout">
     <RouterView />
   </AuthLayout>

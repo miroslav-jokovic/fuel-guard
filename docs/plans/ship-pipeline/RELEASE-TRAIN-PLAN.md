@@ -355,3 +355,16 @@ jobs resume exactly as before R5.
   loop and takes the newer of GitHub and console; `release-candidate.yml` writes the
   `release-candidate-sha` marker; the 18:00 email links the console when `CONSOLE_URL` is set.
   The console half works only once 0440 and this code are RELEASED: until then, approve on GitHub.
+- 2026-10-13: **Staging test members, for checking a change as a role other than admin.** Created on
+  the owner's instruction (FLEET-MANAGER-HOME-PLAN FM4). Staging Supabase project only
+  (`dssmxlddtyimrwwuqwqq`, never production's), in staging's one org "Silvicom Inc.":
+  `miki+staging-fleet-manager@silvicominc.com` (fleet_manager) and
+  `miki+staging-dispatcher@silvicominc.com` (dispatcher).
+  - Each followed the invite path's writes: a confirmed login (no email sent), a `memberships` row, a
+    profile name, and an `audit_logs` row (`member.staging_test_account`).
+  - The addresses honour the org's `allowed_domains`, and plus-addressing sends any mail to the owner.
+  - Passwords are in the owner's macOS Keychain (service `silvicom-staging-test-member`, account =
+    the email; `security find-generic-password -s silvicom-staging-test-member -a <email> -w`), and
+    in no file.
+  - A role-scoped staging pass signs in with these rather than an admin, which sees everything and
+    so proves nothing about gating.
