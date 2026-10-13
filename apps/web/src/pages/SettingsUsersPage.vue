@@ -3,7 +3,7 @@ import { ref, computed, watch } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@/composables/useQueryState";
-import { useMemberLists } from "@/features/settings/useMemberLists";
+import { useMemberLists } from "./useMemberLists";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
