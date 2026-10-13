@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import type { MedstopApiKeyInput, MedstopConnectionStatus } from "@silvicom/shared";
+import type { MedstopApiKeyInput, MedstopConnectionStatus, MedstopOrderingInput } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 
@@ -39,6 +39,21 @@ export function useSetMedstopEnabled() {
     mutationFn: async (enabled: boolean): Promise<void> => {
       const res = await apiFetch<{ ok: true }>(`/api/integrations/medstop/${enabled ? "enable" : "disable"}`, { method: "POST" });
       if (!res.ok) throw apiRefusal(res.error, enabled ? "Could not switch the sweep on" : "Could not switch the sweep off");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+/**
+ * UX3: the ordering switch and the office contact (MEDSTOP-PLAN.md §7A.10, D-MSUX2/D-MSUX5). Switching
+ * ordering ON asks for a fresh sign-in (the api's 403 step-up, retried by the caller); off never does.
+ */
+export function useSaveMedstopOrdering() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: MedstopOrderingInput): Promise<void> => {
+      const res = await apiFetch<{ ok: true }>("/api/integrations/medstop/ordering", { method: "POST", body: input });
+      if (!res.ok) throw apiRefusal(res.error, "Could not save the ordering settings");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });

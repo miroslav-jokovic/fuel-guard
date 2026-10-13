@@ -24,6 +24,11 @@ export interface MedstopCredential {
   keyExpiresOn: string | null;
   lastSyncedAt: string | null;
   lastError: string | null;
+  /** UX3 (0468): ordering from the product, off until the owner's first watched order (D-MSUX2). */
+  ordersEnabled: boolean;
+  /** The office contact every order carries in place of the driver's (D-MSUX5). */
+  orderContactEmail: string | null;
+  orderContactPhone: string | null;
 }
 
 const AAD_PURPOSE = "medstop.api_key";
@@ -35,12 +40,15 @@ interface CredentialRow {
   key_expires_on: string | null;
   last_synced_at: string | null;
   last_error: string | null;
+  orders_enabled: boolean;
+  order_contact_email: string | null;
+  order_contact_phone: string | null;
 }
 
 export async function getCredential(admin: SupabaseClient, orgId: string): Promise<MedstopCredential | null> {
   const { data, error } = await admin
     .from("medstop_credentials")
-    .select("base_url, enabled, api_key_sealed, key_expires_on, last_synced_at, last_error")
+    .select("base_url, enabled, api_key_sealed, key_expires_on, last_synced_at, last_error, orders_enabled, order_contact_email, order_contact_phone")
     .eq("org_id", orgId)
     .maybeSingle();
   if (error || !data) return null;
@@ -52,6 +60,9 @@ export async function getCredential(admin: SupabaseClient, orgId: string): Promi
     keyExpiresOn: row.key_expires_on,
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
+    ordersEnabled: row.orders_enabled === true,
+    orderContactEmail: row.order_contact_email,
+    orderContactPhone: row.order_contact_phone,
   };
 }
 
@@ -104,6 +115,13 @@ export async function setApiKey(
 
 /** The kill switch — separate from the key, so turning the sweep off never asks for the key again. */
 export const setEnabled = (admin: SupabaseClient, orgId: string, enabled: boolean) => writeRow(admin, orgId, { enabled });
+
+/** The ordering switch and the office contact, written together (Settings › Med-Stop, UX3). */
+export const setOrdering = (
+  admin: SupabaseClient,
+  orgId: string,
+  ordering: { enabled: boolean; email: string | null; phone: string | null },
+) => writeRow(admin, orgId, { orders_enabled: ordering.enabled, order_contact_email: ordering.email, order_contact_phone: ordering.phone });
 
 export async function recordSweep(admin: SupabaseClient, orgId: string, outcome: { at: string; error: string | null }): Promise<void> {
   await admin.from("medstop_credentials").update({ last_synced_at: outcome.at, last_error: outcome.error }).eq("org_id", orgId);

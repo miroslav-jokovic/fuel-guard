@@ -12,7 +12,12 @@ import type { DrugAlcoholProgram } from "@silvicom/shared";
  * differ; and a sweep that stopped reading is said out loud.
  */
 
-const state = vi.hoisted(() => ({ program: null as unknown }));
+const state = vi.hoisted(() => ({ program: null as unknown, role: null as string | null }));
+// The order button reads the caller's role (UX3); null by default so the tabs' own tests are unchanged.
+vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return state.role; } }) }));
+vi.mock("@/features/drugAlcohol/OrderTestDrawer.vue", () => ({
+  default: { props: ["open", "seed"], template: `<div v-if="open" data-test="order-drawer">{{ seed ? "seeded:" + seed.selectionId : "unseeded" }}</div>` },
+}));
 vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
   useDrugAlcoholProgram: () => ({
     data: computed(() => state.program), isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn(),
@@ -134,5 +139,26 @@ describe("DrugAlcoholPage", () => {
   it("says Med-Stop is not connected rather than showing an empty program", async () => {
     const w = await render(program({ connected: false }));
     expect(w.text()).toContain("Med-Stop is not connected yet");
+  });
+
+  it("offers Order a test, and Order test on an unordered selection, to the three order roles only (UX3)", async () => {
+    state.role = "fleet_manager";
+    let w = await render(program());
+    expect(w.text()).not.toContain("Order a test");
+    expect(w.findAll("button").some((b) => b.text() === "Order test")).toBe(false);
+
+    state.role = "safety_manager";
+    w = await render(program());
+    await w.findAll("button").find((b) => b.text() === "Order test")!.trigger("click");
+    expect(w.find('[data-test="order-drawer"]').text()).toMatch(/^seeded:/);
+    state.role = null;
+  });
+
+  it("opens the header's drawer unseeded — any reason it orders", async () => {
+    state.role = "recruiter";
+    const w = await render(program({ selections: null, results: null }));
+    await w.findAll("button").find((b) => b.text() === "Order a test")!.trigger("click");
+    expect(w.find('[data-test="order-drawer"]').text()).toBe("unseeded");
+    state.role = null;
   });
 });

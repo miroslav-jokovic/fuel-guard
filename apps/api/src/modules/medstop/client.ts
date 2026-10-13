@@ -25,6 +25,13 @@ import { z } from "zod";
  * ── ⚠ 4. 100 REQUESTS A MINUTE, 429 WITH NO `Retry-After` ─────────────────────────────────────
  * The guide says back off about a minute. A full sweep is ~25 pages, so pages are paced at 650 ms
  * and a 429 waits 60 s, at most twice.
+ *
+ * ── ⚠ 5. ONE WRITE, BY NAME, NEVER RETRIED (UX3, MEDSTOP-PLAN §7A.4) ──────────────────────────
+ * The only call that changes anything at Med-Stop is `POST /Request/new` — a billed, real order.
+ * `MEDSTOP_WRITES` is the allow-list; anything else (`/Test/{id}/result`, `DELETE /Request`,
+ * `/Employee/{id}/remove`, `/Request/{id}/notify` — which would text the driver, D-MSUX5) is refused
+ * before a byte leaves. And it is sent ONCE: a timeout after Med-Stop accepted would, retried, be a
+ * second billed order. The caller reports "check before ordering again" instead.
  */
 
 export type MedstopErrorKind = "auth" | "forbidden" | "ip_refused" | "rate_limited" | "validation" | "server" | "transport";
@@ -54,6 +61,9 @@ export interface MedstopClientOptions {
 }
 
 const USER_AGENT = "Silvicom360/1.0 (+https://silvicom360.com)";
+
+/** The ONLY Med-Stop writes this product may make (⚠ 5). Adding one is a decision, not a refactor. */
+export const MEDSTOP_WRITES: ReadonlySet<string> = new Set(["POST /Request/new"]);
 const PAGE_SIZE = 100;
 const RATE_LIMIT_WAIT_MS = 60_000;
 
@@ -120,6 +130,46 @@ export class MedstopClient {
     }
   }
 
+  /** One record (a form, a search answer); `null` for Med-Stop's "nothing found". */
+  async read(path: string): Promise<unknown | null> {
+    return this.get(path);
+  }
+
+  /** An allow-listed write (⚠ 5): sent once, never retried, refused before sending if not listed. */
+  async write(method: "POST", path: string, body: unknown): Promise<unknown> {
+    if (!MEDSTOP_WRITES.has(`${method} ${path}`)) {
+      throw new MedstopError(`${method} ${path} is not a Med-Stop write this product makes`, "validation", null);
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      this.requests++;
+      const res = await this.doFetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: `ApiKey ${this.apiKey}`, Accept: "application/json", "Content-Type": "application/json", "User-Agent": USER_AGENT,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const parsed = parseJson(await res.text());
+      if (res.ok) return parsed ?? null;
+      const err = errorFor(res.status, parsed);
+      // Med-Stop's own sentence for a refused order (a closed site, a duplicate) is what the office needs.
+      const said = medstopMessage(parsed);
+      throw said ? new MedstopError(said, err.kind, err.status) : err;
+    } catch (e) {
+      if (e instanceof MedstopError) throw e;
+      throw new MedstopError(
+        controller.signal.aborted ? `Med-Stop did not answer within ${this.timeoutMs} ms` : e instanceof Error ? e.message : String(e),
+        "transport",
+        null,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** Every row of a list, page by page. `cap` bounds a list that would otherwise walk for ever. */
   async list<T>(path: string, row: z.ZodType<T>, cap = 5_000): Promise<T[]> {
     const out: T[] = [];
@@ -150,6 +200,13 @@ function parseJson(text: string): unknown | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Med-Stop's envelope carries `msg.{code,msg}`; the text, when it has one, is the useful part. */
+function medstopMessage(body: unknown): string | null {
+  const msg = (body as { msg?: { msg?: unknown; code?: unknown } } | null)?.msg;
+  const text = typeof msg?.msg === "string" && msg.msg.trim() ? msg.msg.trim() : typeof msg?.code === "string" ? msg.code : null;
+  return text ? `Med-Stop refused the order: ${text.slice(0, 300)}` : null;
 }
 
 function errorFor(status: number, body: unknown): MedstopError {

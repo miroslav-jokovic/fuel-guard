@@ -373,6 +373,11 @@ const API_ALLOW = new Set([
   //   through `notify()` like every other office alert (F-5).
   "medstop -> evidence",
   "medstop -> messaging",
+  // · medstop -> samsara — "find a collection site near the truck" (UX3, MEDSTOP-PLAN §7A.4) reads the
+  //   assigned truck's newest fix through `readVehiclePositions`, the collector's own read interface,
+  //   never `.from("vehicle_positions")` (a raw table sealed to its collector). samsara imports nothing
+  //   of medstop's.
+  "medstop -> samsara",
   // · recruiting -> medstop — the dispatch door (`returnToDutyHold`) reads a Med-Stop positive or
   //   refusal through `medstopViolationOn`, never `.from("medstop_*")` (F-5). medstop imports nothing
   //   of recruiting's, so the arrow points one way.

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { AppCallout, AppTabs } from "@silvicom/ui";
+import { computed, ref } from "vue";
+import { canOrderDrugTests, type DueSelection } from "@silvicom/shared";
+import { AppButton as BaseButton, AppCallout, AppTabs } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
 import MedicalTab from "@/features/drugAlcohol/MedicalTab.vue";
+import OrderTestDrawer, { type OrderSeed } from "@/features/drugAlcohol/OrderTestDrawer.vue";
 import ProgramPeopleTable from "@/features/drugAlcohol/ProgramPeopleTable.vue";
 import RandomTab from "@/features/drugAlcohol/RandomTab.vue";
 import ResultsTab from "@/features/drugAlcohol/ResultsTab.vue";
 import { useDrugAlcoholProgram } from "@/features/drugAlcohol/useDrugAlcoholProgram";
 import { useQueryState } from "@/composables/useQueryState";
 import { formatDateTime } from "@/lib/format";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * Safety › Drug & Alcohol (MEDSTOP-PLAN.md §7A, MS-UX1) — five tabs, one per job, after the owner's
@@ -24,6 +27,19 @@ import { formatDateTime } from "@/lib/format";
 const program = useDrugAlcoholProgram();
 const p = computed(() => program.data.value);
 const qs = useQueryState();
+const session = useSessionStore();
+
+// UX3 (§7A.4): one order drawer, from the header (any reason it orders) or a random selection (seeded).
+const canOrder = computed(() => canOrderDrugTests(session.role));
+const ordering = ref(false);
+const seed = ref<OrderSeed | null>(null);
+function openOrder(selection?: DueSelection): void {
+  seed.value =
+    selection && selection.person.medstopId && selection.service !== "other"
+      ? { selectionId: selection.selectionId, medstopId: selection.person.medstopId, name: selection.person.name, service: selection.service }
+      : null;
+  ordering.value = true;
+}
 
 const tabs = computed(() => {
   const d = p.value;
@@ -55,7 +71,12 @@ const stale = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader>Random selections, tests in progress, results and medical cards, read from Med-Stop every hour.</PageHeader>
+    <PageHeader>
+      Random selections, tests in progress, results and medical cards, read from Med-Stop every hour.
+      <template v-if="canOrder" #actions>
+        <BaseButton variant="primary" @click="openOrder()">Order a test</BaseButton>
+      </template>
+    </PageHeader>
 
     <QueryState
       :loading="program.isLoading.value && !p"
@@ -79,7 +100,7 @@ const stale = computed(() => {
 
         <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" scrollable />
 
-        <RandomTab v-if="tab === 'random' && p.selections" :due="p.selections.due" :reserves="p.selections.reserves" :pools="p.pools" />
+        <RandomTab v-if="tab === 'random' && p.selections" :due="p.selections.due" :reserves="p.selections.reserves" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
         <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
@@ -99,5 +120,7 @@ const stale = computed(() => {
         </div>
       </template>
     </QueryState>
+
+    <OrderTestDrawer :open="ordering" :seed="seed" @close="ordering = false" />
   </div>
 </template>

@@ -390,6 +390,39 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
    `@fleetguard/api`. Set 2026-10-13 ~13:10 CDT (api only — no other service has it); first sweep ~7
    min after the restart.
 
+### 7A.11 UX3 as built, and the first-order runbook (2026-10-13)
+
+**Built** (UX3a #1509: 0468; UX3b): Safety › Drug & Alcohol has **Order a test** in the header (the
+three order roles, `MEDSTOP_ORDER_ROLES` in shared — D-MSUX1) and **Order test** on every unordered
+random selection (seed = the selection). The drawer: driver (Med-Stop active roster, licence or
+name+DOB match only, R3) → drug/alcohol → reason (post-accident, reasonable suspicion; random only from
+a selection) → day (today … +30) and time → site (ZIP, or the assigned truck's last fix) → how the
+driver was told → **Review order** (the api's own payload) → **Place order**.
+- D-MSUX6: ordering has its OWN switch, `medstop_credentials.orders_enabled`, off by default (0468) —
+  `enabled` already gates the read and is on. Settings › Med-Stop › Ordering tests; switching ON needs a
+  fresh sign-in and the office contact; OFF needs nothing.
+- D-MSUX8: the client allow-lists ONE write, `POST /Request/new` (`MEDSTOP_WRITES`), sent once and never
+  retried; a timeout is reported as "may have been placed — check Med-Stop" and audited
+  (`medstop.order.unknown`). Placed orders are audited `medstop.order.placed`.
+- The api refuses: ordering off · no office contact · a person not certainly matched · a selection not
+  open, not this person's, already ordered, or for the other test · **any unfinished Med-Stop order for
+  the same person and test, asked live** (`/Request/for/{eeid}`) · a day outside today … +30.
+- Measured (GET only) and acted on: the prefilled form carries the DRIVER's phone in `tosms` — the order
+  overwrites it with the office's; a selection-seeded form fills `eeid` but not the reason/test.
+- NOT measurable without a real order [?]: the exact `requesttime` format Med-Stop accepts (sent as
+  `HH:MM`), whether the POST answer carries the request id (we send the form's id and fall back to it),
+  and how Med-Stop links a random order to its selection.
+
+**First-order runbook** (answer 2 — owner watching, a real person who needs one):
+1. Settings › Med-Stop: enter the office e-mail and 10-digit phone, **Switch ordering on** (password).
+2. Order the test from the drawer; read the review aloud before **Place order**.
+3. In Med-Stop's portal, open the new request: person, test, reason, site, date/time as reviewed;
+   payment = company credit.
+4. `GET /Request/{id}/messages` (probe script, GET only) must show **zero** messages to the driver.
+5. For a random order: the selection shows the new request id in Med-Stop.
+6. Within the hour, the order appears under In progress. Record the measured answers to the three [?]
+   above in §9; leave ordering on only if all six held.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -563,3 +596,9 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
   tab: the due list by the rule's date, plus "Sources disagree" with one column per source.
   Samba still waits on Q-MSUX6. R2's sample was not made (production read); the risk is stated in the
   PR: on first sweep, a driver whose Med-Stop date is earlier than McLeod's gets the earlier date filed.
+
+- 2026-10-13 — **UX3 built.** UX3a #1509 merged (0468: `orders_enabled` off by default, office contact).
+  UX3b: order drawer (header + random rows), live duplicate check, allow-listed single-shot POST,
+  Settings › Ordering tests, audit rows; §7A.11 has the shape and the first-order runbook. Ordering stays
+  OFF in every database until the owner's first watched order. Next: UX4 (the same drawer in the hiring
+  step, for applicants Med-Stop holds).

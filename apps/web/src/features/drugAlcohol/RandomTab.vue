@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DueSelection, PoolPace } from "@silvicom/shared";
-import { AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
@@ -13,7 +13,9 @@ import { formatDate } from "@/lib/format";
  * have waited, and whether a test is ordered. Only ever mounted for a reader the API sent selections
  * to (admin, safety_manager). Nothing dated after today is in the data at all (R4).
  */
-defineProps<{ due: DueSelection[]; reserves: DueSelection[]; pools: PoolPace[] }>();
+defineProps<{ due: DueSelection[]; reserves: DueSelection[]; pools: PoolPace[]; canOrder: boolean }>();
+// UX3: "Order test" on a selection not yet ordered — the drawer takes it as the seed (§7A.4).
+const emit = defineEmits<{ order: [selection: DueSelection] }>();
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Driver", cellClass: "font-medium text-ink" },
@@ -60,7 +62,8 @@ const paceTone = (pool: PoolPace) =>
         <template #cell-selectedOn="{ row }">{{ formatDate(row.selectedOn) }}</template>
         <template #cell-daysSince="{ row }">{{ row.daysSince === 0 ? "today" : `${row.daysSince} d` }}</template>
         <template #cell-ordered="{ row }">
-          <span :class="[BADGE_BASE, toneClass(row.ordered ? 'info' : 'warning')]">{{ row.ordered ? "Ordered" : "Not ordered" }}</span>
+          <BaseButton v-if="canOrder && !row.ordered && row.person.medstopId" size="sm" @click="emit('order', row)">Order test</BaseButton>
+          <span v-else :class="[BADGE_BASE, toneClass(row.ordered ? 'info' : 'warning')]">{{ row.ordered ? "Ordered" : "Not ordered" }}</span>
         </template>
       </DataTable>
     </BaseCard>
