@@ -119,6 +119,7 @@ describe("opening a row", () => {
   it("links the report number to the inspection's page, on a phone's cards as on the desktop table", async () => {
     const { w } = await list();
     expect(w.get("a[href='/roadside-inspections/abc']").text()).toBe("ILabc");
+    expect(w.text()).toContain("2 · Walk-Around");
   });
 
   it("opens the inspection's page from anywhere on the desktop row", async () => {

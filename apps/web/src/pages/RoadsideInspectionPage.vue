@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
-import type { RoadsideMatchMethod, RoadsideUnitDetailDto, RoadsideViolationDto } from "@silvicom/shared";
+import { inspectionLevelLabel, type RoadsideMatchMethod, type RoadsideUnitDetailDto, type RoadsideViolationDto } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
@@ -19,8 +19,8 @@ import { formatDate } from "@/lib/format";
  *
  * ── WHAT IT SHOWS IS THE REPORT, NOT A READING OF IT ───────────────────────────────────────────
  * Times are the report's local clock, as written: resolving them to an instant needs the truck's GPS
- * and is IC5's (D-IC8). The level is FMCSA's number; its names are not in the sources we hold
- * (`docs/regulatory/fmcsa/SOURCES.md`), so the page does not supply them. A violation's code and
+ * and is IC5's (D-IC8). The level, the violation category and the defect's outcome are named from
+ * FMCSA's own data dictionary (plan Q-IC5), never paraphrased. A violation's code and
  * description are FMCSA's words; its SMS weight and BASIC are IC3's. A unit says how it matched one
  * of ours, because a unit-number match is the weakest of the three (0458), and an unmatched one says
  * so rather than borrowing a near match (D-IC7).
@@ -47,7 +47,7 @@ const facts = computed<Fact[]>(() => {
   return [
     { label: "Date", value: i.inspectionDate ? formatDate(i.inspectionDate) : null },
     { label: "Time (local)", value: start && end ? `${start}–${end}` : (start ?? end) },
-    { label: "Level", value: i.level },
+    { label: "Level", value: inspectionLevelLabel(i.level) },
     { label: "Site", value: i.facility === "fixed" ? "Fixed site" : i.facility === "roadside" ? "Roadside" : null },
     { label: "Location", value: [i.locationDesc, i.reportState].filter(Boolean).join(", ") || null },
     { label: "Post-accident", value: yesNo(i.postAccident) },
@@ -135,9 +135,17 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           <DataTable :columns="VIOLATION_COLUMNS" :rows="inspection.violationList" row-key="id" :nowrap="false" empty-text="No violations recorded on this inspection.">
             <template #cell-against="{ row }">{{ againstLabel(row as RoadsideViolationDto) ?? "—" }}</template>
             <template #cell-code="{ value }"><span class="font-mono text-xs">{{ value ?? "—" }}</span></template>
-            <template #cell-description="{ value }">{{ value ?? "—" }}</template>
-            <template #cell-outOfService="{ value }">
-              <span v-if="value" :class="[BADGE_BASE, toneClass('danger'), 'whitespace-nowrap']" data-test="oos">Out of service</span>
+            <template #cell-description="{ row }">
+              {{ (row as RoadsideViolationDto).description ?? "—" }}
+              <p v-if="(row as RoadsideViolationDto).category" class="mt-0.5 text-xs text-ink-muted" data-test="category">{{ (row as RoadsideViolationDto).category }}</p>
+            </template>
+            <template #cell-outOfService="{ row }">
+              <template v-if="(row as RoadsideViolationDto).outOfService">
+                <span :class="[BADGE_BASE, toneClass('danger'), 'whitespace-nowrap']" data-test="oos">Out of service</span>
+                <!-- What became of the defect — only beside an order, where it says something ("not out of
+                     service" is on every other line). -->
+                <p v-if="(row as RoadsideViolationDto).defectVerification" class="mt-1 text-xs text-ink-muted" data-test="defect">{{ (row as RoadsideViolationDto).defectVerification }}</p>
+              </template>
               <span v-else class="text-ink-tertiary">No</span>
             </template>
             <template #cell-citationNumber="{ value }">{{ value ?? "—" }}</template>

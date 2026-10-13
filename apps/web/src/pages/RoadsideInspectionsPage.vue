@@ -8,6 +8,7 @@ import {
   ROADSIDE_OOS_KINDS,
   ROADSIDE_PERIODS,
   hasOosOf,
+  inspectionLevelLabel,
   roadsidePeriodStart,
   todayInZone,
   type RoadsideInspectionDto,
@@ -94,7 +95,7 @@ const COLUMNS: DataTableColumn[] = [
   { key: "inspectionDate", label: "Date", sortable: true, width: "sm" },
   { key: "reportNumber", label: "Report", cellClass: "font-medium text-ink", width: "md" },
   { key: "reportState", label: "State", sortable: true, cellClass: "text-ink-secondary", width: "xs" },
-  { key: "level", label: "Level", sortable: true, numeric: true, width: "xs" },
+  { key: "level", label: "Level", sortable: true, width: "md" },
   { key: "locationDesc", label: "Location" },
   { key: "units", label: "Units", width: "md" },
   { key: "violations", label: "Violations", sortable: true, numeric: true, width: "sm" },
@@ -153,7 +154,7 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
           </BaseButton>
         </template>
         <template #cell-reportState="{ value }">{{ value ?? "—" }}</template>
-        <template #cell-level="{ value }">{{ value ?? "—" }}</template>
+        <template #cell-level="{ value }">{{ inspectionLevelLabel(value as number | null) ?? "—" }}</template>
         <template #cell-locationDesc="{ value }">
           <span v-if="value" class="line-clamp-2">{{ value }}</span>
           <span v-else class="text-ink-tertiary">—</span>

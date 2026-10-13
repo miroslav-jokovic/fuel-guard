@@ -79,6 +79,91 @@ export interface RoadsideInspectionDto {
   units?: RoadsideInspectionUnitDto[];
 }
 
+/**
+ * FMCSA's names for the codes the inspection record carries as numbers — from the MCMIS Vehicle
+ * Inspection File data dictionary, Rev 05 of 2025-10-15
+ * (`docs/regulatory/fmcsa/MCMIS_Vehicle_Inspection_File_Data_Dictionary_Rev05.pdf`, pp. 4–8; plan
+ * Q-IC5). Copied as printed, so a reader sees FMCSA's word, not ours. A code outside a table (a later
+ * edition adding one) reads as its number, never as a guess.
+ */
+export const INSPECTION_LEVEL_NAMES: Readonly<Record<number, string>> = {
+  1: "Full",
+  2: "Walk-Around",
+  3: "Driver-Only",
+  4: "Special Study",
+  5: "Terminal",
+};
+
+/** `INSP_VIOLATION_CATEGORY_ID` → its description (dictionary pp. 6–8). */
+export const VIOLATION_CATEGORY_NAMES: Readonly<Record<number, string>> = {
+  1: "Medical Certificate",
+  2: "False Log Book",
+  3: "No Log Book, Log Not Current, General Log Violations",
+  4: "10/15 Hours",
+  5: "15/20 Hours",
+  6: "60/70/80 Hours",
+  7: "All Other Hours-Of-Service",
+  8: "Disqualified Drivers",
+  9: "Drugs",
+  10: "Alcohol",
+  11: "Seat Belt",
+  12: "Traffic Enforcement",
+  13: "Radar Detectors",
+  14: "All Other Driver Violations",
+  15: "Brakes, Out of Adjustment",
+  16: "Brakes, All Other Violations",
+  17: "Coupling Devices",
+  18: "Fuel Systems",
+  19: "Frames",
+  20: "Lighting",
+  21: "Steering Mechanism",
+  22: "Suspension",
+  23: "Tires",
+  24: "Wheels, Studs, Clamps, Etc.",
+  25: "Load Securement",
+  26: "Windshield",
+  27: "Exhaust Discharge",
+  28: "Emergency Equipment",
+  29: "Periodic Inspection",
+  30: "All Other Vehicle Defects",
+  31: "Shipping Papers",
+  32: "Improper Placarding",
+  33: "Accepting Shipment Improperly Marked",
+  34: "Improper Blocking and Bracing",
+  35: "No Retest and Inspection (Cargo Tank)",
+  36: "No Remote Shutoff Control",
+  37: "Use of Non-specification Container",
+  38: "Emergency Response",
+  39: "All Other HM Violations",
+  40: "Failure to Obey Traffic Control Device",
+  41: "Following Too Close",
+  42: "Improper Lane Change",
+  43: "Improper Passing",
+  44: "Reckless Driving",
+  45: "Speeding",
+  46: "Improper Turns",
+  47: "Size and Weight",
+  48: "Failure to yield right of way",
+  49: "State/Local Hours of Service",
+  99: "Unknown",
+};
+
+/**
+ * `DEFECT_VERIFICATION_ID` (dictionary p. 5): what became of the defect after the inspection. Read for
+ * an out-of-service order — "repaired at scene" beside a disputed order is evidence of its own.
+ */
+export const DEFECT_VERIFICATION_NAMES: Readonly<Record<number, string>> = {
+  1: "Repaired at scene",
+  2: "Towed or escorted to repair",
+  3: "Not out of service",
+  4: "Other",
+  99: "Unknown or unverified",
+};
+
+/** The level as FMCSA names it: "2 · Walk-Around"; just the number for a code the table lacks. */
+export const inspectionLevelLabel = (level: number | null): string | null =>
+  level == null ? null : INSPECTION_LEVEL_NAMES[level] ? `${level} · ${INSPECTION_LEVEL_NAMES[level]}` : String(level);
+
 /** How the projection tied a unit to ours (0458's `match_method`, the three that are a match). */
 export const ROADSIDE_MATCH_METHODS = ["vin", "plate", "unit_number"] as const;
 export type RoadsideMatchMethod = (typeof ROADSIDE_MATCH_METHODS)[number];
@@ -103,6 +188,10 @@ export interface RoadsideViolationDto {
   /** Who the officer wrote it against: the driver, or the unit at this position on the report. */
   against: { driver: true } | { unitSeq: number } | null;
   outOfService: boolean | null;
+  /** FMCSA's violation category, named (`VIOLATION_CATEGORY_NAMES`); the number when the table lacks it. */
+  category: string | null;
+  /** What became of the defect (`DEFECT_VERIFICATION_NAMES`); null when FMCSA left it blank. */
+  defectVerification: string | null;
   citationNumber: string | null;
   /** The court results FMCSA holds for this violation's citation, as FMCSA words them. */
   courtResults: string[];
