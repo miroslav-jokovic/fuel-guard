@@ -103,6 +103,7 @@ const perMile = (rate: number | null, verb: string) => (rate == null ? null : `$
     <!-- Two lines under each figure: the change in its own tone, then the neighbour in grey. They
          are nested block spans rather than siblings because the tile's sub line is a flex row, and
          two sibling spans there wrap into two ragged columns. -->
+    <!-- ui-adoption: stat-guarded — `report` is required: the page draws these only inside the overview's QueryState, which withholds them on a failed read. -->
     <StatCard label="Kept" :value="fmtUsd(report.total.net)" size="hero" :spark="kept.spark" :spark-color="MONEY_COLORS.kept" :loading="loading">
       <template #sub>
         <span>
@@ -111,6 +112,7 @@ const perMile = (rate: number | null, verb: string) => (rate == null ? null : `$
         </span>
       </template>
     </StatCard>
+    <!-- ui-adoption: stat-guarded — `report` is required: the page draws these only inside the overview's QueryState, which withholds them on a failed read. -->
     <StatCard label="Earned" :value="fmtUsd(report.total.revenue)" size="hero" :spark="earned.spark" :spark-color="MONEY_COLORS.earned" :loading="loading">
       <template #sub>
         <span>
@@ -119,6 +121,7 @@ const perMile = (rate: number | null, verb: string) => (rate == null ? null : `$
         </span>
       </template>
     </StatCard>
+    <!-- ui-adoption: stat-guarded — `report` is required: the page draws these only inside the overview's QueryState, which withholds them on a failed read. -->
     <StatCard label="Spent" :value="fmtUsd(report.total.expenses)" size="hero" :spark="spent.spark" :spark-color="MONEY_COLORS.spent" :loading="loading">
       <template #sub>
         <span>
@@ -127,6 +130,7 @@ const perMile = (rate: number | null, verb: string) => (rate == null ? null : `$
         </span>
       </template>
     </StatCard>
+    <!-- ui-adoption: stat-guarded — `report` is required: the page draws these only inside the overview's QueryState, which withholds them on a failed read. -->
     <StatCard label="Kept per mile driven" :value="keptPerMile.value" size="hero" :spark="keptPerMile.spark" :spark-color="MONEY_COLORS.kept" :loading="loading">
       <template #sub>
         <span>

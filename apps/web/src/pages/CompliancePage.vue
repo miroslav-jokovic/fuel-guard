@@ -164,6 +164,7 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
              loads, and gone when it failed, because five zeros above a table saying "Could not load"
              read as a clean fleet. The table below carries the failure and its Retry (same query). -->
         <div v-if="!overview.isError.value" class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <!-- ui-adoption: stat-guarded — the strip above is withheld on a failed overview read, and the table carries the failure (F4). -->
           <StatCard
             v-for="t in strip"
             :key="t.key"

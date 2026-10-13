@@ -137,6 +137,9 @@ const { sort, onSort } = useUrlSort(
         :value="fmtUsd(booked)"
         :sub="`${loads.toLocaleString()} loads across ${rows.length} ${rows.length === 1 ? 'dispatcher' : 'dispatchers'}${unposted ? ` · ${unposted} not booked yet, held out` : ''}`"
         :loading="isLoading"
+        :error="isError ? 'Could not load the dispatchers.' : null"
+        :retrying="isFetching"
+        @retry="refetch()"
       />
       <StatCard
         label="Fleet rate per billed mile"
