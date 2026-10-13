@@ -3,8 +3,7 @@ import { ref, computed, watch } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@/composables/useQueryState";
-import { useMembersQuery } from "@/features/permissions/usePermissions";
-import { useInvitesQuery } from "@/features/settings/useInvites";
+import { useMemberLists } from "@/features/settings/useMemberLists";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -61,13 +60,8 @@ const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 const heldForStepUp = (res: { ok: boolean; error?: { code: string; message: string } }, retry: () => Promise<void>) =>
   !res.ok && holdForStepUp(apiRefusal(res.error, ""), retry);
 
-// Both lists are queries (F2, US6b): before, they were refs that started empty and were filled by
-// hand, so a failed read drew "0 members · No members match" and "No invitations yet", and the only
-// sign of the failure was a toast. The members query is the one the Permissions page reads.
-const membersQuery = useMembersQuery();
-const invitesQuery = useInvitesQuery();
-const members = computed(() => membersQuery.data.value ?? []);
-const invites = computed(() => invitesQuery.data.value ?? []);
+// Both lists are queries since F2 (US6b) — a failed read is the table's failure, not an empty org.
+const { membersQuery, invitesQuery, members, invites, reload: load } = useMemberLists();
 
 const email = ref("");
 const inviteName = ref("");
@@ -84,10 +78,6 @@ const inviteRoleOptions = OFFICE_ROLES.map((r) => ({
   label: USER_ROLE_LABELS[r],
 }));
 
-/** After every write: ask both lists again, so the page shows what the API now holds. */
-async function load() {
-  await Promise.all([membersQuery.refetch(), invitesQuery.refetch()]);
-}
 
 interface InviteResult { emailSent: boolean; reason?: string | null; link?: string | null; rotated?: boolean }
 

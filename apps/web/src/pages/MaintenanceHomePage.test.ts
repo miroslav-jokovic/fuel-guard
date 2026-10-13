@@ -94,21 +94,18 @@ vi.mock("@/features/inventory/useInventory", async () => {
     useOpenCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
-vi.mock("@/features/inventory/useUnits", async () => {
-  const { ref: r } = await import("vue");
+vi.mock("@/features/inventory/useUnits", () => {
   return {
     useUnitsQuery: () => queries.short,
   };
 });
-vi.mock("@/features/maintenance/useMaintenanceSpend", async () => {
-  const { ref: r } = await import("vue");
+vi.mock("@/features/maintenance/useMaintenanceSpend", () => {
   return {
     useMaintenanceSpendQuery: () => queries.spend,
   };
 });
 const summary = ref({ openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:12:00+00:00", unresolvedDefects: 52, lowStockLines: 0 });
-vi.mock("@/features/maintenance/useShopBacklog", async () => {
-  const { ref: r } = await import("vue");
+vi.mock("@/features/maintenance/useShopBacklog", () => {
   return { useShopSummaryQuery: () => queries.summary };
 });
 // The real shape (SP5): every door on the page now asks the guard's function, which reads the role

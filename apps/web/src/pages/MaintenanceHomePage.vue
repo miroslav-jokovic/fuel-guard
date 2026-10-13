@@ -179,8 +179,8 @@ const unitPath = (u: UnitKitDto) =>
         :loading="summary.isLoading.value"
         :error="summary.isError.value ? 'Could not load the work orders.' : null"
         :retrying="summary.isFetching.value"
-        @retry="summary.refetch()"
         :to="opens('/shop/work-orders') ? '/shop/work-orders' : undefined"
+        @retry="summary.refetch()"
       />
       <StatCard
         label="Open defects"
@@ -192,8 +192,8 @@ const unitPath = (u: UnitKitDto) =>
         :loading="summary.isLoading.value"
         :error="summary.isError.value ? 'Could not load the defects.' : null"
         :retrying="summary.isFetching.value"
-        @retry="summary.refetch()"
         :to="opens('/shop/defects') ? '/shop/defects' : undefined"
+        @retry="summary.refetch()"
       />
     </div>
 

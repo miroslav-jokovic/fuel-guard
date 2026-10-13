@@ -207,14 +207,9 @@ const counts = computed(() => {
   result.exceptions = scopedExceptions.value.length;
   return result;
 });
-// A tab's count is printed only once the read it counts has answered (F13, US6b): every tab read 0
-// while the loads were loading and after they failed — an empty board, as far as the tabs knew.
-const tabItems = computed(() =>
-  QUEUE_TABS.map((q) => {
-    const answered = q.value === "exceptions" ? exceptions.value !== undefined : loads.value !== undefined;
-    return { value: q.value, label: q.label, badge: answered ? counts.value[q.value] : undefined };
-  }),
-);
+// A tab counts only once the read it counts has answered (F13, US6b): on a failed read every tab said 0.
+const answered = (q: QueueTab) => (q === "exceptions" ? exceptions.value : loads.value) !== undefined;
+const tabItems = computed(() => QUEUE_TABS.map((q) => ({ value: q.value, label: q.label, badge: answered(q.value) ? counts.value[q.value] : undefined })));
 
 /**
  * Exceptions under the page's scope and type, judged on the exception's LOAD. One with no load we hold
