@@ -224,6 +224,18 @@ describe("normaliseSource — PDFs: 300 DPI pages plus the born-digital text lay
     }
   }, 60_000);
 
+  it("draws a normal-mode fax TIFF (204 × 98 dpi) at its real height, not squashed — every page", async () => {
+    const out = await normalised(await fx.faxTiff(2), "image/tiff");
+    expect(out.pages.map((p) => [p.original.width, p.original.height])).toEqual([[1728, 2290], [1728, 2290]]);
+    await expectUprightPage(out.pages[1]!.original.png);
+  }, 60_000);
+
+  it("reads each fax page's own resolution: a fine page stays its height beside a normal one that is stretched", async () => {
+    const mixed = fx.withPageResolution(await fx.faxTiff(2), 0, { x: 204, y: 204 });
+    const out = await normalised(mixed, "image/tiff");
+    expect(out.pages.map((p) => [p.original.width, p.original.height])).toEqual([[1728, 1100], [1728, 2290]]);
+  }, 60_000);
+
   it("reads only a GIF's first frame — further frames are animation, not pages", async () => {
     const frames = await Promise.all([fx.pagePng(), fx.pagePng()]);
     const animated = await sharp(frames, { join: { animated: true } }).gif().toBuffer();

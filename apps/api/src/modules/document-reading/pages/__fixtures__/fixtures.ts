@@ -277,3 +277,34 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2);
   await writeAll(args.find((a) => !a.startsWith("--")) ?? "fixtures-out", args.includes("--regenerate-heic"));
 }
+
+/**
+ * A "normal"-mode fax as a fax gateway writes it: pages of 1728 × 1100 stored pixels at 204 × 98 dpi
+ * (ITU-T T.4 standard resolution), so each pixel is about twice as tall as it is wide.
+ */
+export async function faxTiff(pages = 1): Promise<Buffer> {
+  const page = () => raw(1728, 1100).png().toBuffer();
+  const input = pages === 1 ? await page() : await Promise.all(Array.from({ length: pages }, page));
+  return sharp(input, pages === 1 ? {} : { join: { animated: true } }).tiff({ xres: 204 / 25.4, yres: 98 / 25.4 }).toBuffer();
+}
+
+/**
+ * `tiff` with page `page`'s XResolution/YResolution rewritten to `dpi` — a fax that mixes a fine page with
+ * a normal one, which sharp cannot write (its join gives every page one resolution). Only the two
+ * RATIONAL values change; each page's IFD points at its own, so the other pages keep theirs.
+ */
+export function withPageResolution(tiff: Buffer, page: number, dpi: { x: number; y: number }): Buffer {
+  const b = Buffer.from(tiff);
+  let ifd = b.readUInt32LE(4);
+  for (let i = 0; i < page; i++) ifd = b.readUInt32LE(ifd + 2 + b.readUInt16LE(ifd) * 12);
+  const n = b.readUInt16LE(ifd);
+  for (let e = 0; e < n; e++) {
+    const at = ifd + 2 + e * 12;
+    const tag = b.readUInt16LE(at);
+    if (tag !== 282 && tag !== 283) continue;
+    const value = b.readUInt32LE(at + 8);
+    b.writeUInt32LE(Math.round((tag === 282 ? dpi.x : dpi.y) * 100), value);
+    b.writeUInt32LE(100, value + 4);
+  }
+  return b;
+}
