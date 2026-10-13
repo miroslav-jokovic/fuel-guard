@@ -197,6 +197,13 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/roadside-inspections",
   },
   {
+    "name": "roadside-inspection",
+    "params": {
+      "id": "ri_1",
+    },
+    "url": "/roadside-inspections/ri_1",
+  },
+  {
     "name": "drivers",
     "params": {},
     "url": "/drivers",
@@ -1209,6 +1216,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "roadside-inspections",
     "path": "/roadside-inspections",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/roadside-inspections",
+      "requiresAuth": true,
+      "title": "Roadside inspection",
+    },
+    "name": "roadside-inspection",
+    "path": "/roadside-inspections/:id",
     "redirect": null,
   },
   {

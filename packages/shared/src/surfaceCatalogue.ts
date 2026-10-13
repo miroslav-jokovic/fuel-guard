@@ -300,6 +300,8 @@ export const SURFACES: readonly Surface[] = [
   { key: "recruitment.screening", label: "Screening readiness", path: "/recruitment/screening", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.inquiries", label: "Safety-history inquiries", path: "/recruitment/inquiries", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
   { key: "recruitment.templates", label: "Templates", path: "/recruitment/templates", group: "recruitment", gate: section("recruitment"), parent: "recruitment.applicants" },
+  // One roadside inspection, the row the list opens (INSPECTION-CHALLENGE-PLAN §6's Inspection page).
+  { key: "safety.roadside-inspections.detail", label: "Roadside inspection", path: "/roadside-inspections/:id", group: "safety", gate: section("safety"), parent: "safety.roadside-inspections" },
   { key: "maintenance.inspections.detail", label: "Annual inspection", path: "/shop/inspections/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.inspections" },
   { key: "maintenance.parts.detail", label: "Part", path: "/shop/inventory/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.parts" },
   { key: "maintenance.assets.detail", label: "Asset", path: "/shop/assets/:id", group: "maintenance", gate: section("maintenance"), parent: "maintenance.assets" },

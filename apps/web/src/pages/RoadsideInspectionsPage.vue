@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
@@ -36,8 +38,9 @@ import { sortRows } from "@/lib/sort";
  *
  * ── WHAT IS NOT HERE YET ───────────────────────────────────────────────────────────────────────
  * The inbox's "has candidate" and "needs task" filters, the driver column and the SMS weight columns
- * belong to IC4–IC6 (cases, attribution, impact). No row opens: the inspection page is IC6's. The
- * driver filter waits on attribution (D-IC7), because a guessed driver is the thing that plan forbids.
+ * belong to IC4–IC6 (cases, attribution, impact). A row opens `RoadsideInspectionPage` — the report's
+ * units, violations and court results; its cases and evidence come with IC6. The driver filter waits
+ * on attribution (D-IC7), because a guessed driver is the thing that plan forbids.
  *
  * ── UNITS ARE SHOWN AS THE OFFICER WROTE THEM ──────────────────────────────────────────────────
  * A unit the projection could not tie to exactly one truck or trailer of ours says so, rather than
@@ -104,6 +107,10 @@ const { sort, onSort } = useUrlSort(
 watch([search, period, oos, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 
 const clearAll = () => qs.set({ search: undefined, period: undefined, oos: undefined });
+
+// A real page rather than a drawer, so it can be linked and Back keeps this list's filters (§5.7).
+const router = useRouter();
+const openInspection = (row: Row) => void router.push({ name: "roadside-inspection", params: { id: row.id } });
 </script>
 
 <template>
@@ -135,10 +142,16 @@ const clearAll = () => qs.set({ search: undefined, period: undefined, oos: undef
         :error="inspections.isError.value ? 'Could not load the roadside inspections' : null"
         :sort="sort"
         @sort="onSort"
+        :row-class="() => 'cursor-pointer'"
         @retry="() => inspections.refetch()"
+        @row-click="openInspection"
       >
         <template #cell-inspectionDate="{ value }">{{ value ? formatDate(value) : "—" }}</template>
-        <template #cell-reportNumber="{ value }">{{ value ?? "—" }}</template>
+        <template #cell-reportNumber="{ row }">
+          <BaseButton variant="link" :to="{ name: 'roadside-inspection', params: { id: (row as Row).id } }" class="font-medium" @click.stop>
+            {{ (row as Row).reportNumber ?? "Open" }}
+          </BaseButton>
+        </template>
         <template #cell-reportState="{ value }">{{ value ?? "—" }}</template>
         <template #cell-level="{ value }">{{ value ?? "—" }}</template>
         <template #cell-locationDesc="{ value }">

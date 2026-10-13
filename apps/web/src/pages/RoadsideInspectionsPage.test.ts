@@ -33,6 +33,9 @@ vi.mock("@/composables/useOrgTimezone", () => ({
   useOrgTimezone: () => ({ zone: computed(() => "America/Los_Angeles"), isResolved: computed(() => true) }),
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
+// jsdom has no `matchMedia`, so DataTable draws its narrow cards unless a test asks for the desktop table.
+const wide = ref(false);
+vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as Record<string, unknown>), useMediaQuery: () => wide }));
 
 const RoadsideInspectionsPage = (await import("@/pages/RoadsideInspectionsPage.vue")).default;
 
@@ -58,6 +61,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-13T06:30:00.000Z"));
   inspections.value = [];
   askedFrom.value = undefined;
+  wide.value = false;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -98,5 +102,30 @@ describe("roadside inspections", () => {
     const w = await page("/roadside-inspections?period=90d");
     expect(w.text()).toContain("111 roadside inspections");
     expect(w.text()).toContain("Showing 1–25 of 111");
+  });
+});
+
+describe("opening a row", () => {
+  async function list() {
+    inspections.value = [insp("abc")];
+    const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+    await router.push("/roadside-inspections?period=90d");
+    await router.isReady();
+    const w = mount(RoadsideInspectionsPage as never, { global: { plugins: [router] } });
+    await flushPromises();
+    return { w, router };
+  }
+
+  it("links the report number to the inspection's page, on a phone's cards as on the desktop table", async () => {
+    const { w } = await list();
+    expect(w.get("a[href='/roadside-inspections/abc']").text()).toBe("ILabc");
+  });
+
+  it("opens the inspection's page from anywhere on the desktop row", async () => {
+    wide.value = true;
+    const { w, router } = await list();
+    await w.get("tbody tr td:nth-child(5)").trigger("click");
+    // The route's component is a lazy import, so the navigation settles after it loads.
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/roadside-inspections/abc"));
   });
 });

@@ -65,4 +65,12 @@ export const fleetRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/RoadsideInspectionsPage.vue"),
     meta: { requiresAuth: true, title: "Roadside inspections" },
   },
+  {
+    // A real page, not a drawer over the list, so a report can be linked and Back returns to the
+    // list's filters (contract §5.7 "Route", the Loads arrangement).
+    path: "/roadside-inspections/:id",
+    name: "roadside-inspection",
+    component: () => import("@/pages/RoadsideInspectionPage.vue"),
+    meta: { requiresAuth: true, title: "Roadside inspection", parent: "/roadside-inspections" },
+  },
 ];

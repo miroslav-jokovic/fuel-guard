@@ -527,3 +527,22 @@ about three merges.
   - The Operations tab's Roadside card counts this list through `summarizeRoadside`.
   - Measured: the three OOS counts overlap. On all 30 inspections where `oos_total` differs from
     `driver + vehicle + hazmat`, the hazmat order is also counted as a vehicle or driver order.
+- **2026-10-13 — A row of the inbox opens its inspection (§6's Inspection page, first slice; owner's ask).**
+  `GET /api/roadside-inspections/:id` and the page `/roadside-inspections/:id` (surface
+  `safety.roadside-inspections.detail`, parented on the list, same `safety` gate). The list's row and
+  its report number both open it, as a page rather than a drawer, so it can be linked and Back keeps
+  the list's filters.
+  - **Shown, as FMCSA wrote it:** date, the report's local start and end time, level (FMCSA's number),
+    fixed site or roadside, location, post-accident, hazmat placard, gross weight and shipper. Then
+    FMCSA's counts, every violation (who it is against — the driver or the report's unit by position —
+    code, description, OOS, citation number and court result) and every unit (make, plate, VIN, CVSA
+    decal, and "ours, by VIN / plate / unit number" or "not matched", D-IC7). A matched truck links to
+    its vehicle page only for a reader the router lets in.
+  - **Read with the same `vanished_at is null` as the list:** a removed inspection answers 404, and a
+    violation or court result FMCSA removed is off the page.
+  - **Measured on production, 2026-10-13:** 1,417 current violations, all with a description; 427
+    against the driver, 995 against a unit. 21 citations carry a court result, at most one per violation.
+  - **Not shown, on purpose:** the driver (not on FMCSA's public record; IC5), the violation group
+    (`category_id`, which IC3 maps to a BASIC), the county (a FIPS code with no name table), the
+    level's name (no source for it in `docs/regulatory/fmcsa/SOURCES.md`), the resolved instant
+    (D-IC8, IC5), and cases, timeline and documents (IC4–IC6).

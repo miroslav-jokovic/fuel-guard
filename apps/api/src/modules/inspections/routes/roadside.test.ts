@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { roadsideSummarySchema, type RoadsideInspectionDto } from "@silvicom/shared";
+import { roadsideSummarySchema, type RoadsideInspectionDetailDto, type RoadsideInspectionDto } from "@silvicom/shared";
 import { closeTestServer } from "../../../testing/httpServer.js";
 import {
   createSupabaseRecorder,
@@ -69,9 +69,27 @@ const INSPECTIONS: Insp[] = [
 ];
 const unit = (inspection_id: string, seq: number, type: string, method: string, org = ORG, vanished: string | null = null) => ({
   inspection_id, org_id: org, unit_seq: seq, unit_type_id: type, company_number: `${700 + seq}`, plate: "P123",
-  plate_state: "IL", match_method: method, vanished_at: vanished,
+  plate_state: "IL", match_method: method, vanished_at: vanished, make: "FRHT", vin: `VIN${seq}`, decal: false,
+  vehicle_id: method === "vin" && type === "11" ? "veh-701" : null,
 });
-const UNITS = [
+type Viol = { id: string; org_id: string; inspection_id: string; seq_no: number; viol_code: string; description: string; viol_unit: string; out_of_service: boolean; citation_number: string | null; vanished_at: string | null };
+const viol = (id: string, inspection_id: string, seq: number, unitCol: string, oos: boolean, extra: Partial<Viol> = {}): Viol => ({
+  id, org_id: ORG, inspection_id, seq_no: seq, viol_code: `393.${seq}`, description: `Violation ${id}`, viol_unit: unitCol,
+  out_of_service: oos, citation_number: null, vanished_at: null, ...extra,
+});
+const VIOLATIONS: Viol[] = [];
+type Cit = { org_id: string; inspection_id: string; violation_id: string; adjseq: number; citation_result: string; vanished_at: string | null };
+const CITATIONS: Cit[] = [];
+/** Rows of a child table filtered by what the query asked for: org, inspection, vanished, and ordered by `col`. */
+const childFixture = <T extends { org_id: string; inspection_id: string; vanished_at: string | null }>(rows: T[], col: keyof T) => (q: RecordedQuery) => {
+  const org = val(q, "eq", "org_id");
+  const insp = val(q, "eq", "inspection_id");
+  const current = q.ops.some((op) => op.method === "is" && op.args[0] === "vanished_at");
+  const ordered = q.ops.some((op) => op.method === "order" && op.args[0] === col);
+  const out = rows.filter((r) => (org === undefined || r.org_id === org) && (insp === undefined || r.inspection_id === insp) && (!current || !r.vanished_at));
+  return ordered ? [...out].sort((a, b) => Number(a[col]) - Number(b[col])) : out;
+};
+const UNITS: ReturnType<typeof unit>[] = [
   unit("i1", 1, "11", "vin"), unit("i1", 2, "9", "none"), unit("i1", 3, "9", "plate", ORG, "2026-10-01T00:00:00Z"),
   unit("i2", 1, "11", "kind_mismatch"), unit("i3", 1, "4", "unit_number"),
 ];
@@ -83,10 +101,12 @@ const rangeOf = (q: RecordedQuery) => q.ops.find((o) => o.method === "range")?.a
 function inspectionsFixture(all: Insp[]) {
   return (q: RecordedQuery) => {
     const org = val(q, "eq", "org_id");
+    const id = val(q, "eq", "id");
     const from = val(q, "gte", "inspection_date") as string | undefined;
     const current = q.ops.some((o) => o.method === "is" && o.args[0] === "vanished_at" && o.args[1] === null);
     const rows = all
       .filter((r) => org === undefined || r.org_id === org)
+      .filter((r) => id === undefined || r.id === id)
       .filter((r) => !current || r.vanished_at === null)
       .filter((r) => from === undefined || (r.inspection_date !== null && r.inspection_date >= from))
       .sort((a, b) => (a.inspection_date === b.inspection_date ? a.id.localeCompare(b.id) : !a.inspection_date ? 1 : !b.inspection_date ? -1 : b.inspection_date.localeCompare(a.inspection_date)));
@@ -102,9 +122,12 @@ function recorder(o: { inspections?: Insp[]; error?: boolean } = {}) {
       roadside_inspections: o.error
         ? () => ({ data: null, error: { message: "relation roadside_inspections: boom" } })
         : inspectionsFixture(o.inspections ?? INSPECTIONS),
+      roadside_violations: childFixture(VIOLATIONS, "seq_no"),
+      roadside_citations: childFixture(CITATIONS, "adjseq"),
       roadside_inspection_units: (q) => {
         const org = val(q, "eq", "org_id");
-        const ids = (q.ops.find((op) => op.method === "in" && op.args[0] === "inspection_id")?.args[1] ?? []) as string[];
+        const one = val(q, "eq", "inspection_id") as string | undefined;
+        const ids = one ? [one] : ((q.ops.find((op) => op.method === "in" && op.args[0] === "inspection_id")?.args[1] ?? []) as string[]);
         const current = q.ops.some((op) => op.method === "is" && op.args[0] === "vanished_at");
         return UNITS.filter((u) => (org === undefined || u.org_id === org) && ids.includes(u.inspection_id) && (!current || !u.vanished_at));
       },
@@ -208,5 +231,77 @@ describe("the list", () => {
       expectOrgScoped(rec, ORG);
     }
     expect(rec.forTable("roadside_inspection_units").length).toBeGreaterThan(0);
+  });
+});
+
+describe("one inspection", () => {
+  // The route takes a uuid, so this block has its own records: ours, another carrier's, and one FMCSA removed.
+  const A = "11111111-1111-4111-8111-111111111111";
+  const THEIRS = "22222222-2222-4222-8222-222222222222";
+  const GONE = "33333333-3333-4333-8333-333333333333";
+  const detailRecorder = () => {
+    const base = recorder({
+      inspections: [
+        insp(A, "2026-10-09", [0, 1, 1]),
+        insp(THEIRS, "2026-10-01", [1, 1, 1], { org_id: "org-2" }),
+        insp(GONE, "2026-09-01", [0, 1, 0], { vanished_at: "2026-10-01T12:00:00Z" }),
+      ],
+    });
+    return base;
+  };
+  beforeEach(() => {
+    UNITS.push(unit(A, 1, "11", "vin"), unit(A, 2, "9", "none"), unit(A, 3, "9", "plate", ORG, "2026-10-01T00:00:00Z"));
+    VIOLATIONS.push(
+      viol("v2", A, 2, "2", true),
+      viol("v1", A, 1, "D", false, { citation_number: "E061" }),
+      viol("v3", A, 3, "1", false, { vanished_at: "2026-10-05T00:00:00Z" }), // removed by FMCSA: off the page
+      viol("vx", A, 4, "1", true, { org_id: "org-2" }), // another carrier's row under our inspection id
+    );
+    CITATIONS.push(
+      { org_id: ORG, inspection_id: A, violation_id: "v1", adjseq: 2, citation_result: "Conviction of a Different Charge", vanished_at: "2026-10-01T00:00:00Z" },
+      { org_id: ORG, inspection_id: A, violation_id: "v1", adjseq: 1, citation_result: "Not Guilty/Dismissed", vanished_at: null },
+    );
+    rec = detailRecorder();
+  });
+  afterEach(() => {
+    for (const list of [UNITS, VIOLATIONS, CITATIONS] as { inspection_id: string }[][]) {
+      list.splice(0, list.length, ...list.filter((r) => r.inspection_id !== A));
+    }
+  });
+
+  it("carries the report's facts, every current unit with how it matched, and its violations in report order", async () => {
+    const { status, body } = await call(`/${A}`);
+    expect(status).toBe(200);
+    const d = body.data as RoadsideInspectionDetailDto;
+    expect(d).toMatchObject({ id: A, reportNumber: `R-${A}`, inspectionDate: "2026-10-09", violations: 2, vehicleOos: 1, hazmatOos: 1 });
+    expect(d.units.map((u) => [u.seq, u.kind, u.matchedBy, u.vehicleId])).toEqual([
+      [1, "tractor", "vin", "veh-701"],
+      [2, "trailer", null, null],
+    ]);
+    expect(d.violationList.map((v) => [v.id, v.against, v.outOfService])).toEqual([
+      ["v1", { driver: true }, false],
+      ["v2", { unitSeq: 2 }, true],
+    ]);
+  });
+
+  it("gives a violation its current court result only, as FMCSA words it", async () => {
+    const d = (await call(`/${A}`)).body.data as RoadsideInspectionDetailDto;
+    expect(d.violationList.find((v) => v.id === "v1")).toMatchObject({ citationNumber: "E061", courtResults: ["Not Guilty/Dismissed"] });
+    expect(d.violationList.find((v) => v.id === "v2")!.courtResults).toEqual([]);
+  });
+
+  it("answers 404 for another carrier's inspection, a removed one, and an id that is not one", async () => {
+    for (const id of [THEIRS, GONE, "not-a-uuid"]) {
+      rec = detailRecorder();
+      expect((await call(`/${id}`)).status, id).toBe(404);
+    }
+  });
+
+  it("scopes every read to the caller's org", async () => {
+    await call(`/${A}`);
+    for (const t of ["roadside_inspections", "roadside_inspection_units", "roadside_violations", "roadside_citations"]) {
+      expect(rec.forTable(t).length, t).toBeGreaterThan(0);
+    }
+    expectOrgScoped(rec, ORG);
   });
 });
