@@ -27,6 +27,7 @@ overwrite a file in place: an analysis made under the old edition must stay repr
 | `DataQs_101_Helpful_Hints.pdf` | CVSA 2015 handout for analysts | Jul 2015 (2 pp) | https://ai.fmcsa.dot.gov/DataQuality/Documents/CVSA%202015/Handouts/DataQs_101_Helpful%20Hints.pdf | `97d5c858a8f1d335abdb7dfeddc0de7daf51cc5c987846819d8ea3101267b238` |
 | `Registering_for_DataQs_Guide.pdf` | How a user registers, including organisation types and carrier PIN validation | Feb 2024 (14 pp) | https://dataqs.fmcsa.dot.gov/DataQs/Data/Guide/Registering_for_DataQs_Guide.pdf | `295e5797e09b37a25c86fd8e22a8401eef02f7ad526772a0cf0fe05ab38d9efe` |
 | `DataQs_Factsheet.pdf` | One-page DataQs overview | Mar 2022 (2 pp) | https://dataqs.fmcsa.dot.gov/DataQs/Data/Factsheets/DataQs_Factsheet.pdf | `b9ce7d03b77cfafb890585d66f9647402f21912b69a8705501bb9ee5cc718eda` |
+| `MCMIS_Vehicle_Inspection_File_Data_Dictionary_Rev05.pdf` | The data dictionary of the open-data inspection files we fetch: every column, its codes (`DEFECT_VERIFICATION_ID` 1/2/3/4/99, `INSP_LEVEL_ID` 1–5/99, `OUT_OF_SERVICE_INDICATOR` Z/Y/N), and the MCMIS violation-category table. Retrieved **2026-10-13** (Q-IC5) | **Rev 05, 2025-10-15** (84 pp) | https://data.transportation.gov/api/views/876r-jsdb/files/9a3cc299-9efe-44fb-9c7c-0e8a4db5bf41 (the attachment of dataset `876r-jsdb`) | `17c02ed6780f69b46384eb7fcd27003c5477d94c259ffae56957562e63b0d640` |
 
 ## Read through an API, not stored here
 

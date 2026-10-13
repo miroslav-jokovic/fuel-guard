@@ -396,23 +396,70 @@ about three merges.
   office requests them from each court. (b) The driver who received the ticket uploads it in the
   driver app. (c) A ticket-defense attorney network. *Recommendation: (a) with (b) as the intake.*
   The disposition must be certified (job aid), which usually means the court, not the driver.
-- **Q-IC3 — CVSA material.** The OOSC 2026 (licensed) and OP 14/15 plus the bulletins (public, but the
+- **Q-IC3 — CVSA material. Researched 2026-10-13, owner's call on the purchase.** OP 14 and OP 15 are
+  free, but cvsa.org now refuses automated downloads (403 on the policies page, 404 on the old
+  `wp-content` PDFs), so a person downloads them once in a browser and they are committed here with
+  their sha256. OP 15 matters beyond IC8: § 396.3(a)(1) may be cited only for an OOSC imminent hazard
+  or a condition an operational policy names, and our record carries that code (`396.3A1-BOS`). The
+  2026 electronic OOSC was not priced in what we could read; earlier electronic editions were $45
+  (member) / $50. *Recommendation unchanged: OP 14 + OP 15 now; the OOSC when IC8 starts.* Was: The OOSC 2026 (licensed) and OP 14/15 plus the bulletins (public, but the
   links moved) are needed for R-DUP1 and R-OOS1. Buy the electronic OOSC licence and download OP 14
   from cvsa.org? *Recommendation: yes for OP 14 now (free). Decide on the OOSC after IC4–IC6 show how
   many OOS candidates actually appear.*
-- **Q-IC4 — Paid tickets.** Should the driver app warn before a driver pays a ticket ("paying is a
+- **Q-IC4 — Paid tickets. Researched 2026-10-13, owner's policy call.** FMCSA's job aid
+  (`AdjudicatedCitations2025.pdf`) counts only a CONTESTED citation as adjudicated, and only "not
+  guilty/dismissed" (removed) and "different charge" (severity 1) change SMS — so a paid fine keeps
+  the violation at full weight for its 24 months and on the driver's PSP. Measured: 210 current
+  violations carry a citation number, 63 of them in the last year, and only 21 have a court result.
+  *Recommendation: (b) of Q-IC2 as the intake — a ticket photographed in the driver app opens a task
+  for the safety office with the court date, and the app says "don't pay before safety has seen it";
+  the office, not the app, decides whether to contest.* Was: Should the driver app warn before a driver pays a ticket ("paying is a
   conviction of the original charge")? It is a policy question for the office, not a technical one.
-- **Q-IC5 — `defect_verification_id`** (3: 1,131 · 99: 186 · 1: 79 · 4: 24 · 2: 2). Not documented in
+- **Q-IC5 — ANSWERED 2026-10-13 from FMCSA's data dictionary** (`MCMIS_Vehicle_Inspection_File_Data_Dictionary_Rev05.pdf`, p. 5):
+  1 = A, repaired at scene · 2 = B, towed/escorted to repair · 3 = N, non-OOS / driver non-OOS ·
+  4 = D, other · 99 = U, unknown/unverified. It records what happened to an OOS defect, so a rule may
+  read it (e.g. "repaired at scene" beside a disputed OOS order). The same dictionary names the
+  inspection levels (1 Full, 2 Walk-Around, 3 Driver-Only, 4 Special Study, 5 Terminal) and every
+  violation category (p. 7), which the inspection page can now show. Was: `defect_verification_id` (3: 1,131 · 99: 186 · 1: 79 · 4: 24 · 2: 2). Not documented in
   the dataset metadata. Find FMCSA's code table before any rule reads it.
-- **Q-IC6 — Samsara history horizon.** GPS returned data for 2025 but nothing for 2024-10-01 on a
+- **Q-IC6 — ANSWERED 2026-10-13 by measurement: no horizon inside FMCSA's window.** GPS history
+  answered for trucks we have held since 2017 at every probe from 2023-07-10 to 2026-01-10 (up to
+  1,300 points in two hours); the empty windows were parked trucks, and 2024-10-01 returned 657–942
+  points on three trucks. Driver–vehicle assignments and HOS logs answer back to 2023-11. So every
+  inspection still on the record can be attributed with telematics — for a truck Samsara still
+  carries (Q-IC8). Was: Samsara history horizon. GPS returned data for 2025 but nothing for 2024-10-01 on a
   truck we hold. Is that a retention limit on our plan, or did that unit's gateway arrive later?
   Measure across the backfill. It decides how much of 2023–24 can ever be challenged with telematics.
-- **Q-IC7 — DVIR endpoint.** `/fleet/dvirs/stream` returns 405 on API version 2026.05.06. Identify the
+- **Q-IC7 — ANSWERED 2026-10-13: the endpoint is `GET /dvirs/stream`** (and `/defects/stream`),
+  without the `/fleet` prefix; our read-only token reads both, back to 2023-10 at least. Each DVIR
+  carries vehicle, trailer, submission time, odometer, address, safety status and signature. Was: DVIR endpoint. `/fleet/dvirs/stream` returns 405 on API version 2026.05.06. Identify the
   current DVIR history endpoint (and whether our read-only token covers it) before IC5.
-- **Q-IC8 — Leased/owner-operator units.** If the 227 unmatched units are owner-operators under our
+- **Q-IC8 — ANSWERED 2026-10-13: not owner-operators.** The 228 unmatched units are 73 machines:
+  - **Tractors: 41 VINs, 153 sightings, the last on 2025-08-06** — none in the past year. Sequential
+    Freightliner Cascadia VINs under our own unit numbers (495–597): a fleet generation sold before our
+    roster was built (`vehicles` starts 2026-07-01). All 41 are in McLeod's `tractor` table (54 rows,
+    all `service_status = 'I'`); none is in Samsara, which deleted them at sale, nor in FleetPal.
+  - **Trailers: 32 VINs.** 20 are in McLeod's `trailer` table. The rest are other companies' trailers
+    we pulled (Stoughton `TA215874`, `WHT/H194`, "UNIT 3757") and two officer typos (a tractor VIN on a
+    trailer line). 9 of the 75 are from the last year.
+  - **Fix (D-FC0 consistent: membership is McLeod's):** import McLeod's retired tractors and trailers
+    as `status = 'retired'` rows, so 0458 matches them by VIN on its next run. A foreign trailer stays
+    unmatched and is labelled as one. Attribution of the retired tractors cannot use Samsara (gone);
+    McLeod's dispatch history (`movement`) still names the driver. Was: Leased/owner-operator units. If the 227 unmatched units are owner-operators under our
   authority, they are ours for FMCSA purposes. Attribution must then read the lease roster, not only
   `vehicles`. IC1 measures it first.
-- **Q-IC9 — The 15 violations our calculator scores and FMCSA's 2026-08-28 snapshot did not.**
+- **Q-IC9 — ANSWERED 2026-10-13 from the methodology; one rule to add.** SMS Methodology (June 2026)
+  §2.2 excludes violations "(1) a result of a crash; (2) assigned exclusively to another entity such as
+  a shipper or IEP", and footnote 8: on a post-crash inspection only pre-existing violations count —
+  those flagged "Y" or "U" as crash-related do not. Neither flag is in the open-data violation file
+  (checked against the Rev 05 dictionary). So:
+  - **The 14 HM codes** are shipping-paper, marking, labelling and placarding duties the HMR puts on
+    the shipper (49 CFR 172 subparts C–F): explanation (a). They stay `verified: false`; an HM impact
+    figure is shown only with "may be the shipper's" beside it, never as ours.
+  - **The Unsafe Driving one** (392.2LC on 4179180099) is a post-accident Level 3 inspection: the crash
+    exclusion. **The calculator needs the rule**: a moving violation (categories 12, 40–49) on a
+    post-accident inspection is not scored. It touches 4 violations on our 6 post-accident
+    inspections; with it, Unsafe Driving can be re-run for parity and verified. Was:
   Every violation FMCSA scored, we score with the same weights. The open question is these 15 extra:
   - **14 in HM Compliance:** shipping-paper, marking, label and placard codes (172.2xx, 172.3xx,
     172.4xx, 172.5xx, 173.24) on 7 placarded Level 1–2 inspections from 2024–26. Other violations
@@ -546,3 +593,15 @@ about three merges.
     (`category_id`, which IC3 maps to a BASIC), the county (a FIPS code with no name table), the
     level's name (no source for it in `docs/regulatory/fmcsa/SOURCES.md`), the resolved instant
     (D-IC8, IC5), and cases, timeline and documents (IC4–IC6).
+- **2026-10-13 — Open questions researched (Q-IC3–Q-IC9).** Five answered by measurement or by
+  FMCSA's own documents, two left as owner decisions with the research behind them; each is under its
+  question in §9. New source: the MCMIS data dictionary Rev 05, added to `docs/regulatory/fmcsa/` with
+  its sha256. What it changes:
+  - **IC5 is unblocked** (Q-IC6, Q-IC7): GPS, assignments, HOS logs and DVIRs all reach back past the
+    oldest inspection on the record.
+  - **The unmatched units are a roster gap, not a lease question** (Q-IC8): McLeod holds every one of
+    the 41 old tractors; importing them as retired closes it.
+  - **The calculator gains one rule** (Q-IC9): no moving violation on a post-accident inspection.
+  - **The inspection page can name** levels, violation categories and defect verification (Q-IC5).
+  - **Still the owner's:** buying the OOSC (Q-IC3) and the driver-app ticket policy (Q-IC4); a person
+    must download OP 14 and OP 15 by hand.
