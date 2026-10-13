@@ -193,7 +193,7 @@ const FORM_ID = "employer-inquiry-form";
         :rows="inquiriesQ.data.value ?? []"
         row-key="id"
         :loading="inquiriesQ.isLoading.value"
-        :error="inquiriesQ.isError.value ? (inquiriesQ.error.value?.message ?? 'Could not load the inquiries.') : null"
+        :error="inquiriesQ.isError.value ? 'Could not load the inquiries.' : null"
         :retrying="inquiriesQ.isFetching.value"
         empty-text="Nothing has been sent yet. Compose an inquiry for each DOT-regulated employer above."
       >

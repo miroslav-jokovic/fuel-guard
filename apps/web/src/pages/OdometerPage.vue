@@ -172,7 +172,7 @@ const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, pa
         :rows="paged"
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the odometer readings.') : null"
+        :error="isError ? 'Could not load the odometer readings.' : null"
         :retrying="isFetching"
         :sort="sort"
         @sort="onSort($event)"

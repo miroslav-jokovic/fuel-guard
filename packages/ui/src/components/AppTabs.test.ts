@@ -115,13 +115,27 @@ describe("AppTabs markup contract", () => {
    * been `inline-grid`, so the two widgets that deliberately share one surface disagreed about the
    * property that decides how that surface reads.
    *
-   * `max-w-full` is asserted beside it because it is what keeps `scrollable` honest: a fit-width box
-   * may exceed its parent, and a strip of twelve tabs has to scroll inside the page, not widen it.
+   * `max-w-full` is asserted beside it because it is what keeps the scroll honest: a fit-width box
+   * may exceed its parent, and a strip of six tabs has to scroll inside the page, not widen it.
    */
   it("sizes the horizontal well to its tabs, and never past its parent", () => {
     const strip = mountTabs("drivers").get('[role="tablist"]');
     expect(strip.classes()).toContain("w-fit");
     expect(strip.classes()).toContain("max-w-full");
+  });
+
+  /**
+   * Every horizontal strip scrolls, and no tab gives up its line. Opt-in scrolling left Fleet report's
+   * six tabs squeezed at 390 px — each label on three lines, the page 129 px wider than the phone
+   * (US6b, 2026-10-13). A page cannot know the reader's width, so the strip does not ask it.
+   */
+  it("scrolls the horizontal strip rather than squeezing its tabs", () => {
+    const w = mountTabs("drivers");
+    expect(w.get('[role="tablist"]').classes()).toContain("overflow-x-auto");
+    for (const tab of w.findAll('[role="tab"]')) {
+      expect(tab.classes()).toContain("shrink-0");
+      expect(tab.classes()).toContain("whitespace-nowrap");
+    }
   });
 
   /** The vertical rail is a different object: it sits on the page ground and fills its column. */

@@ -418,7 +418,7 @@ const columns: DataTableColumn[] = [
       row-key="id"
       dense
       :loading="isLoading || unitPending"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the fuel log.') : null"
+      :error="isError ? 'Could not load the fuel log.' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

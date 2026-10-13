@@ -236,7 +236,7 @@ async function onRetire(t: Trailer) {
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the trailers.') : null"
+      :error="isError ? 'Could not load the trailers.' : null"
       :retrying="isFetching"
       :sort="sort"
       :selectable="session.can('equipment')"

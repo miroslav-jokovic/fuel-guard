@@ -201,7 +201,7 @@ const columns: DataTableColumn[] = [
         :rows="invitesQ.data.value ?? []"
         row-key="id"
         :loading="invitesQ.isLoading.value"
-        :error="invitesQ.isError.value ? (invitesQ.error.value?.message ?? 'Could not load the invitations.') : null"
+        :error="invitesQ.isError.value ? 'Could not load the invitations.' : null"
         :retrying="invitesQ.isFetching.value"
         empty-text="No application link has been sent yet."
       >

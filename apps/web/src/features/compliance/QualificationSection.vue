@@ -74,7 +74,7 @@ const retrying = computed(
 );
 const errorMessage = computed<string | null>(() => {
   const failed = [driverQ, certsQ, recordsQ, docsQ, modules].find((q) => q.isError.value);
-  return failed ? (failed.error.value?.message ?? "Could not load the qualification file.") : null;
+  return failed ? "Could not load the qualification file." : null;
 });
 function retry(): void {
   void driverQ.refetch();

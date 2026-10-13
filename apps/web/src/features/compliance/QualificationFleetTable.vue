@@ -283,7 +283,7 @@ const { sort, onSort } = useUrlSort(
       :loading="query.isLoading.value"
       :error="
         query.isError.value
-          ? (query.error.value?.message ?? 'Could not load the qualification picture.')
+          ? 'Could not load the qualification picture.'
           : null
       "
       :retrying="query.isFetching.value"

@@ -102,7 +102,7 @@ async function takeOffList(id: string, name: string): Promise<void> {
     <QueryState
       :loading="listQ.isLoading.value"
       :error="listQ.isError.value ? listQ.error.value : null"
-      :error-text="listQ.error.value?.message || copy.loadFailed"
+      :error-text="copy.loadFailed"
       :retrying="listQ.isFetching.value"
       :loading-text="copy.loading"
       compact

@@ -93,6 +93,15 @@ describe("the fuel cards page's filters round-trip through the query string", ()
     expect(seenQuery[0]!.status).toBe("Hold");
   });
 
+  // US6b F24: the export's scope repeated the toolbar's count, so the bar read "2 cards  2 cards".
+  it("prints the count once, and the export says what it holds instead", async () => {
+    const { w } = await mountAt("/fuel-cards");
+    expect(w.text().split("2 cards")).toHaveLength(2);
+    expect(w.text()).toContain("every card");
+    await pick(w, "Driver", "Bo Ray");
+    expect(w.text()).toContain("the cards as filtered");
+  });
+
   // Driver rather than Exception, because the secondary facets live behind FilterBar's "Filters"
   // popover and are not in the DOM until it opens. `override` is covered by the link below, which is
   // the direction that matters for it anyway.

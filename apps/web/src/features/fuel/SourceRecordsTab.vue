@@ -239,7 +239,7 @@ const columns: DataTableColumn[] = [
       row-key="id"
       dense
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the transactions.') : null"
+      :error="isError ? 'Could not load the transactions.' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

@@ -339,7 +339,7 @@ async function onSubmit(input: DriverInput) {
       :rows="pageRows"
       :columns="rosterColumns.visible.value"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the drivers.') : null"
+      :error="isError ? 'Could not load the drivers.' : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="

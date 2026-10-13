@@ -118,6 +118,7 @@ function refresh() {
 
     <!-- The product's error state, not a bare paragraph: it carries the retry, which on this
          screen is the difference between "scan it again" and "walk to a desk". -->
+    <!-- ui-adoption: server-message — a code nobody knows is answered by the lookup in its own words. -->
     <ErrorState
       v-else-if="isError"
       :message="error instanceof Error ? error.message : 'Could not read that code.'"

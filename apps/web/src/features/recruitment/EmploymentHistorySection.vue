@@ -188,7 +188,7 @@ const sourceLabel = (s: string): string =>
         :rows="historyQ.data.value ?? []"
         row-key="id"
         :loading="historyQ.isLoading.value"
-        :error="historyQ.isError.value ? (historyQ.error.value?.message ?? 'Could not load employment history.') : null"
+        :error="historyQ.isError.value ? 'Could not load employment history.' : null"
         :retrying="historyQ.isFetching.value"
         empty-text="No employers recorded yet. Add them from the driver's application."
       >

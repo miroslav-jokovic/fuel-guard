@@ -234,7 +234,7 @@ async function discardDraft(row: InspectionSummary) {
       :columns="columns"
       :rows="rows"
       :loading="isLoading || isFetching"
-      :error="isError ? (error?.message ?? 'Could not load inspections') : null"
+      :error="isError ? 'Could not load inspections' : null"
       row-key="id"
       :row-class="() => 'cursor-pointer'"
       @row-click="(row) => openReport(row as InspectionSummary)"

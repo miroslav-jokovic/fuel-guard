@@ -61,8 +61,6 @@ const props = withDefaults(
      * element to point at — a dangling `aria-controls` is worse than none.
      */
     idPrefix?: string;
-    /** Many tabs: scroll the strip instead of wrapping it. */
-    scrollable?: boolean;
     /**
      * A vertical list of tabs — a master–detail rail, where picking a row swaps the panel beside it.
      * Same widget, same roving tabindex; Up/Down move the selection instead of Left/Right, which is
@@ -71,7 +69,7 @@ const props = withDefaults(
      */
     orientation?: "horizontal" | "vertical";
   }>(),
-  { idPrefix: undefined, scrollable: false, orientation: "horizontal" },
+  { idPrefix: undefined, orientation: "horizontal" },
 );
 
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
@@ -291,11 +289,15 @@ onBeforeUnmount(() => {
        * one property that decides how the surface READS. A segmented well is the ground its
        * segments stand on; it has no business being wider than they are.
        *
-       * `max-w-full` is what keeps `scrollable` honest: a fit-width box may exceed its parent, and
-       * a strip of twelve tabs has to scroll inside the page rather than widen it.
+       * `max-w-full` is what keeps the scroll honest: a fit-width box may exceed its parent, and a
+       * strip of six tabs has to scroll inside the page rather than widen it.
+       *
+       * ⚠ Every horizontal strip scrolls; it used to be opt-in (`scrollable`). A strip without it did
+       * not wrap — it squeezed, so at 390 px each label broke onto three lines (Week, by, week)
+       * and Fleet report's six tabs pushed the page 129 px wider than the phone (US6b, 2026-10-13).
+       * Whether tabs outrun the reader's screen is not something the calling page can know.
        */
-      orientation === 'vertical' ? 'flex-col gap-0.5' : `w-fit max-w-full gap-1 p-1 ${SEGMENTED_WELL}`,
-      scrollable ? 'overflow-x-auto' : '',
+      orientation === 'vertical' ? 'flex-col gap-0.5' : `w-fit max-w-full gap-1 overflow-x-auto p-1 ${SEGMENTED_WELL}`,
     ]"
     role="tablist"
     :aria-label="label"
@@ -325,8 +327,7 @@ onBeforeUnmount(() => {
       class="relative py-1.5"
       :class="[
         SEGMENTED_SEGMENT,
-        scrollable ? 'shrink-0' : '',
-        orientation === 'vertical' ? 'flex w-full items-center justify-between gap-2 text-left' : '',
+        orientation === 'vertical' ? 'flex w-full items-center justify-between gap-2 text-left' : 'shrink-0 whitespace-nowrap',
         tab.value === modelValue
           ? orientation === 'vertical'
             ? 'bg-selected-surface text-ink'

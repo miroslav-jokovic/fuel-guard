@@ -59,7 +59,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
     // Same typed error as the card writes: the page branches on `step_up_required` and
     // `card_control_not_entitled` by CODE, never by reading a sentence.
     throw new CardControlApiError(
-      res.error?.message ?? "That did not work",
+      res.error?.message ?? "The server answered with an error and gave no reason.",
       res.error?.code ?? "unknown",
       res.status,
       res.detail ?? {},

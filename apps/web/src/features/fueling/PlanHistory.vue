@@ -21,7 +21,7 @@ const toast = useToastStore();
 const ask = useConfirm();
 const { data, isLoading, error, isFetching, refetch } = useFuelPlanHistory();
 const rows = computed(() => data.value ?? []);
-const errMsg = computed(() => (error.value ? error.value.message : null));
+const errMsg = computed(() => (error.value ? "Could not load the plan history." : null));
 
 // ── Search + filters (client-side; the list is one cheap capped select) ──────────────────────────────
 //

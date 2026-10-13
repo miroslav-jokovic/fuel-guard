@@ -50,7 +50,7 @@ const buyFills = computed(() => {
 // The on-network share is a question about brands, which the fill sequence carries none of. The grades
 // read tractor gallons ADDED UP in the database (Q-FSV16): they used to wait for every spend line, nine
 // seconds with the sections empty, and now wait for one call.
-const { data: cellData, isLoading: cellsLoading, isError: cellsError } = usePolicyGallonsQuery(queryFilters);
+const { data: cellData, isLoading: cellsLoading, isError: cellsError, isFetching: cellsFetching, refetch: refetchCells } = usePolicyGallonsQuery(queryFilters);
 const cells = computed(() => cellData.value ?? []);
 // The quote tile reads four database sums (Q-FSV18, `fuel_contract_totals`) and the rows behind it only when
 // it is opened: before, its headline waited on every `fuel_spend_lines` row, nine seconds with the card
@@ -69,7 +69,7 @@ const lines = computed(() => feedData.value ?? []);
 const policy = useFuelPolicy();
 // `useFuelPolicy` answers with defaults while the settings are pending or failed, which reads as "no
 // target set"; the same query (one key, no extra request) says which of those it is.
-const { isLoading: settingsLoading, isError: settingsError } = useRouteFuelSettings();
+const { isLoading: settingsLoading, isError: settingsError, isFetching: settingsFetching, refetch: refetchSettings } = useRouteFuelSettings();
 /** Whether what the targets are graded from actually arrived. The quote card has its own state. */
 const inputs = computed<"ready" | "loading" | "error">(() =>
   cellsError.value || settingsError.value ? "error" : cellsLoading.value || settingsLoading.value ? "loading" : "ready",
@@ -113,8 +113,10 @@ const legs = computed(() => buyFills.value.filter((x) => x.inWindow !== false).l
       :fleet-wide="f.vehicleIds.value.length === 0"
       :policy="policy"
       :fills-state="isError ? 'error' : isLoading || !buyFillData ? 'loading' : 'ready'"
-      @retry="refetchFills()"
       :inputs="inputs"
+      :inputs-retrying="cellsFetching || settingsFetching"
+      @retry="refetchFills()"
+      @retry-inputs="refetchCells(); refetchSettings()"
     />
 
     <!-- The quote tile reads four sums. Pending or failed, an empty default would say "no fill matched a

@@ -66,7 +66,7 @@ function select(location: EfsLocation): void {
         row-key="locId"
         dense
         :loading="search.isLoading.value"
-        :error="search.isError.value ? (search.error.value?.message ?? 'Could not search locations') : null"
+        :error="search.isError.value ? 'Could not search locations' : null"
         empty-text="No locations match that search."
         @retry="search.refetch()"
       >

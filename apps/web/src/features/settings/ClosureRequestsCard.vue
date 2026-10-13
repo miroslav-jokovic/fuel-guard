@@ -63,8 +63,8 @@ async function act(request: ClosureRequest, outcome: "complete" | "decline") {
       49 CFR §391.51 and is not part of this.
     </p>
 
-    <!-- The api's own sentence when it gave one, as before; the Retry is new (D-US5). Compact: this
-         is one card on the settings page. -->
+    <!-- The page's own sentence, not the api's: a failed list read has no reason a reader can act on,
+         and the raw message read as a finding (US6b F18). Compact: this is one card on the settings page. -->
     <div class="mt-4">
     <QueryState
       compact
@@ -72,6 +72,7 @@ async function act(request: ClosureRequest, outcome: "complete" | "decline") {
       :error="requests.isError.value ? requests.error.value : null"
       :retrying="requests.isFetching.value"
       loading-text="Loading the closure requests…"
+      error-text="Could not load the closure requests."
       @retry="requests.refetch()"
     >
       <p v-if="open.length === 0" class="text-sm text-ink-muted">

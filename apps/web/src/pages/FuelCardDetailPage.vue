@@ -179,7 +179,7 @@ const facts = computed<Fact[]>(() => {
 
     <ErrorState
       v-if="query.isError.value"
-      :message="query.error.value?.message ?? 'Could not load that card'"
+      :message="'Could not load that card'"
       @retry="query.refetch()"
     />
 

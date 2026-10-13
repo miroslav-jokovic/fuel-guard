@@ -92,6 +92,15 @@ describe("the verdict", () => {
     expect(describeSamsaraFeed(specFor("stats"), obs("stats", { lastSuccessAt: ago(60 * MIN) }), NOW).state).toBe("fresh");
   });
 
+  it("names a one-hour bound in the singular, late or not", () => {
+    // Staging read "past the 1 hours this feed is held to" above Odometer and IFTA (US6b, 2026-10-13).
+    const late = describeSamsaraFeed(specFor("telematics"), obs("telematics", { lastSuccessAt: ago(39 * HOUR) }), NOW);
+    expect(late.lead).toContain("past the 1 hour this feed is held to");
+    const fresh = describeSamsaraFeed(specFor("stats"), obs("stats", { lastSuccessAt: ago(4 * MIN) }), NOW);
+    expect(fresh.lead).toContain("inside the 1 hour this feed is held to");
+    expect(describeSamsaraFeed(specFor("hos"), obs("hos", { lastSuccessAt: ago(HOUR) }), NOW).lead).toMatch(/inside the \d+ hours this feed/);
+  });
+
   it("tells never-arrived apart from being-refused, because they need different people", () => {
     const never = describeSamsaraFeed(specFor("ifta"), obs("ifta", { lastSuccessAt: null, lastAttemptAt: null }), NOW);
     expect(never.state).toBe("never");

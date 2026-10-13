@@ -95,10 +95,11 @@ describe("the Audit log page (SP4)", () => {
     expect(w.text()).toContain("No audit entries.");
   });
 
-  it("shows the API's refusal instead of an empty table", async () => {
+  it("says the log could not be loaded, not the API's raw refusal, instead of an empty table", async () => {
     state.refuse = { code: "forbidden", message: "You do not have access to this screen" };
     const w = await page();
-    expect(w.text()).toContain("You do not have access to this screen");
+    expect(w.text()).toContain("Could not load the audit log.");
+    expect(w.text()).not.toContain("You do not have access to this screen");
     expect(w.text()).not.toContain("No audit entries.");
   });
 

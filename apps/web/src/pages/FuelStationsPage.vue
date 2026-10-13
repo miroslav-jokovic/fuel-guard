@@ -148,7 +148,7 @@ const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, pa
         row-key="id"
         :sort="sort"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load stations.') : null"
+        :error="isError ? 'Could not load stations.' : null"
         :retrying="isFetching"
         empty-text="No truck stops match."
         @sort="onSort"

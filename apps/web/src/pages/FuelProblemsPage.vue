@@ -170,7 +170,7 @@ watch(
   { deep: true },
 );
 
-const { data, isLoading, isError, error } = useFindingsQuery(query);
+const { data, isLoading, isError, isFetching, refetch } = useFindingsQuery(query);
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 /** A source hit the server's read cap. Said out loud — a queue missing rows silently is the worse bug. */
@@ -374,12 +374,7 @@ const truckOptions = computed(() =>
       </template>
     </BulkActionBar>
 
-    <p v-if="isError" class="bg-danger-50 px-4 py-3 text-sm text-danger-700 sm:px-6">
-      Couldn't load fuel problems: {{ error instanceof Error ? error.message : "unknown error" }}
-    </p>
-
       <DataTable
-        v-else
         embedded
         :columns="columns"
         :rows="tableRows"
@@ -387,7 +382,10 @@ const truckOptions = computed(() =>
         selectable
         :selected="picked"
         :loading="isLoading"
+        :error="isError ? 'Could not load the fuel problems.' : null"
+        :retrying="isFetching"
         empty-text="Nothing outstanding in this window."
+        @retry="() => refetch()"
         @update:selected="picked = $event"
         @row-click="openFinding($event)"
       >

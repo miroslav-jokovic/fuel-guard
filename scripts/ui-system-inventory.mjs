@@ -507,6 +507,33 @@ const failedToCopy = webSourceFiles
     [...item.source.matchAll(/["'`]Failed to [a-z]/g)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`),
   );
 
+/** The voice again: "That did not work" says nothing about what did not (US6b F19, 2026-10-13). */
+const vagueFailureCopy = webSourceFiles.flatMap((item) =>
+  [...item.source.matchAll(/["'`]That did not work/g)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`),
+);
+
+/**
+ * A read's failure says the page's own sentence, never the error's message (US6b F18, 2026-10-13).
+ *
+ * The browser pass found ~50 read states written `error?.message ?? 'Could not load the vehicles.'`:
+ * the fallback only ever showed when there was no message, so a reader got PostgREST's text, the
+ * api's 500 body, or TanStack's `["dispatch","loads"] data is undefined` in place of the sentence the
+ * page had written for them. `QueryState` did the same whenever a caller left out `error-text`.
+ * So a component's `:error` / `:error-text` / `:message` binding may not read a `.message`, and a
+ * `QueryState` with an `:error` names its own `error-text`. A read whose server message IS the answer
+ * (a scanned code nobody knows, a route that cannot be drawn and says why) says so where it stands:
+ * `ui-adoption: server-message — <why>`. Reported at the tag's first line, where the marker sits above.
+ */
+const COMPONENT_TAG = /<([A-Z]\w*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+const MESSAGE_BINDING = /:(?:error|error-text|message)="[^"]*\b\w*(?:error|err|Error|Err|failed)\w*(?:\.value)?\??\.message\b/;
+function serverMessageViolations(item) {
+  return [...item.source.matchAll(COMPONENT_TAG)]
+    .filter(([tag, name]) =>
+      MESSAGE_BINDING.test(tag) || (name === "QueryState" && /\s:error=/.test(tag) && !/\serror-text=|\s:error-text=/.test(tag)))
+    .map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
+}
+const serverMessages = pagesAndFeatures.flatMap(serverMessageViolations).filter((at) => !siteMarked(at, "server-message"));
+
 const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
 
 /**
@@ -751,6 +778,29 @@ function verifyAdoption() {
     if (paged.length !== 0 || JSON.stringify(unpaged) !== JSON.stringify(["u.vue:3"]) || hits.length !== 3)
       failures.push("pagination / native-dialog checker failed its regression fixture");
   }
+  {
+    const at = (source) => serverMessageViolations({ relativePath: "m.vue", source });
+    const hits = [
+      at(`<DataTable :error="isError ? (error?.message ?? 'Could not load.') : null" />`),
+      at(`<DataTable\n  :error="isError ? (error instanceof Error ? error.message : 'x') : null" />`),
+      at(`<QueryState :loading="l" :error="q.error.value" />`),
+      at(`<ErrorState :message="query.error.value?.message ?? 'x'" />`),
+    ];
+    const clean = [
+      at(`<DataTable :error="isError ? 'Could not load the vehicles.' : null" />`),
+      at(`<QueryState :loading="l" :error="e" error-text="Could not load the part." />`),
+      at(`<PlanStatusBanner :status="result.status" :message="result.message" />`),
+    ];
+    const raw = "<!-- ui-adoption: server-message — the reader says why -->\n<QueryState :error=\"e\" />\n<!-- ui-adoption: server-message -->\n<QueryState :error=\"e\" />";
+    const marks = [siteMarked("m.vue:2", "server-message", () => raw), siteMarked("m.vue:4", "server-message", () => raw)];
+    if (hits.some((h) => h.length !== 1) || JSON.stringify(hits[1]) !== JSON.stringify(["m.vue:1"]) ||
+        clean.some((c) => c.length) || !marks[0] || marks[1])
+      failures.push("server-message checker failed its regression fixture");
+  }
+  if (serverMessages.length)
+    failures.push(`read state showing the error's message (say the page's own sentence, or mark ui-adoption: server-message — <why>): ${serverMessages.join(", ")}`);
+  if (vagueFailureCopy.length)
+    failures.push(`"That did not work" in user copy (say what could not be done): ${vagueFailureCopy.join(", ")}`);
   if (unpagedLists.length)
     failures.push(`list in a DataWorkspace with no TablePagination in its #footer (or mark ui-adoption: unpaged — <why>): ${unpagedLists.join(", ")}`);
   if (nativeDialogs.length)

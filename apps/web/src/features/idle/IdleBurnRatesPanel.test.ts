@@ -169,7 +169,8 @@ describe("IdleBurnRatesPanel", () => {
   it("a failed read is an error, not an empty table", async () => {
     fetched.ok = false;
     const t = (await render()).text();
-    expect(t).toContain("boom");
+    expect(t).toContain("Could not read the idle burn rates");
+    expect(t).not.toContain("boom");
     expect(t).not.toContain("No parked hours");
   });
 });

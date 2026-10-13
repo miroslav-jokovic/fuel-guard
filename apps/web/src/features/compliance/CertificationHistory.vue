@@ -98,7 +98,7 @@ const columns: DataTableColumn[] = [
         :sticky-header="false"
         :loading="query.isLoading.value"
         :error="
-          query.isError.value ? (query.error.value?.message ?? 'Could not load the history.') : null
+          query.isError.value ? 'Could not load the history.' : null
         "
         :retrying="query.isFetching.value"
         empty-text="Nothing has been superseded yet."

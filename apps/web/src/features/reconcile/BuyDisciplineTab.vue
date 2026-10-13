@@ -77,10 +77,12 @@ const props = withDefaults(defineProps<{
    * Not "ready" means the section says so and grades nothing.
    */
   inputs?: "ready" | "loading" | "error";
-}>(), { fleetWide: true, fillsState: "ready", inputs: "ready" });
+  /** The two input reads are refetching after a Retry. */
+  inputsRetrying?: boolean;
+}>(), { fleetWide: true, fillsState: "ready", inputs: "ready", inputsRetrying: false });
 const FILLS_FAILED = "Could not load the fill sequence for this window.";
 /** The headline's and the purchases table's Retry: the page owns the read. */
-const emit = defineEmits<{ retry: [] }>();
+const emit = defineEmits<{ retry: []; "retry-inputs": [] }>();
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
 
@@ -355,11 +357,17 @@ function exportRows() {
          behalf — that is 0325's ruling and the settings form says the same. -->
     <div>
       <h4 class="mb-2 text-sm font-semibold text-ink">Against your targets</h4>
-      <p v-if="inputs !== 'ready'" class="mb-2 text-xs text-caution-800">
-        {{ inputs === "loading"
-          ? "Loading the purchases and settings these figures are graded from."
-          : "Couldn't load the purchases or settings these figures are graded from, so nothing is graded here. Reload to try again." }}
-      </p>
+      <QueryState
+        v-if="inputs !== 'ready'"
+        compact
+        class="mb-2"
+        :loading="inputs === 'loading'"
+        :error="inputs === 'error'"
+        :retrying="inputsRetrying"
+        loading-text="Loading the purchases and settings these figures are graded from…"
+        error-text="Could not load the purchases or settings these figures are graded from, so nothing is graded here."
+        @retry="emit('retry-inputs')"
+      />
       <template v-else>
         <p v-if="!fleetWide" class="mb-2 text-xs text-caution-800">
           Targets are set for the whole fleet. With trucks selected, the figures below are the selection's

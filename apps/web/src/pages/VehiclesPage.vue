@@ -235,7 +235,7 @@ async function onRetire(v: Vehicle) {
       :selectable="session.can('equipment')"
       :selected="selected"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the vehicles.') : null"
+      :error="isError ? 'Could not load the vehicles.' : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"

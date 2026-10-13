@@ -82,7 +82,8 @@ describe("FleetDispatchersTab", () => {
     state.error = "dispatcher earnings unavailable";
     try {
       const w = mountIt();
-      expect(w.text()).toContain("dispatcher earnings unavailable");
+      expect(w.text()).toContain("Could not load the dispatchers.");
+      expect(w.text()).not.toContain("dispatcher earnings unavailable");
       expect(w.text()).not.toContain("No dispatcher earnings for this period");
     } finally {
       state.error = null;

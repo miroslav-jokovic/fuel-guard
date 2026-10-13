@@ -203,7 +203,7 @@ async function remove(i: Inspector) {
       :columns="columns"
       :rows="pageRows"
       :loading="isLoading || isFetching"
-      :error="isError ? (error?.message ?? 'Could not load the register') : null"
+      :error="isError ? 'Could not load the register' : null"
       row-key="id"
       @retry="() => refetch()"
     >

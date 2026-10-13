@@ -39,7 +39,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
       res.error?.code ?? "error",
       res.status === 429
         ? "Too many requests just now — try again in a minute"
-        : res.error?.message ?? "That did not work",
+        : res.error?.message ?? "The server answered with an error and gave no reason.",
     );
   }
   return res.data as T;

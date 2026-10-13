@@ -86,6 +86,18 @@ describe("SamsaraFeedLine", () => {
     expect((await mountFor(["idle"])).html()).toContain("bg-caution-50");
   });
 
+  it("wraps the full sentence as a line and truncates only as a chip", async () => {
+    // US6b F23: the line's inline span carried `truncate`, which cannot clip an inline box but did stop
+    // it wrapping — the sentence ran 162 px past a 390 px phone above Odometer. The chip keeps the
+    // whole sentence in its title.
+    const line = await mountFor(["idle"]);
+    expect(line.find("[data-testid='samsara-feed-line'] span").classes()).not.toContain("truncate");
+    const chip = mount(SamsaraFeedLine, { props: { feeds: ["idle"], variant: "chip" } });
+    await flushPromises();
+    expect(chip.findAll("[data-testid='samsara-feed-line'] span").at(-1)!.classes()).toContain("truncate");
+    expect(chip.find("[data-testid='samsara-feed-line']").attributes("title")).toContain("Idle time last arrived");
+  });
+
   it("says nothing at all when it cannot tell, rather than breaking the page below it", async () => {
     fetched.ok = false;
     expect((await mountFor(["stats"])).find("[data-testid='samsara-feed-line']").exists()).toBe(false);

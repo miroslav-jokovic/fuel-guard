@@ -188,7 +188,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
         :rows="rows"
         row-key="id"
         :loading="recordsQ.isLoading.value"
-        :error="recordsQ.isError.value ? (recordsQ.error.value?.message ?? 'Could not load the qualification file.') : null"
+        :error="recordsQ.isError.value ? 'Could not load the qualification file.' : null"
         :retrying="recordsQ.isFetching.value"
         empty-text="No PSP records on file. Import one you already bought, or order a fresh one once ordering is switched on."
         @retry="recordsQ.refetch()"

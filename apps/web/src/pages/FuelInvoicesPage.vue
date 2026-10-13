@@ -99,7 +99,7 @@ function onRecorded(runId: string) {
         :rows="rows"
         row-key="id"
         :loading="isLoading || isFetching"
-        :error="isError ? (error?.message ?? 'Could not load your invoice checks') : null"
+        :error="isError ? 'Could not load your invoice checks' : null"
         @retry="() => refetch()"
         @row-click="open"
       >
