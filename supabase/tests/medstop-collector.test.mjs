@@ -90,6 +90,16 @@ ok("disabled by default — nothing polls Med-Stop because a row appeared", cred
 ok("with Med-Stop's documented host as the default", cred.base_url === "https://api.med-stop.com");
 ok("one credential per org", (await sqlstate(`insert into medstop_credentials (org_id) values ($1)`, [ORG])) === "23505");
 
+// ── 1b. ordering (0468, UX3): off by default, and the office contact is checked ───────────────────
+const c2 = await one(`select orders_enabled, order_contact_email, order_contact_phone from medstop_credentials where org_id=$1`, [ORG]);
+ok("ordering is OFF by default — every order is real and billed (no Med-Stop test host)", c2.orders_enabled === false);
+ok("no office contact until somebody enters one", c2.order_contact_email === null && c2.order_contact_phone === null);
+const setContact = (email, phone) =>
+  sqlstate(`update medstop_credentials set order_contact_email=$2, order_contact_phone=$3 where org_id=$1`, [ORG, email, phone]);
+ok("a well-formed office e-mail and 10-digit phone are accepted", (await setContact("der@silvicom.test", "3125550100")) === null);
+ok("an e-mail without a domain is refused", (await setContact("der@", "3125550100")) === "23514");
+ok("a phone that is not 10 digits is refused", (await setContact("der@silvicom.test", "(312) 555-0100")) === "23514");
+
 // ── 2. the snapshot replaces, whole ─────────────────────────────────────────────────────────────
 const emp = (id, extra = {}) => ({ medstop_id: id, roster: "active", status: "FULL TIME", license_number: `L${id}`, license_state: "IL", ...extra });
 ok("a snapshot of three employees stores three", (await snap(ORG, "employees", [emp("a", { driver_id: DRIVER, match_rule: "licence" }), emp("b"), emp("c")])) === null && (await count("medstop_employees", ORG)) === 3);
