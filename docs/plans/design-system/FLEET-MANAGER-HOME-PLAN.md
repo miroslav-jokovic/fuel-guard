@@ -356,3 +356,15 @@ landing tab.
     seen only in the stubbed pass of the same day.
   - FM4 closes once the fix is on staging and the fleet manager's first screen after sign-in shows
     all 8 cards without a reload.
+- 2026-10-13: **FM4 closed.** The sign-in fix merged (`claude/modules-read-after-sign-in`), and staging
+  served it on both hosts before the pass was repeated.
+  - **Fleet manager**, in a fresh browser, with no reload: lands on Operations with all 8 cards (Fleet
+    right now and Needs a hand now included), Loads and Dispatch board in the sidebar, and both shop
+    lists opening. Row 2 is 4/4/4 at 1440 and 1104 px. No `$`, no page errors.
+  - **Dispatcher:** lands on Dispatch with the live map, which had ALSO been missing after sign-in
+    before the fix (the same module gate). No Operations tab, and the shop lists send them home.
+  - The only API refusal left is `/api/me/notifications` → 403 `module_disabled`: staging's org does
+    not have the notifications module, so that is correct.
+  - Staging still has no FleetPal rows, so the Shop card's real figures are seen in production after
+    the release.
+  - Owed from this plan: FM5 (roadside, blocked on the projection) and Q-FM5 (PM due, its own plan).
