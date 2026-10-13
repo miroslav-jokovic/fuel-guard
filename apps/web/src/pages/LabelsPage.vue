@@ -13,7 +13,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
 import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
-import { useStockQuery } from "@/features/inventory/useInventory";
+import { useAllStockQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
 import { useQueryState } from "@/composables/useQueryState";
@@ -77,7 +77,7 @@ const {
   isError: stockFailed,
   isFetching: stockFetching,
   refetch: refetchStock,
-} = useStockQuery(ref(undefined));
+} = useAllStockQuery();
 
 /**
  * D-US8: both lists page, one page in the URL (D-US2) for whichever list is showing — they are never

@@ -89,7 +89,7 @@ let assetsFilter: { value: { page: number; search?: string } } | null = null;
 let assetsTotal = 1;
 
 vi.mock("@/features/inventory/useInventory", () => ({
-  useStockQuery: () => ({
+  useAllStockQuery: () => ({
     isError: ref(fail.stock),
     isFetching: ref(false),
     refetch: refetch.stock,
