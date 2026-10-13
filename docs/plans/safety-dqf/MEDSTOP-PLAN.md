@@ -450,6 +450,69 @@ features now open it and `lint:boundaries` forbids either reaching into the othe
   site, `MEDSTOP_PORTAL_URL` in shared. Recommend: the owner pastes the address they log in at, and it
   replaces that one constant.
 
+### 7A.13 UX5 — what Part 1 already holds, and the one fact it lacks (2026-10-13)
+
+**Inventory [V], before building anything.** D-MS1 (2026-09-29) said Part 1 must grow home address, CDL
+class, CDL expiry and gender. Application Flow v2 has since built three of the four. Part 1's screens
+are `about · address · licence · otherLicences · screening`, and its writer `record_applicant_intake`
+(0376) files them as follows:
+
+| Med-Stop applicant field | Ours, today | Since |
+|---|---|---|
+| fname, lname | `drivers` (office's Create) | — |
+| birthdate | `drivers.date_of_birth` via `record_applicant_identity` | 0365 |
+| address, city, state, zip | `application_intakes` + `drivers` (fill-only) | 0376 |
+| licenseclass | `drivers.cdl_class` | 0376 |
+| license, licensestate, licenseexpiration | `application_intake_licences` position 0, `drivers.cdl_*` | 0376 |
+| phone1 | `application_intakes.phone` | 0376 |
+| **gender** | **nowhere** | → 0469 |
+
+So UX5's "Part 1 fields" merge is ONE column: the donor's gender. Med-Stop's `/List/GENDER` (GET,
+2026-10-13) holds only MALE and FEMALE.
+
+- **D-MSUX10 — where it is kept, and that it may be declined.**
+  - `application_intakes.donor_gender` (`male | female | declined`; NULL = never asked), NOT `drivers`.
+    The person deciding a hire must never see an applicant's sex. This is the rule the questionnaire's
+    reserved `eeo` key already keeps (APPLICATION-SYSTEM-PLAN §6).
+  - The recruiter decides the hire. The office browser reads `drivers` (`ApplicantRecordPage` selects
+    `*`), while `application_intakes` has no client policy at all. So the value reaches only the
+    server-side readers that name it: the Med-Stop applicant create and an observed order. The step
+    never shows it.
+  - **Declining is an answer and never a gate.** The office then adds the applicant in Med-Stop by
+    hand, as it does for every applicant today.
+- **Proposed screen wording** (for the owner, and for counsel beside the EEO material; it ships in
+  UX5b):
+  - Label: *"Gender, for your drug test"*.
+  - Choices: *Male · Female · I'd rather not say*.
+  - Help text: *"The drug-testing company needs this to set up your test, and some tests are watched by
+    a person of the same gender. It is not part of your application — the people reviewing it do not
+    see your answer. If you'd rather not say, the office sets up your test with you directly."*
+- **Q-MSUX9 (open, wording):** confirm the help text, or send it to counsel with the package
+  (COUNSEL-REVIEW-PACKAGE.md). Recommend: ship it with the text above. The value is never shown to the
+  person deciding, and declining has no consequence beyond a phone call.
+
+**Batches:**
+- **UX5a (0469, this merge):** the column, and `record_applicant_intake` accepting the key (same
+  signature, absent key kept). No reader. Matrix: `application-intake-v2.test.mjs` §8.
+- **UX5b:** Part 1 asks it (a screen or the `about` screen), the shared intake contract gains the key,
+  and the office's Part 1 correction can set it. Then the auto-create:
+  - when Part 1 completes, `POST /Employee/new` as an APPLICANT (no SSN; the CDL number as the id,
+    O-5).
+  - `MEDSTOP_WRITES` gains that one write, deliberately and alone, with its own preview test.
+  - Before building it: a GET-only read of `/Employee/new`'s form (as `/Request/new/{eeid}` was read)
+    and of the constant fields (`drivingtype`, `idclass`, `category`, `dotagency`, `branchid`) from
+    `/List`.
+  - Skipped, and said so on the step, when the gender was declined, when Med-Stop already holds the
+    person (match first, §5), or when ordering is off.
+- **UX5c:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer: `observed: "Y"` and `employeegender`
+  from this column, for an active driver whose intake row holds it. A driver hired before UX5 holds
+  none, so these two reasons say "Med-Stop has no gender for this driver — order it in Med-Stop" until
+  a source exists (Q-MSUX10, below).
+- **Q-MSUX10 (open):** where an EXISTING driver's gender comes from for an observed order. Med-Stop's
+  own employee record carries `gender` (`Dto.Employee`). Recommend: read it from Med-Stop's roster at
+  order time (GET), never store it on our side. That keeps the rule above without asking 170 working
+  drivers.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -634,3 +697,9 @@ features now open it and `lint:boundaries` forbids either reaching into the othe
   drawer promoted to `components/medstop/`; "Add this applicant in Med-Stop first" + link (Q-MSUX8
   open: the portal's address). §7A.12. Ordering still OFF everywhere. Next: UX5 (Part 1 fields as their
   own migration merge, then `/Employee/new`, then observed reasons).
+- 2026-10-13 — **UX5a built** (branch `claude/medstop-ux5a`, 0469). Inventory first: Part 1 v2 already
+  files home address, CDL class and CDL expiry (0376), so the one missing fact was gender. 0469 adds
+  `application_intakes.donor_gender` (male/female/declined, NULL = never asked). It is not on `drivers`,
+  so the person deciding the hire never sees it (D-MSUX10). `record_applicant_intake` accepts the key
+  with the same signature. Med-Stop's GENDER list was read (GET): MALE, FEMALE. Open: Q-MSUX9 (wording),
+  Q-MSUX10 (an existing driver's gender for observed orders). Next: UX5b.

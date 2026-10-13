@@ -294,6 +294,30 @@ ok("a handbook filing for one invitation cannot be recorded twice (A-10)",
     return (await code(ins, [ORG, D6, I6])) === "23505";
   })());
 
+// ── 8. The donor's gender (0469, D-MSUX3/D-MSUX10) ───────────────────────────────────────────────
+// Written like every other key — present written, absent kept — onto the intake row ONLY: `drivers`
+// is read by the office browser, and the person deciding the hire never sees an applicant's sex.
+{
+  const DG = await driver(ORG);
+  const IG = await invite(ORG, DG);
+  const gender = async () => (await one(`select donor_gender g from application_intakes where invitation_id = $1`, [IG])).g;
+  await intake(ORG, IG, DG, { ...INTAKE, donor_gender: "female" }, LICENCES, null, false);
+  ok("the first write files the donor's gender on the intake row", (await gender()) === "female");
+  await intake(ORG, IG, DG, { phone: "+13125550101" }, null, null, false);
+  ok("a write without the key keeps it — the code serving before 0469 sends none", (await gender()) === "female");
+  await intake(ORG, IG, DG, { donor_gender: "declined" }, null, null, false);
+  ok("'declined' is an answer, and replaces the earlier one", (await gender()) === "declined");
+  ok("anything but male, female or declined is refused (23514)",
+    (await intakeCode(ORG, IG, DG, { donor_gender: "M" }, null, null, false)) === "23514");
+  ok("an applicant who was never asked holds NULL, not a default",
+    (await one(`select donor_gender g from application_intakes where invitation_id = $1`, [I1]))?.g == null);
+  ok("drivers holds no gender column — the office browser reads drivers (ApplicantRecordPage selects *)",
+    (await count(`select count(*) n from information_schema.columns
+                   where table_schema = 'public' and table_name = 'drivers' and column_name ~* 'gender|sex'`)) === 0);
+  ok("application_intakes still has no client policy — only the api reads the answer",
+    (await count(`select count(*) n from pg_policies where schemaname = 'public' and tablename = 'application_intakes'`)) === 0);
+}
+
 await db.close();
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exitCode = fail === 0 ? 0 : 1;
