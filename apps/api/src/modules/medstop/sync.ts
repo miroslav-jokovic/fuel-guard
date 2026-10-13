@@ -16,6 +16,7 @@ import {
 } from "./client.js";
 import { sweepMedstopTests, type MedstopTestSweepResult } from "./syncTests.js";
 import { actOnMedstopResults, type MedstopOutcomeResult } from "./outcomes.js";
+import { recordMedicalSourceDates, type MedicalSourceSweepResult } from "../evidence/index.js";
 
 /**
  * One Med-Stop sweep for one org: roster, pools, selections → the mirror (MEDSTOP-PLAN.md §6 F-1/F-2).
@@ -44,6 +45,19 @@ export interface MedstopSweepResult {
   tests: MedstopTestSweepResult;
   /** MS2b: what the new results did — filed, alerted, handled (`outcomes.ts`). */
   outcomes: MedstopOutcomeResult;
+  /** UX2: Med-Stop's medical dates, reported to evidence as claims (D-MSUX4a). */
+  medical: MedicalSourceSweepResult;
+}
+
+/**
+ * The people whose medical date Med-Stop may claim: on its ACTIVE roster (an applicant's or a
+ * leaver's card is not a working driver's), and matched by licence or name+DOB — R3: a name-only
+ * match never moves a qualification file. Exported for its test.
+ */
+export function medicalClaims(employees: ReadonlyArray<ReturnType<typeof employeeRecord>>): Array<{ driverId: string; expiresOn: string | null }> {
+  return employees
+    .filter((e) => e.driver_id && e.roster === "active" && (e.match_rule === "licence" || e.match_rule === "name_dob"))
+    .map((e) => ({ driverId: e.driver_id as string, expiresOn: e.medical_expires_on }));
 }
 
 const ROSTERS: [MedstopRoster, string][] = [
@@ -195,5 +209,8 @@ export async function sweepMedstop(admin: SupabaseClient, client: MedstopClient,
   // 5. MS2b: act on what is new — after the write, so a failure here leaves the mirror current and
   //    the unacted tests unmarked for the next sweep.
   const outcomes = await actOnMedstopResults(admin, orgId, today);
-  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests, tests, outcomes };
+  // 6. UX2: the medical card. Last, so a failure here — which does fail the sweep, and shows as the
+  //    credential's last error in Settings › Med-Stop — has already left the mirror and results current.
+  const medical = await recordMedicalSourceDates(admin, orgId, "medstop", medicalClaims(employees));
+  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests, tests, outcomes, medical };
 }

@@ -1,5 +1,6 @@
 import { shiftDay, type CalendarDay } from "./calendarDay.js";
-import type { InProgressRow, MedicalCardRow, ProgramPerson } from "./medstopContract.js";
+import type { InProgressRow, MedicalCardRow, MedicalCards, ProgramPerson } from "./medstopContract.js";
+import { MEDICAL_SOURCES, resolveMedicalExpiry, type MedicalCardState } from "./credentialSources.js";
 import {
   medstopOrderOpen,
   medstopResultExpectedOn,
@@ -100,34 +101,42 @@ export interface MedicalDriver {
 }
 
 /**
- * Working drivers whose medical card expires within `horizonDays` or has expired, by EITHER source,
- * soonest first. `ours` is the card on file (`certifications`); `medstop` is Med-Stop's date for a
- * CERTAIN match only (R3), kept only when it differs from ours. The row's date is the EARLIER of the
- * two: when the sources disagree, the safe side is the one that runs out first (Q-MSUX7 pending).
+ * The Medical cards tab (UX2, D-MSUX4b), from the same per-driver state evidence files from — the card
+ * on file and each source's latest claim (`credential_source_dates`, 0467) — so the tab and the
+ * qualification file cannot tell two stories.
+ *
+ * - `due`: working drivers whose card runs out within `horizonDays` or has, soonest first. The date is
+ *   the one Q-MSUX7's rule gives (`resolveMedicalExpiry`): what the file holds, or will hold once the
+ *   next sweep files it.
+ * - `disagree`: working drivers whose sources do not all agree — the owner's "flagged for review".
+ *   The office settles one by filing the card's scan, which then wins.
  */
-export function medicalCardsDue(
+export function medicalCards(
   drivers: readonly MedicalDriver[],
-  ours: ReadonlyMap<string, string | null>,
-  medstopCertain: ReadonlyMap<string, string | null>,
+  states: ReadonlyMap<string, MedicalCardState>,
   today: CalendarDay,
   horizonDays = 60,
-): MedicalCardRow[] {
+): MedicalCards {
   const horizon = shiftDay(today, horizonDays);
-  const out: MedicalCardRow[] = [];
+  const due: MedicalCardRow[] = [];
+  const disagree: MedicalCardRow[] = [];
   for (const d of drivers) {
-    if (!d.working) continue;
-    const mine = ours.get(d.id)?.slice(0, 10) ?? null;
-    const theirs = medstopCertain.get(d.id)?.slice(0, 10) ?? null;
-    const dates = [mine, theirs].filter((x): x is string => x !== null).sort();
-    const earliest = dates[0];
-    if (!earliest || earliest > horizon) continue;
-    out.push({
+    const state = d.working ? states.get(d.id) : undefined;
+    if (!state) continue;
+    const resolved = resolveMedicalExpiry(state.onFile, state.claims);
+    const expiresOn = resolved.expiresOn ?? state.onFile?.expiresOn?.slice(0, 10) ?? null;
+    if (!expiresOn) continue;
+    const row: MedicalCardRow = {
       person: { driverId: d.id, medstopId: null, name: d.fullName },
-      ours: mine,
-      medstop: theirs !== mine ? theirs : null,
-      expiresOn: earliest,
-      daysLeft: daysBetween(today, earliest),
-    });
+      expiresOn,
+      daysLeft: daysBetween(today, expiresOn),
+      documented: resolved.rule === "documented",
+      sources: MEDICAL_SOURCES.flatMap((source) => state.claims.filter((c) => c.source === source)),
+      disagree: resolved.disagree,
+    };
+    if (expiresOn <= horizon) due.push(row);
+    if (resolved.disagree) disagree.push(row);
   }
-  return out.sort((a, b) => a.daysLeft - b.daysLeft || a.person.name.localeCompare(b.person.name));
+  const order = (a: MedicalCardRow, b: MedicalCardRow) => a.daysLeft - b.daysLeft || a.person.name.localeCompare(b.person.name);
+  return { due: due.sort(order), disagree: disagree.sort(order) };
 }

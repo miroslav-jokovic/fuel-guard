@@ -424,8 +424,10 @@ describe("credentials become evidence (R1)", () => {
     const rec = withCerts([driver({ mcleod_driver_id: "D0001" })]);
     const r = await ingestDrivers(rec.client, ORG, [mcleodDriver], "identity");
     expect(r.credentialsFiled).toBe(2);
-    const kinds = rec.rpcs().map((c) => (c.args as Record<string, unknown>).p_kind);
+    const kinds = rec.rpcs().filter((c) => c.fn === "insert_certification").map((c) => (c.args as Record<string, unknown>).p_kind);
     expect(kinds.sort()).toEqual(["cdl", "medical_card"]);
+    // The medical date is also recorded as McLeod's claim (0467), which the Med-Stop sweep weighs too.
+    expect(rec.rpcs().filter((c) => c.fn === "record_credential_source_date").map((c) => (c.args as Record<string, unknown>).p_source)).toEqual(["mcleod"]);
     expect(r.credentialFailures).toEqual([]);
   });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inProgressRows, medicalCardsDue, type InProgressOrder, type InProgressTest } from "./medstopTabs.js";
+import { inProgressRows, medicalCards, type InProgressOrder, type InProgressTest } from "./medstopTabs.js";
+import type { MedicalCardState } from "./credentialSources.js";
 
 const TODAY = "2026-10-13";
 const who = (id: string | null) => ({ driverId: null, medstopId: id, name: `P ${id}` });
@@ -41,20 +42,33 @@ describe("inProgressRows", () => {
   });
 });
 
-describe("medicalCardsDue", () => {
+describe("medicalCards", () => {
   const drivers = [
     { id: "a", fullName: "Ann", working: true },
     { id: "b", fullName: "Bob", working: true },
     { id: "c", fullName: "Cy", working: true },
     { id: "d", fullName: "Dee", working: false },
     { id: "e", fullName: "Eve", working: true },
+    { id: "f", fullName: "Fay", working: true },
   ];
-  const ours = new Map([["a", "2026-11-01"], ["b", "2027-06-01"], ["c", "2026-10-01"], ["d", "2026-10-20"], ["e", null]]);
-  const medstop = new Map([["a", "2026-11-01"], ["b", "2026-11-30"], ["e", "2026-12-01"]]);
-  const rows = medicalCardsDue(drivers, ours, medstop, TODAY);
+  const card = (expiresOn: string | null, documented = false) => ({ expiresOn, documented });
+  const mcleod = (d: string) => ({ source: "mcleod" as const, expiresOn: d });
+  const medstop = (d: string) => ({ source: "medstop" as const, expiresOn: d });
+  const states = new Map<string, MedicalCardState>([
+    ["a", { onFile: card("2026-11-01"), claims: [mcleod("2026-11-01"), medstop("2026-11-01")] }],
+    // Unscanned, sources disagree: the earliest is what the file will hold.
+    ["b", { onFile: card("2027-06-01"), claims: [medstop("2026-11-30"), mcleod("2027-06-01")] }],
+    ["c", { onFile: card("2026-10-01"), claims: [mcleod("2026-10-01")] }],
+    ["d", { onFile: card("2026-10-20"), claims: [mcleod("2026-10-20")] }],
+    // No card yet, Med-Stop alone has a date.
+    ["e", { onFile: null, claims: [medstop("2026-12-01")] }],
+    // Scanned card, far out; McLeod disagrees — not due, but flagged.
+    ["f", { onFile: card("2027-09-01", true), claims: [mcleod("2026-12-20")] }],
+  ]);
+  const { due, disagree } = medicalCards(drivers, states, TODAY);
 
-  it("lists working drivers due within 60 days or expired by either source, soonest first", () => {
-    expect(rows.map((r) => [r.person.driverId, r.expiresOn, r.daysLeft])).toEqual([
+  it("lists working drivers due within 60 days or expired, by the date the rule files, soonest first", () => {
+    expect(due.map((r) => [r.person.driverId, r.expiresOn, r.daysLeft])).toEqual([
       ["c", "2026-10-01", -12],
       ["a", "2026-11-01", 19],
       ["b", "2026-11-30", 48],
@@ -62,13 +76,13 @@ describe("medicalCardsDue", () => {
     ]);
   });
 
-  it("shows Med-Stop's date only when it differs from ours, and takes the earlier (safe side)", () => {
-    expect(rows.find((r) => r.person.driverId === "a")).toMatchObject({ ours: "2026-11-01", medstop: null });
-    expect(rows.find((r) => r.person.driverId === "b")).toMatchObject({ ours: "2027-06-01", medstop: "2026-11-30", expiresOn: "2026-11-30" });
-    expect(rows.find((r) => r.person.driverId === "e")).toMatchObject({ ours: null, medstop: "2026-12-01" });
+  it("flags every working driver whose sources disagree, whether due or not, with each source's date", () => {
+    expect(disagree.map((r) => r.person.driverId)).toEqual(["b", "f"]);
+    expect(disagree[0]!.sources).toEqual([mcleod("2027-06-01"), medstop("2026-11-30")]);
+    expect(disagree[1]).toMatchObject({ expiresOn: "2027-09-01", documented: true });
   });
 
   it("never lists a driver who is not working", () => {
-    expect(rows.some((r) => r.person.driverId === "d")).toBe(false);
+    expect([...due, ...disagree].some((r) => r.person.driverId === "d")).toBe(false);
   });
 });

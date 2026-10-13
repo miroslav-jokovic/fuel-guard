@@ -18,17 +18,21 @@ const ORG = "org-1";
 const DRIVER = "driver-1";
 
 /** The RPC returns `[{ id, superseded_id }]`; only the shape matters to the caller. */
-const rpcOk = { insert_certification: [{ id: "cert-new", superseded_id: null }] };
+const rpcOk = { insert_certification: [{ id: "cert-new", superseded_id: null }], record_credential_source_date: true };
 
-const certRow = (over: Partial<{ kind: string; identifier: string | null; issuing_authority: string | null; expires_at: string | null }>) => ({
-  kind: "cdl", identifier: null, issuing_authority: null, expires_at: null, ...over,
+const certRow = (over: Partial<{ kind: string; identifier: string | null; issuing_authority: string | null; expires_at: string | null; document_id: string | null }>) => ({
+  kind: "cdl", identifier: null, issuing_authority: null, expires_at: null, document_id: null, ...over,
 });
 
-const make = (current: unknown[], rpc: unknown = rpcOk) =>
-  createSupabaseRecorder({ tables: { certifications: current }, rpc: rpc as Record<string, unknown> });
+/** `claims` = what each source last said (0467) — McLeod's own claim already recorded is the steady state. */
+const make = (current: unknown[], rpc: unknown = rpcOk, claims: unknown[] = []) =>
+  createSupabaseRecorder({ tables: { certifications: current, credential_source_dates: claims }, rpc: rpc as Record<string, unknown> });
 
+/** The FILINGS — the claim bookkeeping (`record_credential_source_date`) is asserted on its own. */
 const args = (rec: ReturnType<typeof make>) =>
-  rec.rpcs().map((r) => r.args as Record<string, unknown>);
+  rec.rpcs().filter((r) => r.fn === "insert_certification").map((r) => r.args as Record<string, unknown>);
+const claimCalls = (rec: ReturnType<typeof make>) =>
+  rec.rpcs().filter((r) => r.fn === "record_credential_source_date").map((r) => r.args as Record<string, unknown>);
 
 /** The nth recorded RPC's arguments, asserted to exist — a missing call is a failure, not `undefined`. */
 const arg = (rec: ReturnType<typeof make>, n: number): Record<string, unknown> => {
@@ -73,7 +77,7 @@ describe("recordSyncedCredentials — the write-only-on-change invariant", () =>
     const rec = make([
       certRow({ kind: "cdl", identifier: "D123", issuing_authority: "IL", expires_at: "2028-04-01" }),
       certRow({ kind: "medical_card", expires_at: "2027-02-15" }),
-    ]);
+    ], rpcOk, [{ source: "mcleod", expires_on: "2027-02-15" }]);
     const out = await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, {
       cdlNumber: "D123", cdlState: "IL", cdlExpiresAt: "2028-04-01", medicalExpiresAt: "2027-02-15",
     });
@@ -178,5 +182,67 @@ describe("recordSyncedCredentials — tenancy", () => {
     expect(arg(rec, 0).p_org_id).toBe(ORG);
     expect(arg(rec, 0).p_subject_id).toBe(DRIVER);
     expect(arg(rec, 0).p_subject_type).toBe("driver");
+  });
+});
+
+/**
+ * Q-MSUX7 (owner, 2026-10-13) — the medical card has a second source, Med-Stop, and McLeod's date is
+ * now a CLAIM the rule weighs, not the filing. The first test is the one that keeps the two sweeps
+ * from taking turns: if it goes red, every disagreeing driver gains a row an hour, forever.
+ */
+describe("recordSyncedCredentials — the medical card is McLeod's claim, not McLeod's filing", () => {
+  it("leaves Med-Stop's earlier date on file when McLeod reports a later one (no ping-pong)", async () => {
+    const rec = make([certRow({ kind: "medical_card", expires_at: "2026-12-01" })], rpcOk, [
+      { source: "mcleod", expires_on: "2026-12-01" },
+      { source: "medstop", expires_on: "2026-12-01" },
+    ]);
+    const out = await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, {
+      medicalExpiresAt: "2027-06-01",
+    });
+    expect(args(rec)).toHaveLength(0);
+    expect(out.unchanged).toEqual(["medical_card"]);
+    // The claim itself is recorded, so the cross-check shows what McLeod now says.
+    expect(claimCalls(rec)).toEqual([
+      { p_org: ORG, p_driver: DRIVER, p_kind: "medical_card", p_source: "mcleod", p_expires_on: "2027-06-01" },
+    ]);
+  });
+
+  it("never supersedes a SCANNED card, whichever way McLeod's date points", async () => {
+    for (const mcleod of ["2027-11-01", "2026-05-01"]) {
+      const rec = make([certRow({ kind: "medical_card", expires_at: "2026-11-01", document_id: "doc-1" })], rpcOk, [
+        { source: "mcleod", expires_on: "2026-11-01" },
+      ]);
+      const out = await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, { medicalExpiresAt: mcleod });
+      expect(args(rec)).toHaveLength(0);
+      expect(out.unchanged).toEqual(["medical_card"]);
+    }
+  });
+
+  it("files the earliest source date over an unscanned card", async () => {
+    const rec = make([certRow({ kind: "medical_card", expires_at: "2027-06-01" })], rpcOk, [
+      { source: "mcleod", expires_on: "2027-06-01" },
+      { source: "medstop", expires_on: "2027-01-10" },
+    ]);
+    await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, { medicalExpiresAt: "2027-06-01" });
+    expect(arg(rec, 0).p_expires_at).toBe("2027-01-10");
+    // Named after the source that gave the date, so the row says where it came from.
+    expect(arg(rec, 0).p_notes).toMatch(/Med-Stop/);
+  });
+
+  it("files nothing when McLeod's claim could not be recorded (fail closed)", async () => {
+    const rec = make([], { ...rpcOk, record_credential_source_date: { error: { message: "down" } } });
+    const out = await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, { medicalExpiresAt: "2027-02-15" });
+    expect(args(rec)).toHaveLength(0);
+    expect(out.failed).toEqual([{ kind: "medical_card", error: "down" }]);
+  });
+
+  it("files nothing when the claims could not be READ", async () => {
+    const rec = createSupabaseRecorder({
+      tables: { certifications: [], credential_source_dates: { data: null, error: { message: "claims blew up" } } },
+      rpc: rpcOk,
+    });
+    const out = await recordSyncedCredentials(rec.client as unknown as SupabaseClient, ORG, DRIVER, { medicalExpiresAt: "2027-02-15" });
+    expect(rec.rpcs()).toHaveLength(0);
+    expect(out.failed).toEqual([{ kind: "medical_card", error: "claims blew up" }]);
   });
 });

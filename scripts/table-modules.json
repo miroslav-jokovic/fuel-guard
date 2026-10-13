@@ -178,6 +178,17 @@
         "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
+    "credential_source_dates": {
+      "module": "evidence",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "each source's current medical-card claim per driver (0467, MEDSTOP-PLAN \u00a77A.10): at most drivers \u00d7 sources rows (~340 for this carrier), overwritten on change, so it does not grow with time."
+      }
+    },
     "certifications": {
       "module": "evidence",
       "layer": "core",

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   canReadTestingRecords,
   inProgressRows,
-  medicalCardsDue,
+  medicalCards,
   poolPace,
   reconcileRosters,
   selectionsAwaitingTest,
@@ -19,6 +19,7 @@ import { getCredential } from "./credentials.js";
 import { readRosterDrivers } from "./sync.js";
 import { RESULT_REVIEW_DAYS, readResultReview } from "./results.js";
 import { readInProgress } from "./inProgress.js";
+import { readMedicalStates } from "../evidence/index.js";
 
 /**
  * Safety › Drug & Alcohol's one read (MEDSTOP-PLAN.md §6, §7A — five tabs since MS-UX1). The mirror
@@ -60,29 +61,6 @@ interface EmployeeRow {
   match_rule: string | null;
 }
 
-/** The current medical card per driver, from `certifications` — authoritative since the roster carve-out. */
-async function currentMedicalCards(admin: SupabaseClient, orgId: string): Promise<Map<string, string | null>> {
-  const out = new Map<string, string | null>();
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("certifications")
-      .select("subject_id, expires_at")
-      .eq("org_id", orgId)
-      .eq("subject_type", "driver")
-      .eq("kind", "medical_card")
-      .is("superseded_by", null)
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`certifications read failed: ${error.message}`);
-    for (const c of data ?? []) {
-      const prior = out.get(c.subject_id as string);
-      const exp = c.expires_at as string | null;
-      if (prior === undefined || (exp && (!prior || exp > prior))) out.set(c.subject_id as string, exp);
-    }
-    if (!data || data.length < PAGE) return out;
-  }
-}
-
 export async function readDrugAlcoholProgram(
   admin: SupabaseClient,
   orgId: string,
@@ -105,7 +83,8 @@ export async function readDrugAlcoholProgram(
       .select("medstop_id, employee_medstop_id, service, selected_on, request_medstop_id, test_medstop_id, status")
       .eq("org_id", orgId).order("medstop_id").range(a, b), "medstop_selections"),
     readRosterDrivers(admin, orgId),
-    currentMedicalCards(admin, orgId),
+    // UX2: the card on file and each source's claim, through evidence — the same state it files from.
+    readMedicalStates(admin, orgId),
     readInProgress(admin, orgId),
   ]);
 
@@ -143,13 +122,6 @@ export async function readDrugAlcoholProgram(
     };
   };
   const reconciled = reconcileRosters(people, drivers);
-  // R3: Med-Stop's medical date counts only for a licence or name+DOB match.
-  const medstopMedical = new Map(
-    employees
-      .filter((e) => e.driver_id && e.roster === "active" && (e.match_rule === "licence" || e.match_rule === "name_dob"))
-      .map((e) => [e.driver_id as string, e.medical_expires_on]),
-  );
-
   return {
     connected: credential?.hasKey === true && credential.enabled,
     syncedAt: credential?.lastSyncedAt ?? null,
@@ -177,10 +149,9 @@ export async function readDrugAlcoholProgram(
     inProgress: inProgressRows(moving.orders, moving.tests, personOf, today, testingRoles),
     // MS2c: the results themselves — testing records, so the same rule as the selections above.
     results: testingRoles ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf) : null,
-    medical: medicalCardsDue(
+    medical: medicalCards(
       drivers.map((d) => ({ id: d.id, fullName: d.fullName, working: d.status === "active" && !d.archived })),
       medical,
-      medstopMedical,
       today,
     ),
     roster: reconciled,

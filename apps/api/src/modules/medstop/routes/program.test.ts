@@ -59,7 +59,12 @@ beforeEach(() => {
       medstop_pools: [{ service: "TD", name: "drug", pool_year: new Date().getFullYear(), ends_on: null, frequency: "QUARTERLY", target_percent: 53, current_percent: 42.58, members_avg: 155, completed_tests: 66, scheduled_tests: 17 }],
       medstop_selections: [{ medstop_id: "s1", employee_medstop_id: "m-ann", service: "TD", selected_on: "2020-01-02", request_medstop_id: null, test_medstop_id: null, status: "OPEN" }],
       drivers,
-      certifications: [{ subject_id: "d-in", expires_at: inDays(300) }],
+      certifications: [{ subject_id: "d-in", expires_at: inDays(300), document_id: null }],
+      // What each source last said (0467): McLeod agrees with the card on file, Med-Stop is earlier.
+      credential_source_dates: [
+        { driver_id: "d-in", source: "mcleod", expires_on: inDays(300) },
+        { driver_id: "d-in", source: "medstop", expires_on: inDays(20) },
+      ],
       medstop_requests: [{ medstop_id: "r-rand", employee_medstop_id: "m-ann", service: "TD", reason: "RANDOM", status: "OPEN", requested_local: `${inDays(-1)}T09:00:00`, test_medstop_id: null }],
       medstop_tests: [{ medstop_id: "t-pre", employee_medstop_id: "m-ann", service: "TD", reason: "PRE-EMPLOYMENT", status: "AT LAB", result: null, collected_local: `${inDays(-2)}T09:00:00` }],
     },
@@ -84,10 +89,17 @@ describe("GET /api/drug-alcohol/program", () => {
       notInPool: [{ driverId: "d-out", medstopId: null, name: "Bob Outside" }],
       leftButInPool: [{ driverId: "d-gone", medstopId: "m-cy", name: "Cy Gone" }],
     });
-    // Ours says 300 days, Med-Stop (licence match) says 20: the earlier one lists the driver, both shown.
-    expect(body.data.medical).toEqual([
-      { person: { driverId: "d-in", medstopId: null, name: "Ann Pooled" }, ours: inDays(300), medstop: inDays(20), expiresOn: inDays(20), daysLeft: 20 },
-    ]);
+    // Unscanned card at 300 days, Med-Stop says 20: Q-MSUX7 files the earliest, so the driver is due
+    // AND flagged, with each source's date beside it.
+    const ann = {
+      person: { driverId: "d-in", medstopId: null, name: "Ann Pooled" },
+      expiresOn: inDays(20),
+      daysLeft: 20,
+      documented: false,
+      sources: [{ source: "mcleod", expiresOn: inDays(300) }, { source: "medstop", expiresOn: inDays(20) }],
+      disagree: true,
+    };
+    expect(body.data.medical).toEqual({ due: [ann], disagree: [ann] });
     expect(body.data.pools[0]).toMatchObject({ service: "drug", testsOwed: 17, requiredTests: 83 });
     expect(body.data.connected).toBe(true);
   });

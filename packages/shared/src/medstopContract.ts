@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MedstopTestOutcome } from "./medstopTests.js";
+import type { MedicalSourceDate } from "./credentialSources.js";
 
 /**
  * Med-Stop — what OUR api answers about the carrier's drug & alcohol program
@@ -143,11 +144,20 @@ export interface InProgressRow {
  */
 export interface MedicalCardRow {
   person: ProgramPerson;
-  ours: string | null;
-  medstop: string | null;
-  /** The earlier of the two — the safe side — and the days until it (negative = expired). */
+  /** The date the qualification file holds by Q-MSUX7's rule, and the days until it (negative = expired). */
   expiresOn: string;
   daysLeft: number;
+  /** A scanned card decides the date — it wins over every source. */
+  documented: boolean;
+  /** Each outside source's latest date for this driver (McLeod, Med-Stop), in `MEDICAL_SOURCES` order. */
+  sources: MedicalSourceDate[];
+  /** The sources, or the scanned card, do not all agree. */
+  disagree: boolean;
+}
+
+export interface MedicalCards {
+  due: MedicalCardRow[];
+  disagree: MedicalCardRow[];
 }
 
 export interface DrugAlcoholProgram {
@@ -169,7 +179,7 @@ export interface DrugAlcoholProgram {
    * already old (D-MS5): never acted on automatically, listed so a person decides.
    */
   results: { recent: MedstopResultRow[]; history: MedstopResultRow[] } | null;
-  medical: MedicalCardRow[];
+  medical: MedicalCards;
   roster: {
     /** Active here, absent from Med-Stop's active roster: outside the random pool (§382.305). */
     notInPool: ProgramPerson[];
