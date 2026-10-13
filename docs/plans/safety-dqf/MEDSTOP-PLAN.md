@@ -341,3 +341,23 @@ allowlist + the one-scheduler rule, `docs/WORKER-DEPLOYMENT.md`).
   `return_to_duty` record ever filed. Right for §40.25(j)'s one-time admission; wrong for a Med-Stop
   violation, where a driver with an old record and a NEW positive would pass. MS2b's door asks for a
   record whose `occurred_on` is on or after the violation's collection day.
+- 2026-10-13 — **MS2b: results act.** After every sweep, `actOnMedstopResults` takes the tests whose
+  result nobody has acted on (`outcome_handled` null, not `baseline`):
+  - verified NEGATIVE pre-employment drug test on a licence or name+DOB match → `drug_test`
+    qualification record, `reference` = Med-Stop's test id, `created_by` null, `detail.source =
+    'medstop'` — the hiring step ticks itself. Once per test by the code AND by 0466. An applicant not
+    matched yet waits 30 days for the match, then is let go unfiled.
+  - POSITIVE, REFUSAL, NEGATIVE-DILUTE, or a wording nobody classified → `drug_alcohol_result` to every
+    member whose role `canReadTestingRecords` admits (derived, `usersInRoles`), naming the result:
+    they are the DER and must act on it. Dedupe per test AND outcome, so an MRO correction is news.
+  - **D-MS6 — the stop is a READ, not a write.** Nothing is set on the driver. `returnToDutyHold`
+    (recruiting, the door dispatch and the hire already use) asks `medstopViolationOn`: the newest
+    collection day of a non-baseline POSITIVE/REFUSAL on a CERTAIN match (licence, name+DOB; a
+    name-only match alerts and says it did NOT stop dispatch). A return-to-duty record dated on or
+    after that day discharges it; an older one does not (`returnToDutyCause` in shared). The hold
+    therefore ends the hour an MRO correction lands, and no flag can outlive the fact.
+  - The recruiter's hire warning for a Med-Stop hold names no result (`RETURN_TO_DUTY_BLOCK.hireViolation`).
+- **Open (MS2c or later):** the driver file, compliance overview and DQ binder still read only the
+  application flag (`return_to_duty_required`) for "return-to-duty outstanding"; they do not yet show
+  a Med-Stop hold. Dispatch and the hire do. A request Med-Stop closes as REFUSAL with no test (none
+  in 2,152) is not acted on yet — `medstopRequestRefused` exists for when it is.

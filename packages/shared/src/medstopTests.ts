@@ -92,3 +92,69 @@ export function medstopResultExpectedOn(service: string | null, collectedLocal: 
   if (!Number.isFinite(wall)) return null;
   return new Date(wall + MEDSTOP_RESULT_HOURS.p90 * 3_600_000).toISOString().slice(0, 10);
 }
+
+/**
+ * Does this outcome file the hiring step's `drug_test` record by itself (F-4)? Only a verified
+ * NEGATIVE on a PRE-EMPLOYMENT drug test: that is §382.301's record and the one `hiringChecklist`
+ * reads. A random negative is the pool's business (F-2), not a qualification record, and an alcohol
+ * pre-employment test is optional (§382.301(d)) — neither is filed here.
+ */
+export const medstopFilesHiringDrugTest = (
+  test: { service: string | null; reason: string | null },
+  outcome: MedstopTestOutcome,
+): boolean => outcome === "negative" && test.service === "TD" && test.reason?.trim().toUpperCase() === "PRE-EMPLOYMENT";
+
+const OUTCOME_WORDS: Partial<Record<MedstopTestOutcome, string>> = {
+  positive: "verified positive",
+  refusal: "refusal to test",
+  negative_dilute: "negative-dilute",
+  unrecognised: "a result Silvicom 360 does not recognise",
+};
+
+export interface MedstopResultNoticeInput {
+  outcome: MedstopTestOutcome;
+  service: string | null;
+  reason: string | null;
+  /** MM/DD/YYYY, already formatted by the caller (`formatDisplayDate`), or null. */
+  collectedOn: string | null;
+  /** Our driver's name when matched, else Med-Stop's; null if neither is known. */
+  personName: string | null;
+  /** True when the sweep held the driver out of dispatch (a violation on a certain match). */
+  dispatchStopped: boolean;
+}
+
+export interface MedstopResultNotice {
+  title: string;
+  body: string;
+  severity: "critical" | "warning";
+}
+
+/**
+ * The DER's notification (F-5). ⚠ Sent ONLY to the roles `canReadTestingRecords` admits, which is
+ * why — unlike the dispatcher's and the recruiter's copy — it says what the result is: the DER is the
+ * person who must act on it (§382.211 removal, §40.287 SAP referral), and a notice that made them
+ * open a page to learn whether to act would be half a notice.
+ */
+const article = (phrase: string): string => (/^[aeiou]/i.test(phrase) ? "an" : "a");
+
+export function medstopResultNotice(input: MedstopResultNoticeInput): MedstopResultNotice {
+  const kind = input.service === "TA" ? "alcohol" : "drug";
+  const reason = input.reason?.trim().toLowerCase();
+  const what = OUTCOME_WORDS[input.outcome] ?? input.outcome;
+  const who = input.personName?.trim() || "A person on Med-Stop's roster";
+  const when = input.collectedOn ? ` collected ${input.collectedOn}` : "";
+  const test = reason ? `${reason} ${kind}` : kind;
+  const violation = isMedstopViolation(input.outcome);
+  const next = violation
+    ? input.dispatchStopped
+      ? " Dispatch is stopped for this driver until return-to-duty documentation is filed."
+      : " Med-Stop's record is not matched to one of our drivers with certainty, so dispatch was NOT stopped — confirm who this is."
+    : input.outcome === "negative_dilute"
+      ? " The MRO may direct a recollection."
+      : " Open Drug & Alcohol and review it.";
+  return {
+    title: violation ? `${kind === "drug" ? "Drug" : "Alcohol"} test: action needed` : `${kind === "drug" ? "Drug" : "Alcohol"} test result to review`,
+    body: `${who}: ${what} on ${article(test)} ${test} test${when}.${next}`,
+    severity: violation ? "critical" : "warning",
+  };
+}

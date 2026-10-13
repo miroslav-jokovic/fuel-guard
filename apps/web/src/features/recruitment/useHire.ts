@@ -17,8 +17,13 @@ export interface HirePreview {
   status: string;
   skipped: HandoffSkip[];
   outstanding: HiringGap[];
-  /** §40.25(j): they admitted a prior failed test and the return-to-duty paperwork is not on file. */
+  /**
+   * They may not be put behind the wheel until return-to-duty paperwork is on file — because they
+   * admitted a prior failed test (§40.25(j)), or because Med-Stop holds a positive or refusal (MS2).
+   */
   returnToDutyBlocked: boolean;
+  /** Which of the two; decides the drawer's wording (`RETURN_TO_DUTY_BLOCK.hire` / `.hireViolation`). */
+  returnToDutyCause: "violation" | "admission" | null;
 }
 
 export interface HireResult {
@@ -28,6 +33,7 @@ export interface HireResult {
   skipped: HandoffSkip[];
   outstanding: HiringGap[];
   returnToDutyBlocked: boolean;
+  returnToDutyCause: "violation" | "admission" | null;
 }
 
 /**

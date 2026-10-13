@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
+import { RETURN_TO_DUTY_BLOCK } from "@silvicom/shared";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 
 /**
@@ -14,6 +15,8 @@ import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 const calls: Array<{ path: string; init?: { method?: string; body?: unknown } }> = [];
 const preview = vi.hoisted(() => ({
   value: {
+    returnToDutyBlocked: false as boolean,
+    returnToDutyCause: null as "violation" | "admission" | null,
     driverId: "d1",
     fullName: "An Applicant",
     status: "applicant",
@@ -54,6 +57,8 @@ describe("hiring an applicant", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     calls.length = 0;
+    preview.value.returnToDutyBlocked = false;
+    preview.value.returnToDutyCause = null;
   });
 
   it("shows what will not be filed, and why, in words a recruiter can act on", async () => {
@@ -99,5 +104,24 @@ describe("hiring an applicant", () => {
     await settle(w);
     const hire = w.findAll("button").find((b) => b.text() === "Hire")!;
     expect(hire.attributes("disabled")).toBeUndefined();
+  });
+
+  /**
+   * MS2 (F-5): a hold that comes from Med-Stop is worded without the result. The recruiter read the
+   * applicant's own admission, so that copy says it plainly; they may not read a testing record, so
+   * this one says only that the driving waits.
+   */
+  it("words a Med-Stop hold without the result, and an admission plainly", async () => {
+    preview.value.returnToDutyBlocked = true;
+    preview.value.returnToDutyCause = "violation";
+    const w = mountDrawer();
+    await settle(w);
+    expect(w.text()).toContain(RETURN_TO_DUTY_BLOCK.hireViolation);
+    expect(w.text()).not.toContain(RETURN_TO_DUTY_BLOCK.hire);
+
+    preview.value.returnToDutyCause = "admission";
+    const v = mountDrawer();
+    await settle(v);
+    expect(v.text()).toContain(RETURN_TO_DUTY_BLOCK.hire);
   });
 });

@@ -15,6 +15,7 @@ import {
   type MedstopEmployeeRow,
 } from "./client.js";
 import { sweepMedstopTests, type MedstopTestSweepResult } from "./syncTests.js";
+import { actOnMedstopResults, type MedstopOutcomeResult } from "./outcomes.js";
 
 /**
  * One Med-Stop sweep for one org: roster, pools, selections → the mirror (MEDSTOP-PLAN.md §6 F-1/F-2).
@@ -41,6 +42,8 @@ export interface MedstopSweepResult {
   requests: number;
   /** MS2: requests and tests, merged rather than replaced (`syncTests.ts`). */
   tests: MedstopTestSweepResult;
+  /** MS2b: what the new results did — filed, alerted, handled (`outcomes.ts`). */
+  outcomes: MedstopOutcomeResult;
 }
 
 const ROSTERS: [MedstopRoster, string][] = [
@@ -187,6 +190,10 @@ export async function sweepMedstop(admin: SupabaseClient, client: MedstopClient,
   }
   // 4. MS2: requests and tests. After the roster, so a test's person is already matched when the
   //    next merge's code reads it. A 400-day window needs no org zone to the day.
-  const tests = await sweepMedstopTests(admin, client, orgId, todayInZone(new Date(), DEFAULT_ORG_TIMEZONE));
-  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests, tests };
+  const today = todayInZone(new Date(), DEFAULT_ORG_TIMEZONE);
+  const tests = await sweepMedstopTests(admin, client, orgId, today);
+  // 5. MS2b: act on what is new — after the write, so a failure here leaves the mirror current and
+  //    the unacted tests unmarked for the next sweep.
+  const outcomes = await actOnMedstopResults(admin, orgId, today);
+  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests, tests, outcomes };
 }

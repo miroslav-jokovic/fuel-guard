@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { returnToDutyBlocked } from "./returnToDuty.js";
+import { returnToDutyHold } from "./returnToDuty.js";
 import { applicantChecklist, isChecklistError } from "./applicantChecklist.js";
 import {
   hireBlockers,
@@ -69,6 +69,12 @@ export interface HireResult {
    * list effectively is.
    */
   returnToDutyBlocked: boolean;
+  /**
+   * WHY, when blocked: the application's admission, or a Med-Stop positive/refusal (MS2, F-5). The
+   * drawer words them differently because the recruiter read the first and may not read the second
+   * (`canReadTestingRecords`) — `RETURN_TO_DUTY_BLOCK.hire` vs `.hireViolation`.
+   */
+  returnToDutyCause: "violation" | "admission" | null;
 }
 
 export const isHireError = (v: object): v is HireError => "code" in v;
@@ -145,7 +151,7 @@ export async function previewHire(
     // §40.25(j). Shown on the confirmation screen so the recruiter learns it BEFORE they commit —
     // hiring is still permitted (the regulation bars the driving, not the hiring), and the person
     // who has to go and ask the applicant for the paperwork is standing right here.
-    returnToDutyBlocked: await returnToDutyBlocked(admin, orgId, driverId),
+    ...(await returnToDutyFields(admin, orgId, driverId)),
     // Q-HM5/D-HB5: the confirmation screen names what the press will be refused for, before it.
     hireBlockedBy: (await hireRefusal(admin, orgId, driverId, new Date().toISOString().slice(0, 10)))?.missing ?? [],
   };
@@ -232,6 +238,11 @@ export async function hireApplicant(
     outstanding: hiringGapsAfterHire(existing, plan.records),
     // Repeated in the RESULT, not only the preview: the drawer closes on success and the operator's
     // last sight of this hire is the toast, so the obligation has to survive into it.
-    returnToDutyBlocked: await returnToDutyBlocked(admin, orgId, body.driver_id),
+    ...(await returnToDutyFields(admin, orgId, body.driver_id)),
   };
+}
+
+async function returnToDutyFields(admin: SupabaseClient, orgId: string, driverId: string) {
+  const cause = await returnToDutyHold(admin, orgId, driverId);
+  return { returnToDutyBlocked: cause !== null, returnToDutyCause: cause };
 }
