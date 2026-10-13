@@ -72,10 +72,10 @@ const unit = (inspection_id: string, seq: number, type: string, method: string, 
   plate_state: "IL", match_method: method, vanished_at: vanished, make: "FRHT", vin: `VIN${seq}`, decal: false,
   vehicle_id: method === "vin" && type === "11" ? "veh-701" : null,
 });
-type Viol = { id: string; org_id: string; inspection_id: string; seq_no: number; viol_code: string; description: string; viol_unit: string; out_of_service: boolean; citation_number: string | null; vanished_at: string | null };
+type Viol = { id: string; org_id: string; inspection_id: string; seq_no: number; viol_code: string; description: string; viol_unit: string; out_of_service: boolean; category_id: number | null; defect_verification_id: string | null; citation_number: string | null; vanished_at: string | null };
 const viol = (id: string, inspection_id: string, seq: number, unitCol: string, oos: boolean, extra: Partial<Viol> = {}): Viol => ({
   id, org_id: ORG, inspection_id, seq_no: seq, viol_code: `393.${seq}`, description: `Violation ${id}`, viol_unit: unitCol,
-  out_of_service: oos, citation_number: null, vanished_at: null, ...extra,
+  out_of_service: oos, category_id: 16, defect_verification_id: oos ? "1" : "3", citation_number: null, vanished_at: null, ...extra,
 });
 const VIOLATIONS: Viol[] = [];
 type Cit = { org_id: string; inspection_id: string; violation_id: string; adjseq: number; citation_result: string; vanished_at: string | null };
@@ -253,6 +253,7 @@ describe("one inspection", () => {
     UNITS.push(unit(A, 1, "11", "vin"), unit(A, 2, "9", "none"), unit(A, 3, "9", "plate", ORG, "2026-10-01T00:00:00Z"));
     VIOLATIONS.push(
       viol("v2", A, 2, "2", true),
+      viol("v4", A, 5, "2", true, { category_id: 77, defect_verification_id: "8" }), // codes FMCSA's tables do not have
       viol("v1", A, 1, "D", false, { citation_number: "E061" }),
       viol("v3", A, 3, "1", false, { vanished_at: "2026-10-05T00:00:00Z" }), // removed by FMCSA: off the page
       viol("vx", A, 4, "1", true, { org_id: "org-2" }), // another carrier's row under our inspection id
@@ -281,6 +282,7 @@ describe("one inspection", () => {
     expect(d.violationList.map((v) => [v.id, v.against, v.outOfService])).toEqual([
       ["v1", { driver: true }, false],
       ["v2", { unitSeq: 2 }, true],
+      ["v4", { unitSeq: 2 }, true],
     ]);
   });
 
@@ -303,5 +305,29 @@ describe("one inspection", () => {
       expect(rec.forTable(t).length, t).toBeGreaterThan(0);
     }
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("FMCSA's names for its codes (Q-IC5)", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  beforeEach(() => {
+    VIOLATIONS.push(
+      viol("n1", A, 1, "2", true),
+      viol("n2", A, 2, "D", false, { category_id: 45 }),
+      viol("n3", A, 3, "2", true, { category_id: 77, defect_verification_id: "8" }),
+      viol("n4", A, 4, "2", false, { category_id: null, defect_verification_id: " " }),
+    );
+    rec = recorder({ inspections: [insp(A, "2026-10-09", [0, 1, 0])] });
+  });
+  afterEach(() => VIOLATIONS.splice(0, VIOLATIONS.length, ...VIOLATIONS.filter((v) => v.inspection_id !== A)));
+
+  it("names a violation's category and its defect's outcome from the data dictionary, and keeps an unknown code as its number", async () => {
+    const d = (await call(`/${A}`)).body.data as RoadsideInspectionDetailDto;
+    expect(d.violationList.map((v) => [v.id, v.category, v.defectVerification])).toEqual([
+      ["n1", "Brakes, All Other Violations", "Repaired at scene"],
+      ["n2", "Speeding", "Not out of service"],
+      ["n3", "77", "8"],
+      ["n4", null, null],
+    ]);
   });
 });

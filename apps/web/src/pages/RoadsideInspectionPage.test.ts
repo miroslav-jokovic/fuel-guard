@@ -57,8 +57,8 @@ const detail = (o: Partial<RoadsideInspectionDetailDto> = {}): RoadsideInspectio
     { seq: 2, kind: "trailer", companyNumber: "5301", plate: "T998", plateState: "WI", matched: false, make: "WABASH", vin: "1JJV", decal: null, matchedBy: null, vehicleId: null },
   ],
   violationList: [
-    { id: "v1", seq: 1, code: "392.2-SLLS1", description: "Speeding 1-5 mph", against: { driver: true }, outOfService: false, citationNumber: "E061", courtResults: ["Not Guilty/Dismissed"] },
-    { id: "v2", seq: 2, code: "393.47D2", description: "Drum brake lining", against: { unitSeq: 2 }, outOfService: true, citationNumber: null, courtResults: [] },
+    { id: "v1", seq: 1, code: "392.2-SLLS1", description: "Speeding 1-5 mph", against: { driver: true }, outOfService: false, category: "Speeding", defectVerification: "Not out of service", citationNumber: "E061", courtResults: ["Not Guilty/Dismissed"] },
+    { id: "v2", seq: 2, code: "393.47D2", description: "Drum brake lining", against: { unitSeq: 2 }, outOfService: true, category: "Brakes, All Other Violations", defectVerification: "Repaired at scene", citationNumber: null, courtResults: [] },
   ],
   ...o,
 });
@@ -80,7 +80,7 @@ describe("one roadside inspection", () => {
     expect(facts).toContain("08:51–09:11");
     expect(facts).toContain("Fixed site");
     expect(facts).toContain("78,500 lb");
-    expect(facts).toMatch(/Level\s*2/);
+    expect(facts).toMatch(/Level\s*2 · Walk-Around/);
   });
 
   it("says who each violation is against — the driver, or the report's unit by its position", async () => {
@@ -90,6 +90,9 @@ describe("one roadside inspection", () => {
     expect(rows[0]).toContain("Not Guilty/Dismissed");
     expect(rows[1]).toContain("Unit 2 · Trailer 5301");
     expect(w.findAll("[data-test='oos']")).toHaveLength(1);
+    expect(w.findAll("[data-test='category']").map((c) => c.text())).toEqual(["Speeding", "Brakes, All Other Violations"]);
+    // The defect's outcome shows beside an order only: "Not out of service" on v1 would be noise.
+    expect(w.findAll("[data-test='defect']").map((c) => c.text())).toEqual(["Repaired at scene"]);
   });
 
   it("marks each unit ours with how it matched, or not matched — and links the truck only when it opens", async () => {

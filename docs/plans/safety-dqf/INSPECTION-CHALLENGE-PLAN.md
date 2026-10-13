@@ -614,3 +614,8 @@ about three merges.
   version the set froze). Parity: Unsafe Driving reproduces 99 of 99 with none extra and is now
   `verified`, so five BASICs may show an impact figure; HM Compliance stays unverified (the 14
   shipper-attributed codes).
+- **2026-10-13 — FMCSA's names on the inspection page (Q-IC5 applied).** The level reads "2 · Walk-Around"
+  on the list and the page; each violation carries its MCMIS category ("Brakes, All Other Violations")
+  and, beside an out-of-service order only, what became of the defect ("Repaired at scene"). All three
+  tables live once, in `roadsideInspectionsContract.ts`, copied as printed from the Rev 05 dictionary;
+  a code a later edition adds reads as its number, never a guess.

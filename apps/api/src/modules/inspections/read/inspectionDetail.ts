@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  RoadsideInspectionDetailDto,
-  RoadsideMatchMethod,
-  RoadsideUnitDetailDto,
-  RoadsideViolationDto,
+import {
+  DEFECT_VERIFICATION_NAMES,
+  VIOLATION_CATEGORY_NAMES,
+  type RoadsideInspectionDetailDto,
+  type RoadsideMatchMethod,
+  type RoadsideUnitDetailDto,
+  type RoadsideViolationDto,
 } from "@silvicom/shared";
 import { INSPECTION_COLS, MATCHED, inspectionDto, kindOf, type DbError, type InspectionRow } from "./inspectionsList.js";
 
@@ -18,8 +20,8 @@ import { INSPECTION_COLS, MATCHED, inspectionDto, kindOf, type DbError, type Ins
  * from a live inspection (a granted DataQs request, D-IC2) is off the page as it is off the record.
  *
  * ── WHAT IS DELIBERATELY ABSENT ────────────────────────────────────────────────────────────────
- * `category_id` is FMCSA's violation group, which IC3 maps to an SMS BASIC against a versioned list;
- * shown raw it would be a number nobody can read. The county is a FIPS code with no name table here.
+ * The county is a FIPS code with no name table here. (The violation category and the defect
+ * verification ARE shown, named from FMCSA's data dictionary — plan Q-IC5.)
  * The driver is not on FMCSA's public record at all (attribution is IC5, D-IC7).
  */
 
@@ -51,6 +53,8 @@ interface ViolationRow {
   description: string | null;
   viol_unit: string | null;
   out_of_service: boolean | null;
+  category_id: number | null;
+  defect_verification_id: string | null;
   citation_number: string | null;
 }
 
@@ -61,6 +65,13 @@ function againstOf(v: string | null): RoadsideViolationDto["against"] {
   const t = v?.trim().toUpperCase();
   if (t === "D") return { driver: true };
   return t && /^[0-9]{1,3}$/.test(t) ? { unitSeq: Number(t) } : null;
+}
+
+/** A code's name from one of FMCSA's tables, its number when the table lacks it, null when blank. */
+function named(table: Readonly<Record<number, string>>, code: number | string | null): string | null {
+  if (code == null || String(code).trim() === "") return null;
+  const n = Number(String(code).trim());
+  return Number.isInteger(n) && table[n] ? table[n]! : String(code).trim();
 }
 
 const facilityOf = (f: string | null): RoadsideInspectionDetailDto["facility"] =>
@@ -93,7 +104,7 @@ export async function readRoadsideInspection(
       .order("unit_seq", { ascending: true }),
     admin
       .from("roadside_violations")
-      .select("id, seq_no, viol_code, description, viol_unit, out_of_service, citation_number")
+      .select("id, seq_no, viol_code, description, viol_unit, out_of_service, category_id, defect_verification_id, citation_number")
       .eq("org_id", orgId)
       .eq("inspection_id", id)
       .is("vanished_at", null)
@@ -146,6 +157,8 @@ export async function readRoadsideInspection(
       description: v.description,
       against: againstOf(v.viol_unit),
       outOfService: v.out_of_service,
+      category: named(VIOLATION_CATEGORY_NAMES, v.category_id),
+      defectVerification: named(DEFECT_VERIFICATION_NAMES, v.defect_verification_id),
       citationNumber: v.citation_number,
       courtResults: results.get(v.id) ?? [],
     })),
