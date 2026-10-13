@@ -8,12 +8,14 @@ import StatCard from "@/components/ui/StatCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import ProgramPeopleTable from "@/features/drugAlcohol/ProgramPeopleTable.vue";
+import ResultsTable from "@/features/drugAlcohol/ResultsTable.vue";
 import { useDrugAlcoholProgram } from "@/features/drugAlcohol/useDrugAlcoholProgram";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 /**
- * Safety › Drug & Alcohol — the DOT program as Med-Stop holds it (MEDSTOP-PLAN.md §6 F-1/F-2, MS1).
+ * Safety › Drug & Alcohol — the DOT program as Med-Stop holds it (MEDSTOP-PLAN.md §6 F-1/F-2, MS1;
+ * results F-5, MS2c).
  *
  * Every block answers a question the 2026-10-13 live read showed nobody could answer without opening
  * Med-Stop's portal beside a roster export (§5A): who drives here and is outside the random pool,
@@ -89,6 +91,24 @@ const medicalText = (person: ProgramPerson) => {
             :sub="poolSub(pool)"
           />
         </div>
+
+        <!-- MS2c (F-5): results come first — a positive is a driver who may not drive today. Only
+             admins and safety managers receive `results`; for everyone else it is null. -->
+        <template v-if="p.results">
+          <ResultsTable
+            title="Results to review"
+            why="Positive, refused, dilute or unrecognised results from Med-Stop in the last year. A positive or refusal keeps the driver off dispatch until a return-to-duty record dated on or after the test is on file."
+            :rows="p.results.recent"
+            empty-text="No results need review."
+          />
+          <ResultsTable
+            v-if="p.results.history.length > 0"
+            title="Found on the first read from Med-Stop"
+            why="Positives and refusals from before this product was watching. Nothing was done with them automatically: check each driver is either gone or has a return-to-duty record on file."
+            :rows="p.results.history"
+            empty-text=""
+          />
+        </template>
 
         <ProgramPeopleTable
           title="Driving here, not in Med-Stop's random pool"

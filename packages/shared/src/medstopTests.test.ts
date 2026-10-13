@@ -7,6 +7,9 @@ import {
   medstopRequestRefused,
   medstopResultExpectedOn,
   medstopTestOutcome,
+  medstopStageLabel,
+  medstopOrderOpen,
+  medstopTestKind,
 } from "./medstopTests.js";
 
 describe("medstopTestOutcome", () => {
@@ -106,5 +109,27 @@ describe("medstopResultNotice", () => {
     const n = medstopResultNotice({ outcome: "positive", service: "TA", reason: null, collectedOn: null, personName: null, dispatchStopped: true });
     expect(n.title).toBe("Alcohol test: action needed");
     expect(n.body.startsWith("A person on Med-Stop's roster: verified positive on an alcohol test.")).toBe(true);
+  });
+});
+
+describe("medstopStageLabel", () => {
+  it("reads the measured trail in words, and OPEN after the lab as the MRO's review", () => {
+    expect(medstopStageLabel("TD", "COMPLETED")).toBe("Collected");
+    expect(medstopStageLabel("TD", "AT LAB")).toBe("At the lab");
+    expect(medstopStageLabel("TD", "RESULTS")).toBe("With the medical review officer");
+    expect(medstopStageLabel("TD", "OPEN")).toBe("With the medical review officer");
+    expect(medstopStageLabel("TD", "CLOSED")).toBe("Result reported");
+    expect(medstopStageLabel("TA", "COMPLETED")).toBe("Completed");
+    expect(medstopStageLabel("TD", "SOMETHING NEW")).toBe("SOMETHING NEW");
+  });
+});
+
+describe("medstopOrderOpen / medstopTestKind", () => {
+  it("an order is open until a test exists or it ended", () => {
+    for (const s of ["OPEN", "ACTIVE", "PROCESSING"]) expect(medstopOrderOpen(s)).toBe(true);
+    for (const s of ["COMPLETED", "CANCELED", "NO SHOW", "EXPIRED", null]) expect(medstopOrderOpen(s)).toBe(false);
+  });
+  it("names the service", () => {
+    expect([medstopTestKind("TD"), medstopTestKind("TA"), medstopTestKind("TM")]).toEqual(["drug", "alcohol", "medical"]);
   });
 });

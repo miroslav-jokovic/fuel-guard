@@ -7,6 +7,7 @@ import type {
   EmployerVerificationCall,
   EmployerVerificationCallInput,
   EmployerVerificationList,
+  MedstopPersonTests,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
@@ -23,6 +24,7 @@ import { applicantChecklistKey } from "@/features/recruitment/useApplicantCheckl
 const applicant = (driverId: string) => `/api/recruitment/applicants/${encodeURIComponent(driverId)}`;
 
 const drugTestKey = (driverId: string) => ["recruitment", "drug-test", driverId] as const;
+const medstopTestsKey = (driverId: string) => ["recruitment", "medstop-tests", driverId] as const;
 const employerCallsKey = (driverId: string) => ["recruitment", "employer-calls", driverId] as const;
 
 function listQuery<T>(key: (id: string) => readonly unknown[], path: string, what: string, driverId: Ref<string>) {
@@ -53,6 +55,13 @@ function useScreeningWrite<I extends { driverId: string }, R>(
 
 export const useDrugTestAppointmentsQuery = (driverId: Ref<string>) =>
   listQuery<DrugTestAppointmentList>(drugTestKey, "drug-test-appointments", "appointments", driverId);
+
+/**
+ * MS2c (MEDSTOP-PLAN F-4): Med-Stop's orders and tests for this applicant. The result inside is null
+ * for a reader who may not see testing records — the API decides, so this composable cannot leak it.
+ */
+export const useMedstopTestsQuery = (driverId: Ref<string>) =>
+  listQuery<MedstopPersonTests>(medstopTestsKey, "medstop-tests", "Med-Stop tests", driverId);
 
 export function useArrangeDrugTest() {
   return useScreeningWrite(drugTestKey, async (input: { driverId: string; booking: DrugTestAppointmentBooking }) => {
