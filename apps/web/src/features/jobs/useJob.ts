@@ -45,7 +45,10 @@ export function useJob(kind: string) {
     queryKey: ["job", kind],
     queryFn: async (): Promise<JobResponse> => {
       const res = await apiFetch<JobResponse>(`/api/jobs/latest?kind=${encodeURIComponent(kind)}`);
-      return res.ok && res.data ? res.data : { latest: null, lastDone: null };
+      // A failed read throws (F5, US6b). It used to answer `{ latest: null, lastDone: null }`, which
+      // every card then printed as "never run" — a job that runs every night, reported as never run.
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the last run");
+      return res.data;
     },
     // Poll every 4s while a run is active; otherwise don't poll (freshness is refreshed on demand).
     refetchInterval: (q) => {
@@ -112,5 +115,25 @@ export function useJob(kind: string) {
     window.setTimeout(() => void qc.invalidateQueries({ queryKey: ["job", kind] }), 1200);
   };
 
-  return { latest, lastDone, isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, markRunning, isLoading: query.isLoading };
+  /**
+   * The read failed and there is nothing to show from before — "never run" would be a guess. A failed
+   * refetch over an earlier answer keeps that answer: it was true a poll ago.
+   */
+  const readFailed = computed(() => query.isError.value && query.data.value === undefined);
+
+  return {
+    latest,
+    lastDone,
+    isRunning,
+    failed,
+    progressPct,
+    progressLabel,
+    freshnessLabel,
+    refresh,
+    markRunning,
+    isLoading: query.isLoading,
+    readFailed,
+    retrying: query.isFetching,
+    retry: () => query.refetch(),
+  };
 }

@@ -11,10 +11,12 @@ import { answerConfirm } from "@/testing/confirm";
  */
 const post = vi.hoisted(() => vi.fn(async (_url: string, _opts: unknown) => ({ ok: true, status: 200, data: {}, error: null })));
 vi.mock("@/lib/api", () => ({ apiFetch: post }));
+const read = vi.hoisted(() => ({ failed: false, loading: false, retry: vi.fn() }));
 vi.mock("./useJob", () => ({
   useJob: () => ({
     isRunning: ref(false), failed: ref(false), progressPct: ref(null), progressLabel: ref(null),
     freshnessLabel: ref("never run"), refresh: vi.fn(), markRunning: vi.fn(), lastDone: ref(null),
+    isLoading: ref(read.loading), readFailed: ref(read.failed), retrying: ref(false), retry: read.retry,
   }),
 }));
 
@@ -37,6 +39,8 @@ const press = async (w: ReturnType<typeof card>, label: string) => {
 beforeEach(() => {
   setActivePinia(createPinia());
   post.mockClear();
+  Object.assign(read, { failed: false, loading: false });
+  read.retry.mockClear();
 });
 
 describe("a job card's confirmation (D-US7)", () => {
@@ -57,5 +61,25 @@ describe("a job card's confirmation (D-US7)", () => {
     await press(w, "Re-score all history");
     expect(asked).toHaveBeenCalledWith(expect.objectContaining({ title: "Re-score EVERY transaction?", confirmLabel: "Re-score all history" }));
     expect(post).toHaveBeenCalledWith("/api/rescore", { method: "POST", body: { full: true } });
+  });
+});
+
+/**
+ * F5 (US6b): the last run is an answer, so it waits for its read. Before, a failed read was answered
+ * as `{ latest: null }` and every card on Data & Sync said "never run" — jobs that run every night.
+ */
+describe("a job card's last run", () => {
+  it("says it could not load the last run, not \"never run\", and Retry asks again", async () => {
+    read.failed = true;
+    const w = card();
+    expect(w.text()).toContain("Could not load the last run.");
+    expect(w.text()).not.toContain("never run");
+    await press(w, "Retry");
+    expect(read.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing about the last run while it is still being read", () => {
+    read.loading = true;
+    expect(card().text()).not.toContain("never run");
   });
 });

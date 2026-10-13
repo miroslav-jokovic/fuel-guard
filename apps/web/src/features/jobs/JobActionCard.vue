@@ -6,6 +6,7 @@ import { useConfirm } from "@/stores/confirm";
 import { useJob } from "./useJob";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
+import QueryState from "@/components/ui/QueryState.vue";
 
 const props = defineProps<{
   title: string;
@@ -28,7 +29,20 @@ const props = defineProps<{
 
 const toast = useToastStore();
 const ask = useConfirm();
-const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, markRunning, lastDone } = useJob(props.kind);
+const {
+  isRunning,
+  failed,
+  progressPct,
+  progressLabel,
+  freshnessLabel,
+  refresh,
+  markRunning,
+  lastDone,
+  isLoading,
+  readFailed,
+  retrying,
+  retry,
+} = useJob(props.kind);
 
 // Outcome of the last successful run (e.g. EFS "found 2, imported 0, quarantined 2"), so a "successful" sync
 // that actually landed nothing is visible instead of a silent green chip.
@@ -104,6 +118,20 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string, verb?: s
         />
       </div>
       <p class="mt-1 text-xs text-ink-muted">{{ progressLabel ?? "working…" }}</p>
+    </div>
+
+    <!-- The last run is an answer, so it waits for its read (F5): every card said "never run" when
+         the read failed, including jobs that run every night. -->
+    <div v-else-if="isLoading || readFailed" class="mt-3">
+      <QueryState
+        compact
+        :loading="isLoading"
+        :error="readFailed"
+        :retrying="retrying"
+        loading-text="Checking the last run…"
+        error-text="Could not load the last run."
+        @retry="retry()"
+      />
     </div>
 
     <!-- Freshness / failure chip when idle -->

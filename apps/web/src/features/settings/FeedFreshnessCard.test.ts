@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import type { SamsaraFeedHealth } from "@silvicom/shared";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 
 /**
  * The card that answers "is our data fresh?" (SAM-S5).
@@ -31,7 +32,9 @@ const feed = (o: Partial<SamsaraFeedHealth> & { id: string }): SamsaraFeedHealth
   }) as SamsaraFeedHealth;
 
 const render = async () => {
-  const w = mount(FeedFreshnessCard);
+  // A query since F5; no retries, so a refusal is a failure on its first answer.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const w = mount(FeedFreshnessCard, { global: { plugins: [[VueQueryPlugin, { queryClient }]] } });
   await flushPromises();
   return w;
 };
@@ -97,17 +100,26 @@ describe("FeedFreshnessCard", () => {
     expect(w.text()).toContain("Switched off");
   });
 
-  it("shows a failed read instead of a clean bill of health", async () => {
+  // D-US9: the card's own sentence, never the server's text; and a Retry that reads again (F5).
+  it("shows a failed read instead of a clean bill of health, and Retry reads again", async () => {
     fetched.ok = false;
     const w = await render();
-    expect(w.text()).toContain("boom");
+    expect(w.text()).toContain("Could not load the feed freshness.");
+    expect(w.text()).not.toContain("boom");
     expect(w.text()).not.toContain("delivered inside its bound");
+    const before = calls.length;
+    fetched.ok = true;
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    await flushPromises();
+    expect(calls.length).toBe(before + 1);
+    expect(w.text()).toContain("delivered inside its bound");
   });
 
   it("shows the server's own read failure too — it arrives as a 200 with an error field", async () => {
     fetched.value = { feeds: [], alerting: [], error: "jobs read refused" };
     const w = await render();
-    expect(w.text()).toContain("jobs read refused");
+    expect(w.text()).toContain("Could not load the feed freshness.");
+    expect(w.text()).not.toContain("jobs read refused");
     expect(w.text()).not.toContain("delivered inside its bound");
   });
 });

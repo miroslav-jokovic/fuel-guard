@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import { apiFetch } from "@/lib/api";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import FeedFreshnessCard from "@/features/settings/FeedFreshnessCard.vue";
+import { useTelematicsCoverageQuery, useWebhookStatusQuery } from "@/features/settings/useSamsaraStatus";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -51,71 +53,12 @@ async function runDiagnostics() {
 }
 const diagJson = computed(() => (diag.value ? JSON.stringify(diag.value, null, 2) : ""));
 
-/**
- * Samsara webhook readiness (SAMSARA-COLLECTION-PLAN S1).
- *
- * The sudden-fuel-drop receiver had been unreachable since it was built — the vendor console pointed
- * at the mount prefix rather than the route, and the signing secret was never set, so it answered 401
- * to anything that did arrive. Neither end complained, and `fuel_events` sat at 0 rows for six months
- * looking exactly like a fleet with no siphoning. Both fixes are console/Railway settings; what
- * belongs here is the part that was actually missing, which is any way to SEE it from the product.
- *
- * The counts are all-time on purpose (D-SAM7): a windowed zero reads as a quiet week, and the state
- * worth catching is a receiver that has never been reachable at all.
- */
-interface WebhookStatus {
-  secretConfigured: boolean;
-  endpointPath: string;
-  endpointUrl: string | null;
-  eventCount: number;
-  /** Drops that arrived but are not believed, because the truck's fuel sensor is not trusted yet. */
-  unverifiedCount: number;
-  lastEventAt: string | null;
-}
-const webhook = ref<WebhookStatus | null>(null);
-const webhookError = ref<string | null>(null);
-onMounted(async () => {
-  const res = await apiFetch<WebhookStatus>("/api/integrations/samsara/webhook");
-  if (res.ok) webhook.value = res.data ?? null;
-  else webhookError.value = res.error?.message ?? "Could not read the webhook status";
-});
-
-/**
- * Telematics history coverage (SAMSARA-COLLECTION-PLAN S4, D-SAM7).
- *
- * ⚠ ALL-TIME, and it has no window control ON PURPOSE. The Coverage page shows the same idea over 90
- * days and reads ~95%; across the whole history the figure was 23%, because 76.8% of fills had never
- * had telematics fetched at all. Both were true and one was useless — a coverage figure whose scope
- * hides the gap turns an unanswered question into a reassuring answer.
- *
- * The three states are shown apart because they need different actions and only one of them improves
- * by waiting: **corroborated**, **no history at Samsara** (a permanent answer), and **not fetched yet**
- * (the collector tier is still working through these, oldest first).
- */
-interface CoverageMonth {
-  month: string;
-  fills: number;
-  reconciled: number;
-  noData: number;
-  pending: number;
-  coveragePct: number;
-}
-interface TelematicsCoverage {
-  fills: number;
-  reconciled: number;
-  noData: number;
-  pending: number;
-  coveragePct: number;
-  attainablePct: number | null;
-  byMonth: CoverageMonth[];
-}
-const coverage = ref<TelematicsCoverage | null>(null);
-const coverageError = ref<string | null>(null);
-onMounted(async () => {
-  const res = await apiFetch<TelematicsCoverage>("/api/integrations/samsara/telematics-coverage");
-  if (res.ok) coverage.value = res.data ?? null;
-  else coverageError.value = res.error?.message ?? "Could not read telematics coverage";
-});
+// The webhook and telematics-history reads are queries since F5 (US6b): each card draws its own
+// failure with a Retry instead of a red line with no way out but the browser's reload.
+const webhookQuery = useWebhookStatusQuery();
+const coverageQuery = useTelematicsCoverageQuery();
+const webhook = computed(() => webhookQuery.data.value ?? null);
+const coverage = computed(() => coverageQuery.data.value ?? null);
 
 const monthLabel = (m: string) => {
   const [y, mm] = m.split("-");
@@ -391,44 +334,55 @@ const integrity = computed(() => {
         that only looks at the last few months would read healthy while years of history sat
         unchecked.
       </p>
-      <p v-if="coverageError" class="mt-2 text-sm text-danger-600">{{ coverageError }}</p>
-      <template v-else-if="coverage">
-        <p class="mt-2 text-sm text-ink-secondary">
-          {{ coverage.reconciled.toLocaleString() }} of {{ coverage.fills.toLocaleString() }} fills
-          checked.
-          <template v-if="coverage.pending">
-            {{ coverage.pending.toLocaleString() }} still to fetch — the collector works through these
-            oldest-first, on its own schedule, and nobody needs to start it.
-          </template>
-          <template v-if="coverage.noData">
-            {{ coverage.noData.toLocaleString() }} came back with nothing on Samsara's side; those do
-            not improve by waiting.
-          </template>
-        </p>
-        <p v-if="coverage.attainablePct !== null && coverage.pending" class="mt-1 text-sm text-ink-tertiary">
-          At the rate the fills already checked came back, this lands near
-          <strong class="text-ink-secondary">{{ coverage.attainablePct }}%</strong> once the backlog
-          clears.
-        </p>
+      <div class="mt-2">
+        <QueryState
+          compact
+          :loading="coverageQuery.isLoading.value"
+          :error="coverageQuery.isError.value"
+          :retrying="coverageQuery.isFetching.value"
+          loading-text="Loading the telematics history…"
+          error-text="Could not load the telematics history."
+          @retry="coverageQuery.refetch()"
+        >
+          <template v-if="coverage">
+            <p class="text-sm text-ink-secondary">
+              {{ coverage.reconciled.toLocaleString() }} of {{ coverage.fills.toLocaleString() }} fills
+              checked.
+              <template v-if="coverage.pending">
+                {{ coverage.pending.toLocaleString() }} still to fetch — the collector works through these
+                oldest-first, on its own schedule, and nobody needs to start it.
+              </template>
+              <template v-if="coverage.noData">
+                {{ coverage.noData.toLocaleString() }} came back with nothing on Samsara's side; those do
+                not improve by waiting.
+              </template>
+            </p>
+            <p v-if="coverage.attainablePct !== null && coverage.pending" class="mt-1 text-sm text-ink-tertiary">
+              At the rate the fills already checked came back, this lands near
+              <strong class="text-ink-secondary">{{ coverage.attainablePct }}%</strong> once the backlog
+              clears.
+            </p>
 
-        <div v-if="coverage.byMonth.length" class="mt-4">
-          <DataTable embedded :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
-            <template #cell-month="{ row }">{{ monthLabel(row.month) }}</template>
-            <template #cell-noData="{ row }">
-              <span :class="row.noData ? 'text-warning-600' : 'text-ink-tertiary'">{{ row.noData.toLocaleString() }}</span>
-            </template>
-            <template #cell-pending="{ row }">
-              <span :class="row.pending ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ row.pending.toLocaleString() }}</span>
-            </template>
-            <template #cell-coveragePct="{ row }">
-              <span class="font-medium" :class="covTone(row.coveragePct)">{{ row.coveragePct }}%</span>
-            </template>
-          </DataTable>
-        </div>
-        <p class="mt-2 text-xs text-ink-tertiary">
-          Every month we hold a fill for is listed — nothing is hidden, which is the point.
-        </p>
-      </template>
+            <div v-if="coverage.byMonth.length" class="mt-4">
+              <DataTable embedded :columns="coverageColumns" :rows="coverage.byMonth" row-key="month">
+                <template #cell-month="{ row }">{{ monthLabel(row.month) }}</template>
+                <template #cell-noData="{ row }">
+                  <span :class="row.noData ? 'text-warning-600' : 'text-ink-tertiary'">{{ row.noData.toLocaleString() }}</span>
+                </template>
+                <template #cell-pending="{ row }">
+                  <span :class="row.pending ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ row.pending.toLocaleString() }}</span>
+                </template>
+                <template #cell-coveragePct="{ row }">
+                  <span class="font-medium" :class="covTone(row.coveragePct)">{{ row.coveragePct }}%</span>
+                </template>
+              </DataTable>
+            </div>
+            <p class="mt-2 text-xs text-ink-tertiary">
+              Every month we hold a fill for is listed — nothing is hidden, which is the point.
+            </p>
+          </template>
+        </QueryState>
+      </div>
     </BaseCard>
 
     <!-- Samsara webhook: is the sudden-fuel-drop receiver configured, and has it ever heard anything? -->
@@ -447,10 +401,19 @@ const integrity = computed(() => {
         no purchase behind it. This is push, not a scheduled pull, so it either works or it is
         silent; there is no partial state to notice.
       </p>
-      <p v-if="webhookError" class="mt-2 text-sm text-danger-600">{{ webhookError }}</p>
-      <p v-else-if="webhookState" class="mt-2 text-sm text-ink-secondary">
-        {{ webhookState.detail }}
-      </p>
+      <div class="mt-2">
+        <QueryState
+          compact
+          :loading="webhookQuery.isLoading.value"
+          :error="webhookQuery.isError.value"
+          :retrying="webhookQuery.isFetching.value"
+          loading-text="Loading the webhook status…"
+          error-text="Could not load the webhook status."
+          @retry="webhookQuery.refetch()"
+        >
+          <p v-if="webhookState" class="text-sm text-ink-secondary">{{ webhookState.detail }}</p>
+        </QueryState>
+      </div>
       <p v-if="webhook" class="mt-2 text-xs text-ink-tertiary">
         Samsara must post to
         <code class="rounded-control bg-surface-muted px-1 py-0.5 text-ink-secondary">{{
@@ -485,6 +448,7 @@ const integrity = computed(() => {
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-ink">Data integrity</h3>
         <span
+          v-if="!nightly.readFailed.value && !nightly.isLoading.value"
           class="text-xs"
           :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-tertiary'"
           >{{ nightly.freshnessLabel.value }}</span
@@ -492,8 +456,22 @@ const integrity = computed(() => {
       </div>
       <p class="mt-1 text-sm text-ink-muted">
         Nightly self-heal (per-org, ~03:00 local): repairs the fuel-event store from the source
-        records, then re-scores and rebuilds. {{ integrity }}
+        records, then re-scores and rebuilds.
       </p>
+      <!-- "No nightly check has run yet" is an answer, so it waits for the read (F5). -->
+      <div class="mt-2">
+        <QueryState
+          compact
+          :loading="nightly.isLoading.value"
+          :error="nightly.readFailed.value"
+          :retrying="nightly.retrying.value"
+          loading-text="Loading the last nightly check…"
+          error-text="Could not load the last nightly check."
+          @retry="nightly.retry()"
+        >
+          <p class="text-sm text-ink-secondary">{{ integrity }}</p>
+        </QueryState>
+      </div>
     </BaseCard>
   </div>
 </template>
