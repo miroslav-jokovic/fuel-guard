@@ -336,3 +336,23 @@ landing tab.
   - **Row 2 is Seats · Shop · Truck paperwork at 4/4/4.** The card is "Shop" with three rows: Open
     work orders, Open defects, Shelves to reorder. No money, no severity (FleetPal sends none).
   - FLEETPAL-INTEGRATION-PLAN F11 still owes PM due; these lists take the defects half of its title.
+- 2026-10-13: FM4 run on staging (serving the FM3 merge), signed in as two new staging test members,
+  a fleet manager and a dispatcher (RELEASE-TRAIN-PLAN §5, same date), at 1440 and 1104 px.
+  - **Dispatcher:** lands on Dispatch; the tabs are Fleet overview · Dispatch, with no Operations.
+    `/shop/work-orders` and `/shop/defects` send them back to their home (`maintenance: none`). No
+    `$`, no page errors. As designed.
+  - **Fleet manager:** lands on `/?tab=ops`, with no `$` and no page errors. But right after sign-in
+    the tab showed 6 cards, not 8: Fleet right now and Needs a hand now were missing, and so were
+    Loads and Dispatch board in the sidebar. A reload brought all 8. (Hazmat is absent on staging by
+    entitlement: the org has no `hazmatguard`.)
+  - **Cause, not specific to this tab or to staging.** Before the router resolved `/login`, `App.vue`
+    rendered the signed-in shell for a moment. That shell read `org_modules` with the anon key, RLS
+    answered `[]`, and the cache kept the empty answer for five minutes. So anyone who signed in soon
+    after opening the login page lost every module-gated surface until a reload. Fixed on
+    `claude/modules-read-after-sign-in`: no shell until the router is ready, and the module query is
+    keyed by org and enabled only with one.
+  - Staging holds no FleetPal rows (0 work orders, 0 defects), so the Shop card read 0 / 0 / 0 and
+    both lists showed their empty sentence. The layout and gating were checked; the real figures were
+    seen only in the stubbed pass of the same day.
+  - FM4 closes once the fix is on staging and the fleet manager's first screen after sign-in shows
+    all 8 cards without a reload.
