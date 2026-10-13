@@ -57,7 +57,7 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 | **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
 | **`startMedstopScheduler`** | **hourly** | **`api` ONLY** | **100 requests/min per key; a sweep is ~25. ⚠ The key is IP-bound to `api`'s egress (D-MS3) — anywhere else every call is refused** |
 | `startSmsOutboxScheduler` | 5 minutes | `api` | Telnyx's account rate limit; at most 50 rows per org per run (`DRAIN_BATCH`) |
-| `startFmcsaFeedScheduler` | hourly tick, a run per org 24 h after its last successful one | `api` | Socrata's anonymous per-IP pool (none published); ~30 requests per org per run, measured 2026-10-11; `FMCSA_FEED_HOURS=0` disables |
+| `startFmcsaFeedScheduler` | hourly tick, a run per org 24 h after its last successful one; every tick also checks the org's record is current and alerts the safety managers at most once a day when it is not (`roadside_feed_stale`, IC1c) | `api` | Socrata's anonymous per-IP pool (none published); ~30 requests per org per run, measured 2026-10-11; `FMCSA_FEED_HOURS=0` disables |
 
 `startSmsOutboxScheduler` (C2d, 2026-09-26) sends texts that were queued for their recipient's civil
 hours. A second process running it would not send a row twice — the drain claims each row with a

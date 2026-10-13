@@ -13,13 +13,18 @@
  * off it; `fmcsa_fetch_runs` is the ledger, so there is no jobs-ledger row (the boardEtaRecorder's
  * reasoning). An org with no `dot_number` has no FMCSA record to fetch and is skipped. After the
  * fetch, the typed `roadside_*` record is re-projected (0458, `project.ts`).
+ *
+ * Every tick then asks whether the org's record has gone stale (`staleAlert.ts`, IC1c) — due or not,
+ * because a fetch that keeps failing is exactly the org whose run is always due.
  */
+import { organizationTimezone } from "@silvicom/shared";
 import type { Env } from "../../../env.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { SocrataClient } from "./socrata.js";
 import { lastSucceededAt } from "./store.js";
 import { projectRoadside } from "./project.js";
 import { syncFmcsaFeed } from "./sync.js";
+import { alertIfFeedStale } from "./staleAlert.js";
 
 const TICK_MS = 60 * 60_000;
 /** After boot, behind the vendor feeds that are measured in minutes. */
@@ -42,30 +47,15 @@ export function startFmcsaFeedScheduler(env: Env): void {
     inFlight = true;
     try {
       const admin = getSupabaseAdmin(env);
-      const { data, error } = await admin.from("organizations").select("id, dot_number").not("dot_number", "is", null);
+      const { data, error } = await admin.from("organizations").select("id, dot_number, operating_hours").not("dot_number", "is", null);
       if (error) throw new Error(error.message);
-      for (const { id, dot_number } of (data ?? []) as { id: string; dot_number: string }[]) {
+      for (const { id, dot_number, operating_hours } of (data ?? []) as { id: string; dot_number: string; operating_hours: unknown }[]) {
         const dot = dot_number.trim();
         if (!/^\d+$/.test(dot)) {
           console.error(`[fmcsa-feed] org ${id}: dot_number ${JSON.stringify(dot_number)} is not a USDOT number; skipped`);
           continue;
         }
-        try {
-          if (!isFmcsaFeedDue(await lastSucceededAt(admin, id, "fx4q-ay7w"), Date.now(), intervalMs)) continue;
-          const client = new SocrataClient({ appToken: env.FMCSA_SOCRATA_APP_TOKEN });
-          const results = await syncFmcsaFeed(admin, id, dot, client);
-          const summary = results
-            .map((r) => (r.outcome === "succeeded" ? `${r.dataset} ${r.rowsSeen} seen/${r.rowsNew + r.rowsChanged + r.rowsReappeared} new/${r.rowsVanished} vanished` : `${r.dataset} FAILED`))
-            .join(", ");
-          // Projected whatever the feed's outcome: the typed record is a function of what is stored, and a
-          // failed dataset leaves its last good versions current, so projecting them is still right.
-          const p = await projectRoadside(admin, id);
-          console.log(
-            `[fmcsa-feed] org ${id}: ${summary} (${client.requestCount} requests); projected ${p.inspections} inspections, ${p.units} units, ${p.violations} violations, ${p.citations} citations changed`,
-          );
-        } catch (e) {
-          console.error(`[fmcsa-feed] org ${id}: run failed —`, e instanceof Error ? e.message : e);
-        }
+        await tickOrg(admin, env, { id, dot, timeZone: organizationTimezone(operating_hours as Parameters<typeof organizationTimezone>[0]) }, intervalMs);
       }
     } catch (e) {
       console.error("[fmcsa-feed] tick failed:", e instanceof Error ? e.message : e);
@@ -78,4 +68,38 @@ export function startFmcsaFeedScheduler(env: Env): void {
   boot.unref?.();
   const timer = setInterval(() => void run(), TICK_MS);
   timer.unref?.();
+}
+
+/**
+ * One org's turn of the tick: fetch when due, then — always, due or not, run or failed — ask whether
+ * its record has gone stale. A fetch that keeps failing is the org whose run is always due and never
+ * succeeds; putting the check inside the run would silence exactly that one.
+ */
+export async function tickOrg(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  env: Env,
+  org: { id: string; dot: string; timeZone: string },
+  intervalMs: number,
+): Promise<void> {
+  try {
+    if (isFmcsaFeedDue(await lastSucceededAt(admin, org.id, "fx4q-ay7w"), Date.now(), intervalMs)) await runOrg(admin, env, org.id, org.dot);
+  } catch (e) {
+    console.error(`[fmcsa-feed] org ${org.id}: run failed —`, e instanceof Error ? e.message : e);
+  }
+  await alertIfFeedStale(admin, org.id, Date.now(), org.timeZone);
+}
+
+/** One org's fetch and projection. Throws; the tick logs it and goes on to the stale check. */
+async function runOrg(admin: ReturnType<typeof getSupabaseAdmin>, env: Env, id: string, dot: string): Promise<void> {
+  const client = new SocrataClient({ appToken: env.FMCSA_SOCRATA_APP_TOKEN });
+  const results = await syncFmcsaFeed(admin, id, dot, client);
+  const summary = results
+    .map((r) => (r.outcome === "succeeded" ? `${r.dataset} ${r.rowsSeen} seen/${r.rowsNew + r.rowsChanged + r.rowsReappeared} new/${r.rowsVanished} vanished` : `${r.dataset} FAILED`))
+    .join(", ");
+  // Projected whatever the feed's outcome: the typed record is a function of what is stored, and a
+  // failed dataset leaves its last good versions current, so projecting them is still right.
+  const p = await projectRoadside(admin, id);
+  console.log(
+    `[fmcsa-feed] org ${id}: ${summary} (${client.requestCount} requests); projected ${p.inspections} inspections, ${p.units} units, ${p.violations} violations, ${p.citations} citations changed`,
+  );
 }
