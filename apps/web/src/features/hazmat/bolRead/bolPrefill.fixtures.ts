@@ -65,7 +65,9 @@ export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLin
     }
   });
   const otherLines = over.otherLines ?? [];
-  evidence.push({ path: "otherLines", value: otherLines, status: "check", sources: [], ruleVersion: "4" });
+  // As shippingEvidence records it: a leaf list both readers read.
+  const reader = (r: "passA" | "passB") => ({ reader: r, page: null, bbox: null, value: otherLines as never });
+  evidence.push({ path: "otherLines", value: otherLines, status: "check", sources: [reader("passA"), reader("passB")], ruleVersion: "4" });
   return {
     id: "00000000-0000-4000-8000-000000000001", sourceId: null, assemblyId: "00000000-0000-4000-8000-000000000002",
     profile: "shipping_document", profileVersion: "1.1.0", status: "done", failureCode: null,

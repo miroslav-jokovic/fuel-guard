@@ -80,6 +80,21 @@ export interface BolPrefill {
   notLoaded: string[];
   /** "yes" when the paper lists non-hazardous freight too (§172.201(a)(1)); otherwise "" — not sure, never "no". */
   otherFreight: "" | "yes";
+  /**
+   * Neither reader read a hazmat line on the paper — not pass A, and not a line only pass B saw. The paper is
+   * then not a hazmat shipping paper as far as the read can tell, and the screen says so instead of filling
+   * nothing in silence. The owner's first production read (2026-10-13) was a produce BOL; the screen showed
+   * "Every check passed" — the paper audit's hazmat rules passing over zero lines — and no products, so it
+   * read as a hazmat BOL that had somehow failed to fill.
+   */
+  noHazmat: boolean;
+  /**
+   * Whether the second reader's document is in the evidence. Without it "no hazmat line" is one model's word
+   * (pass B refused or failed, executeRead.ts), and the screen must not say both readers looked.
+   */
+  bothReaders: boolean;
+  /** The non-hazardous lines the paper prints, as read, for the no-hazmat sentence. */
+  otherLines: string[];
 }
 
 const LINE_PATH_RX = /^hazmat\.lines\[(\d+)\]\./;
@@ -150,7 +165,9 @@ export function bolPrefill(read: ReadResponse, products: readonly HazmatProduct[
   }
 
   const other = byPath.get("otherLines")?.value ?? doc.otherLines;
-  return { lines, notLoaded, otherFreight: Array.isArray(other) && other.length > 0 ? "yes" : "" };
+  const otherLines = Array.isArray(other) ? other.filter((l): l is string => typeof l === "string") : [];
+  const bothReaders = read.evidence.some((e) => e.sources.some((s) => s.reader === "passB"));
+  return { lines, notLoaded, otherFreight: otherLines.length > 0 ? "yes" : "", noHazmat: count === 0, bothReaders, otherLines };
 }
 
 function valueOf(byPath: Map<string, FieldEvidence>, doc: unknown, path: string): unknown {
