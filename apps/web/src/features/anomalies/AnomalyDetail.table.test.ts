@@ -91,3 +91,29 @@ describe("same-card fills that fail to load (D-US5)", () => {
     expect(load.refetches).toBe(1);
   });
 });
+
+describe("the anomaly's facts (D-US6)", () => {
+  const mountIt = () =>
+    mount(AnomalyDetail, {
+      props: {
+        anomaly: { id: "a1", rule_id: "card_multi_vehicle", severity: "high", status: "open", message: "m", evidence: {} } as never,
+        vehicleUnit: "654",
+      },
+      global: { stubs: { EntityHistory: true, AnomalyAudit: true, StatusBadge: true } },
+    });
+  const facts = (dl: ReturnType<ReturnType<typeof mountIt>["get"]>) =>
+    Object.fromEntries(dl.findAll("dt").map((dt, i) => [dt.text(), dl.findAll("dd")[i]!.text()]));
+
+  it("heads the drawer with the fill's source and ids, a missing import id as a dash", () => {
+    expect(facts(mountIt().findAll("dl")[0]!)).toEqual({
+      Source: "efs", Imported: "Direct entry", "Fuel transaction": "t1", "Import id": "—",
+    });
+  });
+
+  it("lists the transaction, leaving out an absent total and dashing an unknown MPG", () => {
+    const dls = mountIt().findAll("dl");
+    const t = facts(dls[dls.length - 1]!);
+    expect(Object.keys(t)).toEqual(["Vehicle", "Driver", "Card #", "When", "Odometer", "Gallons", "$/gal", "MPG", "Location", "Source"]);
+    expect(t).toMatchObject({ Vehicle: "654", Driver: "Ann Lee", "Card #": "1234", Odometer: "1,000 mi", "$/gal": "$3.50", MPG: "—", Location: "Joliet, IL" });
+  });
+});

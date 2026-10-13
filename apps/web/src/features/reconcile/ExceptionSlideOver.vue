@@ -7,6 +7,7 @@ import {
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
 import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -89,14 +90,24 @@ async function apply(status: FuelExceptionStatus | undefined) {
 const creditReady = computed(() => creditedAmount.value !== "" && Number(creditedAmount.value) >= 0);
 
 const money = (v: number | string | null | undefined) => (v == null ? "—" : usd(Number(v)));
-const site = computed(() =>
-  [ex.value?.site_number, ex.value?.city, ex.value?.state].filter(Boolean).join(" ") || "—",
-);
+/** The finding's own facts (D-US6). A site with no number, city or state is a blank, so FactList draws its dash. */
+const findingFacts = computed<Fact[]>(() => {
+  const e = ex.value;
+  if (!e) return [];
+  const facts: Fact[] = [
+    { label: "Site", value: [e.site_number, e.city, e.state].filter(Boolean).join(" ") || null },
+    { label: "First seen", value: formatDate(e.first_seen_at) },
+  ];
+  if (e.credited_amount != null) {
+    facts.push({ label: "Credited", value: `${money(e.credited_amount)} on ${formatDate(e.credited_on)}`, tone: "text-success-700" });
+  }
+  return facts;
+});
 /** The evidence blob, as label/value pairs — it differs per kind and the template must not assume. */
-const evidenceRows = computed(() =>
+const evidenceRows = computed<Fact[]>(() =>
   Object.entries(ex.value?.evidence ?? {})
     .filter(([, v]) => v != null && v !== "")
-    .map(([k, v]) => ({ label: k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), value: String(v) })),
+    .map(([k, v]) => ({ key: k, label: k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), value: String(v) })),
 );
 </script>
 
@@ -126,25 +137,18 @@ const evidenceRows = computed(() =>
         </span>
       </div>
 
-      <dl class="grid grid-cols-2 gap-4 border-t border-edge-subtle pt-4">
-        <div><dt class="text-xs text-ink-muted">Site</dt><dd class="text-sm text-ink">{{ site }}</dd></div>
-        <div><dt class="text-xs text-ink-muted">First seen</dt><dd class="text-sm text-ink">{{ formatDate(ex.first_seen_at) }}</dd></div>
-        <div v-if="ex.credited_amount != null">
-          <dt class="text-xs text-ink-muted">Credited</dt>
-          <dd class="text-sm font-medium text-success-700">{{ money(ex.credited_amount) }} on {{ formatDate(ex.credited_on) }}</dd>
-        </div>
-      </dl>
+      <FactList :facts="findingFacts" :columns="2" class="border-t border-edge-subtle pt-4" data-testid="finding-facts" />
 
       <!-- The evidence, so nobody has to open the statement PDF to decide whether this is worth
            chasing. Rendered from the blob rather than a fixed list: it differs per kind. -->
       <div v-if="evidenceRows.length">
         <h4 class="text-sm font-semibold text-ink">What the report and our records say</h4>
-        <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
-          <template v-for="r in evidenceRows" :key="r.label">
-            <dt class="text-xs text-ink-muted">{{ r.label }}</dt>
-            <dd class="text-xs font-mono text-ink-secondary">{{ r.value }}</dd>
+        <!-- Monospaced, as before: these are the identifiers a person reads back to the vendor, digit by digit. -->
+        <FactList :facts="evidenceRows" layout="rows" class="mt-2" data-testid="finding-evidence">
+          <template v-for="r in evidenceRows" :key="r.key" #[`value-${r.key}`]="{ fact }">
+            <span class="font-mono text-xs">{{ fact.value }}</span>
           </template>
-        </dl>
+        </FactList>
       </div>
 
       <div v-if="events.length">

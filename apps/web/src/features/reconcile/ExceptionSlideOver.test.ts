@@ -99,3 +99,23 @@ describe("a finding that could not be loaded", () => {
     expect(state.refetches).toBe(1);
   });
 });
+
+describe("the finding's facts (D-US6)", () => {
+  const texts = (sel: string) => [...document.body.querySelectorAll(sel)].map((n) => n.textContent?.trim());
+
+  it("pairs each label with its value through FactList, a site with nothing on file as a dash", async () => {
+    state.ex = finding({ credited_amount: 30, credited_on: "2026-10-08", evidence: { authNumber: "88123", gallons: 150 } } as Partial<FuelException>);
+    await mountDrawer();
+    expect(texts("[data-testid=finding-facts] dt")).toEqual(["Site", "First seen", "Credited"]);
+    const [site, , credited] = texts("[data-testid=finding-facts] dd");
+    expect(site).toBe("—");
+    expect(credited).toMatch(/^\$30 on /);
+    expect(texts("[data-testid=finding-evidence] dt")).toEqual(["Auth Number", "Gallons"]);
+    expect(texts("[data-testid=finding-evidence] dd")).toEqual(["88123", "150"]);
+  });
+
+  it("leaves Credited out until something came back", async () => {
+    await mountDrawer();
+    expect(texts("[data-testid=finding-facts] dt")).toEqual(["Site", "First seen"]);
+  });
+});

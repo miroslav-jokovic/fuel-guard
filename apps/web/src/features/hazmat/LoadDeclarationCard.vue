@@ -22,6 +22,7 @@ import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useUpdateLoad } from "@/features/hazmat/useHazmatLoads";
 import { formatDateTime } from "@/lib/format";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * Everything the record declares that is not a product — read-only on every status, editable on a
@@ -128,22 +129,27 @@ async function save() {
 
 // ── read-only labels ──────────────────────────────────────────────────────────
 /** One tank-state vocabulary with the panel and the calculator, mapped rather than case-transformed. */
+// A field nobody has declared is null, and FactList draws its em dash (D-US6).
 const tankStateLabel = (value: string): string =>
   TANK_STATE_OPTIONS.find((o) => o.value === value)?.label ?? value.replace(/_/g, " ");
-const vehicleLabel = computed(
-  () => (vehicles.value ?? []).find((v) => v.id === props.load.vehicle_id)?.unit_number ?? "—",
-);
-const trailerLabel = computed(
-  () => (trailers.value ?? []).find((t) => t.id === props.load.trailer_id)?.unit_number ?? "—",
-);
-const driverLabel = computed(() => (drivers.value ?? []).find((d) => d.id === props.load.driver_id)?.full_name ?? "—");
-const carrierLabel = computed(
-  () => CARRIER_RELATIONSHIP_OPTIONS.find((o) => o.value === props.load.carrier_relationship)?.label ?? "—",
-);
-const pickupLabel = computed(() =>
-  props.load.planned_pickup_at ? formatDateTime(props.load.planned_pickup_at) : "—",
-);
-const permitsLabel = computed(() => (props.load.special_permit_numbers ?? []).join(", ") || "—");
+const facts = computed<Fact[]>(() => {
+  const l = props.load;
+  return [
+    { label: "Truck", value: (vehicles.value ?? []).find((v) => v.id === l.vehicle_id)?.unit_number ?? null },
+    { label: "Trailer", value: (trailers.value ?? []).find((t) => t.id === l.trailer_id)?.unit_number ?? null },
+    { label: "Driver", value: (drivers.value ?? []).find((d) => d.id === l.driver_id)?.full_name ?? null },
+    { label: "Planned pickup", value: l.planned_pickup_at ? formatDateTime(l.planned_pickup_at) : null },
+    { label: "Tank state", value: tankStateLabel(l.tank_state) },
+    {
+      label: "Who placards this vehicle",
+      value: CARRIER_RELATIONSHIP_OPTIONS.find((o) => o.value === l.carrier_relationship)?.label ?? null,
+    },
+    { label: "Special permits", value: (l.special_permit_numbers ?? []).join(", ") || null },
+    ...(l.claimed_no_placards
+      ? [{ label: "Shipper's claim", value: "Shipper claims this load needs no placards — the analysis checks it." }]
+      : []),
+  ];
+});
 </script>
 
 <template>
@@ -160,19 +166,7 @@ const permitsLabel = computed(() => (props.load.special_permit_numbers ?? []).jo
     </div>
 
     <!-- ── read-only ─────────────────────────────────────────────────────────────────────────── -->
-    <dl v-if="!editing" class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-      <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ vehicleLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ trailerLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ driverLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Planned pickup</dt><dd class="text-ink">{{ pickupLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Tank state</dt><dd class="text-ink">{{ tankStateLabel(load.tank_state) }}</dd></div>
-      <div class="col-span-2"><dt class="text-ink-tertiary">Who placards this vehicle</dt><dd class="text-ink">{{ carrierLabel }}</dd></div>
-      <div><dt class="text-ink-tertiary">Special permits</dt><dd class="text-ink">{{ permitsLabel }}</dd></div>
-      <div v-if="load.claimed_no_placards" class="col-span-2 sm:col-span-4">
-        <dt class="text-ink-tertiary">Shipper's claim</dt>
-        <dd class="text-ink">Shipper claims this load needs no placards — the analysis checks it.</dd>
-      </div>
-    </dl>
+    <FactList v-if="!editing" class="mt-4" :facts="facts" />
 
     <!-- ── editing (draft only) ──────────────────────────────────────────────────────────────── -->
     <template v-else>

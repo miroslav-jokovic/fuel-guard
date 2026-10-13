@@ -10,6 +10,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";
@@ -30,6 +31,12 @@ const {
   capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   capLoading, capIsError, capError, capFetching, capRefetch,
 } = useIdlingPage();
+
+/** The expanded row's facts (D-US6): where the truck's running time went, then its learned capability as a badge. */
+const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
+  ...trkDetail(row).map((d) => ({ ...d, numeric: true })),
+  { key: "capability", label: "Idle capability", value: capBadge(row.capability).label },
+];
 </script>
 
 <template>
@@ -238,18 +245,11 @@ const {
         </template>
         <!-- Where the truck's running time went: the split behind its costs, one click away (design verdict, E3). -->
         <template #expanded="{ row }">
-          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6" data-testid="truck-detail">
-            <div v-for="d in trkDetail(row)" :key="d.label">
-              <dt class="text-xs text-ink-muted">{{ d.label }}</dt>
-              <dd class="tabular-nums text-ink">{{ d.value }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs text-ink-muted">Idle capability</dt>
-              <dd>
-                <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(row.capability).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(row.capability).label }}</span>
-              </dd>
-            </div>
-          </dl>
+          <FactList :facts="truckFacts(row)" :columns="3" data-testid="truck-detail">
+            <template #value-capability>
+              <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(row.capability).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(row.capability).label }}</span>
+            </template>
+          </FactList>
         </template>
         <template #footer>
           <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />

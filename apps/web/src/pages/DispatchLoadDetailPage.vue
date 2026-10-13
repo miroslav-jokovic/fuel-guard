@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
@@ -72,6 +73,27 @@ const provenance = computed(() => {
     { label: "Declined", at: l.declined_at },
     { label: "Delivered", at: l.completed_at },
   ].filter((s) => s.at);
+});
+const provenanceFacts = computed<Fact[]>(() => provenance.value.map((s) => ({ label: s.label, value: when(s.at) })));
+
+/**
+ * The load card's facts (D-US6). Customer, dispatcher, TMS reference and the dispatch state are only
+ * facts about some loads, so they are left out rather than shown blank; a blank is `null`, so
+ * `FactList` draws its em dash.
+ */
+const loadFacts = computed<Fact[]>(() => {
+  const l = load.value;
+  if (!l) return [];
+  const tms = l.source === "tms";
+  return [
+    ...(l.customer_name ? [{ label: "Customer", value: l.customer_name }] : []),
+    ...(tms ? [{ label: "Dispatcher", value: l.dispatcher_name }] : []),
+    { label: "Driver", value: l.driver_name ?? "Unassigned" },
+    { key: "truck", label: "Truck", value: l.vehicle_unit },
+    { label: "Trailer", value: l.trailer_unit },
+    ...(l.external_id ? [{ label: "TMS reference", value: l.external_id }] : []),
+    ...(tms ? [{ key: "dispatch", label: "Dispatch", value: dispatchHeadline(l.dispatches[0]) }] : []),
+  ];
 });
 
 const STOP_TONE: Record<string, string> = {
@@ -171,24 +193,19 @@ function markBroken(id: string) {
             </div>
           </div>
 
-          <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-            <div v-if="load.customer_name"><dt class="text-ink-tertiary">Customer</dt><dd class="text-ink">{{ load.customer_name }}</dd></div>
-            <div v-if="load.source === 'tms'"><dt class="text-ink-tertiary">Dispatcher</dt><dd class="text-ink">{{ load.dispatcher_name ?? "—" }}</dd></div>
-            <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
-            <div>
-              <dt class="text-ink-tertiary">Truck</dt>
-              <!-- DISPATCH-BOARD-PLAN D-DB6 point 4: the truck opens on the Dispatch board, its drawer open. -->
-              <dd class="text-ink">
-                <RouterLink v-if="load.vehicle_unit" :to="{ name: 'assignments', query: { truck: load.vehicle_unit } }" class="text-link hover:text-link-hover">
-                  {{ load.vehicle_unit }}
-                </RouterLink>
-                <template v-else>—</template>
-              </dd>
-            </div>
-            <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
-            <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
-            <div v-if="load.source === 'tms'" class="col-span-2" data-testid="dispatch-state"><dt class="text-ink-tertiary">Dispatch</dt><dd class="text-ink">{{ dispatchHeadline(load.dispatches[0]) }}</dd><dd v-if="load.dispatches[0]?.outcomeReason" class="text-xs text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</dd></div>
-          </dl>
+          <FactList class="mt-4" :facts="loadFacts">
+            <!-- DISPATCH-BOARD-PLAN D-DB6 point 4: the truck opens on the Dispatch board, its drawer open. -->
+            <template #value-truck="{ fact }">
+              <RouterLink v-if="fact.value" :to="{ name: 'assignments', query: { truck: fact.value } }" class="text-link hover:text-link-hover">
+                {{ fact.value }}
+              </RouterLink>
+              <span v-else class="font-normal text-ink-tertiary">—</span>
+            </template>
+            <template #value-dispatch>
+              <span data-testid="dispatch-state">{{ dispatchHeadline(load.dispatches[0]) }}</span>
+              <span v-if="load.dispatches[0]?.outcomeReason" class="block text-xs font-normal text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</span>
+            </template>
+          </FactList>
 
           <AppCallout v-if="load.decline_reason" tone="warning" class="mt-3">
             Declined by the driver — &ldquo;{{ load.decline_reason }}&rdquo;
@@ -202,12 +219,7 @@ function markBroken(id: string) {
         <BaseCard>
           <h2 class="text-sm font-semibold text-ink">Progress</h2>
           <p class="mt-1 text-xs text-ink-muted">Every stage this load has actually reached.</p>
-          <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-            <div v-for="stage in provenance" :key="stage.label">
-              <dt class="text-ink-tertiary">{{ stage.label }}</dt>
-              <dd class="text-ink">{{ when(stage.at) }}</dd>
-            </div>
-          </dl>
+          <FactList class="mt-4" :facts="provenanceFacts" />
         </BaseCard>
 
         <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->

@@ -111,6 +111,12 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 **A page notice is `AppCallout`** — `lint:ui-adoption` refuses a hand-tinted `bg-<tone>-50 … ring-1`
 block (D-US3). A load failure is not a notice: it is `QueryState`'s, and it carries a retry.
 
+**Label/value facts are `ui/FactList.vue`** (D-US6): `facts: { label, value, numeric?, tone?, key? }[]`,
+`layout` `grid` (default, `columns` 2|3|4) or `rows`, `#value-<key>` for a badge or link. A blank
+value is an em dash, as in a table cell. `lint:ui-adoption` refuses a hand-written `<dl>` unless it
+says why it is not a fact list (`ui-adoption: not-a-fact-list — <why>`). A drawer's form puts its
+submit in the `#footer` with `form="<form id>"` (D-US5b), and the gate refuses one that does not.
+
 **There is no `EmptyState` component and no `Skeleton` component.** Empty state = `DataTable`'s `empty-text` prop / `#empty` slot (`px-6 py-10 text-center text-sm text-ink-muted`). Skeleton = `TableSkeleton`, invoked only by DataTable. `SortableTh` and `TableToolbar` are referenced by `docs/DESIGN-SYSTEM.md` but **were deleted** (commit `df8a2c2`) — sorting is inside DataTable, the toolbar is FilterBar. Do not resurrect them.
 
 ### 1.3 Icons

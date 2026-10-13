@@ -33,6 +33,7 @@ const emit = defineEmits<{
     </AppCallout>
 
     <BaseCard padding="none">
+      <!-- ui-adoption: not-a-fact-list — a one-time secret handed off, each value a full-width row with its own Copy and Show controls, not a label/value summary. -->
       <dl class="divide-y divide-edge-subtle">
         <div class="px-4 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Username</dt>

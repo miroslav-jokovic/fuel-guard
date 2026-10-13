@@ -5,6 +5,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useLoadRoute } from "@/composables/useLoadRoute";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, stopMarker, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
@@ -63,14 +64,20 @@ function apptWindow(s: DispatchStopDetail): string {
   return s.appointment_end ? `${at(s.appointment_start)} → ${at(s.appointment_end)}` : at(s.appointment_start);
 }
 
-const clocks = computed(() => {
+/** The four clocks as facts (D-US6). A clock Samsara did not report is a blank, so FactList draws its dash. */
+const clocks = computed<Fact[]>(() => {
   const h = props.row?.hos;
   if (!h) return [];
+  const clock = (label: string, ms: number | null | undefined): Fact => ({
+    label,
+    value: ms != null && Number.isFinite(ms) ? durationWords(ms) : null,
+    numeric: true,
+  });
   return [
-    { label: "Drive", ms: h.driveRemainingMs },
-    { label: "Shift", ms: h.shiftRemainingMs },
-    { label: "Cycle", ms: h.cycleRemainingMs },
-    { label: "Until break", ms: h.breakRemainingMs },
+    clock("Drive", h.driveRemainingMs),
+    clock("Shift", h.shiftRemainingMs),
+    clock("Cycle", h.cycleRemainingMs),
+    clock("Until break", h.breakRemainingMs),
   ];
 });
 
@@ -107,12 +114,7 @@ const description = computed(() => {
           </span>
         </div>
         <template v-if="row.hos">
-          <dl class="grid grid-cols-4 gap-3" data-testid="truck-hos-clocks">
-            <div v-for="c in clocks" :key="c.label">
-              <dt class="text-xs text-ink-muted">{{ c.label }}</dt>
-              <dd class="font-medium text-ink tabular-nums">{{ durationWords(c.ms) }}</dd>
-            </div>
-          </dl>
+          <FactList :facts="clocks" data-testid="truck-hos-clocks" />
           <p class="text-xs text-ink-muted">
             {{ durationWords(legalDriveLeft(row)) }} of legal driving left, whichever clock runs out first. As of {{ at(row.hos.fetchedAt) }}.
           </p>

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { stateTimeZone } from "@silvicom/shared";
 import { AppCallout } from "@silvicom/ui";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { AnomalyTxnDetail } from "./useAnomalies";
 
 const props = defineProps<{
@@ -16,8 +17,9 @@ const TOL = computed(() => props.odometerToleranceMiles ?? 10);
 // Show times in the STATION's timezone so the reported time matches the paper EFS report (the stored
 // fueled_at is that station-local wall time in UTC). Fall back to the org tz, then the browser.
 const displayTz = computed(() => stateTimeZone(props.txn.state) ?? props.tz ?? null);
-function fmtTz(iso: string | null): string {
-  if (!iso) return "—";
+// A missing time is null, not a hand-written dash: FactList draws the blank (D-US6).
+function fmtTz(iso: string | null): string | null {
+  if (!iso) return null;
   try {
     return new Intl.DateTimeFormat("en-US", {
       timeZone: displayTz.value ?? undefined,
@@ -45,7 +47,7 @@ const calibratedDiff = computed(() =>
 );
 const beyondTolerance = computed(() => calibratedDiff.value != null && Math.abs(calibratedDiff.value) > TOL.value);
 const signed = (n: number | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString()} mi`);
-const fmtOdo = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} mi`);
+const fmtOdo = (n: number | null) => (n == null ? null : `${Math.round(n).toLocaleString()} mi`);
 
 // ── time ──────────────────────────────────────────────────────────────────────
 const timeDeltaLabel = computed(() => {
@@ -69,7 +71,7 @@ const reconStatus = computed(() => props.txn.samsara_recon_status ?? (reconciled
 const reconCheckedLabel = computed(() => props.txn.samsara_recon_checked_at ? fmtTz(props.txn.samsara_recon_checked_at) : null);
 
 // ── location ────────────────────────────────────────────────────────────────────
-const efsPlace = computed(() => props.txn.location_text || [props.txn.city, props.txn.state].filter(Boolean).join(", ") || "—");
+const efsPlace = computed(() => props.txn.location_text || [props.txn.city, props.txn.state].filter(Boolean).join(", ") || null);
 const observedPlace = computed(() => {
   const t = props.txn;
   return t.samsara_observed_address || [t.samsara_observed_city, t.samsara_observed_state].filter(Boolean).join(", ") || null;
@@ -81,6 +83,32 @@ const CONF: Record<string, { label: string; cls: string }> = {
   unknown: { label: "Unknown", cls: "text-ink-muted" },
 };
 const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ?? CONF.unknown!);
+
+// ── the three fact lists (D-US6) ───────────────────────────────────────────────────
+// The difference keeps its danger tone past the tolerance; the raw figure rides beside it through
+// the `value-diff` slot only when a calibration offset makes the two differ.
+const odometerFacts = computed<Fact[]>(() => [
+  { label: "Driver entered (report)", value: fmtOdo(entered.value), numeric: true },
+  { label: "Samsara (telematics)", value: fmtOdo(samsara.value), numeric: true },
+  ...(props.odometerOffset ? [{ label: "Calibration offset", value: signed(props.odometerOffset), numeric: true }] : []),
+  {
+    key: "diff",
+    label: "Difference",
+    value: calibratedDiff.value != null ? signed(calibratedDiff.value) : null,
+    numeric: true,
+    ...(beyondTolerance.value ? { tone: "text-danger-700" } : {}),
+  },
+]);
+const timeFacts = computed<Fact[]>(() => [
+  isDateOnly.value
+    ? { label: "Reported (EFS)", value: "Date only (no time)", tone: "text-ink-muted" }
+    : { label: "Reported (EFS)", value: fmtTz(props.txn.fueled_at) },
+  { label: "Actual (telematics)", value: fmtTz(props.txn.samsara_recon_at) },
+]);
+const locationFacts = computed<Fact[]>(() => [
+  { label: "EFS station", value: efsPlace.value },
+  { label: "Samsara observed", value: observedPlace.value },
+]);
 </script>
 
 <template>
@@ -98,21 +126,12 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
     <!-- Odometer -->
     <div class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Odometer — driver entry vs telematics</h4>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <dt class="text-ink-muted">Driver entered (report)</dt>
-        <dd class="text-right font-semibold text-ink">{{ fmtOdo(entered) }}</dd>
-        <dt class="text-ink-muted">Samsara (telematics)</dt>
-        <dd class="text-right text-ink">{{ fmtOdo(samsara) }}</dd>
-        <template v-if="odometerOffset">
-          <dt class="text-ink-muted">Calibration offset</dt>
-          <dd class="text-right text-ink-secondary">{{ signed(odometerOffset) }}</dd>
+      <FactList layout="rows" :facts="odometerFacts">
+        <template v-if="odometerOffset && rawDiff != null" #value-diff="{ fact }">
+          {{ fact.value }}
+          <span class="ml-1 text-xs font-normal text-ink-tertiary">(raw {{ signed(rawDiff) }})</span>
         </template>
-        <dt class="text-ink-muted">Difference</dt>
-        <dd class="text-right font-semibold" :class="beyondTolerance ? 'text-danger-700' : 'text-ink'">
-          {{ signed(calibratedDiff) }}
-          <span v-if="odometerOffset && rawDiff != null" class="ml-1 text-xs font-normal text-ink-tertiary">(raw {{ signed(rawDiff) }})</span>
-        </dd>
-      </dl>
+      </FactList>
       <p class="mt-2 text-xs" :class="beyondTolerance ? 'text-danger-600' : 'text-ink-tertiary'">
         <template v-if="calibratedDiff == null">Not enough data to compare.</template>
         <template v-else-if="beyondTolerance">Exceeds the ±{{ TOL }} mi tolerance — the entered odometer disagrees with telematics.</template>
@@ -126,15 +145,7 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Fueling time — reported vs actual</h4>
         <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', basis.cls]">{{ basis.label }}</span>
       </div>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <dt class="text-ink-muted">Reported (EFS)</dt>
-        <dd class="text-right text-ink">
-          <span v-if="isDateOnly" class="text-ink-muted">Date only (no time)</span>
-          <span v-else>{{ fmtTz(txn.fueled_at) }}</span>
-        </dd>
-        <dt class="text-ink-muted">Actual (telematics)</dt>
-        <dd class="text-right text-ink">{{ fmtTz(txn.samsara_recon_at) }}</dd>
-      </dl>
+      <FactList layout="rows" :facts="timeFacts" />
       <p v-if="timeDeltaLabel" class="mt-2 text-xs text-ink-muted">{{ timeDeltaLabel }} · times in {{ tzLabel }}</p>
       <p v-else class="mt-2 text-xs text-ink-tertiary">Times shown in {{ tzLabel }}.</p>
     </div>
@@ -145,12 +156,7 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location — station vs where the truck was</h4>
         <span class="text-xs font-semibold" :class="conf.cls">{{ conf.label }}</span>
       </div>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <dt class="text-ink-muted">EFS station</dt>
-        <dd class="text-right text-ink">{{ efsPlace }}</dd>
-        <dt class="text-ink-muted">Samsara observed</dt>
-        <dd class="text-right text-ink">{{ observedPlace ?? "—" }}</dd>
-      </dl>
+      <FactList layout="rows" :facts="locationFacts" />
     </div>
   </div>
 </template>

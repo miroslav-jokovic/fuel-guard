@@ -135,6 +135,13 @@ describe("DispatchTruckDrawer", () => {
     expect(clocks).toEqual(["4h 00m", "6h 00m", "40h 00m", "2h 00m"]);
   });
 
+  it("names each clock beside its value through FactList, and a clock Samsara did not report is a dash (D-US6)", async () => {
+    const w = await mountIt({ ...loaded, hos: { ...loaded.hos!, breakRemainingMs: null } });
+    const list = w.get("[data-testid=truck-hos-clocks]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Drive", "Shift", "Cycle", "Until break"]);
+    expect(list.findAll("dd").map((d) => d.text())).toEqual(["4h 00m", "6h 00m", "40h 00m", "—"]);
+  });
+
   it("summarises the route as the miles still ahead and the next fuel stop", async () => {
     const w = await mountIt(loaded);
     expect(w.get("[data-testid=truck-route-summary]").text()).toBe(

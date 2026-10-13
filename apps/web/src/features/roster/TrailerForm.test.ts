@@ -34,3 +34,18 @@ describe("TrailerForm status ownership", () => {
     expect(statusSelect(w).attributes("disabled")).toBeUndefined();
   });
 });
+
+/**
+ * 2026-10-12: "Not set" is the Type select's empty string, and the shared schema's type is an enum or
+ * null. Sent as "", every save of a trailer with no type failed validation on a field that showed no
+ * error — Save did nothing and said nothing, for a new trailer and for editing any untyped one.
+ */
+describe("TrailerForm saves a trailer with no type", () => {
+  it("submits an untyped trailer with its type as null, not as a refusal nobody can see", async () => {
+    const w = mount(TrailerForm, { props: { vehicles: [], trailer: trailer({ trailer_type: null }) } });
+    await w.find("form").trigger("submit.prevent");
+    const sent = w.emitted("submit")?.[0]?.[0] as { trailer_type: unknown } | undefined;
+    expect(sent, "the form refused to submit").toBeTruthy();
+    expect(sent!.trailer_type).toBeNull();
+  });
+});

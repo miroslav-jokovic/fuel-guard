@@ -5,6 +5,7 @@ import { BADGE_BASE, toneClass, vehicleStateTone } from "@/lib/badges";
 import { STATE_LABEL } from "./liveMapLayer";
 import { engineWords, formatAge, fuelMetric, routeWords, stopAddress } from "./liveMapWords";
 import GatedLink from "@/components/GatedLink.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { AppButton as BaseButton, AppIconButton } from "@silvicom/ui";
 import { RouteIcon, UserIcon, VehicleIcon } from "@silvicom/ui/icons";
 import { useOpens } from "@/composables/useOpens";
@@ -74,7 +75,7 @@ const loadState = computed(() => {
 
 const speed = computed(() => {
   const mph = props.vehicle.position.speedMph;
-  if (mph == null) return "—";
+  if (mph == null) return null;
   // The vendor's own flag, said out loud: an ECU speed comes off the engine and a GPS-derived one is
   // inferred from successive fixes. A dispatcher querying a speeding conversation needs to know which.
   const source = props.vehicle.position.isEcuSpeed === true ? "engine" : "GPS";
@@ -99,6 +100,23 @@ const fuel = computed(() => fuelMetric(props.vehicle, props.board));
 
 const routeText = computed(() => (props.route?.shown && props.route.data ? routeWords(props.route.data) : null));
 
+/**
+ * The truck's facts (D-US6). A blank is `null`, so FactList draws the table's em dash.
+ *
+ * ⚠ Fuel sits beside SPEED, not after Heading, and that is the owner's item 8 read literally:
+ * "fuel level, speed, current location" are the three facts asked for, and a bearing in
+ * degrees is the one a dispatcher reads least. The two numbers a person scans together are
+ * therefore the two on the first row.
+ */
+const truckFacts = computed<Fact[]>(() => [
+  { label: "Speed", value: speed.value },
+  { label: "Fuel", value: fuel.value?.text ?? null, tone: fuel.value?.stale ? "text-ink-secondary" : undefined },
+  { label: "Heading", value: heading.value },
+  { label: "Engine", value: engineWords(props.vehicle.engineState) ?? null },
+  // The vendor's own reverse-geocoded place name, verbatim. No second geocoder is in the path.
+  { label: "Location", value: props.vehicle.position.formattedLocation ?? null },
+]);
+
 /** Pickup then delivery, each only when the api sent it (D-TC2; an older api sends neither). */
 const ends = computed(() => {
   const load = props.vehicle.load;
@@ -107,6 +125,7 @@ const ends = computed(() => {
   if (load?.delivery) out.push({ label: "Delivery", stop: load.delivery });
   return out;
 });
+const endFacts = computed<Fact[]>(() => ends.value.map((end) => ({ key: end.label, label: end.label, value: end.stop.name ?? null })));
 </script>
 
 <template>
@@ -117,35 +136,7 @@ const ends = computed(() => {
       <span class="text-xs text-ink-muted">Fix {{ formatAge(vehicle.ageSeconds) }}</span>
     </div>
 
-    <dl class="grid grid-cols-2 gap-x-4 text-sm" :class="compact ? 'gap-y-2' : 'gap-y-3'">
-      <div>
-        <dt class="text-xs text-ink-muted">Speed</dt>
-        <dd class="text-ink">{{ speed }}</dd>
-      </div>
-      <div>
-        <!--
-          ⚠ Fuel sits beside SPEED, not after Heading, and that is the owner's item 8 read literally:
-          "fuel level, speed, current location" are the three facts asked for, and a bearing in
-          degrees is the one a dispatcher reads least. The two numbers a person scans together are
-          therefore the two on the first row.
-        -->
-        <dt class="text-xs text-ink-muted">Fuel</dt>
-        <dd :class="fuel?.stale ? 'text-ink-secondary' : 'text-ink'">{{ fuel?.text ?? "—" }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Heading</dt>
-        <dd class="text-ink">{{ heading }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Engine</dt>
-        <dd class="text-ink">{{ engineWords(vehicle.engineState) ?? "—" }}</dd>
-      </div>
-      <div class="col-span-2">
-        <dt class="text-xs text-ink-muted">Location</dt>
-        <!-- The vendor's own reverse-geocoded place name, verbatim. No second geocoder is in the path. -->
-        <dd class="text-ink">{{ vehicle.position.formattedLocation ?? "—" }}</dd>
-      </div>
-    </dl>
+    <FactList :facts="truckFacts" :columns="2" data-testid="truck-facts" />
 
     <div class="space-y-2 border-t border-edge" :class="compact ? 'pt-3' : 'pt-4'">
       <p class="text-xs font-semibold text-ink-secondary">Load</p>
@@ -159,13 +150,15 @@ const ends = computed(() => {
       </GatedLink>
       <!-- D-TC2: the load's two ends, by the board's rule (`boardStops`, chosen by the api). The place
            name is McLeod's, the address one line under it. -->
-      <dl v-if="ends.length" class="space-y-2 text-sm">
-        <div v-for="end in ends" :key="end.label">
-          <dt class="text-xs text-ink-muted">{{ end.label }}</dt>
-          <dd class="text-ink">{{ end.stop.name ?? "—" }}</dd>
-          <dd v-if="stopAddress(end.stop)" class="text-xs text-ink-secondary">{{ stopAddress(end.stop) }}</dd>
-        </div>
-      </dl>
+      <FactList v-if="ends.length" :facts="endFacts" :columns="2" data-testid="load-ends">
+        <template v-for="end in ends" :key="end.label" #[`value-${end.label}`]="{ fact }">
+          <span class="block">
+            <template v-if="fact.value">{{ fact.value }}</template>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+          </span>
+          <span v-if="stopAddress(end.stop)" class="block text-xs font-normal text-ink-secondary">{{ stopAddress(end.stop) }}</span>
+        </template>
+      </FactList>
       <p v-if="vehicle.load?.extraStops" class="text-xs text-ink-muted">
         +{{ vehicle.load.extraStops }} more {{ vehicle.load.extraStops === 1 ? "stop" : "stops" }}
       </p>

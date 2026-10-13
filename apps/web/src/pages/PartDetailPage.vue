@@ -16,6 +16,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import PartDrawer from "@/features/inventory/PartDrawer.vue";
 import StockLineDrawer from "@/features/inventory/StockLineDrawer.vue";
 import MovementDrawer, { type DeskVerb } from "@/features/inventory/MovementDrawer.vue";
@@ -84,6 +85,21 @@ const { data: openLocations } = useLocationsQuery();
 
 const part = computed(() => data.value?.part ?? null);
 const shelves = computed(() => data.value?.stock ?? []);
+/**
+ * The summary card's facts (D-US6). A blank is `null`, so `FactList` draws its em dash. Notes join the
+ * grid as one more fact when there are any — FactList has no full-width row.
+ */
+const facts = computed<Fact[]>(() => {
+  const p = part.value;
+  if (!p) return [];
+  return [
+    { label: "Manufacturer", value: p.manufacturer },
+    { label: "Category", value: p.category },
+    { label: "Counted in", value: UNIT_OF_MEASURE_LABELS[p.unitOfMeasure] },
+    { label: "Barcode", value: p.upc },
+    ...(p.notes ? [{ label: "Notes", value: p.notes }] : []),
+  ];
+});
 
 const page = ref(1);
 const movementFilter = computed(() => ({ partId: id.value, page: page.value }));
@@ -217,16 +233,7 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
               <span v-if="!part.active" :class="[BADGE_BASE, toneClass('neutral')]">Retired</span>
             </div>
           </div>
-          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div><dt class="text-ink-muted">Manufacturer</dt><dd class="font-medium text-ink">{{ part.manufacturer ?? "—" }}</dd></div>
-            <div><dt class="text-ink-muted">Category</dt><dd class="font-medium text-ink">{{ part.category ?? "—" }}</dd></div>
-            <div><dt class="text-ink-muted">Counted in</dt><dd class="font-medium text-ink">{{ UNIT_OF_MEASURE_LABELS[part.unitOfMeasure] }}</dd></div>
-            <div><dt class="text-ink-muted">Barcode</dt><dd class="font-mono text-xs text-ink">{{ part.upc ?? "—" }}</dd></div>
-            <div v-if="part.notes" class="col-span-2 sm:col-span-4">
-              <dt class="text-ink-muted">Notes</dt>
-              <dd class="text-ink-secondary">{{ part.notes }}</dd>
-            </div>
-          </dl>
+          <FactList class="mt-4" :facts="facts" />
           <p v-if="!part.active" class="mt-3 text-xs text-ink-tertiary">
             No longer carried. Its history stays, and it is not offered when issuing.
           </p>

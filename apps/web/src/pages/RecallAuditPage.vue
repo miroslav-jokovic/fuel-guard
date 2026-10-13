@@ -12,6 +12,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
@@ -34,8 +35,18 @@ const done = ref<Set<string>>(new Set());
 const pending = computed(() => (sample.value ?? []).filter((f) => !done.value.has(f.id)));
 
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
-const usd = (n: number | null) => (n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
-const place = (f: SampledFill) => f.locationText || [f.city, f.state].filter(Boolean).join(", ") || "—";
+const usd = (n: number | null) => (n == null ? null : n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
+const place = (f: SampledFill) => f.locationText || [f.city, f.state].filter(Boolean).join(", ") || null;
+
+/** One sampled fill's facts (D-US6). A blank is `null`, so `FactList` draws its em dash. */
+const fillFacts = (f: SampledFill): Fact[] => [
+  { label: "Gallons", value: f.gallons, numeric: true },
+  { label: "Cost", value: usd(f.totalCost), numeric: true },
+  { label: "MPG", value: f.computedMpg, numeric: true },
+  { label: "Odometer", value: f.odometer?.toLocaleString(), numeric: true },
+  { label: "EFS location", value: place(f) },
+  { label: "Samsara saw", value: [f.observedCity, f.observedState].filter(Boolean).join(", ") || null },
+];
 
 async function judge(f: SampledFill, verdict: AuditVerdict) {
   try {
@@ -116,14 +127,7 @@ function loadNewBatch() {
               <span v-else class="text-sm font-semibold text-ink">—</span>
               <span class="text-xs text-ink-tertiary">{{ fmtDate(f.fueledAt) }}</span>
             </div>
-            <dl class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-              <div><dt class="text-xs text-ink-tertiary">Gallons</dt><dd class="text-ink-secondary">{{ f.gallons ?? "—" }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">Cost</dt><dd class="text-ink-secondary">{{ usd(f.totalCost) }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">MPG</dt><dd class="text-ink-secondary">{{ f.computedMpg ?? "—" }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">Odometer</dt><dd class="text-ink-secondary">{{ f.odometer?.toLocaleString() ?? "—" }}</dd></div>
-              <div class="col-span-2"><dt class="text-xs text-ink-tertiary">EFS location</dt><dd class="truncate text-ink-secondary">{{ place(f) }}</dd></div>
-              <div class="col-span-2"><dt class="text-xs text-ink-tertiary">Samsara saw</dt><dd class="truncate text-ink-secondary">{{ [f.observedCity, f.observedState].filter(Boolean).join(", ") || "—" }}</dd></div>
-            </dl>
+            <FactList class="mt-2" :facts="fillFacts(f)" />
           </div>
           <div v-if="canJudge" class="flex shrink-0 gap-2">
             <BaseButton

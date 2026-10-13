@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { FleetReportResponse } from "./useFleetReport";
 
 /**
@@ -19,6 +20,28 @@ const props = defineProps<{ report: FleetReportResponse; loading?: boolean }>();
 const fmtMiles = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleString());
 const fmtRate = (n: number | null) =>
   n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+/**
+ * The two rates, each named by its denominator (D-US6). A rate the report could not form is `null`,
+ * so FactList draws its dash; the hover says what the rate is measured over.
+ */
+const rateFacts = computed<Fact[]>(() => [
+  {
+    key: "billed",
+    label: "Earned per billed mile",
+    value: props.report.revenuePerBilledMile == null ? null : fmtRate(props.report.revenuePerBilledMile),
+    numeric: true,
+  },
+  {
+    key: "driven",
+    label: "Earned per mile driven",
+    value: props.report.total.revenuePerMile == null ? null : fmtRate(props.report.total.revenuePerMile),
+    numeric: true,
+  },
+]);
+const RATE_HINT: Record<string, string> = {
+  billed: "What the loads were priced at, before empty miles are counted",
+  driven: "Revenue over every mile Samsara measured, empty miles included",
+};
 const emptyWidth = computed(() => `${Math.max(0, Math.min(100, props.report.emptyPct ?? 0))}%`);
 </script>
 
@@ -30,6 +53,7 @@ const emptyWidth = computed(() => `${Math.max(0, Math.min(100, props.report.empt
     </div>
 
     <template v-if="report.emptyPct != null">
+      <!-- ui-adoption: not-a-fact-list — the driven-versus-empty bar sits between the first two figures, drawn as the picture of the gap they describe. -->
       <dl class="mt-3 space-y-2 text-sm">
         <div class="flex items-baseline justify-between gap-3">
           <dt class="text-ink-secondary">Miles driven <span class="text-ink-tertiary" title="Measured by Samsara, empty miles included">(Samsara)</span></dt>
@@ -49,16 +73,12 @@ const emptyWidth = computed(() => `${Math.max(0, Math.min(100, props.report.empt
           <dd class="font-semibold tabular-nums text-caution-700">{{ fmtMiles(report.emptyMiles) }} · {{ report.emptyPct.toFixed(1) }}%</dd>
         </div>
       </dl>
-      <dl class="mt-3 grid grid-cols-2 gap-3 border-t border-edge pt-3 text-sm">
-        <div>
-          <dt class="text-xs text-ink-tertiary">Earned per billed mile</dt>
-          <dd class="font-semibold tabular-nums text-ink" title="What the loads were priced at, before empty miles are counted">{{ fmtRate(report.revenuePerBilledMile) }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-ink-tertiary">Earned per mile driven</dt>
-          <dd class="font-semibold tabular-nums text-ink" title="Revenue over every mile Samsara measured, empty miles included">{{ fmtRate(report.total.revenuePerMile) }}</dd>
-        </div>
-      </dl>
+      <FactList :facts="rateFacts" :columns="2" class="mt-3 border-t border-edge pt-3" data-testid="miles-rates">
+        <template v-for="f in rateFacts" :key="f.key" #[`value-${f.key}`]="{ fact }">
+          <span v-if="fact.value != null" :title="RATE_HINT[f.key!]">{{ fact.value }}</span>
+          <span v-else class="font-normal text-ink-tertiary" :title="RATE_HINT[f.key!]">—</span>
+        </template>
+      </FactList>
       <p class="mt-2 text-xs text-ink-tertiary">
         Cost per mile driven is what the fleet burned; revenue per mile billed is what the loads paid.
         Neither is ever called "per mile" alone.

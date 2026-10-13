@@ -7,6 +7,7 @@ import PlacardDiamond from "./PlacardDiamond.vue";
 import CitationText from "./CitationText.vue";
 import FindingRow from "./FindingRow.vue";
 import VerdictDetails from "./VerdictDetails.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * The verdict panel (plan H5). Renders the deterministic engine output — each with its CFR citation
@@ -106,6 +107,16 @@ const panelOnlyIds = computed(() =>
 
 const agg = computed(() => v.value.placards.aggregate ?? null);
 const fmt = (n: number): string => n.toLocaleString("en-US");
+/** What the aggregate ran on (D-US6). A figure the paper did not state is FactList's em dash. */
+const aggFacts = computed<Fact[]>(() => {
+  const a = agg.value;
+  if (!a) return [];
+  return [
+    { label: "Counted gross weight", value: a.countedGrossWeightLb != null ? `${fmt(a.countedGrossWeightLb)} lb` : null, numeric: true },
+    { label: "Packages counted", value: a.countedPackages != null ? fmt(a.countedPackages) : null, numeric: true },
+    { label: "Lines in the aggregate", value: a.countedLines, numeric: true },
+  ];
+});
 
 /**
  * The three §172.504/§172.301 weight gates, derived rather than written out three times. They were
@@ -217,24 +228,7 @@ const loadProfile = computed(() => {
 
       <template v-if="agg">
         <p class="mt-1 text-xs text-ink-muted">What the §172.504(c) decision actually ran on.</p>
-        <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-          <div>
-            <dt class="text-xs text-ink-muted">Counted gross weight</dt>
-            <dd class="font-semibold text-ink tabular-nums">
-              {{ agg.countedGrossWeightLb != null ? `${fmt(agg.countedGrossWeightLb)} lb` : "Not stated" }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-xs text-ink-muted">Packages counted</dt>
-            <dd class="font-semibold text-ink tabular-nums">
-              {{ agg.countedPackages != null ? fmt(agg.countedPackages) : "Not stated" }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-xs text-ink-muted">Lines in the aggregate</dt>
-            <dd class="font-semibold text-ink tabular-nums">{{ agg.countedLines }}</dd>
-          </div>
-        </dl>
+        <FactList class="mt-3" :columns="3" :facts="aggFacts" />
 
         <ul class="mt-4 space-y-1.5 text-xs">
           <li v-for="t in thresholds" :key="t.label" class="flex items-center justify-between gap-3 rounded-control bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">

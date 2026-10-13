@@ -30,6 +30,7 @@ import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
@@ -227,6 +228,20 @@ const driverNote = (row: DeclinedTransactionRow): string =>
 
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
+/** The drill-down's facts (D-US6). A field EFS left empty is a blank, so FactList draws its dash. */
+const selectedFacts = computed<Fact[]>(() => {
+  const r = selectedRow.value;
+  if (!r) return [];
+  return [
+    { key: "driver", label: "Driver", value: r.driver_name || null },
+    { label: "Card #", value: r.card_ref || null },
+    { label: "Invoice", value: r.invoice || null },
+    { label: "Location", value: r.location_text || null },
+    { label: "City", value: r.city || null },
+    { label: "State", value: r.state || null },
+    { key: "import", label: "Import ID", value: r.import_id || null },
+  ];
+});
 
 const rescoring = ref(false);
 async function rescore() {
@@ -438,24 +453,24 @@ const columns: DataTableColumn[] = [
           </ul>
         </div>
 
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div class="col-span-2">
-            <dt class="text-xs text-ink-tertiary">Driver</dt>
-            <dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd>
-            <dd v-if="selectedRow.driver_name && driverNote(selectedRow)" class="mt-0.5 text-xs text-ink-tertiary">
+        <FactList :facts="selectedFacts" :columns="2" data-testid="decline-facts">
+          <!-- The driver carries where the name came from, or why there is none: an unmarked name
+               would read as evidence of presence (DRIVER_SOURCE_NOTE above). -->
+          <template #value-driver="{ fact }">
+            <span v-if="fact.value">{{ fact.value }}</span>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+            <span v-if="selectedRow.driver_name && driverNote(selectedRow)" class="mt-0.5 block text-xs font-normal text-ink-tertiary">
               {{ driverNote(selectedRow) }}
-            </dd>
-            <dd v-else-if="!selectedRow.driver_name" class="mt-0.5 text-xs text-ink-tertiary">
+            </span>
+            <span v-else-if="!selectedRow.driver_name" class="mt-0.5 block text-xs font-normal text-ink-tertiary">
               EFS does not say who used the card for a declined attempt, and this card could not be matched to a driver.
-            </dd>
-          </div>
-          <div><dt class="text-xs text-ink-tertiary">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Invoice</dt><dd class="text-ink">{{ selectedRow.invoice || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Import ID</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
-        </dl>
+            </span>
+          </template>
+          <template #value-import="{ fact }">
+            <span v-if="fact.value" class="font-mono text-xs">{{ fact.value }}</span>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+          </template>
+        </FactList>
       </div>
     </SlideOver>
   </div>

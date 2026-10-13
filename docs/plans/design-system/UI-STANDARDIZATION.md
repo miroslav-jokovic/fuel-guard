@@ -65,11 +65,12 @@ merged result: nothing in it is missing from `main`.
 | US0 | This document; contract §5 brought up to date; adoption baseline regenerated | DONE 2026-10-12 |
 | US1 | `useQueryState` grows what every list needs: a default that stays out of the URL, on/off flags, the page, a scope for two lists on one route, and ONE buffer per router (D-US2) | DONE 2026-10-12 |
 | US2 | All 33 lists onto the URL; gate rule so a new list cannot skip it (closes G1) | MERGED 2026-10-12 |
-| US3 | Every page notice through `AppCallout`, gated (closes G2) | BUILT 2026-10-12 with US5 (claude/ui-std-states) |
+| US3 | Every page notice through `AppCallout`, gated (closes G2) | MERGED 2026-10-12 |
 | US4 | `AppTable` call sites onto `DataTable` or a labelled exception; the gate counts `AppTable` as a raw table (closes G3) | MERGED 2026-10-12 |
-| US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | BUILT 2026-10-12 |
-| US5b | The three roster form drawers put Save in the footer; gate (G6) | planned, after US3+US5 |
-| US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated; then a browser pass of every routed page at 1280 px and 390 px | planned |
+| US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | MERGED 2026-10-12 |
+| US5b | The three roster form drawers put Save in the footer; gate (G6) | BUILT 2026-10-12 (claude/ui-std-facts) |
+| US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | BUILT 2026-10-12 (claude/ui-std-facts) |
+| US6b | A browser pass of every routed page at 1280 px and 390 px | planned |
 | US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
@@ -122,6 +123,13 @@ table's order — loading, then failure, then content — and the failure always
 59 hand-written loading lines in six styles, and failures that said "Reload to try again", which
 resets everything else the reader had open. `compact` is the one-line form for a panel or drawer.
 The gate refuses a "Loading…" text outside a button's busy label.
+
+**D-US6 — Label/value facts are `FactList`.** One label style, one value style, one grid, and a blank
+is an em dash as in a table cell. Hand-written `<dl>`s are refused unless they say why they are not a
+fact list.
+
+**D-US5b — A drawer's form puts its submit in the footer.** `form="<id>"` on the footer's button; the
+gate counts per drawer.
 
 ## 6. Open questions
 
@@ -194,3 +202,19 @@ errors). Eight sites match a recipe without being what the rule is about, and sa
 stand with `ui-adoption: not-a-notice — <why>` / `not-a-page-state — <why>`: a decline's record
 panel, an anomaly's score meter, two tinted form-field groups on the trailer form, an upload's
 progress line and per-file failure list, and two table cells standing in for a document link.
+
+**2026-10-12 — US5b built, and it found a save that had never worked.** The Vehicles, Drivers and
+Trailers drawers now hold Cancel and Save in the footer (`form="vehicle-form"` etc.); the gate refuses
+a drawer whose form submit sits in its scrolling body. Writing the test that the footer's Save really
+submits the form — through the DOM's form-owner rule, not just an attribute check — showed the TRAILER
+form refusing every save of a trailer with no type: "Not set" is `""`, the shared schema's type is an
+enum or null, and the Type field displayed no error. A new trailer saved without a type, or ANY edit of
+an untyped trailer, did nothing and said nothing. Fixed (`""` is sent as null) and the Type field now
+shows its error; the test fails on the old form. The vehicle and driver forms were probed the same way:
+the vehicle form's refusal of an empty tank capacity is shown on its field, and the driver form saves.
+
+**2026-10-12 — US6 built.** 41 `<dl>`s in 31 files: 35 onto `FactList`, six marked as not fact lists
+(a five-column family table, a three-way split, a bar drawn between two figures, the one-time
+password handoff, the dashboard's linked KPI strip, the route summary's icon strip). Blanks that had
+been printed as values are gone — a truck with no tank on file read " gal" (test fails on the old
+page), and asset, part, card and recall-audit facts that typed their own "—" now leave it to the list.

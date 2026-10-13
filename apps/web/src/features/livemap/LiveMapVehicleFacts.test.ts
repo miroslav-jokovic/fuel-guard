@@ -76,6 +76,16 @@ describe("LiveMapVehicleFacts — the load line", () => {
   });
 });
 
+describe("LiveMapVehicleFacts — the truck's facts (D-US6)", () => {
+  it("pairs each label with its value through FactList, and a fact the vendor did not send is a dash", () => {
+    const w = facts(null);
+    const list = w.get("[data-testid=truck-facts]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Speed", "Fuel", "Heading", "Engine", "Location"]);
+    // No fuel reading and no engine state on this truck: the table's dash, never 0% or a blank cell.
+    expect(list.findAll("dd").map((d) => d.text())).toEqual(["62 mph (engine)", "—", "270°", "—", "Gary, IN"]);
+  });
+});
+
 describe("LiveMapVehicleFacts — the load's two ends (D-TC2)", () => {
   const stop = (seq: number, kind: string, name: string, extra: Partial<LiveMapStop> = {}): LiveMapStop => ({
     seq, kind, name, city: "Green Bay", state: "WI", appointmentStart: null, appointmentEnd: null, status: "pending",
@@ -85,9 +95,12 @@ describe("LiveMapVehicleFacts — the load's two ends (D-TC2)", () => {
     id: "l1", ref: "0005", status: "in_transit", source: "tms", externalStatus: "P", nextStop: null, ...o,
   });
   const text = (w: ReturnType<typeof facts>) => w.text().replace(/\s+/g, " ");
-  /** Each end as [label, name, address?] — read per row, since adjacent elements join with no space. */
+  /** Each end as [label, name, address?] — read per line of the dd, since adjacent elements join with no space. */
   const ends = (w: ReturnType<typeof facts>) =>
-    w.findAll("dl.space-y-2 > div").map((row) => [row.get("dt").text(), ...row.findAll("dd").map((d) => d.text())]);
+    w.get("[data-testid=load-ends]").findAll("dl > div").map((row) => [
+      row.get("dt").text(),
+      ...[...row.get("dd").element.children].map((line) => (line.textContent ?? "").trim()),
+    ]);
 
   it("shows the pickup and the delivery, each with its address", () => {
     const w = facts(load({ pickup: stop(1, "pickup", "Shipper Co"), delivery: stop(2, "dropoff", "Consignee DC"), extraStops: 0 }));

@@ -112,6 +112,7 @@ const width = (pct: number | null) => `${Math.max(0, Math.min(100, pct ?? 0))}%`
     </div>
     <div v-else class="mt-3 h-7 animate-pulse rounded-detail bg-surface-muted" />
 
+    <!-- ui-adoption: not-a-fact-list — a five-column table under a header row (swatch, family, dollars, per mile, share), each name keyed to its segment of the bar above; a row has three values, not one. -->
     <dl class="mt-3">
       <div class="grid grid-cols-[0.75rem_1fr_auto_auto_auto] items-center gap-x-3 pb-1 text-2xs font-medium uppercase tracking-wide text-ink-tertiary">
         <span />

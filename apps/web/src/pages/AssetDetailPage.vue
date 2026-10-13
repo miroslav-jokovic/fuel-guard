@@ -25,6 +25,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TimelineRail, { type TimelineEntry } from "@/components/ui/TimelineRail.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import AssetDrawer from "@/features/inventory/AssetDrawer.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
@@ -134,6 +135,27 @@ const LEDGER_COLUMNS: DataTableColumn[] = [
   { key: "note", label: "Detail", cellClass: "text-ink-tertiary" },
 ];
 
+/**
+ * The summary card's facts (D-US6). A blank is `null`, so `FactList` draws its em dash; the dates are
+ * only formatted when there is one, because `fmtDate`'s own "—" would read as a value. Notes join the
+ * grid as one more fact when there are any — FactList has no full-width row.
+ */
+const facts = computed<Fact[]>(() => {
+  const a = asset.value;
+  if (!a) return [];
+  return [
+    { key: "holder", label: "Where it is", value: a.holder.label ?? "Not placed" },
+    { label: "Since", value: a.holder.since ? fmtWhen(a.holder.since) : null },
+    { label: "Kind", value: a.assetTypeName },
+    { label: "Condition", value: ITEM_CONDITION_LABELS[a.condition] },
+    { label: "Serial", value: a.serialNumber },
+    { label: "Make and model", value: [a.manufacturer, a.model].filter(Boolean).join(" ") || null },
+    { label: "Bought", value: a.purchasedAt ? fmtDate(a.purchasedAt) : null },
+    { label: "Warranty until", value: a.warrantyExpiresAt ? fmtDate(a.warrantyExpiresAt) : null },
+    ...(a.notes ? [{ label: "Notes", value: a.notes }] : []),
+  ];
+});
+
 const photo = useAttachAssetPhoto();
 const addingPhoto = ref(false);
 async function onPhoto(files: File[]) {
@@ -202,30 +224,16 @@ const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
               </span>
             </div>
           </div>
-          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div>
-              <dt class="text-ink-muted">Where it is</dt>
-              <dd class="font-medium text-ink">
-                {{ asset.holder.label ?? "Not placed" }}
-                <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
-                     stored nowhere. There is no handover and no signature anywhere in this feature. -->
-                <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">
-                  with {{ asset.holder.inferredDriverName }}
-                </span>
-              </dd>
-            </div>
-            <div><dt class="text-ink-muted">Since</dt><dd class="font-medium text-ink">{{ asset.holder.since ? fmtWhen(asset.holder.since) : "—" }}</dd></div>
-            <div><dt class="text-ink-muted">Kind</dt><dd class="font-medium text-ink">{{ asset.assetTypeName }}</dd></div>
-            <div><dt class="text-ink-muted">Condition</dt><dd class="font-medium text-ink">{{ ITEM_CONDITION_LABELS[asset.condition] }}</dd></div>
-            <div><dt class="text-ink-muted">Serial</dt><dd class="font-mono text-xs text-ink">{{ asset.serialNumber ?? "—" }}</dd></div>
-            <div><dt class="text-ink-muted">Make and model</dt><dd class="font-medium text-ink">{{ [asset.manufacturer, asset.model].filter(Boolean).join(" ") || "—" }}</dd></div>
-            <div><dt class="text-ink-muted">Bought</dt><dd class="font-medium text-ink">{{ fmtDate(asset.purchasedAt) }}</dd></div>
-            <div><dt class="text-ink-muted">Warranty until</dt><dd class="font-medium text-ink">{{ fmtDate(asset.warrantyExpiresAt) }}</dd></div>
-            <div v-if="asset.notes" class="col-span-2 sm:col-span-4">
-              <dt class="text-ink-muted">Notes</dt>
-              <dd class="text-ink-secondary">{{ asset.notes }}</dd>
-            </div>
-          </dl>
+          <FactList class="mt-4" :facts="facts">
+            <template #value-holder>
+              {{ asset.holder.label ?? "Not placed" }}
+              <!-- D-INV3: the driver is read off the truck at the moment somebody looks, and is
+                   stored nowhere. There is no handover and no signature anywhere in this feature. -->
+              <span v-if="asset.holder.inferredDriverName" class="block text-xs font-normal text-ink-tertiary">
+                with {{ asset.holder.inferredDriverName }}
+              </span>
+            </template>
+          </FactList>
           <p v-if="asset.status === 'retired'" class="mt-3 text-xs text-ink-tertiary">
             Off the fleet. Its history stays, and its number is never reused.
           </p>

@@ -16,6 +16,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -67,6 +68,25 @@ const { data: anomalies } = useQuery({
     ).order("created_at", { ascending: false });
     return (data ?? []) as Anomaly[];
   },
+});
+
+/**
+ * The summary card's facts (D-US6). A truck with no tank on file printed " gal" here before FactList:
+ * the unit is only glued to a number, and a blank is `null` so the list draws its em dash.
+ */
+const facts = computed<Fact[]>(() => {
+  const v = vehicle.value;
+  if (!v) return [];
+  return [
+    { label: "Tank", value: v.tank_capacity_gal != null ? `${v.tank_capacity_gal} gal` : null },
+    { label: "Baseline MPG", value: v.baseline_mpg, numeric: true },
+    { label: "Odometer", value: v.current_odometer, numeric: true },
+    {
+      label: "Open anomalies",
+      value: (anomalies.value ?? []).filter((a) => a.status !== "resolved" && a.status !== "dismissed").length,
+      numeric: true,
+    },
+  ];
 });
 
 const mpgPoints = computed(() => (txns.value ?? []).filter((t) => t.computed_mpg != null));
@@ -122,12 +142,7 @@ const fillColumns: DataTableColumn[] = [
         </div>
         <StatusBadge :status="vehicle.status" />
       </div>
-      <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div><dt class="text-ink-muted">Tank</dt><dd class="font-medium text-ink">{{ vehicle.tank_capacity_gal }} gal</dd></div>
-        <div><dt class="text-ink-muted">Baseline MPG</dt><dd class="font-medium text-ink">{{ vehicle.baseline_mpg ?? "—" }}</dd></div>
-        <div><dt class="text-ink-muted">Odometer</dt><dd class="font-medium text-ink">{{ vehicle.current_odometer }}</dd></div>
-        <div><dt class="text-ink-muted">Open anomalies</dt><dd class="font-medium text-ink">{{ (anomalies ?? []).filter((a) => a.status !== 'resolved' && a.status !== 'dismissed').length }}</dd></div>
-      </dl>
+      <FactList class="mt-4" :facts="facts" />
       <p v-if="Number(vehicle.odometer_offset) !== 0" class="mt-3 text-xs text-ink-muted">
         Odometer calibration: dash reads <strong>{{ Number(vehicle.odometer_offset) > 0 ? "+" : "" }}{{ vehicle.odometer_offset }} mi</strong>
         vs Samsara ({{ vehicle.odometer_offset_source === "manual" ? "manual override" : "auto-learned" }}) — applied before mismatch checks.

@@ -53,6 +53,7 @@ const cells = computed(() => {
 
 <template>
   <BaseCard padding="none" as="section" class="@container" aria-label="Activity in range">
+    <!-- ui-adoption: not-a-fact-list — a linked KPI strip: each cell is a door to its page with an icon chip, a delta pill and a caption, laid out by container queries rather than a fact grid. -->
     <dl class="grid grid-cols-1 divide-y divide-edge-subtle @[26rem]:grid-cols-2 @[26rem]:divide-y-0 @[52rem]:grid-cols-4">
       <component
         :is="opens(c.to) ? RouterLink : 'div'"

@@ -15,15 +15,13 @@ import {
 } from "@silvicom/shared";
 import { AppSelect } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{
   vehicle?: Vehicle | null;
   drivers: Driver[];
-  submitting?: boolean;
 }>();
-const emit = defineEmits<{ submit: [input: VehicleInput]; cancel: [] }>();
+const emit = defineEmits<{ submit: [input: VehicleInput] }>();
 
 // Local form state as strings (inputs) — the schema coerces/validates on submit.
 const form = reactive({
@@ -88,7 +86,9 @@ function onSubmit() {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="onSubmit">
+  <!-- D-US5b: the drawer's footer holds Cancel and Save (`form="vehicle-form"`), so Save stays on screen
+       however long this form runs; this file owns the fields and the submit, not the buttons. -->
+  <form id="vehicle-form" class="space-y-4" @submit.prevent="onSubmit">
     <FormField v-slot="{ id }" label="Unit number" :error="errors.unit_number">
       <BaseInput :id="id" v-model="form.unit_number" :invalid="!!errors.unit_number" />
     </FormField>
@@ -193,13 +193,6 @@ function onSubmit() {
           />
         </FormField>
       </div>
-    </div>
-
-    <div class="flex justify-end gap-3 pt-2">
-      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
-      <BaseButton type="submit" variant="primary" :disabled="submitting">
-        {{ submitting ? "Saving…" : "Save vehicle" }}
-      </BaseButton>
     </div>
   </form>
 </template>
