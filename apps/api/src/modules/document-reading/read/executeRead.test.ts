@@ -7,7 +7,7 @@ import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../
 import { TransientModelError, type ModelClient } from "../model/readPages.js";
 import { combinedSchemaHash, sectionWireSchemas } from "../model/readSections.js";
 import { SEND_RULE_VERSION } from "../model/readPages.js";
-import { sentCopyOf } from "../pages/canonical.js";
+import { sentCopyOf, type TextLayer } from "../pages/canonical.js";
 import { TIER_LIMITS } from "../model/visionTier.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { executeRead, failUnavailableRead, type ReadGate } from "./executeRead.js";
@@ -33,7 +33,7 @@ const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 interface World {
   status?: string;
   profileVersion?: string;
-  pages?: { id: string; page_number: number; path: string; bytes: Buffer; recordedSha?: string }[];
+  pages?: { id: string; page_number: number; path: string; bytes: Buffer; recordedSha?: string; textLayer?: TextLayer | null }[];
   classes?: Record<string, string>;
   /** The current verdict's rotation for a classed page (0456); absent = not answered. */
   rotations?: Record<string, number>;
@@ -92,7 +92,7 @@ async function world(w: World = {}) {
       },
       document_pages: pages.map((p) => ({
         id: p.id, source_id: SOURCE, page_number: p.page_number, original_path: p.path,
-        original_sha256: p.recordedSha ?? sha(p.bytes), normaliser_version: "1.0.0",
+        original_sha256: p.recordedSha ?? sha(p.bytes), normaliser_version: "1.0.0", text_layer: p.textLayer ?? null,
       })),
       document_assembly_pages: (w.assembly ?? []).map((page_id, i) => ({ position: i + 1, page_id, assembly_id: "assembly-1" })),
       document_read_reviews: { data: [], count: w.reviews ?? 0 },
@@ -419,6 +419,52 @@ describe("executeRead — the OCR witness (§7B A5)", () => {
     const w = await world({ cached: withCount(6), classes: { p1: "bol", p2: "bol" }, ocr });
     expect(await w.run()).toMatchObject({ outcome: "done", cacheHit: true });
     expect(ocr).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeRead — the text-layer witness (§7B A4)", () => {
+  const empty = PROFILE.empty();
+  const withCount = (packageCount: number) =>
+    ({ ...empty, hazmat: { ...empty.hazmat, lines: [printedHazmatLineSchema.parse({ idText: "UN2735", hazardClass: "8", packageCount })] } });
+  const twoReaders = { "claude-sonnet-4-6": withCount(9), "claude-sonnet-5-5": withCount(6) };
+  const layer: TextLayer = { words: [
+    { text: "UN2735", bbox: { x: 0.3, y: 0.4, w: 0.05, h: 0.01 } },
+    { text: "6", bbox: { x: 0.05, y: 0.4, w: 0.01, h: 0.01 } },
+  ] };
+  const evidenceOf = (w: Awaited<ReturnType<typeof world>>) =>
+    w.transitions()[1]!.p_evidence as { path: string; sources: { reader: string; value: unknown }[] }[];
+
+  it("asks for each page's stored text layer and records the row's word on the count when every read page has one", async () => {
+    const pages = [{ id: "p1", page_number: 1, path: "o/1.png", bytes: await png(200), textLayer: layer }];
+    const w = await world({ pages, classes: { p1: "bol" }, documents: twoReaders });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    const select = w.rec.forTable("document_pages")[0]!.ops.find((o) => o.method === "select");
+    expect(String(select?.args[0])).toContain("text_layer");
+    const count = evidenceOf(w).find((e) => e.path === "hazmat.lines[0].packageCount")!;
+    expect(count.sources.map((s) => [s.reader, s.value])).toEqual([["passA", 9], ["passB", 6], ["textLayer", 6]]);
+  });
+
+  it("finds the row on a page read turned, by turning the text layer with it", async () => {
+    // Stored sideways: the id and the count share a column; turned a quarter clockwise they share a line.
+    const sideways: TextLayer = { words: [
+      { text: "UN2735", bbox: { x: 0.4, y: 0.3, w: 0.01, h: 0.05 } },
+      { text: "6", bbox: { x: 0.4, y: 0.05, w: 0.01, h: 0.01 } },
+    ] };
+    const pages = [{ id: "p1", page_number: 1, path: "o/1.png", bytes: await png(200), textLayer: sideways }];
+    const w = await world({ pages, classes: { p1: "bol" }, rotations: { p1: 90 }, documents: twoReaders });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    const count = evidenceOf(w).find((e) => e.path === "hazmat.lines[0].packageCount")!;
+    expect(count.sources.find((s) => s.reader === "textLayer")?.value).toBe(6);
+  });
+
+  it("records none when one read page is a scan", async () => {
+    const pages = [
+      { id: "p1", page_number: 1, path: "o/1.png", bytes: await png(200), textLayer: layer },
+      { id: "p2", page_number: 2, path: "o/2.png", bytes: await png(100), textLayer: null },
+    ];
+    const w = await world({ pages, classes: { p1: "bol", p2: "bol" }, documents: twoReaders });
+    expect(await w.run()).toMatchObject({ outcome: "done" });
+    expect(evidenceOf(w).some((e) => e.sources.some((s) => s.reader === "textLayer"))).toBe(false);
   });
 });
 

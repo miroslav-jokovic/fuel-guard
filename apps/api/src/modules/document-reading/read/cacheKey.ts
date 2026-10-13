@@ -36,8 +36,10 @@ import { createHash } from "node:crypto";
  *   4    — 2026-10-12, §7A N6: the table judges a line printed "Combustible liquid" with the §173.150(f)
  *          election the paper states, as the hazmat extractor's mapper always has (mapBolLines.ts) —
  *          under 3 every correctly printed combustible diesel line was a class mismatch.
+ *   5    — 2026-10-13, §7B A4: a born-digital PDF's text layer is a second row-bound witness on a line's
+ *          count, weight and quantity, beside the OCR (textLayerWitness.ts); statuses unchanged.
  */
-export const ACCEPTANCE_RULE_VERSION = "4";
+export const ACCEPTANCE_RULE_VERSION = "5";
 
 export interface CacheKeyInput {
   profileVersion: string;

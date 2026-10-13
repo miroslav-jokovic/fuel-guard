@@ -14,6 +14,8 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
  *   ocr     the OCR engine's word on a line's count, weight and quantity (A5, rowWitness.ts): which of the
  *           readers' values is printed on the row of the line's own UN id. Absent when there was no OCR
  *           (engine off, failed, or a cache replay of a read made without it) or the row is ambiguous.
+ *   textLayer a born-digital PDF's own characters on the same row, by the same rules (A4,
+ *           textLayerWitness.ts). Absent unless every read page carries a text layer.
  *
  * Status under rule 2: `not_read` when both readers read nothing there; otherwise `check`. Agreement is
  * RECORDED, not yet acted on: a field moves to *Read* only by graduation (D-DR5 — N confirmations with no
@@ -25,7 +27,13 @@ import { anchorOf, classTokens, ROW_JUDGED_KEYS, rowBacks, rowOf, type OcrPage, 
 const LINE_RX = /^hazmat\.lines\[(\d+)\]\.(.+)$/;
 type Doc = Pick<ShippingDocument, "hazmat">;
 
-export function shippingEvidence(a: Doc, b: Doc | null, ruleVersion: string, ocr: readonly OcrPage[] | null = null): FieldEvidence[] {
+export function shippingEvidence(
+  a: Doc,
+  b: Doc | null,
+  ruleVersion: string,
+  ocr: readonly OcrPage[] | null = null,
+  textLayer: readonly OcrPage[] | null = null,
+): FieldEvidence[] {
   const aLines = a.hazmat?.lines ?? [];
   const { aligned, extra } = b ? alignLines(aLines, b.hazmat?.lines ?? []) : { aligned: aLines.map(() => null), extra: [] };
   // Pass B as it would read at pass A's positions; its unpaired lines after A's last.
@@ -35,16 +43,20 @@ export function shippingEvidence(a: Doc, b: Doc | null, ruleVersion: string, ocr
   const lineAt = (i: number) => (i < aLines.length ? aLines[i] : extra[i - aLines.length])!;
   // The row of line i: the nth printed occurrence of its id, n = how many lines before it carry the same id.
   const allLines = [...aLines, ...extra];
-  const rows = new Map<number, Row | null>();
-  const rowAt = (i: number): Row | null => {
-    if (!ocr) return null;
-    if (!rows.has(i)) {
-      const id = anchorOf(lineAt(i).idText);
-      const same = allLines.filter((l) => id !== null && anchorOf(l.idText) === id);
-      rows.set(i, rowOf(ocr, id, allLines.slice(0, i).filter((l) => same.includes(l)).length, same.length));
-    }
-    return rows.get(i)!;
+  const rowsOver = (pages: readonly OcrPage[] | null) => {
+    const rows = new Map<number, Row | null>();
+    return (i: number): Row | null => {
+      if (!pages) return null;
+      if (!rows.has(i)) {
+        const id = anchorOf(lineAt(i).idText);
+        const same = allLines.filter((l) => id !== null && anchorOf(l.idText) === id);
+        rows.set(i, rowOf(pages, id, allLines.slice(0, i).filter((l) => same.includes(l)).length, same.length));
+      }
+      return rows.get(i)!;
+    };
   };
+  // Each row witness in the order its source is recorded: the OCR engine (A5), then the text layer (A4).
+  const rowWitnesses = [["ocr", rowsOver(ocr)], ["textLayer", rowsOver(textLayer)]] as const;
 
   const out: FieldEvidence[] = [];
   const emit = (path: string, aHas: boolean, bHas: boolean) => {
@@ -58,11 +70,13 @@ export function shippingEvidence(a: Doc, b: Doc | null, ruleVersion: string, ocr
       const i = Number(m[1]);
       sources.push({ reader: "table", page: null, bbox: null, value: verdictOf(i, lineAt(i)) as never });
     }
-    const row = m && (ROW_JUDGED_KEYS as readonly string[]).includes(m[2]!) && (av != null || bv != null) ? rowAt(Number(m[1])) : null;
-    if (row) {
-      const i = Number(m![1]);
+    if (m && (ROW_JUDGED_KEYS as readonly string[]).includes(m[2]!) && (av != null || bv != null)) {
+      const i = Number(m[1]);
       const unprovable = classTokens(lineAt(i).hazardClass, i < aLines.length ? aligned[i]?.hazardClass : null);
-      sources.push({ reader: "ocr", page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
+      for (const [reader, rowAt] of rowWitnesses) {
+        const row = rowAt(i);
+        if (row) sources.push({ reader, page: row.page, bbox: row.bbox, value: rowBacks(row, [av, bv], unprovable) as never });
+      }
     }
     const nothing = av == null && bv == null && av !== undefined && bv !== undefined;
     out.push({ path, value: (av ?? bv ?? null) as never, status: nothing ? "not_read" : "check", sources, ruleVersion });

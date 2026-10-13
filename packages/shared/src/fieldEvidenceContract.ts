@@ -31,11 +31,21 @@ export type FieldStatus = (typeof FIELD_STATUSES)[number];
  * `deviceOcr`, which is the driver's phone. It is ROW-BOUND: its `value` is the one reader's value printed
  * on the row of the line's own UN id, or null when the row shows none of them (or more than one); its
  * `bbox` is that row. Like `table` it judges what the models read and reads nothing of its own (D-DR21).
+ * Since §7B A4 `textLayer` is row-bound the same way, over a born-digital page's own characters.
  */
 export const EVIDENCE_READERS = [
   "passA", "passB", "textLayer", "deviceOcr", "region", "arithmetic", "order", "declaration", "reviewer", "table", "ocr",
 ] as const;
 export type EvidenceReader = (typeof EVIDENCE_READERS)[number];
+
+/**
+ * The readers that judge a value by the printed ROW of its line (rowWitness.ts): the OCR engine (A5) and a
+ * born-digital page's text layer (A4). Each records the one reader's value the row shows, or null when it
+ * shows none (or more than one). The paper audit and the calculator's field note read this list, so a third
+ * row witness is counted by both the day it is added here.
+ */
+export const ROW_WITNESS_READERS = ["ocr", "textLayer"] as const satisfies readonly EvidenceReader[];
+
 
 /** A box on the page's WORKING copy, as fractions 0..1 of its width and height, so it survives a resize. */
 export const bboxSchema = z.object({
@@ -143,4 +153,13 @@ export function readersAgree(e: Pick<FieldEvidence, "sources">): boolean | null 
   const a = e.sources.find((s) => s.reader === "passA");
   const b = e.sources.find((s) => s.reader === "passB");
   return a && b ? valuesAgree(a.value, b.value) : null;
+}
+
+/**
+ * Whether the row witnesses back a field's value: true when every one that judged it shows that value, false
+ * when one shows another value or none, null when none judged it.
+ */
+export function rowWitnessesBack(e: Pick<FieldEvidence, "value" | "sources">): boolean | null {
+  const judged = e.sources.filter((s) => (ROW_WITNESS_READERS as readonly string[]).includes(s.reader));
+  return judged.length === 0 ? null : judged.every((s) => s.value !== null && valuesAgree(s.value, e.value));
 }

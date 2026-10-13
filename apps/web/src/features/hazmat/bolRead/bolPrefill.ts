@@ -3,6 +3,7 @@ import {
   isVehiclePackaging,
   packageTypeFromPrinted,
   readersAgree,
+  rowWitnessesBack,
   shippingDocumentSchema,
   valueAtPath,
   valuesAgree,
@@ -27,7 +28,7 @@ import { emptyLine, type CalcLineForm } from "../calcModel";
  *     dataset does not hold, comes in with no product and the reason, so Calculate cannot use it unseen.
  *   - It never makes a field *Read*. The state is the evidence's `status` (D-DR17: only independent
  *     agreement under the acceptance rule may say *Read*; today nothing does until graduation, D-DR5).
- *     `agree` and `ocrBacked` say what the witnesses found, so a person can tell "both readers say 6, and
+ *     `agree` and `rowBacked` say what the witnesses found, so a person can tell "both readers say 6, and
  *     the OCR found 6 on that row" from "the readers say 6 and 9".
  *   - It never sets the §173.150(f) combustible election. The paper saying "Combustible liquid" is the
  *     offeror's statement, and the calculator leaves the election to a person (D1), as the extractor does
@@ -55,7 +56,7 @@ export interface PrefillField {
   /** Where the readers disagree: what each read, pass A first, one pair per disagreeing path. */
   readings: [unknown, unknown][];
   /** The OCR engine found this value on the line's own printed row (true), judged the row and did not (false), or did not judge (null). */
-  ocrBacked: boolean | null;
+  rowBacked: boolean | null;
   /** Why the field is blank or needs a person, in words for the screen; null when there is nothing to say. */
   reason: string | null;
   /** The evidence paths behind the field — what a Calculate press confirms or corrects (plan §6). */
@@ -236,17 +237,14 @@ function judged(es: (FieldEvidence | undefined)[], paths: string[], reason: stri
     : legible.every((e) => e.status === "read") ? "read" : "check";
   const agreements = known.map(readersAgree);
   const agree = agreements.includes(false) ? false : agreements.length > 0 && agreements.every((a) => a === true) ? true : null;
-  const ocr = known.flatMap((e) => {
-    const s = e.sources.find((x) => x.reader === "ocr");
-    return s ? [s.value === null ? false : valuesAgree(s.value, e.value)] : [];
-  });
-  const ocrBacked = ocr.length === 0 ? null : ocr.every(Boolean);
+  const rows = known.map(rowWitnessesBack).filter((r): r is boolean => r !== null);
+  const rowBacked = rows.length === 0 ? null : rows.every(Boolean);
   const readings = known.flatMap((e): [unknown, unknown][] => {
     if (readersAgree(e) !== false) return [];
     const of = (r: string) => e.sources.find((x) => x.reader === r)?.value ?? null;
     return [[of("passA"), of("passB")]];
   });
-  return { state, agree, readings, ocrBacked, reason, paths };
+  return { state, agree, readings, rowBacked, reason, paths };
 }
 
 // ── what the form shows under each filled field ───────────────────────────────────────────────────────
@@ -282,7 +280,7 @@ export function fieldNote(field: PrefillField, changed: boolean): FieldNote {
   }
   if (field.agree === null) return { text: "Only one reader read this. Check it against the page.", tone: "warning" };
   if (field.state === "read") return { text: "Read from the BOL.", tone: "success" };
-  return { text: field.ocrBacked ? "From the BOL · both readers agree · found on the line's printed row" : "From the BOL · both readers agree", tone: "neutral" };
+  return { text: field.rowBacked ? "From the BOL · both readers agree · found on the line's printed row" : "From the BOL · both readers agree", tone: "neutral" };
 }
 
 export interface BolLineView {

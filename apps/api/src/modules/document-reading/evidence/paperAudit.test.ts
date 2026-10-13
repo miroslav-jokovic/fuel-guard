@@ -86,4 +86,12 @@ describe("auditFieldStates", () => {
     expect(state(e([A(6), B(6), O(null)]))).toBe("check");
     expect(state(e([A(6), B(9)], 6, "read"))).toBe("read");
   });
+
+  it("holds a born-digital page's text layer to the same bar as the OCR (§7B A4)", () => {
+    const T = (v: unknown) => ({ reader: "textLayer" as const, page: 1, bbox: null, value: v as never });
+    expect(state(e([A(6), B(6), T(6)]))).toBe("read");
+    expect(state(e([A(6), B(6), T(null)]))).toBe("check");
+    // Two row witnesses must both back it: the OCR finding 6 does not outvote the text layer finding none.
+    expect(state(e([A(6), B(6), O(6), T(null)]))).toBe("check");
+  });
 });

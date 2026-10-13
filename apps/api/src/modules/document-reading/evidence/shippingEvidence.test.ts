@@ -100,8 +100,8 @@ describe("shippingEvidence", () => {
 
   it("is what a finished shipping-document read records", () => {
     const a = doc([line({ ...UN2735, packageCount: 6 })]);
-    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR)).toEqual(shippingEvidence(a, a, "3", OCR));
-    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR)).not.toEqual(shippingEvidence(a, a, "3", null));
+    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR, OCR)).toEqual(shippingEvidence(a, a, "3", OCR, OCR));
+    expect(EVIDENCE_FOR.shipping_document(a, a, "3", OCR, OCR)).not.toEqual(shippingEvidence(a, a, "3", OCR, null));
   });
 });
 

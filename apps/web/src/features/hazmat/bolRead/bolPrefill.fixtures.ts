@@ -39,6 +39,8 @@ export interface LineSpec {
   table?: { consistent: true; hmtRef: string } | { consistent: false; reason: string };
   /** What the OCR row showed for a row-judged key; absent = no OCR. */
   ocr?: Record<string, unknown>;
+  /** What a born-digital page's text layer showed on the row, likewise (§7B A4); absent = no text layer. */
+  textLayer?: Record<string, unknown>;
 }
 
 /** A finished read of these lines, each at its index. */
@@ -57,6 +59,7 @@ export function read(specs: LineSpec[], over: Partial<ReadResponse> & { otherLin
       if (bv !== undefined) sources.push({ reader: "passB", page: null, bbox: null, value: bv as never });
       if (JUDGED.includes(key) && s.table) sources.push({ reader: "table", page: null, bbox: null, value: s.table as never });
       if (ROW.includes(key) && s.ocr && key in s.ocr) sources.push({ reader: "ocr", page: 1, bbox: null, value: s.ocr[key] as never });
+      if (ROW.includes(key) && s.textLayer && key in s.textLayer) sources.push({ reader: "textLayer", page: 1, bbox: null, value: s.textLayer[key] as never });
       const nothing = (av ?? null) === null && (bv ?? null) === null;
       evidence.push({ path, value: (av ?? bv ?? null) as never, status: nothing ? "not_read" : "check", sources, ruleVersion: "4" });
     }

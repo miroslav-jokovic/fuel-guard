@@ -44,9 +44,17 @@ describe("bolPrefill", () => {
 
   it("says whether the OCR found the value on the line's row", () => {
     const backed = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806, packageCount: null } }]), PRODUCTS, "van")!;
-    expect(backed.lines[0]!.fields.grossWeight.ocrBacked).toBe(true);
-    expect(backed.lines[0]!.fields.packageCount.ocrBacked).toBe(false);
-    expect(backed.lines[0]!.fields.packageType.ocrBacked).toBeNull();
+    expect(backed.lines[0]!.fields.grossWeight.rowBacked).toBe(true);
+    expect(backed.lines[0]!.fields.packageCount.rowBacked).toBe(false);
+    expect(backed.lines[0]!.fields.packageType.rowBacked).toBeNull();
+  });
+
+  it("counts a born-digital page's text layer as a row witness, and needs every row witness to back the value", () => {
+    const text = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF), textLayer: { grossWeightLb: 3806, packageCount: null } }]), PRODUCTS, "van")!;
+    expect(text.lines[0]!.fields.grossWeight.rowBacked).toBe(true);
+    expect(text.lines[0]!.fields.packageCount.rowBacked).toBe(false);
+    const split = bolPrefill(read([{ a: PAINT, table: ok(PAINT_REF), ocr: { grossWeightLb: 3806 }, textLayer: { grossWeightLb: null } }]), PRODUCTS, "van")!;
+    expect(split.lines[0]!.fields.grossWeight.rowBacked).toBe(false);
   });
 
   it("ticks Limited Quantity only when both readers read the notation", () => {
@@ -126,7 +134,7 @@ describe("bolPrefill", () => {
 });
 
 describe("fieldNote — the line under a filled field", () => {
-  const f = (over: Partial<PrefillField>): PrefillField => ({ state: "check", agree: true, readings: [], ocrBacked: null, reason: null, paths: [], ...over });
+  const f = (over: Partial<PrefillField>): PrefillField => ({ state: "check", agree: true, readings: [], rowBacked: null, reason: null, paths: [], ...over });
 
   it("asks a person to look where the readers disagree, naming both readings", () => {
     expect(fieldNote(f({ agree: false, readings: [[9, 6], [3808, 3806]] }), false))
@@ -142,7 +150,7 @@ describe("fieldNote — the line under a filled field", () => {
 
   it("only says where an agreed value came from, with the OCR's word when it found it", () => {
     expect(fieldNote(f({}), false)).toEqual({ text: "From the BOL · both readers agree", tone: "neutral" });
-    expect(fieldNote(f({ ocrBacked: true }), false).text).toBe("From the BOL · both readers agree · found on the line's printed row");
+    expect(fieldNote(f({ rowBacked: true }), false).text).toBe("From the BOL · both readers agree · found on the line's printed row");
     expect(fieldNote(f({ state: "not_read", agree: true }), false).text).toMatch(/^Not read on the BOL/);
     expect(fieldNote(f({ state: "read" }), false)).toEqual({ text: "Read from the BOL.", tone: "success" });
   });
