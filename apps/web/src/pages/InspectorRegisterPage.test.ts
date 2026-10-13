@@ -15,7 +15,8 @@ import { answerConfirm } from "@/testing/confirm";
  */
 
 const state = vi.hoisted(() => ({
-  inspectors: { value: [] as unknown[] },
+  inspectors: { value: [] as unknown[] | undefined },
+  failed: false,
   setPeriod: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
   create: { mutateAsync: vi.fn(), isPending: { value: false } },
   remove: { mutateAsync: vi.fn(async () => undefined), isPending: { value: false } },
@@ -26,7 +27,7 @@ vi.mock("@/features/maintenance/useAnnualInspections", () => ({
     data: state.inspectors,
     isLoading: ref(false),
     isFetching: ref(false),
-    isError: ref(false),
+    isError: ref(state.failed),
     error: ref(null),
     refetch: vi.fn(),
   }),
@@ -87,6 +88,7 @@ beforeEach(() => {
   state.setPeriod.mutateAsync.mockClear();
   state.remove.mutateAsync.mockClear();
   vi.restoreAllMocks();
+  state.failed = false;
 });
 
 describe("what the register shows", () => {
@@ -107,6 +109,14 @@ describe("what the register shows", () => {
     const retired = page([inspector({ effective_to: "2026-01-31", qualified: false })]).text();
     expect(retired).toContain("2024-01-01 — 2026-01-31");
     expect(retired).toContain("Retired");
+  });
+
+  // F6 (US6b): a failed read has no rows either, and is not an empty register.
+  it("does not say nobody is on it when the register could not be read", () => {
+    state.failed = true;
+    const t = page([]).text();
+    expect(t).toContain("Could not load the register.");
+    expect(t).not.toContain("Nobody is on the register yet");
   });
 
   it("warns when nobody is on it, because no inspection can be started", () => {
