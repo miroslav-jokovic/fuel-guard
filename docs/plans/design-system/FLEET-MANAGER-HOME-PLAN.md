@@ -401,3 +401,18 @@ landing tab.
   - **Production, last 90 days, 2026-10-13:** 111 inspections; 1 driver, 18 vehicle, 2 hazmat.
   - **Clean-inspection rate:** held for Q-FM8.
   - The card sits alone on a fourth row at 4 of 12 columns, after Hiring.
+- 2026-10-13: **FM5 released and checked on staging.** #1499 merged as `42b381b`, and release
+  v2026.10.13.2 (#1500) put it in production at 17:01 UTC; `verify:live` shows code and schema (0466)
+  matching the production branch. FMCSA's feed last projected at 14:17 UTC that day, newest
+  inspection 10/09, 111 in the last 90 days — the figure the card should show there.
+  - **Fleet manager** on staging, signed in as the real member at 1440 and 1104 px: the Roadside card
+    is on Operations after Hiring, reading 0 / 0 / 0 / 0 (staging holds no FMCSA rows), with
+    Roadside inspections in the Safety sidebar. Each door opens the list with its count: "0 roadside
+    inspections" and, with a filter set, "No roadside inspection matches that."; the unfiltered list
+    says "No roadside inspections on our FMCSA record." Both endpoints answer 200, and there are no
+    page errors.
+  - **Dispatcher:** no Roadside card and no sidebar entry. Each `/roadside-inspections` URL sends them
+    to `/?tab=dispatch`, and neither endpoint is called.
+  - The only refusal is again `/api/me/notifications` → 403 `module_disabled` (FM4's entry).
+  - Owed: the card's real figures, seen in production by the owner (staging cannot show them), and
+    Q-FM8 (the clean-inspection rate). Q-FM5 (PM due) is still its own plan.
