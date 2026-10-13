@@ -95,6 +95,43 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect(w.find("[data-testid='bol-findings']").exists()).toBe(false);
   });
 
+  it("says a BOL with no hazmat line has none, instead of an audit that checked nothing — the owner's produce BOL", async () => {
+    const w = mountForm();
+    const paperAudit = { datasetVersion: "t", results: [{ ruleId: "paper_er_phone", outcome: "pass" as const, reason: "present", lineIndex: null, facts: {} }] };
+    await w.setProps({ bolRead: read([{ a: PAINT, table: ok(PAINT_REF) }]) });
+    await flushPromises();
+    await w.setProps({ bolRead: read([], { otherLines: ["4ZRG - RED & GREEN LETTUCE 4OZ", "4ZGL - GREEN LEAF LETTUCE 4OZ"], paperAudit }) });
+    await flushPromises();
+    const note = w.find("[data-testid='bol-prefill']").text();
+    expect(note).toContain("No hazardous materials on this BOL.");
+    expect(note).toContain("Both readers read it and found no hazmat line, only: 4ZRG - RED & GREEN LETTUCE 4OZ; 4ZGL - GREEN LEAF LETTUCE 4OZ.");
+    expect(note).toContain("Nothing on this BOL needs a placard.");
+    expect(w.find("[data-testid='bol-findings']").exists()).toBe(false);
+    // The earlier read's paint line is gone: this read is the BOL on screen.
+    expect(lines(w)).toEqual([]);
+    expect(w.text()).not.toContain(PAINT_REF);
+  });
+
+  it("does not say both readers looked when only one did", async () => {
+    const w = mountForm();
+    const solo = read([]);
+    solo.evidence = solo.evidence.map((e) => ({ ...e, sources: e.sources.filter((s) => s.reader !== "passB") }));
+    await w.setProps({ bolRead: solo });
+    await flushPromises();
+    const note = w.find("[data-testid='bol-prefill']").text();
+    expect(note).toContain("No hazardous materials read on this BOL — check the page.");
+    expect(note).toContain("Only one reader read it");
+    expect(note).not.toContain("needs a placard");
+  });
+
+  it("still fills a line only the second reader saw — that BOL is not a no-hazmat BOL", async () => {
+    const w = mountForm();
+    await w.setProps({ bolRead: read([{ a: null, b: PAINT, table: ok(PAINT_REF) }]) });
+    await flushPromises();
+    expect(w.find("[data-testid='bol-prefill']").text()).not.toContain("No hazardous materials");
+    expect(lines(w)).toHaveLength(1);
+  });
+
   it("counts a line the table did not match, and answers the rest-of-load question from the paper", async () => {
     const w = mountForm();
     await w.setProps({
