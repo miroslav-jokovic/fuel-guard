@@ -38,6 +38,9 @@ export const DRIVER_REASSIGNMENTS: ReadonlyArray<{ table: string; column: string
   { table: "employer_inquiries", column: "driver_id", orgScoped: true },
   { table: "driver_authorizations", column: "driver_id", orgScoped: true },
   { table: "psp_requests", column: "driver_id", orgScoped: true },
+  // Med-Stop's employee follows the canonical driver (0463): the link is our match, one per Med-Stop
+  // person, and moving it keeps the pool reconciliation right until the next sweep re-derives it.
+  { table: "medstop_employees", column: "driver_id", orgScoped: true },
   { table: "application_invitations", column: "driver_id", orgScoped: true },
   { table: "application_drafts", column: "driver_id", orgScoped: true },
   { table: "application_captures", column: "driver_id", orgScoped: true },

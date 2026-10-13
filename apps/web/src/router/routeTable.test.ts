@@ -50,7 +50,7 @@ const PROBES = [
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/reefer-coverage",
-  "/fuel-planning", "/truck-stops", "/idling",
+  "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol",
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (four since MV2) another specificity pair: the two static
@@ -93,7 +93,7 @@ const PROBES = [
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data", "/settings/recruiting",
-  "/settings/efs-soap", "/settings/fleetpal", "/settings/mcleod-fleets", "/settings/org", "/settings/notifications", "/settings/audit",
+  "/settings/efs-soap", "/settings/fleetpal", "/settings/medstop", "/settings/mcleod-fleets", "/settings/org", "/settings/notifications", "/settings/audit",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated
   // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
   "/privacy", "/terms", "/support", "/sms-terms",

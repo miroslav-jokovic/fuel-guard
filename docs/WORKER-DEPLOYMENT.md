@@ -55,6 +55,7 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 | `startSamsaraScheduler` | minutes | `api` | Samsara's published rate limit, `samsaraFetch` |
 | ↳ its `idle-engine` tier (kind `idle_engine`, IE2) | hourly, + a nightly 2-day recompute chosen inside the run | `api` | `samsaraFetch` + the stats/history 9 req/s cap; ~10 batches × 3 requests an hour, plus one request per long-parked truck; `IDLE_ENGINE_SYNC_MINUTES=0` disables |
 | **`startFleetpalScheduler`** | **hourly** | **`api`** | **nothing published — see below** |
+| **`startMedstopScheduler`** | **hourly** | **`api` ONLY** | **100 requests/min per key; a sweep is ~25. ⚠ The key is IP-bound to `api`'s egress (D-MS3) — anywhere else every call is refused** |
 | `startSmsOutboxScheduler` | 5 minutes | `api` | Telnyx's account rate limit; at most 50 rows per org per run (`DRAIN_BATCH`) |
 | `startFmcsaFeedScheduler` | hourly tick, a run per org 24 h after its last successful one | `api` | Socrata's anonymous per-IP pool (none published); ~30 requests per org per run, measured 2026-10-11; `FMCSA_FEED_HOURS=0` disables |
 
@@ -74,6 +75,12 @@ measured budget to spend against. Three consequences, all deliberate:
 - The jobs ledger's `(org_id, kind)` slot refuses an overlapping sweep for one carrier — which also
   means a second polling process would be **invisible**: its dispatches would be refused and the
   only symptom would be a request count nobody is watching.
+
+⚠ **Med-Stop (MEDSTOP-PLAN MS1, added 2026-10-13)** follows FleetPal's three rules —
+`MEDSTOP_SYNC_ENABLED` defaults to **false**, `KIND_CAPS.medstop_sync = 1`, and the jobs ledger's
+`(org_id, kind)` slot — plus a fourth that FleetPal lacks: it may run only on `api`, because Med-Stop
+checks the caller's address against the key's IP filter. Set `MEDSTOP_SYNC_ENABLED=true` on `api`
+and nowhere else.
 
 ## Safety model
 - The `jobs` ledger (partial unique index on `(org_id, kind)`) already prevents two concurrent runs of the

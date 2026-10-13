@@ -76,6 +76,7 @@ const KIND_CAPS: Record<string, number> = {
   // to spend and the `Retry-After` path in the client is the only defence. A cap above 1 would be a
   // guess made on a carrier's live maintenance system (plan F4, F8).
   fleetpal_sync: 1,
+  medstop_sync: 1, // one key, one 100-a-minute limit, per org — and one org today
   // sharp is CPU-bound; two at a time keeps a burst of uploads from starving the sync kinds.
   document_derive: 2,
 };

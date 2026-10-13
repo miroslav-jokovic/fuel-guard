@@ -157,6 +157,10 @@ export const SURFACES: readonly Surface[] = [
   { key: "safety.alerts", label: "Alerts", path: "/anomalies", group: "safety", gate: section("safety") },
   { key: "safety.driver-performance", label: "Driver Performance", path: "/driver-performance", group: "safety", gate: section("safety") },
   { key: "safety.idling", label: "Idling", path: "/idling", group: "safety", gate: section("safety") },
+  // The DOT drug & alcohol program as Med-Stop holds it (MEDSTOP-PLAN §6 F-1/F-2, 2026-10-13): who is
+  // outside the random pool, how far the year's rate has to go. `safety` reads it; who is selected
+  // and untested is held inside the page to the roles that read testing records.
+  { key: "safety.drug-alcohol", label: "Drug & Alcohol", path: "/drug-alcohol", group: "safety", gate: section("safety") },
   /**
    * The driver qualification file (§391.51) — certifications, the DQF event history, and the scans
    * behind both. `roster` and not `safety`: the §391.51 file is a fact about a PERSON, and that gate
@@ -406,6 +410,9 @@ export const SURFACES: readonly Surface[] = [
   // The FleetPal connection (2026-10-04). Admin-only for `fleetpal.connection`'s reason in
   // namedGrants.ts: the key it stores speaks for the carrier to the shop system.
   { key: "admin.settings.fleetpal", label: "FleetPal integration", path: "/settings/fleetpal", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // The Med-Stop connection (MEDSTOP-PLAN MS1, 2026-10-13). Admin-only for `medstop.connection`'s
+  // reason in namedGrants.ts: the key reaches every driver's testing record at the C/TPA.
+  { key: "admin.settings.medstop", label: "Med-Stop integration", path: "/settings/medstop", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
