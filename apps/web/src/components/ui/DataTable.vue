@@ -9,6 +9,7 @@ import DataTableCards from "@/components/ui/DataTableCards.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import type { SortState } from "@/lib/sort";
 import { isBlank } from "@/components/ui/dataTable";
+import { reportToWorkspace } from "@/components/ui/workspaceTable";
 
 /**
  * The one data table. Column-definition driven so alignment, selection,
@@ -176,6 +177,9 @@ const emit = defineEmits<{
   "update:selected": [selected: Set<string>];
   "row-click": [row: Row];
 }>();
+
+// A toolbar above this table prints its count only once the table has an answer (F15).
+reportToWorkspace(() => ({ loading: props.loading, failed: !!props.error }));
 
 const slots = useSlots();
 const hasActions = computed(() => !!slots.actions);
