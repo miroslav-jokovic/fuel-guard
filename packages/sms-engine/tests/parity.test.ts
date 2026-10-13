@@ -14,6 +14,7 @@ const iso = (ymd: string) => `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(
 const feedInsp = fx("feed-inspections.json");
 const feedViol = fx("feed-violations.json");
 const feedCit = fx("feed-citations.json");
+const postAccident = new Set(fx("feed-post-accident.json").filter((r) => r.post_acc_ind === "Y").map((r) => r.inspection_id));
 const smsInsp = fx("sms-inspections.json");
 const smsViol = fx("sms-violations.json");
 
@@ -42,6 +43,7 @@ const inputs: SmsInspectionInput[] = feedInsp
     date: iso(r.insp_date!),
     level: r.insp_level_id ? Number(r.insp_level_id) : null,
     hazmatPlacard: r.hazmat_placard_req === "Y" ? true : r.hazmat_placard_req === "N" ? false : null,
+    postAccident: postAccident.has(r.inspection_id!),
     addedOn: iso(r.mcmis_add_date!.slice(0, 8)),
     violations: (violsBy.get(r.inspection_id!) ?? []).map((v) => ({
       id: v.insp_violation_id!,
@@ -72,7 +74,6 @@ const UNEXPLAINED = [
   "1034700595|AZ 172202A1HMSPS", "1034700595|AZ 172202A3HMSPS",
   "1875000002|OH 172203KHMSPS", "1875000002|OH 172302AHMM",
   "3017001745|CT 172502A1HMPP",
-  "4179180099|IL 3922LC",
   "7751000395|AZ 172202A4HMSPS", "7751000395|AZ 172202BHMSPS", "7751000395|AZ 17324B1HMNBP",
   "U770601414|MT 172201DHMSPS", "U770601414|MT 172202BHMSPS",
   "UDMC997699|CA 172202A2HMSPS", "UDMC997699|CA 172506AHMPMC",

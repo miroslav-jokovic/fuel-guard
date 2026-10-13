@@ -12,6 +12,8 @@
  *   appendix     the code is in the Appendix A edition in force (111 of ours are not, e.g. 392.2LV).
  *   level        the inspection is relevant to the code's BASIC (`BASIC_RULES`); ten are not.
  *   placard      HM Compliance counts only where placardable HM was carried; 23 were not.
+ *   crash        on a post-crash inspection, a moving violation is the crash and does not count (§2.2
+ *                fn. 8, `BASIC_RULES.crashRelated`); 4179180099's lane change, added 2026-10-13 (Q-IC9).
  *   dismissed    adjudicated citation code 3 removes the violation (Table 2-1).
  *   once         a code counts once per inspection; out-of-service if ANY occurrence was (§3).
  * Then weights: severity from Appendix A — 1 when convicted of a different charge (code 2), which
@@ -42,6 +44,8 @@ export interface SmsInspectionInput {
   date: string;
   level: number | null;
   hazmatPlacard: boolean | null;
+  /** FMCSA's `post_acc_ind`: the inspection followed a crash. Null (not reported) is not a crash. */
+  postAccident: boolean | null;
   /** YYYY-MM-DD, the day the inspection reached MCMIS (`mcmis_add_date`). */
   addedOn: string;
   violations: readonly SmsViolationInput[];
@@ -53,6 +57,7 @@ export type ExclusionReason =
   | "not_in_appendix"
   | "level_not_relevant"
   | "hm_not_placardable"
+  | "crash_related"
   | "dismissed"
   | "counted_once";
 
@@ -131,6 +136,7 @@ export function scoreSms(
       const rules = BASIC_RULES[def.basic];
       if (rules.levels && (insp.level === null || !rules.levels.has(insp.level))) { exclude(insp.id, v.id, "level_not_relevant"); continue; }
       if (rules.placardOnly && insp.hazmatPlacard !== true) { exclude(insp.id, v.id, "hm_not_placardable"); continue; }
+      if (rules.crashRelated && insp.postAccident === true) { exclude(insp.id, v.id, "crash_related"); continue; }
       if (v.citationResult === 3) { exclude(insp.id, v.id, "dismissed"); continue; }
       const differentCharge = v.citationResult === 2;
       const severity = differentCharge ? 1 : def.severity;
