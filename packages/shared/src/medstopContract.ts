@@ -26,7 +26,27 @@ export interface MedstopConnectionStatus {
   keyExpiresOn: string | null;
   lastSyncedAt: string | null;
   lastError: string | null;
+  /** UX3 (0468): ordering tests from the product — off until the first watched order (D-MSUX2). */
+  ordersEnabled: boolean;
+  /** The office contact every order carries instead of the driver's (D-MSUX5). Admin-only screen. */
+  orderContactEmail: string | null;
+  orderContactPhone: string | null;
 }
+
+/** Settings › Med-Stop: the ordering switch and the office contact, saved together. */
+export const medstopOrderingSchema = z
+  .object({
+    enabled: z.boolean(),
+    email: z.string().trim().email().nullable(),
+    // Ten digits, the shape 0468's check holds; the screen strips punctuation before sending.
+    phone: z.string().regex(/^\d{10}$/).nullable(),
+  })
+  .strict()
+  .refine((o) => !o.enabled || (o.email !== null && o.phone !== null), {
+    message: "Ordering needs the office's e-mail and phone — every order carries them instead of the driver's.",
+    path: ["enabled"],
+  });
+export type MedstopOrderingInput = z.infer<typeof medstopOrderingSchema>;
 
 /** One person on either roster, as the reconciliation lists show them. */
 export interface ProgramPerson {

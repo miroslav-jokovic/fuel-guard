@@ -126,3 +126,32 @@ describe("storing a Med-Stop key", () => {
     expect(db.writtenRows("medstop_credentials")[0]).toMatchObject({ enabled: false });
   });
 });
+
+/**
+ * UX3 (0468): the ordering switch and the office contact. Turning ordering ON asks for a fresh sign-in
+ * and both contact fields; turning it OFF asks for nothing — an off switch must work in a hurry.
+ */
+describe("POST /medstop/ordering", () => {
+  const on = { enabled: true, email: "der@silvicom.test", phone: "3125550100" };
+  it("refuses to switch ordering on without the office's e-mail and phone", async () => {
+    const r = await post("ordering", { enabled: true, email: null, phone: null });
+    expect(r.status).toBe(400);
+  });
+  it("asks for a fresh sign-in to switch ordering on", async () => {
+    const r = await post("ordering", on, false);
+    expect(r.status).toBe(403);
+    expect(db.writtenRows("audit_logs")).toEqual([]);
+  });
+  it("switches on with a fresh sign-in, and audits it", async () => {
+    const r = await post("ordering", on);
+    expect(r.status).toBe(200);
+    expect(db.writtenRows("medstop_credentials")[0]).toMatchObject({ orders_enabled: true, order_contact_email: on.email, order_contact_phone: on.phone });
+    expect(db.writtenRows("audit_logs")[0]).toMatchObject({ action: "integration.medstop.ordering_on" });
+  });
+  it("switches off without asking for a password", async () => {
+    const r = await post("ordering", { enabled: false, email: null, phone: null }, false);
+    expect(r.status).toBe(200);
+    expect(db.writtenRows("audit_logs")[0]).toMatchObject({ action: "integration.medstop.ordering_off" });
+  });
+});
+

@@ -6,6 +6,7 @@ import { shiftDay, todayInZone, DEFAULT_ORG_TIMEZONE } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
+import MedstopOrderingCard from "@/features/settings/MedstopOrderingCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
 import { useMedstopStatus, useSaveMedstopKey, useSetMedstopEnabled } from "@/features/settings/useMedstopConnection";
@@ -76,7 +77,8 @@ async function onToggle(enabled: boolean) {
     <PageHeader>
       Med-Stop runs the company's DOT drug and alcohol program: the random pools, the selections, and
       every test. Once connected, Silvicom 360 reads its roster and random pools every hour and shows
-      the results on Safety › Drug &amp; Alcohol. It does not order or change anything in Med-Stop.
+      the results on Safety › Drug &amp; Alcohol. It orders a test only when ordering is switched on below,
+      and changes nothing else in Med-Stop.
     </PageHeader>
 
     <QueryState
@@ -155,6 +157,8 @@ async function onToggle(enabled: boolean) {
           </BaseButton>
         </div>
       </BaseCard>
+
+      <MedstopOrderingCard v-if="!stepUpFor && s!.hasKey" :status="s!" />
 
       <JobActionCard
         v-if="s!.hasKey && s!.enabled"
