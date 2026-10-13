@@ -1,6 +1,6 @@
 # UI standardization — every page and component on one set of rules
 
-**Status:** IN EXECUTION — US0–US2 and US4 merged (2026-10-12); US3+US5 building; US6–US7 planned.
+**Status:** IN EXECUTION — US0–US6 merged 2026-10-12/13; US6b (browser pass) next; US7 (admin) waits on Q-US1.
 **Owner ruling:** "proceed as suggested and let's do this properly so we have all pages and components
 100% production ready" (2026-10-12).
 **Canonical rules it feeds:** `docs/DESIGN-SYSTEM-CONTRACT.md` (what a page must look like) and
@@ -62,14 +62,14 @@ merged result: nothing in it is missing from `main`.
 
 | Step | What | Status |
 |---|---|---|
-| US0 | This document; contract §5 brought up to date; adoption baseline regenerated | DONE 2026-10-12 |
+| US0 | This document; contract §5 brought up to date; adoption baseline regenerated | DONE 2026-10-13 |
 | US1 | `useQueryState` grows what every list needs: a default that stays out of the URL, on/off flags, the page, a scope for two lists on one route, and ONE buffer per router (D-US2) | DONE 2026-10-12 |
 | US2 | All 33 lists onto the URL; gate rule so a new list cannot skip it (closes G1) | MERGED 2026-10-12 |
 | US3 | Every page notice through `AppCallout`, gated (closes G2) | MERGED 2026-10-12 |
 | US4 | `AppTable` call sites onto `DataTable` or a labelled exception; the gate counts `AppTable` as a raw table (closes G3) | MERGED 2026-10-12 |
 | US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | MERGED 2026-10-12 |
-| US5b | The three roster form drawers put Save in the footer; gate (G6) | BUILT 2026-10-12 (claude/ui-std-facts) |
-| US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | BUILT 2026-10-12 (claude/ui-std-facts) |
+| US5b | The three roster form drawers put Save in the footer; gate (G6) | MERGED 2026-10-13 |
+| US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | MERGED 2026-10-13 |
 | US6b | A browser pass of every routed page at 1280 px and 390 px | planned |
 | US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
 
