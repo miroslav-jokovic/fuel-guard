@@ -41,6 +41,7 @@ import ShopWidget from "@/features/maintenance/ShopWidget.vue";
 import OpsFuelWidget from "@/features/dashboard/widgets/OpsFuelWidget.vue";
 import HazmatReviewWidget from "@/features/hazmat/HazmatReviewWidget.vue";
 import HiringWidget from "@/features/recruitment/HiringWidget.vue";
+import RoadsideWidget from "@/features/roadside/RoadsideWidget.vue";
 
 export const WIDGET_COMPONENTS: Record<string, Component> = {
   // Operations (FLEET-MANAGER-HOME-PLAN §4). Each card lives in the feature that owns its data (D-FM8);
@@ -54,6 +55,7 @@ export const WIDGET_COMPONENTS: Record<string, Component> = {
   "ops.fuel": OpsFuelWidget,
   "ops.hazmat": HazmatReviewWidget,
   "ops.hiring": HiringWidget,
+  "ops.roadside": RoadsideWidget,
   "fleet.fuel": FuelWidget,
   "fleet.efficiency": EfficiencyWidget,
   "fleet.attention": AttentionWidget,

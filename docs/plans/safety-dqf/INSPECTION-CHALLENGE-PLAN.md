@@ -513,3 +513,17 @@ about three merges.
     denominator, and percentiles need every other carrier, which FMCSA does not publish. IC4 shows
     the per-violation impact (`basicPoints` with and without the violation) for verified BASICs
     only. The feed-freshness alert (IC1c) is still pending.
+- **2026-10-13 — The Inspections inbox's first slice (§6), for FLEET-MANAGER-HOME-PLAN FM5 (Q-FM7 (a),
+  owner).** This is the projection's first reader: `GET /api/roadside-inspections` and the page
+  `/roadside-inspections`, in the `safety` section (D-IC12).
+  - Every inspection FMCSA currently records, newest first. Records with `vanished_at` set are left
+    out; showing removals is IC4's, as a filter of its own.
+  - Filters: period, OOS kind, and search (report, state, location, unit).
+  - Each unit shows the officer's company number or plate, and "not matched" when 0458 found no single
+    roster match (D-IC7).
+  - Not yet built: the "has candidate" and "needs task" filters (IC4), the driver column and filter
+    (IC5 attribution), the SMS weight columns (IC3's impact, shown in IC4), and the inspection page
+    (IC6).
+  - The Operations tab's Roadside card counts this list through `summarizeRoadside`.
+  - Measured: the three OOS counts overlap. On all 30 inspections where `oos_total` differs from
+    `driver + vehicle + hazmat`, the hazmat order is also counted as a vehicle or driver order.

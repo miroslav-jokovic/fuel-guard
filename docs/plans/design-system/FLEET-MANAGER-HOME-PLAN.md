@@ -280,6 +280,23 @@ needs a migration.
       and could not.
   **Recommend (a).** The 24 orders and 52 defects become something a fleet manager can act on rather
   than just a number. The lists are also what F11 owes the shop anyway.
+- **Q-FM7 — RESOLVED 2026-10-13 (owner): (a), build the inspections list first.** Was: the Roadside
+  card's figures had no list to open. `roadside_inspections` filled in production on 2026-10-13 (1,394
+  rows), but nothing read it: no route, no page, no contract. INSPECTION-CHALLENGE-PLAN §6 defines that
+  list as the Inspections inbox. Candidates were (a) build the inbox's first slice now (the list, with
+  period and OOS filters, and no cases or tasks), owned by `inspections` under `safety`, then the card
+  on top with counts = list lengths; or (b) wait for IC4/IC6 to ship the whole inbox. (a) was
+  recommended because it is the inbox's own first slice, not throwaway work.
+- **Q-FM8 — the clean-inspection rate (found building FM5, 2026-10-13).** §4 card 10 lists a
+  "clean-inspection rate", and nothing defines "clean". No document in `docs/regulatory/fmcsa/`
+  defines it (the SMS methodology, the DataQs manual and the SMS updates guide were searched). The
+  feed gives two candidate meanings. Production's last 90 days: 111 inspections.
+  (a) **No violations at all** (`violations_total = 0`): 57 of 111, 51%. This is the meaning the
+      industry uses, and the stricter one.
+  (b) **No out-of-service order** (`oos_total = 0`): 93 of 111, 84%. This is the complement of the
+      OOS rate, so it adds nothing the OOS rows above it do not already say.
+  Either way the rate needs a list behind it (D-FM9): `?clean=1` on the inspections list, filtered by
+  the same predicate. **Recommend (a).** Until this is ruled, the card shows four figures and no rate.
 
 ## 8. Not in scope
 
@@ -368,3 +385,19 @@ landing tab.
   - Staging still has no FleetPal rows, so the Shop card's real figures are seen in production after
     the release.
   - Owed from this plan: FM5 (roadside, blocked on the projection) and Q-FM5 (PM due, its own plan).
+- 2026-10-13: **FM5 built** (`claude/roadside-inspections-list`), after Q-FM7 was ruled (a).
+  - **The list:** `GET /api/roadside-inspections[?from=]`, owned by `inspections` and gated
+    `safety: view`. It reads the inspections FMCSA currently records (vanished ones are left out),
+    newest first, with each unit and whether 0458 matched it to our roster. The page is
+    `/roadside-inspections` (Safety › Roadside inspections), with period (90 days / 365 days / all)
+    and OOS-kind filters plus search.
+  - **The card:** `ops.roadside`, gated `section("safety")`, reading `GET /api/roadside-inspections/summary`.
+    That endpoint is `summarizeRoadside` over the same reader with the card's window, cut on the org's
+    calendar (`roadsidePeriodStart`), so each figure is the length of the list its door opens. It
+    shows four figures: inspections, plus inspections carrying a driver, vehicle or hazmat OOS order.
+  - **The OOS kinds overlap.** On every one of the 30 inspections where `oos_total` differs from the
+    sum of the three, the hazmat order is also counted as a vehicle (or driver) order. So the card
+    never totals them.
+  - **Production, last 90 days, 2026-10-13:** 111 inspections; 1 driver, 18 vehicle, 2 hazmat.
+  - **Clean-inspection rate:** held for Q-FM8.
+  - The card sits alone on a fourth row at 4 of 12 columns, after Hiring.

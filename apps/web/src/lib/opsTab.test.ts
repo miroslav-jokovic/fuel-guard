@@ -95,6 +95,12 @@ const SHOP = { openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:12:00+0
 const shop = ref<typeof SHOP>(SHOP);
 vi.mock("@/features/maintenance/useShopBacklog", () => ({ useShopSummaryQuery: () => ({ data: shop }) }));
 
+// ── roadside ────────────────────────────────────────────────────────────────────────────────────
+// Production's 90 days on 2026-10-13: 111 inspections; 1 / 18 / 2 carrying a driver / vehicle / hazmat OOS order.
+const ROADSIDE = { from: "2026-07-15", inspections: 111, driverOos: 1, vehicleOos: 18, hazmatOos: 2 };
+const roadside = ref<typeof ROADSIDE | undefined>(ROADSIDE);
+vi.mock("@/features/roadside/useRoadsideInspections", () => ({ useRoadsideSummaryQuery: () => ({ data: roadside }) }));
+
 // ── hazmat, hiring, fuel ────────────────────────────────────────────────────────────────────────
 vi.mock("@/features/hazmat/useHazmatReview", () => ({ useHazmatReviewCountQuery: () => ({ data: ref(2) }) }));
 vi.mock("@/features/recruitment/useEmployment", async (orig) => ({
@@ -132,6 +138,7 @@ beforeEach(() => {
   session.surfaces = null;
   modules.value = new Set(["dispatch", "navigation", "hazmatguard"]);
   shop.value = SHOP;
+  roadside.value = ROADSIDE;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -140,6 +147,7 @@ describe("the Operations tab", () => {
     expect(cards(render())).toEqual([
       "widget-ops.fleet-now", "widget-ops.road-attention", "widget-ops.driver-files", "widget-ops.seats",
       "widget-ops.shop", "widget-ops.truck-papers", "widget-ops.fuel", "widget-ops.hazmat", "widget-ops.hiring",
+      "widget-ops.roadside",
     ]);
   });
 
@@ -157,6 +165,15 @@ describe("the Operations tab", () => {
     expect(cards(w)).toEqual(["widget-ops.seats", "widget-ops.shop", "widget-ops.truck-papers"]);
     // …and the Seats card drops its drivers line, which reads the roster.
     expect(w.find("[data-test='count-no-truck']").exists()).toBe(false);
+  });
+
+  it("gives the Roadside card to whoever reads safety, and to nobody else (FM5)", () => {
+    // An org that grants a dispatcher the fleet's record gets them the tab — not FMCSA's record on it.
+    session.role = "dispatcher";
+    session.sections = { equipment: "manage" };
+    expect(cards(render())).not.toContain("widget-ops.roadside");
+    session.sections = { equipment: "manage", safety: "view" };
+    expect(cards(render())).toContain("widget-ops.roadside");
   });
 
   it("drops the hazmat card for an org without the module", () => {
@@ -204,6 +221,19 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["—", "—", "—"]);
   });
 
+  it("roadside: the summary's counts, each the length of the inspections list on the server", () => {
+    const w = render();
+    expect([n(w, "inspections"), n(w, "driver-oos"), n(w, "vehicle-oos"), n(w, "hazmat-oos")]).toEqual(["111", "1", "18", "2"]);
+    // The kinds overlap (a hazmat OOS order is also a vehicle one), so nothing on the card totals them.
+    expect(w.get("[data-test='widget-ops.roadside']").text()).not.toMatch(/\b21\b/);
+  });
+
+  it("roadside: a dash — never a zero — before the answer arrives", () => {
+    roadside.value = undefined;
+    const w = render();
+    expect([n(w, "inspections"), n(w, "driver-oos"), n(w, "vehicle-oos"), n(w, "hazmat-oos")]).toEqual(["—", "—", "—", "—"]);
+  });
+
   it("hiring and hazmat: the board's split and the badge's count", () => {
     const w = render();
     expect([n(w, "us"), n(w, "them"), n(w, "needs-review")]).toEqual(["2", "1", "2"]);
@@ -220,6 +250,8 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
       "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",
+      "/roadside-inspections?period=90d", "/roadside-inspections?period=90d&oos=driver",
+      "/roadside-inspections?period=90d&oos=vehicle", "/roadside-inspections?period=90d&oos=hazmat",
     ]) expect(h, door).toContain(door);
   });
 });

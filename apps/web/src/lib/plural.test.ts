@@ -136,6 +136,8 @@ const EXPECTED: Record<string, string> = {
   // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.
   problems: "problem",
   readings: "reading",
+  // FM5 (Q-FM7 (a)): FMCSA's roadside record, the list the Roadside card opens.
+  "roadside inspections": "roadside inspection",
   requirements: "requirement",
   // FilterBar's default, for a caller that passes a count and no label of its own.
   results: "result",

@@ -192,6 +192,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/drug-alcohol",
   },
   {
+    "name": "roadside-inspections",
+    "params": {},
+    "url": "/roadside-inspections",
+  },
+  {
     "name": "drivers",
     "params": {},
     "url": "/drivers",
@@ -1195,6 +1200,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "reset-password",
     "path": "/reset-password",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Roadside inspections",
+    },
+    "name": "roadside-inspections",
+    "path": "/roadside-inspections",
     "redirect": null,
   },
   {

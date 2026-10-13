@@ -161,6 +161,10 @@ export const SURFACES: readonly Surface[] = [
   // outside the random pool, how far the year's rate has to go. `safety` reads it; who is selected
   // and untested is held inside the page to the roles that read testing records.
   { key: "safety.drug-alcohol", label: "Drug & Alcohol", path: "/drug-alcohol", group: "safety", gate: section("safety") },
+  // Our FMCSA roadside inspections, newest first (INSPECTION-CHALLENGE-PLAN §6, the Inspections inbox's
+  // first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a), 2026-10-13) — and the list the Operations tab's
+  // Roadside card opens. `safety` per D-IC12; cases and filings join this page in IC4.
+  { key: "safety.roadside-inspections", label: "Roadside inspections", path: "/roadside-inspections", group: "safety", gate: section("safety") },
   /**
    * The driver qualification file (§391.51) — certifications, the DQF event history, and the scans
    * behind both. `roster` and not `safety`: the §391.51 file is a fact about a PERSON, and that gate
