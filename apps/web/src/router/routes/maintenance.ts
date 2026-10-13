@@ -38,6 +38,23 @@ export const maintenanceRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/MaintenanceSpendPage.vue"),
     meta: { requiresAuth: true, title: "Repair spend", parent: "/shop" },
   },
+  /**
+   * FleetPal's open work orders and open defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the lists
+   * behind the Shop card's figures and the shop home's repair tiles. Read-only: the repair is worked
+   * in FleetPal (D-INV10).
+   */
+  {
+    path: "/shop/work-orders",
+    name: "work-orders",
+    component: () => import("@/pages/WorkOrdersPage.vue"),
+    meta: { requiresAuth: true, title: "Open work orders", parent: "/shop" },
+  },
+  {
+    path: "/shop/defects",
+    name: "defects",
+    component: () => import("@/pages/DefectsPage.vue"),
+    meta: { requiresAuth: true, title: "Open defects", parent: "/shop" },
+  },
   {
     path: "/shop/inventory",
     name: "parts",

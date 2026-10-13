@@ -4,11 +4,13 @@ import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
 import {
   ArrowsRightLeftIcon,
   ChecklistIcon,
+  ClipboardDocumentListIcon,
   ExclamationTriangleIcon,
   GaugeIcon,
   PlusIcon,
   ScanIcon,
   TruckIcon,
+  WrenchIcon,
 } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
@@ -19,6 +21,7 @@ import { fmtMoney } from "@/lib/chartTheme";
 import { useMaintenanceSpendQuery } from "@/features/maintenance/useMaintenanceSpend";
 import { useLowStockQuery, useMovementsQuery, usePartsQuery } from "@/features/inventory/useInventory";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
+import { useShopSummaryQuery } from "@/features/maintenance/useShopBacklog";
 import StartCountDrawer from "@/features/inventory/StartCountDrawer.vue";
 import StockLevelCell from "@/features/inventory/StockLevelCell.vue";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
@@ -91,6 +94,14 @@ const startOfToday = computed(() => {
 const todayFilter = computed(() => ({ since: startOfToday.value, page: 1 }));
 const { data: today, isLoading: todayLoading } = useMovementsQuery(todayFilter);
 
+/**
+ * The repair backlog FleetPal holds (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the same counts as the
+ * Operations tab's Shop card, from the same endpoint, each the length of the list it opens. They sit
+ * ABOVE the first-run callout: "no parts on the shelves" is about inventory, and an org with no parts
+ * entered still has trucks in the shop.
+ */
+const summary = useShopSummaryQuery();
+
 const session = useSessionStore();
 const counting = ref(false);
 
@@ -135,7 +146,7 @@ const unitPath = (u: UnitKitDto) =>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="What the shop holds, what needs ordering, and what moved today.">
+    <PageHeader description="What is in for repair, what the shop holds, what needs ordering, and what moved today.">
       <template v-if="session.can('maintenance')" #actions>
         <!-- The two things on this page that start a task rather than opening a list.
              Scan leads: it is the verb of the job — a technician arrives at this screen holding a
@@ -149,6 +160,29 @@ const unitPath = (u: UnitKitDto) =>
         </BaseButton>
       </template>
     </PageHeader>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <StatCard
+        label="Open work orders"
+        :value="summary.data.value?.openWorkOrders ?? 0"
+        :muted="(summary.data.value?.openWorkOrders ?? 0) === 0"
+        sub="Repairs FleetPal has in progress"
+        :icon="WrenchIcon"
+        tone="warning"
+        :loading="summary.isLoading.value"
+        :to="opens('/shop/work-orders') ? '/shop/work-orders' : undefined"
+      />
+      <StatCard
+        label="Open defects"
+        :value="summary.data.value?.unresolvedDefects ?? 0"
+        :muted="(summary.data.value?.unresolvedDefects ?? 0) === 0"
+        sub="Found on inspections, not yet resolved"
+        :icon="ClipboardDocumentListIcon"
+        tone="danger"
+        :loading="summary.isLoading.value"
+        :to="opens('/shop/defects') ? '/shop/defects' : undefined"
+      />
+    </div>
 
     <!-- A callout, not a hand-rolled card: it is a fact about the page that survives every action
          on it, and the product has a primitive for exactly that. -->

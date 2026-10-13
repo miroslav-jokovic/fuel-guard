@@ -37,6 +37,7 @@ import RoadAttentionWidget from "@/features/dispatch/RoadAttentionWidget.vue";
 import DriverFilesWidget from "@/features/compliance/DriverFilesWidget.vue";
 import SeatsWidget from "@/features/roster/SeatsWidget.vue";
 import TruckPapersWidget from "@/features/roster/TruckPapersWidget.vue";
+import ShopWidget from "@/features/maintenance/ShopWidget.vue";
 import OpsFuelWidget from "@/features/dashboard/widgets/OpsFuelWidget.vue";
 import HazmatReviewWidget from "@/features/hazmat/HazmatReviewWidget.vue";
 import HiringWidget from "@/features/recruitment/HiringWidget.vue";
@@ -48,6 +49,7 @@ export const WIDGET_COMPONENTS: Record<string, Component> = {
   "ops.road-attention": RoadAttentionWidget,
   "ops.driver-files": DriverFilesWidget,
   "ops.seats": SeatsWidget,
+  "ops.shop": ShopWidget,
   "ops.truck-papers": TruckPapersWidget,
   "ops.fuel": OpsFuelWidget,
   "ops.hazmat": HazmatReviewWidget,

@@ -4,14 +4,15 @@ import { requireAuth, requireOrg, requireSection } from "../../../middleware/aut
 import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
-import { readShopBacklog } from "../../fleetpal/index.js";
+import { readOpenWorkOrders, readShopBacklog, readUnresolvedDefects } from "../../fleetpal/index.js";
 import { listLowStock } from "../inventory/stock.js";
 import { isServiceError } from "../inventory/types.js";
 import { statusForServiceError } from "../inventory/httpStatus.js";
 
 /**
  * `GET /api/maintenance/shop-summary` — the Operations tab's Shop card (FLEET-MANAGER-HOME-PLAN.md
- * FM3): what is broken or waiting on the shop, as counts.
+ * FM3): what is broken or waiting on the shop, as counts — and `/work-orders` and `/defects`, the two
+ * lists behind them (Q-FM6 (a)). Each count is its list's length (`shopBacklog.ts`).
  *
  * ── TWO OWNERS, ONE ANSWER, NO NEW RULE ────────────────────────────────────────────────────────
  * The work orders and defects are FleetPal's record (D-INV10) and are read by the collector's own
@@ -48,6 +49,24 @@ export function shopSummaryRouter(): Router {
       res.json({ ok: true, data });
     }),
   );
+
+  /** Whole lists, unpaginated: a list of what the shop owes that stopped early would be believed. */
+  const list = (path: string, read: typeof readOpenWorkOrders | typeof readUnresolvedDefects, what: string) =>
+    router.get(
+      path,
+      requireOrg,
+      requireSection("maintenance", "view"),
+      asyncHandler(async (req, res) => {
+        const rows = await read(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!);
+        if ("error" in rows) {
+          dbErrorResponse(res, `maintenance.${path.slice(1)}`, rows.error, `Could not load the ${what}`);
+          return;
+        }
+        res.json({ ok: true, data: rows });
+      }),
+    );
+  list("/work-orders", readOpenWorkOrders, "open work orders");
+  list("/defects", readUnresolvedDefects, "unresolved defects");
 
   return router;
 }

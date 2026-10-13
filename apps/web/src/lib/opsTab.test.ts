@@ -89,6 +89,12 @@ const DRIVERS = [
 vi.mock("@/composables/useVehicles", () => ({ useVehiclesQuery: () => ({ data: ref(VEHICLES) }) }));
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref(DRIVERS) }) }));
 
+// ── the shop ────────────────────────────────────────────────────────────────────────────────────
+// Opened 2026-06-24 at 15:12 UTC = 10:12 Chicago; "today" below is 2026-10-12 in Chicago → 110 days.
+const SHOP = { openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:12:00+00:00", unresolvedDefects: 52, lowStockLines: 3 };
+const shop = ref<typeof SHOP>(SHOP);
+vi.mock("@/features/maintenance/useShopBacklog", () => ({ useShopSummaryQuery: () => ({ data: shop }) }));
+
 // ── hazmat, hiring, fuel ────────────────────────────────────────────────────────────────────────
 vi.mock("@/features/hazmat/useHazmatReview", () => ({ useHazmatReviewCountQuery: () => ({ data: ref(2) }) }));
 vi.mock("@/features/recruitment/useEmployment", async (orig) => ({
@@ -125,6 +131,7 @@ beforeEach(() => {
   session.sections = null;
   session.surfaces = null;
   modules.value = new Set(["dispatch", "navigation", "hazmatguard"]);
+  shop.value = SHOP;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -132,7 +139,7 @@ describe("the Operations tab", () => {
   it("gives a fleet manager every card, in the plan's order", () => {
     expect(cards(render())).toEqual([
       "widget-ops.fleet-now", "widget-ops.road-attention", "widget-ops.driver-files", "widget-ops.seats",
-      "widget-ops.truck-papers", "widget-ops.fuel", "widget-ops.hazmat", "widget-ops.hiring",
+      "widget-ops.shop", "widget-ops.truck-papers", "widget-ops.fuel", "widget-ops.hazmat", "widget-ops.hiring",
     ]);
   });
 
@@ -142,11 +149,12 @@ describe("the Operations tab", () => {
   });
 
   it("gates each card on its own section — the tab gate decides who gets the page, not what is on it", () => {
-    // A technician an org trusts with the fleet's record: equipment yes, roster/dispatch/fuel none.
+    // A technician an org trusts with the fleet's record: equipment yes, roster/dispatch/fuel none —
+    // and the shop is theirs by role, so the Shop card comes with them.
     session.role = "technician";
     session.sections = { equipment: "manage" };
     const w = render();
-    expect(cards(w)).toEqual(["widget-ops.seats", "widget-ops.truck-papers"]);
+    expect(cards(w)).toEqual(["widget-ops.seats", "widget-ops.shop", "widget-ops.truck-papers"]);
     // …and the Seats card drops its drivers line, which reads the roster.
     expect(w.find("[data-test='count-no-truck']").exists()).toBe(false);
   });
@@ -181,6 +189,21 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect([n(w, "registration_overdue"), n(w, "registration_due"), n(w, "registration_missing")]).toEqual(["1", "0", "1"]);
   });
 
+  it("shop: the summary's counts, each the length of its list on the server, and the oldest order's age", () => {
+    const w = render();
+    expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["24", "52", "3"]);
+    // The carrier's calendar day, counted the way the list's "Open for" column counts it.
+    expect(w.get("[data-test='widget-ops.shop']").text()).toContain("oldest open 110 days");
+  });
+
+  it("shop: no age without an open order, and a dash — never a zero — before the answer arrives", () => {
+    shop.value = { ...SHOP, openWorkOrders: 0, oldestOpenWorkOrderAt: null as unknown as string };
+    expect(render().get("[data-test='widget-ops.shop']").text()).not.toContain("oldest");
+    shop.value = undefined as unknown as typeof SHOP;
+    const w = render();
+    expect([n(w, "work-orders"), n(w, "defects"), n(w, "low-stock")]).toEqual(["—", "—", "—"]);
+  });
+
   it("hiring and hazmat: the board's split and the badge's count", () => {
     const w = render();
     expect([n(w, "us"), n(w, "them"), n(w, "needs-review")]).toEqual(["2", "1", "2"]);
@@ -196,6 +219,7 @@ describe("every count is the row count behind its door (D-FM7)", () => {
       "/vehicles?check=no_driver", "/drivers?status=active&seat=none", "/vehicles?status=ordered",
       "/vehicles?check=inspection_overdue", "/vehicles?check=registration_missing",
       "/?tab=fleet", "/anomalies", "/idling", "/hazmat/review", "/recruitment", "/recruitment?waiting=them",
+      "/shop/work-orders", "/shop/defects", "/shop/inventory?stock=low",
     ]) expect(h, door).toContain(door);
   });
 });

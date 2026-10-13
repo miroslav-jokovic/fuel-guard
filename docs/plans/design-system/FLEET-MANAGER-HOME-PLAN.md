@@ -315,3 +315,24 @@ landing tab.
   - **Hazmat review's door** starts off for fleet_manager (`safety.hazmat-review` `startsOnFor: []`),
     so the card shows its count without a link until an admin turns the screen on — SP5's rule.
   - No new chart colours: the cards are counts, not bars, so no palette joined `check-chart-colors`.
+- 2026-10-13: FM3 built (`claude/fleet-manager-shop-card`). The FM3 build turned up Q-FM6, and the owner
+  ruled (a): build the two lists first. Changes from §4 and §5 met while building:
+  - **Two new read-only pages, children of the shop home:** `/shop/work-orders` (FleetPal status
+    `OPEN`) and `/shop/defects` (`is_resolved = false`). Surfaces `maintenance.work-orders` and
+    `maintenance.defects`, parented on `maintenance.repair-spend` like the ledger, because the group
+    is fixed at six rows. Neither page has a status filter: each is exactly the list its count names.
+  - **Each count is its list's length on the server** (`fleetpal/shopBacklog.ts`): one predicate per
+    list, and `readShopBacklog` measures the lists rather than running a separate `count`. Both sets
+    are bounded by what is outstanding (24 and 52 today), not by history.
+  - **Low stock is counted in LINES** (`lowStockLines`, a part × location pair), because that is the
+    row the Parts page's `?stock=low` view lists. It comes from `listLowStock`, the same reader.
+  - **The oldest order is an instant** (`oldestOpenWorkOrderAt`), not a day cut on a UTC server.
+    `shopDayOf` and `daysSince` in `shopSummaryContract.ts` turn it into the carrier's day for both
+    the card's "oldest open N days" and the list's "Open for" column.
+  - **Units are FleetPal's own fleet numbers**, not a join to our roster, so an order on an unmatched
+    unit stays on the list (with a dash for the unit).
+  - **The shop home gained two tiles** for the same counts, ABOVE its first-run callout: an org with no
+    parts entered still has trucks in the shop.
+  - **Row 2 is Seats · Shop · Truck paperwork at 4/4/4.** The card is "Shop" with three rows: Open
+    work orders, Open defects, Shelves to reorder. No money, no severity (FleetPal sends none).
+  - FLEETPAL-INTEGRATION-PLAN F11 still owes PM due; these lists take the defects half of its title.
