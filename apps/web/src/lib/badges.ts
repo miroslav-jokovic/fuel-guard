@@ -50,6 +50,20 @@ export function txnStatusTone(status: string): string {
   return toneClass(status === "alert" ? "danger" : status === "review" ? "warning" : status === "verified" ? "success" : "neutral");
 }
 
+/**
+ * A Med-Stop test outcome (MEDSTOP-PLAN F-4/F-5; `medstopTestOutcome` in shared decides the outcome).
+ * A violation is danger, a dilute or an unrecognised wording is a warning to review, a negative is
+ * success; everything else (cancelled, not-a-refusal, a medical exam, pending) is neutral.
+ */
+export function medstopOutcomeTone(outcome: string): string {
+  return toneClass(
+    outcome === "positive" || outcome === "refusal" ? "danger"
+      : outcome === "negative_dilute" || outcome === "unrecognised" ? "warning"
+      : outcome === "negative" ? "success"
+      : "neutral",
+  );
+}
+
 export function inviteTone(status: string): string {
   return toneClass(status === "pending" ? "warning" : status === "accepted" ? "success" : "neutral");
 }

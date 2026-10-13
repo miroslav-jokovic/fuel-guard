@@ -15,6 +15,7 @@ import {
   type DrugTestError,
 } from "../applicantDrugTest.js";
 import { sendDrugTestToDriver } from "../applicantDrugTestSend.js";
+import { readMedstopTestsForDriver } from "../../medstop/index.js";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §8.4). `applicantDrugTest.ts` carries
@@ -51,6 +52,20 @@ export function recruitmentDrugTestRouter(): Router {
       const result = await listDrugTestAppointments(admin, req.auth!.orgId!, String(req.params.driverId ?? ""));
       if (isDrugTestError(result)) return send(res, result);
       res.json(result);
+    }),
+  );
+
+  // MS2c (MEDSTOP-PLAN F-4): what Med-Stop holds for this applicant — orders, stages, "expected by".
+  // Same guard as the appointments; the RESULT inside is filtered by role in medstop's reader, so a
+  // recruiter's response never carries one (§382.401(a)).
+  router.get(
+    "/applicants/:driverId/medstop-tests",
+    requireOrg,
+    requireSection("recruitment", "view"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const data = await readMedstopTestsForDriver(admin, req.auth!.orgId!, String(req.params.driverId ?? ""), req.auth!.role ?? null);
+      res.json(data);
     }),
   );
 

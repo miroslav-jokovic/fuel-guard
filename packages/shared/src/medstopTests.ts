@@ -158,3 +158,41 @@ export function medstopResultNotice(input: MedstopResultNoticeInput): MedstopRes
     severity: violation ? "critical" : "warning",
   };
 }
+
+/** TD/TA/TM in the words a screen uses. */
+export const medstopTestKind = (service: string | null): "drug" | "alcohol" | "medical" =>
+  service === "TA" ? "alcohol" : service === "TM" ? "medical" : "drug";
+
+/**
+ * Where a test is, in words — from Med-Stop's `STATUSTEST`. The trail measured on 2026-10-13 is
+ * COMPLETED → AT LAB → RESULTS → OPEN → REVIEWED → CLOSED: OPEN after RESULTS is the MRO's review,
+ * so it reads as that, not as "open". A status nobody mapped is shown as Med-Stop wrote it.
+ */
+export function medstopStageLabel(service: string | null, status: string | null): string {
+  const s = status?.trim().toUpperCase() ?? "";
+  if (s === "CLOSED" || s === "REVIEWED") return "Result reported";
+  if (s === "RESULTS" || s === "OPEN" || s.startsWith("SPLIT")) return "With the medical review officer";
+  if (s === "AT LAB" || s === "IN TESTING") return "At the lab";
+  if (s === "COMPLETED" || s === "COLLECTED" || s === "IN PROGRESS") return service === "TD" || service === null ? "Collected" : "Completed";
+  return status?.trim() || "Unknown";
+}
+
+/**
+ * A Med-Stop ORDER still waiting for the donor (`STATUSREQUEST`). COMPLETED means a test exists and
+ * is followed as a test; CANCELED, NO SHOW, EXPIRED, REFUSAL and TEST CANCELED are over.
+ */
+export const medstopOrderOpen = (status: string | null): boolean =>
+  ["PROCESSING", "OPEN", "ACTIVE", "PREPARE", "TESTING"].includes(status?.trim().toUpperCase() ?? "");
+
+/** What an outcome reads as on a screen — one wording, for the hiring drawer and Drug & Alcohol alike. */
+export const MEDSTOP_OUTCOME_LABELS: Record<MedstopTestOutcome, string> = {
+  pending: "Pending",
+  negative: "Negative",
+  negative_dilute: "Negative-dilute",
+  positive: "Positive",
+  refusal: "Refusal to test",
+  not_refusal: "Not a refusal",
+  cancelled: "Cancelled",
+  medical: "Medical exam",
+  unrecognised: "Unrecognised result",
+};

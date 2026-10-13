@@ -361,3 +361,17 @@ allowlist + the one-scheduler rule, `docs/WORKER-DEPLOYMENT.md`).
   application flag (`return_to_duty_required`) for "return-to-duty outstanding"; they do not yet show
   a Med-Stop hold. Dispatch and the hire do. A request Med-Stop closes as REFUSAL with no test (none
   in 2,152) is not acted on yet — `medstopRequestRefused` exists for when it is.
+- 2026-10-13 — **MS2c: the screens.**
+  - Hiring drawer › Drug test result step: a **Med-Stop** block under the appointment — an order not
+    yet collected, then each test's stage in words (`medstopStageLabel`: Collected → At the lab → With
+    the medical review officer → Result reported; OPEN after the lab is the MRO's review) and "result
+    expected by" (collection + 93 h). `GET /api/recruitment/applicants/:id/medstop-tests` (recruitment
+    view); the outcome is null in the RESPONSE for a reader `canReadTestingRecords` refuses, so a
+    recruiter's browser never holds one. Certain matches only. Renders nothing until Med-Stop is
+    connected.
+  - Safety › Drug & Alcohol: **Results to review** (the DER-alert outcomes of the last year, not
+    history) above everything else, and **Found on the first read from Med-Stop** (D-MS5's
+    baseline positives and refusals, for a person to clear). `results` is null for every other role.
+  - MS2 COMPLETE in code. Still open from MS2b: the driver file / compliance overview / DQ binder do
+    not show a Med-Stop hold; request-level REFUSAL not acted on. Next: MS3 (writes — order from the
+    hiring page; Part 1 gains gender + CDL expiry in their own merge first).

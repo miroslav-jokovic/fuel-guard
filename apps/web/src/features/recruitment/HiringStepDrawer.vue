@@ -25,6 +25,7 @@ import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
 import HandbookPanel from "@/features/recruitment/HandbookPanel.vue";
 import TravelPanel from "@/features/recruitment/TravelPanel.vue";
 import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
+import MedstopTestCard from "@/features/recruitment/MedstopTestCard.vue";
 import ClearinghouseConsentPanel from "@/features/recruitment/ClearinghouseConsentPanel.vue";
 import EmployerCallsPanel from "@/features/recruitment/EmployerCallsPanel.vue";
 import SelfieCheckPanel from "@/features/recruitment/SelfieCheckPanel.vue";
@@ -239,6 +240,9 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
              Clearinghouse row rests on the driver until their portal consent is recorded (D-AW5), so
              the row's own state is the consent's reading. -->
         <DrugTestPanel v-if="step.key === 'drug_test'" :driver-id="driverId" :done="step.state === 'done'" />
+        <!-- MS2c (MEDSTOP-PLAN F-4): the same step as Med-Stop sees it — order, stage, expected by.
+             Renders nothing for a carrier that has not connected Med-Stop. -->
+        <MedstopTestCard v-if="step.key === 'drug_test'" :driver-id="driverId" />
         <ClearinghouseConsentPanel
           v-if="step.key === 'clearinghouse'"
           :driver-id="driverId"

@@ -4,6 +4,7 @@ import {
   poolPace,
   reconcileRosters,
   selectionsAwaitingTest,
+  shiftDay,
   type CalendarDay,
   type DrugAlcoholProgram,
   type MatchedPerson,
@@ -14,6 +15,7 @@ import {
 } from "@silvicom/shared";
 import { getCredential } from "./credentials.js";
 import { readRosterDrivers } from "./sync.js";
+import { RESULT_REVIEW_DAYS, readResultReview } from "./results.js";
 
 /**
  * Safety › Drug & Alcohol's one read (MEDSTOP-PLAN.md §6 F-1/F-2). The mirror is gathered here; every
@@ -159,6 +161,10 @@ export async function readDrugAlcoholProgram(
         ),
       ),
     selections: canReadTestingRecords(role) ? selectionsAwaitingTest(selectionRows, personOf, today) : null,
+    // MS2c: the results themselves — testing records, so the same rule as the selections above.
+    results: canReadTestingRecords(role)
+      ? await readResultReview(admin, orgId, shiftDay(today, -RESULT_REVIEW_DAYS), personOf)
+      : null,
     roster: {
       notInPool: reconciled.notInPool,
       leftButInPool: reconciled.leftButInPool,

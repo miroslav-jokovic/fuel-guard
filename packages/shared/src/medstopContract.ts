@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MedstopTestOutcome } from "./medstopTests.js";
 
 /**
  * Med-Stop — what OUR api answers about the carrier's drug & alcohol program
@@ -74,6 +75,53 @@ export interface MedicalDisagreement {
   medstop: string | null;
 }
 
+/** One Med-Stop test as a screen shows it (MS2c, F-4). */
+export interface MedstopTestView {
+  testId: string;
+  kind: "drug" | "alcohol" | "medical";
+  /** Med-Stop's reason, verbatim: PRE-EMPLOYMENT, RANDOM, POST-ACCIDENT, … */
+  reason: string | null;
+  /** Where the test is, in words (`medstopStageLabel`). */
+  stage: string;
+  collectedOn: string | null;
+  /** A drug test not yet final: the day its result is due (p90, `medstopResultExpectedOn`). */
+  expectedOn: string | null;
+  /**
+   * The verified outcome. NULL — not "pending" — when the reader may not read testing records
+   * (§382.401(a), `canReadTestingRecords`): a recruiter sees the stage and the date, never the result.
+   */
+  outcome: MedstopTestOutcome | null;
+}
+
+/** A test Med-Stop has ORDERED and nobody has been collected for yet. */
+export interface MedstopOrderView {
+  requestId: string;
+  kind: "drug" | "alcohol" | "medical";
+  reason: string | null;
+  requestedOn: string | null;
+  status: string | null;
+}
+
+/** The hiring drawer's drug-test step: what Med-Stop holds for this one person (F-4). */
+export interface MedstopPersonTests {
+  connected: boolean;
+  /** Med-Stop's record of this person is matched to our driver by licence or name + date of birth. */
+  matched: boolean;
+  orders: MedstopOrderView[];
+  tests: MedstopTestView[];
+  outcomesVisible: boolean;
+}
+
+/** A result on Safety › Drug & Alcohol's review list (F-5). Only built for roles that read testing records. */
+export interface MedstopResultRow {
+  testId: string;
+  person: ProgramPerson;
+  kind: "drug" | "alcohol" | "medical";
+  reason: string | null;
+  collectedOn: string | null;
+  outcome: MedstopTestOutcome;
+}
+
 export interface DrugAlcoholProgram {
   connected: boolean;
   syncedAt: string | null;
@@ -85,6 +133,13 @@ export interface DrugAlcoholProgram {
    * and unannounced, so the list is held to the roles that read testing records.
    */
   selections: { due: DueSelection[]; upcoming: DueSelection[] } | null;
+  /**
+   * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.
+   * `recent` — positives, refusals, dilutes and unrecognised wordings since the product began
+   * watching, the same set the DER was notified of. `history` — the violations the first sweep found
+   * already old (D-MS5): never acted on automatically, listed so a person decides.
+   */
+  results: { recent: MedstopResultRow[]; history: MedstopResultRow[] } | null;
   roster: {
     /** Active here, absent from Med-Stop's active roster: outside the random pool (§382.305). */
     notInPool: ProgramPerson[];

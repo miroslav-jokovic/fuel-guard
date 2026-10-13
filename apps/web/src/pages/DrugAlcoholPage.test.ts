@@ -41,6 +41,7 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
     medstopActive: 170,
     matched: 152,
   },
+  results: null,
   ...over,
 });
 
@@ -96,5 +97,29 @@ describe("DrugAlcoholPage", () => {
   it("says Med-Stop is not connected rather than showing an empty program", async () => {
     const w = await render(program({ connected: false }));
     expect(w.text()).toContain("Med-Stop is not connected yet");
+  });
+
+  /** MS2c (F-5): results are testing records — shown to the roles the API sends them to, absent otherwise. */
+  it("lists results to review first, and history from the first read separately", async () => {
+    const person = { driverId: "d9", medstopId: "m9", name: "Pat Positive" };
+    const w = await render(program({
+      results: {
+        recent: [{ testId: "t1", person, kind: "drug", reason: "RANDOM", collectedOn: "2026-10-09", outcome: "positive" }],
+        history: [{ testId: "t0", person: { driverId: null, medstopId: "m8", name: "Old Case" }, kind: "drug", reason: "PRE-EMPLOYMENT", collectedOn: "2026-02-01", outcome: "refusal" }],
+      },
+    }));
+    expect(w.text()).toContain("Results to review");
+    expect(w.text()).toContain("Pat Positive");
+    expect(w.text()).toContain("Positive");
+    expect(w.text()).toContain("Drug · random");
+    expect(w.text()).toContain("Found on the first read from Med-Stop");
+    expect(w.text()).toContain("Refusal to test");
+    expect(w.text().indexOf("Results to review")).toBeLessThan(w.text().indexOf("Driving here, not in Med-Stop's random pool"));
+  });
+
+  it("shows no results section at all when the API holds results back", async () => {
+    const w = await render(program({ results: null }));
+    expect(w.text()).not.toContain("Results to review");
+    expect(w.text()).not.toContain("No results need review");
   });
 });
