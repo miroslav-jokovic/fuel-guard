@@ -7,10 +7,11 @@ import { readPages, SEND_RULE_VERSION, type ModelClient, type PageImage } from "
 import { combinedSchemaHash, readSections, sectionWireSchemas } from "../model/readSections.js";
 import { sendLimitsFor } from "../model/visionTier.js";
 import { schemaHash, wireSchemaFor } from "../model/wireSchema.js";
-import { sentCopyOf } from "../pages/canonical.js";
+import { sentCopyOf, type TextLayer } from "../pages/canonical.js";
 import { ACCEPTANCE_RULE_VERSION, readCacheKey } from "./cacheKey.js";
 import { EVIDENCE_FOR } from "../evidence/index.js";
 import { ocrPages, type PageForOcr, type RecognisePage } from "../ocr/pageOcr.js";
+import { textLayerPages } from "../evidence/textLayerWitness.js";
 import { READ_PROMPTS } from "./prompts.js";
 import { classifyPages, currentVerdicts, type PageVerdict } from "./classifyPages.js";
 import { reviewEpoch, targetOfRow, targetPages, type ReadTarget, type TargetPage } from "./readTarget.js";
@@ -32,7 +33,8 @@ import { DOCUMENT_BUCKET } from "../storage.js";
  * (evidence/index.ts — for the shipping document, the Hazardous Materials Table's verdict on each line).
  * Since A3 a second model (pass B, Sonnet 5.5) reads the same pages and its values are recorded beside pass
  * A's, lines matched by key; the read's document is pass A's. Since A5 the OCR engine reads the same pages and
- * says which reader's count, weight and quantity is printed on the line's own row. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
+ * says which reader's count, weight and quantity is printed on the line's own row; since A4 a born-digital
+ * PDF's own text, stored at intake, says the same by the same row rules. What it does NOT do yet, each its own step: the usability gate (`unusable_image`, which needs the shared capture metrics
  * on the page row). Since P2 every page given is classified before the read (classifyPages.ts), and
  * read only when its class is one the profile reads; a page the classifier could not answer is still
  * read — an unknown page is not a known non-BOL. Each read page is sent turned upright by its verdict's
@@ -78,6 +80,7 @@ interface PageColumns {
   original_path: string;
   original_sha256: string;
   normaliser_version: string;
+  text_layer: TextLayer | null;
 }
 type PageRow = TargetPage<PageColumns>;
 
@@ -227,7 +230,7 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   if (!gate.open) return fail("reading_disabled");
 
   const target: ReadTarget = targetOfRow(read);
-  const given = await targetPages<PageColumns>(admin, orgId, target, "original_path, original_sha256, normaliser_version");
+  const given = await targetPages<PageColumns>(admin, orgId, target, "original_path, original_sha256, normaliser_version, text_layer");
 
   // P2 (§7A.3): every page given gets a verdict before anything is read — a class, and which way is up.
   // Only pages with none are sent to the classifier, once ever; that is model spend, so the budget is
@@ -285,7 +288,8 @@ export async function executeRead(admin: SupabaseClient, orgId: string, readId: 
   const b = await read1(pins.B);
   const total = { input: spend(a.usage).input + b.usage.input, output: spend(a.usage).output + b.usage.output };
   // Pass B failing (refusal, truncation, off-schema) does not fail the read: its fields are one reader's.
-  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION, await ocrRun);
+  const text = textLayerPages(pages.map((p) => ({ textLayer: p.text_layer, rotation: rotationOf(p.id) })));
+  const evidence = EVIDENCE_FOR[read.profile](a.document, b.kind === "ok" ? b.document : null, ACCEPTANCE_RULE_VERSION, await ocrRun, text);
   return done(a.document, evidence, false, total.input, total.output, pages.length);
 }
 

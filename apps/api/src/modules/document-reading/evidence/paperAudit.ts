@@ -6,8 +6,8 @@ import {
   packagingKindFor,
   paperAuditSchema,
   readersAgree,
+  rowWitnessesBack,
   shippingDocumentSchema,
-  valuesAgree,
   type FieldEvidence,
   type PaperAuditView,
 } from "@silvicom/shared";
@@ -25,8 +25,8 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
  * and the audit could never say anything before a person had retyped the paper. D-DR19 already states the
  * bar for trusting a value: two independent witnesses agree. So a field counts as confirmed FOR THE AUDIT when
  * both model readers read the same value — including both reading nothing, which is how a missing packing
- * group or phone number is ever found — and the OCR, where it judged the field, did not find a different
- * one. Everything else keeps its own status. The form's field states do not change: this decides only what
+ * group or phone number is ever found — and no row witness (the OCR, a born-digital page's text layer:
+ * `ROW_WITNESS_READERS`), where one judged the field, found a different one. Everything else keeps its own status. The form's field states do not change: this decides only what
  * the audit may reason over, and each finding quotes the printed value so a person sees what it rests on.
  *
  * Template lines a shipper pre-prints with no count, weight or quantity are not audited: nothing is offered on
@@ -85,6 +85,5 @@ export function auditFieldStates(evidence: readonly FieldEvidence[]): PaperField
 
 function confirmedForAudit(e: FieldEvidence): boolean {
   if (readersAgree(e) !== true) return false;
-  const ocr = e.sources.find((s) => s.reader === "ocr");
-  return !ocr || valuesAgree(ocr.value, e.value);
+  return rowWitnessesBack(e) !== false;
 }
