@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { AppCallout } from "@silvicom/ui";
 import GatedLink from "@/components/GatedLink.vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
@@ -10,6 +10,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDate } from "@/lib/format";
@@ -61,8 +62,8 @@ function tankCapFor(vehicleId: string): number | null {
 }
 
 // ── Search + pairing filter (standard toolbar) ───────────────────────────────
-// Both live in the URL (D-US2), so reload, a pasted link and Back from a truck keep the list. The table
-// has no sort and no pages, so there is nothing else of the list's to keep.
+// Both live in the URL (D-US2), so reload, a pasted link and Back from a truck keep the list. So does
+// the page (D-US8, below); the table has no sort, so there is nothing else of the list's to keep.
 const qs = useQueryState();
 const search = qs.param("search");
 const pairingOptions = [
@@ -94,6 +95,18 @@ const active = computed(() => {
     return true;
   });
 });
+
+// D-US8: the list pages like every list with a toolbar. A filter change returns to page 1 — the rows
+// arriving do not, or a pasted ?page=2 would be lost on load; the clamp pulls the page back when the
+// 90-day window's next refresh leaves fewer pages than the one showing.
+const PAGE_SIZE = 20;
+const page = qs.page();
+watch([search, pairing], () => (page.value = 1));
+watch(active, (rows) => {
+  const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (page.value > maxPage) page.value = maxPage;
+});
+const pageRows = computed(() => active.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const usd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const shortDate = (iso: string | null) => formatDate(iso);
@@ -163,10 +176,10 @@ const columns: DataTableColumn[] = [
       <DataTable
         embedded
         :columns="columns"
-        :rows="active"
+        :rows="pageRows"
         row-key="vehicleId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the reefer coverage.') : null"
         :retrying="isFetching"
         empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
         @retry="refetch"
@@ -192,6 +205,9 @@ const columns: DataTableColumn[] = [
         <span :class="staleTone(value)">{{ value ?? "—" }}</span>
       </template>
       <template #cell-primaryDriverId="{ row }">{{ driverName(row.primaryDriverId) }}</template>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="active.length" :loading="isFetching" @update:page="page = $event" />
+      </template>
       </DataTable>
     </DataWorkspace>
   </div>

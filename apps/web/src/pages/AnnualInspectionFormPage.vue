@@ -15,6 +15,7 @@ import InspectionItemRow from "@/features/maintenance/InspectionItemRow.vue";
 import PrintInspectionDrawer from "@/features/maintenance/PrintInspectionDrawer.vue";
 import DeleteInspectionDrawer from "@/features/maintenance/DeleteInspectionDrawer.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -46,6 +47,7 @@ const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 const toast = useToastStore();
+const ask = useConfirm();
 const id = computed(() => String(route.params.id ?? ""));
 
 const { data, isLoading, isError, error, refetch, isFetching } = useInspectionQuery(id);
@@ -164,10 +166,11 @@ const printing = ref(false);
 
 /**
  * Completing an inspection is irreversible and this is how the product asks about irreversible
- * things — `window.confirm`, the same as retiring a vehicle or deleting a cost schedule. The
- * alternative was a bespoke dialog, and `DESIGN-SYSTEM-CONTRACT.md` §3 is explicit that a centred
- * modal is for content needing WIDTH; a sentence is not that, and "never build a bespoke overlay in
- * a feature folder" covers the rest.
+ * things — the product's confirm (`useConfirm`, D-US7), the same as retiring a vehicle or deleting
+ * a cost schedule. Until 2026-10-13 that was `window.confirm`; it is now the one shared dialog, drawn
+ * by `ConfirmHost`, red for the acts that cannot be undone. The alternative was a bespoke dialog,
+ * and `DESIGN-SYSTEM-CONTRACT.md` §3 is explicit that a centred modal is for content needing WIDTH;
+ * a sentence is not that, and "never build a bespoke overlay in a feature folder" covers the rest.
  *
  * What is being certified stays ON THE PAGE, where it can be read properly: the derived verdict
  * banner and the count of parts still on their opening answer are both above this button.
@@ -177,14 +180,15 @@ const printing = ref(false);
  * draft opens seeded with what the previous one found, so one wrong mark is one edit.
  */
 async function startCorrection() {
-  if (
-    !window.confirm(
-      "Start a correction? The completed inspection stays on file exactly as it is, and the new one" +
-        " will replace it — opening with the answers it recorded so you only change what was wrong.",
-    )
-  ) {
-    return;
-  }
+  // Not `danger`: nothing is lost — the completed report stays on file and the new draft supersedes it.
+  const asked = await ask({
+    title: "Start a correction?",
+    message:
+      "The completed inspection stays on file exactly as it is, and the new one will replace it —" +
+      " opening with the answers it recorded so you only change what was wrong.",
+    confirmLabel: "Start correction",
+  });
+  if (!asked) return;
   try {
     const newId = await correct.mutateAsync(id.value);
     await router.push({ name: "annual-inspection", params: { id: newId } });
@@ -195,7 +199,13 @@ async function startCorrection() {
 
 /** Only a draft. The API refuses a completed one by name — nothing here relies on this check alone. */
 async function discardDraft() {
-  if (!window.confirm("Discard this inspection? Nothing has been filed yet, and it cannot be recovered.")) return;
+  const asked = await ask({
+    title: "Discard this inspection?",
+    message: "Nothing has been filed yet, and it cannot be recovered.",
+    confirmLabel: "Discard",
+    tone: "danger",
+  });
+  if (!asked) return;
   try {
     await discard.mutateAsync(id.value);
     toast.success("Inspection discarded");
@@ -205,19 +215,21 @@ async function discardDraft() {
   }
 }
 
-function completeInspection() {
+async function completeInspection() {
   const verdict = outcome.value === "pass" ? "PASSED" : "DID NOT PASS";
   const stale = stillDefault.value
-    ? ` ${stillDefault.value} part(s) still carry the answer the form opened with.`
+    ? `${stillDefault.value} part(s) still carry the answer the form opened with. `
     : "";
-  if (
-    !window.confirm(
-      `Record that every part was inspected and this vehicle ${verdict}?${stale}` +
-        " It is filed against the vehicle and cannot be edited afterwards — a correction is a new inspection.",
-    )
-  ) {
-    return;
-  }
+  // `danger`: it cannot be edited afterwards (D-AVI4), which is what the red button is for.
+  const asked = await ask({
+    title: `Record that every part was inspected and this vehicle ${verdict}?`,
+    message:
+      `${stale}It is filed against the vehicle and cannot be edited afterwards — a correction is a new` +
+      " inspection.",
+    confirmLabel: "Complete inspection",
+    tone: "danger",
+  });
+  if (!asked) return;
   finalize.mutate();
 }
 /**

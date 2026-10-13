@@ -22,6 +22,7 @@ import {
   inspectionPdfPath,
 } from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import {
   INSPECTIONS_PAGE_SIZE,
   useDiscardInspection,
@@ -59,7 +60,9 @@ import { formatDate } from "@/lib/format";
  * and it sits here for the reason the list exists: cleaning up is a job you do FROM the list, and
  * having to open each report first is what made Discard unreachable in the first place.
  *
- * It is NOT a `confirm()` like Discard. Discarding a draft throws away work nobody has certified;
+ * It is NOT a yes/no question like Discard (the product's confirm, `useConfirm`, D-US7 — which
+ * replaced the browser's `confirm()` on 2026-10-13 without changing this split). Discarding a draft
+ * throws away work nobody has certified;
  * this removes a filed §396.21 record, its certification and its PDF, and hands the truck's
  * inspection date back. That needs a reason and a typed unit number, so it opens the SAME drawer the
  * report page uses — one component, so the two surfaces cannot ask for it differently.
@@ -149,6 +152,7 @@ function onCreated(id: string) {
 }
 
 const toast = useToastStore();
+const ask = useConfirm();
 const discard = useDiscardInspection();
 
 /**
@@ -181,14 +185,13 @@ async function download(row: InspectionSummary) {
 }
 
 async function discardDraft(row: InspectionSummary) {
-  if (
-    !confirm(
-      `Discard the inspection of unit ${row.unit_number ?? "—"}? Nothing has been filed yet, and it` +
-        " cannot be recovered.",
-    )
-  ) {
-    return;
-  }
+  const asked = await ask({
+    title: `Discard the inspection of unit ${row.unit_number ?? "—"}?`,
+    message: "Nothing has been filed yet, and it cannot be recovered.",
+    confirmLabel: "Discard",
+    tone: "danger",
+  });
+  if (!asked) return;
   try {
     await discard.mutateAsync(row.id);
     toast.success("Inspection discarded");

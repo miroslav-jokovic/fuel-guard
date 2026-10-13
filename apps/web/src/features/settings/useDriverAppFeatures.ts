@@ -23,7 +23,7 @@ export function useDriverAppFeaturesQuery() {
     queryKey: FEATURES_KEY,
     queryFn: async (): Promise<OrgFeatureRow[]> => {
       const res = await apiFetch<{ features: OrgFeatureRow[] }>("/api/driver-app/settings");
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to load driver-app settings.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not load the driver-app settings.");
       return res.data?.features ?? [];
     },
   });
@@ -37,7 +37,7 @@ export function useSaveDriverAppFeature() {
         method: "PUT",
         body: { enabled: input.enabled, ...(input.config ? { config: input.config } : {}) },
       });
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to save the setting.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not save the setting.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: FEATURES_KEY }),
   });
@@ -54,7 +54,7 @@ export function useDriverOverridesQuery(driverId: Ref<string | null>) {
       const res = await apiFetch<{ overrides: DriverAppOverrideRow[] }>(
         `/api/driver-app/drivers/${encodeURIComponent(id)}/overrides`,
       );
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to load the driver's overrides.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not load the driver's overrides.");
       return res.data?.overrides ?? [];
     },
   });
@@ -70,7 +70,7 @@ export function useSaveDriverOverride() {
         `/api/driver-app/drivers/${encodeURIComponent(input.driverId)}/overrides/${encodeURIComponent(input.featureKey)}`,
         { method: "PUT", body: { enabled: input.enabled, note: input.note ?? null } },
       );
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to save the override.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not save the override.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: OVERRIDES_KEY }),
   });
@@ -84,7 +84,7 @@ export function useClearDriverOverride() {
         `/api/driver-app/drivers/${encodeURIComponent(input.driverId)}/overrides/${encodeURIComponent(input.featureKey)}`,
         { method: "DELETE" },
       );
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to remove the override.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not remove the override.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: OVERRIDES_KEY }),
   });

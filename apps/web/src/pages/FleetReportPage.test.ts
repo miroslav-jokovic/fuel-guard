@@ -300,7 +300,7 @@ describe("FleetReportPage — the shell (R1)", () => {
     expect(w.text()).not.toContain("Kept per mile driven");
     expect(w.text()).not.toContain("Where every dollar went");
     await openTab(w, "Per truck");
-    expect(w.text()).toContain("Failed to load");
+    expect(w.text()).toContain("Could not load the fleet report.");
     w.unmount();
   });
 });

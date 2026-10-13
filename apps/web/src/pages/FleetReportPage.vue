@@ -182,7 +182,7 @@ const pageDescription = computed(() =>
  */
 const trust = computed(() => (fleet.value ? fleetTrust(fleet.value) : null));
 const provenanceLine = computed(() => (fleet.value ? fleetProvenanceLine(fleet.value) : ""));
-const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : null));
+const fleetErrorText = computed(() => (fleetError.value ? "Could not load the fleet report." : null));
 </script>
 
 <template>

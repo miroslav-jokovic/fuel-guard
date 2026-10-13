@@ -21,6 +21,7 @@ import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 
 /**
  * A truck's kit, walked (INVENTORY-PLAN.md I9; D-INV17 as amended 2026-09-10, D-INV19, D-INV24).
@@ -54,6 +55,7 @@ import { useToastStore } from "@/stores/toast";
 const route = useRoute();
 const router = useRouter();
 const toast = useToastStore();
+const ask = useConfirm();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
 
 const { data: walk } = useCountSessionQuery(sessionId);
@@ -218,11 +220,21 @@ const REVIEW_COLUMNS: DataTableColumn[] = [
 
 async function close() {
   const notYet = remaining.value.length;
-  const ok = window.confirm(
+  // D-US7: the product's dialog, red because closing cannot be undone.
+  const ok = await ask(
     notYet > 0
-      ? `Close this check with ${notYet} item${notYet === 1 ? "" : "s"} not looked at?\n\n` +
-          `Items nobody looked at are left exactly as they are. Closing cannot be undone.`
-      : "Close this check?\n\nClosing cannot be undone; a correction is a new check.",
+      ? {
+          title: `Close with ${notYet} item${notYet === 1 ? "" : "s"} not looked at?`,
+          message: "Items nobody looked at are left exactly as they are. Closing cannot be undone.",
+          confirmLabel: "Close check",
+          tone: "danger",
+        }
+      : {
+          title: "Close this check?",
+          message: "Closing cannot be undone; a correction is a new check.",
+          confirmLabel: "Close check",
+          tone: "danger",
+        },
   );
   if (!ok) return;
   try {

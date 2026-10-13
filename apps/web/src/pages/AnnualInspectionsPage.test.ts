@@ -3,6 +3,7 @@ import { nextTick, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -182,17 +183,18 @@ describe("carrying on with an unfinished inspection", () => {
 
 describe("throwing an unfinished one away", () => {
   it("is offered for a draft and asks before it acts", async () => {
-    const confirmed = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmed = answerConfirm(true);
     const w = page([row()]);
     await click(w, "Discard");
 
-    expect(confirmed).toHaveBeenCalled();
+    // The product's question, red, with its own verb (D-US7).
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: "Discard", tone: "danger" }));
     expect(state.discard.mutateAsync).toHaveBeenCalledWith("insp-1");
     expect(useToastStore().toasts[0]?.title).toBe("Inspection discarded");
   });
 
   it("does nothing when the question is answered no", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    answerConfirm(false);
     const w = page([row()]);
     await click(w, "Discard");
     expect(state.discard.mutateAsync).not.toHaveBeenCalled();

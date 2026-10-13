@@ -8,9 +8,10 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import LabelSheetPreview from "@/features/inventory/LabelSheetPreview.vue";
 import LabelStockControls from "@/features/inventory/LabelStockControls.vue";
-import { useAssetsQuery } from "@/features/inventory/useAssets";
+import { ASSETS_PAGE_SIZE, useAssetsQuery } from "@/features/inventory/useAssets";
 import { useStockQuery } from "@/features/inventory/useInventory";
 import { fetchLabelSheet, useLabelFaces, useLabelPresetsQuery } from "@/features/inventory/useLabels";
 import { useToastStore } from "@/stores/toast";
@@ -62,9 +63,30 @@ const nudgeY = ref(0);
 
 const { data: presets } = useLabelPresetsQuery();
 const { data: stock, isLoading: stockLoading } = useStockQuery(ref(undefined));
-const assetsFilter = ref({ page: 1, search: "" });
-const { data: assets, isLoading: assetsLoading } = useAssetsQuery(assetsFilter);
-watch(search, (v) => (assetsFilter.value = { page: 1, search: v }));
+
+/**
+ * D-US8: both lists page, one page in the URL (D-US2) for whichever list is showing — they are never
+ * on screen together, and the switch returns to page 1 as it clears the ticks.
+ *
+ * ── THE ASSETS PAGE THROUGH THE SERVER, THE SHELVES ON THE CLIENT ──────────────────────────────
+ * `/assets` answers fifty rows at a time with a `total` (ASSETS_PAGE_SIZE), and this table used to ask
+ * for page 1 and show no pager — so asset 51 onward could never be ticked, and nothing on screen said
+ * the list stopped. It now asks for the page the pager is on, as AssetsPage does. The stock is one
+ * response, so its pages are slices of it.
+ *
+ * The ticks are a Set of keys held here, not the table's rows: a page change leaves a ticked row off
+ * screen and still in the run, which is what a sheet of 240 labels across several pages needs.
+ */
+const STOCK_PAGE_SIZE = 20;
+const page = qs.page();
+watch(search, () => (page.value = 1));
+const assetsFilter = computed(() => ({
+  // On Shelves the assets are not shown, so their query stays on page 1 rather than fetching a page
+  // of a list nobody is looking at.
+  page: source.value === "assets" ? page.value : 1,
+  search: search.value.trim() || undefined,
+}));
+const { data: assets, isLoading: assetsLoading, isFetching: assetsFetching } = useAssetsQuery(assetsFilter);
 
 const faces = useLabelFaces();
 const printing = ref(false);
@@ -140,6 +162,20 @@ const stockRows = computed(() => {
   );
 });
 
+const stockPage = computed(() => stockRows.value.slice((page.value - 1) * STOCK_PAGE_SIZE, page.value * STOCK_PAGE_SIZE));
+/** The showing list's row count, and the clamp that pulls the page back when that list shrinks. */
+const listTotal = computed(() => (source.value === "assets" ? (assets.value?.total ?? null) : stockRows.value.length));
+watch(listTotal, (total) => {
+  if (total === null) return;
+  const maxPage = Math.max(1, Math.ceil(total / (source.value === "assets" ? ASSETS_PAGE_SIZE : STOCK_PAGE_SIZE)));
+  if (page.value > maxPage) page.value = maxPage;
+});
+function switchSource(next: Source) {
+  source.value = next;
+  selected.value = new Set();
+  page.value = 1;
+}
+
 const stockColumns: DataTableColumn[] = [
   { key: "partNumber", label: "Part" },
   { key: "partDescription", label: "Description" },
@@ -213,7 +249,7 @@ async function print() {
                 { value: 'stock', label: 'Shelves' },
                 { value: 'assets', label: 'Assets' },
               ]"
-              @update:model-value="((source = $event as Source), (selected = new Set()))"
+              @update:model-value="switchSource($event as Source)"
             />
           </template>
         </FilterBar>
@@ -221,7 +257,7 @@ async function print() {
             embedded
             v-if="source === 'stock'"
             :columns="stockColumns"
-            :rows="stockRows"
+            :rows="stockPage"
             :loading="stockLoading"
             :row-key="(r) => keyOf({ kind: 'stock', partId: r.partId, locationId: r.locationId })"
             selectable
@@ -235,6 +271,9 @@ async function print() {
               <span v-else class="text-xs text-ink-tertiary">None yet</span>
             </template>
             <template #empty>Nothing on the shelves yet.</template>
+            <template #footer>
+              <TablePagination :page="page" :page-size="STOCK_PAGE_SIZE" :total="stockRows.length" :loading="stockLoading" @update:page="page = $event" />
+            </template>
           </DataTable>
 
           <DataTable
@@ -253,6 +292,15 @@ async function print() {
               <span v-else class="text-xs text-ink-tertiary">None yet</span>
             </template>
             <template #empty>No assets yet.</template>
+            <template #footer>
+              <TablePagination
+                :page="page"
+                :page-size="ASSETS_PAGE_SIZE"
+                :total="assets?.total ?? 0"
+                :loading="assetsFetching"
+                @update:page="page = $event"
+              />
+            </template>
           </DataTable>
         </DataWorkspace>
       </div>

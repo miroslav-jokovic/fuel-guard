@@ -191,6 +191,25 @@ const fillRows = (id: string) =>
     total: f.totalCost == null ? null : usd(f.totalCost),
   }));
 
+/**
+ * D-US8: a truck's fills page inside its opened row. One truck can buy fuel in a jurisdiction a few
+ * hundred times in a quarter, and an unpaged list under one row pushed every truck below it off the
+ * screen.
+ *
+ * The page is held HERE, per opened truck, and not in the URL like the trucks' own `?page=` (D-US2):
+ * it is one row's detail, not the list's state. Which rows are open is not in the URL either, so a
+ * link that restored the fills' page would restore it under a row that is shut. Read clamped, so a
+ * quarter with fewer fills shows its last page rather than an empty one.
+ */
+const FILL_PAGE_SIZE = 20;
+const fillPages = ref(new Map<string, number>());
+const fillCount = (id: string) => byKey.value.get(id)?.fills.length ?? 0;
+const fillPage = (id: string) =>
+  Math.min(fillPages.value.get(id) ?? 1, Math.max(1, Math.ceil(fillCount(id) / FILL_PAGE_SIZE)));
+const setFillPage = (id: string, n: number) => fillPages.value.set(id, n);
+const fillPageRows = (id: string) =>
+  fillRows(id).slice((fillPage(id) - 1) * FILL_PAGE_SIZE, fillPage(id) * FILL_PAGE_SIZE);
+
 /** "in 684 fills", and the receipts beside them when there are any — both inside "Gallons bought". */
 const boughtSub = computed(() => {
   const d = data.value;
@@ -297,10 +316,20 @@ const boughtSub = computed(() => {
               embedded
               dense
               :columns="fillCols"
-              :rows="fillRows(String(row.id))"
+              :rows="fillPageRows(String(row.id))"
               row-key="id"
               :data-testid="`fills-${row.id}`"
-            />
+            >
+              <template #footer>
+                <TablePagination
+                  :page="fillPage(String(row.id))"
+                  :page-size="FILL_PAGE_SIZE"
+                  :total="fillCount(String(row.id))"
+                  :jumpable="false"
+                  @update:page="setFillPage(String(row.id), $event)"
+                />
+              </template>
+            </DataTable>
           </template>
           <template #footer>
             <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />

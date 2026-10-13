@@ -117,7 +117,7 @@ const columns: DataTableColumn[] = [
         embedded
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the billing records.') : null"
         :retrying="isFetching"
         @retry="refetch"
       >

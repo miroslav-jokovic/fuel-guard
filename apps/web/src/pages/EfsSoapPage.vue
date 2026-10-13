@@ -16,6 +16,7 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
@@ -52,6 +53,7 @@ const enable = useEnableEfsSoap();
 const disable = useDisableEfsSoap();
 const testConn = useTestEfsSoapConnection();
 const toast = useToastStore();
+const ask = useConfirm();
 /**
  * Enable and disable are step-up routes (`requireFreshAuth` in integrationSoap.ts), and until the
  * 2026-09-22 security audit this page had no prompt for them: an admin without a live step-up token
@@ -143,9 +145,13 @@ async function onSaveAndEnable() {
 }
 
 async function onDisable() {
-  const ok = window.confirm(
-    "Stop collecting from EFS and delete the saved password? To switch it on again, you will need to type the password again.",
-  );
+  // The product's dialog, red: the saved password is deleted and cannot be read back (D-US7).
+  const ok = await ask({
+    title: "Stop collecting from EFS and delete the saved password?",
+    message: "To switch it on again, you will need to type the password again.",
+    confirmLabel: "Switch off",
+    tone: "danger",
+  });
   if (!ok) return;
   await disableConfirmed();
 }

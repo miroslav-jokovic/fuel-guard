@@ -8,14 +8,17 @@ import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass, type BadgeTone } from "@/lib/badges";
 import { useFuelPlanHistory, useDeleteFuelPlan, useDeleteFuelPlans, type PlanHistoryRow } from "./useFuelPlan";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { formatDateTime as fmtDate } from "@/lib/format";
 import { useQueryState } from "@/composables/useQueryState";
 import { parseYmd } from "@silvicom/shared";
 
 const toast = useToastStore();
+const ask = useConfirm();
 const { data, isLoading, error, isFetching, refetch } = useFuelPlanHistory();
 const rows = computed(() => data.value ?? []);
 const errMsg = computed(() => (error.value ? error.value.message : null));
@@ -93,6 +96,23 @@ function clearAll() {
   qs.set({ search: undefined, status: undefined, truck: undefined, from: undefined, to: undefined });
 }
 
+// ── Paging (D-US8) ───────────────────────────────────────────────────────────────────────────────────
+// Twenty a page over the filtered list, the page in the URL under the same `history.` scope as the
+// filters (`?history.page=`), so it never collides with the Plan tab's keys. A filter change starts
+// again at page 1 — watched, not derived from the rows, so a refetch never throws a pasted page away —
+// and a list that shrank under the reader (a delete, a refetch) pulls the page back to its last one.
+const PAGE_SIZE = 20;
+const page = qs.page();
+watch([search, statusFilter, truckFilter, fromDate, toDate], () => (page.value = 1));
+watch(
+  () => filtered.value.length,
+  (n) => {
+    const last = Math.max(1, Math.ceil(n / PAGE_SIZE));
+    if (data.value && page.value > last) page.value = last;
+  },
+);
+const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
 // ── Multi-select (DataTable owns the checkboxes) ─────────────────────────────────────────────────────
 const selectedIds = ref<Set<string>>(new Set());
 // Keep the selection honest: drop any ids that filters (or a refetch) removed from view, so the
@@ -111,7 +131,8 @@ const bulkBusy = ref(false);
 const routeLabel = (r: PlanHistoryRow) => `${r.origin_label ?? "—"} → ${r.destination_label ?? "—"}`;
 
 async function deleteOne(row: PlanHistoryRow) {
-  if (!confirm(`Delete this plan?\n\n${routeLabel(row)}`)) return;
+  // The product's confirm, not the browser's (D-US7): the route is what tells two plans apart.
+  if (!(await ask({ title: "Delete this plan?", message: routeLabel(row), confirmLabel: "Delete", tone: "danger" }))) return;
   try {
     await delOne.mutateAsync(row.id);
     const next = new Set(selectedIds.value);
@@ -126,7 +147,8 @@ async function deleteOne(row: PlanHistoryRow) {
 async function bulkDelete() {
   const ids = [...selectedIds.value];
   if (ids.length === 0) return;
-  if (!confirm(`Delete ${ids.length} plan${ids.length > 1 ? "s" : ""}? This can't be undone.`)) return;
+  const plans = `${ids.length} plan${ids.length > 1 ? "s" : ""}`;
+  if (!(await ask({ title: `Delete ${plans}?`, message: "This can't be undone.", confirmLabel: "Delete", tone: "danger" }))) return;
   bulkBusy.value = true;
   try {
     const n = await delMany.mutateAsync(ids);
@@ -182,7 +204,7 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
     <DataTable
       embedded
       :columns="columns"
-      :rows="filtered"
+      :rows="pageRows"
       row-key="id"
       :loading="isLoading"
       :error="errMsg"
@@ -213,6 +235,9 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
         <KebabMenu>
           <BaseButton class="kebab-item kebab-item-danger" @click="deleteOne(row)">Delete plan</BaseButton>
         </KebabMenu>
+      </template>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" :loading="isFetching" @update:page="page = $event" />
       </template>
     </DataTable>
     </DataWorkspace>

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 
 /**
  * The EFS integration and Card control pages speak to an office admin, not to the engineer who built
@@ -83,6 +85,8 @@ const status = (configured: boolean, enabled: boolean) => ({
 
 beforeEach(() => {
   toasts.length = 0;
+  // The product's confirm (D-US7) is a Pinia store, so the pages need one to ask through.
+  setActivePinia(createPinia());
 });
 
 describe("the EFS integration page reads as plain words (W2)", () => {
@@ -125,8 +129,7 @@ describe("the EFS integration page reads as plain words (W2)", () => {
 
   it("asks, and reports, in plain words when the admin tests and switches off", async () => {
     efs.status = status(true, true);
-    const asked: string[] = [];
-    vi.spyOn(window, "confirm").mockImplementation((m?: string) => (asked.push(m ?? ""), true));
+    const spy = answerConfirm(true);
     const { default: Page } = await import("./EfsSoapPage.vue");
     const w = mount(Page, { global: { stubs } });
     const button = (label: string) => w.findAll("button").find((b) => b.text().includes(label))!;
@@ -141,7 +144,9 @@ describe("the EFS integration page reads as plain words (W2)", () => {
     await button("Switch off and delete password").trigger("click");
     await flushPromises();
 
-    expect(asked).toHaveLength(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: "Switch off", tone: "danger" }));
+    const asked = spy.mock.calls.map(([q]) => `${q.title} ${q.message ?? ""} ${q.confirmLabel}`);
     expect(toasts.length).toBeGreaterThanOrEqual(2);
     expect(offenders([...asked, ...toasts, w.text()].join(" "))).toEqual([]);
     w.unmount();

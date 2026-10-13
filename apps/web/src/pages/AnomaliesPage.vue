@@ -87,8 +87,8 @@ const VIEW_TABS: TabItem[] = [
     <!-- Bulk action bar -->
     <BulkActionBar :count="selectedCount" @clear="setSelected(new Set())">
       <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
-      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
-      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {alerts} as false alarm?', 'false_positive')">False alarm</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {alerts}?', 'confirmed')">Resolve</BaseButton>
     </BulkActionBar>
 
     <!-- Table -->

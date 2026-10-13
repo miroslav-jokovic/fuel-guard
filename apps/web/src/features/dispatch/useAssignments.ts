@@ -55,7 +55,7 @@ export interface AssignmentHistoryFilters {
   trailerId?: string;
 }
 
-const HISTORY_PAGE_SIZE = 50;
+export const HISTORY_PAGE_SIZE = 50;
 
 /**
  * Keyset pages, accumulated. `TablePagination` is deliberately not used here and this is the one

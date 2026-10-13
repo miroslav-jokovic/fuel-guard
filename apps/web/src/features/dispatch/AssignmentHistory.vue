@@ -5,13 +5,14 @@ import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import TablePagination from "@/components/TablePagination.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import {
+  HISTORY_PAGE_SIZE as PAGE_SIZE,
   useAssignmentHistoryQuery,
   type AssignmentHistoryFilters,
 } from "@/features/dispatch/useAssignments";
@@ -103,6 +104,31 @@ const rows = computed<AssignmentHistoryRow[]>(
   () => query.data.value?.pages.flatMap((p) => p.segments) ?? [],
 );
 
+/**
+ * Prev/Next over the keyset walk (D-US8), in place of the "Load more" button that grew one ever-longer
+ * table. Page N is the Nth page the infinite query has fetched: Next past the last fetched page asks
+ * the server for the following one and turns the page only once it has arrived, and Prev reads a page
+ * already held. There is no count — a total would need a full scan of the very table the date range
+ * exists to keep us out of — so the pager runs uncounted, as the Audit log's does.
+ *
+ * ⚠ The PAGE is deliberately not in the URL, for the Audit log's reason (Q-US2, UI-STANDARDIZATION.md):
+ * page N is only reachable by walking the N − 1 cursors before it, which live in memory, and a
+ * `?history.page=3` read back on a reload would have no cursor to stand on and would show page 1's rows
+ * under a "page 3" label. The filters are in the URL, which is what a forwarded link needs.
+ */
+const page = ref(1);
+const fetchedPages = computed(() => query.data.value?.pages.length ?? 0);
+const pageRows = computed<AssignmentHistoryRow[]>(() => query.data.value?.pages[page.value - 1]?.segments ?? []);
+const hasNext = computed(() => page.value < fetchedPages.value || query.hasNextPage.value);
+async function goTo(n: number): Promise<void> {
+  if (n > fetchedPages.value) {
+    if (!query.hasNextPage.value) return;
+    await query.fetchNextPage();
+    if (n > fetchedPages.value) return;
+  }
+  page.value = n;
+}
+
 // Secondary filters only — the trigger on a primary FilterSelect already shows its own value.
 const label = (options: { value: string; label: string }[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;
@@ -146,7 +172,10 @@ function clearAll(): void {
 // two different questions. Watched by VALUE: `filters` now reads the URL (D-US2), so it recomputes on
 // every navigation — once when a write lands in `useQueryState`'s buffer and again when the router
 // settles on the same values — and a watch on the object would restart the walk twice per change.
-watch(() => JSON.stringify(filters.value), () => void query.refetch());
+watch(() => JSON.stringify(filters.value), () => {
+  page.value = 1;
+  void query.refetch();
+});
 
 const nowMs = ref(Date.now());
 const held = (row: AssignmentHistoryRow): string =>
@@ -211,7 +240,7 @@ const stamp = (v: string): string => formatDateTime(v);
     <DataTable
       embedded
       :columns="columns"
-      :rows="rows"
+      :rows="pageRows"
       row-key="segment_id"
       :loading="query.isLoading.value"
       :error="
@@ -238,20 +267,17 @@ const stamp = (v: string): string => formatDateTime(v);
       <template #footer>
         <!-- Keyset, so there is no page count to render: a total would need a full scan of the very
              table the date range exists to keep us out of. The count above says how many are loaded. -->
-        <div class="flex items-center justify-center px-4 py-3">
-          <BaseButton
-            v-if="query.hasNextPage.value"
-            variant="ghost"
-            size="sm"
-            :disabled="query.isFetchingNextPage.value"
-            @click="query.fetchNextPage()"
-          >
-            {{ query.isFetchingNextPage.value ? "Loading…" : "Load more" }}
-          </BaseButton>
-          <p v-else-if="rows.length > 0" class="text-sm text-ink-tertiary">
-            That is every segment in this range.
-          </p>
-        </div>
+        <TablePagination
+          v-if="pageRows.length > 0 || page > 1"
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="null"
+          :has-next="hasNext"
+          :page-rows="pageRows.length"
+          :loading="query.isFetching.value"
+          :jumpable="false"
+          @update:page="goTo"
+        />
       </template>
     </DataTable>
   </DataWorkspace>

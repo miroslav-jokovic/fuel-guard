@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia } from "pinia";
@@ -6,15 +6,17 @@ import { ref } from "vue";
 
 /**
  * D-US2 (UI-STANDARDIZATION, 2026-10-12) — Reefer coverage keeps its search and pairing filter in the
- * URL. The table has no sort and no pages, so those two are the whole of the list's state.
+ * URL. The table has no sort, so those two and the page (D-US8) are the whole of the list's state.
  */
 const truck = (vehicleId: string) => ({
   vehicleId, reeferActive: true, reeferGal: 100, reeferFills: 2, avgGalPerFill: 50, reeferSpend: 400,
   reeferSharePct: 10, avgCadenceDays: 7, lastReeferAt: null, daysSinceReefer: 3, primaryDriverId: null,
 });
+/** The trucks the aggregator returns; a test that needs pages swaps in more. */
+let perTruck = [truck("v1"), truck("v2"), truck("v3")];
 vi.mock("@/features/fuel/useReeferCoverage", () => ({
   useReeferCoverage: () => ({
-    data: ref({ fleetMedianSharePct: 10, perTruck: [truck("v1"), truck("v2"), truck("v3")] }),
+    data: ref({ fleetMedianSharePct: 10, perTruck }),
     isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false),
   }),
 }));
@@ -69,5 +71,31 @@ describe("Reefer coverage keeps its list in the URL", () => {
     w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
     await flushPromises();
     expect(query()).toEqual({});
+  });
+});
+
+/** D-US8: the list pages twenty at a time, the page in the URL beside its filters. */
+describe("Reefer coverage pages", () => {
+  const ids = Array.from({ length: 45 }, (_, i) => `v${String(i + 1).padStart(2, "0")}`);
+  beforeEach(() => {
+    perTruck = ids.map(truck);
+  });
+  afterEach(() => {
+    perTruck = [truck("v1"), truck("v2"), truck("v3")];
+  });
+  // No vehicle row for these ids, so each truck cell shows its id — v21 … v40 on page 2.
+  const shown = (w: Mounted) => w.findAll("tbody tr td:first-child").map((td) => td.text());
+
+  it("a pasted ?page=2 shows trucks 21–40", async () => {
+    const { w } = await mountAt("/reefer?page=2");
+    expect(shown(w)).toEqual(ids.slice(20, 40));
+  });
+
+  it("a filter change returns to page 1", async () => {
+    const { w, query } = await mountAt("/reefer?page=2");
+    pairing(w).vm.$emit("update:modelValue", "unpaired");
+    await flushPromises();
+    expect(query()).toEqual({ pairing: "unpaired" });
+    expect(shown(w)).toEqual(ids.slice(0, 20));
   });
 });
