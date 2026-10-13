@@ -116,7 +116,9 @@ export type ReadFailureKind = (typeof READ_FAILURE_KIND)[ReadFailureCode];
 export const INTAKE_REFUSALS = {
   unsupported_format: `Only ${READABLE_FORMATS_TEXT} files can be read.`,
   decode_failed: "This file could not be opened as an image or a PDF.",
-  too_small: "The image is too small to read — its long edge must be at least 1200 pixels.",
+  too_small:
+    "The image is too small to read — its long edge must be at least 800 pixels. Text messages often shrink " +
+    "photos; ask the driver to send the original (by email or through the driver app).",
   too_large: "The file is larger than 25 MB.",
   too_many_pages: "The file has more than 10 pages.",
   encrypted_pdf: "The PDF is password-protected.",
@@ -128,8 +130,20 @@ export const INTAKE_REFUSALS = {
 } as const satisfies Record<string, string>;
 export type IntakeRefusalCode = keyof typeof INTAKE_REFUSALS;
 
-/** The limits the refusals above name — one definition, read by intake and by the sentences' tests. */
-export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPages: 10, minLongEdgePx: 1200 } as const;
+/**
+ * The limits the refusals above name — one definition, read by intake and by the sentences' tests.
+ *
+ * `minLongEdgePx` is MEASURED, not inherited. It was 1200, carried over from the hazmat capture plan, where
+ * the driver app owns the camera and 1200 is cheap to demand. Intake does not own the camera: a photo a
+ * driver texts arrives as the carrier shrank it, and on 10/13/2026 the owner's Google Voice photo of a BOL
+ * (1080 × 810, 119 KB) was refused. Measured that day on the nine readable office BOL samples: each page
+ * shrunk to a long edge and re-encoded as JPEG q70 (a carrier's recompression), then OCR'd and compared
+ * with the same page's OCR at full resolution (DOCUMENT-READER-PLAN, progress log 2026-10-13). Median
+ * digit-token recall was 92% at 1600 px, then flat from 1200 to 800 (77 / 76 / 74 / 77%), then a cliff:
+ * 43% at 640 and 13% at 480. 800 is the last size before the cliff. Above it, an unsure value is the
+ * readers' to flag (two readers + the OCR witness, §7B) rather than intake's to refuse.
+ */
+export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPages: 10, minLongEdgePx: 800 } as const;
 
 export const REVIEW_ACTIONS = ["confirmed", "corrected", "unreadable"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];

@@ -270,12 +270,16 @@ describe("normaliseSource — refusals, each an IntakeRefusalCode with its sente
   });
   it("refuses an image whose long edge is one pixel under minLongEdgePx as too_small, and accepts the limit", async () => {
     const under = INTAKE_LIMITS.minLongEdgePx - 1;
-    expect(await refusal(await fx.pageJpeg(under, 900), "image/jpeg")).toBe("too_small");
-    expect((await normaliseSource(await fx.pageJpeg(INTAKE_LIMITS.minLongEdgePx, 900), "image/jpeg")).ok).toBe(true);
+    expect(await refusal(await fx.pageJpeg(under, Math.round(under * 0.75)), "image/jpeg")).toBe("too_small");
+    expect((await normaliseSource(await fx.pageJpeg(INTAKE_LIMITS.minLongEdgePx, 600), "image/jpeg")).ok).toBe(true);
   });
   it("judges too_small on the decoded long edge, whichever way an EXIF-rotated photo was held", async () => {
-    const portrait = await sharp(await fx.pageJpeg(1100, 800)).rotate(90).jpeg().withMetadata({ orientation: 8 }).toBuffer();
+    const portrait = await sharp(await fx.pageJpeg(700, 500)).rotate(90).jpeg().withMetadata({ orientation: 8 }).toBuffer();
     expect(await refusal(portrait, "image/jpeg")).toBe("too_small");
+  });
+  it("reads a photo the size a text message delivers — 1080 × 810, the owner's Google Voice BOL of 10/13/2026", async () => {
+    const mms = await sharp(await fx.pageJpeg(1080, 810)).jpeg({ quality: 70 }).toBuffer();
+    expect((await normalised(mms, "image/jpeg")).pages).toHaveLength(1);
   });
   it("refuses a TIFF of more than maxPages pages as too_many_pages, and reads one of exactly maxPages", async () => {
     expect(await refusal(await fx.multiPageTiff(INTAKE_LIMITS.maxPages + 1), "image/tiff")).toBe("too_many_pages");
