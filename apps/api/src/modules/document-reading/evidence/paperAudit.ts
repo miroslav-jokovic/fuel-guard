@@ -1,4 +1,4 @@
-import { auditPrintedPaper, type PaperFieldStates } from "@hazmat/engine";
+import { auditPrintedPaper, parsePageMarker, type PaperFieldStates } from "@hazmat/engine";
 import {
   classifyLineLoadState,
   normalizeUnit,
@@ -6,6 +6,7 @@ import {
   packagingKindFor,
   paperAuditSchema,
   readersAgree,
+  valuesAgree,
   rowWitnessesBack,
   shippingDocumentSchema,
   type FieldEvidence,
@@ -28,6 +29,12 @@ import { hmtResolution, witnessDataset } from "./hmtWitness.js";
  * group or phone number is ever found — and no row witness (the OCR, a born-digital page's text layer:
  * `ROW_WITNESS_READERS`), where one judged the field, found a different one. Everything else keeps its own status. The form's field states do not change: this decides only what
  * the audit may reason over, and each finding quotes the printed value so a person sees what it rests on.
+ *
+ * The page markers are compared by what `paper_page_complete` reads from them — each image's page and total —
+ * not as text. Measured 2026-10-13: on 0135071, the one two-page office BOL, Sonnet 4.6 wrote ["1/2", "2/2"]
+ * and Sonnet 5.5 ["Page 1/2", "Page 2/2"]; compared as text they disagree, and the page-count rule answered
+ * "confirm it first" on the only paper it could judge. The same split appeared on a retake ("1/2" twice
+ * against "Page 1/2" twice) — exactly the paper whose missing page 2 this rule exists to name.
  *
  * Template lines a shipper pre-prints with no count, weight or quantity are not audited: nothing is offered on
  * them, the calculator prefill leaves them out (`classifyLineLoadState`, the extractor's own rule), and their
@@ -83,7 +90,17 @@ export function auditFieldStates(evidence: readonly FieldEvidence[]): PaperField
   return Object.fromEntries(evidence.map((e) => [e.path, confirmedForAudit(e) ? "read" : e.status]));
 }
 
+/** The readers' page markers, as `paper_page_complete` reads them: each image's page and total. */
+const markerMeaning = (v: unknown) => (Array.isArray(v) ? v.map((m) => parsePageMarker(typeof m === "string" ? m : null)) : v);
+
+function readersAgreeForAudit(e: FieldEvidence): boolean | null {
+  if (e.path !== "identity.printedPageNumbers") return readersAgree(e);
+  const a = e.sources.find((s) => s.reader === "passA");
+  const b = e.sources.find((s) => s.reader === "passB");
+  return a && b ? valuesAgree(markerMeaning(a.value), markerMeaning(b.value)) : null;
+}
+
 function confirmedForAudit(e: FieldEvidence): boolean {
-  if (readersAgree(e) !== true) return false;
+  if (readersAgreeForAudit(e) !== true) return false;
   return rowWitnessesBack(e) !== false;
 }

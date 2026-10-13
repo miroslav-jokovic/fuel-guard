@@ -61,6 +61,21 @@ describe("auditForRead", () => {
     expect(pg?.facts.unconfirmed).toEqual(["hazmat.lines[1].pg"]);
   });
 
+  it("names a missing page when the readers write one page marker two ways — a retake of page 1 of 2 (0135071)", () => {
+    const pages = (markers: string[]) => { const d = doc([PAINT_NO_PG]); d.identity.printedPageNumbers = markers; return d; };
+    const a = pages(["1/2", "1/2"]);
+    const b = pages(["Page 1/2", "Page 1/2"]);
+    expect(outcome(auditForRead(a, shippingEvidence(a, b, "5", null)), "paper_page_complete"))
+      .toMatchObject({ outcome: "fail", reason: "pages_missing", facts: { of: 2, missingPages: [2] } });
+    // A marker read as a different page or total is still a disagreement the audit will not judge.
+    const c = pages(["1/2", "2/2"]);
+    expect(outcome(auditForRead(a, shippingEvidence(a, c, "5", null)), "paper_page_complete"))
+      .toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+    const d = pages(["1", "1"]);
+    expect(outcome(auditForRead(a, shippingEvidence(a, d, "5", null)), "paper_page_complete"))
+      .toMatchObject({ outcome: "cannot_tell", reason: "field_unconfirmed" });
+  });
+
   it("answers nothing for a result that is not a shipping document", () => {
     expect(auditForRead({ hazmat: { lines: "nope" } }, [])).toBeNull();
   });

@@ -624,8 +624,8 @@ stated with their counts, never borrowed from a generic sharpness scale (R9).
 | P3 Rectify | find the paper's four corners, flatten perspective, crop | classical quad + homography in WASM (spike: opencv.js vs scanic); no confident quad → no crop | field accuracy on photographed pages ≥ unrectified, false-accept not raised |
 | P4 Size | one resample to the tier's exact size (D-DR16) | composed with P3's warp | no request ever resized server-side (`oversized_image: "error"` never fires in a week of staging) |
 | P5 Quality gate | pass / retake / uncertain per page (D-DR18) | capture-engine focus, glare, text coverage on the prepared page | thresholds fitted and stated with counts |
-| P6 Duplicates | retakes of the same page: keep the sharpest, keep the others attached | perceptual hash + P5 score | no assembly reads the same page twice |
-| P7 Assemble | order `bol` pages by printed "Page n of m", then capture order; missing page → `paper_page_complete` finding | reads `identity.printedPageNumbers` from a first pass, or the classifier | dispatcher reorders in < 5 % of assemblies |
+| P6 Duplicates | ~~retakes of the same page: keep the sharpest, keep the others attached~~ **WITHDRAWN 2026-10-13 (D-DR23)** | ~~perceptual hash + P5 score~~ measured unsafe: every close pair in the corpus is a different page | — |
+| P7 Assemble | order `bol` pages by printed "Page n of m", then capture order; missing page → `paper_page_complete` finding (**the finding is built** — N6 part 3 plus the marker comparison of D-DR23; the ordering waits, D-DR23) | reads `identity.printedPageNumbers` from a first pass, or the classifier | dispatcher reorders in < 5 % of assemblies |
 
 Layer 2 (READ) is §7's reader with D-DR16's sizing, R2's page labels and Phase 2's second read.
 
@@ -637,10 +637,10 @@ Layer 2 (READ) is §7's reader with D-DR16's sizing, R2's page labels and Phase 
 2. **N2 — The upload on the calculator.** Multi-file drag-and-drop / device / gallery / files on
    `/hazmat/calculator`, thumbnails to untick and reorder (Step 3.4's first half).
 3. **N3 — Layer 1 P2 + P4 + R2** (classify + orient, tier sizing, page labels) — no new dependency.
-4. **N4 — Layer 1 P3 + P5 + P6 + P7** (rectify after its spike, gate, duplicates, assembly order).
+4. **N4 — Layer 1 P3 + P5 + P6 + P7** (rectify after its spike, gate, duplicates, assembly order). **2026-10-13: P6 withdrawn and P7 reduced to the missing-page finding (D-DR23); P3 and P5 wait on A6's labels — each one's "done when" is a field-accuracy number on the labelled corpus — and P3 also on Q-DR21's library install.**
 5. **N5 — Second read + cross-check (Phase 2.1, 2.2)** — the minimum before *Read* means anything.
 6. **N6 — Audit wiring + `bolPrefill.ts` (Step 3.3) + Calculate** — the flow end to end.
-7. **N7 — Samsara intake (3.2)**: a submission's photos → sources → a proposed assembly. Then SMS (3.5)
+7. **N7 — Samsara intake (3.2)**: a submission's photos → sources → a proposed assembly. ⚠ Measured 2026-10-13 (D-DR23): ONE submission can carry SEVERAL BOLs — 54289776 holds four different BOLs (six pages) plus a cargo photo, 55837258 three single-page BOLs — so "one submission = one assembly" is wrong; see Q-DR25. Then SMS (3.5)
    once Q-DR9 is answered.
 8. **N8 — Labels + model choice (0.3, 0.5, 3.1)** — runs alongside from N3; every Layer 1 stage ships
    its before/after on the corpus (§8), and a stage that does not lower the error rate is removed.
@@ -717,6 +717,42 @@ phone number is ever found) and the OCR, where it judged the field, did not find
 its status and the rule says what to confirm. The form's field states are unchanged, and every finding quotes
 the printed value it rests on. *Rejected:* auditing on pass A alone (one model's word, D-DR17); waiting for
 graduation (no audit at all for months).
+
+**D-DR23 — A retake is not removed before the read; a page's identity is its printed marker, never its picture
+(2026-10-13, N4).** Measured on the 196 real Samsara photos (61 submissions) and the office BOLs:
+
+- **A perceptual hash cannot tell a retake from the next page.** dHash at 8×8, 16×16 and 32×32: the closest pairs in
+  the whole corpus (16×16 distance 7.8–11.3 of 256) are 54289776's photos 2–7 — six DIFFERENT pages, four
+  consignees, "page 1 of 2" / "2 of 2", different hazmat lines — and then 55837258's three different BOLs on one
+  form and 59826918's pages 1, 2 and 3 of one BOL. Not one close pair of BOL pages was a retake; the corpus holds
+  no true retake at all. Dropping "the less sharp of two look-alikes" would have dropped real pages with real
+  hazmat lines — an under-placarding error, the one direction this module must never err in.
+- **The BOL number is not a safe key either.** The page classifier (Haiku 5.5), asked per page for the BOL number
+  and "page n of m": the marker was right on all 18 pages (including 59826918, photographed 3, 2, 1), but the
+  number dropped a digit twice (0357744003883236 for 03577744003883236), carried a stray space once, and is
+  absent on forms with no labelled box (55837258's "Shipper No.").
+- **The readers already cope with a retake.** Three office BOLs read alone and read with a simulated retake (the
+  page turned 3°, 85 % scale, darker, JPEG q70) by both readers: the hazmat lines were identical — **0 duplicated
+  lines in 6 reads** — and each reader recorded the retake's own marker (["Page 1/2", "Page 1/2"]), which is what
+  `paper_page_complete` needs to say "page 2 is missing".
+
+So: no stage removes or reorders pages on its own. A retake costs one page of tokens and nothing else; a missing
+page is named by the paper audit from the readers' per-image markers. One gap was found and closed here: the
+audit compared those markers as TEXT, so "1/2" (Sonnet 4.6) against "Page 1/2" (Sonnet 5.5) was a disagreement —
+on 0135071, the one two-page office BOL, the page rule answered "confirm it first". The audit now compares each
+image's parsed page and total (`parsePageMarker`, the rule's own parse). *Rejected:* perceptual-hash dedupe
+(above); dedupe by the classifier's BOL number (digit errors); a "possible retake" note on screen (no retake in
+the corpus to fit it on, and a wrong note trains people to ignore notes). Ordering by printed page waits until a
+labelled assembly shows the readers do worse on out-of-order pages — 59826918's reverse order is the case to try.
+
+**Q-DR25 — How does a Samsara submission become documents, when one submission can carry several BOLs?** (Found
+2026-10-13, D-DR23.) *Candidates:* (a) every `bol` page of a submission in one assembly — for placarding the whole
+load aboard is what counts, so the sum is the right input, but the paper audit then judges four BOLs as one paper
+(its page-count rule would see "1 of 2", "2 of 2", "1 of 2", "1 of 1"); (b) split by the classifier's marker and
+a digits-only BOL number within an edit distance of 2, a person confirming each split; (c) one assembly per
+submission for the calculator, and per-BOL assemblies only for the audit. *Default until answered:* N7 is not
+built. *Recommendation:* (c) — the calculator's question is "what is aboard", the audit's is "is this paper
+right", and each gets the grouping its question needs; decide when N7 starts.
 
 ### 7B.4 Build order (inserted before N4; N4 continues after)
 
@@ -1433,3 +1469,4 @@ Append dated lines at the end; never edit a row above.
   The curve is flat from 1200 to 800 and falls off a cliff below it, so `INTAKE_LIMITS.minLongEdgePx` is now 800. Above 800, an unsure value is for the two readers and the OCR witness to flag (§7B), not for intake to refuse. The refusal sentence now names 800 and the fix: text messages shrink photos, so ask the driver for the original. The OCR engine stands in for the readers here: Claude reads a small page at least as well as the OCR does, so the floor is conservative for them. A photo also carries margins the scans do not, so its page text sits a little smaller than these numbers. A6's labelled set should re-check both. The driver app's in-app capture keeps its own 1200 (`hazmatExtraction/image.ts`), since there it owns the camera. Four mutants killed (floor 1200 / 640 / 1081, sentence).
 - **2026-10-13 — §7B A4: a born-digital PDF's own text is a witness on each hazmat line's count, weight and quantity.** The normaliser has stored every PDF page's text layer since Step 1.3 (`document_pages.text_layer`, 0448), but no read looked at it. Now `textLayerWitness.ts` turns the read pages' stored words into the same row-bound form the OCR engine reports, and `shippingEvidence` judges them with the OCR's own rules (`rowOf`/`rowBacks`). It is recorded as a separate `textLayer` source after the `ocr` one. It is row-bound for the same measured reason the OCR is: exact characters do not stop a whole-page check backing 0132900's wrong "9 drums" with the class 9 printed elsewhere; only the row does. Three rules, each pinned by a mutant: (1) **all read pages or none**. A photo among PDF pages silences it, because the anchor count must see every page (the rule `ocrPages` applies to a failed page). (2) **Words are joined into lines** before the row is found. pdf.js boxes each word, and an id printed "UN 2735" with a space would otherwise never anchor. (3) **Boxes turn with P2's verdict**, so a sideways form inside a portrait page is searched in reading order. The paper audit (D-DR22) and the calculator's field note now read one list of row witnesses, `ROW_WITNESS_READERS` in the shared contract. Every row witness that judged a field must back it, so the OCR finding 6 does not outvote a text layer finding nothing. The field `ocrBacked` became `rowBacked`. Acceptance rule 5 (`cacheKey.ts`); statuses unchanged. **Not measured on real paper:** all ten office samples are scans with no text layer (`pdftotext` gives 0 words on each), and the Samsara corpus is photos. The tests run a pdfkit-drawn BOL through intake's own pdf.js normaliser instead. Born-digital BOLs arrive by email (Q-DR10), so A6's labelled set should include any it gets. 13 mutants killed; one equivalent (field-level `every`→`some`: no form field combines two row-judged paths today).
 - **2026-10-13 — the field descriptions' final wording, measured live: engine-field disagreements 18 → 5.** With the Anthropic credit restored, the same comparison was re-run with the same counting, the same ten office BOLs and the same pair (Sonnet 4.6 + Sonnet 5.5), on profile 1.2.0 (the weight column is `grossWeightLb`'s alone). Engine fields: **151 agree / 5 disagree** (baseline 145 / 18; first wording 161 / 20). The five: 0135071's **3,808 vs 3,806 lb**, the known true misread, still caught; two `packaging` on 0134527 where one reader wrote the paper's "5.00 EA" and the other the tote's description; one `packaging` "12" against null on 0133459; and one `marks` "RQ (sodium and potassium hydroxide)" against "RQ" on 0134527. So the copying-the-weight-into-quantity split is gone, `marks` holds notations only, and what remains is one real misread plus how the package column is written. 0132900, re-read alone to check the values and not just agreement: both readers read **6 drums, 11,400 lb** (the paper's), where Sonnet 4.6 read 9 on 10/11. That is one run of a nondeterministic reader, not a fix of that misread; the second reader stays for it. Standard (non-engine) fields: 199 / 68, mostly address formatting (line breaks against commas), which `valuesAgree` deliberately does not normalise. #1456 merged on this.
+- **2026-10-13 — N4 measured: retakes are left to the readers, pages are identified by their printed marker, and the audit now reads "1/2" and "Page 1/2" as the same marker (D-DR23).** Three spikes, numbers in D-DR23. The perceptual-hash dedupe the plan named for P6 would have removed real pages: the closest look-alikes in the 196-photo corpus are all different pages on one shipper's form. The classifier reads "page n of m" reliably but the BOL number with digit errors. Both readers, given a page and its simulated retake, read the same lines (0 duplicated in 6 reads) and record both markers. The one change shipped: `auditFieldStates` compares `identity.printedPageNumbers` by each image's parsed page and total (`parsePageMarker`, now exported from `@hazmat/engine`), so the missing-page finding is reachable when the readers word the marker differently, as they did on 0135071. Four mutants killed; one equivalent (dropping the one-reader guard: a missing reader already compares unequal). P3 (rectify) and P5 (quality gate) wait on A6's labels, P3 also on Q-DR21; a Samsara submission can carry several BOLs, so N7 waits on Q-DR25.
