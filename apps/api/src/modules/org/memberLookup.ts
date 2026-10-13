@@ -63,11 +63,21 @@ export async function usersWhoManage(
   orgId: string,
   section: AppSection,
 ): Promise<string[]> {
+  return usersInRoles(admin, orgId, rolesThatManage(section));
+}
+
+/**
+ * The same read for a recipient set that is not a section's managers — Med-Stop's result alert goes
+ * to the roles `canReadTestingRecords` admits (§382.401(a)), which no section's manage list states.
+ * The caller passes roles DERIVED from that predicate (`USER_ROLES.filter(...)`), never a typed list.
+ */
+export async function usersInRoles(admin: SupabaseClient, orgId: string, roles: readonly string[]): Promise<string[]> {
+  if (roles.length === 0) return [];
   const { data, error } = await admin
     .from("memberships")
     .select("user_id")
     .eq("org_id", orgId)
-    .in("role", rolesThatManage(section));
+    .in("role", [...roles]);
   if (error) throw new Error(error.message);
   return [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))];
 }

@@ -30,6 +30,14 @@ export interface ReturnToDutySubject {
   returnToDutyRequired: boolean;
   /** True when a `return_to_duty` qualification record is on file for this driver. */
   returnToDutyDocumented: boolean;
+  /**
+   * MS2 (MEDSTOP-PLAN.md §6 F-5): the collection day of this driver's newest verified POSITIVE or
+   * REFUSAL in Med-Stop, as `medstopViolationOn` reads it — null when there is none (or it is history
+   * from before the product watched, D-MS5). Absent for callers that only know the application flag.
+   */
+  violationOn?: string | null;
+  /** The newest `return_to_duty` record's `occurred_on`, read beside `violationOn`. */
+  lastReturnToDutyOn?: string | null;
 }
 
 /**
@@ -41,7 +49,31 @@ export interface ReturnToDutySubject {
  * not this predicate's business to guess at it.
  */
 export const returnToDutyOutstanding = (subject: ReturnToDutySubject): boolean =>
-  subject.returnToDutyRequired && !subject.returnToDutyDocumented;
+  returnToDutyCause(subject) !== null;
+
+/**
+ * WHY a driver is held, or null when they are not. Two obligations, discharged differently:
+ *
+ * - `admission` — §40.25(j), the application's answer. Any `return_to_duty` record discharges it,
+ *   because the admission is about a test before this employer, and one documented process is the
+ *   documentation the rule asks for.
+ * - `violation` — a Med-Stop POSITIVE or REFUSAL on this employer's own test (§382.211/§382.215).
+ *   ⚠ Only a record dated ON OR AFTER the violation discharges it. A driver who completed
+ *   return-to-duty in 2025 and tests positive in 2026 owes a second process; "any record ever" —
+ *   the admission's rule — would wave them through, which is the gap MS2 found in the door it reuses.
+ *
+ * A violation outranks an admission: it is the more recent, more specific fact, and what the office
+ * has to do about it (a new SAP process) is the same either way.
+ */
+export function returnToDutyCause(subject: ReturnToDutySubject): "violation" | "admission" | null {
+  const violationOn = subject.violationOn ?? null;
+  if (violationOn !== null) {
+    const last = subject.lastReturnToDutyOn ?? null;
+    if (last === null || last < violationOn) return "violation";
+  }
+  if (subject.returnToDutyRequired && !subject.returnToDutyDocumented) return "admission";
+  return null;
+}
 
 /**
  * What the refusal says, and to whom.
@@ -66,6 +98,14 @@ export const RETURN_TO_DUTY_BLOCK = {
     "This applicant said they had a positive or refused pre-employment test in the past two years. "
     + "Hiring them is allowed — putting them behind the wheel is not, until the paperwork showing "
     + "they finished the return-to-duty process is on file.",
+  /**
+   * Shown to the recruiter when the hold comes from a Med-Stop result rather than the application.
+   * ⚠ Names no result: the recruiter may not read testing records (`canReadTestingRecords`), and
+   * unlike the admission, the applicant never told them. The DER has the result and the alert.
+   */
+  hireViolation:
+    "Hiring is allowed, but this person cannot be put behind the wheel yet. Their file has an "
+    + "outstanding safety review that a safety manager or an administrator has to close first.",
   /** The item as it reads in the driver's file. */
   label: "Return-to-duty documentation",
 } as const;

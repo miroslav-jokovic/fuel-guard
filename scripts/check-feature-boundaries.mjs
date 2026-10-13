@@ -367,6 +367,16 @@ const API_ALLOW = new Set([
   //   · medstop -> org — the Med-Stop poller asks the jobs ledger when this org last finished a sweep,
   //     for `fleetpal -> org`'s reason (MEDSTOP-PLAN §6, MS1).
   "medstop -> org",
+  // · medstop -> evidence — a verified negative pre-employment drug test files the hiring step's
+  //   `drug_test` record through `insertQualificationRecord`, the same door `recruiting` files through
+  //   (MEDSTOP-PLAN §6 F-4, MS2b). · medstop -> messaging — the DER's `drug_alcohol_result` alert,
+  //   through `notify()` like every other office alert (F-5).
+  "medstop -> evidence",
+  "medstop -> messaging",
+  // · recruiting -> medstop — the dispatch door (`returnToDutyHold`) reads a Med-Stop positive or
+  //   refusal through `medstopViolationOn`, never `.from("medstop_*")` (F-5). medstop imports nothing
+  //   of recruiting's, so the arrow points one way.
+  "recruiting -> medstop",
   //   · fleetpal -> mcleod — the coverage bound's DENOMINATOR and its accounts-payable side, both
   //     through McLeod's own exported readers (`readLedgerTotalsRange`, `readVoucherNumbersWindow`)
   //     and never a `.from("mcleod_*")`, which `lint:table-access` would refuse outright. The edge

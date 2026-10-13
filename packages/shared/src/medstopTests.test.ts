@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   isMedstopDerAlert,
+  medstopFilesHiringDrugTest,
+  medstopResultNotice,
   isMedstopViolation,
   medstopRequestRefused,
   medstopResultExpectedOn,
@@ -68,5 +70,41 @@ describe("medstopResultExpectedOn", () => {
     expect(medstopResultExpectedOn("TA", "2026-10-09T14:24:00")).toBeNull();
     expect(medstopResultExpectedOn("TD", null)).toBeNull();
     expect(medstopResultExpectedOn("TD", "soon")).toBeNull();
+  });
+});
+
+describe("medstopFilesHiringDrugTest", () => {
+  it("only a verified negative pre-employment DRUG test files the hiring step", () => {
+    expect(medstopFilesHiringDrugTest({ service: "TD", reason: "PRE-EMPLOYMENT" }, "negative")).toBe(true);
+    expect(medstopFilesHiringDrugTest({ service: "TD", reason: "RANDOM" }, "negative")).toBe(false);
+    expect(medstopFilesHiringDrugTest({ service: "TA", reason: "PRE-EMPLOYMENT" }, "negative")).toBe(false);
+    expect(medstopFilesHiringDrugTest({ service: "TD", reason: "PRE-EMPLOYMENT" }, "negative_dilute")).toBe(false);
+    expect(medstopFilesHiringDrugTest({ service: "TD", reason: "PRE-EMPLOYMENT" }, "pending")).toBe(false);
+  });
+});
+
+describe("medstopResultNotice", () => {
+  const base = { service: "TD", reason: "RANDOM", collectedOn: "10/09/2026", personName: "Pat Driver" } as const;
+
+  it("a violation on a certain match is critical and says dispatch is stopped", () => {
+    const n = medstopResultNotice({ ...base, outcome: "positive", dispatchStopped: true });
+    expect(n).toMatchObject({ title: "Drug test: action needed", severity: "critical" });
+    expect(n.body).toBe("Pat Driver: verified positive on a random drug test collected 10/09/2026. Dispatch is stopped for this driver until return-to-duty documentation is filed.");
+  });
+
+  it("a violation without a certain match says dispatch was NOT stopped", () => {
+    expect(medstopResultNotice({ ...base, outcome: "refusal", dispatchStopped: false }).body).toContain("dispatch was NOT stopped");
+  });
+
+  it("a dilute is a warning, never a stop", () => {
+    const n = medstopResultNotice({ ...base, service: "TD", outcome: "negative_dilute", dispatchStopped: false });
+    expect(n).toMatchObject({ title: "Drug test result to review", severity: "warning" });
+    expect(n.body).toContain("recollection");
+  });
+
+  it("an alcohol test is named as one, and a missing name or date still reads", () => {
+    const n = medstopResultNotice({ outcome: "positive", service: "TA", reason: null, collectedOn: null, personName: null, dispatchStopped: true });
+    expect(n.title).toBe("Alcohol test: action needed");
+    expect(n.body.startsWith("A person on Med-Stop's roster: verified positive on an alcohol test.")).toBe(true);
   });
 });

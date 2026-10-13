@@ -19,7 +19,7 @@ export const medstopSyncHandler: JobHandler = async (ctx, job) => {
     await recordSweep(admin, orgId, { at: new Date().toISOString(), error: null });
     return {
       ok: true,
-      detail: `${result.employees} employees (${result.matched} matched), ${result.pools} pools, ${result.selections} selections, ${result.tests.tests} tests (${result.tests.trails} trails, ${result.tests.baseline} history), ${result.tests.requests} orders in ${result.requests} requests`,
+      detail: `${result.employees} employees (${result.matched} matched), ${result.pools} pools, ${result.selections} selections, ${result.tests.tests} tests (${result.tests.trails} trails, ${result.tests.baseline} history), ${result.tests.requests} orders; ${result.outcomes.filed} filed, ${result.outcomes.alerted} sent to the DER; ${result.requests} requests`,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
