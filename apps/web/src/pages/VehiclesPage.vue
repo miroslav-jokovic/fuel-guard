@@ -27,6 +27,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import VehicleForm from "@/features/roster/VehicleForm.vue";
 import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@/lib/sort";
 import { formatDate } from "@/lib/format";
@@ -109,6 +110,7 @@ const updateVehicle = useUpdateVehicle();
 const retireVehicle = useRetireVehicle();
 
 const toast = useToastStore();
+const ask = useConfirm();
 const drawerOpen = ref(false);
 const editing = ref<Vehicle | null>(null);
 
@@ -163,7 +165,14 @@ async function onSubmit(input: VehicleInput) {
 const setupOpen = ref(false);
 
 async function onRetire(v: Vehicle) {
-  if (confirm(`Retire vehicle ${v.unit_number}? Its history is preserved.`)) {
+  // The product's dialog, red: a retired vehicle leaves the active list (D-US7). Its history is kept.
+  const asked = await ask({
+    title: `Retire vehicle ${v.unit_number}?`,
+    message: "Its history is preserved.",
+    confirmLabel: "Retire",
+    tone: "danger",
+  });
+  if (asked) {
     try {
       await retireVehicle.mutateAsync(v.id);
       toast.success(`Vehicle ${v.unit_number} retired`);
@@ -226,7 +235,7 @@ async function onRetire(v: Vehicle) {
       :selectable="session.can('equipment')"
       :selected="selected"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the vehicles.') : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"

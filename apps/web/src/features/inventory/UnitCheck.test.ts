@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { ref } from "vue";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
@@ -242,15 +243,29 @@ describe("the promise the queue keeps", () => {
 
 describe("closing", () => {
   it("warns about items nobody looked at, and leaves them alone", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const asked = answerConfirm(false);
     const w = page();
     await press(w, "Review");
     await press(w, "Close the check");
-    expect(confirm.mock.calls[0]![0]).toContain("1 item");
+    // D-US7: the product's dialog, red because closing cannot be undone.
+    expect(asked).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining("1 item"),
+        confirmLabel: "Close check",
+        tone: "danger",
+      }),
+    );
     // Cancelled: nothing closed, and no movement invented for the unlooked-at item.
     expect(closeWalk.mutateAsync).not.toHaveBeenCalled();
     expect(move.mutateAsync).not.toHaveBeenCalled();
-    confirm.mockRestore();
+  });
+
+  it("closes the check when the question is answered yes", async () => {
+    answerConfirm(true);
+    const w = page();
+    await press(w, "Review");
+    await press(w, "Close the check");
+    expect(closeWalk.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
   it("shows what is short at review, which is what somebody acts on", async () => {

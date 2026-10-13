@@ -315,6 +315,7 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
         </template>
       </FilterBar>
 
+      <!-- ui-adoption: unpaged — one driver's requirements are a filter of the shared DQ_ITEMS catalogue (20 entries, packages/shared dqCatalogue.ts), so the list never passes one page (D-US8). -->
       <RequirementTable
         :rows="filteredRows"
         :loading="loading"

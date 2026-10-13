@@ -21,7 +21,7 @@ export function useThreadsQuery(enabled: Ref<boolean>) {
     enabled,
     queryFn: async (): Promise<ThreadsResponse> => {
       const res = await apiFetch<ThreadsResponse>("/api/messages");
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Failed to load messages.");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the messages.");
       return res.data;
     },
     refetchInterval: 30_000,
@@ -34,7 +34,7 @@ export function useThreadDetailQuery(threadId: Ref<string | null>) {
     enabled: computed(() => !!threadId.value),
     queryFn: async (): Promise<ThreadDetailResponse> => {
       const res = await apiFetch<ThreadDetailResponse>(`/api/messages/${threadId.value}`);
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Failed to load the conversation.");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the conversation.");
       return res.data;
     },
     refetchInterval: 15_000,
@@ -87,7 +87,7 @@ export function useSendMessage() {
         method: "POST",
         body: { message_id: genUuid(), body: input.body },
       });
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to send.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not send the message.");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: THREADS_KEY }),
   });

@@ -2,6 +2,7 @@
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { loadBoardState, movedByOther, needsAttention, type DispatchBoardRow, type LoadStatus } from "@silvicom/shared";
 import DataTable from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import type { SortState } from "@/lib/sort";
 import { BADGE_BASE, hosStatusBadge, onTimeBadge, toneClass } from "@/lib/badges";
 import { formatDateTime } from "@/lib/format";
@@ -14,8 +15,13 @@ import { BOARD_HOS_LOW_MS } from "@silvicom/shared";
  * planner reads left to right — who, how long they can drive, where, what, when it arrives, when it
  * empties, what is next. Every verdict on it (on time, the flags) arrived from the server; this only
  * draws. Times are on the CARRIER's clock (`zone`), never the viewer's, like the Loads page.
+ *
+ * It pages (D-US8): 197 active trucks were one table on 2026-10-13, and the owner named this board as
+ * the list nobody could get to the bottom of. Filtering, sorting and slicing stay with the page, which
+ * owns the URL (`?page=`); this draws the pager in the table's own footer, as `DriverRosterTable` does.
  */
 const props = defineProps<{
+  /** The current page of rows — already filtered, sorted and sliced by the page. */
   rows: DispatchBoardRow[];
   /** The columns this reader shows (`useTableColumns` over `BOARD_COLUMNS`), in their declared order. */
   columns: DataTableColumn[];
@@ -28,8 +34,12 @@ const props = defineProps<{
   dispatchers: ReadonlyArray<{ id: string; name: string | null }>;
   fleetOwner: (code: string | null) => string | null;
   sort: SortState;
+  page: number;
+  pageSize: number;
+  /** Total rows behind the pagination, i.e. the filtered count, not `rows.length`. */
+  total: number;
 }>();
-const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow]; sort: [key: string] }>();
+const emit = defineEmits<{ retry: []; open: [row: DispatchBoardRow]; sort: [key: string]; "update:page": [page: number] }>();
 
 const at = (iso: string | null | undefined) => formatDateTime(iso, "—", props.zone);
 
@@ -155,6 +165,16 @@ const loadLabel = (l: NonNullable<DispatchBoardRow["current"]>) =>
       </template>
       <span v-else-if="row.flags.noNextLoad" :class="[BADGE_BASE, toneClass('neutral')]">None</span>
       <span v-else class="text-ink-tertiary">—</span>
+    </template>
+
+    <template #footer>
+      <TablePagination
+        :page="props.page"
+        :page-size="props.pageSize"
+        :total="props.total"
+        :loading="retrying"
+        @update:page="emit('update:page', $event)"
+      />
     </template>
   </DataTable>
 </template>

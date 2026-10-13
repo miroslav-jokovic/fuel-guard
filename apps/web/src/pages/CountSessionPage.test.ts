@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { ref } from "vue";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
@@ -146,6 +147,9 @@ const pressRecord = async (w: W) => {
   await settle();
 };
 
+/** Every question the walk asks (D-US7), answered yes unless a test says otherwise. */
+let asked: ReturnType<typeof answerConfirm>;
+
 beforeEach(() => {
   setActivePinia(createPinia());
   globalThis.indexedDB = new IDBFactory();
@@ -159,7 +163,7 @@ beforeEach(() => {
   walk.value = { ...(walk.value as object), blind: true, status: "open" };
   document.body.innerHTML = "";
   withBar();
-  vi.spyOn(window, "confirm").mockReturnValue(true);
+  asked = answerConfirm(true);
   sessionFail.on = false;
   sessionFail.refetch.mockReset();
 });
@@ -282,7 +286,7 @@ describe("D-INV21's ladder", () => {
     // 12 expected, 11 counted: a variance of one, under the floor of five. No question asked.
     await typeCount(w, "11");
     await pressRecord(w);
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(asked).not.toHaveBeenCalled();
     expect(record.mutateAsync).toHaveBeenCalled();
   });
 
@@ -291,12 +295,14 @@ describe("D-INV21's ladder", () => {
     await settle();
     await typeCount(w, "0");
     await pressRecord(w);
-    // The consequence, not "Are you sure".
-    expect(vi.mocked(window.confirm).mock.calls[0]?.[0]).toContain("Record 0 of 12");
+    // The consequence, not "Are you sure" — and a button that says what it does (D-US7).
+    expect(asked).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining("Record 0 of 12"), confirmLabel: "Record count" }),
+    );
   });
 
   it("records NOTHING when the confirm is refused — not the ledger, not the phone", async () => {
-    vi.mocked(window.confirm).mockReturnValue(false);
+    asked.mockImplementation(async () => false);
     const w = page();
     await settle();
     await typeCount(w, "0");
@@ -351,9 +357,10 @@ describe("the review", () => {
     await openReview(w);
     await w.findAll("button").find((b) => b.text() === "Close the count")!.trigger("click");
     await settle();
-    const asked = String(vi.mocked(window.confirm).mock.calls.at(-1)?.[0] ?? "");
-    expect(asked).toContain("not counted");
-    expect(asked).toContain("cannot be undone");
+    const question = asked.mock.calls.at(-1)?.[0];
+    expect(question?.title).toContain("not counted");
+    expect(question?.message).toContain("cannot be undone");
+    expect(question).toMatchObject({ confirmLabel: "Close count", tone: "danger" });
     expect(closeWalk.mutateAsync).toHaveBeenCalled();
   });
 
@@ -363,7 +370,7 @@ describe("the review", () => {
     await typeCount(w, "12");
     await pressRecord(w);
     await openReview(w);
-    vi.mocked(window.confirm).mockReturnValue(false);
+    asked.mockImplementation(async () => false);
     await w.findAll("button").find((b) => b.text() === "Close the count")!.trigger("click");
     await settle();
     expect(closeWalk.mutateAsync).not.toHaveBeenCalled();

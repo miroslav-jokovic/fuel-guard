@@ -2,6 +2,7 @@ import { isRosterIssuedRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { apiRefusal } from "@/composables/useStepUpRetry";
 import { useToastStore } from "@/stores/toast";
+import type { ConfirmRequest } from "@/stores/confirm";
 
 /**
  * The Users page's access acts on one office member — remove, suspend, reinstate — and the sentences
@@ -35,17 +36,62 @@ export function offersAccessActions(m: OrgMember, selfId: string | null | undefi
 
 export const isSuspended = (m: OrgMember): boolean => Boolean(m.suspendedAt);
 
-export const removeConfirmText = (m: OrgMember) =>
-  `Remove ${who(m)} from the organization? They are signed out immediately, and their personal permissions are deleted. To bring them back you will need to invite them again.`;
+/**
+ * The questions, as the product's confirm dialog asks them (D-US7): the question as the title, what
+ * happens and what is kept as the message, the verb on the button. The sentences are the ones the
+ * browser's `confirm()` used to show, split at the question mark — the words are what the tests pin.
+ * Remove and suspend are `danger`: one deletes the person's personal permissions, the other signs
+ * them out and locks them out. Reinstate gives access back, so it is the ordinary primary button.
+ */
+export const removeConfirm = (m: OrgMember): ConfirmRequest => ({
+  title: `Remove ${who(m)} from the organization?`,
+  message: "They are signed out immediately, and their personal permissions are deleted. To bring them back you will need to invite them again.",
+  confirmLabel: "Remove member",
+  tone: "danger",
+});
 
-export const bulkRemoveConfirmText = (n: number) =>
-  `Remove ${n} member${n > 1 ? "s" : ""}? They are signed out immediately, and their personal permissions are deleted.`;
+export const bulkRemoveConfirm = (n: number): ConfirmRequest => ({
+  title: `Remove ${n} member${n > 1 ? "s" : ""}?`,
+  message: "They are signed out immediately, and their personal permissions are deleted.",
+  confirmLabel: `Remove ${n} member${n > 1 ? "s" : ""}`,
+  tone: "danger",
+});
 
-export const suspendConfirmText = (m: OrgMember) =>
-  `Suspend ${who(m)}? They are signed out now and cannot sign in until you reinstate them. Their role and personal permissions are kept.`;
+export const suspendConfirm = (m: OrgMember): ConfirmRequest => ({
+  title: `Suspend ${who(m)}?`,
+  message: "They are signed out now and cannot sign in until you reinstate them. Their role and personal permissions are kept.",
+  confirmLabel: "Suspend",
+  tone: "danger",
+});
 
-export const reinstateConfirmText = (m: OrgMember) =>
-  `Reinstate ${who(m)}? They can sign in again with the role and personal permissions they had before.`;
+export const reinstateConfirm = (m: OrgMember): ConfirmRequest => ({
+  title: `Reinstate ${who(m)}?`,
+  message: "They can sign in again with the role and personal permissions they had before.",
+  confirmLabel: "Reinstate",
+});
+
+/** Deleting a revoked or expired invitation; the email is named because its row is about to go. */
+export const deleteInviteConfirm = (email: string | undefined): ConfirmRequest => ({
+  title: `Delete the invitation for ${email ?? "this address"}?`,
+  message: "The audit log keeps a record.",
+  confirmLabel: "Delete invitation",
+  tone: "danger",
+});
+
+/** An admin demoting themselves: danger, because they lose the access it would take to undo it. */
+export const selfRoleConfirm: ConfirmRequest = {
+  title: "Change your own role?",
+  message: "You will be signed out now and lose admin access.",
+  confirmLabel: "Change my role",
+  tone: "danger",
+};
+
+/**
+ * The page's `useConfirm()` (D-US7). This module is plain functions, not a composable, so it cannot
+ * call `useConfirm()` itself at a component's setup time; the page does, once, and hands the result
+ * to every act here — the same way it hands in `holdForStepUp`.
+ */
+export type Ask = (request: ConfirmRequest) => Promise<boolean>;
 
 /**
  * The page's `holdForStepUp` (useStepUpRetry): true when the refusal was `step_up_required`, the
@@ -63,7 +109,8 @@ export type StepUpHold = (error: unknown, retry: () => Promise<void>) => boolean
  * `disableConfirmed` is the same split for the same reason.
  */
 async function act(
-  question: string,
+  ask: Ask,
+  question: ConfirmRequest,
   path: string,
   method: "POST" | "DELETE",
   done: [string, string],
@@ -71,8 +118,9 @@ async function act(
   hold: StepUpHold,
   after: () => Promise<void>,
 ): Promise<void> {
-  // window.confirm, the destructive-action pattern this page already uses for deleting an invitation.
-  if (!confirm(question)) return;
+  // The product's confirm (D-US7), as for deleting an invitation on the same page; it replaced the
+  // browser's `window.confirm`, which could neither name the act on its button nor mark it red.
+  if (!(await ask(question))) return;
   const toast = useToastStore();
   const send = async (): Promise<void> => {
     const res = await apiFetch(path, { method });
@@ -87,14 +135,14 @@ async function act(
   await send();
 }
 
-export const removeMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
-  act(removeConfirmText(m), `/api/members/${m.userId}`, "DELETE", ["Member removed", `${who(m)} was signed out.`], "Could not remove member", hold, after);
+export const removeMember = (ask: Ask, m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(ask, removeConfirm(m), `/api/members/${m.userId}`, "DELETE", ["Member removed", `${who(m)} was signed out.`], "Could not remove member", hold, after);
 
-export const suspendMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
-  act(suspendConfirmText(m), `/api/members/${m.userId}/suspend`, "POST", ["Member suspended", `${who(m)} was signed out.`], "Could not suspend member", hold, after);
+export const suspendMember = (ask: Ask, m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(ask, suspendConfirm(m), `/api/members/${m.userId}/suspend`, "POST", ["Member suspended", `${who(m)} was signed out.`], "Could not suspend member", hold, after);
 
-export const reinstateMember = (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
-  act(reinstateConfirmText(m), `/api/members/${m.userId}/reinstate`, "POST", ["Member reinstated", `${who(m)} can sign in again.`], "Could not reinstate member", hold, after);
+export const reinstateMember = (ask: Ask, m: OrgMember, hold: StepUpHold, after: () => Promise<void>) =>
+  act(ask, reinstateConfirm(m), `/api/members/${m.userId}/reinstate`, "POST", ["Member reinstated", `${who(m)} can sign in again.`], "Could not reinstate member", hold, after);
 
 /**
  * Remove several members, one DELETE each (the API answers one member at a time), counting what

@@ -30,6 +30,7 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import TrailerForm from "@/features/roster/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@/lib/sort";
 
@@ -38,6 +39,7 @@ const session = useSessionStore();
 const { data: trailers, isLoading, isError, error, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
+const ask = useConfirm();
 
 // ── filters ─────────────────────────────────────────────────────────────────────
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back keep the list.
@@ -172,7 +174,14 @@ async function toggleReefer(t: Trailer) {
 }
 
 async function onRetire(t: Trailer) {
-  if (confirm(`Retire trailer ${t.unit_number}? Its history is preserved.`)) {
+  // The product's dialog, red: a retired trailer leaves the active list (D-US7). Its history is kept.
+  const asked = await ask({
+    title: `Retire trailer ${t.unit_number}?`,
+    message: "Its history is preserved.",
+    confirmLabel: "Retire",
+    tone: "danger",
+  });
+  if (asked) {
     try {
       await retireTrailer.mutateAsync(t.id);
       toast.success(`Trailer ${t.unit_number} retired`);
@@ -227,7 +236,7 @@ async function onRetire(t: Trailer) {
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load trailers') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the trailers.') : null"
       :retrying="isFetching"
       :sort="sort"
       :selectable="session.can('equipment')"

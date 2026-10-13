@@ -70,6 +70,7 @@ merged result: nothing in it is missing from `main`.
 | US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | MERGED 2026-10-12 |
 | US5b | The three roster form drawers put Save in the footer; gate (G6) | MERGED 2026-10-13 |
 | US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | MERGED 2026-10-13 |
+| US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | BUILDING (claude/ui-std-paging) |
 | US6b | A browser pass of every routed page at 1280 px and 390 px | planned |
 | US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
 
@@ -130,6 +131,17 @@ fact list.
 
 **D-US5b — A drawer's form puts its submit in the footer.** `form="<id>"` on the footer's button; the
 gate counts per drawer.
+
+**D-US7 — "Are you sure?" is the product's dialog.** `useConfirm()` (stores/confirm.ts) returns a promise
+of the answer; one `ConfirmHost` in `App.vue` draws it through `BaseModal`, with the act's own verb on
+the button and danger in red. The gate refuses `confirm(`, `alert(` and `prompt(` in web code. Before:
+21 acts asked through the browser's grey dialog, its buttons always "OK", the page frozen behind it.
+
+**D-US8 — A list with a toolbar pages.** A `DataTable`, or a `*Table` component wrapping one, inside a
+`DataWorkspace` renders `TablePagination` in its footer; a cursor-paged list uses its uncounted mode
+(so "Load more" is gone too). A list that is honestly bounded says so at the table:
+`ui-adoption: unpaged — <why>`. Before: ten toolbar lists rendered every row, the Dispatch board among
+them (197 trucks, one table), and Labels' asset list only ever showed the server's first 50.
 
 ## 6. Open questions
 
@@ -218,3 +230,9 @@ the vehicle form's refusal of an empty tank capacity is shown on its field, and 
 password handoff, the dashboard's linked KPI strip, the route summary's icon strip). Blanks that had
 been printed as values are gone — a truck with no tank on file read " gal" (test fails on the old
 page), and asset, part, card and recall-audit facts that typed their own "—" now leave it to the list.
+
+**2026-10-13 — the owner found the Dispatch board unpaged, and asked for every page still off-standard.**
+A second sweep, for what the gate did not yet check, found: ten unpaged toolbar lists (and a "Load
+more" beside the Audit log's Previous/Next for the same kind of list); 21 `window.confirm`s; 28
+"Failed to …" strings against the voice's "Could not …"; and the anomaly audit's fill time printed by
+the browser's locale. Each became a gate rule (D-US7, D-US8, the voice) and the sites were converted.

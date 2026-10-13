@@ -24,6 +24,7 @@ import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -79,6 +80,7 @@ import { useSessionStore } from "@/stores/session";
 const route = useRoute();
 const router = useRouter();
 const toast = useToastStore();
+const ask = useConfirm();
 const session = useSessionStore();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
 
@@ -142,11 +144,14 @@ async function commit() {
   const tier = countVarianceTier(line.quantityOnHand, draft.value);
   if (tier !== "none") {
     // The consequence, not "Are you sure" — the reader has to be able to answer without re-deriving
-    // what they are about to do.
-    const ok = window.confirm(
-      `Record ${draft.value} of ${line.quantityOnHand} for ${line.partNumber}?\n\n` +
-        `OK records it. Cancel keeps counting.`,
-    );
+    // what they are about to do. The product's dialog, not the browser's (D-US7): on a shop phone the
+    // native one was titled with the site's address and its buttons said "OK", so the words had to
+    // explain the buttons; here the button says what it does and Cancel keeps counting.
+    const ok = await ask({
+      title: `Record ${draft.value} of ${line.quantityOnHand} for ${line.partNumber}?`,
+      message: "Cancel keeps counting.",
+      confirmLabel: "Record count",
+    });
     if (!ok) return;
   }
 
@@ -295,11 +300,21 @@ const actions = computed<WalkAction[]>(() => {
 
 async function close() {
   const uncounted = review.value.filter((r) => r.state === "uncounted").length;
-  const ok = window.confirm(
+  // D-US7: the product's dialog, red because closing cannot be undone.
+  const ok = await ask(
     uncounted > 0
-      ? `Close this count with ${uncounted} shelf line${uncounted === 1 ? "" : "s"} not counted?\n\n` +
-          `Uncounted lines are left exactly as they are. Closing cannot be undone.`
-      : "Close this count?\n\nClosing cannot be undone; a correction is a new count.",
+      ? {
+          title: `Close with ${uncounted} line${uncounted === 1 ? "" : "s"} not counted?`,
+          message: "Uncounted lines are left exactly as they are. Closing cannot be undone.",
+          confirmLabel: "Close count",
+          tone: "danger",
+        }
+      : {
+          title: "Close this count?",
+          message: "Closing cannot be undone; a correction is a new count.",
+          confirmLabel: "Close count",
+          tone: "danger",
+        },
   );
   if (!ok) return;
   try {

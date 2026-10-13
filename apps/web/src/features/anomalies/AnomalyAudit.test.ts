@@ -45,3 +45,14 @@ describe("the anomaly audit facts", () => {
     expect(facts(w, 0)).toEqual({ "Driver entered (report)": "412,000 mi", "Samsara (telematics)": "—", Difference: "—" });
   });
 });
+
+/**
+ * D-DS18, finished 2026-10-13: the fill's time is the product's one MM/DD/YYYY h:mm shape, on the
+ * station's clock — it was the last `toLocale…String` left in a page, and printed "Oct 1, 2026, 10:30 AM".
+ */
+describe("the anomaly audit's fill time", () => {
+  it("reads the fill on the station's clock in the product's date shape", () => {
+    const w = mount(AnomalyAudit, { props: { txn: txn(), odometerOffset: 0, tz: null } });
+    expect(w.text()).toContain("10/01/2026 10:30 AM");
+  });
+});

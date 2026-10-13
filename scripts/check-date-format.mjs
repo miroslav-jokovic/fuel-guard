@@ -64,9 +64,6 @@ const CARVE_OUTS = new Map([
   ["apps/web/src/features/reconcile/BuyDisciplineTab.vue", "a month heading, not a date"],
   ["apps/web/src/pages/DataSyncPage.vue", "a month heading, not a date"],
 
-  // A clock that is deliberately NOT the reader's.
-  ["apps/web/src/features/anomalies/AnomalyAudit.vue", "renders in an explicitly chosen display timezone"],
-
   // Weekday and time-of-day are not dates, and have no MM/DD/YYYY form.
   ["apps/web/src/components/ui/TimelineRail.vue", "weekday prefix beside a formatDisplayDate day"],
   ["apps/web/src/pages/MessagesPage.vue", "a time of day for today's messages"],

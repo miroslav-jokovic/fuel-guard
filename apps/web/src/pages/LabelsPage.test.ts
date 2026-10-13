@@ -52,10 +52,34 @@ vi.mock("@/features/inventory/useLabels", () => ({
   fetchLabelSheet: fetchSheet,
 }));
 
+/** A stock line; the paging tests fill the shelves with more of them. */
+const line = (partId: string, partNumber: string) => ({
+  partId,
+  locationId: BAY,
+  partNumber,
+  partDescription: "Oil filter",
+  locationName: "Bay A",
+  unitOfMeasure: "each",
+  quantityOnHand: 11,
+  reorderPoint: null,
+  reorderQuantity: null,
+  aisle: null,
+  row: null,
+  bin: null,
+  tagCode: null,
+  lastCost: null,
+  active: true,
+});
+let extraLines: ReturnType<typeof line>[] = [];
+/** The filter the page last handed `useAssetsQuery` — the server page it asks for (D-US8). */
+let assetsFilter: { value: { page: number; search?: string } } | null = null;
+let assetsTotal = 1;
+
 vi.mock("@/features/inventory/useInventory", () => ({
   useStockQuery: () => ({
     data: ref({
       lines: [
+        ...extraLines,
         {
           partId: PART,
           locationId: BAY,
@@ -81,13 +105,18 @@ vi.mock("@/features/inventory/useInventory", () => ({
 }));
 
 vi.mock("@/features/inventory/useAssets", () => ({
-  useAssetsQuery: () => ({
-    data: ref({
-      assets: [{ id: ASSET, displayNo: "A-0412", name: "Cab tablet", assetTypeName: "Tablet", tagCode: null }],
-      total: 1,
-    }),
-    isLoading: ref(false),
-  }),
+  ASSETS_PAGE_SIZE: 50,
+  useAssetsQuery: (filter: { value: { page: number; search?: string } }) => {
+    assetsFilter = filter;
+    return {
+      data: ref({
+        assets: [{ id: ASSET, displayNo: "A-0412", name: "Cab tablet", assetTypeName: "Tablet", tagCode: null }],
+        total: assetsTotal,
+      }),
+      isLoading: ref(false),
+      isFetching: ref(false),
+    };
+  },
 }));
 
 /**
@@ -118,7 +147,8 @@ const stubs = {
   DataTable: {
     name: "DataTable",
     props: { columns: null, rows: null, loading: null, rowKey: null, selectable: null, selected: null, embedded: Boolean },
-    template: "<div />",
+    // The footer renders, so the pager the page puts there is the real one.
+    template: "<div><slot name='footer' /></div>",
   },
   LabelSheetPreview: { name: "LabelSheetPreview", props: ["faces", "presetId", "startPosition", "nudgeX", "nudgeY"], template: "<div />" },
   LabelStockControls: { name: "LabelStockControls", props: ["presets", "presetId", "startPosition", "nudgeX", "nudgeY"], template: "<div />" },
@@ -136,6 +166,8 @@ async function render(url = "/labels") {
 beforeEach(() => {
   facesMutate.mockClear();
   fetchSheet.mockClear();
+  extraLines = [];
+  assetsTotal = 1;
 });
 
 describe("picking what to label", () => {
@@ -280,5 +312,79 @@ describe("printing", () => {
     const button = wrapper.findAll("button").find((b) => b.text().startsWith("Print"))!;
     expect(button.attributes("disabled")).toBeDefined();
     expect(fetchSheet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * D-US8: both lists page. The assets page through the SERVER — `/assets` answers fifty at a time, and
+ * before this the table asked for page 1 with no pager, so asset 51 onward could never be ticked. The
+ * shelves are one response and page as slices. The ticks outlive a page change.
+ */
+describe("paging the two lists", () => {
+  const toAssets = async (w: Awaited<ReturnType<typeof render>>) => {
+    w.findComponent({ name: "AppSegmentedControl" }).vm.$emit("update:modelValue", "assets");
+    await flushPromises();
+  };
+  const pager = (w: Awaited<ReturnType<typeof render>>) => w.findComponent({ name: "TablePagination" });
+
+  it("asks the server for the asset page the pager moves to, and counts from its total", async () => {
+    assetsTotal = 120;
+    const w = await render();
+    await toAssets(w);
+    expect(assetsFilter!.value.page).toBe(1);
+    expect(pager(w).props()).toMatchObject({ total: 120, pageSize: 50 });
+
+    pager(w).vm.$emit("update:page", 2);
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ page: "2" });
+    expect(assetsFilter!.value.page).toBe(2);
+  });
+
+  it("sends a pasted search to the asset query, and a new search returns to page 1", async () => {
+    assetsTotal = 120;
+    const w = await render("/labels?search=cab");
+    await toAssets(w);
+    expect(assetsFilter!.value.search).toBe("cab");
+    pager(w).vm.$emit("update:page", 2);
+    await flushPromises();
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "tab");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "tab" });
+    expect(assetsFilter!.value).toMatchObject({ page: 1, search: "tab" });
+  });
+
+  it("keeps the ticks when the page changes", async () => {
+    assetsTotal = 120;
+    const w = await render();
+    await toAssets(w);
+    const ticked = new Set([`asset:${ASSET}`]);
+    w.findComponent({ name: "DataTable" }).vm.$emit("update:selected", ticked);
+    await flushPromises();
+    pager(w).vm.$emit("update:page", 2);
+    await flushPromises();
+    expect(w.findComponent({ name: "DataTable" }).props("selected")).toEqual(ticked);
+  });
+
+  it("a pasted ?page=2 shows shelves 21–40, and a search returns to page 1", async () => {
+    extraLines = Array.from({ length: 44 }, (_, i) =>
+      line(`aaaaaaaa-aaaa-4aaa-8aaa-${String(i + 1).padStart(12, "0")}`, `P-${String(i + 1).padStart(2, "0")}`),
+    );
+    const w = await render("/labels?page=2");
+    const parts = () => (w.findComponent({ name: "DataTable" }).props("rows") as Array<{ partNumber: string }>).map((r) => r.partNumber);
+    expect(parts()).toEqual(extraLines.slice(20, 40).map((l) => l.partNumber));
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "P-");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "P-" });
+    expect(parts()).toEqual(extraLines.slice(0, 20).map((l) => l.partNumber));
+  });
+
+  it("switching lists returns to page 1", async () => {
+    extraLines = Array.from({ length: 44 }, (_, i) =>
+      line(`aaaaaaaa-aaaa-4aaa-8aaa-${String(i + 1).padStart(12, "0")}`, `P-${i + 1}`),
+    );
+    const w = await render("/labels?page=2");
+    await toAssets(w);
+    expect(router.currentRoute.value.query).toEqual({});
+    expect(assetsFilter!.value.page).toBe(1);
   });
 });

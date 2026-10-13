@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { ref } from "vue";
@@ -11,7 +11,8 @@ import { ref } from "vue";
 const load = (id: string, vehicle_id: string, driver_id: string, load_ref: string) => ({
   id, vehicle_id, driver_id, load_ref, declared_lines: [{ text: "UN1203 gasoline" }], created_at: "2026-10-10T12:00:00Z",
 });
-const LOADS = [load("a", "v1", "d1", "L-100"), load("b", "v2", "d1", "L-200"), load("c", "v1", "d2", "L-300")];
+/** The queue the API returns; a test that needs pages swaps in more. */
+let LOADS = [load("a", "v1", "d1", "L-100"), load("b", "v2", "d1", "L-200"), load("c", "v1", "d2", "L-300")];
 
 vi.mock("@/features/hazmat/useHazmatReview", () => ({
   useReviewQueueQuery: () => ({ data: ref(LOADS), isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn() }),
@@ -59,5 +60,30 @@ describe("the hazmat review queue keeps its filters in the URL", () => {
     await flushPromises();
     expect(query()).toEqual({});
     expect(ids(w)).toEqual(["a", "b", "c"]);
+  });
+});
+
+/** D-US8: the queue pages twenty at a time, oldest-first across pages, the page in the URL. */
+describe("the hazmat review queue pages", () => {
+  const many = Array.from({ length: 45 }, (_, i) => load(`l${String(i + 1).padStart(2, "0")}`, "v1", "d1", `L-${i + 1}`));
+  const original = LOADS;
+  beforeEach(() => {
+    LOADS = many;
+  });
+  afterEach(() => {
+    LOADS = original;
+  });
+
+  it("a pasted ?page=2 shows loads 21–40", async () => {
+    const { w } = await mountAt("/hazmat/review?page=2");
+    expect(ids(w)).toEqual(many.slice(20, 40).map((l) => l.id));
+  });
+
+  it("a filter change returns to page 1", async () => {
+    const { w, query } = await mountAt("/hazmat/review?page=2");
+    select(w, "Truck").vm.$emit("update:modelValue", "v1");
+    await flushPromises();
+    expect(query()).toEqual({ truck: "v1" });
+    expect(ids(w)).toEqual(many.slice(0, 20).map((l) => l.id));
   });
 });

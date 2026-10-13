@@ -562,6 +562,11 @@ Rendered only in the `#footer` slot:
                    :loading="isFetching" @update:page="page = $event" />
 </template>
 ```
+**Every list with a toolbar pages** (D-US8): a `DataTable` — or a `*Table` component wrapping one —
+inside a `DataWorkspace` renders this in its `#footer`, and `lint:ui-adoption` refuses one that does not
+unless it is marked `ui-adoption: unpaged — <why>`. A cursor-paged list uses `:total="null"` with
+`:has-next` / `:page-rows`; there is no "Load more".
+
 `:total` is the **filtered** count, not the page length. `PAGE_SIZE = 20` unless a server constant says otherwise (`FUEL_PAGE_SIZE`). Extra hardening in `DispatchLoadsPage.vue:212-215`: clamp `page` down when the filtered set shrinks.
 
 ### 5.5 FilterBar — exact API and the required layout order
@@ -682,6 +687,9 @@ TransitionRoot → Dialog (z-50)
 - **Actions belong in `#footer`**, right-aligned, `flex items-center justify-end gap-3`, secondary first then `variant="primary"` last. Use `size` default (`md`) in footers.
 - Cross-fields submit via `<form :id="…">` in the body + `<BaseButton :form="…" type="submit">` in the footer, so the footer stays pinned while the body scrolls.
 - Destructive confirmations **replace the body**, they do not stack a second modal.
+- A one-question "are you sure?" is `useConfirm()` (D-US7): `await ask({ title, message, confirmLabel, tone })`.
+  The label is the act's verb, never "OK"; `tone: "danger"` for anything that removes or cannot be undone.
+  `window.confirm` / `alert` / `prompt` are refused by `lint:ui-adoption`.
 - `size="lg"` when the drawer holds a real form or a two-panel flow; `md` otherwise.
 
 ### 6.3 The best example — `features/roster/DriverAccessModal.vue`

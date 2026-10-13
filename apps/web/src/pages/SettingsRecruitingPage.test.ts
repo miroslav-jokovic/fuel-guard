@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { sectionAccess } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import SettingsRecruitingPage from "@/pages/SettingsRecruitingPage.vue";
@@ -78,6 +79,9 @@ const section = (w: ReturnType<typeof mount>, title: string) => {
   return found;
 };
 
+/** The register's questions (D-US7), answered yes unless a test says otherwise. */
+let asked: ReturnType<typeof answerConfirm>;
+
 beforeEach(() => {
   setActivePinia(createPinia());
   asRole("recruiter");
@@ -86,7 +90,7 @@ beforeEach(() => {
   state.settings = null;
   state.reps = [{ id: REP, full_name: "Miroslav Jokovic", title: "Owner", created_at: "2026-09-01T12:00:00Z" }];
   state.examiners = [{ id: EXAMINER, full_name: "Arvidera Gakhal", title: "Maintenance manager", created_at: "2026-09-02T12:00:00Z" }];
-  vi.stubGlobal("confirm", () => true);
+  asked = answerConfirm(true);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -163,6 +167,9 @@ describe("taking somebody off", () => {
     const w = await page();
     await buttons(w, "Retire")[0]!.trigger("click");
     await settle(w);
+    expect(asked).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Retire Arvidera Gakhal?", confirmLabel: "Retire", tone: "danger" }),
+    );
     expect(state.calls).toEqual([
       { url: `/api/recruitment/road-test-examiners/${EXAMINER}/retire`, method: "POST", body: {} },
     ]);
@@ -170,7 +177,7 @@ describe("taking somebody off", () => {
 
   it("sends nothing when the question is declined", async () => {
     asRole("admin");
-    vi.stubGlobal("confirm", () => false);
+    asked.mockImplementation(async () => false);
     const w = await page();
     await buttons(w, "Remove")[0]!.trigger("click");
     await buttons(w, "Retire")[0]!.trigger("click");

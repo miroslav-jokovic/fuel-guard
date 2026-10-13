@@ -8,6 +8,7 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDate as fmt } from "@/lib/format";
@@ -17,6 +18,9 @@ export function useAnomaliesPage() {
 const PAGE_SIZE = 20;
 const session = useSessionStore();
 const toast = useToastStore();
+// At setup, not inside the handler: `useConfirm` reads the Pinia store, and a composable may only do
+// that while the component that owns it is being set up (D-US7).
+const ask = useConfirm();
 const { data: vehicles } = useVehiclesQuery();
 const { data: trailers } = useTrailersQuery();
 const { data: drivers } = useDriversQuery();
@@ -273,7 +277,20 @@ async function bulkTransition(
     selectedIds.value = new Set();
     return;
   }
-  if (confirmMsg && !confirm(confirmMsg.replace("{n}", String(targets.length)))) return;
+  // The product's confirm, not the browser's (D-US7). The page's sentence ("Resolve {alerts}?") is
+  // the title; the button's verb is derived from the act itself, so it always says what will be done
+  // to how many. Not `danger`: a status change on an alert is reversible and its history is kept.
+  if (confirmMsg) {
+    const n = targets.length;
+    const act =
+      disposition === "false_positive" ? "Mark" : status === "resolved" ? "Resolve" : status === "dismissed" ? "Dismiss" : "Investigate";
+    const what = `${n} alert${n === 1 ? "" : "s"}`;
+    const ok = await ask({
+      title: confirmMsg.replace("{alerts}", what),
+      confirmLabel: disposition === "false_positive" ? `${act} ${what} as false alarm` : `${act} ${what}`,
+    });
+    if (!ok) return;
+  }
   busy.value = true;
   let ok = 0;
   let lastError: string | undefined;

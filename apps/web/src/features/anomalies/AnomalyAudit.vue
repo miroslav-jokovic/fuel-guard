@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDisplayDateTime } from "@silvicom/shared";
 import { computed } from "vue";
 import { stateTimeZone } from "@silvicom/shared";
 import { AppCallout } from "@silvicom/ui";
@@ -20,13 +21,12 @@ const displayTz = computed(() => stateTimeZone(props.txn.state) ?? props.tz ?? n
 // A missing time is null, not a hand-written dash: FactList draws the blank (D-US6).
 function fmtTz(iso: string | null): string | null {
   if (!iso) return null;
+  // The product's one MM/DD/YYYY h:mm shape (D-DS18), read on the station's clock. An unknown zone falls
+  // back to the reader's clock in the same shape — never to the browser's own locale string.
   try {
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone: displayTz.value ?? undefined,
-      month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
-    }).format(new Date(iso));
+    return formatDisplayDateTime(iso, "", displayTz.value ?? undefined) || null;
   } catch {
-    return new Date(iso).toLocaleString();
+    return formatDisplayDateTime(iso, "") || null;
   }
 }
 const tzLabel = computed(() => displayTz.value ?? "local time");

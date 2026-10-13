@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { AppBadge, AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { AppIcon } from "@silvicom/ui";
@@ -10,8 +10,10 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import InspectorDrawer from "@/features/maintenance/InspectorDrawer.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import {
   useDeleteInspector,
   useInspectorsQuery,
@@ -49,6 +51,7 @@ import { INSPECTOR_QUALIFICATION_BASES } from "@silvicom/shared";
 
 const session = useSessionStore();
 const toast = useToastStore();
+const ask = useConfirm();
 // The register's filters live in the URL (D-US2), so a reload or Back keeps them. "Qualified by" is
 // read against the contract's own list of bases, so a hand-edited value outside it reads as Any.
 const qs = useQueryState();
@@ -82,6 +85,18 @@ const rows = computed(() => {
       period: i.effective_to ? `${i.effective_from} — ${i.effective_to}` : `Since ${i.effective_from}`,
     }));
 });
+
+// D-US8: the register pages like every list with a toolbar, its page in the URL beside the filters
+// (D-US2). A filter change returns to page 1 — the rows arriving do not, or a pasted ?page=2 would be
+// lost on load; the clamp pulls the page back when a removal leaves fewer pages than the one showing.
+const PAGE_SIZE = 20;
+const page = qs.page();
+watch([search, basis, showRetired], () => (page.value = 1));
+watch(rows, (r) => {
+  const maxPage = Math.max(1, Math.ceil(r.length / PAGE_SIZE));
+  if (page.value > maxPage) page.value = maxPage;
+});
+const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 /**
  * Empty means the REGISTER is empty, not that the filters matched nothing — those are different
@@ -125,14 +140,15 @@ async function reinstate(i: Inspector) {
 }
 
 async function remove(i: Inspector) {
-  if (
-    !confirm(
-      `Remove ${i.full_name} from the register? This is for a row added by mistake — anybody who` +
-        " has performed an inspection stays on file, and you will be told so.",
-    )
-  ) {
-    return;
-  }
+  // The product's confirm (D-US7). Danger: a removal deletes the row, where Retire only dates it.
+  const asked = await ask({
+    title: `Remove ${i.full_name} from the register?`,
+    message:
+      "This is for a row added by mistake — anybody who has performed an inspection stays on file, and you will be told so.",
+    confirmLabel: "Remove from register",
+    tone: "danger",
+  });
+  if (!asked) return;
   try {
     await removeInspector.mutateAsync(i.id);
     toast.success(`${i.full_name} removed`);
@@ -185,7 +201,7 @@ async function remove(i: Inspector) {
     <DataTable
       embedded
       :columns="columns"
-      :rows="rows"
+      :rows="pageRows"
       :loading="isLoading || isFetching"
       :error="isError ? (error?.message ?? 'Could not load the register') : null"
       row-key="id"
@@ -206,6 +222,9 @@ async function remove(i: Inspector) {
         </KebabMenu>
       </template>
       <template #empty>Nobody matches those filters.</template>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" :loading="isFetching" @update:page="page = $event" />
+      </template>
     </DataTable>
     </DataWorkspace>
 

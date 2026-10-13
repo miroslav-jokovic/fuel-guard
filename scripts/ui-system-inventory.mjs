@@ -127,6 +127,7 @@ function templateStructureViolations(item) {
   const handBuiltLoading = [];
   const handBuiltNotices = [];
   const handBuiltFacts = [];
+  const unpagedTables = [];
   // The applicant's flow renders in ApplyLayout with its own public typography (H5b).
   const applicantFlow = /\/features\/apply\//.test(item.relativePath);
   let previousEnd = tags[0]?.end ?? 0;
@@ -153,6 +154,10 @@ function templateStructureViolations(item) {
       if (tag.name === "FilterBar") {
         const bar = stack.findLast((entry) => entry.name === "FilterBar");
         if (bar?.narrows && !/\s:?active-count\s*=/.test(bar.raw)) filterBarsWithoutActiveCount.push(at(bar.start));
+      }
+      if (tag.name === "DataTable" || /^[A-Z]\w*Table$/.test(tag.name)) {
+        const table = stack.findLast((entry) => entry.name === tag.name);
+        if (table?.inWorkspace && !table.paged) unpagedTables.push(at(table.start));
       }
       const match = stack.findLastIndex((entry) => entry.name === tag.name);
       if (match !== -1) stack.splice(match);
@@ -219,8 +224,24 @@ function templateStructureViolations(item) {
       nestedTables.push(at(tag.start));
     }
 
+    // A list's table component (`DispatchBoardTable`, `DriverRosterTable`) is the same table one file
+    // away: it counts as paged when its own file or the slot content here renders the pager.
+    if (/^[A-Z]\w*Table$/.test(tag.name) && tag.name !== "DataTable" && stack.some((entry) => entry.name === "DataWorkspace")) {
+      const file = filesUnder(webSrc).find((path) => path.endsWith(`/${tag.name}.vue`));
+      const own = file ? stripComments(readFileSync(file, "utf8")) : "";
+      if (/<DataTable\b/.test(own) && !/<TablePagination\b/.test(own)) {
+        tag.inWorkspace = true;
+        if (tag.selfClosing) unpagedTables.push(at(tag.start));
+      }
+    }
+    if (tag.name === "DataTable" && stack.some((entry) => entry.name === "DataWorkspace")) {
+      tag.inWorkspace = true;
+      if (tag.selfClosing) unpagedTables.push(at(tag.start));
+    }
     if (tag.name === "TablePagination") {
       const tableIndex = stack.findLastIndex((entry) => entry.name === "DataTable");
+      const listTable = stack.findLast((entry) => entry.inWorkspace);
+      if (listTable) listTable.paged = true;
       const inFooter = tableIndex !== -1 && stack.slice(tableIndex + 1).some((entry) =>
         entry.name === "template" && /(?:#|v-slot:)footer\b/.test(entry.raw),
       );
@@ -245,6 +266,7 @@ function templateStructureViolations(item) {
     handBuiltLoading,
     handBuiltNotices,
     handBuiltFacts,
+    unpagedTables,
   };
 }
 
@@ -454,6 +476,37 @@ const siteMarked = (location, kind, rawOf = (path) => readFileSync(join(root, pa
 };
 const handBuiltLoading = structureViolations.flatMap((item) => item.handBuiltLoading).filter((at) => !siteMarked(at, "not-a-page-state"));
 const handBuiltNotices = structureViolations.flatMap((item) => item.handBuiltNotices).filter((at) => !siteMarked(at, "not-a-notice"));
+/**
+ * A list with a toolbar pages (D-US8, UI-STANDARDIZATION.md). A `DataTable` inside a `DataWorkspace` —
+ * the list-page shell — renders `TablePagination` in its `#footer`. On 2026-10-13 ten of them did not,
+ * the Dispatch board among them (197 trucks, one table) and Labels, whose asset list only ever showed
+ * the server's first page with no way to the second. A short list that is honestly bounded says so at
+ * the table: `ui-adoption: unpaged — <why>`.
+ */
+const unpagedListViolations = (item) => templateStructureViolations(item).unpagedTables;
+const unpagedLists = pagesAndFeatures.flatMap(unpagedListViolations).filter((at) => !siteMarked(at, "unpaged"));
+
+/**
+ * The browser's own dialogs (D-US7): `useConfirm()` asks, a toast tells. Comments are stripped first,
+ * so a note explaining the rule does not trip it; a method of the same name on another object (a
+ * capture's `io.confirm`) and a local function definition are not the browser's.
+ */
+const NATIVE_DIALOG = /(?<![.\w])(?:window\.)?(?:confirm|alert|prompt)\(|\bwindow\.(?:confirm|alert|prompt)\(/g;
+const webSourceFiles = inspectFiles(filesUnder(webSrc, new Set([".vue", ".ts"])))
+  .filter((item) => !/\.test\.ts$/.test(item.relativePath));
+const nativeDialogs = webSourceFiles.flatMap((item) =>
+  [...item.source.matchAll(NATIVE_DIALOG)]
+    .filter((m) => !/function\s+$/.test(item.source.slice(Math.max(0, m.index - 12), m.index)))
+    .map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`),
+);
+
+/** The voice (contract §11): a failure is "Could not …", never "Failed to …" (D-US5). */
+const failedToCopy = webSourceFiles
+  .filter((item) => /\/(pages|features|components)\//.test(item.relativePath))
+  .flatMap((item) =>
+    [...item.source.matchAll(/["'`]Failed to [a-z]/g)].map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`),
+  );
+
 const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
 
 /**
@@ -690,6 +743,20 @@ function verifyAdoption() {
   if (!structureCheckerSelfTest()) failures.push("UI structure checker failed its regression fixture");
   if (!listStateSelfTest()) failures.push("list-state checker failed its regression fixture");
   if (!siteMarkerSelfTest()) failures.push("site-marker checker failed its regression fixture");
+  {
+    const paged = unpagedListViolations({ relativePath: "u.vue", source: "<template><DataWorkspace><FilterBar /><DataTable :rows=\"r\"><template #footer><TablePagination /></template></DataTable></DataWorkspace></template>" });
+    const unpaged = unpagedListViolations({ relativePath: "u.vue", source: "<template><DataWorkspace>\n<FilterBar />\n<DataTable :rows=\"r\" /></DataWorkspace><DataTable :rows=\"lone\" /></template>" });
+    const dialogs = "const ok = window.confirm('x'); if (!confirm('y')) {} io.confirm(t); function confirm() {} alert('z');";
+    const hits = [...dialogs.matchAll(NATIVE_DIALOG)].filter((m) => !/function\s+$/.test(dialogs.slice(Math.max(0, m.index - 12), m.index)));
+    if (paged.length !== 0 || JSON.stringify(unpaged) !== JSON.stringify(["u.vue:3"]) || hits.length !== 3)
+      failures.push("pagination / native-dialog checker failed its regression fixture");
+  }
+  if (unpagedLists.length)
+    failures.push(`list in a DataWorkspace with no TablePagination in its #footer (or mark ui-adoption: unpaged — <why>): ${unpagedLists.join(", ")}`);
+  if (nativeDialogs.length)
+    failures.push(`browser confirm/alert/prompt (use useConfirm(), or a toast): ${nativeDialogs.join(", ")}`);
+  if (failedToCopy.length)
+    failures.push(`"Failed to …" in user copy (the voice is "Could not …"): ${failedToCopy.join(", ")}`);
   if (localListFilters.length)
     failures.push(`filtered list holding its filters outside the URL (useQueryState, or mark ui-adoption: list-state-local — <why>): ${localListFilters.join(", ")}`);
   if (localListSorts.length)

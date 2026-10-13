@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@/composables/useQueryState";
@@ -15,9 +15,11 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, inviteTone, suspendedBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
+import { useConfirm } from "@/stores/confirm";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
@@ -26,18 +28,24 @@ import MemberRenameDrawer from "@/features/settings/MemberRenameDrawer.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { apiRefusal, useStepUpRetry } from "@/composables/useStepUpRetry";
 import {
-  bulkRemoveConfirmText,
+  bulkRemoveConfirm,
+  deleteInviteConfirm,
   bulkRemoveMembers,
   isSuspended,
   offersAccessActions,
   reinstateMember,
   removeMember,
+  selfRoleConfirm,
   suspendMember,
+  type Ask,
   type StepUpHold,
 } from "@/features/settings/memberAccess";
 
 const toast = useToastStore();
 const session = useSessionStore();
+// The product's confirm (D-US7), taken once at setup and handed to `memberAccess.ts`, whose acts are
+// plain functions and cannot call a store hook from inside a click.
+const ask = useConfirm();
 
 /**
  * SP9 (Q-SET8 (a), ruled 2026-09-30): every write on this page — invitations, roles, suspend, reinstate,
@@ -190,9 +198,9 @@ async function revoke(id: string) {
 
 async function remove(id: string) {
   const inv = invites.value.find((i) => i.id === id);
-  // window.confirm, matching the destructive-action precedent on the pages beside this one. The
-  // email is in the sentence because the row it names is about to stop being on screen.
-  if (!confirm(`Delete the invitation for ${inv?.email ?? "this address"}? The audit log keeps a record.`)) return;
+  // The product's confirm (D-US7), as for every access act on this page. The email is in the question
+  // because the row it names is about to stop being on screen.
+  if (!(await ask(deleteInviteConfirm(inv?.email)))) return;
   await removeConfirmed(id);
 }
 /** Split from `remove` so a step-up retry does not ask "are you sure?" a second time. */
@@ -220,8 +228,8 @@ async function resend(id: string) {
 }
 
 /** Remove / suspend / reinstate: confirm, act, toast (`memberAccess.ts`), then reload on success. */
-const memberAct = (run: (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) => Promise<void>, m: OrgMember) =>
-  run(m, holdForStepUp, load);
+const memberAct = (run: (a: Ask, m: OrgMember, hold: StepUpHold, after: () => Promise<void>) => Promise<void>, m: OrgMember) =>
+  run(ask, m, holdForStepUp, load);
 
 // Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
 // so the inline picker snaps back to the true value.
@@ -235,7 +243,7 @@ async function changeRole(userId: string, newRole: string) {
   const m = members.value.find((x) => x.userId === userId);
   if (!m || m.role === newRole) return;
   // Q-SET6 (a): a role change signs the person out at once (SP7), yourself included.
-  if (userId === session.userId && newRole !== "admin" && !confirm("Change your own role? You will be signed out now and lose admin access.")) {
+  if (userId === session.userId && newRole !== "admin" && !(await ask(selfRoleConfirm))) {
     await load();
     return;
   }
@@ -272,12 +280,24 @@ const filteredMembers = computed(() => {
   );
 });
 
+// D-US8: the members list pages, the page in the URL beside the search (D-US2). The search resets it
+// to 1 — the rows arriving do not, or a pasted ?page=2 would be lost on load; the clamp pulls it back
+// when a removal leaves fewer pages than the one showing.
+const PAGE_SIZE = 20;
+const page = useQueryState().page();
+watch(search, () => (page.value = 1));
+watch(filteredMembers, (rows) => {
+  const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (page.value > maxPage) page.value = maxPage;
+});
+const pageMembers = computed(() => filteredMembers.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
 // DataTable owns the checkboxes + select-all; bulk remove never targets yourself.
 const selectedIds = ref<Set<string>>(new Set());
 const bulkBusy = ref(false);
 async function bulkRemove() {
   const ids = [...selectedIds.value].filter((id) => id !== session.userId);
-  if (ids.length === 0 || !confirm(bulkRemoveConfirmText(ids.length))) return;
+  if (ids.length === 0 || !(await ask(bulkRemoveConfirm(ids.length)))) return;
   bulkBusy.value = true;
   await bulkRemoveMembers(ids, holdForStepUp, load);
   bulkBusy.value = false;
@@ -392,7 +412,7 @@ onMounted(load);
       <DataTable
         embedded
         :columns="memberColumns"
-        :rows="filteredMembers"
+        :rows="pageMembers"
         row-key="userId"
         :loading="loading"
         empty-text="No members match."
@@ -422,6 +442,9 @@ onMounted(load);
               <BaseButton class="kebab-item kebab-item-danger" @click="memberAct(removeMember, row)">Remove member…</BaseButton>
             </template>
           </KebabMenu>
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredMembers.length" :loading="loading" @update:page="page = $event" />
         </template>
       </DataTable>
       </DataWorkspace>

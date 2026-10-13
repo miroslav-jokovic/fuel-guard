@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ChevronRightIcon } from "@silvicom/ui/icons";
 import type { HazmatLoadRow } from "@silvicom/shared";
@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import { useReviewQueueQuery } from "@/features/hazmat/useHazmatReview";
@@ -42,6 +43,17 @@ const driverOptions = computed(() => [
   ...(drivers.value ?? []).map((driver) => ({ value: driver.id, label: driver.full_name })),
 ]);
 const visible = computed(() => filterReviewQueue(loads.value ?? [], filter.value));
+// D-US8: the queue pages like every list with a toolbar, oldest-first across pages because the order is
+// the API's and the slice keeps it. A filter change returns to page 1 — the rows arriving do not, or a
+// pasted ?page=2 would be lost on load; the clamp pulls the page back as reviewed loads leave the queue.
+const PAGE_SIZE = 20;
+const page = qs.page();
+watch([search, vehicleId, driverId], () => (page.value = 1));
+watch(visible, (rows) => {
+  const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (page.value > maxPage) page.value = maxPage;
+});
+const pageRows = computed(() => visible.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const emptyText = computed(() =>
   (loads.value ?? []).length === 0 ? "Nothing is waiting for review." : "No review items match these filters.",
 );
@@ -96,7 +108,7 @@ const columns: DataTableColumn[] = [
       <DataTable
         embedded
         :columns="columns"
-        :rows="visible"
+        :rows="pageRows"
         row-key="id"
         :loading="isLoading"
         :error="isError ? (error instanceof Error ? error.message : 'Could not load the review queue.') : null"
@@ -118,6 +130,9 @@ const columns: DataTableColumn[] = [
           Review
           <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
+      </template>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="visible.length" :loading="isFetching" @update:page="page = $event" />
       </template>
       </DataTable>
     </DataWorkspace>

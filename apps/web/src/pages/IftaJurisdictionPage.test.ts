@@ -172,6 +172,33 @@ describe("IftaJurisdictionPage", () => {
     expect(fills.text().indexOf("El Paso")).toBeLessThan(fills.text().indexOf("Amarillo"));
   });
 
+  /**
+   * D-US8: a truck can buy fuel in one state hundreds of times a quarter, so its opened fills page —
+   * twenty at a time, with the page held by the row and not written to the URL (it is the row's
+   * detail, not the list's state).
+   */
+  it("pages an opened truck's fills twenty at a time, without touching the link", async () => {
+    const day = (i: number) => `2026-08-${String(1 + (i % 28)).padStart(2, "0")}`;
+    trucks.value = iftaJurisdictionTrucks(
+      [raw("732", 3_000, 3_100, 3)],
+      Array.from({ length: 45 }, (_, i) => fill(`f${i}`, "v-732", 10, 38, day(i), `Stop ${String(i).padStart(2, "0")}`)),
+    );
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    await w.findAll("tbody tr").find((tr) => tr.text().includes("732"))!.trigger("click");
+    const fills = () => w.find('[data-testid="fills-v-732"]');
+    const stops = (): string[] => fills().text().match(/Stop \d\d/g) ?? [];
+    expect(stops()).toHaveLength(20);
+    expect(fills().text()).toMatch(/Showing\s*1\s*–\s*20\s*of\s*45/);
+    const first = stops();
+
+    await fills().findAll("button").find((b) => b.text().startsWith("Next"))!.trigger("click");
+    await flushPromises();
+    expect(fills().text()).toMatch(/Showing\s*21\s*–\s*40\s*of\s*45/);
+    expect(stops()).toHaveLength(20);
+    expect(stops().some((s) => first.includes(s))).toBe(false);
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3" });
+  });
+
   // ── McLeod's hand-keyed receipts (IP6) ─────────────────────────────────────────────────────────
   /** Unit 512's real shape: an owner-operator whose fuel reaches the IFTA only as paper receipts. */
   const withReceipts = () => {

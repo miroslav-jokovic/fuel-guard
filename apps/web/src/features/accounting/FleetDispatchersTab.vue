@@ -159,7 +159,7 @@ const { sort, onSort } = useUrlSort(
         embedded
         row-key="key"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the dispatchers.') : null"
         :retrying="isFetching"
         :sort="sort"
         @sort="onSort"

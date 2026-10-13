@@ -23,7 +23,11 @@ const row = (unitNumber: string, fleetCode: string): DispatchBoardRow => ({
   vehicleId: `v-${unitNumber}`, unitNumber, inShop: false, fleetCode, driver: null, hos: null, position: null,
   fuelPercent: null, current: null, next: null, eta: null, onTime: "unknown", empties: null, flags: { ...flags, emptyNow: true },
 });
-const board = vi.hoisted(() => ({ value: null as DispatchBoardResponse | null }));
+// A ref, so a test can land the board AFTER the page opened, as the first fetch does in production.
+const board = await vi.hoisted(async () => {
+  const { shallowRef } = await import("vue");
+  return shallowRef<DispatchBoardResponse | null>(null);
+});
 vi.mock("@/features/dispatch/useDispatchBoard", () => ({
   useDispatchBoardQuery: () => ({
     data: computed(() => board.value), isLoading: ref(false), isError: ref(false), error: ref(null),
@@ -208,5 +212,45 @@ describe("the dispatch board page", () => {
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ scope: "all" });
     expect(units(w)).toEqual(["773", "669", "801"]);
+  });
+
+  /**
+   * D-US8: the board pages — 197 trucks in production were one table. Twenty a page, the page in the
+   * URL, a filter starting again at page 1. The board arriving after the page opened must not reset a
+   * pasted page: the scope's default flips from All to My fleet when it lands.
+   */
+  describe("pages twenty trucks at a time", () => {
+    const many = (): DispatchBoardResponse => ({
+      ...response(true),
+      rows: Array.from({ length: 45 }, (_, i) => row(String(1001 + i), "VINNIEV")),
+    });
+
+    it("shows trucks 21–40 on a pasted ?page=2, and keeps it when the board arrives after the page opened", async () => {
+      board.value = null;
+      const w = await mountPage("/assignments?page=2");
+      board.value = many();
+      await flushPromises();
+      expect(units(w)).toEqual(Array.from({ length: 20 }, (_, i) => String(1021 + i)));
+      expect(w.router.currentRoute.value.query).toEqual({ page: "2" });
+      expect(w.text()).toContain("of 45");
+    });
+
+    it("goes back to page 1 when the search changes, even when the new set still reaches page 2", async () => {
+      board.value = many();
+      const w = await mountPage("/assignments?page=2");
+      w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "10");
+      await flushPromises();
+      expect(w.router.currentRoute.value.query).toEqual({ search: "10" });
+      expect(units(w)[0]).toBe("1001");
+    });
+
+    it("turns the page from the pager and writes it into the URL", async () => {
+      board.value = many();
+      const w = await mountPage();
+      await w.findAll("button").find((b) => b.text() === "Next")!.trigger("click");
+      await flushPromises();
+      expect(w.router.currentRoute.value.query).toEqual({ page: "2" });
+      expect(units(w)[0]).toBe("1021");
+    });
   });
 });
