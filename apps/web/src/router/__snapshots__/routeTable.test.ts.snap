@@ -384,6 +384,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/units/trailer/tr_1",
   },
   {
+    "name": "work-orders",
+    "params": {},
+    "url": "/shop/work-orders",
+  },
+  {
+    "name": "defects",
+    "params": {},
+    "url": "/shop/defects",
+  },
+  {
     "name": "count-session",
     "params": {
       "sessionId": "cs_1",
@@ -1375,6 +1385,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop",
       "requiresAuth": true,
+      "title": "Open defects",
+    },
+    "name": "defects",
+    "path": "/shop/defects",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
       "title": "Annual inspections",
     },
     "name": "annual-inspections",
@@ -1470,6 +1490,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "unit",
     "path": "/shop/units/:kind/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Open work orders",
+    },
+    "name": "work-orders",
+    "path": "/shop/work-orders",
     "redirect": null,
   },
   {

@@ -80,6 +80,11 @@ vi.mock("@/features/maintenance/useMaintenanceSpend", async () => {
     }),
   };
 });
+const summary = ref({ openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:12:00+00:00", unresolvedDefects: 52, lowStockLines: 0 });
+vi.mock("@/features/maintenance/useShopBacklog", async () => {
+  const { ref: r } = await import("vue");
+  return { useShopSummaryQuery: () => ({ data: summary, isLoading: r(false) }) };
+});
 // The real shape (SP5): every door on the page now asks the guard's function, which reads the role
 // and the screen answers. A technician holds `maintenance: manage` as shipped.
 vi.mock("@/stores/session", async () => {
@@ -136,6 +141,36 @@ describe("the tiles", () => {
   });
 });
 
+/**
+ * FleetPal's repair backlog (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)): the same counts as the Operations
+ * tab's Shop card, each a door to its list — and present on first run too, because an org with no
+ * parts entered still has trucks in the shop.
+ */
+describe("the repair tiles", () => {
+  it("counts open work orders and open defects, each a door to its list", () => {
+    const w = page();
+    expect(w.text()).toContain("Open work orders");
+    expect(w.text()).toContain("24");
+    expect(w.text()).toContain("52");
+    expect(w.html()).toContain("/shop/work-orders");
+    expect(w.html()).toContain("/shop/defects");
+  });
+
+  it("stays when the shelves are empty, beside the first-run callout", () => {
+    catalogue.value = { parts: [], total: 0 };
+    const w = page();
+    expect(w.text()).toContain("No parts on the shelves yet");
+    expect(w.text()).toContain("Open defects");
+  });
+
+  it("drops a door, not the figure, when the shop is off for this person (D-SURF8: the lists answer to it)", () => {
+    session.surfaces = { "maintenance.repair-spend": false };
+    const w = page();
+    expect(w.text()).toContain("Open work orders");
+    expect(w.html()).not.toContain("/shop/work-orders");
+  });
+});
+
 describe("the lists under the tiles", () => {
   it("previews what to order, with the part and how many to buy", () => {
     low.value = { lines: [line(), line({ partId: "p2", partNumber: "FS19732", reorderQuantity: 12 })], total: 2 };
@@ -167,7 +202,7 @@ describe("the lists under the tiles", () => {
 });
 
 describe("first run", () => {
-  it("is one callout with the first thing to do, and no tiles", () => {
+  it("is one callout with the first thing to do, and no inventory tiles", () => {
     catalogue.value = { parts: [], total: 0 };
     const w = page();
     expect(w.text()).toContain("No parts on the shelves yet");

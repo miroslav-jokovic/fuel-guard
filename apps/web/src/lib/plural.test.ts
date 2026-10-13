@@ -128,6 +128,9 @@ const EXPECTED: Record<string, string> = {
   lines: "line",
   loads: "load",
   members: "member",
+  // FM3 (Q-FM6 (a)): FleetPal's outstanding repairs, each list the Shop card's figure opens.
+  "open defects": "open defect",
+  "open work orders": "open work order",
   parts: "part",
   plans: "plan",
   // F02-F04 8c4: Fuel problems, which counted "findings" until the queue held more than findings.

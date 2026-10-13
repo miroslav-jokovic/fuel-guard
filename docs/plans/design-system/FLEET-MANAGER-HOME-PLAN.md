@@ -264,6 +264,22 @@ needs a migration.
 - **Q-FM5: PM due/overdue.** FleetPal holds schedules and intervals but no due date. Computing one
   is (interval × last done × odometer) per unit, about a plan of its own. **Recommend:** defer, and
   record it in `docs/plans/maintenance/` as the shop card's next figure.
+- **Q-FM6: the Shop card's work-order and defect figures have no list to open (found building FM3,
+  2026-10-13).** §4 card 5 gives them the door `/shop`, but the shop home lists neither, and no page
+  in the web lists FleetPal work orders or defects at all. FLEETPAL-INTEGRATION-PLAN F11 is titled
+  "PM due, defects and expirations as worklists", but its text builds only PM due. D-FM9 says a
+  figure with no list behind it is not shown. Production 2026-10-13: 24 OPEN work orders (oldest
+  opened 2026-06-24) and 52 unresolved defects. Candidates:
+  (a) build the two lists first: `GET /api/maintenance/work-orders?status=open` and
+      `/defects?resolved=false`, plus two read-only pages under `/shop` (unit, reference, description,
+      opened/detected, age), catalogued as `maintenance.*` surfaces. The card ships after them, with
+      every figure a door. Cost: one more PR of about FM2's size, no migration.
+  (b) ship the card now with those two figures and no door, labelled a workaround of D-FM9 that (a)
+      removes.
+  (c) ship a low-stock-only card. §4 already rejects this: it would claim to answer "what is broken"
+      and could not.
+  **Recommend (a).** The 24 orders and 52 defects become something a fleet manager can act on rather
+  than just a number. The lists are also what F11 owes the shop anyway.
 
 ## 8. Not in scope
 
@@ -299,3 +315,24 @@ landing tab.
   - **Hazmat review's door** starts off for fleet_manager (`safety.hazmat-review` `startsOnFor: []`),
     so the card shows its count without a link until an admin turns the screen on — SP5's rule.
   - No new chart colours: the cards are counts, not bars, so no palette joined `check-chart-colors`.
+- 2026-10-13: FM3 built (`claude/fleet-manager-shop-card`). The FM3 build turned up Q-FM6, and the owner
+  ruled (a): build the two lists first. Changes from §4 and §5 met while building:
+  - **Two new read-only pages, children of the shop home:** `/shop/work-orders` (FleetPal status
+    `OPEN`) and `/shop/defects` (`is_resolved = false`). Surfaces `maintenance.work-orders` and
+    `maintenance.defects`, parented on `maintenance.repair-spend` like the ledger, because the group
+    is fixed at six rows. Neither page has a status filter: each is exactly the list its count names.
+  - **Each count is its list's length on the server** (`fleetpal/shopBacklog.ts`): one predicate per
+    list, and `readShopBacklog` measures the lists rather than running a separate `count`. Both sets
+    are bounded by what is outstanding (24 and 52 today), not by history.
+  - **Low stock is counted in LINES** (`lowStockLines`, a part × location pair), because that is the
+    row the Parts page's `?stock=low` view lists. It comes from `listLowStock`, the same reader.
+  - **The oldest order is an instant** (`oldestOpenWorkOrderAt`), not a day cut on a UTC server.
+    `shopDayOf` and `daysSince` in `shopSummaryContract.ts` turn it into the carrier's day for both
+    the card's "oldest open N days" and the list's "Open for" column.
+  - **Units are FleetPal's own fleet numbers**, not a join to our roster, so an order on an unmatched
+    unit stays on the list (with a dash for the unit).
+  - **The shop home gained two tiles** for the same counts, ABOVE its first-run callout: an org with no
+    parts entered still has trucks in the shop.
+  - **Row 2 is Seats · Shop · Truck paperwork at 4/4/4.** The card is "Shop" with three rows: Open
+    work orders, Open defects, Shelves to reorder. No money, no severity (FleetPal sends none).
+  - FLEETPAL-INTEGRATION-PLAN F11 still owes PM due; these lists take the defects half of its title.
