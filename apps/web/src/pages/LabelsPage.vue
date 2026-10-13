@@ -5,6 +5,7 @@ import { AppButton as BaseButton, AppCard as BaseCard, AppSegmentedControl } fro
 import type { LabelPresetId } from "@silvicom/qr";
 import type { LabelTarget } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -61,8 +62,22 @@ const startPosition = ref(1);
 const nudgeX = ref(0);
 const nudgeY = ref(0);
 
-const { data: presets } = useLabelPresetsQuery();
-const { data: stock, isLoading: stockLoading } = useStockQuery(ref(undefined));
+// Every read here draws its own failure with a Retry (F3, US6b): before, a failed stock read was
+// "Nothing on the shelves yet", and a failed presets read an empty white card.
+const {
+  data: presets,
+  isLoading: presetsLoading,
+  isError: presetsFailed,
+  isFetching: presetsFetching,
+  refetch: refetchPresets,
+} = useLabelPresetsQuery();
+const {
+  data: stock,
+  isLoading: stockLoading,
+  isError: stockFailed,
+  isFetching: stockFetching,
+  refetch: refetchStock,
+} = useStockQuery(ref(undefined));
 
 /**
  * D-US8: both lists page, one page in the URL (D-US2) for whichever list is showing — they are never
@@ -86,7 +101,13 @@ const assetsFilter = computed(() => ({
   page: source.value === "assets" ? page.value : 1,
   search: search.value.trim() || undefined,
 }));
-const { data: assets, isLoading: assetsLoading, isFetching: assetsFetching } = useAssetsQuery(assetsFilter);
+const {
+  data: assets,
+  isLoading: assetsLoading,
+  isError: assetsFailed,
+  isFetching: assetsFetching,
+  refetch: refetchAssets,
+} = useAssetsQuery(assetsFilter);
 
 const faces = useLabelFaces();
 const printing = ref(false);
@@ -137,18 +158,16 @@ watch(
  * with the Print button working, because that reads `targets` directly. A blank preview beside a
  * working button is the shape of bug somebody works around rather than reports.
  */
-watch(
-  targets,
-  async (list) => {
-    if (list.length === 0) return;
-    try {
-      await faces.mutateAsync(list);
-    } catch (e) {
-      toast.error("Could not read those labels", e instanceof Error ? e.message : undefined);
-    }
-  },
-  { deep: true, immediate: true },
-);
+async function readFaces(list: LabelTarget[]) {
+  if (list.length === 0) return;
+  try {
+    await faces.mutateAsync(list);
+  } catch {
+    // Drawn where the preview would be, with a Retry (F3) — a toast faded and left the hint saying
+    // "tick what needs a label" beside rows that were ticked.
+  }
+}
+watch(targets, readFaces, { deep: true, immediate: true });
 
 const stockRows = computed(() => {
   const term = search.value.trim().toLowerCase();
@@ -259,10 +278,13 @@ async function print() {
             :columns="stockColumns"
             :rows="stockPage"
             :loading="stockLoading"
+            :error="stockFailed ? 'Could not load the shelves.' : null"
+            :retrying="stockFetching"
             :row-key="(r) => keyOf({ kind: 'stock', partId: r.partId, locationId: r.locationId })"
             selectable
             :selected="selected"
             @update:selected="selected = $event"
+            @retry="refetchStock()"
           >
             <template #cell-tagCode="{ row }">
               <span v-if="row.tagCode" class="font-mono text-xs text-ink-secondary">{{ row.tagCode }}</span>
@@ -282,10 +304,13 @@ async function print() {
             :columns="assetColumns"
             :rows="assets?.assets ?? []"
             :loading="assetsLoading"
+            :error="assetsFailed ? 'Could not load the assets.' : null"
+            :retrying="assetsFetching"
             :row-key="(r) => keyOf({ kind: 'asset', assetId: r.id })"
             selectable
             :selected="selected"
             @update:selected="selected = $event"
+            @retry="refetchAssets()"
           >
             <template #cell-tagCode="{ row }">
               <span v-if="row.tagCode" class="font-mono text-xs text-ink-secondary">{{ row.tagCode }}</span>
@@ -307,31 +332,53 @@ async function print() {
 
       <div class="space-y-4">
         <BaseCard padding="md">
-          <LabelStockControls
-            v-if="presets"
-            :presets="presets"
-            :preset-id="presetId"
-            :start-position="startPosition"
-            :nudge-x="nudgeX"
-            :nudge-y="nudgeY"
-            @update:preset-id="presetId = $event as LabelPresetId"
-            @update:start-position="startPosition = $event"
-            @update:nudge-x="nudgeX = $event"
-            @update:nudge-y="nudgeY = $event"
-          />
+          <QueryState
+            compact
+            :loading="presetsLoading"
+            :error="presetsFailed"
+            :retrying="presetsFetching"
+            loading-text="Loading the label stock…"
+            error-text="Could not load the label stock."
+            @retry="refetchPresets()"
+          >
+            <LabelStockControls
+              v-if="presets"
+              :presets="presets"
+              :preset-id="presetId"
+              :start-position="startPosition"
+              :nudge-x="nudgeX"
+              :nudge-y="nudgeY"
+              @update:preset-id="presetId = $event as LabelPresetId"
+              @update:start-position="startPosition = $event"
+              @update:nudge-x="nudgeX = $event"
+              @update:nudge-y="nudgeY = $event"
+            />
+          </QueryState>
         </BaseCard>
 
+        <!-- The preview's three states (F3): the faces the ticks will print, a failure to read them
+             with a Retry, or — nothing ticked — the hint, in a card like the preview it stands for. -->
+        <BaseCard v-if="targets.length && faces.isError.value" padding="md">
+          <QueryState
+            compact
+            :loading="false"
+            :error="true"
+            :retrying="faces.isPending.value"
+            error-text="Could not read those labels."
+            @retry="readFaces(targets)"
+          />
+        </BaseCard>
         <LabelSheetPreview
-          v-if="faces.data.value?.faces.length"
+          v-else-if="targets.length && faces.data.value?.faces.length"
           :faces="faces.data.value.faces"
           :preset-id="presetId"
           :start-position="startPosition"
           :nudge-x="nudgeX"
           :nudge-y="nudgeY"
         />
-        <p v-else class="text-sm text-ink-tertiary">
-          Tick what needs a label and the sheet appears here.
-        </p>
+        <BaseCard v-else padding="md">
+          <p class="text-sm text-ink-tertiary">Tick what needs a label and the sheet appears here.</p>
+        </BaseCard>
       </div>
     </div>
   </div>

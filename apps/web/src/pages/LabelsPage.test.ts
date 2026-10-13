@@ -32,12 +32,20 @@ const FACE: LabelFaceDto = {
   lines: ["Cab tablet"],
 };
 
+/** F3: which reads answer 500, and the Retry each failure must reach. */
+const fail = { stock: false, assets: false, presets: false, faces: false };
+const refetch = { stock: vi.fn(), assets: vi.fn(), presets: vi.fn() };
+
 const facesMutate = vi.fn(async (_targets: LabelTarget[]) => ({ faces: [FACE], dropped: 0 }));
 const fetchSheet = vi.fn(async () => "blob:sheet");
 
 vi.mock("@/features/inventory/useLabels", () => ({
   useLabelPresetsQuery: () => ({
-    data: ref([
+    isLoading: ref(false),
+    isError: ref(fail.presets),
+    isFetching: ref(false),
+    refetch: refetch.presets,
+    data: ref(fail.presets ? undefined : [
       {
         id: "avery-22805",
         name: "Avery 22805",
@@ -48,7 +56,12 @@ vi.mock("@/features/inventory/useLabels", () => ({
       },
     ]),
   }),
-  useLabelFaces: () => ({ mutateAsync: facesMutate, data: ref({ faces: [FACE], dropped: 0 }) }),
+  useLabelFaces: () => ({
+    mutateAsync: facesMutate,
+    data: ref(fail.faces ? undefined : { faces: [FACE], dropped: 0 }),
+    isError: ref(fail.faces),
+    isPending: ref(false),
+  }),
   fetchLabelSheet: fetchSheet,
 }));
 
@@ -77,7 +90,10 @@ let assetsTotal = 1;
 
 vi.mock("@/features/inventory/useInventory", () => ({
   useStockQuery: () => ({
-    data: ref({
+    isError: ref(fail.stock),
+    isFetching: ref(false),
+    refetch: refetch.stock,
+    data: ref(fail.stock ? undefined : {
       lines: [
         ...extraLines,
         {
@@ -109,7 +125,9 @@ vi.mock("@/features/inventory/useAssets", () => ({
   useAssetsQuery: (filter: { value: { page: number; search?: string } }) => {
     assetsFilter = filter;
     return {
-      data: ref({
+      isError: ref(fail.assets),
+      refetch: refetch.assets,
+      data: ref(fail.assets ? undefined : {
         assets: [{ id: ASSET, displayNo: "A-0412", name: "Cab tablet", assetTypeName: "Tablet", tagCode: null }],
         total: assetsTotal,
       }),
@@ -146,7 +164,7 @@ const stubs = {
   },
   DataTable: {
     name: "DataTable",
-    props: { columns: null, rows: null, loading: null, rowKey: null, selectable: null, selected: null, embedded: Boolean },
+    props: { columns: null, rows: null, loading: null, error: null, retrying: null, rowKey: null, selectable: null, selected: null, embedded: Boolean },
     // The footer renders, so the pager the page puts there is the real one.
     template: "<div><slot name='footer' /></div>",
   },
@@ -168,6 +186,8 @@ beforeEach(() => {
   fetchSheet.mockClear();
   extraLines = [];
   assetsTotal = 1;
+  Object.assign(fail, { stock: false, assets: false, presets: false, faces: false });
+  Object.values(refetch).forEach((f) => f.mockClear());
 });
 
 describe("picking what to label", () => {
@@ -386,5 +406,57 @@ describe("paging the two lists", () => {
     await toAssets(w);
     expect(router.currentRoute.value.query).toEqual({});
     expect(assetsFilter!.value.page).toBe(1);
+  });
+});
+
+/**
+ * F3 (US6b): a failed read is not an empty shelf. Before, a failed stock read said "Nothing on the
+ * shelves yet", a failed presets read left an empty white card, and a failed faces read was a toast
+ * that faded beside a hint telling the reader to tick rows they had already ticked.
+ */
+describe("a failed read", () => {
+  const retry = (w: Awaited<ReturnType<typeof render>>) => w.findAll("button").find((b) => b.text() === "Retry")!;
+
+  it("hands the shelves table its failure, and its Retry asks for the stock again", async () => {
+    fail.stock = true;
+    const w = await render();
+    const table = w.findComponent({ name: "DataTable" });
+    expect(table.props("error")).toBe("Could not load the shelves.");
+    table.vm.$emit("retry");
+    expect(refetch.stock).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the assets table its failure, and its Retry asks for the assets again", async () => {
+    fail.assets = true;
+    const w = await render(`/labels?asset=${ASSET}`);
+    const table = w.findComponent({ name: "DataTable" });
+    expect(table.props("error")).toBe("Could not load the assets.");
+    table.vm.$emit("retry");
+    expect(refetch.assets).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the label stock could not be loaded instead of drawing an empty card", async () => {
+    fail.presets = true;
+    const w = await render();
+    expect(w.text()).toContain("Could not load the label stock.");
+    await retry(w).trigger("click");
+    expect(refetch.presets).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the labels could not be read where the preview would be, and Retry reads them again", async () => {
+    fail.faces = true;
+    const w = await render(`/labels?asset=${ASSET}`);
+    expect(w.text()).toContain("Could not read those labels.");
+    expect(w.text()).not.toContain("Tick what needs a label");
+    expect(w.findComponent({ name: "LabelSheetPreview" }).exists()).toBe(false);
+    const before = facesMutate.mock.calls.length;
+    await retry(w).trigger("click");
+    expect(facesMutate.mock.calls.length).toBe(before + 1);
+  });
+
+  it("with nothing ticked shows the hint, not a preview of an earlier selection", async () => {
+    const w = await render();
+    expect(w.text()).toContain("Tick what needs a label");
+    expect(w.findComponent({ name: "LabelSheetPreview" }).exists()).toBe(false);
   });
 });
