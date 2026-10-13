@@ -153,9 +153,38 @@ describe("DriverDetailPage — the summary's fuel facts (D-US6)", () => {
       "Open anomalies",
     ]);
     // The fixture's fills read never answers, so the count is not known — a blank, never a "0" or an
-    // empty cell — and an MPG over no spans is a blank too.
+    // empty cell — and an MPG over no spans is a blank too. Since F10 the gallons and the open
+    // anomalies are blanks for the same reason: they were "0", sums over a list nobody had read.
     const [fills, gallons, mpg, open] = facts.findAll("dd").map((d) => d.text());
-    expect([fills, gallons, open]).toEqual(["—", "0", "0"]);
+    expect([fills, gallons, open]).toEqual(["—", "—", "—"]);
     expect(mpg!.startsWith("—")).toBe(true);
+  });
+});
+
+/**
+ * F10 (US6b): the fuel panels wait for their reads. This fixture's fills read throws (its query chain
+ * stops short), so with retries off it is a failed read — which drew "Not enough valid data to chart
+ * MPG yet" and "No anomalies" before.
+ */
+describe("DriverDetailPage — a failed fills read is not a driver with no fills", () => {
+  it("says the fills and the anomalies could not be loaded, each with a Retry", async () => {
+    const { QueryClient } = await import("@tanstack/vue-query");
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/drivers/:id", name: "driver-detail", component: DriverDetailPage }],
+    });
+    await router.push("/drivers/d-1");
+    await router.isReady();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const w = mount(DriverDetailPage, {
+      attachTo: document.body,
+      global: { plugins: [router, [VueQueryPlugin, { queryClient }]], stubs: STUBS },
+    });
+    await flushPromises();
+    expect(w.text()).toContain("Could not load the fills.");
+    expect(w.text()).toContain("Could not load the anomalies.");
+    expect(w.text()).not.toContain("Not enough valid data to chart MPG yet");
+    expect(w.text()).not.toContain("No anomalies.");
+    expect(w.findAll("button").filter((b) => b.text() === "Retry").length).toBeGreaterThanOrEqual(2);
   });
 });
