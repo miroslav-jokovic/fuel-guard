@@ -33,7 +33,7 @@ import RecruitingSettingsForm from "@/features/recruitment/RecruitingSettingsFor
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6">
     <PageHeader description="How application links behave, and the people who sign hiring paperwork for the carrier." />
 
     <SettingsSection

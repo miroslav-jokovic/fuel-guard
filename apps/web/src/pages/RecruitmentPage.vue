@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   HIRING_PHASE_LABELS,
   canPurgeApplicant,
@@ -23,11 +25,11 @@ import {
   hiringWaitingOnBadge,
 } from "@/lib/badges.recruiting";
 import { formatDate } from "@/lib/format";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useArchiveDriver } from "@/composables/useDrivers";
-import { usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
+import { countWaitingOn, usePipelineQuery, type PipelineApplicant } from "@/features/recruitment/useEmployment";
 import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
 import HireDrawer from "@/features/recruitment/HireDrawer.vue";
 import InviteApplicantDrawer from "@/features/recruitment/InviteApplicantDrawer.vue";
@@ -66,18 +68,20 @@ import ArchiveDriverModal from "@/components/ArchiveDriverModal.vue";
  * hired is on their driver page and not in a second fleet-wide table here.
  */
 const router = useRouter();
+/** The view, filters, search, sort and page live in the URL (D-US2): Back and a sent link keep the board. */
+const qs = useQueryState();
 /**
  * The board, and its other half. Archived applicants leave this list and nothing else (0235) — their
  * row, their draft and anything they signed are untouched, and their own page still opens. The chip
  * is a VIEW rather than a second page, so the columns, the stage computation and the ordering cannot
  * drift between the two.
  */
-const showArchived = ref(false);
+const showArchived = qs.flag("archived");
 const pipelineQ = usePipelineQuery(showArchived);
 
 const PAGE_SIZE = 25;
-const search = ref("");
-const page = ref(1);
+const search = qs.param("search");
+const page = qs.page();
 
 /**
  * ⚠ **Every one of these three rests at `""`, and that is not a style choice — `FilterSelect.clear()`
@@ -87,7 +91,7 @@ const page = ref(1);
  * passed, because a test that never presses the clear button cannot see it. The two filters that
  * inherited `"all"`/`"live"` from the previous board carried the same defect and are fixed here.
  */
-const phase = ref("");
+const phase = qs.param("phase", Object.keys(HIRING_PHASE_LABELS));
 
 /**
  * The state filter, and it is the board's most important control.
@@ -97,7 +101,20 @@ const phase = ref("");
  * "Waiting on you (3)" with "Everyone (6)" one click away. Its resting value is `""`, which makes
  * the ✕ mean exactly the right thing here: *clear the "mine" filter and show me everybody.*
  */
-const waitingOn = ref("us");
+const WAITING_KEYS = ["us", "them"] as const;
+/**
+ * D-US2: the default stays OUT of the URL, and it is two defaults — *waiting on you* on the live board,
+ * *Everyone* on the archived view (see `view`). So `waiting` is read through one parameter per view,
+ * each with its own fallback, and a plain `?archived=1` link opens on Everyone as the chip does.
+ */
+const waitingLive = qs.param("waiting", WAITING_KEYS, "us");
+const waitingArchived = qs.param("waiting", WAITING_KEYS);
+const waitingOn = computed({
+  get: () => (showArchived.value ? waitingArchived : waitingLive).value,
+  set: (v: string) => {
+    (showArchived.value ? waitingArchived : waitingLive).value = v;
+  },
+});
 
 const VIEW_FILTERS = [
   { value: "", label: "Applicants" },
@@ -110,8 +127,7 @@ const all = computed(() => {
   return (pipelineQ.data.value ?? []).filter((a) => (q ? a.full_name.toLowerCase().includes(q) : true));
 });
 
-const countWaiting = (who: "us" | "them") =>
-  all.value.filter((a) => a.checklist?.waiting_on === who).length;
+const countWaiting = (who: "us" | "them") => countWaitingOn(all.value, who);
 
 /**
  * ⚠ The counts are recomputed from `all` rather than from `rows`, so each option says how many rows
@@ -147,7 +163,7 @@ const PHASE_FILTERS = [
  * the only question a kanban would"* — which is **what is going stale**. Opening on the oldest is
  * that question already answered; opening unsorted would leave the reader to discover the control.
  */
-const sort = ref<SortState>({ key: "days_waiting", dir: "desc" });
+const SORT_DEFAULT = { key: "days_waiting", dir: "desc" } as const;
 
 const rows = computed(() => {
   const filtered = all.value
@@ -174,6 +190,13 @@ const columns: DataTableColumn[] = [
   { key: "waiting_on", label: "Waiting on" },
   { key: "days_waiting", label: "Days waiting", numeric: true, sortable: true },
 ];
+// D-US2: the sort is in the URL with `SORT_DEFAULT` as the FALLBACK of both halves, so a plain link
+// opens oldest-first and writes nothing. The third click's "no sort" is still representable: it
+// writes `sort=any&dir=any` (`useQueryState`'s word for "the reader chose none").
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key), SORT_DEFAULT.key),
+  qs.param("dir", SORT_DIRECTIONS, SORT_DEFAULT.dir),
+);
 
 /**
  * ⚠ `application`, not `employment`, since U6 (D-UI7). Clicking a row on the applicant board means
@@ -234,12 +257,25 @@ const toast = useToastStore();
  */
 const view = computed({
   get: () => (showArchived.value ? "archived" : ""),
-  set: (v: string) => {
-    showArchived.value = v === "archived";
-    waitingOn.value = showArchived.value ? "" : "us";
-    page.value = 1;
-  },
+  // One patch (D-US2): removing `waiting` IS dropping to the new view's default, because each view
+  // reads its own fallback for it — see `waitingOn`.
+  set: (v: string) => qs.set({ archived: v === "archived" ? "1" : undefined, waiting: undefined, page: undefined }),
 });
+
+/**
+ * For FilterBar's "Clear filters". The state filter's default is the one `view` sets — *waiting on
+ * you* on the live board, *Everyone* on the archived one — so it counts only when moved off THAT,
+ * and clearing goes through `view` so the default comes back with it.
+ */
+const activeFilterCount = computed(
+  () =>
+    [search.value.trim(), phase.value].filter(Boolean).length +
+    (waitingOn.value !== (showArchived.value ? "" : "us") ? 1 : 0) +
+    (showArchived.value ? 1 : 0),
+);
+function clearFilters(): void {
+  qs.set({ search: undefined, phase: undefined, archived: undefined, waiting: undefined });
+}
 
 async function setArchived(applicant: PipelineApplicant, archived: boolean) {
   try {
@@ -298,6 +334,8 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         search-placeholder="Search applicants…"
         :count="rows.length"
         count-label="applicants"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="waitingOn" label="Waiting on" :options="WAITING_FILTERS" />
@@ -315,7 +353,7 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         :retrying="pipelineQ.isFetching.value"
         :row-class="() => 'cursor-pointer'"
         :sort="sort"
-        @sort="(key: string) => (sort = toggleSort(sort, key))"
+        @sort="onSort"
         @row-click="(row: PipelineApplicant) => openApplicant(row.driver_id)"
       >
         <template #empty>

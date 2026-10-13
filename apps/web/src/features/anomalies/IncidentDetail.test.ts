@@ -9,9 +9,13 @@ import type { CardFraudIncidentDetail } from "@silvicom/shared";
  * actions (Q-F11 (a): fuel managers, the rule the API enforces), and that a close carries the verdict,
  * the note and the version the person read — or is refused here before it reaches the API.
  */
-const state = { incident: null as CardFraudIncidentDetail | null, calls: [] as unknown[] };
+const state = { incident: null as CardFraudIncidentDetail | null, calls: [] as unknown[], failed: false, refetches: 0 };
 vi.mock("./useCardFraudIncident", () => ({
-  useCardFraudIncident: () => ({ data: computed(() => state.incident), isLoading: ref(false), isError: ref(false), error: ref(null) }),
+  useCardFraudIncident: () => ({
+    data: computed(() => state.incident), isLoading: ref(false), isError: ref(state.failed),
+    error: ref(state.failed ? new Error("boom") : null), isFetching: ref(false),
+    refetch: () => { state.refetches++; },
+  }),
   useCardFraudIncidentTransition: () => ({
     mutateAsync: async (v: unknown) => { state.calls.push(v); },
     isPending: ref(false),
@@ -41,10 +45,21 @@ beforeEach(() => {
   setActivePinia(createPinia());
   state.incident = open();
   state.calls = [];
+  state.failed = false;
+  state.refetches = 0;
   session.role = "admin";
 });
 
 describe("the incident drawer", () => {
+  it("says the incident could not load and retries the read (D-US5)", async () => {
+    state.failed = true;
+    state.incident = null;
+    const w = mount(IncidentDetail, { props: { id: "i1" } });
+    expect(w.find("[role=alert]").text()).toContain("Could not load the incident.");
+    await button(w, "Retry")!.trigger("click");
+    expect(state.refetches).toBe(1);
+  });
+
   it("tells what happened in words, and lists each attempt", async () => {
     const w = mount(IncidentDetail, { props: { id: "i1" } });
     expect(w.text()).toContain("Card ••••7967 was tried 2 times in Jacksonville, FL.");

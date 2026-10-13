@@ -2,10 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
   DOCUMENTS_BUCKET,
   DOCUMENT_CONTENT_TYPES,
-  type DocumentContentType,
   type HiringRecordedActStep,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { uploadContentType } from "@/lib/fileFormat";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
@@ -55,8 +55,8 @@ export function useRecordHiringAct() {
       let documentId: string | null = null;
 
       if (input.file) {
-        const contentType = input.file.type as DocumentContentType;
-        if (!(DOCUMENT_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+        const contentType = await uploadContentType(input.file, DOCUMENT_CONTENT_TYPES);
+        if (!contentType) {
           throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
         }
         const bytes = await input.file.arrayBuffer();

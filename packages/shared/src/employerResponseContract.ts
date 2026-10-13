@@ -47,9 +47,10 @@ export type EmployerResponse = z.infer<typeof employerResponseSchema>;
 /** Registering the returned letter or fax before it is uploaded. The kind is not the client's to
  *  choose — the route forces `previous_employer_response`, which carries the §391.23(k)(2) read
  *  restriction, exactly as the PSP import does. */
+export const EMPLOYER_RESPONSE_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
 export const employerResponseDocumentSchema = z.object({
   document_id: z.uuid(),
-  content_type: z.enum(["application/pdf", "image/jpeg", "image/png", "image/webp"]),
+  content_type: z.enum(EMPLOYER_RESPONSE_CONTENT_TYPES),
   sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
   bytes: z.number().int().positive().nullish(),
 });

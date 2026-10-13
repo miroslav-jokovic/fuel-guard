@@ -198,10 +198,12 @@ export function idleParityFinalThrough(nightlyFromIso: string | null, timeZone: 
 }
 
 // ── THE TWO TABLES AS STORED, AND THE VIEW BOTH READERS SERVE (IE-ADMIN, §4 Q-FSV17) ───────────────
-// Two services read the gate: the office API (`/api/idle/engine/parity`) and the platform console
-// (`/admin/orgs/:id/idle-engine`). Each runs its own queries — the console may not import `apps/api`
-// (`lint:boundaries`) — so everything decided about the rows lives here, once: which columns, how a
-// stored row becomes a truck-day, and when Samsara's day counts as whole.
+// Two readers judge the gate: the platform console (`/admin/orgs/:id/idle-engine`) and the nightly check,
+// which reads the database directly. The office API served it too until Q-FSV17 step 3 retired
+// `/api/idle/engine/parity` (a release control is not a carrier's figure). Each reader runs its own
+// queries — the console may not import `apps/api` (`lint:boundaries`) — so everything decided about the
+// rows lives here, once: which columns, how a stored row becomes a truck-day, and when Samsara's day
+// counts as whole.
 
 /** `idle_engine_days` (0404): the columns the gate reads. */
 export const IDLE_ENGINE_DAY_COLUMNS =

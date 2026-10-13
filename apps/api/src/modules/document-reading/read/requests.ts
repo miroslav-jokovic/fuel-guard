@@ -11,6 +11,8 @@ import {
 import { workingSizeOf } from "../pages/canonical.js";
 import { DOCUMENT_BUCKET, PAGE_URL_TTL_SEC } from "../storage.js";
 import { targetColumn, targetIds, targetOfRow, targetPages, type ReadTarget } from "./readTarget.js";
+import { auditForRead } from "../evidence/paperAudit.js";
+import { failUnavailableRead } from "./executeRead.js";
 
 /**
  * The read-side requests behind `/api/documents/reads` (DOCUMENT-READER-PLAN Step 1.6b): queue a read,
@@ -23,7 +25,7 @@ import { targetColumn, targetIds, targetOfRow, targetPages, type ReadTarget } fr
 
 export interface ReaderError {
   code:
-    | "not_found" | "not_reviewable" | "invalid_review" | "invalid_assembly" | "edited_elsewhere"
+    | "not_found" | "not_reviewable" | "invalid_review" | "invalid_assembly" | "edited_elsewhere" | "not_ready"
     | "sign_failed" | "query_failed" | "insert_failed";
   error: string;
 }
@@ -39,6 +41,24 @@ export const readDedupKey = (readId: string): string => `document_read:${readId}
 
 /** A read that is still going: asking again returns it instead of spending a second model call. */
 const IN_FLIGHT = ["queued", "reading"] as const;
+
+/**
+ * Ends a read whose job has failed for good while the read still says `queued` or `reading`, and answers
+ * whether it did. The handler now ends the read itself (documentRead.ts), so this mends the reads left
+ * behind before it did — the owner's two on 10/12/2026 — and any later path that kills a job without
+ * reaching the handler's catch (a worker killed mid-job whose lease then runs out of attempts). Without
+ * it such a read polls as `reading` for ever, and asking for the same document again is handed that
+ * read back instead of a new one.
+ */
+async function settleAbandonedRead(admin: SupabaseClient, orgId: string, readId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("jobs").select("status")
+    .eq("org_id", orgId).eq("kind", "document_read").eq("dedup_key", readDedupKey(readId))
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`jobs: ${error.message}`);
+  if ((data as { status: string } | null)?.status !== "failed") return false;
+  return failUnavailableRead(admin, orgId, readId);
+}
 
 /**
  * Queue a read of `target` (a source, or since 0455 an assembly) under `profile`, or return the one
@@ -65,11 +85,20 @@ export async function requestRead(
 
   const reusable: string[] = opts.reuseDone ? [...IN_FLIGHT, "done"] : [...IN_FLIGHT];
   const { data: prior, error: pErr } = await admin
-    .from("document_reads").select("id")
+    .from("document_reads").select("id, status")
     .eq("org_id", orgId).eq(column, target.id).eq("profile", profile).in("status", reusable)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pErr) return fail("query_failed", pErr.message);
-  if (prior) return { readId: (prior as { id: string }).id, reused: true };
+  if (prior) {
+    const priorId = (prior as { id: string; status: string }).id;
+    let abandoned: boolean;
+    try {
+      abandoned = (prior as { status: string }).status !== "done" && (await settleAbandonedRead(admin, orgId, priorId));
+    } catch (e) {
+      return fail("query_failed", (e as Error).message);
+    }
+    if (!abandoned) return { readId: priorId, reused: true };
+  }
 
   const { data: inserted, error: iErr } = await admin
     .from("document_reads")
@@ -116,6 +145,14 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
   if (error) return fail("query_failed", error.message);
   if (!data) return fail("not_found", "That read is not in this organization.");
   const read = data as ReadRow;
+  if (read.status === "queued" || read.status === "reading") {
+    try {
+      // The screen polls this: a read whose job is dead answers `failed` now, not "reading" for ever.
+      if (await settleAbandonedRead(admin, orgId, readId)) Object.assign(read, { status: "failed", failure_code: "model_unavailable" });
+    } catch (e) {
+      return fail("query_failed", (e as Error).message);
+    }
+  }
 
   const target = targetOfRow(read);
   let pages;
@@ -140,6 +177,7 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
   // A review screen with a page silently absent is a review of a different document.
   if (missing) return fail("sign_failed", `Page ${missing.position} could not be shown.`);
 
+  const evidence = fieldEvidenceSchema.array().parse(read.evidence ?? []);
   return {
     id: read.id,
     ...targetIds(target),
@@ -148,7 +186,8 @@ export async function getRead(admin: SupabaseClient, orgId: string, readId: stri
     status: read.status,
     failureCode: read.failure_code,
     result: read.result,
-    evidence: fieldEvidenceSchema.array().parse(read.evidence ?? []),
+    evidence,
+    paperAudit: read.status === "done" && read.profile === "shipping_document" ? auditForRead(read.result, evidence) : null,
     pages: pages.map((p) => ({
       page: p.position,
       pageClass: classOf.get(p.id) ?? null,

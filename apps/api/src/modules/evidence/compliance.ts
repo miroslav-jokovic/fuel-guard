@@ -66,8 +66,13 @@ export async function listCertifications(
 }
 
 // ── qualification records (§3.2) — append-only ──────────────────────────────────────────
+/**
+ * `userId` is null only for a filing no person made — the Med-Stop sweep filing a verified negative
+ * (MEDSTOP-PLAN.md F-4). `created_by` is nullable for exactly that, and the record's `detail.source`
+ * says who did instead.
+ */
 export async function insertQualificationRecord(
-  admin: SupabaseClient, orgId: string, userId: string, req: QualificationRecordCreateRequest,
+  admin: SupabaseClient, orgId: string, userId: string | null, req: QualificationRecordCreateRequest,
 ): Promise<{ id: string } | ServiceError> {
   const { error } = await admin.from("qualification_records").insert({
     id: req.id, org_id: orgId, driver_id: req.driverId, kind: req.kind,

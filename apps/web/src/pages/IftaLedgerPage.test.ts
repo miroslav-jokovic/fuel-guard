@@ -14,6 +14,9 @@ vi.mock("@/stores/session", async () => {
   const s = fakeSession("admin");
   return { useSessionStore: () => s, __session: s };
 });
+vi.mock("@/features/ifta/DriverFuelUploadDialog.vue", () => ({
+  default: { template: "<div />" },
+}));
 
 
 /**
@@ -29,6 +32,8 @@ vi.mock("@/stores/session", async () => {
 const period = ref<IftaPeriodData | null>(null);
 const loading = ref(false);
 const errored = ref(false);
+/** The period's `refetch`, kept so the failure's Retry can be seen to reach it (D-US5). */
+const refetch = vi.fn();
 
 vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
   const actual = await orig<typeof import("@/features/ifta/useIftaPeriod")>();
@@ -38,14 +43,16 @@ vi.mock("@/features/ifta/useIftaPeriod", async (orig) => {
       data: computed(() => period.value),
       isLoading: loading,
       isError: errored,
-      error: ref(null),
+      error: computed(() => (errored.value ? new Error("timeout") : null)),
+      isFetching: ref(false),
+      refetch,
     }),
   };
 });
 
 const download = vi.fn(async (_path: string, _filename: string) => {});
-vi.mock("@/lib/api", async (orig) => ({
-  ...(await orig<typeof import("@/lib/api")>()),
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(),
   apiDownload: (path: string, filename: string) => download(path, filename),
 }));
 
@@ -123,6 +130,7 @@ describe("IftaLedgerPage", () => {
     expect(t).toContain("Texas");
     expect(t).toContain("Owed");
     expect(t).toContain("Paid at the pump");
+    expect(t).toContain("2 jurisdictions");
     expect(t).not.toContain("NaN");
   });
 
@@ -247,16 +255,25 @@ describe("IftaLedgerPage", () => {
   it("renders the error state rather than a blank page", async () => {
     errored.value = true;
     period.value = null;
-    expect((await mountPage()).w.text()).toContain("Couldn't load this quarter");
+    const { w } = await mountPage();
+    expect(w.text()).toContain("Could not load this quarter.");
+    // A Retry that asks again, rather than leaving the browser's reload as the only way out (D-US5).
+    refetch.mockClear();
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   // ── the return as a file (IP9) ──────────────────────────────────────────────────────────────────
   it("exports the quarter the page is showing, as Excel and as PDF", async () => {
     download.mockClear();
     const { w } = await mountPage("?q=2026-Q1");
-    expect(w.find('[data-testid="export-ifta-xlsx"]').text()).toContain("Q1 2026");
-    await w.find('[data-testid="export-ifta-xlsx"] button').trigger("click");
-    await w.find('[data-testid="export-ifta-pdf"] button').trigger("click");
+    const exportControl = w.get('[data-testid="export-ifta"]');
+    expect(exportControl.text()).toContain("Q1 2026");
+    await exportControl.get("button").trigger("click");
+    await w.findAll("button").find((button) => button.text().includes("Excel workbook"))!.trigger("click");
+    await flushPromises();
+    await exportControl.get("button").trigger("click");
+    await w.findAll("button").find((button) => button.text().includes("PDF return"))!.trigger("click");
     await flushPromises();
     expect(download.mock.calls).toEqual([
       ["/api/ifta/return.xlsx?year=2026&quarter=1", "ifta-return-2026-Q1.xlsx"],

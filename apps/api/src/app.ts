@@ -33,7 +33,7 @@ import { tagsRouter } from "./tags/routes.js";
 import { registerTagResolvers } from "./tags/resolvers.js";
 import { auditRouter } from "./modules/org/index.js";
 import { integrationsRouter } from "./routes/integrations.js";
-import { tmsRosterMasterRouter } from "./modules/mcleod/index.js";
+import { tmsIngestRouter, tmsRosterMasterRouter } from "./modules/mcleod/index.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./modules/efs/router.js";
 import { fuelCardEchoScanRouter } from "./modules/efs/routes/echoScan.js";
@@ -51,24 +51,20 @@ import { fuelCardsRouter } from "./modules/efs/routes/read.js";
 import { fuelCardVendorRateLimitKey, skipFuelCardVendorRateLimit } from "./modules/efs/routes/vendorRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { samsaraWebhookBootWarning } from "./modules/samsara/index.js";
-import { tmsIngestRouter } from "./modules/mcleod/index.js";
 import { jobsRouter } from "./modules/org/index.js";
 import { documentsRouter } from "./modules/document-reading/index.js";
 import { dispatchRouter } from "./modules/loads/index.js";
 import { liveMapRouter } from "./modules/livemap/index.js";
 import { idleRouter } from "./modules/idle/index.js";
+import { drugAlcoholRouter } from "./modules/medstop/index.js";
+import { roadsideInspectionsRouter } from "./modules/inspections/index.js";
 import { hazmatRouter, meHazmatRouter, publicHazmatRouter } from "./modules/hazmat/index.js";
 import { publicApplicationRouter } from "./modules/recruiting/index.js";
 import { complianceRouter } from "./modules/evidence/index.js";
-import { driverAppSettingsRouter } from "./modules/driver-app/index.js";
-import { meRouter } from "./modules/driver-app/index.js";
-import { notificationsRouter } from "./modules/messaging/index.js";
-import { messagesRouter } from "./modules/messaging/index.js";
-import { rosterDriversRouter } from "./modules/roster/index.js";
+import { driverAppSettingsRouter, meRouter } from "./modules/driver-app/index.js";
+import { notificationsRouter, messagesRouter } from "./modules/messaging/index.js";
+import { rosterArchiveRouter, rosterCredentialsRouter, rosterDriversRouter, rosterSevenDayRouter } from "./modules/roster/index.js";
 import { recruitmentRouter } from "./modules/recruiting/index.js";
-import { rosterCredentialsRouter } from "./modules/roster/index.js";
-import { rosterArchiveRouter } from "./modules/roster/index.js";
-import { rosterSevenDayRouter } from "./modules/roster/index.js";
 import { authRouter } from "./routes/auth.js";
 import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
@@ -290,6 +286,8 @@ function mountApiRouters(app: Express, env: Env): void {
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
   app.use("/api/livemap", liveMapRouter()); // the dispatcher's board (LM6) — gated dispatch:view
   app.use("/api/idle", idleRouter()); // the idle cost basis (Q9) — gated safety:view
+  app.use("/api/drug-alcohol", drugAlcoholRouter()); // Med-Stop program view (MEDSTOP MS1) — gated safety:view
+  app.use("/api/roadside-inspections", roadsideInspectionsRouter()); // the inspections list + Roadside card (Q-FM7) — gated safety:view
   mountPublic(app); // M7 hazmat calculator + H5 application intake — both unauthenticated
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/documents", documentsRouter()); // the document reader (DOCUMENT-READER-PLAN Step 1.6b)

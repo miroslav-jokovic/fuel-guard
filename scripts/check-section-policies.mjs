@@ -61,6 +61,9 @@ const MODULE_SECTIONS = {
   // door onto a credential and a watermark (D-FP1, D-SEP1).
   fleetpal: null,
   psp: "safety",
+  // Med-Stop collector (0463): deny-all staging like fleetpal; the web reads it only through
+  // /api/drug-alcohol (safety: view) and /api/integrations/medstop (admin).
+  medstop: null,
   // Roadside inspections and DataQs challenges (INSPECTION-CHALLENGE-PLAN D-IC12). Its first two tables
   // (0457) are deny-all collector staging; the safety section is the one its future endpoints gate on.
   inspections: "safety",

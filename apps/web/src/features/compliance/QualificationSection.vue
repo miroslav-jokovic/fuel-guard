@@ -14,6 +14,7 @@ import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { BADGE_BASE, dqItemBadge, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -31,6 +32,7 @@ import CertificationHistory from "@/features/compliance/CertificationHistory.vue
 import DocumentPreview from "@/components/DocumentPreview.vue";
 import RequirementTable, { type RequirementRow } from "@/features/compliance/RequirementTable.vue";
 import { useExportDocument } from "@/composables/useDqExports";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -115,7 +117,11 @@ const file = computed(() =>
 const groups = computed(() => dqGroups(file.value));
 const attentionKeys = computed(() => new Set(dqAttention(file.value, today).map((a) => a.key)));
 
-const showAll = ref(false);
+// The requirement list's state lives in the URL (D-US2), so Back from a document returns to the
+// same narrowed list. Scoped `dq.`: this section shares the driver page's route with the page's own
+// `?section=` and with the other sections' lists, and an unscoped `?search=` would be theirs too.
+const qs = useQueryState("dq");
+const showAll = qs.flag("all");
 
 const docById = computed(() => {
   const m = new Map<string, DocumentRow>();
@@ -161,8 +167,9 @@ const toRow = (i: DqFileItem): Row => {
 const rows = computed<Row[]>(() =>
   file.value.items.filter((i) => showAll.value || attentionKeys.value.has(i.spec.key)).map(toRow),
 );
-const requirementSearch = ref("");
-const requirementGroup = ref("");
+const requirementSearch = qs.param("search");
+// Checked against the shared group catalogue rather than a copy of it.
+const requirementGroup = qs.param("group", Object.keys(DQ_GROUP_LABELS));
 const requirementGroupOptions = computed(() => [
   { value: "", label: "All groups" },
   ...Object.entries(DQ_GROUP_LABELS).map(([value, label]) => ({ value, label: String(label) })),
@@ -174,9 +181,15 @@ const filteredRows = computed(() => {
     return !term || row.label.toLowerCase().includes(term);
   });
 });
-const hasRequirementFilter = computed(
-  () => Boolean(requirementSearch.value.trim() || requirementGroup.value),
+// "Show all N requirements" is not counted or cleared: it chooses which list this is (what needs
+// attention, or the whole file) and has its own toggle; search and group narrow whichever is shown.
+const requirementFilterCount = computed(
+  () => [requirementSearch.value.trim(), requirementGroup.value].filter(Boolean).length,
 );
+const hasRequirementFilter = computed(() => requirementFilterCount.value > 0);
+function clearRequirementFilters(): void {
+  qs.set({ search: undefined, group: undefined });
+}
 
 
 // ── releasing a document (D-BD10) ─────────────────────────────────────────────────────
@@ -276,46 +289,53 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
       </BaseCard>
     </div>
 
-    <FilterBar
-      v-model:search="requirementSearch"
-      search-placeholder="Search requirements…"
-      :count="filteredRows.length"
-      count-label="requirements"
-    >
-      <template #filters>
-        <FilterSelect
-          v-model="requirementGroup"
-          label="Group"
-          :options="requirementGroupOptions"
-        />
-      </template>
-      <template #actions>
-        <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
-          {{
-            showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
-          }}
-        </BaseButton>
-      </template>
-    </FilterBar>
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="requirementSearch"
+        search-placeholder="Search requirements…"
+        :count="filteredRows.length"
+        count-label="requirements"
+        embedded
+        :active-count="requirementFilterCount"
+        @clear-all="clearRequirementFilters"
+      >
+        <template #filters>
+          <FilterSelect
+            v-model="requirementGroup"
+            label="Group"
+            :options="requirementGroupOptions"
+          />
+        </template>
+        <template #actions>
+          <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
+            {{
+              showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
+            }}
+          </BaseButton>
+        </template>
+      </FilterBar>
 
-    <RequirementTable
-      :rows="filteredRows"
-      :loading="loading"
-      :error="errorMessage"
-      :retrying="retrying"
-      :empty-text="
-        hasRequirementFilter
-          ? 'No requirements match these filters.'
-          : showAll
-            ? 'Nothing on file yet. Drop a document below to start.'
-            : 'Nothing needs attention. This file is complete.'
-      "
-      :releasing-key="releasing"
-      @retry="retry"
-      @open="openKey = $event"
-      @preview="openPreview"
-      @release="release"
-    />
+      <!-- ui-adoption: unpaged — one driver's requirements are a filter of the shared DQ_ITEMS catalogue (20 entries, packages/shared dqCatalogue.ts), so the list never passes one page (D-US8). -->
+      <RequirementTable
+        :rows="filteredRows"
+        :loading="loading"
+        :error="errorMessage"
+        :retrying="retrying"
+        :empty-text="
+          hasRequirementFilter
+            ? 'No requirements match these filters.'
+            : showAll
+              ? 'Nothing on file yet. Drop a document below to start.'
+              : 'Nothing needs attention. This file is complete.'
+        "
+        :releasing-key="releasing"
+        embedded
+        @retry="retry"
+        @open="openKey = $event"
+        @preview="openPreview"
+        @release="release"
+      />
+    </DataWorkspace>
 
     <DocumentDropCard
       v-if="session.can('roster')"

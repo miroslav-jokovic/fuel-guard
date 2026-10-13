@@ -10,6 +10,7 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -20,6 +21,7 @@ import { useUnitKitQuery } from "@/features/inventory/useUnits";
 import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 
 /**
  * A truck's kit, walked (INVENTORY-PLAN.md I9; D-INV17 as amended 2026-09-10, D-INV19, D-INV24).
@@ -53,13 +55,18 @@ import { useToastStore } from "@/stores/toast";
 const route = useRoute();
 const router = useRouter();
 const toast = useToastStore();
+const ask = useConfirm();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
 
-const { data: walk, isLoading: walkLoading, isError: walkFailed } = useCountSessionQuery(sessionId);
+const { data: walk } = useCountSessionQuery(sessionId);
 /** The roster's word — a reefer is a `trailer` — because that is which table the id is in. */
 const rosterKind = computed<"tractor" | "trailer">(() => (walk.value?.vehicleId ? "tractor" : "trailer"));
 const unitId = computed(() => walk.value?.vehicleId ?? walk.value?.trailerId ?? "");
-const { data: kit, isLoading: kitLoading } = useUnitKitQuery(rosterKind, unitId);
+// The kit's own failure is read too (D-US5): with no kit there is nothing left to look at, and a
+// failed read used to fall through to "Every item has been looked at" for a unit nobody had checked.
+const {
+  data: kit, isLoading: kitLoading, isError: kitFailed, error: kitError, isFetching: kitFetching, refetch: refetchKit,
+} = useUnitKitQuery(rosterKind, unitId);
 
 const move = useMoveAsset();
 const closeWalk = useCloseCountSession();
@@ -213,11 +220,21 @@ const REVIEW_COLUMNS: DataTableColumn[] = [
 
 async function close() {
   const notYet = remaining.value.length;
-  const ok = window.confirm(
+  // D-US7: the product's dialog, red because closing cannot be undone.
+  const ok = await ask(
     notYet > 0
-      ? `Close this check with ${notYet} item${notYet === 1 ? "" : "s"} not looked at?\n\n` +
-          `Items nobody looked at are left exactly as they are. Closing cannot be undone.`
-      : "Close this check?\n\nClosing cannot be undone; a correction is a new check.",
+      ? {
+          title: `Close with ${notYet} item${notYet === 1 ? "" : "s"} not looked at?`,
+          message: "Items nobody looked at are left exactly as they are. Closing cannot be undone.",
+          confirmLabel: "Close check",
+          tone: "danger",
+        }
+      : {
+          title: "Close this check?",
+          message: "Closing cannot be undone; a correction is a new check.",
+          confirmLabel: "Close check",
+          tone: "danger",
+        },
   );
   if (!ok) return;
   try {
@@ -232,9 +249,10 @@ async function close() {
 
 <template>
   <div class="space-y-6 pb-20 sm:pb-0">
-    <AppCallout v-if="walkFailed" tone="danger">That check is not on file.</AppCallout>
-
-    <template v-else-if="walk">
+    <!-- The walk's own load and failure are drawn by CountSessionPage, the one place that reads the
+         session and decides which body to mount (D-INV19); this body is mounted only once the walk
+         has arrived, so it draws no second "not on file" of its own (D-US5). -->
+    <template v-if="walk">
       <PageHeader :title="title" :description="progress">
         <template v-if="walk.status === 'open'" #actions>
           <WalkActions :actions="actions" />
@@ -245,9 +263,15 @@ async function close() {
         Saving on this phone — will sync when connected. {{ queued }} waiting.
       </AppCallout>
 
-      <p v-if="walkLoading || kitLoading" class="text-sm text-ink-tertiary">Loading the kit…</p>
-
-      <template v-else-if="!reviewing">
+      <QueryState
+        :loading="kitLoading"
+        :error="kitFailed ? kitError : null"
+        :retrying="kitFetching"
+        loading-text="Loading the kit…"
+        error-text="Could not load the unit's kit."
+        @retry="refetchKit()"
+      >
+      <template v-if="!reviewing">
         <!-- What the system says is on this unit: one card, one question, two answers. -->
         <BaseCard v-for="asset in remaining.slice(0, 1)" :key="asset.id">
           <div class="flex items-start justify-between gap-4">
@@ -325,6 +349,7 @@ async function close() {
           </template>
         </DataTable>
       </section>
+      </QueryState>
 
       <WalkActions v-if="walk.status === 'open'" :actions="actions" bar />
     </template>

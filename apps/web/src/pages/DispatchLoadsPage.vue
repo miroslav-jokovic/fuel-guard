@@ -154,7 +154,8 @@ const inScope = (load: DispatchLoad): boolean =>
     ...scopeFilter.value,
     mine: scopeFilter.value.mine && loadBoardState(load).queue !== "uncovered",
   });
-const page = ref(1);
+// One `?page=` (D-US2) for both tables (D-US8): one shows at a time, and a tab change restarts at 1.
+const page = qs.page();
 
 /** A time on the carrier's clock. The board is read against McLeod's screen, which is the office's. */
 const at = (iso: string | null | undefined): string => formatDateTime(iso, "—", zone.value);
@@ -301,13 +302,25 @@ function hazmatTone(status: string | null | undefined): string {
 }
 
 
-watch([search, tab, scopeChoice, fleet, dispatcher, typeFilter], () => {
-  page.value = 1;
+/**
+ * FilterBar's "Clear filters": Fleet, Dispatched by, Type and the search narrow the list in front of
+ * you. The queue tab and My fleet · All do not — they choose WHICH list it is, so clearing keeps them.
+ */
+const activeFilterCount = computed(
+  () => [search.value.trim(), fleet.value, dispatcher.value, typeFilter.value].filter(Boolean).length,
+);
+const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined, type: undefined });
+
+// The scope's PARAMETER, not `scopeChoice`, whose default flips when the board arrives and would
+// reset a pasted `?page=2`. The clamp follows the table on screen and waits for its feed to arrive.
+watch([search, tab, () => qs.one("scope"), fleet, dispatcher, typeFilter], () => (page.value = 1));
+const shownCount = computed(() => (tab.value === "exceptions" ? filteredExceptions.value.length : filtered.value.length));
+const shownLoaded = computed(() => Boolean(loads.value && (tab.value !== "exceptions" || exceptions.value)));
+watch([shownCount, shownLoaded], ([n, loaded]) => {
+  const maxPage = Math.max(1, Math.ceil(n / PAGE_SIZE));
+  if (loaded && page.value > maxPage) page.value = maxPage;
 });
-watch(filtered, (rows) => {
-  const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  if (page.value > maxPage) page.value = maxPage;
-});
+const exceptionPageRows = computed(() => filteredExceptions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 
 // Opening ONE load is `DispatchLoadDetailPage` — a real page, because a drawer over this list cache
@@ -336,6 +349,8 @@ function openDetail(load: DispatchLoad) {
         :search-placeholder="tab === 'exceptions' ? 'Search what happened, load #, driver…' : 'Search load #, driver, unit, place…'"
         :count="tab === 'exceptions' ? filteredExceptions.length : filtered.length"
         :count-label="tab === 'exceptions' ? 'exceptions' : 'loads'"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <DispatchScopeControls
@@ -355,7 +370,7 @@ function openDetail(load: DispatchLoad) {
       <DataTable
         v-if="tab === 'exceptions'"
         :columns="EXCEPTION_COLUMNS"
-        :rows="filteredExceptions"
+        :rows="exceptionPageRows"
         row-key="id"
         :loading="exceptionsLoading"
         :error="exceptionsFailed ? 'Could not load the exceptions' : null"
@@ -386,6 +401,9 @@ function openDetail(load: DispatchLoad) {
           >
             {{ ACTION_LABELS[row.action] ?? "Acknowledge" }}
           </BaseButton>
+        </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredExceptions.length" :loading="exceptionsFetching" @update:page="page = $event" />
         </template>
       </DataTable>
 

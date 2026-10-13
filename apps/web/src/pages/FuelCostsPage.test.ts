@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
 // The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
 import { fuelReportTotals, spendChangeLine, FUEL_REPORT_TRUCK_FIGURES_NOTE, type FuelReport, type FuelReportDay } from "@silvicom/shared";
 import type { FuelReportParams } from "@/features/reconcile/useFuelReport";
 
@@ -54,6 +55,8 @@ function fixture(params: FuelReportParams): FuelReport {
 const seen = { params: null as Ref<FuelReportParams> | null };
 /** The report read's state; a test flips it, `beforeEach` puts it back. */
 const reportState = vi.hoisted(() => ({ value: "ready" as "ready" | "loading" | "error" }));
+/** The report's `refetch`, kept so the failure's Retry can be seen to reach it (D-US5). */
+const reportRefetch = vi.hoisted(() => vi.fn());
 vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
   const actual = await orig<typeof import("@/features/reconcile/useFuelReport")>();
   return {
@@ -64,6 +67,7 @@ vi.mock("@/features/reconcile/useFuelReport", async (orig) => {
         data: computed(() => (reportState.value === "ready" ? fixture(params.value) : undefined)),
         isLoading: ref(reportState.value === "loading"), isError: ref(reportState.value === "error"),
         error: ref(reportState.value === "error" ? new Error("boom") : null), isFetching: ref(false),
+        refetch: reportRefetch,
       };
     },
   };
@@ -76,13 +80,15 @@ vi.mock("@/composables/useVehicles", () => ({
 }));
 /** What the savings strip's read returns; a test overrides it, `beforeEach` puts it back. */
 const strip = vi.hoisted(() => ({ rows: [] as unknown, params: null as unknown }));
+/** The two side reads' failures and refetches, so their Retry can be seen to reach them (D-US5). */
+const side = vi.hoisted(() => ({ habitsError: false, stripError: false, habitsRefetch: vi.fn(), stripRefetch: vi.fn() }));
 vi.mock("@/features/reconcile/useBuyingHabits", () => ({
-  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(false) }),
+  useBuyingHabitsQuery: () => ({ data: computed(() => undefined), isFetching: ref(false), isError: ref(side.habitsError), refetch: side.habitsRefetch }),
 }));
 vi.mock("@/features/reconcile/useFuelOpportunities", () => ({
   useFuelOpportunitiesQuery: (params: Ref<unknown>) => {
     strip.params = params;
-    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(false) };
+    return { data: computed(() => strip.rows), isLoading: ref(false), isError: ref(side.stripError), refetch: side.stripRefetch };
   },
 }));
 const opensAll = vi.hoisted(() => ({ value: true }));
@@ -91,6 +97,10 @@ vi.mock("@/composables/useOpens", () => ({ useOpens: () => () => opensAll.value 
 import FuelCostsPage from "./FuelCostsPage.vue";
 
 beforeEach(() => {
+  side.habitsError = false;
+  side.stripError = false;
+  side.habitsRefetch.mockClear();
+  side.stripRefetch.mockClear();
   seen.params = null;
   reportState.value = "ready";
   opensAll.value = true;
@@ -224,6 +234,8 @@ describe("FuelCostsPage — every filter reaches the query", () => {
 
   it("offers the states and locations this range was fuelled in", async () => {
     const { w } = await mountPage();
+    // Network lives in the "Filters" popover, which renders its controls only while open.
+    await w.findAll("button").find((b) => b.text().startsWith("Filters"))!.trigger("click");
     const labels = w.findAllComponents({ name: "FilterSelect" }).map((c) => [c.props("label"), c.props("options").map((o: { label: string }) => o.label)]);
     const menu = Object.fromEntries(labels) as Record<string, string[]>;
     expect(menu.State).toEqual(["California", "Texas"]);
@@ -268,14 +280,16 @@ describe("FuelCostsPage — where the rest went", () => {
 
   it("exports the document for every filter on the screen, state, location and network included (Q-FSV14)", async () => {
     const { w } = await mountPage("?from=2026-09-01&to=2026-09-30&trucks=v1&states=TX&sites=s-1&networks=out");
-    const props = w.findAllComponents({ name: "ExportButton" }).map((c) => c.props() as { href: string; scope: string });
-    const pdf = props.find((p) => p.href.includes("/api/fueling/report.pdf"));
-    expect(pdf, "no export points at the Fuel Costs document").toBeTruthy();
-    const q = new URLSearchParams(pdf!.href.split("?")[1]);
+    const exports = w.findAllComponents({ name: "ExportButton" });
+    const reportExport = exports.find((c) => c.props("label") === "Export report");
+    expect(reportExport, "no Fuel Costs document export").toBeTruthy();
+    const href = reportExport!.props("href") as string;
+    expect(href).toContain("/api/fueling/report.pdf");
+    const q = new URLSearchParams(href.split("?")[1]);
     expect(Object.fromEntries(q)).toEqual({ from: "2026-09-01", to: "2026-09-30", vehicles: "v1", states: "TX", sites: "s-1", networks: "out" });
-    expect(pdf!.scope).toContain("filtered stations");
+    expect(reportExport!.props("scope")).toContain("filtered stations");
     // And not the older weekly document, which ignored three of those five filters.
-    expect(props.some((p) => p.href.includes("spend-report.pdf"))).toBe(false);
+    expect(exports.some((c) => String(c.props("href") ?? "").includes("spend-report.pdf"))).toBe(false);
   });
 
   it("keeps the freshness line and the PDF export", async () => {
@@ -290,13 +304,55 @@ describe("FuelCostsPage — where the rest went", () => {
   });
 
   it("claims no count of days while the report is pending or failed (verdict E8)", async () => {
-    // The count is its own element; the page's text runs together ("Network0 days"), so match the element.
-    const dayCount = (w: { findAll: (s: string) => { text: () => string }[] }) =>
-      w.findAll("span").map((e) => e.text().trim()).filter((t) => /^\d+ days?$/.test(t));
-    expect(dayCount((await mountPage()).w)).toHaveLength(1);
+    // Read the table toolbar's result-count contract directly. Export scopes also name their range
+    // in days, and are not evidence that the report query has answered.
+    const dayCount = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.getComponent({ name: "FilterBar" }).props("count");
+    expect(dayCount((await mountPage()).w)).toBe(90);
     for (const state of ["loading", "error"] as const) {
       reportState.value = state;
-      expect(dayCount((await mountPage()).w), state).toEqual([]);
+      expect(dayCount((await mountPage()).w), state).toBeNull();
     }
+  });
+
+  it("says the report could not load and retries it in place (D-US5)", async () => {
+    reportState.value = "error";
+    reportRefetch.mockClear();
+    const { w } = await mountPage();
+    expect(w.text()).toContain("Could not load the fuel report.");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(reportRefetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("FuelCostsPage — Network is a secondary filter", () => {
+  it("shows a set network as a removable chip, and removing it clears the network", async () => {
+    const { w, router } = await mountPage("?networks=out");
+    const chip = w.find('button[aria-label="Remove filter Network: Out of network"]');
+    expect(chip.exists()).toBe(true);
+    await chip.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query.networks).toBeUndefined();
+    expect(w.find('button[aria-label^="Remove filter Network"]').exists()).toBe(false);
+  });
+});
+
+describe("FuelCostsPage — a side panel's failure retries that panel's read (D-US5)", () => {
+  it("Retry on the buying-habits table reads the habits again", async () => {
+    side.habitsError = true;
+    const { w } = await mountPage();
+    const retries = w.findAll("button").filter((b) => b.text() === "Retry");
+    expect(retries.length).toBeGreaterThan(0);
+    for (const r of retries) await r.trigger("click");
+    expect(side.habitsRefetch).toHaveBeenCalled();
+    expect(side.stripRefetch).not.toHaveBeenCalled();
+  });
+
+  it("Retry on the savings strip reads the opportunities again", async () => {
+    side.stripError = true;
+    const { w } = await mountPage();
+    for (const r of w.findAll("button").filter((b) => b.text() === "Retry")) await r.trigger("click");
+    expect(side.stripRefetch).toHaveBeenCalled();
+    expect(side.habitsRefetch).not.toHaveBeenCalled();
   });
 });

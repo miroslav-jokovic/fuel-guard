@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { useToastStore } from "@/stores/toast";
+import { answerConfirm } from "@/testing/confirm";
 
 /**
  * The inspector register (B3, closes §6 Q8).
@@ -47,11 +49,15 @@ const inspector = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const page = (rows: unknown[]) => {
+// A real memory router per mount: the register keeps its filters in the URL since D-US2.
+const newRouter = (): Router =>
+  createRouter({ history: createMemoryHistory(), routes: [{ path: "/:any(.*)*", component: { template: "<div/>" } }] });
+
+const page = (rows: unknown[], router: Router = newRouter()) => {
   state.inspectors.value = rows;
   return mount(InspectorRegisterPage, {
     attachTo: document.body,
-    global: { stubs: { PageHeader: true, InspectorDrawer: true } },
+    global: { plugins: [router], stubs: { PageHeader: true, InspectorDrawer: true } },
   });
 };
 
@@ -129,16 +135,22 @@ describe("retiring somebody is a date, not a deletion", () => {
 
 describe("removing a row that was never used", () => {
   it("asks first, and does nothing when the answer is no", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const asked = answerConfirm(false);
     const w = page([inspector()]);
     await click(w, "Remove from register");
+    await flushPromises();
+    // D-US7: the product's dialog, the person named in the question, the verb on a red button.
+    expect(asked).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Remove George Gacev from the register?", confirmLabel: "Remove from register", tone: "danger" }),
+    );
     expect(state.remove.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("removes the row once it is confirmed", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerConfirm(true);
     const w = page([inspector()]);
     await click(w, "Remove from register");
+    await flushPromises();
     expect(state.remove.mutateAsync).toHaveBeenCalledWith("i-1");
   });
 
@@ -146,7 +158,7 @@ describe("removing a row that was never used", () => {
     // The boundary is 0280's `on delete restrict`, not this page — so the page must not paraphrase
     // the refusal, it must show it. A carrier who tries to delete their only inspector needs the
     // sentence that names the alternative.
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerConfirm(true);
     state.remove.mutateAsync.mockRejectedValueOnce(
       new Error("This person has performed inspections, so their record has to stay on file. Retire them instead."),
     );
@@ -158,5 +170,106 @@ describe("removing a row that was never used", () => {
     expect(toasts).toHaveLength(1);
     expect(toasts[0]!.variant).toBe("error");
     expect(toasts[0]!.message).toContain("Retire them instead");
+  });
+});
+
+describe("clearing the filters", () => {
+  /** "Active only" is where the register opens, so clearing returns there rather than to an empty value. */
+  it("offers Clear filters once retired inspectors are shown, and clearing goes back to active only", async () => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    const w = page([inspector()]);
+    const show = () => w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!;
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clearFilters()).toBeUndefined();
+    show().vm.$emit("update:modelValue", "all");
+    await nextTick();
+    await clearFilters()!.trigger("click");
+    expect(show().props("modelValue")).toBe("active");
+    expect(clearFilters()).toBeUndefined();
+  });
+});
+
+/**
+ * D-US2 (UI-STANDARDIZATION, 2026-10-12) — the register keeps its filters in the URL, so a reload or
+ * Back keeps them. "Active only" is where it opens, and stays out of the URL.
+ */
+describe("the register keeps its filters in the URL", () => {
+  async function at(url: string) {
+    const router = newRouter();
+    await router.push(url);
+    await router.isReady();
+    const w = page(
+      [inspector(), inspector({ id: "i-2", full_name: "Ruth State", qualification_basis: "state_federal_program" })],
+      router,
+    );
+    await flushPromises();
+    return { w, query: () => router.currentRoute.value.query };
+  }
+  const select = async (w: ReturnType<typeof page>, label: string) => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    return w.findAllComponents(FilterSelect).find((c) => c.props("label") === label)!;
+  };
+
+  it("reads the basis, the search and Including retired back from a pasted link", async () => {
+    const { w } = await at("/maintenance/inspectors?basis=state_federal_program&retired=1");
+    expect((await select(w, "Qualified by")).props("modelValue")).toBe("state_federal_program");
+    expect((await select(w, "Show")).props("modelValue")).toBe("all");
+    expect(w.text()).toContain("Ruth State");
+    expect(w.text()).not.toContain("George Gacev");
+  });
+
+  it("writes a control change to the URL", async () => {
+    const { w, query } = await at("/maintenance/inspectors");
+    (await select(w, "Show")).vm.$emit("update:modelValue", "all");
+    (await select(w, "Qualified by")).vm.$emit("update:modelValue", "training_and_experience");
+    await flushPromises();
+    expect(query()).toEqual({ retired: "1", basis: "training_and_experience" });
+  });
+
+  it("Clear filters puts every filter back where the register opens", async () => {
+    const { w, query } = await at("/maintenance/inspectors?basis=state_federal_program&retired=1&search=ru");
+    w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
+    await flushPromises();
+    expect(query()).toEqual({});
+  });
+
+  it("reads a basis outside the contract's list as Any", async () => {
+    const { w } = await at("/maintenance/inspectors?basis=grandfathered");
+    expect((await select(w, "Qualified by")).props("modelValue")).toBe("");
+    expect(w.text()).toContain("Ruth State");
+    expect(w.text()).toContain("George Gacev");
+  });
+});
+
+/** D-US8: the register pages twenty at a time, the page in the URL beside its filters (D-US2). */
+describe("the register pages", () => {
+  const many = Array.from({ length: 45 }, (_, i) =>
+    inspector({ id: `i-${i + 1}`, full_name: `Inspector ${String(i + 1).padStart(2, "0")}` }),
+  );
+  async function at(url: string) {
+    const router = newRouter();
+    await router.push(url);
+    await router.isReady();
+    const w = page(many, router);
+    await flushPromises();
+    return { w, query: () => router.currentRoute.value.query };
+  }
+
+  it("a pasted ?page=2 shows inspectors 21–40", async () => {
+    const { w } = await at("/maintenance/inspectors?page=2");
+    const text = w.text();
+    expect(text).toContain("Inspector 21");
+    expect(text).toContain("Inspector 40");
+    expect(text).not.toContain("Inspector 20");
+    expect(text).not.toContain("Inspector 41");
+  });
+
+  it("a filter change returns to page 1", async () => {
+    const { w, query } = await at("/maintenance/inspectors?page=2");
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Show")!.vm.$emit("update:modelValue", "all");
+    await flushPromises();
+    expect(query()).toEqual({ retired: "1" });
+    expect(w.text()).toContain("Inspector 01");
   });
 });

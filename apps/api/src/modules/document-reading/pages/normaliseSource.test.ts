@@ -70,6 +70,10 @@ const IMAGES: [string, () => Promise<Buffer>, string, [number, number]][] = [
   ["a WebP", fx.pageWebp, "image/webp", [2400, 1800]],
   ["a CMYK JPEG", fx.cmykJpeg, "image/jpeg", [1600, 1200]],
   ["an HEVC HEIC from macOS sips", async () => fx.heicFixture(), "image/heic", [1600, 1200]],
+  ["a Google Voice JFIF", fx.jfifJpeg, "image/jpeg", [1600, 1200]],
+  ["a scanner's TIFF", fx.pageTiff, "image/tiff", [1600, 1200]],
+  ["a GIF", fx.pageGif, "image/gif", [1600, 1200]],
+  ["an AVIF", fx.pageAvif, "image/avif", [1600, 1200]],
 ];
 
 describe("normaliseSource — one canonical page per image format (D-DR13)", () => {
@@ -207,9 +211,40 @@ describe("normaliseSource — PDFs: 300 DPI pages plus the born-digital text lay
     expect(rotated!.bbox.w * 3300).toBeGreaterThan(rotated!.bbox.h * 2550);
   });
 
-  it("accepts the limit itself: a PDF of exactly maxPdfPages pages is rendered", async () => {
-    const out = await normalised(await fx.pagesPdf(INTAKE_LIMITS.maxPdfPages), "application/pdf");
-    expect(out.pages).toHaveLength(INTAKE_LIMITS.maxPdfPages);
+  it("reads every page of a multi-page TIFF, in its own page order", async () => {
+    const out = await normalised(await fx.multiPageTiff(3), "image/tiff");
+    expect(out.pages.map((p) => p.page)).toEqual([1, 2, 3]);
+    for (const [i, page] of out.pages.entries()) {
+      const { data, info } = await sharp(page.original.png).raw().toBuffer({ resolveWithObject: true });
+      const at = (x: number, y: number) => data[(y * info.width + x) * info.channels]!;
+      const own = fx.tiffPageMark(i);
+      const other = fx.tiffPageMark((i + 1) % 3);
+      expect(at(own.left + own.size / 2, own.top + own.size / 2), `page ${i + 1}'s own mark`).toBeLessThan(40);
+      expect(at(other.left + other.size / 2, other.top + other.size / 2), `page ${i + 1} without another page's mark`).toBeGreaterThan(200);
+    }
+  }, 60_000);
+
+  it("draws a normal-mode fax TIFF (204 × 98 dpi) at its real height, not squashed — every page", async () => {
+    const out = await normalised(await fx.faxTiff(2), "image/tiff");
+    expect(out.pages.map((p) => [p.original.width, p.original.height])).toEqual([[1728, 2290], [1728, 2290]]);
+    await expectUprightPage(out.pages[1]!.original.png);
+  }, 60_000);
+
+  it("reads each fax page's own resolution: a fine page stays its height beside a normal one that is stretched", async () => {
+    const mixed = fx.withPageResolution(await fx.faxTiff(2), 0, { x: 204, y: 204 });
+    const out = await normalised(mixed, "image/tiff");
+    expect(out.pages.map((p) => [p.original.width, p.original.height])).toEqual([[1728, 1100], [1728, 2290]]);
+  }, 60_000);
+
+  it("reads only a GIF's first frame — further frames are animation, not pages", async () => {
+    const frames = await Promise.all([fx.pagePng(), fx.pagePng()]);
+    const animated = await sharp(frames, { join: { animated: true } }).gif().toBuffer();
+    expect((await normalised(animated, "image/gif")).pages).toHaveLength(1);
+  });
+
+  it("accepts the limit itself: a PDF of exactly maxPages pages is rendered", async () => {
+    const out = await normalised(await fx.pagesPdf(INTAKE_LIMITS.maxPages), "application/pdf");
+    expect(out.pages).toHaveLength(INTAKE_LIMITS.maxPages);
   }, 60_000);
 });
 
@@ -223,7 +258,7 @@ describe("normaliseSource — refusals, each an IntakeRefusalCode with its sente
   };
 
   it("refuses an 11-page PDF as too_many_pages", async () => {
-    expect(await refusal(await fx.pagesPdf(INTAKE_LIMITS.maxPdfPages + 1), "application/pdf")).toBe("too_many_pages");
+    expect(await refusal(await fx.pagesPdf(INTAKE_LIMITS.maxPages + 1), "application/pdf")).toBe("too_many_pages");
   });
   it("refuses a PDF that needs a password to open as encrypted_pdf", async () => {
     expect(await refusal(await fx.encryptedPdf(), "application/pdf")).toBe("encrypted_pdf");
@@ -235,16 +270,25 @@ describe("normaliseSource — refusals, each an IntakeRefusalCode with its sente
   });
   it("refuses an image whose long edge is one pixel under minLongEdgePx as too_small, and accepts the limit", async () => {
     const under = INTAKE_LIMITS.minLongEdgePx - 1;
-    expect(await refusal(await fx.pageJpeg(under, 900), "image/jpeg")).toBe("too_small");
-    expect((await normaliseSource(await fx.pageJpeg(INTAKE_LIMITS.minLongEdgePx, 900), "image/jpeg")).ok).toBe(true);
+    expect(await refusal(await fx.pageJpeg(under, Math.round(under * 0.75)), "image/jpeg")).toBe("too_small");
+    expect((await normaliseSource(await fx.pageJpeg(INTAKE_LIMITS.minLongEdgePx, 600), "image/jpeg")).ok).toBe(true);
   });
   it("judges too_small on the decoded long edge, whichever way an EXIF-rotated photo was held", async () => {
-    const portrait = await sharp(await fx.pageJpeg(1100, 800)).rotate(90).jpeg().withMetadata({ orientation: 8 }).toBuffer();
+    const portrait = await sharp(await fx.pageJpeg(700, 500)).rotate(90).jpeg().withMetadata({ orientation: 8 }).toBuffer();
     expect(await refusal(portrait, "image/jpeg")).toBe("too_small");
   });
-  it("refuses a GIF as unsupported_format", async () => {
-    const gif = await sharp(await fx.pagePng()).gif().toBuffer();
-    expect(await refusal(gif, "image/gif")).toBe("unsupported_format");
+  it("reads a photo the size a text message delivers — 1080 × 810, the owner's Google Voice BOL of 10/13/2026", async () => {
+    const mms = await sharp(await fx.pageJpeg(1080, 810)).jpeg({ quality: 70 }).toBuffer();
+    expect((await normalised(mms, "image/jpeg")).pages).toHaveLength(1);
+  });
+  it("refuses a TIFF of more than maxPages pages as too_many_pages, and reads one of exactly maxPages", async () => {
+    expect(await refusal(await fx.multiPageTiff(INTAKE_LIMITS.maxPages + 1), "image/tiff")).toBe("too_many_pages");
+    expect((await normalised(await fx.multiPageTiff(INTAKE_LIMITS.maxPages), "image/tiff")).pages).toHaveLength(INTAKE_LIMITS.maxPages);
+  }, 60_000);
+  it("refuses what is not a picture or a PDF — a Word file, plain text — as unsupported_format", async () => {
+    const docx = Buffer.concat([Buffer.from("PK\x03\x04"), Buffer.alloc(2000)]);
+    expect(await refusal(docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")).toBe("unsupported_format");
+    expect(await refusal(Buffer.from("Bill of lading ".repeat(100)), "text/plain")).toBe("unsupported_format");
   });
   it("refuses a JPEG header followed by garbage, and a PDF header followed by garbage, as decode_failed", async () => {
     const junk = Buffer.from("this is not an image at all ".repeat(64));

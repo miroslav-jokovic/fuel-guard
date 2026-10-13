@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FORMAT_MIMES, READABLE_FORMATS_TEXT, SOURCE_FORMATS, type SourceFormat } from "./documentFormats.js";
 import { fieldEvidenceSchema, fieldPathSchema, leafFieldPaths, parseFieldPath } from "./fieldEvidenceContract.js";
 import {
   SHIPPING_DOCUMENT_PROFILE_VERSION,
@@ -76,9 +77,11 @@ export const READ_FAILURES = {
   no_readable_page: "None of the pages is a bill of lading or a signed delivery copy.",
   budget_exhausted: "This month's document-reading budget is used up.",
   integrity_mismatch: "A stored page no longer matches the bytes that were received, so it was not read.",
-  // Step 1.6 (0451). The queue retries a transient model error with backoff; this is the read the last
-  // retry left — without it the read would sit in `reading` forever with nobody told.
-  model_unavailable: "The reading service could not be reached after several tries. Start the read again.",
+  // Step 1.6 (0451). The read whose job will never finish it: the last retry of a transient model error,
+  // or (since 10/12/2026) a failure no retry mends — a bad key, an empty credit balance. Without it the read
+  // sits in `reading` forever with nobody told. Not "after several tries": in-process mode makes one try,
+  // and a billing refusal is not a connection problem. The cause is in the job's error, for whoever fixes it.
+  model_unavailable: "The reading service is not available right now. Try again in a few minutes; if it keeps happening, tell your administrator.",
   // Step 1.6 (0451). The consumer's module was switched off for the organization (entitlement or the
   // module's kill switch) between the read being queued and a worker reaching it.
   reading_disabled: "Document reading is turned off for this organization.",
@@ -111,11 +114,13 @@ export type ReadFailureKind = (typeof READ_FAILURE_KIND)[ReadFailureCode];
 
 /** Why intake refused a file before any read (§3). Each names the limit, so the sender can fix it. */
 export const INTAKE_REFUSALS = {
-  unsupported_format: "Only PDF, JPEG, PNG, WebP and HEIC files can be read.",
+  unsupported_format: `Only ${READABLE_FORMATS_TEXT} files can be read.`,
   decode_failed: "This file could not be opened as an image or a PDF.",
-  too_small: "The image is too small to read — its long edge must be at least 1200 pixels.",
+  too_small:
+    "The image is too small to read — its long edge must be at least 800 pixels. Text messages often shrink " +
+    "photos; ask the driver to send the original (by email or through the driver app).",
   too_large: "The file is larger than 25 MB.",
-  too_many_pages: "The PDF has more than 10 pages.",
+  too_many_pages: "The file has more than 10 pages.",
   encrypted_pdf: "The PDF is password-protected.",
   // The two below are the upload channel's, not the file's: a signed-URL upload that never arrived, and
   // bytes whose SHA-256 is not the one announced when the upload was registered (a truncated PUT, or a
@@ -125,8 +130,20 @@ export const INTAKE_REFUSALS = {
 } as const satisfies Record<string, string>;
 export type IntakeRefusalCode = keyof typeof INTAKE_REFUSALS;
 
-/** The limits the refusals above name — one definition, read by intake and by the sentences' tests. */
-export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPdfPages: 10, minLongEdgePx: 1200 } as const;
+/**
+ * The limits the refusals above name — one definition, read by intake and by the sentences' tests.
+ *
+ * `minLongEdgePx` is MEASURED, not inherited. It was 1200, carried over from the hazmat capture plan, where
+ * the driver app owns the camera and 1200 is cheap to demand. Intake does not own the camera: a photo a
+ * driver texts arrives as the carrier shrank it, and on 10/13/2026 the owner's Google Voice photo of a BOL
+ * (1080 × 810, 119 KB) was refused. Measured that day on the nine readable office BOL samples: each page
+ * shrunk to a long edge and re-encoded as JPEG q70 (a carrier's recompression), then OCR'd and compared
+ * with the same page's OCR at full resolution (DOCUMENT-READER-PLAN, progress log 2026-10-13). Median
+ * digit-token recall was 92% at 1600 px, then flat from 1200 to 800 (77 / 76 / 74 / 77%), then a cliff:
+ * 43% at 640 and 13% at 480. 800 is the last size before the cliff. Above it, an unsure value is the
+ * readers' to flag (two readers + the OCR witness, §7B) rather than intake's to refuse.
+ */
+export const INTAKE_LIMITS = { maxBytes: 25 * 1024 * 1024, maxPages: 10, minLongEdgePx: 800 } as const;
 
 export const REVIEW_ACTIONS = ["confirmed", "corrected", "unreadable"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
@@ -266,8 +283,13 @@ export function mergeSections(profile: DocumentProfile, parts: Readonly<Record<s
 
 // ── routes ─────────────────────────────────────────────────────────────────────────────────────────
 const SHA256_RX = /^[0-9a-f]{64}$/;
-/** What intake accepts — the browser's picker and its pre-check read this list too (N2). */
-export const INTAKE_MIMES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+/**
+ * The mimes a registration may declare — every format's field names, derived from `FORMAT_MIMES`. The
+ * browser sniffs the bytes and declares the canonical one; the rest are accepted because a declaration
+ * only feeds the "did the claim match" flag, never the decoder.
+ */
+type IntakeMimeName = (typeof FORMAT_MIMES)[SourceFormat][number];
+export const INTAKE_MIMES = SOURCE_FORMATS.flatMap((f) => FORMAT_MIMES[f]) as [IntakeMimeName, ...IntakeMimeName[]];
 
 /**
  * `POST /api/documents/sources` — register an upload; the response carries a signed PUT URL.
@@ -367,6 +389,22 @@ export const readPageSchema = z.object({
 });
 export type ReadPage = z.infer<typeof readPageSchema>;
 
+/**
+ * The printed-paper audit of a finished shipping-document read (§5.1, D-DR6; §7A N6 part 3): one result per
+ * rule per line plus the document rules, exactly `auditPrintedPaper`'s answer, worded on screen through
+ * `BOL_FINDING_CATALOGUE` (D-DR7). Worked out when the read is fetched, never stored: it follows the
+ * dataset and the rules in force, and a stored copy would be a second answer to the same question.
+ */
+export const paperAuditResultSchema = z.object({
+  ruleId: z.string().min(1),
+  outcome: z.enum(["pass", "fail", "cannot_tell"]),
+  lineIndex: z.number().int().min(0).nullable(),
+  reason: z.string().min(1),
+  facts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string()), z.array(z.number())])),
+});
+export const paperAuditSchema = z.object({ datasetVersion: z.string(), results: z.array(paperAuditResultSchema) });
+export type PaperAuditView = z.infer<typeof paperAuditSchema>;
+
 /** `GET /api/documents/reads/:id` — the dispatcher's page polls this until `status` is terminal. */
 export const readResponseSchema = z.object({
   id: z.uuid(),
@@ -381,6 +419,8 @@ export const readResponseSchema = z.object({
   result: z.json().nullable(),
   evidence: z.array(fieldEvidenceSchema),
   pages: z.array(readPageSchema),
+  /** The paper audit, for a `done` shipping-document read; null for any other read. */
+  paperAudit: paperAuditSchema.nullable(),
 });
 export type ReadResponse = z.infer<typeof readResponseSchema>;
 

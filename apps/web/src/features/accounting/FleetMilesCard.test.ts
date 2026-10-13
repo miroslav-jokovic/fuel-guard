@@ -43,6 +43,14 @@ describe("FleetMilesCard", () => {
     expect(t).toContain("$3.11");
   });
 
+  it("pairs each rate with its label through FactList, and a rate the report could not form is a dash (D-US6)", () => {
+    const w = mount(FleetMilesCard, { props: { report: report({ revenuePerBilledMile: null }) } });
+    const list = w.get("[data-testid=miles-rates]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Earned per billed mile", "Earned per mile driven"]);
+    expect(list.findAll("dd").map((d) => d.text())).toEqual(["—", "$3.11"]);
+    expect(list.findAll("dd")[1]!.get("[title]").attributes("title")).toContain("empty miles included");
+  });
+
   it("prints the reason and no bar when the period's mileage cannot support an empty share", () => {
     const w = mount(FleetMilesCard, {
       props: { report: report({ emptyMiles: null, emptyPct: null, mileageReason: "February 2026: 16 trucks that delivered loads are missing from the miles." }) },

@@ -1,5 +1,5 @@
-import { computed, ref, type ComputedRef, type WritableComputedRef } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, ref, type ComputedRef, type Ref, type WritableComputedRef } from "vue";
+import { useRoute, useRouter, type Router } from "vue-router";
 
 /**
  * The URL as the page's state, for any table or view that has to be linkable.
@@ -41,6 +41,17 @@ export const oneParam = (v: unknown): string | undefined => {
   return typeof s === "string" && s !== "" ? s : undefined;
 };
 
+/**
+ * The value a defaulted parameter is written as when the reader chooses "no narrowing at all".
+ *
+ * A list that opens narrowed — Vehicles on "Active", Recruitment on "Waiting on us" — keeps its default
+ * OUT of the URL, so a plain link opens the list the way everybody expects. That leaves absence
+ * meaning "the default", and the reader's "All statuses" needs a spelling of its own, or picking it
+ * would write nothing and the list would snap back to Active. `any` is that spelling; it is never a
+ * value in any caller's vocabulary.
+ */
+export const ANY_PARAM = "any";
+
 export interface QueryState {
   /** The query as it will be once the router settles. Read this, never `route.query`. */
   q: ComputedRef<Record<string, unknown>>;
@@ -61,43 +72,94 @@ export interface QueryState {
    * value outside it reads as no choice at all. Pass it wherever the parameter has a closed set —
    * ⚠ **especially a sort key**, because a column name from one table pasted into another table's
    * URL is not a filter that matches nothing, it is a query that errors.
+   *
+   * `fallback` is the value the list opens on. It reads when the parameter is absent and is never
+   * written (choosing it removes the parameter); choosing `""` then writes `ANY_PARAM`, see above. A
+   * value outside `allowed` reads as the fallback, not as `""` — a stale link opens the list the way
+   * a plain link would.
    */
-  param: (key: string, allowed?: readonly string[]) => WritableComputedRef<string>;
+  param: (key: string, allowed?: readonly string[], fallback?: string) => WritableComputedRef<string>;
+  /** An on/off filter ("Show retired"): `1` when on, absent when off. */
+  flag: (key: string) => WritableComputedRef<boolean>;
+  /**
+   * The table's page, absent on page 1. In the URL so that Back from a row's detail page returns to
+   * page 3 rather than page 1 — the one place a list's position is worth a parameter.
+   */
+  page: (key?: string) => WritableComputedRef<number>;
 }
 
-export function useQueryState(): QueryState {
+/**
+ * One buffer per router, not per caller.
+ *
+ * A page and a tab inside it each call `useQueryState`, and before 2026-10-12 each got its own
+ * buffer — which reopened the very race this file exists to close: the page's write and the tab's
+ * write in one tick each spread the same stale `route.query`, and the second dropped the first. Keys
+ * were always shared (they are one URL); the buffer has to be too.
+ */
+const buffers = new WeakMap<Router, Ref<Record<string, string | undefined>>>();
+
+/**
+ * `scope` prefixes every key this caller reads and writes (`history.from`), for a list that shares
+ * its route with another list — Assignment history beside the board, the qualification file inside
+ * the driver page. Without it, two lists on one page would both own `?search=`.
+ */
+export function useQueryState(scope?: string): QueryState {
   const route = useRoute();
   const router = useRouter();
+  const k = (key: string) => (scope ? `${scope}.${key}` : key);
 
-  const pending = ref<Record<string, string | undefined>>({});
-  const q = computed<Record<string, unknown>>(() => ({ ...route.query, ...pending.value }));
+  let pending = buffers.get(router);
+  if (!pending) {
+    pending = ref<Record<string, string | undefined>>({});
+    buffers.set(router, pending);
+  }
+  const buffer = pending;
+  const q = computed<Record<string, unknown>>(() => ({ ...route.query, ...buffer.value }));
 
   // `replace` throughout: adjusting a filter is not a navigation, and a reader pressing back expects
   // to leave the page rather than walk their own filter history.
-  const set = (patch: Record<string, string | undefined>): void => {
-    const merged = { ...pending.value, ...patch };
-    pending.value = merged;
+  const write = (patch: Record<string, string | undefined>): void => {
+    const merged = { ...buffer.value, ...patch };
+    buffer.value = merged;
     void router
       .replace({ query: { ...route.query, ...merged } })
       // Cleared only if nothing else was written while this navigation was in flight; a later patch
       // owns the buffer and must keep it until ITS navigation lands.
       .finally(() => {
-        if (pending.value === merged) pending.value = {};
+        if (buffer.value === merged) buffer.value = {};
       });
   };
+  const set = (patch: Record<string, string | undefined>): void =>
+    write(Object.fromEntries(Object.entries(patch).map(([key, v]) => [k(key), v])));
 
-  const one = (key: string) => oneParam(q.value[key]);
+  const one = (key: string) => oneParam(q.value[k(key)]);
   const list = (key: string) => (one(key) ?? "").split(",").filter(Boolean);
 
-  const param = (key: string, allowed?: readonly string[]): WritableComputedRef<string> =>
+  const param = (key: string, allowed?: readonly string[], fallback = ""): WritableComputedRef<string> =>
     computed({
       get: () => {
         const v = one(key);
-        if (v === undefined) return "";
-        return allowed && !allowed.includes(v) ? "" : v;
+        if (v === undefined) return fallback;
+        if (fallback && v === ANY_PARAM) return "";
+        return allowed && !allowed.includes(v) ? fallback : v;
       },
-      set: (v: string) => set({ [key]: v || undefined }),
+      set: (v: string) => set({ [key]: v === fallback ? undefined : v || ANY_PARAM }),
     });
 
-  return { q, one, list, set, param };
+  const flag = (key: string): WritableComputedRef<boolean> =>
+    computed({
+      get: () => one(key) === "1",
+      set: (on: boolean) => set({ [key]: on ? "1" : undefined }),
+    });
+
+  const page = (key = "page"): WritableComputedRef<number> =>
+    computed({
+      get: () => {
+        const n = Number(one(key));
+        return Number.isInteger(n) && n > 1 ? n : 1;
+      },
+      set: (n: number) => set({ [key]: n > 1 ? String(n) : undefined }),
+    });
+
+  return { q, one, list, set, param, flag, page };
 }

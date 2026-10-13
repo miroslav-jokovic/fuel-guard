@@ -183,6 +183,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="rows"
         row-key="id"
@@ -190,6 +191,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
         :error="recordsQ.isError.value ? (recordsQ.error.value?.message ?? 'Could not load the qualification file.') : null"
         :retrying="recordsQ.isFetching.value"
         empty-text="No PSP records on file. Import one you already bought, or order a fresh one once ordering is switched on."
+        @retry="recordsQ.refetch()"
       >
         <template #cell-occurred_on="{ row }">
           <span class="font-medium text-ink">{{ row.occurred_on }}</span>
@@ -222,6 +224,7 @@ const sourceTone = (row: QualificationRecordRow): string => {
           >
             Download
           </a>
+          <!-- ui-adoption: not-a-page-state — one cell's link standing in while the documents list loads; the panel's own fetch is QueryState's. -->
           <span v-else-if="row.document_id && docsQ.isLoading.value" class="text-xs text-ink-muted">Loading…</span>
           <span v-else-if="row.document_id" class="text-xs text-ink-muted">Unavailable</span>
           <span v-else class="text-ink-muted">—</span>

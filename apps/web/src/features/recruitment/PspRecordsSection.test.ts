@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { PSP_SOURCE_API, PSP_SOURCE_IMPORT } from "@silvicom/shared";
 import PspRecordsSection from "@/features/recruitment/PspRecordsSection.vue";
+import { apiFetch } from "@/lib/api";
 
 /**
  * P14's two user-visible promises.
@@ -204,5 +205,42 @@ describe("PSP records on the driver page", () => {
     const w = mountSection();
     await settle(w);
     expect(w.findAll("button").some((b) => b.text().includes("Import a PSP record"))).toBe(false);
+  });
+});
+
+/**
+ * D-US5: a read of the file that fails says so in a sentence and offers a Retry that asks the API again.
+ * Before, the failure was a tinted line with no way back but the browser's reload, which resets
+ * everything else the recruiter had open. `retry: false` so the first failure is the one shown.
+ */
+describe("when the read of the file fails (D-US5)", () => {
+  it("says what could not be loaded, and Retry asks the API again", async () => {
+    const real = vi.mocked(apiFetch).getMockImplementation()!;
+    let failing = true;
+    const asked = (): number =>
+      vi.mocked(apiFetch).mock.calls.filter(([u, o]) => String(u).includes("/api/compliance/qualification-records") && !(o as { method?: string } | undefined)?.method).length;
+    vi.mocked(apiFetch).mockImplementation(((url: string, opts?: { method?: string }) =>
+      failing && !opts?.method && url.includes("/api/compliance/qualification-records")
+        ? Promise.resolve({ ok: false, status: 500, data: null, error: { message: "The API is down." } })
+        : real(url as never, opts as never)) as never);
+    try {
+      const w = mount(PspRecordsSection, {
+        props: { driverId: "00000000-0000-4000-8000-0000000000d1" },
+        global: {
+          plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
+          stubs: { SlideOver: true, teleport: true },
+        },
+      });
+      await settle(w as never);
+      expect(w.text()).toContain("The API is down.");
+      const before = asked();
+      failing = false;
+      await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+      await settle(w as never);
+      expect(asked()).toBe(before + 1);
+      expect(w.text()).not.toContain("The API is down.");
+    } finally {
+      vi.mocked(apiFetch).mockImplementation(real);
+    }
   });
 });

@@ -9,6 +9,8 @@ import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
@@ -53,11 +55,15 @@ const VIEW_TABS: TabItem[] = [
       </p>
     </BaseCard>
 
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search message or vehicle…"
       :count="total"
       count-label="alerts"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="status" label="Status" :options="statusOptions" />
@@ -66,7 +72,6 @@ const VIEW_TABS: TabItem[] = [
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         <BaseButton
           v-if="opens('/settings/data')"
           variant="ghost"
@@ -80,21 +85,15 @@ const VIEW_TABS: TabItem[] = [
     </FilterBar>
 
     <!-- Bulk action bar -->
-    <div
-      v-if="selectedCount > 0"
-      class="flex flex-col gap-2 rounded-surface bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <div class="flex flex-wrap gap-2">
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="setSelected(new Set())">Clear</BaseButton>
-      </div>
-    </div>
+    <BulkActionBar :count="selectedCount" @clear="setSelected(new Set())">
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {alerts} as false alarm?', 'false_positive')">False alarm</BaseButton>
+      <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {alerts}?', 'confirmed')">Resolve</BaseButton>
+    </BulkActionBar>
 
     <!-- Table -->
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -137,6 +136,7 @@ const VIEW_TABS: TabItem[] = [
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <SlideOver :open="!!selectedRow" title="Alert" @close="selectedRow = null">
       <AnomalyDetail v-if="selectedRow" :anomaly="selectedRow" :vehicle-unit="unit(selectedRow.vehicle_id)" @changed="selectedRow = null" />

@@ -5,7 +5,7 @@ import ShelfWalk from "@/features/inventory/ShelfWalk.vue";
 import UnitCheck from "@/features/inventory/UnitCheck.vue";
 import { useCountSessionQuery } from "@/features/inventory/useInventory";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { AppCallout } from "@silvicom/ui";
+import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * A walk, on a phone — of a shelf or of a truck (D-INV19; INVENTORY-PLAN.md I5 PR 2b and I9).
@@ -33,17 +33,25 @@ import { AppCallout } from "@silvicom/ui";
 
 const route = useRoute();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
-const { data: walk, isLoading, isError } = useCountSessionQuery(sessionId);
+const { data: walk, isLoading, isError, error, isFetching, refetch } = useCountSessionQuery(sessionId);
 </script>
 
 <template>
-  <div v-if="isError" class="space-y-6">
+  <!-- The header stays on screen while the walk loads or fails, because each body brings its own
+       and there is no body yet. A failure is usually a walk that is not on file (a stale link), but
+       it can as easily be a dropped signal behind a container, so it carries a Retry rather than
+       sending the technician to the browser's reload, which on this screen would cost the wake
+       lock (D-INV17). -->
+  <div v-if="isLoading || isError" class="space-y-6">
     <PageHeader />
-    <AppCallout tone="danger">That walk is not on file.</AppCallout>
-  </div>
-  <div v-else-if="isLoading" class="space-y-6">
-    <PageHeader />
-    <p class="text-sm text-ink-tertiary">Loading…</p>
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the walk…"
+      error-text="Could not load this walk. It may not be on file."
+      @retry="refetch()"
+    />
   </div>
   <UnitCheck v-else-if="walk?.kind === 'unit'" />
   <ShelfWalk v-else />

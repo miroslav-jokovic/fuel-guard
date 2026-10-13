@@ -43,6 +43,8 @@ defineProps<{
   emptyText: string;
   /** The row key whose stamped release is in flight — disables that row's release action. */
   releasingKey: string | null;
+  /** Removes the table's outer card when it is composed inside a DataWorkspace. */
+  embedded?: boolean;
 }>();
 const emit = defineEmits<{
   retry: [];
@@ -71,6 +73,7 @@ const columns: DataTableColumn[] = [
     :error="error"
     :retrying="retrying"
     :empty-text="emptyText"
+    :embedded="embedded"
     @retry="emit('retry')"
   >
     <template #cell-label="{ row }">

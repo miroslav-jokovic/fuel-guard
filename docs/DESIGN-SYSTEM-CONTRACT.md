@@ -62,6 +62,10 @@ The barrel (`packages/ui/src/index.ts`) exports: `AppButton`, `AppInput` (alias 
 `BaseButton→AppButton`, `BaseInput→AppInput`, `BaseCheckbox→AppCheckbox`, `BaseSwitch→AppSwitch`,
 `FormField→AppFormField`, `ComboSelect→AppCombobox`, `SearchInput→AppSearchField`.
 
+`AppTable` is the ADMIN console's table. In the web app every table is `DataTable` — a small one
+inside a drawer or panel is `DataTable embedded dense` — and `lint:ui-adoption` refuses `AppTable`
+there, save the published privacy policy (D-US4, `docs/plans/design-system/UI-STANDARDIZATION.md`).
+
 Anatomy is the source file, not this table — the load-bearing token facts as of 2026-08-20:
 buttons are `rounded-control`; cards are `rounded-surface bg-surface shadow-card ring-1
 ring-edge-subtle` (variants `bordered`/`raised`, paddings `none|sm|md`); shadows come only from the
@@ -73,11 +77,13 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 
 | Component | Props (defaults) | Slots / events | What it is FOR |
 |---|---|---|---|
-| **`PageHeader.vue`** | `description?: string` | default (overrides description), `#actions` | The **first row of every page**. The page *title* is NOT here — it lives in the AppShell top bar from `route.meta.title`. This is only a muted one-line description + right-aligned actions. |
+| **`PageHeader.vue`** | `title?: string`, `description?: string` | default (overrides description), `#freshness`, `#actions` | The **first row of every page**. It owns the page `<h1>`: `title` overrides `route.meta.title`, with `"Silvicom 360"` only as a final fallback. Below it are the breadcrumb, optional muted description/freshness, and right-aligned actions. |
 | **`DataWorkspace.vue`** | `as?` | default | The **list-page shell** (see §5.2b): one `AppCard padding="none"` with `divide-y divide-edge-subtle`, holding an `embedded` FilterBar row above an `embedded` DataTable. |
+| **`BulkActionBar.vue`** | `count: number` | default (actions), `#note`; emits `clear` | The **"N selected" strip** between FilterBar and DataTable once rows are ticked. Renders nothing at zero. See §5 list-page rules. |
+| **`StatCard.vue`** | `label`, `value`, `sub?`, `subTone?`, `valueTone?`, `unit?`, `muted?`, `embedded?`, `size?` ("kpi"\|"hero"), `icon?`, `tone?`, `delta?`, `spark?`, `to?`, `pressed?` | default (extra caption lines), `#sub`, `#delta`; emits `toggle` | The **one KPI tile**. See §4 KPI rows and the list-page rules. |
 | **`SettingsSection.vue`** | see source | — | Settings-page section wrapper. |
 | **`FilterSelect.vue`** (156 ln) | `modelValue: string`, `options`, `label: string`, `disabled?`, `block?` | — | The **toolbar** filter. Trigger reads `"Risk ▾"` idle / `"Risk: Review ✕"` active with a brand tint (`bg-brand-50/60 text-brand-800 ring-brand-600/30`). `""` option = "no filter". Auto-adds an inline search box when `options.length > 8`. `block` = full width, for use inside the FilterBar `#more` popover. |
-| **`FilterBar.vue`** (146 ln) | `search?`, `searchPlaceholder?` ("Search…"), `count?: number\|null`, `countLabel?` ("results"), `chips?: FilterChip[]`, `moreCount?: number` | `#filters`, `#more`, `#actions`; emits `update:search`, `remove(key)`, `clear-all` | The **one table toolbar**. Full API in §5. |
+| **`FilterBar.vue`** (146 ln) | `search?`, `searchPlaceholder?` ("Search…"), `count?: number\|null`, `countLabel?` ("results"), `chips?: FilterChip[]`, `moreCount?: number`, `activeCount?: number` | `#filters`, `#more`, `#actions`; emits `update:search`, `remove(key)`, `clear-all` | The **one table toolbar**, and the one owner of "Clear filters". Full API in §5. |
 | **`DataTable.vue`** (240 ln) | see §5.2 | see §5.2 | The **one data table**. |
 | **`FileDropzone.vue`** (123 ln) | `accept?`, `multiple?`, `disabled?`, `label?` ("Drag & drop files here"), `hint?`, `busy?`, `busyLabel?` ("Reading…") | emits `files: File[]` | The **only sanctioned uploader**. Drag/drop + click/Enter/Space to browse. Parent owns parsing. |
 | **`BaseModal.vue`** | `open`, `title`, `description?`, `size?: "md"\|"lg"\|"xl"` (md; `xl` = `max-w-4xl`), `printable?` | default, `#footer`; emits `close` | The **one CENTRED dialog** (added DQF plan B5). The boundary vs `SlideOver`: a drawer keeps the list visible beside a form; a modal takes the middle of the screen for content that needs WIDTH (a scanned card at 28rem is not legible). Same scrim/transitions/header anatomy as SlideOver §6.1; `max-h-[90vh]`, body scrolls. `printable` applies `.print-target`, which the `@media print` rules in `style.css` key on. Never build a bespoke overlay in a feature folder. |
@@ -92,6 +98,7 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`TablePagination.vue`** (80) | `page`, `pageSize?` (20), `total`, `loading?`; emits `update:page` | The table `#footer`. `flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6`. Left: `Showing <b>1</b>–<b>20</b> of <b>1,204</b>` / `No results`. Right: "Page [n] of N" jump input (hidden below `sm`, only when `totalPages > 1`) + Prev/Next `BaseButton size="sm"`. |
 | **`TableSkeleton.vue`** (17) | `rows?` (6), `cols?` (5) | Shimmer rows. Only DataTable calls it; you should not. |
 | **`ErrorState.vue`** (24) | `message?` ("Something went wrong while loading this data."), `retrying?`; emits `retry` | Warning icon + message + Retry button (`Retrying…` while busy). Only DataTable calls it directly; use it standalone for non-table fetch failures. |
+| **`ui/QueryState.vue`** | `loading`, `error?`, `errorText?`, `retrying?`, `loadingText?` ("Loading…"), `compact?`; emits `retry`; default slot = content | Loading → failure WITH retry → content, for anything that fetches and is not a table (D-US5). `compact` = one line, for a panel or a drawer. `lint:ui-adoption` refuses a hand-written "Loading…" line. |
 | *(search box)* | — | `AppSearchField` from `@silvicom/ui` (the local `SearchInput.vue` clone is gate-banned). FilterBar owns it; use directly only outside a table. |
 | *(form select)* | — | `AppSelect` from `@silvicom/ui`. Non-searchable form select; trigger matches the input metrics, panel matches the KebabMenu recipe. |
 | **`DateRangeFilter.vue`** (105) | `from?`, `to?`, `presets?` (true), `label?` ("Dates"), `maxDate?` (today) | Toolbar date range on VueDatePicker. Trigger is byte-identical to FilterSelect's trigger classes. Values are `YYYY-MM-DD`; pass `maxDate=null` for future-facing ranges such as DQ deadlines. `partialRange` MUST stay false. **v14 regrouped its props** — `time-config`, not `enable-time-picker`; an unknown one is silently accepted as an HTML attribute (D-DS17). |
@@ -100,6 +107,15 @@ lg/xl/2xl` and unknown colour roles fail `lint:tokens`.
 | **`DocumentPreview.vue`** (121) | `open`, `label`, `doc: DocumentRow \| null`; emits `close` | The **sanctioned document viewer** (DQF plan B6) — the only place a compliance scan renders full-size. In `BaseModal size="xl" printable`. Images show the `normalized` variant (original only via the server-signed Download); PDFs get the browser's viewer in an iframe and **no Print button** (D-DQ9). Do not build a second viewer. |
 | **`ToastContainer.vue`** (126) | — | Renders `useToastStore()`. Card: `rounded-surface border-l-4 shadow-overlay ring-1 ring-edge-subtle`, title `text-sm font-semibold text-ink`, message `mt-0.5 text-sm leading-snug text-ink-muted`, progress bar `h-0.5`. |
 | **`UpdateBanner.vue`**, **`AppLogo.vue`**, **`BaseChart.vue`**, **`SparkLine.vue`** | — | App-update prompt; logo; ECharts/canvas wrapper; inline sparkline. |
+
+**A page notice is `AppCallout`** — `lint:ui-adoption` refuses a hand-tinted `bg-<tone>-50 … ring-1`
+block (D-US3). A load failure is not a notice: it is `QueryState`'s, and it carries a retry.
+
+**Label/value facts are `ui/FactList.vue`** (D-US6): `facts: { label, value, numeric?, tone?, key? }[]`,
+`layout` `grid` (default, `columns` 2|3|4) or `rows`, `#value-<key>` for a badge or link. A blank
+value is an em dash, as in a table cell. `lint:ui-adoption` refuses a hand-written `<dl>` unless it
+says why it is not a fact list (`ui-adoption: not-a-fact-list — <why>`). A drawer's form puts its
+submit in the `#footer` with `form="<form id>"` (D-US5b), and the gate refuses one that does not.
 
 **There is no `EmptyState` component and no `Skeleton` component.** Empty state = `DataTable`'s `empty-text` prop / `#empty` slot (`px-6 py-10 text-center text-sm text-ink-muted`). Skeleton = `TableSkeleton`, invoked only by DataTable. `SortableTh` and `TableToolbar` are referenced by `docs/DESIGN-SYSTEM.md` but **were deleted** (commit `df8a2c2`) — sorting is inside DataTable, the toolbar is FilterBar. Do not resurrect them.
 
@@ -199,9 +215,8 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 |---|---|---|
 | Page title | `text-base font-semibold text-ink` | `AppShell.vue:333` — **you never write this.** Set `route.meta.title`. |
 | Page description | `text-sm text-ink-muted` | `PageHeader.vue:12` |
-| Section heading (page level, h2) | `text-lg font-semibold text-ink` | `DashboardPage.vue:289`, `DriverAppSettingsPage.vue:252` |
-| Card/panel heading (h3) | `text-base font-semibold text-ink` | `SettingsUsersPage.vue:199`, `OrgSettingsPage.vue:83`, `ThresholdsPage.vue:88` |
-| **Drawer section heading (h3)** | `text-sm font-semibold text-ink` | `DriverAccessModal.vue:298,372`, `CertManager.vue:73,92`, `DqFilePanel.vue:115` |
+| Section heading (page level, h2) | `text-lg font-semibold text-ink` | A section of the page, outside any card — `DashboardPage.vue`, `SettingsUsersPage.vue`. **One of only two heading sizes** (owner ruling 2026-10-12; `lint:ui-adoption` fails any other on an h2/h3, eyebrows aside). |
+| Card, panel or drawer title (h2/h3) | `text-sm font-semibold text-ink` | Any heading inside a card, drawer or panel — the other of the two sizes. Until 2026-10-12 this table gave settings cards `text-base` while §5 said `text-sm` "**not** `text-base`"; 155 headings already used `text-sm` against 22 at `text-base`, and the 22 moved. |
 | Eyebrow / group label | `text-xs font-semibold uppercase tracking-wider text-ink-muted` | `HazmatPage.vue:53` |
 | Drawer title | `text-base font-semibold text-ink` | `SlideOver.vue:63` |
 | Drawer description | `mt-1 text-sm text-ink-muted` | `SlideOver.vue:66` |
@@ -216,9 +231,9 @@ There is **no `text-md`, `text-xl`, `text-4xl`, `text-5xl`** anywhere. Adding on
 | Form error | `mt-1 text-sm text-danger-600` | `FormField.vue:29` |
 | Empty state | `px-6 py-10 text-center text-sm text-ink-muted` | `DataTable.vue:154` |
 | Error state | `text-sm text-ink-secondary`, `max-w-md`, centered | `ErrorState.vue:18` |
-| KPI label | `text-xs font-medium tracking-wide text-ink-muted uppercase` | `FuelLogPage.vue:254` |
-| KPI value | `mt-1 text-2xl font-bold text-ink` | `FuelLogPage.vue:255` |
-| KPI sub-caption | `mt-0.5 text-xs text-ink-tertiary` | `FuelLogPage.vue` |
+| KPI label | `text-xs font-medium tracking-wide text-ink-muted uppercase` | `StatCard.vue` |
+| KPI value | `mt-1 text-2xl font-bold text-ink` — drawn by **`StatCard`**, never by hand (`lint:ui-adoption` fails a `<dd>` at `text-2xl`/`text-3xl`) | `StatCard.vue` |
+| KPI sub-caption | `mt-0.5 text-xs text-ink-tertiary` | `StatCard.vue` |
 | Result count | `whitespace-nowrap text-sm text-ink-muted` | `FilterBar.vue:122` |
 | Badge | `BADGE_BASE` → `inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium` — **no case transform**; labels own their sentence-case casing (see §4.3) | `lib/badges.ts` |
 
@@ -272,8 +287,8 @@ Full width with small gutters — tables use the whole screen. There is no `max-
 - Page root is **always** `<div class="space-y-6">`. 61 occurrences; every well-built page starts this way.
 - Narrow pages add `mx-auto max-w-2xl` (settings/forms) or `max-w-3xl` (content).
 - Two-column detail layouts: `grid grid-cols-1 gap-6 lg:grid-cols-[…]` (`HazmatEquipmentPage.vue:120`).
-- KPI grids: `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. Divided-KPI strip inside one `BaseCard padding="none"`: `dl.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6`, each cell `px-5 py-4` (`FuelLogPage.vue:252`).
-- Bulk-action bar (between FilterBar and DataTable, `v-if="selected.size > 0"`): `flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100`, count as `text-sm font-medium text-brand-800` (`TrailersPage.vue:190`; `DispatchLoadsPage.vue` had an identical one until LR6 retired bulk approve/release, 2026-09-24).
+- KPI tiles are **`StatCard`**, in a grid `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`. The figure's verdict colour is `value-tone` (a class — only the caller knows whether high is good; money takes none, Q-FSV15 ruling 2), a unit after it is `unit`, further caption lines go in the default slot. Tiles that share ONE surface — the divided strip `div.grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6` inside a `BaseCard padding="none"` (`FillsTab.vue`), or the stat row inside a report card — are `StatCard embedded`, with the caller giving each cell its padding (`px-5 py-4`). Until 2026-10-12 thirty-three tiles in seven files, plus a `FuelStatTile` copy, were drawn by hand: bold beside semibold, three label styles, three ways of tinting a verdict.
+- Bulk-action bar: **`<BulkActionBar :count="selected.size" @clear="selected = new Set()">`** between FilterBar and DataTable, inside the `DataWorkspace`. It renders nothing at zero, so wrap it only in a permission `v-if`, never a count one. Actions in the default slot as `size="sm"` buttons, destructive last as `variant="danger"`; a sentence about the selection goes in `#note`; the component draws the ground (`bg-brand-50`, no ring or radius — it is a row of the workspace, not a card), the "N selected" count and the closing Clear (which empties the selection, not the filters). Until 2026-10-12 seven pages drew this strip by hand in six ways; `lint:ui-adoption` now fails a template that writes "{{ … }} selected" itself.
 - Tab strip: `AppTabs` from `@silvicom/ui` (U4, D-UI4), which owns the roles, the roving tabindex and the look; `scrollable` when the tabs may outrun a phone (`DispatchLoadsPage.vue` adopted it in LR7, 2026-09-24 — its hand-rolled strip made a 390 px page 683 px wide).
 
 ### 3.4 The standard card
@@ -434,9 +449,10 @@ export interface DataTableColumn {
   key: string;
   label: string;
   sortable?: boolean;
-  numeric?: boolean;                       // adds tabular-nums — does NOT right-align
+  numeric?: boolean;                       // right-aligns and adds tabular-nums
   align?: "left" | "right" | "center";
-  headerClass?: string;                    // widths live here: "min-w-[8rem]" / "w-32"
+  width?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
+  headerClass?: string;                    // non-scale overrides only (for example `w-32`)
   cellClass?: string;                      // tone/truncation overrides
 }
 ```
@@ -455,8 +471,10 @@ Behaviour it owns, so you don't:
   non-embedded DataTable draws a card inside a card (this shipped twice in recruitment before R0b
   caught it).
 - **State precedence** (`:150-157`): `loading` → `<TableSkeleton :cols="…">`; else `error` → `<ErrorState :message :retrying @retry>`; else `rows.length === 0` → `<div class="px-6 py-10 text-center text-sm text-ink-muted">{{ emptyText }}</div>`; else the table + `#footer`. **The footer/pagination does not render in any of the three non-happy states.**
-- **Alignment** (`:128-129`): `align === "left" → text-left`, `align === "right" → text-right`, **everything else → `text-center`**. This is deliberate (commit `5c5449b` "uniform center-aligned grid"). ⚠️ **Landmine:** `numeric: true` only adds `tabular-nums`; it does **not** right-align. The docblock at `DataTable.vue:29-31` and `docs/DESIGN-SYSTEM.md §3` both still claim "text left, numeric right" and are **stale**.
-  **Rule: omit `align` entirely.** 20+ pages do. The four that pass `align: "left"` (CompliancePage, HazmatLoadsPage, HazmatEquipmentPage, HazmatReviewPage) are a visible fork.
+- **Alignment**: text columns left-align by default. `numeric: true` right-aligns and adds
+  `tabular-nums`; headers follow the same alignment as their cells. An explicit `align` overrides
+  that inference, and `align: "center"` is reserved for control columns such as a checkbox, icon or
+  status dot. **Rule: omit `align` for ordinary text and quantities.**
 - **Padding** (`:131-140`): `px-4 py-3`, or `px-4 py-2` when `dense`. First column gets `pl-6` (unless `selectable`); last gets `pr-6` (unless there's an actions column).
 - **Header**: `bg-surface-subtle text-ink-muted shadow-[inset_0_-1px_0_0_var(--edge)]`, `sticky top-0 z-10` inside a `max-h-[70vh] overflow-y-auto` scroller. Sortable headers are a `<button class="group inline-flex items-center gap-1 hover:text-ink-secondary">` with `ChevronUp`/`ChevronDown`/`ChevronUpDown` at `size-3.5`.
 - **Body**: `divide-y divide-edge-subtle`; rows `hover:bg-surface-subtle`; selected rows `bg-brand-50/40`.
@@ -484,16 +502,45 @@ New list pages compose toolbar and table as **one surface**:
 
 `DataWorkspace` is one `AppCard padding="none"` with `divide-y divide-edge-subtle`; the `embedded`
 props stop FilterBar and DataTable drawing their own cards. `DriversPage.vue` is the reference.
-The older shape — standalone `FilterBar` card above a standalone `DataTable` card — remains valid
-on existing pages; do not churn them, but do not copy it into new ones either. A lone table with
-no toolbar still uses plain `DataTable` (its own card).
+**Every list with a toolbar uses this shell** (D-US1, `docs/plans/design-system/UI-STANDARDIZATION.md`).
+Until 2026-10-12 this paragraph called the older shape — a standalone `FilterBar` card above a
+standalone `DataTable` card — "valid on existing pages"; by then no list carried it. A lone table
+with no toolbar still uses plain `DataTable` (its own card). A REPORT, where one filter bar governs
+several panels, keeps its `FilterBar` standalone above them, and a report whose only choice is the
+period uses `ReportScopeBar` (D-US1a).
+
+### 5.2c List state lives in the URL (D-US2)
+
+A filtered list keeps its filters, its sort and its page in the URL, so a reload, a link pasted
+into a ticket and Back from a row's detail page all return the same list. `lint:ui-adoption` fails a
+file with `<FilterBar` that holds them anywhere else.
+
+```ts
+const qs = useQueryState();                       // useQueryState("history") when two lists share a route
+const search = qs.param("search");
+const status = qs.param("status", VEHICLE_STATUSES, "active");   // vocabulary, and the value it opens on
+const retired = qs.flag("retired");
+const page = qs.page();
+watch([search, status, retired], () => (page.value = 1));
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+const clearFilters = () => qs.set({ search: undefined, status: undefined, retired: undefined }); // keeps the sort
+```
+
+- The default a list opens on is never written; choosing "All" over a default writes `any`.
+- A value outside the vocabulary reads as the default. Always pass the vocabulary for a closed set,
+  and always for a sort key.
+- A list inside a drawer that should reset on close opts out with the comment
+  `ui-adoption: list-state-local — <why>`. No reason, no exemption.
+
+`pages/TrailersPage.vue` + `pages/trailersListInUrl.test.ts` are the reference conversion.
 
 ### 5.3 Sorting
 
-Client-side (`TrailersPage.vue:63-68`):
+Client-side: the sort comes from `useUrlSort` (§5.2c), then
 ```ts
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) { sort.value = toggleSort(sort.value, key); }
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 ```
 `toggleSort` cycles **none → asc → desc → none**. `sortRows` sorts numbers numerically, strings via `localeCompare(…, {numeric:true})`, **nulls last**. Pass a `get` accessor when a column is derived (`DispatchLoadsPage.vue:162-168`).
@@ -504,7 +551,7 @@ Server-side (`FuelLogPage.vue:39-42`): same `toggleSort`, then push `sortKey`/`s
 
 ```ts
 const PAGE_SIZE = 20;
-const page = ref(1);
+const page = qs.page();   // §5.2c — page 1 is absent from the URL
 watch([search, statusFilter, reeferFilter], () => (page.value = 1));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 ```
@@ -515,6 +562,11 @@ Rendered only in the `#footer` slot:
                    :loading="isFetching" @update:page="page = $event" />
 </template>
 ```
+**Every list with a toolbar pages** (D-US8): a `DataTable` — or a `*Table` component wrapping one —
+inside a `DataWorkspace` renders this in its `#footer`, and `lint:ui-adoption` refuses one that does not
+unless it is marked `ui-adoption: unpaged — <why>`. A cursor-paged list uses `:total="null"` with
+`:has-next` / `:page-rows`; there is no "Load more".
+
 `:total` is the **filtered** count, not the page length. `PAGE_SIZE = 20` unless a server constant says otherwise (`FUEL_PAGE_SIZE`). Extra hardening in `DispatchLoadsPage.vue:212-215`: clamp `page` down when the filtered set shrinks.
 
 ### 5.5 FilterBar — exact API and the required layout order
@@ -525,20 +577,30 @@ Rendered only in the `#footer` slot:
     [search  w-full lg:w-64 lg:shrink-0]   ← SearchInput, 250 ms debounce, trimmed
     [#filters  flex flex-wrap items-center gap-2]   ← 2–4 PRIMARY FilterSelect / DateRangeFilter
     [Filters ⏷ button + popover]           ← only rendered if #more is provided
-    [lg:ml-auto: count · #actions]
+    [lg:ml-auto: Clear filters (activeCount > 0) · count · #actions]
   [chips row: mt-3 flex flex-wrap items-center gap-2 border-t border-edge-subtle pt-3]
 </BaseCard>
 ```
 
-Props: `search?`, `searchPlaceholder?` (`"Search…"`), `count?: number|null`, `countLabel?` (`"results"`), `chips?: FilterChip[]` (`{key,label,value}`), `moreCount?: number`. Emits `update:search`, `remove(key)`, `clear-all`.
+Props: `search?`, `searchPlaceholder?` (`"Search…"`), `count?: number|null`, `countLabel?` (`"results"`), `chips?: FilterChip[]` (`{key,label,value}`), `moreCount?: number`, `activeCount?: number`. Emits `update:search`, `remove(key)`, `clear-all`.
 
 Rules encoded in the component and honoured by the good pages:
 
-1. `v-model:search` + `search-placeholder` naming the searchable fields: `"Search unit, make, model, plate…"`, `"Search load #, driver, unit, commodity…"`, `"Search name, driver ID, employee ID, phone…"`. Ellipsis is `…`, not `...`.
+1. `v-model:search` + `search-placeholder` naming the searchable fields, always `"Search <what>…"` (gate-checked when static): `"Search unit, make, model, plate…"`, `"Search load #, driver, unit, commodity…"`, `"Search name, driver ID, employee ID, phone…"`. Ellipsis is `…`, not `...`.
 2. `:count="filtered.length"` + `count-label="trailers"` — always a **domain noun**, never "results". Renders `count.toLocaleString()`.
-3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (the trigger shows its own active value — do **not** also add a chip for these).
+3. `#filters` holds 2–4 **primary** dimensions as `FilterSelect` (`lint:ui-adoption` fails a fifth — Fuel costs' Network and Fuel problems' Owner moved to `#more` on 2026-10-12) (the trigger shows its own active value — do **not** also add a chip for these).
 4. `#more` holds **secondary** dimensions as `<FilterSelect … block />`. Popover: `w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle`, inner `space-y-3`. `:more-count` badges how many are active.
-5. `:chips` mirror **only the `#more` filters**, with `@remove` and `@clear-all`:
+5. `:active-count` + `@clear-all` on **every** bar with `#filters` or `#more` (`lint:ui-adoption`
+   fails one without). FilterBar then draws the one ghost "Clear filters" button before the count
+   whenever the count is above zero; never draw your own (also gate-checked). The count is how many
+   dimensions narrow the list, **the search included**; a filter at its default is not active.
+   Clearing resets every filter and the search to its default and **keeps the sort** — the sort
+   orders the list, it does not narrow it. A control that switches WHICH list you are looking at (a
+   tab, a queue, a scope) is not a filter and is neither counted nor cleared; nor is a date window
+   that also drives the page's KPI cards (`useIdlingPage.ts`). Until 2026-10-12 nine pages drew this
+   button three different ways and twenty filtered lists had none.
+6. `:chips` mirror **only the `#more` filters**, with `@remove`; the chip row has no "Clear all" of
+   its own, because the bar's "Clear filters" already covers it:
    ```ts
    const chips = computed<FilterChip[]>(() => {
      const out: FilterChip[] = [];
@@ -549,8 +611,8 @@ Rules encoded in the component and honoured by the good pages:
    function removeChip(key: string) { if (key === "driver") filters.value = { ...filters.value, driverId: undefined }; }
    function clearAll() { /* reset every filter, keep sort */ }
    ```
-6. Filters apply live, per-filter. No Apply button. `page` resets to 1 via `watch`.
-7. Never ship a filter no query consumes.
+7. Filters apply live, per-filter. No Apply button. `page` resets to 1 via `watch`.
+8. Never ship a filter no query consumes.
 
 ### 5.6 Row actions
 
@@ -625,6 +687,9 @@ TransitionRoot → Dialog (z-50)
 - **Actions belong in `#footer`**, right-aligned, `flex items-center justify-end gap-3`, secondary first then `variant="primary"` last. Use `size` default (`md`) in footers.
 - Cross-fields submit via `<form :id="…">` in the body + `<BaseButton :form="…" type="submit">` in the footer, so the footer stays pinned while the body scrolls.
 - Destructive confirmations **replace the body**, they do not stack a second modal.
+- A one-question "are you sure?" is `useConfirm()` (D-US7): `await ask({ title, message, confirmLabel, tone })`.
+  The label is the act's verb, never "OK"; `tone: "danger"` for anything that removes or cannot be undone.
+  `window.confirm` / `alert` / `prompt` are refused by `lint:ui-adoption`.
 - `size="lg"` when the drawer holds a real form or a two-panel flow; `md` otherwise.
 
 ### 6.3 The best example — `features/roster/DriverAccessModal.vue`
@@ -735,7 +800,7 @@ All of these pass `lint:tokens`. They are structural and typographic violations,
 |---|---|
 | `pages/FuelReconciliationPage.vue:222`, `pages/DriverAppSettingsPage.vue:451` | Hand-rolled `rounded-full px-2(.5) py-0.5 text-xs font-medium` badges. Badges are `BADGE_BASE + toneClass` and `rounded-detail`, never `rounded-full`. |
 | `features/hazmat/ReviewPanel.vue:161`, `features/anomalies/AnomalyDetail.vue:297`, `features/settings/EfsClientCertCard.vue:232,242,259` | The full `BaseInput`/textarea class string copy-pasted inline (including `focus:ring-brand-500` — the system's focus ring is `brand-600`). |
-| `docs/DESIGN-SYSTEM.md` §2, §3 | Stale: lists `TableToolbar` and `SortableTh` (deleted), says DataTable is "text left; `numeric` right" (it centres by default and `numeric` does not right-align), and says FilterBar search is `w-72` (it is `w-full lg:w-64`). `DataTable.vue` carries the same stale alignment claim in its docblock. |
+| Legacy table guidance | Do not use the deleted `TableToolbar` or `SortableTh` patterns, or the former `w-72` FilterBar search width. The current FilterBar search is `w-full lg:w-64`; for table alignment use §5.2 above: text defaults left and `numeric` defaults right with tabular figures. |
 
 ### 8.3 Vocabulary rule the compliance rewrite established (D4)
 
@@ -743,14 +808,14 @@ Driver-qualification status words come from `lib/badges.ts` — `dqItemBadge` (O
 
 ## Quick checklist for a new list page
 
-1. Root `<div class="space-y-6">`. Title comes from `route.meta.title` — do not render an `<h1>`.
+1. Root `<div class="space-y-6">`. `PageHeader` renders the `<h1>` from `route.meta.title` (or its explicit `title` prop) — do not render a second `<h1>`.
 2. `<PageHeader description="One or two sentences.">` + `#actions` with at most one `variant="primary"`.
-3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove` + `@clear-all`.
-4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Widths in `headerClass`. Tone in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
+3. Toolbar + table live in one `<DataWorkspace>` (§5.2b): `<FilterBar embedded v-model:search :count="filtered.length" count-label="<noun>">` — 2–4 `FilterSelect` in `#filters`, secondaries in `#more` with `:more-count` and matching `:chips` + `@remove`; always `:active-count` + `@clear-all`.
+4. `columns: DataTableColumn[]` in `<script>`. **No `align`.** Use the named `width` scale; reserve `headerClass` for exceptional fixed-width controls. Tone belongs in `cellClass` (`font-medium text-ink` for the identity column, `text-ink-secondary` for the rest).
 5. `<DataTable :columns :rows="pageRows" embedded row-key="id" :loading :error :retrying :sort :empty-text @sort @retry>` — never hand-roll loading/error/empty, and never wrap it in a card of your own.
 6. `#actions` → `<KebabMenu v-if="session.canManage">` with `.kebab-item` buttons, destructive last with `.kebab-item-danger`.
 7. `#footer` → `<TablePagination :page :page-size="PAGE_SIZE" :total="filtered.length" @update:page>`; `watch` every filter to reset `page` to 1.
 8. Badges only via `BADGE_BASE + toneClass` / `StatusBadge`.
 9. Drawer via `<SlideOver>`; actions in `#footer`; body sections `space-y-6` with `h3.text-sm.font-semibold.text-ink`.
 10. Mutations: `try { await mutateAsync(); toast.success("Thing updated"); } catch (e) { toast.error("Could not save thing", e instanceof Error ? e.message : undefined); }`
-11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption` — between them they catch colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones and `text-ink-subtle`. The remaining structural rules above are on you.
+11. Run `pnpm --filter web lint:tokens` **and** `pnpm lint:ui-adoption`. They automate colour, elevation, unknown roles, raw elements, missing PageHeader, primitive clones, `text-ink-subtle`, nested non-embedded tables, FilterBar slot placement, FilterBar's `:active-count` and hand-built clear buttons, hand-built "N selected" strips, hand-built KPI tiles, more than four controls in `#filters`, search copy that is not "Search <what>…", pagination ownership and manual action columns. Judgment calls that cannot be derived from structure — filter priority, useful empty copy and whether a control belongs on the page — remain review work.

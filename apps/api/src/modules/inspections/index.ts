@@ -9,6 +9,9 @@
  * unit matched to our roster (0458). The SMS calculator and every case and filing table land in later
  * steps, and each one is this module's to own.
  *
+ * The first reader of that projection is the Inspections inbox's first slice (§6) and the Operations
+ * tab's Roadside card counting it (`routes/roadside.ts`, FLEET-MANAGER-HOME-PLAN Q-FM7 (a)).
+ *
  * It will file documents only through `evidence`'s `registerDocument` and read Samsara only through
  * the `samsara` module's index; neither edge exists yet, and each arrives in `API_ALLOW` with the
  * step that needs it.
@@ -17,3 +20,4 @@ export { startFmcsaFeedScheduler, isFmcsaFeedDue } from "./feed/scheduler.js";
 export { syncFmcsaFeed, type DatasetOutcome } from "./feed/sync.js";
 export { projectRoadside, type ProjectionCounts } from "./feed/project.js";
 export { SocrataClient, SocrataError, scopeWhere, type SocrataClientOptions } from "./feed/socrata.js";
+export { roadsideInspectionsRouter } from "./routes/roadside.js";

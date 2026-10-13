@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createPinia, setActivePinia } from "pinia";
+import { createPinia, setActivePinia, type Pinia } from "pinia";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { AppSelect } from "@silvicom/ui";
 import SettingsUsersPage from "@/pages/SettingsUsersPage.vue";
+import { answerConfirm } from "@/testing/confirm";
 
 /**
  * The Users page after 0301 (S9): members have names.
@@ -63,11 +65,25 @@ const stubs = { PageHeader: { template: "<div />" }, RouterLink: { template: "<a
 /** One member's row — a `<tr>` on a desktop, a card `<li>` on a phone; jsdom renders the cards. */
 const rowOf = (w: ReturnType<typeof mountPage>, email: string) =>
   w.findAll("tbody tr, ul > li").find((r) => r.text().includes(email))!;
-const mountPage = () =>
-  mount(SettingsUsersPage, { global: { plugins: [createPinia()], stubs }, attachTo: document.body });
+/**
+ * A REAL router since D-US2: the members search lives in the URL through `useQueryState`, which
+ * awaits `router.replace`. The URL is set on the HISTORY rather than pushed, so the helper stays
+ * synchronous: the router's own first navigation (on install) lands on it, and every test already
+ * flushes promises after mounting, which settles that navigation.
+ */
+let router: Router;
+/** The page's Pinia, shared with `answerConfirm` so the confirm dialog's answer is the one the page reads (D-US7). */
+let pinia: Pinia;
+const mountPage = (url = "/settings/users") => {
+  const history = createMemoryHistory();
+  history.replace(url);
+  router = createRouter({ history, routes: [{ path: "/:any(.*)*", component: { template: "<div />" } }] });
+  return mount(SettingsUsersPage, { global: { plugins: [pinia, router], stubs }, attachTo: document.body });
+};
 
 beforeEach(() => {
-  setActivePinia(createPinia());
+  pinia = createPinia();
+  setActivePinia(pinia);
   calls.length = 0;
   toasts.length = 0;
   state.rotated = false;
@@ -177,10 +193,9 @@ describe("SettingsUsersPage — names", () => {
  * that the person is signed out at once.
  */
 describe("SettingsUsersPage — suspend, reinstate, remove", () => {
-  let confirmSpy: ReturnType<typeof vi.fn>;
+  let confirmSpy: ReturnType<typeof answerConfirm>;
   beforeEach(() => {
-    confirmSpy = vi.fn(() => true);
-    vi.stubGlobal("confirm", confirmSpy);
+    confirmSpy = answerConfirm(true, pinia);
     state.members = [
       { userId: "u-admin", email: "boss@silvicom.test", fullName: "Miki Boss", role: "admin", joinedAt: "2026-01-01T00:00:00Z", suspendedAt: null },
       // No `suspendedAt` at all — an API on the previous build. Absence must read as active.
@@ -190,8 +205,6 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
       { userId: "u-driver", email: "aaron@drivers.test", fullName: "Aaron R", role: "driver", joinedAt: "2026-01-04T00:00:00Z", suspendedAt: null },
     ];
   });
-
-  afterEach(() => vi.unstubAllGlobals());
 
   /** Open a row's kebab and list the items it rendered (the popover renders outside the row). */
   async function menuOf(w: ReturnType<typeof mountPage>, email: string): Promise<string[]> {
@@ -246,16 +259,17 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
     await flushPromises();
     await menuOf(w, "shop@silvicom.test");
     await pick("Suspend member…");
-    const asked = String(confirmSpy.mock.calls.at(-1)![0]);
-    expect(asked).toContain("signed out now");
-    expect(asked).toContain("personal permissions are kept");
+    const asked = confirmSpy.mock.calls.at(-1)![0];
+    expect(asked).toMatchObject({ title: "Suspend Shop Lead?", confirmLabel: "Suspend", tone: "danger" });
+    expect(asked.message).toContain("signed out now");
+    expect(asked.message).toContain("personal permissions are kept");
     expect(calls.find((c) => c.path === "/api/members/u-tech/suspend")?.init?.method).toBe("POST");
     expect(calls.filter((c) => c.path === "/api/members" && !c.init?.method).length).toBeGreaterThanOrEqual(2);
     w.unmount();
   });
 
   it("sends nothing when the admin cancels the confirmation", async () => {
-    confirmSpy.mockReturnValue(false);
+    answerConfirm(false, pinia);
     const w = mountPage();
     await flushPromises();
     await menuOf(w, "shop@silvicom.test");
@@ -269,7 +283,11 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
     await flushPromises();
     await menuOf(w, "leave@silvicom.test");
     await pick("Reinstate member…");
-    expect(String(confirmSpy.mock.calls.at(-1)![0])).toContain("personal permissions they had before");
+    const asked = confirmSpy.mock.calls.at(-1)![0];
+    // Reinstating gives access back: the ordinary button, not the red one.
+    expect(asked).toMatchObject({ title: "Reinstate On Leave?", confirmLabel: "Reinstate" });
+    expect(asked.tone).toBeUndefined();
+    expect(asked.message).toContain("personal permissions they had before");
     expect(calls.find((c) => c.path === "/api/members/u-leave/reinstate")?.init?.method).toBe("POST");
     w.unmount();
   });
@@ -279,7 +297,9 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
     await flushPromises();
     await menuOf(w, "shop@silvicom.test");
     await pick("Remove member…");
-    expect(String(confirmSpy.mock.calls.at(-1)![0])).toContain("signed out immediately");
+    const asked = confirmSpy.mock.calls.at(-1)![0];
+    expect(asked).toMatchObject({ title: "Remove Shop Lead from the organization?", confirmLabel: "Remove member", tone: "danger" });
+    expect(asked.message).toContain("signed out immediately");
     expect(calls.find((c) => c.path === "/api/members/u-tech")?.init?.method).toBe("DELETE");
     w.unmount();
   });
@@ -303,12 +323,10 @@ describe("SettingsUsersPage — suspend, reinstate, remove", () => {
  * without the admin clicking twice or being asked "are you sure?" twice.
  */
 describe("SettingsUsersPage — a write asks for the password, then happens", () => {
-  let confirmSpy: ReturnType<typeof vi.fn>;
+  let confirmSpy: ReturnType<typeof answerConfirm>;
   beforeEach(() => {
-    confirmSpy = vi.fn(() => true);
-    vi.stubGlobal("confirm", confirmSpy);
+    confirmSpy = answerConfirm(true, pinia);
   });
-  afterEach(() => vi.unstubAllGlobals());
 
   const prompt = () => document.querySelector("[data-test='step-up']");
   const confirmPassword = async () => {
@@ -435,6 +453,158 @@ describe("SettingsUsersPage — a write asks for the password, then happens", ()
     expect(sent("/api/members/u-disp", "DELETE")).toHaveLength(2);
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(toasts.at(-1)).toMatchObject({ kind: "success", title: "2 members removed" });
+    w.unmount();
+  });
+});
+
+describe("SettingsUsersPage — members list composition", () => {
+  it("searches members from the shared FilterBar and counts what is left", async () => {
+    const w = mountPage();
+    await flushPromises();
+    const search = w.find<HTMLInputElement>('input[placeholder="Search members…"]');
+    expect(search.exists()).toBe(true);
+    expect(w.text()).toContain("2 members");
+
+    await search.setValue("shop@");
+    // AppSearchField debounces its emit by 250 ms; the list filters on the emitted value.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(w.text()).toContain("1 member");
+    expect(rowOf(w, "shop@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "boss@silvicom.test")).toBeUndefined();
+    w.unmount();
+  });
+});
+
+/** D-US2: the members search is the URL, so a reload or Back keeps the member the admin was looking at. */
+describe("SettingsUsersPage — the members search in the URL (D-US2)", () => {
+  it("reads a pasted ?search= into the list, and writes a new search back", async () => {
+    const w = mountPage("/settings/users?search=shop");
+    await flushPromises();
+    expect(rowOf(w, "shop@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "boss@silvicom.test")).toBeUndefined();
+
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "boss");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "boss" });
+    expect(rowOf(w, "boss@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "shop@silvicom.test")).toBeUndefined();
+    w.unmount();
+  });
+});
+
+/**
+ * D-US7: the three questions the page asks itself — deleting an invitation, removing several members,
+ * demoting yourself — go through the product's confirm, and a "no" sends nothing.
+ */
+describe("SettingsUsersPage — the page's own confirmations (D-US7)", () => {
+  const sent = (path: string, method: string) => calls.filter((c) => c.path === path && c.init?.method === method);
+  const deleteInvite = async (w: ReturnType<typeof mountPage>) => {
+    await rowOf(w, "old@silvicom.test").find("button").trigger("click");
+    await flushPromises();
+    [...document.querySelectorAll<HTMLButtonElement>("button.kebab-item")].find((b) => b.textContent!.trim() === "Delete invite")!.click();
+    await flushPromises();
+  };
+  beforeEach(() => {
+    state.invites = [{ id: "inv-9", email: "old@silvicom.test", role: "dispatcher", status: "expired", full_name: null }];
+  });
+
+  it("deleting an invitation asks a red question naming the address, and a no deletes nothing", async () => {
+    const spy = answerConfirm(false, pinia);
+    const w = mountPage();
+    await flushPromises();
+    await deleteInvite(w);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Delete the invitation for old@silvicom.test?", confirmLabel: "Delete invitation", tone: "danger" }),
+    );
+    expect(sent("/api/invites/inv-9", "DELETE")).toHaveLength(0);
+    w.unmount();
+  });
+
+  it("deleting an invitation, answered yes, sends the DELETE", async () => {
+    answerConfirm(true, pinia);
+    const w = mountPage();
+    await flushPromises();
+    await deleteInvite(w);
+    expect(sent("/api/invites/inv-9", "DELETE")).toHaveLength(1);
+    expect(toasts.at(-1)).toMatchObject({ kind: "success", title: "Invitation deleted" });
+    w.unmount();
+  });
+
+  it("a bulk removal asks how many, in red, and a no removes nobody", async () => {
+    const spy = answerConfirm(false, pinia);
+    const w = mountPage();
+    await flushPromises();
+    await rowOf(w, "shop@silvicom.test").find('input[type="checkbox"]').setValue(true);
+    await w.findAll("button").find((b) => b.text() === "Remove")!.trigger("click");
+    await flushPromises();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ title: "Remove 1 member?", confirmLabel: "Remove 1 member", tone: "danger" }));
+    expect(calls.some((c) => c.init?.method === "DELETE")).toBe(false);
+    w.unmount();
+  });
+
+  it("demoting yourself asks first; a no sends nothing and reloads so the picker snaps back", async () => {
+    const spy = answerConfirm(false, pinia);
+    const w = mountPage();
+    await flushPromises();
+    const loadsBefore = calls.filter((c) => c.path === "/api/members" && !c.init?.method).length;
+    rowOf(w, "boss@silvicom.test").findComponent(AppSelect).vm.$emit("update:modelValue", "dispatcher");
+    await flushPromises();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ title: "Change your own role?", confirmLabel: "Change my role", tone: "danger" }));
+    expect(sent("/api/members/u-admin", "PATCH")).toHaveLength(0);
+    expect(calls.filter((c) => c.path === "/api/members" && !c.init?.method).length).toBe(loadsBefore + 1);
+    w.unmount();
+  });
+
+  it("demoting yourself, answered yes, sends the role", async () => {
+    answerConfirm(true, pinia);
+    const w = mountPage();
+    await flushPromises();
+    rowOf(w, "boss@silvicom.test").findComponent(AppSelect).vm.$emit("update:modelValue", "dispatcher");
+    await flushPromises();
+    expect(sent("/api/members/u-admin", "PATCH")[0]?.init?.body).toEqual({ role: "dispatcher" });
+    w.unmount();
+  });
+
+  it("changing someone else's role asks nothing", async () => {
+    const spy = answerConfirm(true, pinia);
+    const w = mountPage();
+    await flushPromises();
+    rowOf(w, "shop@silvicom.test").findComponent(AppSelect).vm.$emit("update:modelValue", "dispatcher");
+    await flushPromises();
+    expect(spy).not.toHaveBeenCalled();
+    expect(sent("/api/members/u-tech", "PATCH")).toHaveLength(1);
+    w.unmount();
+  });
+});
+
+/** D-US8: the members list pages twenty at a time, the page in the URL beside the search (D-US2). */
+describe("SettingsUsersPage — the members list pages (D-US8)", () => {
+  beforeEach(() => {
+    state.members = Array.from({ length: 45 }, (_, i) => {
+      const n = String(i + 1).padStart(2, "0");
+      return { userId: `u-${n}`, email: `m${n}@silvicom.test`, fullName: `Member ${n}`, role: "dispatcher", joinedAt: "2026-01-01T00:00:00Z" };
+    });
+  });
+
+  it("a pasted ?page=2 shows members 21–40", async () => {
+    const w = mountPage("/settings/users?page=2");
+    await flushPromises();
+    expect(rowOf(w, "m21@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "m40@silvicom.test")).toBeDefined();
+    expect(rowOf(w, "m20@silvicom.test")).toBeUndefined();
+    expect(rowOf(w, "m41@silvicom.test")).toBeUndefined();
+    expect(w.text()).toMatch(/Showing\s*21\s*–\s*40\s*of\s*45/);
+    w.unmount();
+  });
+
+  it("a new search returns the list to page 1", async () => {
+    const w = mountPage("/settings/users?page=2");
+    await flushPromises();
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "Member");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ search: "Member" });
+    expect(rowOf(w, "m01@silvicom.test")).toBeDefined();
     w.unmount();
   });
 });

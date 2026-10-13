@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { STATE_NAMES } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaPeriodQuery,
   type IftaQuarter,
 } from "@/features/ifta/useIftaPeriod";
 import { usd, usd3, gal, pct1 } from "@/features/reconcile/format";
 import DriverFuelUploadDialog from "@/features/ifta/DriverFuelUploadDialog.vue";
-import ExportButton from "@/components/ExportButton.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -49,7 +50,7 @@ const selectedKey = computed<string>({
   set: (v) => void router.replace({ query: { ...route.query, q: v } }),
 });
 
-const { data, isLoading, isError, error } = useIftaPeriodQuery(quarter);
+const { data, isLoading, isError, error, isFetching, refetch } = useIftaPeriodQuery(quarter);
 const position = computed(() => data.value?.position ?? null);
 const tieOut = computed(() => data.value?.tieOut ?? null);
 const summary = computed(() => data.value?.summary ?? null);
@@ -97,6 +98,22 @@ const uploadOpen = ref(false);
  */
 const exportQuery = computed(() => `year=${quarter.value.year}&quarter=${quarter.value.quarter}`);
 const exportName = computed(() => `ifta-return-${quarter.value.year}-Q${quarter.value.quarter}`);
+const exportItems = computed<readonly ExportItem[]>(() => [
+  {
+    key: "xlsx",
+    label: "Excel workbook",
+    description: "Truck-by-state grids and every fill",
+    href: `/api/ifta/return.xlsx?${exportQuery.value}`,
+    filename: `${exportName.value}.xlsx`,
+  },
+  {
+    key: "pdf",
+    label: "PDF return",
+    description: "Return summary with one section per truck",
+    href: `/api/ifta/return.pdf?${exportQuery.value}`,
+    filename: `${exportName.value}.pdf`,
+  },
+]);
 
 /**
  * One line saying whether the numbers below can be trusted, in the order a reader needs them.
@@ -170,7 +187,6 @@ const cols: DataTableColumn[] = [
   { key: "surcharge", label: "Surcharge", numeric: true, width: "sm" },
 ];
 const barCount = computed(() => position.value?.jurisdictions.length ?? 0);
-
 /**
  * A row opens the trucks behind it, for the same quarter. The click is the mouse's path; the link in
  * the jurisdiction cell is the keyboard's and the screen reader's (contract §5.7 — a row that only
@@ -185,20 +201,9 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
     <PageHeader description="What each jurisdiction is owed for the miles driven there, against the fuel tax already paid at its pumps.">
       <template #actions>
         <ExportButton
-          data-testid="export-ifta-xlsx"
-          :href="`/api/ifta/return.xlsx?${exportQuery}`"
-          :filename="`${exportName}.xlsx`"
+          data-testid="export-ifta"
+          :items="exportItems"
           :scope="quarterLabel(quarter)"
-          label="Excel"
-          variant="secondary"
-        />
-        <ExportButton
-          data-testid="export-ifta-pdf"
-          :href="`/api/ifta/return.pdf?${exportQuery}`"
-          :filename="`${exportName}.pdf`"
-          scope=""
-          label="PDF"
-          variant="secondary"
         />
         <BaseButton data-testid="open-driver-fuel" @click="uploadOpen = true">Driver-paid fuel</BaseButton>
       </template>
@@ -210,69 +215,70 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
          The jurisdiction miles the ledger owes tax on come from one tier and nothing else. -->
     <SamsaraFeedLine :feeds="['ifta']" />
 
-    <FilterBar :count="barCount" count-label="jurisdictions">
-      <template #filters>
+    <ReportScopeBar
+      title="Reporting quarter"
+      description="All return figures and exports use this filing period."
+      :count="barCount"
+      count-label="jurisdictions"
+    >
+      <template #control>
         <FilterSelect v-model="selectedKey" :options="quarterOptions" label="Quarter" />
       </template>
-    </FilterBar>
+    </ReportScopeBar>
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load this quarter: {{ error instanceof Error ? error.message : "unknown error" }}
-    </p>
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the quarter…"
+      error-text="Could not load this quarter."
+      @retry="refetch()"
+    >
+      <template v-if="position && summary">
+        <!-- Above the money, deliberately. Every figure in the table derives from the fleet MPG, so a
+             period whose MPG is impossible produces confident wrong dollars that look exactly like
+             right ones — which is precisely what 2026 Q2 did at 10.5 mpg. -->
+        <AppCallout v-if="health" :tone="health.tone">
+          <span class="block font-semibold">{{ health.lead }}</span>
+          <span v-if="health.detail" class="mt-1 block font-normal">{{ health.detail }}</span>
+        </AppCallout>
 
-    <template v-else-if="position && summary">
-      <!-- Above the money, deliberately. Every figure in the table derives from the fleet MPG, so a
-           period whose MPG is impossible produces confident wrong dollars that look exactly like
-           right ones — which is precisely what 2026 Q2 did at 10.5 mpg. -->
-      <div
-        v-if="health"
-        class="rounded-surface px-4 py-3 ring-1"
-        :class="health.tone === 'danger'
-          ? 'bg-danger-50 text-danger-700 ring-danger-100'
-          : 'bg-caution-50 text-caution-800 ring-caution-100'"
-      >
-        <p class="text-sm font-semibold">{{ health.lead }}</p>
-        <p v-if="health.detail" class="mt-1 text-sm">{{ health.detail }}</p>
-      </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Owed" :value="usd(position.liability)" sub="for the miles driven" />
+          <StatCard label="Paid at the pump" :value="usd(position.credit)" sub="on fuel bought" />
+          <StatCard
+            label="Net"
+            :value="usd(position.net)"
+            :sub="position.net >= 0 ? 'still owed across all jurisdictions' : 'refundable across all jurisdictions'"
+            :sub-tone="position.net > 0 ? 'text-danger-700' : undefined"
+          />
+          <StatCard
+            label="Fleet MPG used"
+            :value="position.mpg.fleetMpg == null ? '—' : position.mpg.fleetMpg.toFixed(2)"
+            :sub="`${gal(position.mpg.totalGallons)} gal over ${position.mpg.totalMiles.toLocaleString('en-US')} mi`"
+            :sub-tone="position.mpg.verdict === 'plausible' ? undefined : 'text-danger-700'"
+          />
+        </div>
 
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Owed" :value="usd(position.liability)" sub="for the miles driven" />
-        <StatCard label="Paid at the pump" :value="usd(position.credit)" sub="on fuel bought" />
-        <StatCard
-          label="Net"
-          :value="usd(position.net)"
-          :sub="position.net >= 0 ? 'still owed across all jurisdictions' : 'refundable across all jurisdictions'"
-          :sub-tone="position.net > 0 ? 'text-danger-700' : undefined"
-        />
-        <StatCard
-          label="Fleet MPG used"
-          :value="position.mpg.fleetMpg == null ? '—' : position.mpg.fleetMpg.toFixed(2)"
-          :sub="`${gal(position.mpg.totalGallons)} gal over ${position.mpg.totalMiles.toLocaleString('en-US')} mi`"
-          :sub-tone="position.mpg.verdict === 'plausible' ? undefined : 'text-danger-700'"
-        />
-      </div>
+        <!-- Every figure above is measured over something narrower than "this quarter", and each one
+             says what. A dollar figure whose denominator is not on screen beside it is a defect. -->
+        <p class="text-xs text-ink-tertiary">
+          {{ summary.vehicles }} trucks ·
+          <template v-if="position.pricedMileShare != null">
+            {{ pct1(position.pricedMileShare) }} of miles in jurisdictions this product can price<template v-if="position.unpriced.length">
+              ({{ position.unpriced.join(", ") }} cannot be)</template> ·
+          </template>
+          {{ summary.monthsFetched }} of 3 months pulled from Samsara<template v-if="summary.anyProvisional">, at least one still provisional</template>
+          <template v-if="summary.maxUnmapped > 0"> · {{ summary.maxUnmapped }} vehicle(s) Samsara reported that we could not map</template>
+          <template v-if="position.surcharge > 0">
+            · {{ usd(position.surcharge) }} of return-billed surcharge, which is not creditable and is not in the net above
+          </template>
+        </p>
 
-      <!-- Every figure above is measured over something narrower than "this quarter", and each one
-           says what. A dollar figure whose denominator is not on screen beside it is a defect. -->
-      <p class="text-xs text-ink-tertiary">
-        {{ summary.vehicles }} trucks ·
-        <template v-if="position.pricedMileShare != null">
-          {{ pct1(position.pricedMileShare) }} of miles in jurisdictions this product can price<template v-if="position.unpriced.length">
-            ({{ position.unpriced.join(", ") }} cannot be)</template> ·
-        </template>
-        {{ summary.monthsFetched }} of 3 months pulled from Samsara<template v-if="summary.anyProvisional">, at least one still provisional</template>
-        <template v-if="summary.maxUnmapped > 0"> · {{ summary.maxUnmapped }} vehicle(s) Samsara reported that we could not map</template>
-        <template v-if="position.surcharge > 0">
-          · {{ usd(position.surcharge) }} of return-billed surcharge, which is not creditable and is not in the net above
-        </template>
-      </p>
+        <p v-if="receiptLine" class="text-xs text-ink-tertiary" data-testid="receipt-line">{{ receiptLine }}</p>
 
-      <p v-if="receiptLine" class="text-xs text-ink-tertiary" data-testid="receipt-line">{{ receiptLine }}</p>
+        <p v-for="(note, i) in samsaraNotes" :key="i" class="text-xs text-ink-tertiary">{{ note }}</p>
 
-      <p v-for="(note, i) in samsaraNotes" :key="i" class="text-xs text-ink-tertiary">{{ note }}</p>
-
-      <BaseCard padding="none">
         <DataTable
           :columns="cols"
           :rows="rows"
@@ -292,18 +298,18 @@ const openJurisdiction = (row: Record<string, unknown>) => void router.push(juri
             <span v-if="row.fromReceipts" class="block text-xs text-ink-tertiary">incl. {{ row.fromReceipts }} gal from driver-paid receipts</span>
           </template>
         </DataTable>
-      </BaseCard>
 
-      <!-- The filing workflow is not built (Q-IF5). Said outright rather than behind a disclosure: the
-           first version hid the second sentence behind a "why can't I file from this?" toggle, which
-           `lint:ui-adoption` refused as a raw page button — correctly, and the honest fix was to stop
-           making a reader click for the caveat rather than to reach for a shared control to hide it. -->
-      <p class="text-xs text-ink-tertiary">
-        This is a working view, not a filed return — nothing here is submitted to a jurisdiction, and a
-        quarter shown today may read differently tomorrow while Samsara is still restating it. Filing
-        needs a frozen snapshot of what was asserted and to whom, and that is deliberately not built
-        until somebody says they want to file from here rather than manage from here.
-      </p>
-    </template>
+        <!-- The filing workflow is not built (Q-IF5). Said outright rather than behind a disclosure: the
+             first version hid the second sentence behind a "why can't I file from this?" toggle, which
+             `lint:ui-adoption` refused as a raw page button — correctly, and the honest fix was to stop
+             making a reader click for the caveat rather than to reach for a shared control to hide it. -->
+        <p class="text-xs text-ink-tertiary">
+          This is a working view, not a filed return — nothing here is submitted to a jurisdiction, and a
+          quarter shown today may read differently tomorrow while Samsara is still restating it. Filing
+          needs a frozen snapshot of what was asserted and to whom, and that is deliberately not built
+          until somebody says they want to file from here rather than manage from here.
+        </p>
+      </template>
+    </QueryState>
   </div>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, EMPLOYER_RESPONSE_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, reactive, ref, watch } from "vue";
 import { dateDiscrepancies, type EmployerResponse } from "@silvicom/shared";
 import {
@@ -126,6 +127,9 @@ async function save(): Promise<void> {
     toast.error("Could not record the answer", e instanceof Error ? e.message : undefined);
   }
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(EMPLOYER_RESPONSE_CONTENT_TYPES);
 </script>
 
 <template>
@@ -223,7 +227,7 @@ async function save(): Promise<void> {
         <p class="mt-1 text-sm text-ink-muted">Optional — the record stands on what you enter above.</p>
         <div class="mt-2">
           <FileDropzone
-            accept=".pdf,.jpg,.jpeg,.png,.webp"
+            :accept="uploadAccept"
             :busy="upload.isPending.value"
             busy-label="Uploading…"
             :label="letter ? letter.name : 'Drag & drop what they sent back'"

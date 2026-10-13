@@ -13,6 +13,7 @@ import { dayRangeInstants, shiftDay, todayInZone } from "@silvicom/shared";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { AppSelect } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
@@ -22,6 +23,8 @@ import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@silvicom/shared";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 
 const toast = useToastStore();
 /**
@@ -116,10 +119,14 @@ onMounted(loadAccuracy);
 // ── Detection accuracy (measured precision from reviewer dispositions) ────────
 const metrics = ref<DetectionMetrics | null>(null);
 const metricsLoading = ref(false);
+/** A failed read, kept apart from "nothing reviewed yet": before D-US5 a failure fell through to the
+ *  empty sentence, which told the office it had labelled nothing when the request had simply failed. */
+const metricsError = ref(false);
 async function loadMetrics() {
   metricsLoading.value = true;
   const res = await apiFetch<DetectionMetrics>("/api/reports/detection-metrics");
   metricsLoading.value = false;
+  metricsError.value = !res.ok;
   metrics.value = res.ok && res.data ? res.data : null;
 }
 onMounted(loadMetrics);
@@ -166,34 +173,39 @@ async function sendDigest() {
         </div>
       </div>
 
-      <div v-if="metricsLoading" class="mt-4 text-sm text-ink-tertiary">Loading…</div>
+      <div v-if="metricsLoading || metricsError" class="mt-4">
+        <QueryState
+          compact
+          :loading="metricsLoading"
+          :error="metricsError"
+          loading-text="Loading the detection accuracy…"
+          error-text="Could not load the detection accuracy."
+          @retry="loadMetrics()"
+        />
+      </div>
       <template v-else-if="metrics && metrics.decided > 0">
         <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Precision</dt>
-            <dd class="mt-1 text-2xl font-bold" :class="precisionTone">{{ pct(metrics.precision) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Non-issue rate</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.nonIssueRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">false alarms + legitimate, explained</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Reviewed</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-ink-tertiary"> cases</span></dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Awaiting review</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.pending.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">label these to sharpen the number</dd>
-          </div>
+          <StatCard
+            embedded
+            label="Precision"
+            :value="pct(metrics.precision)"
+            :value-tone="precisionTone"
+            :sub="`95% CI ${pct(metrics.precisionCiLow)}–${pct(metrics.precisionCiHigh)}`"
+          />
+          <StatCard embedded label="Non-issue rate" :value="pct(metrics.nonIssueRate)" sub="false alarms + legitimate, explained" />
+          <StatCard
+            embedded
+            label="Reviewed"
+            :value="metrics.decided.toLocaleString()"
+            unit="cases"
+            :sub="`${metrics.confirmed} confirmed · ${metrics.inconclusive} inconclusive`"
+          />
+          <StatCard embedded label="Awaiting review" :value="metrics.pending.toLocaleString()" sub="label these to sharpen the number" />
         </div>
 
         <div v-if="metrics.perLeadRule.length" class="mt-5">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Precision by lead signal</p>
-          <DataTable :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
+          <DataTable embedded :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
             <template #cell-precision="{ value }">
               <span class="font-medium" :class="value == null ? 'text-ink-tertiary' : value >= 0.9 ? 'text-success-700' : value >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(value) }}</span>
             </template>
@@ -219,15 +231,11 @@ async function sendDigest() {
       </p>
     </BaseCard>
 
-    <BaseCard padding="sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-ink">Report period</h2>
-          <p class="text-sm text-ink-muted">{{ rangeLabel }}</p>
-        </div>
+    <ReportScopeBar title="Report period" :description="rangeLabel">
+      <template #control>
         <DateRangeFilter v-model:from="from" v-model:to="to" />
-      </div>
-    </BaseCard>
+      </template>
+    </ReportScopeBar>
 
     <BaseCard padding="sm" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>

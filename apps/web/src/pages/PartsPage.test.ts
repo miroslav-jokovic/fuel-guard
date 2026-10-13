@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
 import type { PartDto, StockLineDto } from "@silvicom/shared";
+import { ROUTE_TABLE } from "@/router/table";
 
 /**
  * The parts list (INVENTORY-PLAN.md I4; aligned with the rest of the product 2026-09-10).
@@ -13,8 +15,9 @@ import type { PartDto, StockLineDto } from "@silvicom/shared";
  *      force and draws a ✕ that emits `""`. The page shipped with `"all"` as its resting value, so
  *      the chip opened blue with a ✕ that cleared it to a value none of its options had — and only
  *      a render showed it. The resting value is `""`, as on every other list.
- *   2. **The home's link must land on the low-stock view.** `?stock=low` is the one query this
- *      page reads, and it is the whole of the low-stock tile's meaning.
+ *   2. **The home's link must land on the low-stock view.** `?stock=low` is the whole of the
+ *      low-stock tile's meaning — and since D-US2 it is one of the list's URL parameters (search,
+ *      sort, page, the drawer's `new`) rather than the only query the page reads.
  *   3. **A row must be reachable without a mouse.** The kebab's "Open part" is the keyboard's path
  *      into a row; `@row-click` is the mouse's.
  */
@@ -55,8 +58,6 @@ const line = (over: Partial<StockLineDto> = {}): StockLineDto => ({
 
 const catalogue = ref<{ parts: PartDto[]; total: number }>({ parts: [], total: 0 });
 const low = ref<{ lines: StockLineDto[]; total: number }>({ lines: [], total: 0 });
-const query = ref<Record<string, string>>({});
-const push = vi.fn();
 
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
@@ -72,61 +73,115 @@ vi.mock("@/stores/session", async () => {
   const s = fakeSession("technician");
   return { useSessionStore: () => s, __session: s };
 });
-vi.mock("vue-router", async (importOriginal) => {
-  const { h } = await import("vue");
-  return {
-    // SP5: `useOpens()` resolves links against the route table with the REAL router factory, so the
-    // three names it takes from vue-router stay real under this mock.
-    ...(({ routerKey, createRouter, createMemoryHistory }) => ({ routerKey, createRouter, createMemoryHistory }))(
-      await importOriginal<typeof import("vue-router")>(),
-    ),
-    useRoute: () => ({ query: query.value, params: {}, meta: { title: "Parts" }, matched: [], path: "/shop/inventory" }),
-    useRouter: () => ({ push, replace: vi.fn(), resolve: () => ({ name: "not-found", meta: {} }) }),
-    // The header's Labels button is a link, and `AppButton` reaches for the router's own component.
-    RouterLink: {
-      props: ["to"],
-      setup(props: { to: unknown }, { slots }: { slots: { default?: () => unknown } }) {
-        return () => h("a", { href: String(props.to) }, slots.default?.() as never);
-      },
-    },
-  };
-});
 
 const PartsPage = (await import("@/pages/PartsPage.vue")).default;
 const DataTable = (await import("@/components/ui/DataTable.vue")).default;
-const page = () =>
-  mount(PartsPage, { global: { stubs: { PartDrawer: true, LocationsDrawer: true } } });
+const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
 
-const clearButtons = (w: ReturnType<typeof page>) =>
+/**
+ * A REAL router over the app's own route table (D-US2): the page keeps its filters in the URL through
+ * `useQueryState`, which awaits `router.replace`, and `useOpens()` (SP5) answers the Labels button
+ * from whichever router is installed — so the route table here is the app's, not a hand-written one.
+ */
+let router: Router;
+async function mountAt(url = "/shop/inventory") {
+  router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+  await router.push(url);
+  await router.isReady();
+  const w = mount(PartsPage, { global: { plugins: [router], stubs: { PartDrawer: true, LocationsDrawer: true } } });
+  await flushPromises();
+  return w;
+}
+const page = mountAt;
+const urlQuery = () => router.currentRoute.value.query;
+
+type Mounted = Awaited<ReturnType<typeof mountAt>>;
+const clearButtons = (w: Mounted) =>
   w.findAll("button").filter((b) => (b.attributes("aria-label") ?? "").startsWith("Clear "));
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  push.mockClear();
-  query.value = {};
   catalogue.value = { parts: [part()], total: 1 };
   low.value = { lines: [line()], total: 1 };
 });
 
 describe("the stock filter", () => {
-  it("opens with nothing applied — no ✕ to clear a filter nobody set", () => {
-    const w = page();
+  it("opens with nothing applied — no ✕ to clear a filter nobody set", async () => {
+    const w = await page();
     expect(clearButtons(w)).toHaveLength(0);
     expect(w.text()).toContain("1 part");
   });
 
-  it("reads the home's ?stock=low as the low-stock view, which is a filter in force", () => {
-    query.value = { stock: "low" };
-    const w = page();
+  it("reads the home's ?stock=low as the low-stock view, which is a filter in force", async () => {
+    const w = await page("/shop/inventory?stock=low");
     expect(clearButtons(w)).toHaveLength(1);
     expect(w.text()).toContain("1 shelf");
     expect(w.text()).toContain("Main shelf");
   });
+
+  it("offers Clear filters on the low-stock view, and clearing returns to the whole catalogue", async () => {
+    const w = await page("/shop/inventory?stock=low");
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    await clearFilters()!.trigger("click");
+    await flushPromises();
+    expect(clearButtons(w)).toHaveLength(0);
+    expect(clearFilters()).toBeUndefined();
+    expect(w.text()).toContain("1 part");
+    expect(urlQuery()).toEqual({});
+  });
+});
+
+/** D-US2: the list's filters, sort and page are the URL, so reload, a pasted link and Back keep them. */
+describe("the list in the URL (D-US2)", () => {
+  const lines = [
+    line({ locationId: "l1", locationName: "Main shelf", quantityOnHand: 2 }),
+    line({ locationId: "l2", locationName: "Back room", quantityOnHand: 5 }),
+    line({ locationId: "l3", locationName: "Cage", quantityOnHand: 0 }),
+  ];
+  const locations = (w: Mounted) =>
+    w.findComponent({ name: "DataTable" }).props("rows").map((r: Record<string, unknown>) => r.locationName);
+
+  it("reads the low-stock view and its sort back from a pasted link", async () => {
+    low.value = { lines, total: 3 };
+    const w = await page("/shop/inventory?stock=low&sort=quantityOnHand&dir=desc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "quantityOnHand", dir: "desc" });
+    expect(locations(w)).toEqual(["Back room", "Main shelf", "Cage"]);
+  });
+
+  it("writes the Stock choice and a header click to the URL", async () => {
+    low.value = { lines, total: 3 };
+    const w = await page();
+    w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Stock")!.vm.$emit("update:modelValue", "low");
+    await flushPromises();
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "locationName");
+    await flushPromises();
+    expect(urlQuery()).toEqual({ stock: "low", sort: "locationName", dir: "asc" });
+    expect(locations(w)).toEqual(["Back room", "Cage", "Main shelf"]);
+  });
+
+  it("Clear filters keeps the sort, and a sort from another table reads as none", async () => {
+    const w = await page("/shop/inventory?stock=low&search=oil&sort=reorderPoint&dir=desc");
+    w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
+    await flushPromises();
+    expect(urlQuery()).toEqual({ sort: "reorderPoint", dir: "desc" });
+
+    const foreign = await page("/shop/inventory?stock=low&sort=description");
+    expect(foreign.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: null, dir: "asc" });
+  });
+
+  it("opens the drawer from ?new=1 and closing it keeps the filters", async () => {
+    const w = await page("/shop/inventory?stock=low&new=1");
+    const drawer = w.findComponent({ name: "PartDrawer" });
+    expect(drawer.props("open")).toBe(true);
+    drawer.vm.$emit("close");
+    await flushPromises();
+    expect(urlQuery()).toEqual({ stock: "low" });
+  });
 });
 
 describe("the header", () => {
-  it("names what its buttons open, rather than showing an unlabelled gear", () => {
-    const text = page().text();
+  it("names what its buttons open, rather than showing an unlabelled gear", async () => {
+    const text = (await page()).text();
     expect(text).toContain("Stock locations");
     expect(text).toContain("New part");
   });
@@ -143,11 +198,11 @@ describe("the Labels button (SP5)", () => {
     ((await import("@/stores/session")) as unknown as { __session: import("@/testing/fakeSession").FakeSession }).__session;
   it("shows where Labels opens and not where it is off for this person", async () => {
     const s = await session();
-    const labels = () => page().findAll("a, button").filter((b) => b.text().trim() === "Labels");
-    expect(labels()).toHaveLength(1);
+    const labels = async () => (await page()).findAll("a, button").filter((b) => b.text().trim() === "Labels");
+    expect(await labels()).toHaveLength(1);
     s.surfaces = { "maintenance.repair-spend": false };
     try {
-      expect(labels()).toHaveLength(0);
+      expect(await labels()).toHaveLength(0);
     } finally {
       s.surfaces = null;
     }
@@ -156,7 +211,8 @@ describe("the Labels button (SP5)", () => {
 
 describe("opening a row", () => {
   it("gives every row a menu, so a keyboard can reach what a click can", async () => {
-    const w = page();
+    const w = await page();
+    const push = vi.spyOn(router, "push").mockResolvedValue(undefined);
     // The menu's items render only once it is open; the trigger is what proves the path exists.
     expect(w.find('button[aria-label="Actions"]').exists()).toBe(true);
     const table = w.findComponent(DataTable) as unknown as { vm: { $emit: (e: string, p: unknown) => void } };

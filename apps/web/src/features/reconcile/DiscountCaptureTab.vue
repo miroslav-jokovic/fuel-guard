@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { analyzeContractCapture, weeklyContractCapture, type SpendLine } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { downloadCsv } from "@/lib/csv";
+import ExportButton from "@/components/ExportButton.vue";
 import { usd, usd3, gal, pct1 } from "./format";
 import PriceCoverageStrip from "./PriceCoverageStrip.vue";
 
@@ -33,6 +35,21 @@ const emit = defineEmits<{ narrow: [from: string, to: string] }>();
 
 const capture = computed(() => analyzeContractCapture(props.lines));
 const weekly = computed(() => weeklyContractCapture(props.lines));
+
+/**
+ * The four rates under the headline (D-US6). A rate nothing measured is `null` — the shared
+ * formatters print their own dash for it, so it is passed through as a blank for FactList's dash.
+ */
+const orBlank = <T,>(n: T | null | undefined, f: (n: T) => string) => (n == null ? null : f(n));
+const rateFacts = computed<Fact[]>(() => {
+  const c = capture.value;
+  return [
+    { label: "Quoted / gal", value: orBlank(c.contractPerGal, usd3), numeric: true },
+    { label: "Billed / gal", value: orBlank(c.paidPerGal, usd3), numeric: true },
+    { label: "Billed at contract", value: orBlank(c.honouredShare, pct1), numeric: true },
+    { key: "captured", label: "Captured vs retail", value: usd(c.captured), numeric: true },
+  ];
+});
 
 /** Every fill in scope, so the unmeasured share can be stated against a real denominator. */
 const inScope = computed(
@@ -150,31 +167,18 @@ function exportLines() {
           </div>
         </div>
 
-        <dl class="mt-4 grid grid-cols-2 gap-4 border-t border-edge-subtle pt-4 sm:grid-cols-4">
-          <div>
-            <dt class="text-xs text-ink-muted">Quoted / gal</dt>
-            <dd class="text-lg font-semibold text-ink">{{ usd3(capture.contractPerGal) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs text-ink-muted">Billed / gal</dt>
-            <dd class="text-lg font-semibold text-ink">{{ usd3(capture.paidPerGal) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs text-ink-muted">Billed at contract</dt>
-            <dd class="text-lg font-semibold text-ink">{{ pct1(capture.honouredShare) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs text-ink-muted">Captured vs retail</dt>
-            <dd class="text-lg font-semibold text-ink">{{ usd(capture.captured) }}</dd>
-            <!-- The other three figures in this row are measured over the QUOTED fills; this one is
-                 measured over the narrower set that also had a POSTED price. Three denominators in one
-                 <dl> with only one of them stated is how a reader ends up dividing the wrong pair. -->
-            <dd class="text-2xs text-ink-tertiary">
+        <FactList :facts="rateFacts" class="mt-4 border-t border-edge-subtle pt-4" data-testid="capture-rates">
+          <!-- The other three figures in this row are measured over the QUOTED fills; this one is
+               measured over the narrower set that also had a POSTED price. Three denominators in one
+               <dl> with only one of them stated is how a reader ends up dividing the wrong pair. -->
+          <template #value-captured="{ fact }">
+            {{ fact.value }}
+            <span class="block text-2xs font-normal text-ink-tertiary">
               over {{ capture.capturedLines.toLocaleString() }} of
               {{ capture.measuredLines.toLocaleString() }} priced fills
-            </dd>
-          </div>
-        </dl>
+            </span>
+          </template>
+        </FactList>
 
         <p class="mt-3 text-sm text-ink-muted">
           {{ capture.honouredLines.toLocaleString() }} of {{ capture.measuredLines.toLocaleString() }} measured fills
@@ -191,10 +195,7 @@ function exportLines() {
       <!-- How the figures above were resolved. Both caveats are independent: a window can be fully
            measured and still lean on carried-forward quotes, and an earlier version nested the second
            inside the first so it disappeared exactly when every fill WAS measurable. -->
-      <p
-        v-if="capture.unmeasuredLines > 0 || capture.carriedForwardLines > 0"
-        class="rounded-surface bg-caution-50 px-4 py-2.5 text-xs text-caution-800 ring-1 ring-caution-100"
-      >
+      <AppCallout v-if="capture.unmeasuredLines > 0 || capture.carriedForwardLines > 0" tone="caution">
         <template v-if="capture.unmeasuredLines > 0">
           {{ capture.unmeasuredLines.toLocaleString() }} of {{ inScope.toLocaleString() }} fills
           ({{ gal(capture.unmeasuredGallons) }} gallons, {{ usd(capture.unmeasuredPaid) }}) had no quote in range — an
@@ -205,7 +206,7 @@ function exportLines() {
           {{ capture.carriedForwardLines.toLocaleString() }} fill{{ capture.carriedForwardLines === 1 ? " was" : "s were" }}
           measured against the previous day's quote, the report not having been issued that day.
         </template>
-      </p>
+      </AppCallout>
 
       <div v-if="exceptionRows.length">
         <div class="mb-2 flex items-center justify-between">
@@ -214,11 +215,15 @@ function exportLines() {
             <span v-if="capture.exceptions.length > EXCEPTION_CAP" class="text-2xs text-ink-tertiary">
               showing {{ EXCEPTION_CAP }} of {{ capture.exceptions.length.toLocaleString() }}
             </span>
-            <BaseButton variant="ghost" @click="exportLines">Download every exception (CSV)</BaseButton>
+            <ExportButton
+              :run="exportLines"
+              :scope="`${capture.exceptions.length.toLocaleString()} exceptions`"
+              label="Download every exception (CSV)"
+            />
           </div>
         </div>
         <BaseCard padding="none">
-          <DataTable :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
+          <DataTable embedded :columns="exceptionCols" :rows="exceptionRows" empty-text="Nothing off contract." />
         </BaseCard>
       </div>
 
@@ -230,7 +235,7 @@ function exportLines() {
           </span>
         </div>
         <BaseCard padding="none">
-          <DataTable :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
+          <DataTable embedded :columns="siteCols" :rows="siteRows" empty-text="No site billed above contract." />
         </BaseCard>
       </div>
 

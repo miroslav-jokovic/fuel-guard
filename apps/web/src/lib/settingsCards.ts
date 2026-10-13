@@ -57,6 +57,7 @@ export const SETTINGS_CARDS: readonly SettingsCard[] = [
   { key: "admin.settings.efs", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", block: "config" },
   { key: "admin.settings.mcleod-fleets", icon: ConnectIcon, desc: "Which McLeod dispatcher runs each fleet, and who each dispatcher is here. Builds the dispatch board's My fleet.", block: "config" },
   { key: "admin.settings.fleetpal", icon: ConnectIcon, desc: "The FleetPal API key, the hourly repair-record sweep, and what each collection last brought in.", block: "config" },
+  { key: "admin.settings.medstop", icon: ConnectIcon, desc: "The Med-Stop API key and its expiry, and the hourly read of the drug and alcohol roster and random pools.", block: "config" },
   { key: "admin.settings.card-control", icon: LockIcon, desc: "Who may lock cards and grant fuel exceptions, and the EFS write-access check.", block: "config" },
   { key: "admin.settings.thresholds", icon: AdjustmentsHorizontalIcon, desc: "The limits that decide when a fill is flagged, and the AI second opinion.", block: "config" },
   { key: "admin.settings.driver-performance", icon: TrophyIcon, desc: "How safety, efficiency and idling are weighted into a driver's score.", block: "config" },

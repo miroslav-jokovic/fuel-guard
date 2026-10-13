@@ -110,6 +110,31 @@ export interface DashboardWidget {
  * accounting no currency figure anywhere on the tab" is what holds the line.
  */
 export const DASHBOARD_WIDGETS: readonly DashboardWidget[] = [
+  // ── operations (FLEET-MANAGER-HOME-PLAN §4) ──────────────────────────────────────────────────────
+  /**
+   * Is the fleet ready to run today, and what is stopping it? Each card's gate is the section whose
+   * data it reads (D-FM4), so the tab's own `manage("equipment")` decides who gets the page and these
+   * decide what is on it — an org that grants equipment to somebody with `roster: none` gets the tab
+   * without the driver cards. Every figure is current state (D-FM5) except the fuel card, which says
+   * its fixed window on its face. No card reads a currency field (D-FM6).
+   *
+   * Rows of three at four columns; the Shop card (FM3, 2026-10-13) joined seats + paperwork, which
+   * sat at six until then. The plan drew row one 5/4/3; the browser pass (2026-10-12, 1104 px) put the
+   * three-column Driver files card's header door on top of its title, so no card here is narrower
+   * than four.
+   */
+  { span: 4 as const, key: "ops.fleet-now", label: "Fleet right now", tab: "ops", gate: section("dispatch"), module: "dispatch" },
+  { span: 4 as const, key: "ops.road-attention", label: "Needs a hand now", tab: "ops", gate: section("dispatch"), module: "dispatch" },
+  { span: 4 as const, key: "ops.driver-files", label: "Driver files", tab: "ops", gate: section("roster") },
+  { span: 4 as const, key: "ops.seats", label: "Seats", tab: "ops", gate: section("equipment") },
+  { span: 4 as const, key: "ops.shop", label: "Shop", tab: "ops", gate: section("maintenance") },
+  { span: 4 as const, key: "ops.truck-papers", label: "Truck paperwork", tab: "ops", gate: section("equipment") },
+  { span: 4 as const, key: "ops.fuel", label: "Fuel", tab: "ops", gate: section("fuel") },
+  { span: 4 as const, key: "ops.hazmat", label: "Hazmat to review", tab: "ops", gate: section("hazmat"), module: "hazmatguard" },
+  { span: 4 as const, key: "ops.hiring", label: "Hiring", tab: "ops", gate: section("recruitment") },
+  // FM5 (Q-FM7 (a), 2026-10-13): FMCSA's roadside record, last 90 days — the inspections list measured.
+  { span: 4 as const, key: "ops.roadside", label: "Roadside inspections", tab: "ops", gate: section("safety") },
+
   // ── fleet overview (v3, D-FO10: six cards, no per-card period switchers) ──────────────────────
   { span: 5 as const, key: "fleet.fuel", label: "Fuel spend", tab: "fleet", gate: section("fuel") },
   { span: 4 as const, key: "fleet.efficiency", label: "Fleet MPG", tab: "fleet", gate: section("fuel") },

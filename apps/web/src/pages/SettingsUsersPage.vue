@@ -1,20 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { useQueryState } from "@/composables/useQueryState";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { AppSearchField as SearchInput } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, inviteTone, suspendedBadge, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
+import { useConfirm } from "@/stores/confirm";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { formatDate } from "@/lib/format";
 import MemberPasswordResetDrawer from "@/features/settings/MemberPasswordResetDrawer.vue";
@@ -23,18 +28,24 @@ import MemberRenameDrawer from "@/features/settings/MemberRenameDrawer.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { apiRefusal, useStepUpRetry } from "@/composables/useStepUpRetry";
 import {
-  bulkRemoveConfirmText,
+  bulkRemoveConfirm,
+  deleteInviteConfirm,
   bulkRemoveMembers,
   isSuspended,
   offersAccessActions,
   reinstateMember,
   removeMember,
+  selfRoleConfirm,
   suspendMember,
+  type Ask,
   type StepUpHold,
 } from "@/features/settings/memberAccess";
 
 const toast = useToastStore();
 const session = useSessionStore();
+// The product's confirm (D-US7), taken once at setup and handed to `memberAccess.ts`, whose acts are
+// plain functions and cannot call a store hook from inside a click.
+const ask = useConfirm();
 
 /**
  * SP9 (Q-SET8 (a), ruled 2026-09-30): every write on this page — invitations, roles, suspend, reinstate,
@@ -187,9 +198,9 @@ async function revoke(id: string) {
 
 async function remove(id: string) {
   const inv = invites.value.find((i) => i.id === id);
-  // window.confirm, matching the destructive-action precedent on the pages beside this one. The
-  // email is in the sentence because the row it names is about to stop being on screen.
-  if (!confirm(`Delete the invitation for ${inv?.email ?? "this address"}? The audit log keeps a record.`)) return;
+  // The product's confirm (D-US7), as for every access act on this page. The email is in the question
+  // because the row it names is about to stop being on screen.
+  if (!(await ask(deleteInviteConfirm(inv?.email)))) return;
   await removeConfirmed(id);
 }
 /** Split from `remove` so a step-up retry does not ask "are you sure?" a second time. */
@@ -217,8 +228,8 @@ async function resend(id: string) {
 }
 
 /** Remove / suspend / reinstate: confirm, act, toast (`memberAccess.ts`), then reload on success. */
-const memberAct = (run: (m: OrgMember, hold: StepUpHold, after: () => Promise<void>) => Promise<void>, m: OrgMember) =>
-  run(m, holdForStepUp, load);
+const memberAct = (run: (a: Ask, m: OrgMember, hold: StepUpHold, after: () => Promise<void>) => Promise<void>, m: OrgMember) =>
+  run(ask, m, holdForStepUp, load);
 
 // Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
 // so the inline picker snaps back to the true value.
@@ -232,7 +243,7 @@ async function changeRole(userId: string, newRole: string) {
   const m = members.value.find((x) => x.userId === userId);
   if (!m || m.role === newRole) return;
   // Q-SET6 (a): a role change signs the person out at once (SP7), yourself included.
-  if (userId === session.userId && newRole !== "admin" && !confirm("Change your own role? You will be signed out now and lose admin access.")) {
+  if (userId === session.userId && newRole !== "admin" && !(await ask(selfRoleConfirm))) {
     await load();
     return;
   }
@@ -255,7 +266,9 @@ async function sendRole(m: OrgMember, newRole: string) {
 const renaming = ref<OrgMember | null>(null); // 0301 — the drawer owns the save and its step-up
 const resetting = ref<OrgMember | null>(null); // 0363 — the drawer owns the send and its step-up
 // ── search + multi-select (members) ─────────────────────────────────────────
-const search = ref("");
+// In the URL (D-US2), so a reload or Back keeps the member the admin searched for. The page's other
+// list, invitations, has no filter, so the key needs no scope.
+const search = useQueryState().param("search");
 const filteredMembers = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return members.value;
@@ -267,12 +280,24 @@ const filteredMembers = computed(() => {
   );
 });
 
+// D-US8: the members list pages, the page in the URL beside the search (D-US2). The search resets it
+// to 1 — the rows arriving do not, or a pasted ?page=2 would be lost on load; the clamp pulls it back
+// when a removal leaves fewer pages than the one showing.
+const PAGE_SIZE = 20;
+const page = useQueryState().page();
+watch(search, () => (page.value = 1));
+watch(filteredMembers, (rows) => {
+  const maxPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (page.value > maxPage) page.value = maxPage;
+});
+const pageMembers = computed(() => filteredMembers.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
 // DataTable owns the checkboxes + select-all; bulk remove never targets yourself.
 const selectedIds = ref<Set<string>>(new Set());
 const bulkBusy = ref(false);
 async function bulkRemove() {
   const ids = [...selectedIds.value].filter((id) => id !== session.userId);
-  if (ids.length === 0 || !confirm(bulkRemoveConfirmText(ids.length))) return;
+  if (ids.length === 0 || !(await ask(bulkRemoveConfirm(ids.length)))) return;
   bulkBusy.value = true;
   await bulkRemoveMembers(ids, holdForStepUp, load);
   bulkBusy.value = false;
@@ -302,7 +327,7 @@ onMounted(load);
     <BaseCard as="section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 class="text-base font-semibold text-ink">Invite a user</h3>
+          <h3 class="text-sm font-semibold text-ink">Invite a user</h3>
           <p class="mt-1 text-sm text-ink-muted">Only addresses on your organization's allowed domain can be invited.</p>
         </div>
         <BaseButton
@@ -369,24 +394,25 @@ onMounted(load);
     </BaseCard>
 
     <section class="space-y-3">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-base font-semibold text-ink">Active members</h3>
-        <div class="w-full sm:w-64">
-          <SearchInput v-model="search" placeholder="Search members…" />
-        </div>
-      </div>
+      <h3 class="text-lg font-semibold text-ink">Active members</h3>
 
-      <div v-if="selectedIds.size > 0" class="flex items-center justify-between rounded-surface bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100">
-        <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
-        <div class="flex items-center gap-3">
-          <BaseButton :disabled="bulkBusy" class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50" @click="bulkRemove">Remove</BaseButton>
-          <BaseButton class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</BaseButton>
-        </div>
-      </div>
+      <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search members…"
+        :count="filteredMembers.length"
+        count-label="members"
+      />
+
+      <BulkActionBar :count="selectedIds.size" @clear="selectedIds = new Set()">
+        <BaseButton variant="danger" size="sm" :disabled="bulkBusy" @click="bulkRemove">Remove</BaseButton>
+      </BulkActionBar>
 
       <DataTable
+        embedded
         :columns="memberColumns"
-        :rows="filteredMembers"
+        :rows="pageMembers"
         row-key="userId"
         :loading="loading"
         empty-text="No members match."
@@ -417,7 +443,11 @@ onMounted(load);
             </template>
           </KebabMenu>
         </template>
+        <template #footer>
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredMembers.length" :loading="loading" @update:page="page = $event" />
+        </template>
       </DataTable>
+      </DataWorkspace>
     </section>
 
     <!-- The matrix itself moved to /settings/permissions (P0): it was collapsed behind a toggle at
@@ -425,7 +455,7 @@ onMounted(load);
          rendered in exactly one place now — a second copy here would be the restated fact the
          no-workarounds rule names. -->
     <section class="space-y-3">
-      <h3 class="text-base font-semibold text-ink">Roles &amp; permissions</h3>
+      <h3 class="text-lg font-semibold text-ink">Roles &amp; permissions</h3>
       <BaseCard as="section">
         <p class="text-sm text-ink-muted">
           Access follows a member's role. See what each role can reach, and what a given member sees
@@ -442,7 +472,7 @@ onMounted(load);
     <MemberPasswordResetDrawer :member="resetting" @close="resetting = null" />
 
     <section class="space-y-3">
-      <h3 class="text-base font-semibold text-ink">Invitations</h3>
+      <h3 class="text-lg font-semibold text-ink">Invitations</h3>
       <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
         <template #cell-full_name="{ row }">
           <span v-if="row.full_name" class="font-medium text-ink">{{ row.full_name }}</span>

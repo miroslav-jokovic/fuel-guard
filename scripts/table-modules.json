@@ -21,7 +21,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "anomaly_transitions": {
@@ -43,7 +43,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "application_captures": {
@@ -76,7 +76,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "application_invitations": {
@@ -98,7 +98,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "asset_movements": {
@@ -109,7 +109,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "asset_types": {
@@ -120,7 +120,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "audit_logs": {
@@ -175,7 +175,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "certifications": {
@@ -219,7 +219,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "document_pages": {
@@ -318,7 +318,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_account_closure_requests": {
@@ -329,7 +329,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_app_feature_overrides": {
@@ -340,7 +340,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_app_features": {
@@ -351,7 +351,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_applications": {
@@ -362,7 +362,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_authorizations": {
@@ -384,7 +384,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_employment_history": {
@@ -395,7 +395,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_performance_settings": {
@@ -406,7 +406,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_performance_weeks": {
@@ -417,7 +417,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_scores": {
@@ -439,7 +439,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "driver_hos_clocks": {
@@ -472,7 +472,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "drivers": {
@@ -494,7 +494,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_capability_promotions": {
@@ -505,7 +505,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_capability_proofs": {
@@ -516,7 +516,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_card_control_approvers": {
@@ -527,7 +527,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_card_control_settings": {
@@ -538,7 +538,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_card_mutations": {
@@ -582,7 +582,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "efs_soap_credentials": {
@@ -615,7 +615,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "esign_consents": {
@@ -626,7 +626,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "finance_month_closes": {
@@ -637,7 +637,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "financial_entries": {
@@ -648,7 +648,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span \u2014 that is a BACKFILL, not a steady rate; re-measure before trusting this budget."
+        "why": "core financial records projected from McLeod staging. Measured 1,801/day over a 25-day span \u2014 that is a BACKFILL, not a steady rate; re-measure before trusting this budget. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "fleetpal_credentials": {
@@ -659,7 +659,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_defects": {
@@ -670,7 +670,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_expirations": {
@@ -681,7 +681,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_issues": {
@@ -692,7 +692,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_job_items": {
@@ -703,7 +703,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_jobs": {
@@ -714,7 +714,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_meters": {
@@ -725,7 +725,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_pm_intervals": {
@@ -736,7 +736,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_pm_schedules": {
@@ -747,7 +747,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_po_invoices": {
@@ -758,7 +758,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_po_items": {
@@ -791,7 +791,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_service_history": {
@@ -802,7 +802,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_shops": {
@@ -813,7 +813,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_sync_state": {
@@ -824,7 +824,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_units": {
@@ -835,7 +835,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_vendors": {
@@ -846,7 +846,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_webhook_deliveries": {
@@ -857,7 +857,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fleetpal_work_orders": {
@@ -868,7 +868,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fmcsa_fetch_runs": {
@@ -912,7 +912,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_events": {
@@ -956,7 +956,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_price_days": {
@@ -1000,7 +1000,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_recon_run_rows": {
@@ -1033,7 +1033,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_statements": {
@@ -1044,7 +1044,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_stations": {
@@ -1077,7 +1077,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "fuel_txn_recon": {
@@ -1121,7 +1121,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "hazmat_loads": {
@@ -1132,7 +1132,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "hazmat_policies": {
@@ -1143,7 +1143,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "hazmat_reviews": {
@@ -1154,7 +1154,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "hazmat_runs": {
@@ -1165,7 +1165,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "hos_duty_segments": {
@@ -1297,7 +1297,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "imports": {
@@ -1319,7 +1319,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "inventory_assets": {
@@ -1330,7 +1330,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "invites": {
@@ -1363,7 +1363,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "road_test_examiners": {
@@ -1506,7 +1506,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "maintenance_print_profiles": {
@@ -1517,7 +1517,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "mcleod_ap_vouchers": {
@@ -1528,7 +1528,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 55 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_billing": {
@@ -1539,7 +1539,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 424 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_deductions": {
@@ -1550,7 +1550,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 372 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_dispatch_movements": {
@@ -1594,7 +1594,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away."
+        "why": "bounded by fleet/org size, not by elapsed time; it cannot run away. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_gl_days": {
@@ -1605,7 +1605,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 79 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_gl_totals": {
@@ -1616,7 +1616,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 500,
-        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 48 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_movements": {
@@ -1627,7 +1627,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 839 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_office_lines": {
@@ -1638,7 +1638,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 50,
-        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 15 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
     "mcleod_settlements": {
@@ -1649,7 +1649,73 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": 5000,
-        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. Retention unruled \u2014 DATA-LIFECYCLE-PLAN L9."
+        "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
+      }
+    },
+    "medstop_credentials": {
+      "module": "medstop",
+      "layer": "infra",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "new 2026-10-13 (0463): one row per org holding the sealed Med-Stop key; bounded by the number of orgs."
+      }
+    },
+    "medstop_employees": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "fleet",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": null,
+        "why": "snapshot of Med-Stop's roster (0463, MEDSTOP-PLAN \u00a76): ~900 rows per org (170 active + 27 applicants + 689 terminated, measured 2026-10-13), replaced whole by every sweep, so it does not grow with time."
+      }
+    },
+    "medstop_pools": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 1,
+        "why": "snapshot of Med-Stop's random pools (0463): two per year per org, replaced whole by every sweep."
+      }
+    },
+    "medstop_requests": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "Med-Stop test requests (0464, MEDSTOP-PLAN \u00a76 F-4): merged by id, never deleted; 2,152 per org since 2013, ~640 in the 12 months to 2026-10-13 (~2 a day)."
+      }
+    },
+    "medstop_selections": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "snapshot of Med-Stop's random selections (0463): ~870 rows per org across all years (measured 2026-10-13), replaced whole by every sweep; grows ~150 a year."
+      }
+    },
+    "medstop_tests": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "Med-Stop tests with their verified result (0464, MEDSTOP-PLAN \u00a76 F-4/F-5): merged by id, never deleted -- a \u00a7382.401 testing record; 1,666 per org since 2013, 453 in the 12 months to 2026-10-13 (~1.3 a day)."
       }
     },
     "memberships": {
@@ -1660,7 +1726,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "message_reports": {
@@ -1671,7 +1737,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "message_threads": {
@@ -1682,7 +1748,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "messages": {
@@ -1693,7 +1759,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "migration_markers": {
@@ -1704,7 +1770,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "notification_dedupe_keys": {
@@ -1737,7 +1803,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "notification_reads": {
@@ -1748,7 +1814,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "org_disclosures": {
@@ -1759,7 +1825,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "org_integrations": {
@@ -1781,7 +1847,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "org_role_surface_access": {
@@ -1792,7 +1858,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "org_section_access": {
@@ -1803,7 +1869,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "org_usage_month": {
@@ -1814,7 +1880,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "organizations": {
@@ -1836,7 +1902,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "part_stock": {
@@ -1847,7 +1913,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "parts": {
@@ -1858,7 +1924,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "password_resets": {
@@ -1891,7 +1957,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "platform_alert_recipients": {
@@ -1902,7 +1968,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "new 2026-10-05 (0427): a hand-kept list of a few people, written only from the console's Settings; bounded by the number of orgs."
       }
     },
     "platform_release_approvals": {
@@ -1913,7 +1979,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "new 2026-10-08 (0440, D-REL14): at most a few rows per release night, written only from the console's Settings; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "new 2026-10-08 (0440, D-REL14): at most a few rows per release night, written only from the console's Settings; bounded by the number of orgs."
       }
     },
     "platform_audit_log": {
@@ -1924,7 +1990,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "psp_requests": {
@@ -1935,7 +2001,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "qualification_records": {
@@ -1946,7 +2012,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "roadside_citations": {
@@ -2001,7 +2067,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "route_geometries": {
@@ -2023,7 +2089,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "samsara_feed_cursors": {
@@ -2089,7 +2155,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "scoring_attempts": {
@@ -2122,7 +2188,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "station_geocode_learned": {
@@ -2144,7 +2210,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "stock_locations": {
@@ -2155,7 +2221,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "support_impersonation_grants": {
@@ -2166,7 +2232,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "surface_page_views": {
@@ -2188,7 +2254,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "tms_dispatchers": {
@@ -2221,7 +2287,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "trailers": {
@@ -2243,7 +2309,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "user_profiles": {
@@ -2254,7 +2320,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "user_section_access": {
@@ -2265,7 +2331,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "user_surface_access": {
@@ -2276,7 +2342,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "vehicle_fuel_tax_exclusions": {
@@ -2353,7 +2419,7 @@
         "retention_days": null,
         "partition": null,
         "budget_rows_per_day": null,
-        "why": "no rows in production 2026-09-21; growth and budget owed at first write (D-LIFE1 ratchet)."
+        "why": "no rows in production 2026-09-21; bounded by the number of orgs."
       }
     },
     "vehicle_tank_learned": {

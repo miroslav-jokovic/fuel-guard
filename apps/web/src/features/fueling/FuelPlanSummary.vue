@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import FuelStatTile from "./FuelStatTile.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{ result: PlanResult }>();
@@ -21,9 +21,9 @@ const discountHint = computed(() => (plan.value?.discountSavings == null ? "need
 
 <template>
   <div v-if="plan" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    <FuelStatTile label="Route" :value="result.route ? `${result.route.distanceMiles} mi` : '—'" :hint="`${plan.stops.length} stop${plan.stops.length === 1 ? '' : 's'}`" />
-    <FuelStatTile label="Fuel to buy" :value="`${plan.totalGallons} gal`" :hint="plan.arrivalFuelPct != null ? `arrive ~${plan.arrivalFuelPct}%` : undefined" />
-    <FuelStatTile label="Est. cost" :value="usd(plan.totalCost)" tone="brand" :hint="costHint" />
-    <FuelStatTile label="Your discount" :value="usd(plan.discountSavings)" :hint="discountHint" :tone="plan.discountSavings != null && plan.discountSavings > 0 ? 'success' : 'ink'" />
+    <StatCard label="Route" :value="result.route ? `${result.route.distanceMiles} mi` : '—'" :sub="`${plan.stops.length} stop${plan.stops.length === 1 ? '' : 's'}`" />
+    <StatCard label="Fuel to buy" :value="`${plan.totalGallons} gal`" :sub="plan.arrivalFuelPct != null ? `arrive ~${plan.arrivalFuelPct}%` : undefined" />
+    <StatCard label="Est. cost" :value="usd(plan.totalCost)" value-tone="text-brand-700" :sub="costHint" />
+    <StatCard label="Your discount" :value="usd(plan.discountSavings)" :sub="discountHint" :value-tone="plan.discountSavings != null && plan.discountSavings > 0 ? 'text-success-700' : undefined" />
   </div>
 </template>

@@ -6,6 +6,8 @@ import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
 import { useUnitKitQuery } from "./useUnits";
 import { useSessionStore } from "@/stores/session";
 import { useOpens } from "@/composables/useOpens";
+import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * What this truck or trailer is carrying — read only (INVENTORY-PLAN.md I9, D-AVI17).
@@ -31,11 +33,21 @@ const maySee = computed(() => session.canView("maintenance"));
 
 const kindRef = computed(() => props.kind);
 const idRef = computed(() => (maySee.value ? props.unitId : ""));
-const { data, isLoading, isError } = useUnitKitQuery(kindRef, idRef);
+const { data, isLoading, isError, error, isFetching, refetch } = useUnitKitQuery(kindRef, idRef);
 
 const unit = computed<UnitKitDto | null>(() => data.value?.unit ?? null);
 /** Only the lines somebody expects, plus anything unexpected the unit is actually carrying. */
 const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected > 0 || l.held > 0));
+/** One fact per line: held, with "of expected" beside it; a short line (delta < 0) reads in danger. */
+const kitFacts = computed<Fact[]>(() =>
+  lines.value.map((l) => ({
+    key: l.assetTypeId,
+    label: l.assetTypeName,
+    value: l.held,
+    numeric: true,
+    ...(l.delta < 0 ? { tone: "font-semibold text-danger-700" } : {}),
+  })),
+);
 </script>
 
 <template>
@@ -53,19 +65,24 @@ const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected 
       </span>
     </div>
 
-    <p v-if="isLoading" class="mt-3 text-sm text-ink-tertiary">Loading…</p>
-    <p v-else-if="isError" class="mt-3 text-sm text-ink-secondary">Could not load what this unit is carrying.</p>
-
-    <template v-else-if="unit">
-      <dl v-if="lines.length" class="mt-3 space-y-2">
-        <div v-for="line in lines" :key="line.assetTypeId" class="flex items-baseline justify-between gap-4">
-          <dt class="text-sm text-ink">{{ line.assetTypeName }}</dt>
-          <dd class="text-sm tabular-nums" :class="line.delta < 0 ? 'font-semibold text-danger-700' : 'text-ink-secondary'">
-            {{ line.held }}<span class="text-ink-tertiary"> of {{ line.expected }}</span>
-          </dd>
-        </div>
-      </dl>
-      <p v-else class="mt-3 text-sm text-ink-secondary">
+    <!-- A card on the vehicle page, so the one-line failure with its Retry beside it (D-US5). -->
+    <div class="mt-3">
+    <QueryState
+      compact
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the kit…"
+      error-text="Could not load what this unit is carrying."
+      @retry="refetch()"
+    >
+    <template v-if="unit">
+      <FactList v-if="lines.length" layout="rows" :facts="kitFacts">
+        <template v-for="line in lines" :key="line.assetTypeId" #[`value-${line.assetTypeId}`]="{ fact }">
+          {{ fact.value }}<span class="font-normal text-ink-tertiary"> of {{ line.expected }}</span>
+        </template>
+      </FactList>
+      <p v-else class="text-sm text-ink-secondary">
         Nothing is expected on this unit yet, and it is carrying nothing.
       </p>
 
@@ -78,5 +95,7 @@ const lines = computed(() => (unit.value?.lines ?? []).filter((l) => l.expected 
         Open in the shop
       </RouterLink>
     </template>
+    </QueryState>
+    </div>
   </BaseCard>
 </template>

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
-import { createRouter, createMemoryHistory } from "vue-router";
+import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { PipelineApplicant } from "@/features/recruitment/useEmployment";
@@ -140,15 +140,22 @@ function widenViewport(wide: boolean) {
   });
 }
 
-const router = createRouter({
-  history: createMemoryHistory(),
-  routes: [
-    { path: "/recruitment", name: "recruitment", component: { template: "<div />" } },
-    { path: "/recruitment/screening", name: "screening-readiness", component: { template: "<div />" } },
-    { path: "/recruitment/inquiries", name: "inquiry-queue", component: { template: "<div />" } },
-    { path: "/recruitment/:id", name: "applicant-record", component: { template: "<div />" } },
-  ],
-});
+/**
+ * ⚠ A FRESH router per board, since D-US2 put the board's filters in the URL: one router shared by
+ * the suite carried the last test's `?waiting=any` into the next test's board, and its in-flight
+ * `replace` could land after the next `push`.
+ */
+let router: Router;
+const newRouter = () =>
+  createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: "/recruitment", name: "recruitment", component: { template: "<div />" } },
+      { path: "/recruitment/screening", name: "screening-readiness", component: { template: "<div />" } },
+      { path: "/recruitment/inquiries", name: "inquiry-queue", component: { template: "<div />" } },
+      { path: "/recruitment/:id", name: "applicant-record", component: { template: "<div />" } },
+    ],
+  });
 
 /**
  * ⚠ Every mount attaches to `document.body` and `FilterSelect` teleports its panel there too, so a
@@ -164,10 +171,11 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-async function mountBoard(wide = true) {
+async function mountBoard(wide = true, url = "/recruitment") {
   widenViewport(wide);
   setActivePinia(createPinia());
-  await router.push("/recruitment");
+  router = newRouter();
+  await router.push(url);
   await router.isReady();
   const RecruitmentPage = (await import("@/pages/RecruitmentPage.vue")).default;
   /**
@@ -183,7 +191,7 @@ async function mountBoard(wide = true) {
     attachTo: document.body,
   });
   mounted.push(wrapper);
-  await wrapper.vm.$nextTick();
+  await flushPromises();
   return wrapper;
 }
 
@@ -206,7 +214,7 @@ async function choose(wrapper: Awaited<ReturnType<typeof mountBoard>>, label: st
   const opt = openOptions().find((o) => option.test(o.textContent ?? ""));
   expect(opt, `no option matching ${option} under "${label}"`).toBeDefined();
   opt!.click();
-  await wrapper.vm.$nextTick();
+  await flushPromises();
 }
 
 describe("the default view, and what it must say about what it hides", () => {
@@ -252,7 +260,7 @@ describe("clearing a filter shows more, never nothing", () => {
         return;
       }
       await clear.trigger("click");
-      await wrapper.vm.$nextTick();
+      await flushPromises();
       expect(names(wrapper).length).toBeGreaterThan(0);
     });
   }
@@ -263,8 +271,30 @@ describe("clearing a filter shows more, never nothing", () => {
       .findAll("button")
       .find((b) => b.attributes("aria-label") === "Clear Waiting on filter");
     await clear!.trigger("click");
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     expect(names(wrapper)).toContain("Already Declined");
+  });
+});
+
+describe("Clear filters", () => {
+  const clearButton = (wrapper: Awaited<ReturnType<typeof mountBoard>>) =>
+    wrapper.findAll("button").find((b) => b.text() === "Clear filters");
+
+  /**
+   * ⚠ *Waiting on you* is the board's default, not a filter somebody set — so it must not offer
+   * "Clear filters" on arrival, and clearing must come back to it rather than to *Everyone*.
+   */
+  it("returns a widened board to what is waiting on the office, then goes away", async () => {
+    const wrapper = await mountBoard();
+    expect(clearButton(wrapper)).toBeUndefined();
+
+    await choose(wrapper, "Waiting on", /Everyone/);
+    expect(names(wrapper)).toHaveLength(4);
+    await clearButton(wrapper)!.trigger("click");
+    await flushPromises();
+
+    expect(new Set(names(wrapper))).toEqual(new Set(["Mine One", "Mine Two"]));
+    expect(clearButton(wrapper)).toBeUndefined();
   });
 });
 
@@ -372,5 +402,51 @@ describe("who is offered Hire…", () => {
     expect(await itemsOnLiveBoard()).toContain("Hire…");
     who.sections = { roster: "view" };
     expect(await itemsOnLiveBoard()).not.toContain("Hire…");
+  });
+});
+
+/**
+ * D-US2 (2026-10-12): the board's view, filters, search, sort and page are the URL, so Back from an
+ * applicant's record and a link a recruiter sends both open the same board. The board's two defaults
+ * (*waiting on you*, oldest first) stay OUT of the URL, so a plain link is still the morning's view.
+ */
+describe("the board in the URL (D-US2)", () => {
+  const query = () => router.currentRoute.value.query;
+
+  it("opens on its defaults with nothing in the URL", async () => {
+    await mountBoard();
+    expect(query()).toEqual({});
+  });
+
+  it("reads the filter and the sort back from a pasted link", async () => {
+    const wrapper = await mountBoard(true, "/recruitment?waiting=them");
+    expect(names(wrapper)).toEqual(["Theirs One"]);
+
+    const everyone = await mountBoard(true, "/recruitment?waiting=any&dir=asc");
+    const days = everyone.findAll("tbody tr").map((tr) => Number(tr.findAll("td").at(-2)!.text()));
+    expect(days).toEqual([...days].sort((a, b) => a - b));
+    expect(days).toHaveLength(4);
+  });
+
+  it("writes Everyone as its own word, and a header click to the URL", async () => {
+    const wrapper = await mountBoard();
+    await choose(wrapper, "Waiting on", /Everyone/);
+    expect(query()).toEqual({ waiting: "any" });
+    // Days waiting opens descending, so the next press is toggleSort's "none" — written, not dropped.
+    await wrapper.find("th button").trigger("click");
+    await flushPromises();
+    expect(query()).toEqual({ waiting: "any", sort: "any", dir: "any" });
+  });
+
+  it("opens a plain ?archived=1 link on Everyone, as the chip does", async () => {
+    const wrapper = await mountBoard(true, "/recruitment?archived=1");
+    expect(names(wrapper)).toHaveLength(4);
+  });
+
+  it("Clear filters returns to the defaults and keeps the sort", async () => {
+    const wrapper = await mountBoard(true, "/recruitment?waiting=them&phase=screening&search=x&archived=1&dir=asc");
+    await wrapper.findAll("button").find((b) => b.text() === "Clear filters")!.trigger("click");
+    await flushPromises();
+    expect(query()).toEqual({ dir: "asc" });
   });
 });

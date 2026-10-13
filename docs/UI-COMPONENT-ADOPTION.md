@@ -6,22 +6,22 @@ Generated from the current Vue source with `pnpm audit:ui -- --markdown`. Re-run
 
 | Measure | Count |
 |---|---:|
-| `webPages` | 82 |
-| `adminPages` | 6 |
-| `pagesUsingPageHeader` | 68 |
+| `webPages` | 88 |
+| `adminPages` | 8 |
+| `pagesUsingPageHeader` | 74 |
 | `pagesWithoutPageHeader` | 14 |
-| `baseCardInstances` | 216 |
-| `radiusUtilities` | 461 |
-| `textSmUtilities` | 1087 |
-| `textXsUtilities` | 774 |
+| `baseCardInstances` | 197 |
+| `radiusUtilities` | 450 |
+| `textSmUtilities` | 1028 |
+| `textXsUtilities` | 688 |
 | `inkSubtleUtilities` | 0 |
 | `smallInkSubtleLines` | 0 |
 | `rawButtonsInPagesAndFeatures` | 0 |
 | `rawInputsInPagesAndFeatures` | 0 |
 | `rawSelectsInPagesAndFeatures` | 0 |
-| `rawWebTables` | 3 |
+| `rawWebTables` | 2 |
 | `visibleRawWebTables` | 0 |
-| `screenReaderTableFallbacks` | 3 |
+| `screenReaderTableFallbacks` | 2 |
 | `rawAdminTables` | 0 |
 
 ## Web page adoption
@@ -35,7 +35,7 @@ Raw-element counts are evidence for review, not automatic defects. Auth/public p
 | `AnomaliesPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `ApplicantRecordPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `ApplyPage.vue` | No | 2 | 0 | 0 | 0 | 0 |
-| `AskAiPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
+| `AskAiPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `AssetDetailPage.vue` | Yes | 3 | 0 | 0 | 0 | 0 |
 | `AssetsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `AssignmentsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
@@ -44,37 +44,43 @@ Raw-element counts are evidence for review, not automatic defects. Auth/public p
 | `CardControlSettingsPage.vue` | Yes | 5 | 0 | 0 | 0 | 0 |
 | `CompliancePage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `CountSessionPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `CoveragePage.vue` | Yes | 7 | 0 | 0 | 0 | 0 |
+| `CoveragePage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `DashboardPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `DataSyncPage.vue` | Yes | 4 | 0 | 0 | 0 | 0 |
 | `DispatchLoadDetailPage.vue` | Yes | 4 | 0 | 0 | 0 | 0 |
 | `DispatchLoadsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `DriverAppSettingsPage.vue` | Yes | 8 | 0 | 0 | 0 | 0 |
+| `DriverAppSettingsPage.vue` | Yes | 7 | 0 | 0 | 0 | 0 |
 | `DriverDetailPage.vue` | Yes | 3 | 0 | 0 | 0 | 0 |
 | `DriverPerformancePage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `DriverPerformanceSettingsPage.vue` | Yes | 3 | 0 | 0 | 0 | 0 |
 | `DriversPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `EfsSoapPage.vue` | Yes | 4 | 0 | 0 | 0 | 0 |
 | `FleetReportPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
+| `FleetpalSettingsPage.vue` | Yes | 4 | 0 | 0 | 0 | 0 |
+| `FuelBuyDisciplinePage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `FuelCardDetailPage.vue` | Yes | 2 | 0 | 0 | 0 | 0 |
 | `FuelCardsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `FuelProblemsPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
+| `FuelCostsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
+| `FuelInvoiceCheckPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
+| `FuelInvoicesPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `FuelLogPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `FuelPlanningPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `FuelPlanningSettingsPage.vue` | Yes | 6 | 0 | 0 | 0 | 0 |
-| `FuelReconciliationPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
-| `FuelStationsPage.vue` | Yes | 2 | 0 | 0 | 0 | 0 |
+| `FuelProblemsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
+| `FuelStationsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `HazmatCalculatorPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `HazmatLoadDetailPage.vue` | Yes | 5 | 0 | 0 | 0 | 0 |
 | `HazmatReviewPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `IdlingPage.vue` | Yes | 6 | 0 | 0 | 0 | 0 |
-| `IftaLedgerPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
+| `IdlingPage.vue` | Yes | 2 | 0 | 0 | 0 | 0 |
+| `IftaJurisdictionPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
+| `IftaLedgerPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `InquiryQueuePage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `InspectorRegisterPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `LabelsPage.vue` | Yes | 2 | 0 | 0 | 0 | 0 |
+| `LabelsPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `MaintenanceHomePage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `MaintenancePage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `MaintenanceSpendPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
+| `McleodFleetsSettingsPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `MessagesPage.vue` | Yes | 5 | 0 | 0 | 0 | 0 |
 | `NotFoundPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `NotificationsPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
@@ -88,7 +94,7 @@ Raw-element counts are evidence for review, not automatic defects. Auth/public p
 | `RecruitmentPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
 | `RecruitmentTemplatesPage.vue` | Yes | 2 | 0 | 0 | 0 | 0 |
 | `ReeferCoveragePage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
-| `ReportsPage.vue` | Yes | 4 | 0 | 0 | 0 | 0 |
+| `ReportsPage.vue` | Yes | 3 | 0 | 0 | 0 | 0 |
 | `ScanPage.vue` | No | 0 | 0 | 0 | 0 | 0 |
 | `ScreeningReadinessPage.vue` | Yes | 1 | 0 | 0 | 0 | 0 |
 | `ServerErrorPage.vue` | Yes | 0 | 0 | 0 | 0 | 0 |
@@ -117,6 +123,5 @@ Raw-element counts are evidence for review, not automatic defects. Auth/public p
 
 | File | Total | Visible | Screen-reader fallback |
 |---|---:|---:|---:|
-| `apps/web/src/features/dashboard/widgets/CostCompositionWidget.vue` | 1 | 0 | 1 |
-| `apps/web/src/features/dashboard/widgets/MpgTrendWidget.vue` | 1 | 0 | 1 |
-| `apps/web/src/features/dashboard/widgets/SpendTrendWidget.vue` | 1 | 0 | 1 |
+| `apps/web/src/features/dashboard/widgets/EfficiencyWidget.vue` | 1 | 0 | 1 |
+| `apps/web/src/features/dashboard/widgets/FuelWidget.vue` | 1 | 0 | 1 |

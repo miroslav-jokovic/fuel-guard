@@ -10,8 +10,9 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppSelect } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
-const { data, isLoading } = useDriverPerformanceSettings();
+const { data, isLoading, isError, error, isFetching, refetch } = useDriverPerformanceSettings();
 const save = useSaveDriverPerformanceSettings();
 const toast = useToastStore();
 
@@ -81,50 +82,61 @@ const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
     <PageHeader description="How drivers are graded and rewarded each week. Changes apply to future weeks and re-grade the current one." />
-    <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
-    <form v-else class="space-y-6" @submit.prevent="onSave">
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Weights</h3>
-        <p class="mt-1 text-xs text-ink-muted">Relative importance of each component (renormalized, so 0.5 / 0.25 / 0.25 and 2 / 1 / 1 behave the same).</p>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-for="f in weightFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
-          </FormField>
-        </div>
-      </BaseCard>
+    <!-- The form waits for the fetch AND for its failure: before D-US5 a failed read fell through to
+         the form with its built-in defaults, and saving that would have overwritten the org's real
+         weights with 0.5 / 0.25 / 0.25 without anybody having typed them. -->
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the performance settings…"
+      error-text="Could not load the performance settings."
+      @retry="refetch()"
+    >
+      <form class="space-y-6" @submit.prevent="onSave">
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Weights</h3>
+          <p class="mt-1 text-xs text-ink-muted">Relative importance of each component (renormalized, so 0.5 / 0.25 / 0.25 and 2 / 1 / 1 behave the same).</p>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField v-for="f in weightFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
+            </FormField>
+          </div>
+        </BaseCard>
 
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Method & eligibility</h3>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Normalization method">
-            <AppSelect :id="id" v-model="(form.normalization_method as string)" :options="normalizationOptions" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Week starts on">
-            <AppSelect :id="id" v-model="(form.week_starts_on as number)" :options="weekStartOptions" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Idle score basis" hint="Intensity = avoidable idle vs engine-on time (money-aligned). Share = avoidable vs the driver's own idle.">
-            <AppSelect :id="id" v-model="(form.idle_score_basis as string)" :options="idleScoreOptions" />
-          </FormField>
-          <FormField v-for="f in gateFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="numeric" :invalid="Boolean(fieldErr[f.key])" />
-          </FormField>
-        </div>
-      </BaseCard>
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Method & eligibility</h3>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField v-slot="{ id }" label="Normalization method">
+              <AppSelect :id="id" v-model="(form.normalization_method as string)" :options="normalizationOptions" />
+            </FormField>
+            <FormField v-slot="{ id }" label="Week starts on">
+              <AppSelect :id="id" v-model="(form.week_starts_on as number)" :options="weekStartOptions" />
+            </FormField>
+            <FormField v-slot="{ id }" label="Idle score basis" hint="Intensity = avoidable idle vs engine-on time (money-aligned). Share = avoidable vs the driver's own idle.">
+              <AppSelect :id="id" v-model="(form.idle_score_basis as string)" :options="idleScoreOptions" />
+            </FormField>
+            <FormField v-for="f in gateFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="numeric" :invalid="Boolean(fieldErr[f.key])" />
+            </FormField>
+          </div>
+        </BaseCard>
 
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Efficiency feed</h3>
-        <div class="mt-3">
-          <BaseCheckbox v-model="(form.efficiency_enabled as boolean)">
-            Include the Samsara Driver Efficiency component (beta feed; auto-degrades if unavailable)
-          </BaseCheckbox>
-        </div>
-      </BaseCard>
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Efficiency feed</h3>
+          <div class="mt-3">
+            <BaseCheckbox v-model="(form.efficiency_enabled as boolean)">
+              Include the Samsara Driver Efficiency component (beta feed; auto-degrades if unavailable)
+            </BaseCheckbox>
+          </div>
+        </BaseCard>
 
-      <div class="flex items-center gap-3">
-        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save settings" }}
-        </BaseButton>
-      </div>
-    </form>
+        <div class="flex items-center gap-3">
+          <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
+            {{ save.isPending.value ? "Saving…" : "Save settings" }}
+          </BaseButton>
+        </div>
+      </form>
+    </QueryState>
   </div>
 </template>

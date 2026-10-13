@@ -315,7 +315,7 @@ tokens, latency, outcome).
 
 | Input | Handling | Refused when |
 |---|---|---|
-| JPEG / PNG / WebP | EXIF-rotate; original kept byte-exact; working copy ≤ 1568 px long edge | decode fails; long edge < 1200 px (the live resolution floor) |
+| JPEG / PNG / WebP | EXIF-rotate; original kept byte-exact; working copy ≤ 1568 px long edge | decode fails; long edge < 800 px (the live resolution floor — measured 2026-10-13, progress log) |
 | PDF, born-digital | rasterise each page at 300 DPI; text layer + word boxes recorded | encrypted; > 10 pages; > 25 MB |
 | PDF, scanned | rasterise at 300 DPI; no text layer | same |
 | HEIC / HEIF (iPhone) | decoded by libheif, then the D-DR13 canonical page like everything else | decode fails |
@@ -706,6 +706,17 @@ recommended second reader (Q-DR23), not a replacement for the lock.
 
 **D-DR21 — No open-source OCR model replaces the reader** (P1, P2). Open-source OCR enters only as a witness
 (P3–P5), and only after it is measured to add agreement the second model read does not.
+
+**D-DR22 — The paper audit judges a field when two independent witnesses agree on it (2026-10-12, N6 part 3).**
+The audit (§5.1) answers `cannot_tell` on any field that is not *Read*, and under the acceptance rule no field
+is *Read* until graduation (D-DR5, off) — so fed the evidence's statuses, every finding would be "can't check
+yet" and the audit could say nothing until a person retyped the paper. D-DR19 already names the bar for
+trusting a value: independent witnesses agree. So FOR THE AUDIT ONLY, a field counts as confirmed when both
+model readers read the same value (both reading nothing included — that is how a missing packing group or
+phone number is ever found) and the OCR, where it judged the field, did not find another; anything else keeps
+its status and the rule says what to confirm. The form's field states are unchanged, and every finding quotes
+the printed value it rests on. *Rejected:* auditing on pass A alone (one model's word, D-DR17); waiting for
+graduation (no audit at all for months).
 
 ### 7B.4 Build order (inserted before N4; N4 continues after)
 
@@ -1336,3 +1347,87 @@ Append dated lines at the end; never edit a row above.
   to make the weight column `grossWeightLb`'s alone (Q-DR24). **Its re-run could not be made: the API
   account's credit balance ran out mid-session (400 "credit balance is too low").** Not merged until measured.
 
+
+- **2026-10-12 — N6 part 1: the read becomes calculator lines (`bolPrefill.ts`).** The consumer adapter
+  `fieldEvidenceContract.ts` always named: a finished read → one calculator line per printed hazmat line, each
+  field with the evidence's state (D-DR4), whether the two readers agree, whether the OCR found the value on the
+  line's row, the reason it is blank or needs a person, and the evidence paths a Calculate press will confirm.
+  **The product is the table's own row**: the line's `hmtRef` from the A2 witness, fetched by that exact ref
+  through `GET /hazmat/products?refs=` (new; never a search, a ref the calculator's dataset lacks leaves the
+  line unresolved). Limited Quantity only when BOTH readers read the notation (the extractor's rule: a wrong LQ
+  is the one error that could under-placard); the §173.150(f) election never set, the line says the paper
+  printed it; an unrecognised unit leaves the quantity blank; template lines with no count, weight or quantity
+  are left out and listed; a line only pass B saw comes in with a note; non-hazmat lines printed → other
+  freight "yes", otherwise "not sure", never "no". Nothing becomes *Read* the evidence did not say.
+  **One reading, not two:** the printed-unit table, the packaging-phrase reader (`packageTypeFromPrinted`, new)
+  and the template-line rule (`classifyLineLoadState`) move to `@silvicom/shared`; the hazmat extractor
+  re-exports them and takes its bulk/non-bulk answer from the same phrase reader, so the two paths cannot
+  classify one paper differently.
+  **A defect in A2, found building this:** the table witness resolved a line printed "Combustible liquid"
+  without the election the extractor's mapper passes, so NA1993 "Diesel fuel, Combustible liquid, PG III" —
+  how most fuel BOLs print diesel — was a class mismatch, and its product could never have prefilled. It now
+  passes the election exactly as `mapBolLines.ts` does; the resolver still refuses the word on gasoline or an
+  acid. Rule "3" → "4". Thirty mutants killed (bolPrefill 22, packaging and units 4, products-by-ref 2, witness 1,
+  extractor fallback 1); the survivors on the way removed a redundant filter and fixed an order test that had
+  passed on the dataset's own order. Not yet on screen: the panel still emits the read; part 2 applies it to
+  the form with each field's state, part 3 adds the paper audit's findings.
+
+- **2026-10-12 — N6 part 2: the read fills the calculator on screen.** The panel's finished read goes to the form
+  (`HazmatCalculatorPage` → `HazmatCalculatorForm`'s `bolRead`), which fetches each line's product by the table's
+  exact ref and replaces the empty line with one filled line per printed product. Every filled line shows the
+  description as printed and its notes (combustible election, a line only one reader saw); under each filled
+  field, one sentence from `fieldNote`: where the value came from, whether the two readers agree — naming both
+  readings when they do not ("6 or 9") — whether the OCR found it on the line's row, or why it is blank; once a
+  person edits the field it says "Changed by you." A summary callout counts the lines, the ones the table did not
+  match, and the template lines left out. A paper listing non-hazmat freight answers "rest of the load" yes.
+  **Re-reading never doubles a weight:** a new read replaces the lines an earlier read filled and keeps every line
+  a person typed. A failed product lookup changes nothing and says so.
+  **Two corrections to part 1, found putting it on screen:** (1) the prefill no longer fills a line's QUANTITY —
+  the calculator does not show that field (its header: the ladder runs on gross pounds), so a read quantity would
+  have reached the engine unseen and uncorrectable; the printed-unit table goes back to the extractor, its only
+  user. (2) A tank line gets no package count: the form hides the field and the engine takes none, and the
+  browser check showed "59,500 lb per package" under a cargo tank.
+  **Seen in a browser** (built bundle, dev-bypass session, API stubbed with a rule-4 read and the real dataset's
+  products) at 1440 and 390 px: no horizontal overflow at 390. Twenty-nine mutants killed (wording and change
+  detection 14, form 7, product lines 3, page 2, note 1, tank count 2), two survivors fixed with tests on the way.
+  Next: part 3, the paper audit's findings ("what the shipper left out") beside the lines.
+
+- **2026-10-12 — N6 part 3: "Is this BOL written correctly?" above the calculator form.** `GET /reads/:id` now
+  carries `paperAudit` for a finished shipping-document read: `auditPrintedPaper` over pass A's document, each
+  line resolved by the table witness's own resolver and dataset (`hmtResolution`, one parsed dataset per
+  process), field states per **D-DR22** (above). Worked out on every fetch, never stored — it follows the
+  dataset and the rules in force, and a stored copy would be a second answer. The form shows it as a card:
+  *Wrong or missing* (each with who acts — "Do not accept the BOL until it is corrected" before "The shipper
+  must correct it" — how to fix it, and the CFR cite), *Check by eye*, and the passed checks folded behind
+  their count; "Every check passed." only when nothing is wrong or open.
+  **Found running it on a realistic read, fixed:** (1) every weight-only line was "shows no total quantity"
+  though the paper prints its weight. §172.202(a)(5) asks for the total "by mass or volume" and never says
+  "gross" (only (a)(6), aircraft, does — eCFR checked 2026-10-12; the draft Q-DR24 on #1456 says "net or
+  gross", which the text does not contain — correct it there before that merges). Whether a printed weight is
+  the material's total is a judgement the paper cannot settle, so the rule now answers `cannot_tell` /
+  `weight_only` naming the weight, not `fail`. (2) An unconfirmed field was worded as its path
+  ("isn't sure of hazmat.lines[0].quantity.value"); the catalogue now says "the quantity". (3) A stale audit
+  from the previous read stayed up when the next read's product lookup failed — cleared at the start of each read.
+  (4) Seen in a browser, the first build was unreadable: template lines were audited (the prefill leaves them
+  out — the audit now does too, keeping the read's line numbers), and one unmatched line repeated "doesn't match
+  a table entry" once per rule. A line's checks stopped by one cause are now ONE sentence naming every check it
+  stopped (`bolBlockedSentence`; each rule's subject is a catalogue property, not restated). On the stub BOL the
+  card went from 18 "check by eye" items to 6, beside 3 real failures (no PG twice, "CALL SHIPPER").
+  Twenty-nine mutants killed (audit states and inputs 10, route 1, weight-only rule 2, wording 5, grouping and
+  sorting 6, panel 2, form 3); three equivalent mutants removed dead code instead.
+- **2026-10-12 — Intake reads any picture or PDF a driver sends, and a one-photo BOL no longer fails "at least one page".** The owner's first production tries were refused at grouping: "A document needs at least one page, each listed once." Production's rows show why. The 18:48 upload's source row was written at 18:48:12.76 and its page a moment later, but `sourceStatus` answered `ready` from the row alone, so the browser called `POST /assemblies` in that gap. It found no pages, and `document_assembly_create` refused an empty list (DO016). The 15:35 try won the race. **Fixed three ways:** (1) a source is `ready` only once every page is stored, a short one is `normalising`, and one whose intake gave up halfway is `failed`, so pressing Read again finishes it; (2) `createAssembly` answers 409 `not_ready` ("A file is still being prepared") instead of ever sending a short list; (3) the browser groups the source each intake RESOLVED to, not the id it registered under (the same bytes registered twice become one source). **Formats:** Google Voice saves photos as `.jfif`. That is a JPEG the server already decoded, but the picker listed only `.jpg/.jpeg` and the dropzone threw away any dropped file whose name was not on that list. Now the sniff lives in `@silvicom/shared` (`documentFormats.ts`), and the browser reads each file's first 4 KB and decides by the bytes, the same as intake. Name and declared type decide nothing. The picker offers `image/*` plus every format's extensions, and the dropzone matches `accept` the way the browser does (name OR type). TIFF (every page of a multi-page scanner or fax TIFF, under the same 10-page limit as a PDF), GIF (first frame) and AVIF are read too. `INTAKE_MIMES` and the unsupported-format sentence are derived from the one format list, and `NORMALISER_VERSION` is now 1.2.0. **Still refused, by design:** Word, Excel, email files, videos. None of them is a picture of a BOL, and each is refused with the sentence listing what can be read. **Known limit:** a "normal"-mode fax TIFF (204×98 dpi) is stored with its non-square pixels, so the page looks squashed vertically. It is still read; stretching it by the TIFF's resolution tags is not built. Twenty-two mutants killed (race 4, TIFF pages 4, sniff 5, contract 2, dropzone 2, picker 5).
+- **2026-10-12 — A read whose job dies now ends `failed` instead of "reading" for ever.** The owner's two production reads that got past grouping (15:35 and 17:52) never finished: in both jobs the Anthropic API refused with "Your credit balance is too low" (400), and each job failed within three seconds. The handler only ended a read on the LAST attempt of a TRANSIENT error; it rethrew a configuration error (bad key, retired model, empty balance) without touching the read, reasoning that it was not a reading failure. Both reads therefore stayed `reading`. The screen gave up after three minutes with "It will keep going", which was false. **Fixed:** (1) every throw that ends the job for good now ends the read `model_unavailable` first and still rethrows, so the job's error keeps the cause. That code is OPERATIONAL in READ_FAILURE_KIND, so it never counts against the reader's accuracy. A failure while ending the read cannot replace the job's error. (2) `getRead` and `requestRead` settle a read still `queued`/`reading` whose latest job has `failed`. This repairs the two reads already stuck, the next time anyone opens them, and stops `requestRead` handing such a read back as "in flight". A `queued` read goes through `reading`, the only road 0448's state machine allows to `failed`. (3) The `model_unavailable` sentence no longer claims "after several tries": in-process mode makes one try, and a billing refusal is not a connection problem. **Still open (owner):** the production Anthropic key's credit balance. No read can finish until it is topped up. Fourteen mutants killed.
+- **2026-10-13 — A fax TIFF is read at its real shape.** A "normal"-mode fax stores pixels at 204 dpi across and 98 dpi down (ITU-T T.4). Drawn one pixel per pixel, every page came out squashed to about half its height, the "known limit" left open on 10/12. libvips reports only the horizontal density, so `tiffResolution.ts` reads each page's own XResolution/YResolution tags from its IFD. It handles both byte orders, guards against an IFD loop, and answers null for anything malformed, in which case the page is decoded as stored and never refused for it. The low-resolution axis is stretched up to the high one, never down, in a separate pass over the stored pixels: sharp rotates before it resizes in one pipeline, and the tags describe the stored axes. Fine mode (204 × 196) gets its 4% too, and a scanner's equal pair is unchanged. A fax mixing fine and normal pages gets each page's own correction. `NORMALISER_VERSION` is now 1.3.0. Ten mutants killed. The survivor (every page read with page 0's resolution) needed a mixed-resolution fixture that sharp cannot write, so `withPageResolution` rewrites one page's two rationals.
+- **2026-10-13 — The photo floor is 800 px, measured; it was 1200, inherited.** The owner's first real upload after the release was refused: a Google Voice photo of a BOL, 1080 × 810 and 119 KB, "too small — at least 1200 pixels". The 1200 came from the hazmat capture plan, where the driver app owns the camera. Intake does not own the camera, and a texted photo arrives as the carrier shrank it. **Measured:** for each of the nine readable office BOL samples (0132900's page is sideways and gives no text unturned), the 300-DPI page was shrunk to each long edge, re-encoded as JPEG q70, OCR'd with the A5 engine, and compared with the same page's full-resolution OCR (token recall, digits separately):
+
+  | long edge | all tokens (median) | digit tokens (median) | digit tokens (worst page) |
+  |---|---|---|---|
+  | 1600 | 84% | 92% | 52% |
+  | 1200 | 75% | 77% | 52% |
+  | 1080 | 77% | 76% | 58% |
+  | 960 | 73% | 74% | 54% |
+  | 800 | 69% | 77% | 60% |
+  | 640 | 43% | 43% | 24% |
+  | 480 | 14% | 13% | 0% |
+
+  The curve is flat from 1200 to 800 and falls off a cliff below it, so `INTAKE_LIMITS.minLongEdgePx` is now 800. Above 800, an unsure value is for the two readers and the OCR witness to flag (§7B), not for intake to refuse. The refusal sentence now names 800 and the fix: text messages shrink photos, so ask the driver for the original. The OCR engine stands in for the readers here: Claude reads a small page at least as well as the OCR does, so the floor is conservative for them. A photo also carries margins the scans do not, so its page text sits a little smaller than these numbers. A6's labelled set should re-check both. The driver app's in-app capture keeps its own 1200 (`hazmatExtraction/image.ts`), since there it owns the camera. Four mutants killed (floor 1200 / 640 / 1081, sentence).

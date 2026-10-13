@@ -10,8 +10,9 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
-const { data, isLoading } = useOrgSettingsQuery();
+const { data, isLoading, isError, error, isFetching, refetch } = useOrgSettingsQuery();
 const save = useSaveOrgProfile();
 
 const form = reactive({
@@ -97,112 +98,122 @@ async function onSave() {
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
     <PageHeader description="Manage organization identity, access domains, and operating hours." />
-    <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
-    <form v-else class="space-y-6" @submit.prevent="onSave">
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Organization</h3>
-        <FormField v-slot="{ id }" class="mt-4" label="Name" :error="fieldErr.name">
-          <BaseInput :id="id" v-model="form.name" :invalid="Boolean(fieldErr.name)" />
-        </FormField>
-
-        <FormField
-          v-slot="{ id }"
-          class="mt-4"
-          label="USDOT number"
-          hint="Printed on driver qualification files exported for an audit."
-          :error="fieldErr.dot_number"
-        >
-          <BaseInput
-            :id="id"
-            v-model="form.dotNumber"
-            placeholder="e.g. 1234567"
-            :invalid="Boolean(fieldErr.dot_number)"
-          />
-        </FormField>
-        <FormField
-          v-slot="{ id }"
-          class="mt-4"
-          label="Street address"
-          hint="Printed on the §396.17 annual inspection report, and on the decal that goes on the vehicle — §396.17(c)(2) makes it how a roadside officer finds the report behind a sticker."
-          :error="fieldErr.address_line1"
-        >
-          <BaseInput :id="id" v-model="form.addressLine1" placeholder="1301 Armitage Ave" :invalid="Boolean(fieldErr.address_line1)" />
-        </FormField>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-slot="{ id }" label="City" :error="fieldErr.city">
-            <BaseInput :id="id" v-model="form.city" placeholder="Melrose Park" :invalid="Boolean(fieldErr.city)" />
+    <!-- The form waits for a failed read too (D-US5): before, a failed read drew an empty form that
+         read as an organization with nothing on file, rather than as a read that failed. -->
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the organization…"
+      error-text="Could not load the organization's settings."
+      @retry="refetch()"
+    >
+      <form class="space-y-6" @submit.prevent="onSave">
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Organization</h3>
+          <FormField v-slot="{ id }" class="mt-4" label="Name" :error="fieldErr.name">
+            <BaseInput :id="id" v-model="form.name" :invalid="Boolean(fieldErr.name)" />
           </FormField>
-          <FormField v-slot="{ id }" label="State" :error="fieldErr.state">
-            <BaseInput :id="id" v-model="form.state" placeholder="IL" :invalid="Boolean(fieldErr.state)" />
-          </FormField>
-          <FormField v-slot="{ id }" label="ZIP" :error="fieldErr.postal_code">
-            <BaseInput :id="id" v-model="form.postalCode" placeholder="60160" :invalid="Boolean(fieldErr.postal_code)" />
-          </FormField>
-        </div>
 
-        <FormField
-          v-slot="{ id }"
-          class="mt-4"
-          label="Allowed email domains (comma-separated)"
-          hint="Invitations to any other domain are refused — even ones already sent. Leave empty to allow any domain."
-          :error="domainsError"
-        >
-          <BaseInput
-            :id="id"
-            v-model="form.allowedDomains"
-            :invalid="Boolean(domainsError)"
-            placeholder="silvicominc.com, example.com — leave blank to allow any domain"
-          />
-        </FormField>
-      </BaseCard>
+          <FormField
+            v-slot="{ id }"
+            class="mt-4"
+            label="USDOT number"
+            hint="Printed on driver qualification files exported for an audit."
+            :error="fieldErr.dot_number"
+          >
+            <BaseInput
+              :id="id"
+              v-model="form.dotNumber"
+              placeholder="e.g. 1234567"
+              :invalid="Boolean(fieldErr.dot_number)"
+            />
+          </FormField>
+          <FormField
+            v-slot="{ id }"
+            class="mt-4"
+            label="Street address"
+            hint="Printed on the §396.17 annual inspection report, and on the decal that goes on the vehicle — §396.17(c)(2) makes it how a roadside officer finds the report behind a sticker."
+            :error="fieldErr.address_line1"
+          >
+            <BaseInput :id="id" v-model="form.addressLine1" placeholder="1301 Armitage Ave" :invalid="Boolean(fieldErr.address_line1)" />
+          </FormField>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField v-slot="{ id }" label="City" :error="fieldErr.city">
+              <BaseInput :id="id" v-model="form.city" placeholder="Melrose Park" :invalid="Boolean(fieldErr.city)" />
+            </FormField>
+            <FormField v-slot="{ id }" label="State" :error="fieldErr.state">
+              <BaseInput :id="id" v-model="form.state" placeholder="IL" :invalid="Boolean(fieldErr.state)" />
+            </FormField>
+            <FormField v-slot="{ id }" label="ZIP" :error="fieldErr.postal_code">
+              <BaseInput :id="id" v-model="form.postalCode" placeholder="60160" :invalid="Boolean(fieldErr.postal_code)" />
+            </FormField>
+          </div>
 
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Operating hours</h3>
-        <p class="mt-1 text-xs text-ink-muted">
-          Used by the off-hours anomaly rule. Turn on 24/7 if the fleet runs around the clock — the
-          rule then never flags a fill for its time of day.
+          <FormField
+            v-slot="{ id }"
+            class="mt-4"
+            label="Allowed email domains (comma-separated)"
+            hint="Invitations to any other domain are refused — even ones already sent. Leave empty to allow any domain."
+            :error="domainsError"
+          >
+            <BaseInput
+              :id="id"
+              v-model="form.allowedDomains"
+              :invalid="Boolean(domainsError)"
+              placeholder="silvicominc.com, example.com — leave blank to allow any domain"
+            />
+          </FormField>
+        </BaseCard>
+
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Operating hours</h3>
+          <p class="mt-1 text-xs text-ink-muted">
+            Used by the off-hours anomaly rule. Turn on 24/7 if the fleet runs around the clock — the
+            rule then never flags a fill for its time of day.
+          </p>
+          <div class="mt-4">
+            <BaseCheckbox v-model="form.open24_7">Open 24/7 (no off-hours)</BaseCheckbox>
+          </div>
+          <div class="mt-4 grid grid-cols-3 gap-4" :class="form.open24_7 ? 'opacity-50' : ''">
+            <FormField v-slot="{ id }" label="Start" :error="fieldErr['operating_hours.start']">
+              <BaseInput
+                :id="id"
+                v-model="form.start"
+                :disabled="form.open24_7"
+                placeholder="05:00"
+                :invalid="Boolean(fieldErr['operating_hours.start'])"
+              />
+            </FormField>
+            <FormField v-slot="{ id }" label="End" :error="fieldErr['operating_hours.end']">
+              <BaseInput
+                :id="id"
+                v-model="form.end"
+                :disabled="form.open24_7"
+                placeholder="20:00"
+                :invalid="Boolean(fieldErr['operating_hours.end'])"
+              />
+            </FormField>
+            <FormField v-slot="{ id }" label="Timezone">
+              <BaseInput :id="id" v-model="form.tz" placeholder="America/Chicago" />
+            </FormField>
+          </div>
+        </BaseCard>
+
+        <p class="text-xs text-ink-muted">
+          Looking for alert recipients? They now live in
+          <!-- SP5: Organization and Notifications are separate screens since SP1, each turned on per role. -->
+          <GatedLink to="/settings/notifications" class="font-medium text-link hover:text-link-hover"
+            >Settings → Notifications</GatedLink
+          >.
         </p>
-        <div class="mt-4">
-          <BaseCheckbox v-model="form.open24_7">Open 24/7 (no off-hours)</BaseCheckbox>
-        </div>
-        <div class="mt-4 grid grid-cols-3 gap-4" :class="form.open24_7 ? 'opacity-50' : ''">
-          <FormField v-slot="{ id }" label="Start" :error="fieldErr['operating_hours.start']">
-            <BaseInput
-              :id="id"
-              v-model="form.start"
-              :disabled="form.open24_7"
-              placeholder="05:00"
-              :invalid="Boolean(fieldErr['operating_hours.start'])"
-            />
-          </FormField>
-          <FormField v-slot="{ id }" label="End" :error="fieldErr['operating_hours.end']">
-            <BaseInput
-              :id="id"
-              v-model="form.end"
-              :disabled="form.open24_7"
-              placeholder="20:00"
-              :invalid="Boolean(fieldErr['operating_hours.end'])"
-            />
-          </FormField>
-          <FormField v-slot="{ id }" label="Timezone">
-            <BaseInput :id="id" v-model="form.tz" placeholder="America/Chicago" />
-          </FormField>
-        </div>
-      </BaseCard>
 
-      <p class="text-xs text-ink-muted">
-        Looking for alert recipients? They now live in
-        <!-- SP5: Organization and Notifications are separate screens since SP1, each turned on per role. -->
-        <GatedLink to="/settings/notifications" class="font-medium text-link hover:text-link-hover"
-          >Settings → Notifications</GatedLink
-        >.
-      </p>
-
-      <div class="flex items-center gap-3">
-        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save settings" }}
-        </BaseButton>
-      </div>
-    </form>
+        <div class="flex items-center gap-3">
+          <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
+            {{ save.isPending.value ? "Saving…" : "Save settings" }}
+          </BaseButton>
+        </div>
+      </form>
+    </QueryState>
   </div>
 </template>

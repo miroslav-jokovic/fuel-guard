@@ -2,20 +2,30 @@
 import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@silvicom/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
 import { AppTextarea } from "@silvicom/ui";
-import { AppTable } from "@silvicom/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
+import { computed } from "vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+
+const DETAIL_TABS: TabItem[] = [
+  { value: "overview", label: "Overview" },
+  { value: "audit", label: "Odometer & Location" },
+];
 
 const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const {
-  txn, transition,
+  txn, txnLoading, txnError, txnFetching, refetchTxn, transition,
   caseSignals, isCase, caseScore, caseLevel, caseAxes, evidenceRows,
   hasCardSignal, cardRef, windowHours, siblingFills, siblingLoading,
+  siblingError, siblingFetching, refetchSiblings,
   driverName, unitNumber, vehicleDesc,
   tab, orgTz, odometerOffset,
   axisClass, weightBarClass,
@@ -23,6 +33,68 @@ const {
   note, disposition, DISPOSITION_OPTIONS,
   doTransition, doFalseAlarm,
 } = useAnomalyDetail(props, emit);
+
+// D-US4: the same-card fills are a DataTable; a blank price, odometer or place shows its em dash.
+const siblingColumns: DataTableColumn[] = [
+  { key: "vehicle", label: "Vehicle" },
+  { key: "when", label: "When" },
+  { key: "gallons", label: "Gallons", numeric: true, cellClass: "font-medium text-ink" },
+  { key: "price", label: "$/gal", numeric: true },
+  { key: "odo", label: "Odometer", numeric: true },
+  { key: "driver", label: "Driver" },
+  { key: "place", label: "Location", cellClass: "text-ink-muted" },
+];
+const siblingRows = computed(() =>
+  (siblingFills.value ?? []).map((f) => ({
+    ...f,
+    when: fmtShort(f.fueled_at, f.state),
+    price: f.price_per_gal != null ? fmtMoney(f.price_per_gal) : null,
+    odo: f.odometer != null ? fmtOdo(f.odometer) : null,
+    driver: driverName(f.driver_id),
+    place: [f.city, f.state].filter(Boolean).join(", ") || f.location_text || null,
+  })),
+);
+const thisFillClass = (row: { id: string }) =>
+  row.id === txn.value?.id ? "bg-warning-100 ring-1 ring-inset ring-warning-300" : "";
+
+// D-US6: the facts are FactLists, so a blank import id, odometer or MPG shows the shared em dash.
+// Ids keep their monospace through `tone`, which replaces the value's `text-ink`.
+const MONO = "font-mono text-xs text-ink";
+const headerFacts = computed<Fact[]>(() => {
+  const t = txn.value;
+  if (!t) return [];
+  return [
+    { label: "Source", value: t.source },
+    { label: "Imported", value: t.import_id ? "EFS/report batch" : "Direct entry" },
+    { label: "Fuel transaction", value: t.id, tone: MONO },
+    { label: "Import id", value: t.import_id, tone: MONO },
+  ];
+});
+const evidenceValue = (v: unknown): string | number | null =>
+  v == null ? null : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v : String(v);
+const evidenceFacts = computed<Fact[]>(() =>
+  evidenceRows.value.map(([k, v]) => ({ key: k, label: formatKey(k), value: evidenceValue(v) })),
+);
+const transactionFacts = computed<Fact[]>(() => {
+  const t = txn.value;
+  if (!t) return [];
+  const facts: Array<Fact | false> = [
+    { key: "vehicle", label: "Vehicle", value: props.vehicleUnit },
+    // driverName answers "—" for an unattributed fill; a null driver is the FactList's blank instead.
+    { label: "Driver", value: t.driver_id ? driverName(t.driver_id) : null },
+    !!t.card_ref && { label: "Card #", value: t.card_ref, tone: "font-mono text-ink" },
+    { label: "When", value: fmt(t.fueled_at, t.state) },
+    { label: "Odometer", value: t.odometer != null ? fmtOdo(t.odometer) : null, numeric: true },
+    { label: "Gallons", value: t.gallons, numeric: true },
+    t.price_per_gal != null && { label: "$/gal", value: fmtMoney(t.price_per_gal), numeric: true },
+    t.total_cost != null && { label: "Total cost", value: fmtMoney(t.total_cost), numeric: true },
+    { label: "MPG", value: t.computed_mpg, numeric: true },
+    { label: "Location", value: t.location_text || [t.city, t.state].filter(Boolean).join(", ") || null },
+    t.samsara_location_matched != null && { key: "samsara", label: "Samsara location" },
+    { label: "Source", value: t.source, tone: "capitalize text-ink" },
+  ];
+  return facts.filter((f): f is Fact => f !== false);
+});
 </script>
 
 <template>
@@ -37,29 +109,13 @@ const {
 
     <p class="text-sm leading-relaxed text-ink">{{ anomaly.message }}</p>
 
-    <dl v-if="txn" class="grid grid-cols-2 gap-x-4 gap-y-2 rounded-surface bg-surface-subtle p-4 text-sm ring-1 ring-edge">
-      <div>
-        <dt class="text-xs text-ink-muted">Source</dt>
-        <dd class="font-medium text-ink">{{ txn.source }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Imported</dt>
-        <dd class="font-medium text-ink">{{ txn.import_id ? "EFS/report batch" : "Direct entry" }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Fuel transaction</dt>
-        <dd class="font-mono text-xs text-ink">{{ txn.id }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Import id</dt>
-        <dd class="font-mono text-xs text-ink">{{ txn.import_id ?? "—" }}</dd>
-      </div>
-    </dl>
+    <FactList v-if="txn" :columns="2" class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge" :facts="headerFacts" />
 
     <!-- Entity-intelligence panel (Phases 1–2): reviewer context + retrospective pattern report -->
     <EntityHistory :anomaly-id="anomaly.id" />
 
     <!-- ② Case score banner (theft_case only) -->
+    <!-- ui-adoption: not-a-notice — the case score meter (bar, threshold, axis chips), a measurement on a tint rather than a sentence about the page. -->
     <div
       v-if="isCase && caseScore != null"
       class="flex flex-wrap items-center gap-4 rounded-surface bg-warning-50 px-4 py-3 ring-1 ring-warning-200"
@@ -90,32 +146,39 @@ const {
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex gap-1 border-b border-edge text-sm">
-      <BaseButton
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="tab === 'overview' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-        @click="tab = 'overview'"
-      >
-        Overview
-      </BaseButton>
-      <BaseButton
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="tab === 'audit' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-        @click="tab = 'audit'"
-      >
-        Odometer &amp; Location
-      </BaseButton>
-    </div>
+    <AppTabs v-model="tab" :tabs="DETAIL_TABS" label="Anomaly detail views" id-prefix="anomaly-detail" />
 
     <!-- AUDIT TAB -->
-    <AnomalyAudit v-if="tab === 'audit' && txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
-    <p v-else-if="tab === 'audit'" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
+    <div
+      v-if="tab === 'audit'"
+      id="anomaly-detail-panel-audit"
+      role="tabpanel"
+      aria-labelledby="anomaly-detail-tab-audit"
+    >
+      <QueryState
+        compact
+        :loading="txnLoading"
+        :error="txnError"
+        :retrying="txnFetching"
+        loading-text="Loading the transaction…"
+        error-text="Could not load the transaction."
+        @retry="refetchTxn()"
+      >
+        <AnomalyAudit v-if="txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
+        <p v-else class="text-sm text-ink-tertiary italic">No fuel transaction is linked to this anomaly.</p>
+      </QueryState>
+    </div>
 
     <!-- OVERVIEW TAB -->
-    <template v-if="tab === 'overview'">
-    <!-- ③ Contributing signals / Why this fired -->
-    <div class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
+    <div
+      v-if="tab === 'overview'"
+      id="anomaly-detail-panel-overview"
+      role="tabpanel"
+      aria-labelledby="anomaly-detail-tab-overview"
+      class="space-y-5"
+    >
+      <!-- ③ Contributing signals / Why this fired -->
+      <div class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
       <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {{ isCase ? "Contributing signals" : "Why this fired" }}
       </h4>
@@ -149,137 +212,83 @@ const {
       </ul>
 
       <!-- Single rule: formatted evidence key/value -->
-      <dl v-else class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-        <template v-for="[k, v] in evidenceRows" :key="k">
-          <dt class="text-ink-muted">{{ formatKey(k) }}</dt>
-          <dd class="text-right font-medium text-ink">
-            {{ Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : v }}
-          </dd>
-        </template>
-      </dl>
-    </div>
+      <FactList v-else layout="rows" class="mt-2" :facts="evidenceFacts" />
+      </div>
 
     <!-- ④ Same-card fills — appears whenever card_multi_vehicle is in play -->
-    <div v-if="hasCardSignal" class="rounded-surface border border-warning-200 bg-warning-50/50 p-4">
+      <div v-if="hasCardSignal" class="rounded-surface border border-warning-200 bg-warning-50/50 p-4">
       <div class="mb-3 flex flex-wrap items-baseline gap-2">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Same-card fills</h4>
         <span v-if="cardRef" class="font-mono text-xs text-ink-muted">card {{ cardRef }}</span>
         <span class="text-xs text-ink-tertiary">· ±{{ windowHours }}h window</span>
       </div>
 
-      <p v-if="!txn" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
-      <p v-else-if="!cardRef" class="text-sm text-ink-tertiary italic">No card reference on this transaction.</p>
-      <p v-else-if="siblingLoading" class="text-sm text-ink-tertiary">Loading related fills…</p>
-      <p v-else-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
+      <!-- Two reads in a row: the transaction gives the card, the card gives its sibling fills. Each
+           has its own Retry, so a failed sibling scan does not send the reviewer back to reload the
+           whole drawer (D-US5). -->
+      <QueryState
+        compact
+        :loading="txnLoading"
+        :error="txnError"
+        :retrying="txnFetching"
+        loading-text="Loading the transaction…"
+        error-text="Could not load the transaction."
+        @retry="refetchTxn()"
+      >
+      <p v-if="!cardRef" class="text-sm text-ink-tertiary italic">No card reference on this transaction.</p>
+      <QueryState
+        v-else
+        compact
+        :loading="siblingLoading"
+        :error="siblingError"
+        :retrying="siblingFetching"
+        loading-text="Loading related fills…"
+        error-text="Could not load the related fills."
+        @retry="refetchSiblings()"
+      >
+      <p v-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
 
-      <div v-else class="-mx-1 overflow-x-auto">
-        <AppTable class="min-w-full text-sm">
-          <thead>
-            <tr class="border-b border-warning-200 text-xs text-ink-muted">
-              <th class="px-2 py-1.5 text-left font-medium">Vehicle</th>
-              <th class="px-2 py-1.5 text-left font-medium">When</th>
-              <th class="px-2 py-1.5 text-right font-medium">Gallons</th>
-              <th class="px-2 py-1.5 text-right font-medium">$/gal</th>
-              <th class="px-2 py-1.5 text-right font-medium">Odometer</th>
-              <th class="px-2 py-1.5 text-left font-medium">Driver</th>
-              <th class="px-2 py-1.5 text-left font-medium">Location</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-warning-100">
-            <tr
-              v-for="fill in siblingFills"
-              :key="fill.id"
-              :class="fill.id === txn?.id
-                ? 'bg-warning-100 ring-1 ring-inset ring-warning-300'
-                : 'bg-surface/70 hover:bg-warning-50'"
-            >
-              <td class="px-2 py-2">
-                <div class="font-semibold text-ink">{{ unitNumber(fill.vehicle_id) }}</div>
-                <div class="text-xs text-ink-tertiary">{{ vehicleDesc(fill.vehicle_id) }}</div>
-                <span v-if="fill.id === txn?.id" class="mt-0.5 inline-flex rounded-control bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
-                  this fill
-                </span>
-              </td>
-              <td class="whitespace-nowrap px-2 py-2 text-ink-secondary">{{ fmtShort(fill.fueled_at, fill.state) }}</td>
-              <td class="px-2 py-2 text-right font-medium text-ink">{{ fill.gallons }}</td>
-              <td class="px-2 py-2 text-right text-ink-secondary">{{ fmtMoney(fill.price_per_gal) }}</td>
-              <td class="px-2 py-2 text-right text-ink-secondary">{{ fmtOdo(fill.odometer) }}</td>
-              <td class="px-2 py-2 text-ink-secondary">{{ driverName(fill.driver_id) }}</td>
-              <td class="px-2 py-2 text-xs text-ink-muted">
-                {{ [fill.city, fill.state].filter(Boolean).join(", ") || fill.location_text || "—" }}
-              </td>
-            </tr>
-          </tbody>
-        </AppTable>
+      <DataTable
+        v-else
+        embedded
+        dense
+        :sticky-header="false"
+        :columns="siblingColumns"
+        :rows="siblingRows"
+        row-key="id"
+        :row-class="thisFillClass"
+      >
+        <template #cell-vehicle="{ row }">
+          <div class="font-medium text-ink">{{ unitNumber(row.vehicle_id) }}</div>
+          <div class="text-ink-tertiary">{{ vehicleDesc(row.vehicle_id) }}</div>
+          <span v-if="row.id === txn?.id" class="mt-0.5 inline-flex rounded-control bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
+            this fill
+          </span>
+        </template>
+      </DataTable>
+      </QueryState>
+      </QueryState>
       </div>
-    </div>
 
     <!-- ⑤ Transaction details (full) -->
-    <div v-if="txn" class="rounded-surface border border-edge p-4">
+      <div v-if="txn" class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Transaction</h4>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <!-- Vehicle -->
-        <dt class="text-ink-muted">Vehicle</dt>
-        <dd class="text-right">
+      <!-- Vehicle: the unit, with its year/make/model beside it. Samsara location: the check's verdict. -->
+      <FactList layout="rows" :facts="transactionFacts">
+        <template #value-vehicle>
           <span class="font-semibold text-ink">{{ vehicleUnit }}</span>
           <span v-if="vehicleDesc(txn.vehicle_id)" class="ml-1 text-xs text-ink-tertiary">
             {{ vehicleDesc(txn.vehicle_id) }}
           </span>
-        </dd>
-        <!-- Driver -->
-        <dt class="text-ink-muted">Driver</dt>
-        <dd class="text-right text-ink">{{ driverName(txn.driver_id) }}</dd>
-        <!-- Card -->
-        <template v-if="txn.card_ref">
-          <dt class="text-ink-muted">Card #</dt>
-          <dd class="text-right font-mono text-ink">{{ txn.card_ref }}</dd>
         </template>
-        <!-- When -->
-        <dt class="text-ink-muted">When</dt>
-        <dd class="text-right text-ink">{{ fmt(txn.fueled_at, txn.state) }}</dd>
-        <!-- Odometer -->
-        <dt class="text-ink-muted">Odometer</dt>
-        <dd class="text-right text-ink">{{ fmtOdo(txn.odometer) }}</dd>
-        <!-- Gallons -->
-        <dt class="text-ink-muted">Gallons</dt>
-        <dd class="text-right font-semibold text-ink">{{ txn.gallons }}</dd>
-        <!-- $/gal -->
-        <template v-if="txn.price_per_gal != null">
-          <dt class="text-ink-muted">$/gal</dt>
-          <dd class="text-right text-ink">{{ fmtMoney(txn.price_per_gal) }}</dd>
+        <template #value-samsara>
+          <span v-if="txn.samsara_location_matched" class="text-xs font-medium text-success-700">✓ Confirmed</span>
+          <span v-else class="text-xs font-semibold text-danger-700">✗ Mismatch</span>
         </template>
-        <!-- Total cost -->
-        <template v-if="txn.total_cost != null">
-          <dt class="text-ink-muted">Total cost</dt>
-          <dd class="text-right font-semibold text-ink">{{ fmtMoney(txn.total_cost) }}</dd>
-        </template>
-        <!-- MPG -->
-        <dt class="text-ink-muted">MPG</dt>
-        <dd class="text-right text-ink">{{ txn.computed_mpg ?? "—" }}</dd>
-        <!-- Location -->
-        <dt class="text-ink-muted">Location</dt>
-        <dd class="text-right text-xs text-ink-secondary">
-          {{
-            txn.location_text
-              ? txn.location_text
-              : [txn.city, txn.state].filter(Boolean).join(", ") || "—"
-          }}
-        </dd>
-        <!-- Samsara location check -->
-        <template v-if="txn.samsara_location_matched != null">
-          <dt class="text-ink-muted">Samsara location</dt>
-          <dd class="text-right">
-            <span v-if="txn.samsara_location_matched" class="text-xs font-medium text-success-700">✓ Confirmed</span>
-            <span v-else class="text-xs font-semibold text-danger-700">✗ Mismatch</span>
-          </dd>
-        </template>
-        <!-- Source -->
-        <dt class="text-ink-muted">Source</dt>
-        <dd class="text-right capitalize text-ink-secondary">{{ txn.source }}</dd>
-      </dl>
-    </div>
+      </FactList>
+      </div>
 
-    </template>
+    </div>
 
     <!-- ⑦ Workflow -->
     <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-4 border-t border-edge pt-5">

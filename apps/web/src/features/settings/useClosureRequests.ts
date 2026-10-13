@@ -17,7 +17,7 @@ export function useClosureRequestsQuery() {
     queryKey: CLOSURE_KEY,
     queryFn: async (): Promise<ClosureRequest[]> => {
       const res = await apiFetch<unknown>("/api/driver-app/closure-requests");
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to load closure requests.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not load the closure requests.");
       // Parsed, never cast (D24). The web `apiFetch` has no `schema` option — that is the driver
       // app's — so the parse is explicit here, and a shape change in the API surfaces as a thrown
       // Zod error the query renders rather than as `undefined` reaching the template.
@@ -45,7 +45,7 @@ export function useResolveClosureRequest() {
         `/api/driver-app/closure-requests/${encodeURIComponent(input.id)}/${input.outcome}`,
         { method: "POST", body: input.note ? { note: input.note } : {} },
       );
-      if (!res.ok) throw new Error(res.error?.message ?? "Failed to resolve the request.");
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not resolve the request.");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: CLOSURE_KEY }),
   });

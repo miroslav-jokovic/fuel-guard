@@ -91,7 +91,9 @@ async function submit(): Promise<void> {
              regulation bars performing a safety-sensitive function, not being employed. The block
              lands at load assignment, where it belongs, and this is the warning that it will. -->
         <AppCallout v-if="previewQ.data.value.returnToDutyBlocked" tone="warning">
-          {{ RETURN_TO_DUTY_BLOCK.hire }}
+          <!-- A Med-Stop hold is worded without the result: the recruiter may not read testing
+               records, and unlike the admission the applicant never told them (MS2, F-5). -->
+          {{ previewQ.data.value.returnToDutyCause === "violation" ? RETURN_TO_DUTY_BLOCK.hireViolation : RETURN_TO_DUTY_BLOCK.hire }}
         </AppCallout>
 
         <div v-if="previewQ.data.value.outstanding.length" class="rounded-surface bg-surface-muted p-3">

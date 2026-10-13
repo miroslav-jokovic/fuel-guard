@@ -3,6 +3,7 @@ import {
   capacityFromForm,
   classifyByCapacity,
   derivePackaging,
+  packageTypeFromPrinted,
   packagingKindFor,
   phaseForHazardClass,
   weightToLb,
@@ -120,5 +121,28 @@ describe("form plumbing", () => {
     expect(weightToLb(1000, "kg")).toBeCloseTo(2204.62, 1);
     expect(weightToLb(500, "lb")).toBe(500);
     expect(weightToLb(500, "gal")).toBeNull();
+  });
+});
+
+describe("packageTypeFromPrinted — the one reading of a printed packaging phrase", () => {
+  it("reads each package type from how real papers print it, plurals included", () => {
+    expect(packageTypeFromPrinted("10 DRUMS")).toBe("drum");
+    expect(packageTypeFromPrinted("4 TOTES")).toBe("ibc_tote");
+    expect(packageTypeFromPrinted("2 IBC")).toBe("ibc_tote");
+    expect(packageTypeFromPrinted("1 cargo tank")).toBe("bulk_cargo");
+    expect(packageTypeFromPrinted("Bulk")).toBe("bulk_cargo");
+    expect(packageTypeFromPrinted("1 ISO tank")).toBe("portable_tank");
+    expect(packageTypeFromPrinted("1 tank")).toBe("other_bulk");
+    expect(packageTypeFromPrinted("6 pails")).toBe("pail");
+    expect(packageTypeFromPrinted("12 cylinders")).toBe("cylinder");
+    expect(packageTypeFromPrinted("40 CASES")).toBe("box");
+    expect(packageTypeFromPrinted("20 bags")).toBe("bag");
+    expect(packageTypeFromPrinted("3 packages")).toBe("other_non_bulk");
+  });
+
+  it("lets a bulk word win over a package word (toward bulk, D2), and knows nothing it was not told", () => {
+    expect(packageTypeFromPrinted("4 totes of drums")).toBe("ibc_tote");
+    expect(packageTypeFromPrinted("1 TT")).toBe("");
+    expect(packageTypeFromPrinted(null)).toBe("");
   });
 });

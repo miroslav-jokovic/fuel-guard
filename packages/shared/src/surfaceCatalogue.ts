@@ -157,6 +157,14 @@ export const SURFACES: readonly Surface[] = [
   { key: "safety.alerts", label: "Alerts", path: "/anomalies", group: "safety", gate: section("safety") },
   { key: "safety.driver-performance", label: "Driver Performance", path: "/driver-performance", group: "safety", gate: section("safety") },
   { key: "safety.idling", label: "Idling", path: "/idling", group: "safety", gate: section("safety") },
+  // The DOT drug & alcohol program as Med-Stop holds it (MEDSTOP-PLAN §6 F-1/F-2, 2026-10-13): who is
+  // outside the random pool, how far the year's rate has to go. `safety` reads it; who is selected
+  // and untested is held inside the page to the roles that read testing records.
+  { key: "safety.drug-alcohol", label: "Drug & Alcohol", path: "/drug-alcohol", group: "safety", gate: section("safety") },
+  // Our FMCSA roadside inspections, newest first (INSPECTION-CHALLENGE-PLAN §6, the Inspections inbox's
+  // first slice; FLEET-MANAGER-HOME-PLAN Q-FM7 (a), 2026-10-13) — and the list the Operations tab's
+  // Roadside card opens. `safety` per D-IC12; cases and filings join this page in IC4.
+  { key: "safety.roadside-inspections", label: "Roadside inspections", path: "/roadside-inspections", group: "safety", gate: section("safety") },
   /**
    * The driver qualification file (§391.51) — certifications, the DQF event history, and the scans
    * behind both. `roster` and not `safety`: the §391.51 file is a fact about a PERSON, and that gate
@@ -338,6 +346,14 @@ export const SURFACES: readonly Surface[] = [
    * page: given a key of its own the denial would stop reaching the ledger the day the home took
    * the key over. D-SURF8's inheritance is what keeps that answer where it was pointed.
    */
+  /**
+   * FleetPal's open work orders and open defects (FLEET-MANAGER-HOME-PLAN Q-FM6 (a), 2026-10-13).
+   * Children of the shop home for the ledger's reason: the group is fixed at six rows by I4's ruling,
+   * and these are the pages behind two tiles on that home (and behind the Operations tab's Shop
+   * card). A member denied the shop is denied what it lists.
+   */
+  { key: "maintenance.work-orders", label: "Open work orders", path: "/shop/work-orders", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
+  { key: "maintenance.defects", label: "Open defects", path: "/shop/defects", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
   { key: "maintenance.repair-spend.ledger", label: "Repair spend", path: "/shop/repair-spend", group: "maintenance", gate: section("maintenance"), parent: "maintenance.repair-spend" },
 
   // ── non-nav screens that already state a section, transcribed (no behaviour change) ───────────
@@ -398,6 +414,9 @@ export const SURFACES: readonly Surface[] = [
   // The FleetPal connection (2026-10-04). Admin-only for `fleetpal.connection`'s reason in
   // namedGrants.ts: the key it stores speaks for the carrier to the shop system.
   { key: "admin.settings.fleetpal", label: "FleetPal integration", path: "/settings/fleetpal", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
+  // The Med-Stop connection (MEDSTOP-PLAN MS1, 2026-10-13). Admin-only for `medstop.connection`'s
+  // reason in namedGrants.ts: the key reaches every driver's testing record at the C/TPA.
+  { key: "admin.settings.medstop", label: "Med-Stop integration", path: "/settings/medstop", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.card-control", label: "Card control", path: "/settings/card-control", group: "admin", gate: ADMIN, reachedFrom: "admin.settings" },
   { key: "admin.settings.thresholds", label: "Anomaly thresholds", path: "/settings/thresholds", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },
   { key: "admin.settings.driver-performance", label: "Driver performance", path: "/settings/driver-performance", group: "admin", gate: manage("settings"), reachedFrom: "admin.settings", startsOnFor: [] },

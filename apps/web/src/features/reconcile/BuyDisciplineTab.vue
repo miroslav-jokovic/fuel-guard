@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
 import {
   analyzeCarriedFuel, rankStatesByFuelCost, policyDivergence, listStates, STATE_NAMES,
   gradePolicyCells, NO_FUEL_TARGETS, AVOIDED_STATE_TARGET_PERIOD, formatDisplayDate,
@@ -9,7 +9,9 @@ import {
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { downloadCsv } from "@/lib/csv";
 import { usd, usd3, gal, pct1 } from "./format";
@@ -76,8 +78,8 @@ const props = withDefaults(defineProps<{
    */
   inputs?: "ready" | "loading" | "error";
 }>(), { fleetWide: true, fillsState: "ready", inputs: "ready" });
-const FILLS_FAILED = "Couldn't load the fill sequence for this window.";
-/** The purchases table's Retry: the page owns the read. */
+const FILLS_FAILED = "Could not load the fill sequence for this window.";
+/** The headline's and the purchases table's Retry: the page owns the read. */
 const emit = defineEmits<{ retry: [] }>();
 
 const report = computed(() => analyzeCarriedFuel(props.fills));
@@ -271,15 +273,24 @@ function exportRows() {
 
       <!-- The one qualification that changes how the figure is read stays beside it: half the trips are
            estimated from miles, and that estimate undercounts roughly fivefold, so the total is a minimum. -->
-      <p v-if="fillsState === 'loading'" class="mt-3 text-sm text-ink-muted" data-testid="carried-state">Loading the fill sequence…</p>
-      <p v-else-if="fillsState === 'error'" class="mt-3 text-sm text-danger-700" data-testid="carried-state">{{ FILLS_FAILED }}</p>
-      <p v-else class="mt-3 text-xs text-ink-tertiary" data-testid="carried-basis">
-        {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
-        {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
-        ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
-        miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which undercounts —
-        so the total is a minimum.
-      </p>
+      <div class="mt-3" data-testid="carried-state">
+        <QueryState
+          compact
+          :loading="fillsState === 'loading'"
+          :error="fillsState === 'error'"
+          loading-text="Loading the fill sequence…"
+          :error-text="FILLS_FAILED"
+          @retry="emit('retry')"
+        >
+          <p class="text-xs text-ink-tertiary" data-testid="carried-basis">
+            {{ coverage.findings.toLocaleString() }} purchases, {{ gal(report.gallons) }} gal still in the tank.
+            {{ report.byBasis.tank_level.pairs }} trips measured from a confirmed tank level
+            ({{ usd(report.byBasis.tank_level.excess) }}); {{ report.byBasis.miles_burned.pairs }} estimated from
+            miles driven and the truck's own mpg ({{ usd(report.byBasis.miles_burned.excess) }}), which undercounts —
+            so the total is a minimum.
+          </p>
+        </QueryState>
+      </div>
 
       <!--
         Until 2026-09-10 a callout here offered the planner's min-drawdown switch, priced. The owner retired
@@ -291,10 +302,16 @@ function exportRows() {
     <div>
       <div class="mb-2 flex items-center justify-between">
         <h4 class="text-sm font-semibold text-ink">Purchases to review</h4>
-        <BaseButton v-if="fillsState === 'ready' && report.findings.length" variant="ghost" @click="exportRows">Download (CSV)</BaseButton>
+        <ExportButton
+          v-if="fillsState === 'ready' && report.findings.length"
+          :run="exportRows"
+          :scope="`${report.findings.length.toLocaleString()} purchases`"
+          label="Download (CSV)"
+        />
       </div>
       <BaseCard padding="none">
         <DataTable
+          embedded
           :columns="cols"
           :rows="pageRows"
           :sort="sort"
@@ -372,7 +389,7 @@ function exportRows() {
 
         <template v-if="props.policy.avoidStates.length">
           <BaseCard padding="none" class="mt-3">
-            <DataTable :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
+            <DataTable embedded :columns="monthCols" :rows="monthRows" row-key="id" empty-text="The window covers no calendar month.">
               <template #cell-against="{ row }">
                 <span :class="row.tone">{{ row.against }}</span>
               </template>
@@ -411,7 +428,7 @@ function exportRows() {
     </p>
     <ExplainerPanel v-if="fillsState === 'ready' && stateRows.length" summary="What fuel costs, by state, with the tax taken out">
       <BaseCard padding="none">
-        <DataTable :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
+        <DataTable embedded :columns="stateCols" :rows="stateRows" row-key="id" empty-text="Nothing priced in this window." />
       </BaseCard>
       <p class="text-xs text-ink-tertiary">
         This is what the fleet PAID, not what fuel costs in that state — somewhere you only ever stop at

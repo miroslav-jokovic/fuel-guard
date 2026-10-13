@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCallout, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
+import { useRoute, RouterLink } from "vue-router";
+import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -10,9 +10,13 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import ReportScopeBar from "@/components/ui/ReportScopeBar.vue";
 import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaJurisdictionQuery,
   type IftaQuarter,
@@ -35,7 +39,10 @@ import { gal, pct1, usd, usd3 } from "@/features/reconcile/format";
  * included, on a row of their own, because they are in the row's total too.
  */
 const route = useRoute();
-const router = useRouter();
+// Quarter, filters, sort and page all read and write through one buffer (D-US2). They were written
+// with `router.replace({ ...route.query })` one at a time, and two writes in one tick — Clear filters
+// while a search is in flight — each spread the same stale query and the second dropped the first.
+const qs = useQueryState();
 const opens = useOpens();
 
 const code = computed(() => String(route.params.jurisdiction ?? "").toUpperCase());
@@ -43,11 +50,14 @@ const name = computed(() => STATE_NAMES[code.value] ?? code.value);
 
 const NOW = new Date();
 const quarters = selectableQuarters(NOW);
-const quarter = computed<IftaQuarter>(() => parseQuarterKey(route.query.q as string) ?? quarters[0]!);
+// Not checked against `quarterOptions`: a forwarded link may name a quarter older than the picker
+// offers, and `parseQuarterKey` is what decides whether it is a quarter at all.
+const qParam = qs.param("q");
+const quarter = computed<IftaQuarter>(() => parseQuarterKey(qParam.value) ?? quarters[0]!);
 const quarterOptions = quarters.map((q) => ({ value: quarterKey(q), label: quarterLabel(q) }));
 const selectedKey = computed<string>({
   get: () => quarterKey(quarter.value),
-  set: (v) => void router.replace({ query: { ...route.query, q: v } }),
+  set: (v) => (qParam.value = v),
 });
 
 const { data, isLoading, isFetching, isError, error, refetch } = useIftaJurisdictionQuery(quarter, code);
@@ -77,14 +87,9 @@ const SHOW_OPTIONS: { value: Show; label: string }[] = [
   { value: "drove", label: "Drove here, bought none" },
   { value: "all", label: "All trucks" },
 ];
-const show = computed<Show>({
-  get: () => (["drove", "all"].includes(String(route.query.show)) ? (route.query.show as Show) : ""),
-  set: (v) => void router.replace({ query: { ...route.query, show: v || undefined } }),
-});
-const search = computed<string>({
-  get: () => String(route.query.search ?? ""),
-  set: (v) => void router.replace({ query: { ...route.query, search: v.trim() ? v : undefined } }),
-});
+const showParam = qs.param("show", SHOW_OPTIONS.map((o) => o.value).filter(Boolean));
+const show = computed<Show>({ get: () => showParam.value as Show, set: (v) => (showParam.value = v) });
+const search = qs.param("search");
 const shows = (t: IftaJurisdictionTruck): boolean =>
   show.value === "all" || (show.value === "drove" ? t.fills.length === 0 : t.fills.length > 0);
 const matches = (t: IftaJurisdictionTruck): boolean => {
@@ -92,9 +97,8 @@ const matches = (t: IftaJurisdictionTruck): boolean => {
   return !q || truckLabel(t).toLowerCase().includes(q);
 };
 const activeFilterCount = computed(() => (show.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
-const resetFilters = () => void router.replace({ query: { ...route.query, show: undefined, search: undefined } });
+const resetFilters = () => qs.set({ show: undefined, search: undefined });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
 const byKey = computed(() => new Map((data.value?.trucks ?? []).map((t) => [keyOf(t), t])));
 const visible = computed(() => (data.value?.trucks ?? []).filter((t) => shows(t) && matches(t)));
 const rows = computed(() =>
@@ -123,15 +127,22 @@ const cols: DataTableColumn[] = [
   { key: "fillCount", label: "Fills", numeric: true, width: "xs", sortable: true },
   { key: "spent", label: "Spent", numeric: true, width: "sm", sortable: true },
 ];
+// After the columns it is checked against; `rows` above reads it lazily, so the order is safe.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", cols.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 /** Trucks, not rows: the fills with no truck sit on a row of their own and are not a truck. */
 const truckCount = computed(() => (data.value?.trucks ?? []).filter((t) => t.vehicleId != null).length);
 const listedTrucks = computed(() => visible.value.filter((t) => t.vehicleId != null).length);
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+
 
 /** Client-side pages over the filtered list — a jurisdiction-quarter is at most a few hundred trucks. */
 const PAGE_SIZE = 25;
-const page = ref(1);
-watch([rows, sort], () => (page.value = 1));
+const page = qs.page();
+// On the inputs, not on `rows`: `rows` also changes when the jurisdiction arrives, and watching it
+// would throw a pasted `?page=2` away the moment the list loaded (D-US2).
+watch([show, search, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 /** An empty list says which of the two it is: nothing here at all, or nothing this filter keeps. */
@@ -180,6 +191,25 @@ const fillRows = (id: string) =>
     total: f.totalCost == null ? null : usd(f.totalCost),
   }));
 
+/**
+ * D-US8: a truck's fills page inside its opened row. One truck can buy fuel in a jurisdiction a few
+ * hundred times in a quarter, and an unpaged list under one row pushed every truck below it off the
+ * screen.
+ *
+ * The page is held HERE, per opened truck, and not in the URL like the trucks' own `?page=` (D-US2):
+ * it is one row's detail, not the list's state. Which rows are open is not in the URL either, so a
+ * link that restored the fills' page would restore it under a row that is shut. Read clamped, so a
+ * quarter with fewer fills shows its last page rather than an empty one.
+ */
+const FILL_PAGE_SIZE = 20;
+const fillPages = ref(new Map<string, number>());
+const fillCount = (id: string) => byKey.value.get(id)?.fills.length ?? 0;
+const fillPage = (id: string) =>
+  Math.min(fillPages.value.get(id) ?? 1, Math.max(1, Math.ceil(fillCount(id) / FILL_PAGE_SIZE)));
+const setFillPage = (id: string, n: number) => fillPages.value.set(id, n);
+const fillPageRows = (id: string) =>
+  fillRows(id).slice((fillPage(id) - 1) * FILL_PAGE_SIZE, fillPage(id) * FILL_PAGE_SIZE);
+
 /** "in 684 fills", and the receipts beside them when there are any — both inside "Gallons bought". */
 const boughtSub = computed(() => {
   const d = data.value;
@@ -198,20 +228,14 @@ const boughtSub = computed(() => {
       :description="`Every truck that drove or bought fuel in ${name} in ${quarterLabel(quarter)}: its miles there and its fills there.`"
     />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck…"
-      :count="listedTrucks"
-      count-label="trucks"
+    <ReportScopeBar
+      title="Reporting quarter"
+      description="The summary and truck detail use this filing period."
     >
-      <template #filters>
+      <template #control>
         <FilterSelect v-model="selectedKey" :options="quarterOptions" label="Quarter" />
-        <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
       </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-      </template>
-    </FilterBar>
+    </ReportScopeBar>
 
     <AppCallout v-if="isError" tone="danger">
       Couldn't load {{ name }}: {{ error instanceof Error ? error.message : "unknown error" }}
@@ -225,13 +249,28 @@ const boughtSub = computed(() => {
         <StatCard label="Trucks" :value="truckCount.toLocaleString('en-US')" :sub="`drove or fuelled in ${name}`" />
       </div>
 
-      <p v-if="data && listedTrucks !== truckCount" class="text-xs text-ink-tertiary" data-testid="narrower">
-        Listing {{ listedTrucks.toLocaleString("en-US") }} of {{ truckCount.toLocaleString("en-US") }} trucks. The
-        figures above are the whole of {{ name }} for the quarter.
-      </p>
+      <DataWorkspace>
+        <FilterBar
+          v-model:search="search"
+          embedded
+          search-placeholder="Search truck…"
+          :count="listedTrucks"
+          count-label="trucks"
+          :active-count="activeFilterCount"
+          @clear-all="resetFilters"
+        >
+          <template #filters>
+            <FilterSelect v-model="show" :options="SHOW_OPTIONS" label="Show" />
+          </template>
+        </FilterBar>
 
-      <BaseCard padding="none">
+        <p v-if="data && listedTrucks !== truckCount" class="px-4 py-3 text-xs text-ink-tertiary" data-testid="narrower">
+          Listing {{ listedTrucks.toLocaleString("en-US") }} of {{ truckCount.toLocaleString("en-US") }} trucks. The
+          figures above are the whole of {{ name }} for the quarter.
+        </p>
+
         <DataTable
+          embedded
           :columns="cols"
           :rows="paged"
           row-key="id"
@@ -277,16 +316,26 @@ const boughtSub = computed(() => {
               embedded
               dense
               :columns="fillCols"
-              :rows="fillRows(String(row.id))"
+              :rows="fillPageRows(String(row.id))"
               row-key="id"
               :data-testid="`fills-${row.id}`"
-            />
+            >
+              <template #footer>
+                <TablePagination
+                  :page="fillPage(String(row.id))"
+                  :page-size="FILL_PAGE_SIZE"
+                  :total="fillCount(String(row.id))"
+                  :jumpable="false"
+                  @update:page="setFillPage(String(row.id), $event)"
+                />
+              </template>
+            </DataTable>
           </template>
           <template #footer>
             <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
           </template>
         </DataTable>
-      </BaseCard>
+      </DataWorkspace>
 
       <p class="text-xs text-ink-tertiary">
         Miles are Samsara's monthly jurisdiction report for each truck, added up over the quarter. Fills are

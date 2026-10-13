@@ -104,13 +104,14 @@ const rowClass = (row: EffectiveDisplayRow): string => (row.enforced ? "" : "tex
     <BaseCard v-for="section in sections" :key="section.id" padding="none">
       <div class="flex flex-wrap items-start justify-between gap-2 px-4 py-3">
         <div class="space-y-1">
-          <h2 class="text-sm font-medium text-ink">{{ section.title }}</h2>
+          <h2 class="text-sm font-semibold text-ink">{{ section.title }}</h2>
           <p class="text-sm text-ink-muted">{{ section.sentence }}</p>
         </div>
         <!-- The page supplies the section's ⋮; this component knows the data, not the actions. -->
         <slot name="actions" :section="section.id" />
       </div>
       <DataTable
+        embedded
         :columns="columns"
         :rows="section.rows"
         row-key="key"

@@ -9,6 +9,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useUpdateDriverProfile } from "@/composables/useDrivers";
 import { formatDate } from "@/lib/format";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 /**
  * The four values a driver-screening lookup matches on (PSP-PLAN.md P0).
@@ -65,6 +66,21 @@ const missing = computed(() => {
 
 const showForm = computed(() => editing.value || !props.driver?.date_of_birth);
 
+/**
+ * The read-only identity (D-US6). A licence the roster has not recorded is FactList's em dash — the
+ * sentence above already names it as missing, so the cell need not say "Not recorded" a second time.
+ * The date of birth shows only once saved; until then the form below is where it goes.
+ */
+const facts = computed<Fact[]>(() => {
+  const d = props.driver;
+  if (!d) return [];
+  return [
+    { label: "Licence number", value: d.cdl_number },
+    { label: "Licence state", value: d.cdl_state },
+    ...(showForm.value ? [] : [{ label: "Date of birth", value: formatDate(d.date_of_birth) }]),
+  ];
+});
+
 async function submit(): Promise<void> {
   if (!props.driver || error.value) return;
   try {
@@ -102,24 +118,7 @@ async function submit(): Promise<void> {
       </BaseButton>
     </div>
 
-    <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-      <div>
-        <dt class="text-ink-muted">Licence number</dt>
-        <dd class="font-medium" :class="driver.cdl_number ? 'text-ink' : 'text-ink-muted'">
-          {{ driver.cdl_number ?? "Not recorded" }}
-        </dd>
-      </div>
-      <div>
-        <dt class="text-ink-muted">Licence state</dt>
-        <dd class="font-medium" :class="driver.cdl_state ? 'text-ink' : 'text-ink-muted'">
-          {{ driver.cdl_state ?? "Not recorded" }}
-        </dd>
-      </div>
-      <div v-if="!showForm">
-        <dt class="text-ink-muted">Date of birth</dt>
-        <dd class="font-medium text-ink">{{ formatDate(driver.date_of_birth) }}</dd>
-      </div>
-    </dl>
+    <FactList class="mt-4" :columns="3" :facts="facts" />
 
     <form v-if="showForm && session.can('roster')" class="mt-4 space-y-3" @submit.prevent="submit">
       <FormField v-slot="{ id }" label="Date of birth" :error="error ?? undefined">

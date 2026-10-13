@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { AppCallout, AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
+import { computed, watch } from "vue";
+import { AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import { RECON_DISCREPANCIES, RECON_STATUS_LABELS, type ReconRow, type ReconStatus, type ReconSummary } from "@silvicom/shared";
 import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import ExportButton from "@/components/ExportButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import { useQueryState } from "@/composables/useQueryState";
 
 /**
  * What one invoice check found — the counts, the money and the lines — as the SERVER recorded it.
@@ -59,12 +63,16 @@ const buckets = computed<Bucket[]>(() => {
 const exposure = computed(() => {
   const e = props.summary.exposure;
   return [
-    { label: "Billed above what we recorded", value: e.overbilled, lines: e.overbilledLines, tone: "text-danger-700", hint: "recoverable" },
-    { label: "Billed below what we recorded", value: e.underbilled, lines: e.underbilledLines, tone: "text-ink", hint: "may still be owed" },
-    { label: RECON_STATUS_LABELS.missing_in_system, value: e.unrecorded, lines: e.unrecordedLines, tone: "text-danger-700", hint: "fuel we cannot account for" },
-    { label: RECON_STATUS_LABELS.missing_on_report, value: e.unbilled, lines: e.unbilledLines, tone: "text-ink", hint: "not yet invoiced" },
+    { key: "overbilled", label: "Billed above what we recorded", value: e.overbilled, lines: e.overbilledLines, tone: "text-danger-700", hint: "recoverable" },
+    { key: "underbilled", label: "Billed below what we recorded", value: e.underbilled, lines: e.underbilledLines, tone: undefined, hint: "may still be owed" },
+    { key: "unrecorded", label: RECON_STATUS_LABELS.missing_in_system, value: e.unrecorded, lines: e.unrecordedLines, tone: "text-danger-700", hint: "fuel we cannot account for" },
+    { key: "unbilled", label: RECON_STATUS_LABELS.missing_on_report, value: e.unbilled, lines: e.unbilledLines, tone: undefined, hint: "not yet invoiced" },
   ].filter((x) => x.lines > 0);
 });
+/** The same four as FactList facts (D-US6); each value's line count and hint ride in its slot. */
+const exposureFacts = computed<Fact[]>(() =>
+  exposure.value.map((x) => ({ key: x.key, label: x.label, value: fmtUsd(x.value), tone: x.tone, numeric: true })),
+);
 
 /** How each match was placed. A claim's strength is part of the claim. */
 const matchBasis = computed(() => {
@@ -101,12 +109,36 @@ function exportRows() {
   );
 }
 
-const statusFilter = ref<ReconStatus | "discrepancies" | "">("discrepancies");
 const statusOptions = [
   { value: "discrepancies", label: "Needs a look" },
   { value: "", label: "All rows" },
   ...(Object.keys(RECON_STATUS_LABELS) as ReconStatus[]).map((k) => ({ value: k, label: RECON_STATUS_LABELS[k] })),
 ];
+
+// "Needs a look" is where a check OPENS, so it is the default rather than a narrowing: counting it
+// would put "Clear filters" on every freshly opened check, and pressing it would widen nothing.
+const DEFAULT_STATUS_FILTER = "discrepancies" as const;
+
+/**
+ * The line filter and the page live in the URL (D-US2), so a check forwarded to accounting as "look at
+ * the amount differences" opens on them, and a reload keeps the page.
+ *
+ * Scoped `lines.` because this view sits INSIDE the check's detail page, whose route is the page's own;
+ * an unscoped `?status=` there would be a word the page never chose. "Needs a look" is the fallback, so
+ * a plain link to a check stays plain and opens where a check opens; "All rows" is written as `any`.
+ * The allowed words are the options' own values, so a hand-edited status the check does not know opens
+ * on "Needs a look" rather than on an empty table.
+ */
+const qs = useQueryState("lines");
+const statusFilter = qs.param(
+  "status",
+  statusOptions.map((o) => o.value).filter(Boolean),
+  DEFAULT_STATUS_FILTER,
+);
+const activeFilterCount = computed(() => (statusFilter.value === DEFAULT_STATUS_FILTER ? 0 : 1));
+function resetFilters() {
+  qs.set({ status: undefined });
+}
 
 const tableRows = computed(() => {
   const all = props.rows ?? [];
@@ -133,7 +165,7 @@ const tableRows = computed(() => {
 
 /** Paged, because "All rows" on a monthly export is thousands of rows into the DOM in one pass (X12). */
 const PAGE_SIZE = 50;
-const page = ref(1);
+const page = qs.page();
 // Narrowing while on page nine lands on an empty page that reads as an error rather than a filter.
 watch([statusFilter, () => props.rows], () => { page.value = 1; });
 const pageRows = computed(() => tableRows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
@@ -177,13 +209,12 @@ const columns: DataTableColumn[] = [
 
     <BaseCard v-if="exposure.length" padding="sm">
       <h4 class="text-sm font-semibold text-ink">What does not reconcile</h4>
-      <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div v-for="x in exposure" :key="x.label">
-          <dt class="text-xs text-ink-muted">{{ x.label }}</dt>
-          <dd class="text-lg font-semibold" :class="x.tone">{{ fmtUsd(x.value) }}</dd>
-          <dd class="text-xs text-ink-tertiary">{{ x.lines }} line{{ x.lines === 1 ? "" : "s" }} · {{ x.hint }}</dd>
-        </div>
-      </dl>
+      <FactList :facts="exposureFacts" class="mt-3" data-testid="recon-exposure">
+        <template v-for="x in exposure" :key="x.key" #[`value-${x.key}`]="{ fact }">
+          {{ fact.value }}
+          <span class="block text-xs font-normal text-ink-tertiary">{{ x.lines }} line{{ x.lines === 1 ? "" : "s" }} · {{ x.hint }}</span>
+        </template>
+      </FactList>
       <p class="mt-3 text-xs text-ink-tertiary">
         Reported apart on purpose: money we can recover, money we may owe, and money nobody has
         explained are different findings and are never added together.
@@ -197,17 +228,27 @@ const columns: DataTableColumn[] = [
       totals are on file. Check the invoice again to see every line.
     </AppCallout>
 
-    <template v-else>
-      <FilterBar :count="tableRows.length" count-label="lines">
+    <DataWorkspace v-else>
+      <FilterBar
+        embedded
+        :count="tableRows.length"
+        count-label="lines"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
+      >
         <template #filters>
           <FilterSelect v-model="statusFilter" label="Show" :options="statusOptions" />
         </template>
         <template #actions>
-          <BaseButton variant="ghost" @click="exportRows">Download every line (CSV)</BaseButton>
+          <ExportButton
+            :run="exportRows"
+            :scope="`${(rows?.length ?? 0).toLocaleString()} lines`"
+            label="Download every line (CSV)"
+          />
         </template>
       </FilterBar>
 
-      <DataTable :columns="columns" :rows="pageRows" row-key="id" empty-text="No lines in this group.">
+      <DataTable embedded :columns="columns" :rows="pageRows" row-key="id" empty-text="No lines in this group.">
         <template #cell-status="{ row }">
           <span :class="[BADGE_BASE, toneClass(reconStatusBadge(String(row.status)).tone)]">
             {{ reconStatusBadge(String(row.status)).label }}
@@ -230,6 +271,6 @@ const columns: DataTableColumn[] = [
           <TablePagination :page="page" :page-size="PAGE_SIZE" :total="tableRows.length" @update:page="page = $event" />
         </template>
       </DataTable>
-    </template>
+    </DataWorkspace>
   </div>
 </template>

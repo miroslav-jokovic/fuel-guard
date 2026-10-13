@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { ref } from "vue";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
@@ -87,17 +88,24 @@ const move = vi.hoisted(() => ({
   isPending: { value: false },
 }));
 const closeWalk = vi.hoisted(() => ({ mutateAsync: vi.fn(async () => ({})), isPending: { value: false } }));
+/** D-US5: the kit read can fail; `refetch` is what the page's Retry must call. */
+const kitRead = vi.hoisted(() => ({ fails: false, refetch: vi.fn() }));
 
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
   return {
-    useCountSessionQuery: () => ({ data: walk, isLoading: r(false), isError: r(false) }),
+    useCountSessionQuery: () => ({ data: walk, isLoading: r(false), isError: r(false), error: r(null), isFetching: r(false), refetch: vi.fn() }),
     useCloseCountSession: () => closeWalk,
   };
 });
 vi.mock("@/features/inventory/useUnits", async () => {
   const { ref: r } = await import("vue");
-  return { useUnitKitQuery: () => ({ data: kit, isLoading: r(false), isError: r(false) }) };
+  return {
+    useUnitKitQuery: () => ({
+      data: kit, isLoading: r(false), isError: r(kitRead.fails), error: r(kitRead.fails ? new Error("boom") : null),
+      isFetching: r(false), refetch: kitRead.refetch,
+    }),
+  };
 });
 vi.mock("@/features/inventory/useAssets", async () => {
   const { ref: r } = await import("vue");
@@ -153,6 +161,8 @@ beforeEach(() => {
   move.mutateAsync.mockImplementation(async () => ({ id: "m-1" }));
   closeWalk.mutateAsync.mockClear();
   kit.value = { unit, assets: [asset(ON_UNIT)] };
+  kitRead.fails = false;
+  kitRead.refetch.mockClear();
 });
 
 /** D-INV17 as amended 2026-09-10: the check is a page in the app's own shell, titled like the unit's page. */
@@ -161,6 +171,17 @@ describe("the page's anatomy", () => {
     const w = page();
     expect(w.find("h1").text()).toBe("Truck 654");
     expect(w.text()).toContain("0 of 1 checked");
+  });
+});
+
+describe("a kit that fails to load (D-US5)", () => {
+  it("says so with a Retry, instead of claiming every item has been looked at", async () => {
+    kitRead.fails = true;
+    const w = page();
+    expect(w.text()).not.toContain("Every item has been looked at");
+    expect(w.get("[role=alert]").text()).toContain("Could not load the unit's kit.");
+    await press(w, "Retry");
+    expect(kitRead.refetch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -222,15 +243,29 @@ describe("the promise the queue keeps", () => {
 
 describe("closing", () => {
   it("warns about items nobody looked at, and leaves them alone", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const asked = answerConfirm(false);
     const w = page();
     await press(w, "Review");
     await press(w, "Close the check");
-    expect(confirm.mock.calls[0]![0]).toContain("1 item");
+    // D-US7: the product's dialog, red because closing cannot be undone.
+    expect(asked).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining("1 item"),
+        confirmLabel: "Close check",
+        tone: "danger",
+      }),
+    );
     // Cancelled: nothing closed, and no movement invented for the unlooked-at item.
     expect(closeWalk.mutateAsync).not.toHaveBeenCalled();
     expect(move.mutateAsync).not.toHaveBeenCalled();
-    confirm.mockRestore();
+  });
+
+  it("closes the check when the question is answered yes", async () => {
+    answerConfirm(true);
+    const w = page();
+    await press(w, "Review");
+    await press(w, "Close the check");
+    expect(closeWalk.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
   it("shows what is short at review, which is what somebody acts on", async () => {

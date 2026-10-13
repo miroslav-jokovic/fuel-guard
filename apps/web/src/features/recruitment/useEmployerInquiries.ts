@@ -1,8 +1,9 @@
 import { computed, type Ref } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import type { InquiryAttempt, InquiryKind, InquiryOutcomeUpdate } from "@silvicom/shared";
-import { DOCUMENTS_BUCKET } from "@silvicom/shared";
+import { DOCUMENTS_BUCKET, EMPLOYER_RESPONSE_CONTENT_TYPES } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { uploadContentType } from "@/lib/fileFormat";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";
 
@@ -121,8 +122,8 @@ export function useRecordInquiryOutcome() {
 export function useUploadInquiryDocument() {
   return useMutation({
     mutationFn: async (input: { inquiryId: string; file: File }): Promise<{ documentId: string }> => {
-      const contentType = input.file.type;
-      if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+      const contentType = await uploadContentType(input.file, EMPLOYER_RESPONSE_CONTENT_TYPES);
+      if (!contentType) {
         throw new Error("Upload a PDF or an image (JPEG, PNG or WebP).");
       }
       const bytes = await input.file.arrayBuffer();

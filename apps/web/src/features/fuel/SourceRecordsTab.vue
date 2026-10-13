@@ -123,6 +123,16 @@ function removeChip(key: string) {
  * a clear that also reshuffled the rows reads as the button doing too much. Every assignment here is
  * one `set` in the same tick, which `useQueryState`'s buffer coalesces into one navigation.
  */
+/**
+ * What `clearAll` would undo, counted the way FilterBar reads it: the unit list is one filter however
+ * many trucks it holds, and the window is one however many ends it has.
+ */
+const activeFilterCount = computed(
+  () =>
+    [search.value, item.value, state.value, driver.value].filter(Boolean).length +
+    (props.shared.units.value.length ? 1 : 0) +
+    (props.shared.from.value || props.shared.to.value ? 1 : 0),
+);
 function clearAll() {
   search.value = "";
   item.value = "";
@@ -195,6 +205,7 @@ const columns: DataTableColumn[] = [
       count-label="transactions"
       :chips="chips"
       :more-count="moreCount"
+      :active-count="activeFilterCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >
@@ -228,7 +239,7 @@ const columns: DataTableColumn[] = [
       row-key="id"
       dense
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load transactions') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the transactions.') : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

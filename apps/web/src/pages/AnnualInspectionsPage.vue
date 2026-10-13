@@ -3,7 +3,8 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AppTabs, AppBadge, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
-import type { InspectionSubjectType } from "@silvicom/shared";
+import { INSPECTION_SUBJECT_TYPES, type InspectionSubjectType } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -21,6 +22,7 @@ import {
   inspectionPdfPath,
 } from "@/features/maintenance/inspectionDocuments";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import {
   INSPECTIONS_PAGE_SIZE,
   useDiscardInspection,
@@ -58,7 +60,9 @@ import { formatDate } from "@/lib/format";
  * and it sits here for the reason the list exists: cleaning up is a job you do FROM the list, and
  * having to open each report first is what made Discard unreachable in the first place.
  *
- * It is NOT a `confirm()` like Discard. Discarding a draft throws away work nobody has certified;
+ * It is NOT a yes/no question like Discard (the product's confirm, `useConfirm`, D-US7 — which
+ * replaced the browser's `confirm()` on 2026-10-13 without changing this split). Discarding a draft
+ * throws away work nobody has certified;
  * this removes a filed §396.21 record, its certification and its PDF, and hands the truck's
  * inspection date back. That needs a reason and a typed unit number, so it opens the SAME drawer the
  * report page uses — one component, so the two surfaces cannot ask for it differently.
@@ -79,12 +83,35 @@ import { formatDate } from "@/lib/format";
 const router = useRouter();
 const session = useSessionStore();
 
-const subjectType = ref<InspectionSubjectType>("tractor");
-const search = ref("");
-const status = ref("");
-const outcome = ref("");
-const page = ref(1);
+const STATUS_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "draft", label: "In progress" },
+  { value: "final", label: "Completed" },
+];
+const RESULT_OPTIONS = [
+  { value: "", label: "Any" },
+  { value: "pass", label: "Passed" },
+  { value: "fail", label: "Failed" },
+];
+// The register's tab, filters and page live in the URL (D-US2), so Back from a report returns to
+// page 3 of the failed trailers rather than to page 1 of the tractors. Tractors is the fallback, so a
+// plain link opens where it always did; the type is read against the shared catalogue's own list.
+const qs = useQueryState();
+const subjectTypeParam = qs.param("type", INSPECTION_SUBJECT_TYPES, "tractor");
+const subjectType = computed({
+  get: () => subjectTypeParam.value as InspectionSubjectType,
+  set: (v: InspectionSubjectType) => (subjectTypeParam.value = v),
+});
+const search = qs.param("search");
+const status = qs.param("status", STATUS_OPTIONS.map((o) => o.value));
+const outcome = qs.param("result", RESULT_OPTIONS.map((o) => o.value));
+const page = qs.page();
 watch([subjectType, search, status, outcome], () => (page.value = 1));
+// The equipment-type tabs pick WHICH register is read, not a narrowing of it: they never count and clearing leaves them.
+const activeFilterCount = computed(() => [search.value.trim(), status.value, outcome.value].filter(Boolean).length);
+function resetFilters() {
+  qs.set({ search: undefined, status: undefined, result: undefined });
+}
 
 const filter = computed(() => ({
   subjectType: subjectType.value,
@@ -108,16 +135,6 @@ const tabs = [
   { value: "tractor", label: "Tractors" },
   { value: "trailer", label: "Trailers" },
 ];
-const STATUS_OPTIONS = [
-  { value: "", label: "Any" },
-  { value: "draft", label: "In progress" },
-  { value: "final", label: "Completed" },
-];
-const RESULT_OPTIONS = [
-  { value: "", label: "Any" },
-  { value: "pass", label: "Passed" },
-  { value: "fail", label: "Failed" },
-];
 
 const columns: DataTableColumn[] = [
   { key: "unit", label: "Unit", width: "sm" },
@@ -135,6 +152,7 @@ function onCreated(id: string) {
 }
 
 const toast = useToastStore();
+const ask = useConfirm();
 const discard = useDiscardInspection();
 
 /**
@@ -167,14 +185,13 @@ async function download(row: InspectionSummary) {
 }
 
 async function discardDraft(row: InspectionSummary) {
-  if (
-    !confirm(
-      `Discard the inspection of unit ${row.unit_number ?? "—"}? Nothing has been filed yet, and it` +
-        " cannot be recovered.",
-    )
-  ) {
-    return;
-  }
+  const asked = await ask({
+    title: `Discard the inspection of unit ${row.unit_number ?? "—"}?`,
+    message: "Nothing has been filed yet, and it cannot be recovered.",
+    confirmLabel: "Discard",
+    tone: "danger",
+  });
+  if (!asked) return;
   try {
     await discard.mutateAsync(row.id);
     toast.success("Inspection discarded");
@@ -203,6 +220,8 @@ async function discardDraft(row: InspectionSummary) {
       search-placeholder="Search unit, decal or inspector…"
       :count="total"
       count-label="inspections"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="status" label="Status" :options="STATUS_OPTIONS" />

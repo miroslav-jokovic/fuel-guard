@@ -4,7 +4,9 @@ import { RouterLink } from "vue-router";
 import { AppIcon, AppButton as BaseButton, AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { ArrowDownTrayIcon, ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import {
+  DQ_DUE_FILTERS,
   DQ_EXPORT_MAX_DRIVERS,
+  DQ_STATE_FILTERS,
   dqDueFilterOptions,
   dqSoonest,
   dqStateFilterOptions,
@@ -14,13 +16,17 @@ import {
   type DqItemState,
 } from "@silvicom/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import { BADGE_BASE, dqFileBadge, dqItemBadge, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -75,13 +81,18 @@ function buildBinder(): void {
   includeRestricted.value = false;
 }
 
-const search = ref("");
-// v-models so the page's attention strip (C5) can drive the SAME filters — one filter model, the
-// tiles are just another way to set it.
-const stateFilter = defineModel<string>("stateFilter", { default: "" });
-const dueFilter = defineModel<string>("dueFilter", { default: "" });
-const page = ref(1);
-const sort = ref<SortState>({ key: null, dir: "asc" });
+// Search, both filters, the sort and the page live in the URL (D-US2), so Back from a driver's file
+// returns to the same narrowed list. Unscoped: this is the only list on the qualification route (the
+// Exports tab beside it keeps no list state). The filters are checked against the shared vocabulary
+// (R4b) rather than a copy of it, so a hand-edited `?state=` outside it reads as no filter.
+const qs = useQueryState();
+const search = qs.param("search");
+const stateFilter = qs.param("state", DQ_STATE_FILTERS);
+const dueFilter = qs.param("due", DQ_DUE_FILTERS);
+const page = qs.page();
+
+// The page's attention strip (C5) writes the same two parameters, so the tiles and these controls are
+// one filter model — the URL — with nothing mirrored between them (D-US2).
 const expanded = ref<Set<string>>(new Set());
 
 interface FleetRow {
@@ -161,6 +172,13 @@ const pageRows = computed(() =>
 );
 watch([search, stateFilter, dueFilter], () => (page.value = 1));
 
+const activeFilterCount = computed(
+  () => [search.value.trim(), stateFilter.value, dueFilter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  qs.set({ search: undefined, state: undefined, due: undefined });
+}
+
 function toggleExpand(id: string): void {
   const next = new Set(expanded.value);
   if (next.has(id)) next.delete(id);
@@ -211,18 +229,24 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
 ];
-function onSort(key: string): void {
-  sort.value = toggleSort(sort.value, key);
-}
+// No default key: unsorted IS the severity order (`bySeverity`), so the third click returns to it.
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 </script>
 
 <template>
   <div class="space-y-6">
+    <DataWorkspace>
     <FilterBar
+      embedded
       v-model:search="search"
       search-placeholder="Search drivers…"
       :count="filtered.length"
       count-label="drivers"
+      :active-count="activeFilterCount"
+      @clear-all="clearFilters"
     >
       <template #filters>
         <FilterSelect v-model="stateFilter" label="File status" :options="stateOptions" />
@@ -230,32 +254,26 @@ function onSort(key: string): void {
       </template>
     </FilterBar>
 
-    <p v-if="query.data.value?.truncated" class="text-sm text-warning-700">
+    <p v-if="query.data.value?.truncated" class="bg-warning-50 px-4 py-3 text-sm text-warning-700 sm:px-6">
       This picture is partial — the fleet has more qualification records than one read returns.
       Narrow the filters, or tell us so we can page it.
     </p>
 
-    <div
-      v-if="selected.size > 0"
-      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-    >
-      <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
-      <span v-if="atCap" class="text-sm text-brand-800">
+    <BulkActionBar :count="selected.size" @clear="selected = new Set()">
+      <template v-if="atCap" #note>
         That is the most drivers one binder holds. Send the rest as a second binder.
-      </span>
-      <div class="ml-auto flex items-center gap-3">
-        <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
-          Include restricted records
-        </BaseCheckbox>
-        <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-        <BaseButton variant="primary" size="sm" :disabled="props.building" @click="buildBinder">
-          <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
-          {{ props.building ? "Building…" : "Build audit binder" }}
-        </BaseButton>
-      </div>
-    </div>
+      </template>
+      <BaseCheckbox v-if="session.restrictedAccess" v-model="includeRestricted">
+        Include restricted records
+      </BaseCheckbox>
+      <BaseButton variant="primary" size="sm" :disabled="props.building" @click="buildBinder">
+        <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
+        {{ props.building ? "Building…" : "Build audit binder" }}
+      </BaseButton>
+    </BulkActionBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -384,5 +402,6 @@ function onSort(key: string): void {
         />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

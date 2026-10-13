@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { CPM_TRUCK_SORT_KEYS } from "./cpmTruckColumns";
+import { computed, onBeforeUnmount, watch } from "vue";
+import { useRoute } from "vue-router";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { sortRows } from "@/lib/sort";
 import CpmTruckTable from "./CpmTruckTable.vue";
 import type { FleetTruck } from "./useFleetReport";
 
@@ -20,10 +24,14 @@ import type { FleetTruck } from "./useFleetReport";
  * changed them. A row hidden here is hidden, not excluded from the arithmetic — and the sentence
  * above the table says how many are hidden, so a filtered view cannot be quoted as the fleet.
  *
- * The tab owns its own page number. It is mounted fresh on every tab change, which is what resets
- * paging between tabs (owner ruling 2026-08-29): page 4 of the trucks is not page 4 of anything else.
- * The period is the page's, chosen once on the rail above the tabs (D-FRUI1); `from`/`to` arrive
- * only so a period change resets the page number.
+ * The tab owns its own page number: page 4 of the trucks is not page 4 of anything else (owner
+ * ruling 2026-08-29). The period is the page's, chosen once on the rail above the tabs (D-FRUI1);
+ * `from`/`to` arrive only so a period change resets the page number.
+ *
+ * Search, the mileage floor, the contractor switch, the sort and the page live in the URL (D-US2),
+ * scoped `trucks.` because every tab of the fleet report shares one route: another tab's `?page=`
+ * is never this one's. Leaving for another tab clears the scope (below), so the owner's ruling
+ * above still holds.
  */
 
 const props = defineProps<{
@@ -36,23 +44,36 @@ const props = defineProps<{
 const emit = defineEmits<{ retry: [] }>();
 
 const PAGE_SIZE = 20;
-const unitSearch = ref("");
+const qs = useQueryState("trucks");
+const unitSearch = qs.param("search");
 // A truck that barely moved earns a handful of dollars over a handful of miles, so its rate is
 // arithmetically right and analytically useless. These are the thresholds an owner reads the report
 // at; "any" is the default so the table starts by hiding nothing.
-const minMiles = ref("0");
 const minMilesOptions = [
   { value: "0", label: "Any mileage" },
   { value: "100", label: "100+ miles" },
   { value: "1000", label: "1,000+ miles" },
   { value: "5000", label: "5,000+ miles" },
 ];
+// "0" is the fallback, so a plain link carries no floor and a hand-edited `trucks.minMiles=37` reads
+// as "Any mileage" rather than as a threshold nobody offered.
+const minMiles = qs.param("minMiles", minMilesOptions.map((o) => o.value), "0");
 // Contractor tractors are off by default: what they cost is a share of each load, not our fuel and
 // wages, so their rows answer the contractor tab's question rather than this one.
-const includeOwnerOperators = ref(false);
-const page = ref(1);
-const sort = ref<SortState>({ key: null, dir: "asc" });
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
+const includeOwnerOperators = qs.flag("contractors");
+const page = qs.page();
+const { sort, onSort } = useUrlSort(qs.param("sort", CPM_TRUCK_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
+// Leaving this tab for ANOTHER TAB clears its whole scope, which is what remounting used to do
+// for free: a tab's page and filters reset on a tab change (owner ruling 2026-08-29), and D-US2 put
+// them somewhere that outlives the mount. Leaving the ROUTE clears nothing — the route has already
+// changed by the time this runs, and the history entry Back returns to still carries the list.
+const route = useRoute();
+const ownPath = route.path;
+onBeforeUnmount(
+  () =>
+    route.path === ownPath &&
+    qs.set({ search: undefined, minMiles: undefined, contractors: undefined, sort: undefined, dir: undefined, page: undefined }),
+);
 watch([unitSearch, minMiles, includeOwnerOperators, () => props.from, () => props.to], () => (page.value = 1));
 
 const visible = computed(() => {
@@ -70,9 +91,10 @@ const pageRows = computed(() => visible.value.slice((page.value - 1) * PAGE_SIZE
 const hiddenCount = computed(() => props.trucks.length - visible.value.length);
 
 const activeFilterCount = computed(() => (unitSearch.value.trim() ? 1 : 0) + (minMiles.value !== "0" ? 1 : 0));
+// The contractor switch is not counted and not cleared, as before: it chooses which fleet the table
+// is about rather than narrowing it.
 function resetFilters() {
-  unitSearch.value = "";
-  minMiles.value = "0";
+  qs.set({ search: undefined, minMiles: undefined });
 }
 </script>
 
@@ -84,6 +106,8 @@ function resetFilters() {
       search-placeholder="Search by truck number…"
       :count="visible.length"
       count-label="trucks"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="minMiles" label="Least miles" :options="minMilesOptions" />
@@ -97,7 +121,6 @@ function resetFilters() {
         >
           {{ includeOwnerOperators ? "Contractor trucks included" : "Company trucks only" }}
         </BaseButton>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
       </template>
     </FilterBar>
 

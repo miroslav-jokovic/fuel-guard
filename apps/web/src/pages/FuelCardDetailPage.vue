@@ -16,6 +16,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { allowedInfoIdsFrom, allowedLimitsFrom } from "@/features/fuelCards/promptDrafts";
 import { useSessionStore } from "@/stores/session";
@@ -146,21 +147,24 @@ const canAct = computed(() => {
   return !!c && (c.canLock || c.canUnlock || c.canDeactivate || c.canOverride || c.canSetPrompts);
 });
 
-/** Every fact an operator asks for before deciding anything, in the order they ask. */
-const facts = computed(() => {
+/**
+ * Every fact an operator asks for before deciding anything, in the order they ask. A blank is `null`,
+ * so `FactList` draws its em dash (D-US6); "Never" stays a word, because it is an answer.
+ */
+const facts = computed<Fact[]>(() => {
   const c = card.value;
   if (!c) return [];
   return [
-    { label: "Policy", value: c.policyNumber != null ? String(c.policyNumber) : "—" },
-    { label: "Unit", value: c.unitPrompt ?? "—" },
-    { label: "Driver ID", value: c.driverIdPrompt ?? "—" },
-    { label: "Driver name", value: c.driverName ?? "—" },
-    { label: "Company reference", value: c.companyXref ?? "—" },
+    { label: "Policy", value: c.policyNumber != null ? String(c.policyNumber) : null },
+    { label: "Unit", value: c.unitPrompt },
+    { label: "Driver ID", value: c.driverIdPrompt },
+    { label: "Driver name", value: c.driverName },
+    { label: "Company reference", value: c.companyXref },
     // DISALLOW here removes a whole class of skimming; it is worth surfacing even read-only.
-    { label: "Hand entry", value: c.handEnter ?? "—" },
-    { label: "Payroll status", value: c.payrollStatus ?? "—" },
+    { label: "Hand entry", value: c.handEnter },
+    { label: "Payroll status", value: c.payrollStatus },
     { label: "Last used", value: c.lastUsedDate ? formatDateTime(c.lastUsedDate) : "Never" },
-    { label: "Last authorisation", value: c.lastTransaction ?? "—" },
+    { label: "Last authorisation", value: c.lastTransaction },
   ];
 });
 
@@ -221,12 +225,7 @@ const facts = computed(() => {
           </KebabMenu>
         </div>
 
-        <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="fact in facts" :key="fact.label">
-            <dt class="text-xs text-ink-muted">{{ fact.label }}</dt>
-            <dd class="text-sm text-ink">{{ fact.value }}</dd>
-          </div>
-        </dl>
+        <FactList class="mt-4" :facts="facts" :columns="3" />
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
           <p class="text-sm" :class="cardFreshness.stale ? 'text-caution-700' : 'text-ink-muted'">
@@ -262,7 +261,7 @@ const facts = computed(() => {
       <!-- The honest answer to "why can't I lock it?", shown instead of the actions. -->
       <BaseCard v-if="notice && notice.mode === 'disabled'">
         <div class="space-y-2">
-          <h2 class="text-sm font-medium text-ink">Card actions</h2>
+          <h2 class="text-sm font-semibold text-ink">Card actions</h2>
           <p class="text-sm text-ink-muted">{{ notice.message }}</p>
           <BaseButton
             v-if="notice.actionTo"

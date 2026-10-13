@@ -9,8 +9,9 @@ import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
-const { data, isLoading } = useThresholdsQuery();
+const { data, isLoading, isError, error, isFetching, refetch } = useThresholdsQuery();
 const save = useSaveThresholds();
 
 function toggleRule(rule: string) {
@@ -88,53 +89,61 @@ const numFields: { key: string; label: string }[] = [
   <div class="mx-auto max-w-2xl space-y-6">
     <PageHeader description="Set the limits that decide when a fill is flagged. Changes apply to new fills only; fills already checked keep their result." />
 
-    <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
+    <!-- The form waits for a failed read too (D-US5): its defaults, saved, would replace the fleet's real limits. -->
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the limits…"
+      error-text="Could not load the limits."
+      @retry="refetch()"
+    >
+      <form class="space-y-6" @submit.prevent="onSave">
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Limits</h3>
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField v-for="f in numFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
+              <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
+            </FormField>
+          </div>
+        </BaseCard>
 
-    <form v-else class="space-y-6" @submit.prevent="onSave">
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Limits</h3>
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-for="f in numFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
-            <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">Checks turned off</h3>
+          <p class="mt-1 text-xs text-ink-muted">A ticked check is turned off. Every other check stays on.</p>
+          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <BaseCheckbox
+              v-for="r in RULE_IDS"
+              :key="r"
+              :model-value="(form.disabled_rules as string[]).includes(r)"
+              @update:model-value="toggleRule(r)"
+            >
+              <span>
+                <span class="block text-sm text-ink-secondary">{{ formatRuleId(r) }}</span>
+                <span class="block font-mono text-xs text-ink-tertiary">{{ r }}</span>
+              </span>
+            </BaseCheckbox>
+          </div>
+        </BaseCard>
+
+        <BaseCard as="section">
+          <h3 class="text-sm font-semibold text-ink">AI verification</h3>
+          <div class="mt-3">
+            <BaseCheckbox v-model="(form.ai_verification_enabled as boolean)">
+              Ask AI for a second opinion on flagged fills
+            </BaseCheckbox>
+          </div>
+          <FormField v-slot="{ id }" class="mt-4 max-w-xs" label="Monthly AI usage limit, in tokens (optional)">
+            <BaseInput :id="id" v-model="(form.ai_monthly_token_budget as string)" inputmode="numeric" />
           </FormField>
-        </div>
-      </BaseCard>
+        </BaseCard>
 
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">Checks turned off</h3>
-        <p class="mt-1 text-xs text-ink-muted">A ticked check is turned off. Every other check stays on.</p>
-        <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <BaseCheckbox
-            v-for="r in RULE_IDS"
-            :key="r"
-            :model-value="(form.disabled_rules as string[]).includes(r)"
-            @update:model-value="toggleRule(r)"
-          >
-            <span>
-              <span class="block text-sm text-ink-secondary">{{ formatRuleId(r) }}</span>
-              <span class="block font-mono text-xs text-ink-tertiary">{{ r }}</span>
-            </span>
-          </BaseCheckbox>
+        <div class="flex items-center gap-3">
+          <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
+            {{ save.isPending.value ? "Saving…" : "Save" }}
+          </BaseButton>
         </div>
-      </BaseCard>
-
-      <BaseCard as="section">
-        <h3 class="text-base font-semibold text-ink">AI verification</h3>
-        <div class="mt-3">
-          <BaseCheckbox v-model="(form.ai_verification_enabled as boolean)">
-            Ask AI for a second opinion on flagged fills
-          </BaseCheckbox>
-        </div>
-        <FormField v-slot="{ id }" class="mt-4 max-w-xs" label="Monthly AI usage limit, in tokens (optional)">
-          <BaseInput :id="id" v-model="(form.ai_monthly_token_budget as string)" inputmode="numeric" />
-        </FormField>
-      </BaseCard>
-
-      <div class="flex items-center gap-3">
-        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
-          {{ save.isPending.value ? "Saving…" : "Save" }}
-        </BaseButton>
-      </div>
-    </form>
+      </form>
+    </QueryState>
   </div>
 </template>

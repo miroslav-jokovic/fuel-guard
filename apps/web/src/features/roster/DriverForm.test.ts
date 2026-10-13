@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import { AppCallout } from "@silvicom/ui";
 import type { Driver } from "@silvicom/shared";
 import DriverForm from "@/features/roster/DriverForm.vue";
 
@@ -24,8 +25,9 @@ const driver = (over: Partial<Driver> = {}): Driver =>
   }) as Driver;
 
 const mountForm = (d: Driver | null) => mount(DriverForm, { props: { driver: d } });
+// Found by its words, not its tag: the warning is an AppCallout since D-US3, not a hand-tinted <p>.
 const warning = (w: ReturnType<typeof mountForm>) =>
-  w.findAll("p").find((p) => p.text().includes("claims"));
+  w.findAllComponents(AppCallout).find((c) => c.text().includes("claims"));
 
 const typeInto = async (w: ReturnType<typeof mountForm>, index: number, value: string) => {
   await w.findAll("input")[index]!.setValue(value);

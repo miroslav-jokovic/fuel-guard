@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StatCard from "@/components/ui/StatCard.vue";
 /**
  * Backfill a period from an EFS report file (FUEL-C4, D-FUI3).
  *
@@ -26,9 +27,10 @@
  * **Repair fuel data**, which moved to Settings → Data & Sync where the other repair actions already
  * live and where it gains the progress and freshness a job-backed action should have had.
  */
-import { AppIcon } from "@silvicom/ui";
+import { AppCallout, AppIcon } from "@silvicom/ui";
 import {
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   XMarkIcon,
 } from "@silvicom/ui/icons";
 import { computed, ref } from "vue";
@@ -196,19 +198,16 @@ const previewTotal = (p: ImportPreview) =>
       <template v-if="previews.length">
         <BaseCard v-for="(preview, i) in previews" :key="preview.filename" class="space-y-5">
           <!-- Duplicate-file warning -->
-          <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-control bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
-            <span class="mt-0.5 shrink-0 text-warning-500">⚠</span>
-            <p>
-              <strong>This file was already imported.</strong>
-              Re-committing is safe: rows already in Silvicom 360 are skipped, and any rows that are missing
-              (e.g. from an earlier partial import) will be added. Check "New fill-ups" below — if it shows 0
-              but the dashboard is missing days, use <em>Repair fuel data</em> in Settings → Data &amp; sync instead.
-            </p>
-          </div>
+          <AppCallout v-if="preview.alreadyImported" tone="warning" :icon="ExclamationTriangleIcon">
+            <strong>This file was already imported.</strong>
+            Re-committing is safe: rows already in Silvicom 360 are skipped, and any rows that are missing
+            (e.g. from an earlier partial import) will be added. Check "New fill-ups" below — if it shows 0
+            but the dashboard is missing days, use <em>Repair fuel data</em> in Settings → Data &amp; sync instead.
+          </AppCallout>
 
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
+              <h3 class="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
                 <AppIcon :icon="DocumentTextIcon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
                 <span class="truncate">{{ preview.filename }}</span>
                 <span :class="[BADGE_BASE, toneClass(preview.kind === 'reject' ? 'warning' : 'brand')]">
@@ -234,36 +233,18 @@ const previewTotal = (p: ImportPreview) =>
             </BaseButton>
           </div>
 
-          <dl class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-3">
             <template v-if="preview.kind === 'transaction'">
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">New fill-ups</dt>
-                <dd class="text-2xl font-semibold text-ink">{{ preview.newFuel.length }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Duplicates</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateFuelCount }}</dd>
-              </div>
-              <div class="rounded-control bg-warning-50 p-3">
-                <dt class="text-xs text-warning-700">Unattributed</dt>
-                <dd class="text-2xl font-semibold text-warning-800">{{ preview.unattributedCount }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Non-fuel skipped</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.skippedCount }}</dd>
-              </div>
+              <StatCard label="New fill-ups" :value="preview.newFuel.length" />
+              <StatCard label="Duplicates" :value="preview.duplicateFuelCount" muted />
+              <StatCard label="Unattributed" :value="preview.unattributedCount" value-tone="text-warning-800" />
+              <StatCard label="Non-fuel skipped" :value="preview.skippedCount" muted />
             </template>
             <template v-else>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">New declined</dt>
-                <dd class="text-2xl font-semibold text-ink">{{ preview.newDeclined.length }}</dd>
-              </div>
-              <div class="rounded-control bg-surface-subtle p-3">
-                <dt class="text-xs text-ink-muted">Duplicates</dt>
-                <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateDeclinedCount }}</dd>
-              </div>
+              <StatCard label="New declined" :value="preview.newDeclined.length" />
+              <StatCard label="Duplicates" :value="preview.duplicateDeclinedCount" muted />
             </template>
-          </dl>
+          </div>
 
           <p v-if="preview.kind === 'transaction' && preview.unattributedCount > 0" class="text-xs text-warning-700">
             {{ preview.unattributedCount }} fill-up(s) couldn't be matched to a vehicle by Unit number —
@@ -276,6 +257,7 @@ const previewTotal = (p: ImportPreview) =>
               Preview (first {{ Math.min(previewTotal(preview), 10) }} of {{ previewTotal(preview) }})
             </p>
             <DataTable
+              embedded
               dense
               :sticky-header="false"
               :columns="preview.kind === 'transaction' ? txnColumns : rejColumns"

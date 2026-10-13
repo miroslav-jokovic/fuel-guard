@@ -27,6 +27,7 @@ import {
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useQualificationRecordsQuery } from "@/composables/useCompliance";
 import {
@@ -163,30 +164,41 @@ const showForm = computed(() => !props.done || adding.value);
   <div class="space-y-6">
     <div>
       <p class="text-sm font-medium text-ink">On file</p>
-      <p v-if="recordsQ.isLoading.value" class="mt-1 text-xs text-ink-muted">Loading…</p>
-      <p v-else-if="filed.length === 0" class="mt-1 text-xs text-ink-muted">No road test passed yet.</p>
-      <ul v-else class="mt-2 space-y-2">
-        <li v-for="row in filed" :key="row.id" class="text-xs">
-          <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
-          <span class="text-ink-secondary"> · Passed · {{ row.performed_by }}</span>
-          <template v-if="copyOf(row.id)">
-            <p v-if="copyOf(row.id)!.given" class="mt-0.5 text-ink-secondary" data-testid="copy-given">
-              Copy given: {{ howGiven(copyOf(row.id)!) }}
-            </p>
-            <div v-else class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span class="text-ink">The driver has not had their copy of this certificate yet.</span>
-              <BaseButton
-                variant="link"
-                size="sm"
-                :disabled="paperCopy.isPending.value"
-                @click="handedPaperCopy(row.id)"
-              >
-                Handed a paper copy
-              </BaseButton>
-            </div>
-          </template>
-        </li>
-      </ul>
+      <div class="mt-1">
+        <QueryState
+          :loading="recordsQ.isLoading.value"
+          :error="recordsQ.isError.value ? recordsQ.error.value : null"
+          :retrying="recordsQ.isFetching.value"
+          loading-text="Loading the road tests on file…"
+          error-text="Could not load the road tests on file."
+          compact
+          @retry="recordsQ.refetch()"
+        >
+          <p v-if="filed.length === 0" class="text-xs text-ink-muted">No road test passed yet.</p>
+          <ul v-else class="mt-1 space-y-2">
+            <li v-for="row in filed" :key="row.id" class="text-xs">
+              <span class="font-medium text-ink">{{ formatDisplayDate(row.occurred_on, "") }}</span>
+              <span class="text-ink-secondary"> · Passed · {{ row.performed_by }}</span>
+              <template v-if="copyOf(row.id)">
+                <p v-if="copyOf(row.id)!.given" class="mt-0.5 text-ink-secondary" data-testid="copy-given">
+                  Copy given: {{ howGiven(copyOf(row.id)!) }}
+                </p>
+                <div v-else class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span class="text-ink">The driver has not had their copy of this certificate yet.</span>
+                  <BaseButton
+                    variant="link"
+                    size="sm"
+                    :disabled="paperCopy.isPending.value"
+                    @click="handedPaperCopy(row.id)"
+                  >
+                    Handed a paper copy
+                  </BaseButton>
+                </div>
+              </template>
+            </li>
+          </ul>
+        </QueryState>
+      </div>
     </div>
 
     <BaseButton v-if="done && !adding" size="sm" @click="adding = true">Record another</BaseButton>

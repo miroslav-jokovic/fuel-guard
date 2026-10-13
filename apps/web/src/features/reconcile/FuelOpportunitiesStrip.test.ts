@@ -22,8 +22,18 @@ const mountStrip = (over: Record<string, unknown> = {}) =>
 describe("FuelOpportunitiesStrip", () => {
   it("says the read failed, and never 'nothing is waiting'", () => {
     const t = mountStrip({ rows: undefined, error: true }).text();
-    expect(t).toContain("Couldn't load the open findings");
+    expect(t).toContain("Could not load the open findings.");
     expect(t).not.toContain("Nothing is waiting");
+  });
+
+  // D-US5: the failure carries a Retry that asks the page to read again, never "Reload to try again".
+  it("offers a Retry on a failed read, in the page and in the Dashboard card alike", async () => {
+    for (const variant of ["page", "card"] as const) {
+      const w = mountStrip({ rows: undefined, error: true, variant });
+      expect(w.text(), variant).not.toContain("Reload");
+      await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+      expect(w.emitted("retry"), variant).toHaveLength(1);
+    }
   });
 
   it("says it is loading before the first answer, and says nothing is waiting only for a real empty answer", () => {

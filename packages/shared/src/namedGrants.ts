@@ -72,6 +72,11 @@ export const ADMIN_ONLY_CAPABILITIES = [
     why: "Stores the carrier's FleetPal API key, which carries the role of the FleetPal user who issued it, and switches the hourly repair-record sweep on or off.",
   },
   {
+    key: "medstop.connection",
+    label: "Med-Stop connection",
+    why: "Stores the carrier's Med-Stop API key, which reaches every driver's drug and alcohol testing record at the carrier's C/TPA, and switches the hourly roster and random-pool sweep on or off.",
+  },
+  {
     key: "posted-prices.networks",
     label: "Fuel-network price feeds",
     why: "Rewrites the station registry and posted prices every organisation's fuel planning reads, not only this one's.",

@@ -50,7 +50,7 @@ const PROBES = [
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/reefer-coverage",
-  "/fuel-planning", "/truck-stops", "/idling",
+  "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol", "/roadside-inspections",
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (four since MV2) another specificity pair: the two static
@@ -77,7 +77,7 @@ const PROBES = [
   "/shop/assets", "/shop/assets/ast_1",
   // I9's units. TWO params, not one — the roster's kind and the id — because a truck and a trailer
   // share neither a table nor a number space.
-  "/shop/units", "/shop/units/tractor/veh_1", "/shop/units/trailer/tr_1",
+  "/shop/units", "/shop/units/tractor/veh_1", "/shop/units/trailer/tr_1", "/shop/work-orders", "/shop/defects",
   // I5 PR 2b's count screen — a desk page in `AppShell` since 2026-09-10 (D-INV17 as amended) —
   // and I6's scan screen, the one route in the product still carrying `layout: "shop"`, so its
   // meta is worth pinning as much as its component: a shell swapped by accident is a sidebar
@@ -93,7 +93,7 @@ const PROBES = [
   "/anomalies", "/fuel-events", "/ask", "/reports",
   "/settings", "/settings/users", "/settings/permissions", "/settings/thresholds", "/settings/driver-performance",
   "/messages", "/settings/driver-app", "/settings/fuel-planning", "/settings/data", "/settings/recruiting",
-  "/settings/efs-soap", "/settings/fleetpal", "/settings/mcleod-fleets", "/settings/org", "/settings/notifications", "/settings/audit",
+  "/settings/efs-soap", "/settings/fleetpal", "/settings/medstop", "/settings/mcleod-fleets", "/settings/org", "/settings/notifications", "/settings/audit",
   // P3's three published documents. Probed like any other route, and public for a reason unrelated
   // to the auth pages': these are the URLs the two app stores fetch, with no session and no cookie.
   "/privacy", "/terms", "/support", "/sms-terms",

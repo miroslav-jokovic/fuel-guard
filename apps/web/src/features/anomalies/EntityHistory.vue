@@ -13,6 +13,7 @@ import { formatRuleId } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import CaseTimeline from "@/features/anomalies/CaseTimeline.vue";
 import { formatDateTime } from "@/lib/format";
+import QueryState from "@/components/ui/QueryState.vue";
 
 const props = defineProps<{ anomalyId: string }>();
 
@@ -52,6 +53,11 @@ interface PatternReport {
 const risk = ref<RiskContext | null>(null);
 const report = ref<PatternReport | null>(null);
 const loading = ref(true);
+// A failed read used to land as "no risk snapshot, no pattern analysis yet" — the same words a case
+// with no history gets — so a broken endpoint read as a clean record. Now it says it could not load
+// and offers a Retry (D-US5). A 404 from pattern-report is NOT a failure: it is how the API says no
+// report has been generated for this case yet, which the empty line below already explains.
+const loadError = ref<string | null>(null);
 const sweeping = ref(false);
 const sweepMsg = ref<string | null>(null);
 
@@ -63,6 +69,7 @@ async function load() {
   ]);
   risk.value = r.ok ? (r.data ?? null) : null;
   report.value = p.ok ? (p.data ?? null) : null;
+  loadError.value = !r.ok || (!p.ok && p.status !== 404) ? "Could not load this case's entity history." : null;
   loading.value = false;
 }
 onMounted(load);
@@ -100,10 +107,17 @@ const declineRetries = (rep: PatternReport) =>
       </BaseButton>
     </div>
     <p v-if="sweepMsg" class="text-xs text-ink-tertiary">{{ sweepMsg }}</p>
-    <p v-if="loading" class="text-sm text-ink-tertiary italic">Loading history…</p>
-
+    <QueryState
+      compact
+      :loading="loading"
+      :error="loadError"
+      :error-text="loadError ?? undefined"
+      :retrying="loading"
+      loading-text="Loading the entity history…"
+      @retry="load()"
+    >
     <!-- Phase 1: risk snapshot per entity -->
-    <div v-else-if="risk" class="space-y-2">
+    <div v-if="risk" class="space-y-2">
       <div
         v-for="{ key, e } in entries(risk)"
         :key="key"
@@ -173,9 +187,10 @@ const declineRetries = (rep: PatternReport) =>
         </div>
       </div>
     </div>
-    <p v-else-if="!loading" class="text-xs text-ink-tertiary italic">
+    <p v-else class="text-xs text-ink-tertiary italic">
       No pattern analysis yet — “Analyze history” sweeps this case's driver, truck, and card for
       recurring near-miss patterns and decline sequences.
     </p>
+    </QueryState>
   </div>
 </template>

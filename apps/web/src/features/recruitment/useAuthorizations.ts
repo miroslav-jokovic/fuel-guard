@@ -5,9 +5,9 @@ import {
   DOCUMENT_CONTENT_TYPES,
   type AuthorizationMethod,
   type AuthorizationPurpose,
-  type DocumentContentType,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { uploadContentType } from "@/lib/fileFormat";
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/composables/useCompliance";
 import { applicantChecklistKey } from "@/features/recruitment/useApplicantChecklist";
@@ -95,8 +95,8 @@ export function useRecordPaperAuthorization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: PaperAuthorizationInput): Promise<void> => {
-      const contentType = input.file.type as DocumentContentType;
-      if (!(DOCUMENT_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+      const contentType = await uploadContentType(input.file, DOCUMENT_CONTENT_TYPES);
+      if (!contentType) {
         throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
       }
       const bytes = await input.file.arrayBuffer();

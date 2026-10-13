@@ -60,3 +60,28 @@ describe("FilterBar's count label", () => {
     expect(mount(FilterBar, { props: { count: 2, countLabel: "entries" } }).text()).toContain("2 entries");
   });
 });
+
+describe("FilterBar's Clear filters", () => {
+  const clearButtons = (w: ReturnType<typeof mount>) =>
+    w.findAll("button").filter((b) => /^Clear (filters|all)$/.test(b.text()));
+
+  it("is absent while nothing narrows the list", () => {
+    const w = mount(FilterBar, { props: { activeCount: 0 }, slots: { filters: marker } });
+    expect(clearButtons(w)).toHaveLength(0);
+  });
+
+  it("appears once a filter is set, and asks the page to clear everything", async () => {
+    const w = mount(FilterBar, { props: { activeCount: 2 }, slots: { filters: marker } });
+    expect(clearButtons(w).map((b) => b.text())).toEqual(["Clear filters"]);
+    await clearButtons(w)[0]!.trigger("click");
+    expect(w.emitted("clear-all")).toHaveLength(1);
+  });
+
+  it("is the only clear control even when chips are showing", () => {
+    const w = mount(FilterBar, {
+      props: { activeCount: 1, chips: [{ key: "unit", label: "Unit", value: "204" }] },
+      slots: { more: marker },
+    });
+    expect(clearButtons(w).map((b) => b.text())).toEqual(["Clear filters"]);
+  });
+});

@@ -12,7 +12,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import ErrorState from "@/components/ErrorState.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import AssetMoveDrawer from "@/features/inventory/AssetMoveDrawer.vue";
 import UnitOverrideDrawer from "@/features/inventory/UnitOverrideDrawer.vue";
 import { useUnitKitQuery } from "@/features/inventory/useUnits";
@@ -37,8 +37,8 @@ import { useToastStore } from "@/stores/toast";
  * both paths write the same row through the same door (D-INV3).
  *
  * ── SHAPED LIKE THE OTHER ENTITY PAGES (2026-09-10) ───────────────────────────────────────────
- * Titled summary card with the badge top-right, `text-sm` section headings, `ErrorState`, a
- * loading line, and plain `DataTable`s for tables that have no toolbar. `PartDetailPage.vue`
+ * Titled summary card with the badge top-right, `text-sm` section headings, `QueryState` for the
+ * loading line and the failure (D-US5), and plain `DataTable`s for tables that have no toolbar. `PartDetailPage.vue`
  * carries the reasoning in full.
  */
 
@@ -50,7 +50,7 @@ const toast = useToastStore();
 const kind = computed(() => (String(route.params.kind ?? "") === "tractor" ? "tractor" : "trailer") as "tractor" | "trailer");
 const unitId = computed(() => String(route.params.id ?? ""));
 
-const { data, isLoading, isError, error, refetch } = useUnitKitQuery(kind, unitId);
+const { data, isLoading, isError, error, refetch, isFetching } = useUnitKitQuery(kind, unitId);
 const unit = computed(() => data.value?.unit ?? null);
 const assets = computed<AssetDto[]>(() => data.value?.assets ?? []);
 const canManage = computed(() => session.can("maintenance"));
@@ -122,69 +122,70 @@ const kitLines = computed<UnitKitLineDto[]>(() =>
       </template>
     </PageHeader>
 
-    <ErrorState
-      v-if="isError"
-      :message="error instanceof Error ? error.message : 'Could not load the unit.'"
-      @retry="() => refetch()"
-    />
+    <QueryState
+      :loading="isLoading && !unit"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the unit…"
+      error-text="Could not load the unit."
+      @retry="refetch()"
+    >
+      <template v-if="unit">
+        <BaseCard>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-ink">Kit summary</h2>
+            <span
+              v-if="kitStatusBadge(unit.state)"
+              :class="[BADGE_BASE, toneClass(kitStatusBadge(unit.state)!.tone)]"
+            >
+              {{ kitStatusBadge(unit.state)!.label }}
+            </span>
+          </div>
+          <p class="mt-3 text-sm text-ink">
+            <span v-if="unit.shortBy">Missing {{ unit.shortBy }}</span>
+            <span v-else-if="unit.extraBy">Carrying {{ unit.extraBy }} more than the kit asks for</span>
+            <span v-else>Carrying everything the kit asks for</span>
+          </p>
+        </BaseCard>
 
-    <p v-else-if="isLoading && !unit" class="text-sm text-ink-tertiary">Loading the unit…</p>
+        <section class="space-y-3">
+          <h2 class="text-sm font-semibold text-ink">Kit</h2>
+            <DataTable :columns="KIT_COLUMNS" :rows="kitLines" row-key="assetTypeId" :loading="isLoading">
+              <template #cell-delta="{ value }">
+                <span v-if="value < 0" class="font-semibold text-danger-700">{{ value }}</span>
+                <span v-else-if="value > 0" class="text-ink-secondary">+{{ value }}</span>
+                <span v-else class="text-ink-tertiary">—</span>
+              </template>
+              <template #cell-source="{ value }">
+                {{ KIT_EXPECTATION_SOURCE_LABELS[value as keyof typeof KIT_EXPECTATION_SOURCE_LABELS] }}
+              </template>
+              <template #empty>
+                <p>
+                  Nothing is expected on this unit yet. Set the kit for its kind under Kit rules on the
+                  Units page, or give this one its own list.
+                </p>
+              </template>
+            </DataTable>
+        </section>
 
-    <template v-else-if="unit">
-      <BaseCard>
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-ink">Kit summary</h2>
-          <span
-            v-if="kitStatusBadge(unit.state)"
-            :class="[BADGE_BASE, toneClass(kitStatusBadge(unit.state)!.tone)]"
-          >
-            {{ kitStatusBadge(unit.state)!.label }}
-          </span>
-        </div>
-        <p class="mt-3 text-sm text-ink">
-          <span v-if="unit.shortBy">Missing {{ unit.shortBy }}</span>
-          <span v-else-if="unit.extraBy">Carrying {{ unit.extraBy }} more than the kit asks for</span>
-          <span v-else>Carrying everything the kit asks for</span>
-        </p>
-      </BaseCard>
-
-      <section class="space-y-3">
-        <h2 class="text-sm font-semibold text-ink">Kit</h2>
-          <DataTable :columns="KIT_COLUMNS" :rows="kitLines" row-key="assetTypeId" :loading="isLoading">
-            <template #cell-delta="{ value }">
-              <span v-if="value < 0" class="font-semibold text-danger-700">{{ value }}</span>
-              <span v-else-if="value > 0" class="text-ink-secondary">+{{ value }}</span>
-              <span v-else class="text-ink-tertiary">—</span>
-            </template>
-            <template #cell-source="{ value }">
-              {{ KIT_EXPECTATION_SOURCE_LABELS[value as keyof typeof KIT_EXPECTATION_SOURCE_LABELS] }}
-            </template>
-            <template #empty>
-              <p>
-                Nothing is expected on this unit yet. Set the kit for its kind under Kit rules on the
-                Units page, or give this one its own list.
-              </p>
-            </template>
-          </DataTable>
-      </section>
-
-      <section class="space-y-3">
-        <h2 class="text-sm font-semibold text-ink">On the unit</h2>
-          <DataTable :columns="ASSET_COLUMNS" :rows="assets" row-key="id" :loading="isLoading">
-            <template #actions="{ row }">
-              <KebabMenu v-if="canManage">
-                <!-- "Take it off" is a MOVE. An asset is always somewhere, and a row that stopped
-                     naming a holder without a movement would leave the ledger unable to say where
-                     the thing went. -->
-                <BaseButton class="kebab-item" @click="moving = row">Move it somewhere</BaseButton>
-              </KebabMenu>
-            </template>
-            <template #empty>
-              <p>This unit is carrying nothing that has a number on it.</p>
-            </template>
-          </DataTable>
-      </section>
-    </template>
+        <section class="space-y-3">
+          <h2 class="text-sm font-semibold text-ink">On the unit</h2>
+            <DataTable :columns="ASSET_COLUMNS" :rows="assets" row-key="id" :loading="isLoading">
+              <template #actions="{ row }">
+                <KebabMenu v-if="canManage">
+                  <!-- "Take it off" is a MOVE. An asset is always somewhere, and a row that stopped
+                       naming a holder without a movement would leave the ledger unable to say where
+                       the thing went. -->
+                  <BaseButton class="kebab-item" @click="moving = row">Move it somewhere</BaseButton>
+                </KebabMenu>
+              </template>
+              <template #empty>
+                <p>This unit is carrying nothing that has a number on it.</p>
+              </template>
+            </DataTable>
+        </section>
+      </template>
+    </QueryState>
 
     <AssetMoveDrawer
       v-if="moving"

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import type { AppSection, UserRole } from "@silvicom/shared";
+import type { AppSection, SectionClaim, UserRole } from "@silvicom/shared";
 
 /**
  * The Dashboard SHELL — LM-T / D-DW6.
@@ -25,12 +25,21 @@ import type { AppSection, UserRole } from "@silvicom/shared";
 /** Mutable between tests — each one installs the answers it wants before mounting. */
 const sessionMock = {
   role: "admin" as UserRole | null,
+  /**
+   * The org's section claim. Since FM1 the TABS are asked through `surfaceGateAllows(tab, role,
+   * sections)` — the gate evaluator widgets and sidebar entries use — because the Operations tab
+   * needs `manage` and `canView` cannot say it. So the tab set follows `role` + `sections` (the real
+   * matrix), while `canView` still drives what INSIDE the page asks it (the Export menu).
+   */
+  sections: null as SectionClaim | null,
   canView: (_s: AppSection) => true,
   can: (_s: AppSection) => true,
   readOnly: false,
 };
 
 vi.mock("@/stores/session", () => ({ useSessionStore: () => sessionMock }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn(async () => undefined) }));
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 // The export URL is the assertion — what it downloads is `download.ts`'s business, not this test's.
 vi.mock("@/features/reports/download", () => ({ downloadReport: vi.fn(async () => undefined) }));
 /*
@@ -53,14 +62,22 @@ const replaced: { query?: Record<string, unknown> }[] = [];
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
   useRoute: () => ({ query: {} }),
-  useRouter: () => ({ replace: (to: { query?: Record<string, unknown> }) => { replaced.push(to); } }),
+  useRouter: () => ({
+    replace: (to: { query?: Record<string, unknown> }) => {
+      replaced.push(to);
+    },
+  }),
 }));
 
 import DashboardPage from "@/pages/DashboardPage.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import { downloadReport } from "@/features/reports/download";
 
 /** `canView` built from an explicit allow-list, so a test states the GRANTS it is giving. */
-const grants = (...allowed: AppSection[]) => (s: AppSection) => allowed.includes(s);
+const grants =
+  (...allowed: AppSection[]) =>
+  (s: AppSection) =>
+    allowed.includes(s);
 
 function mountShell() {
   return mount(DashboardPage, {
@@ -88,20 +105,25 @@ function mountShell() {
         TabWidgets: {
           props: ["tab", "range"],
           // `data-range` added 2026-09-21: the window the shell chose is only observable here.
-          template: '<div :data-test="tab + \'-tab\'" :data-range="range ? range.from + \'\u2192\' + range.to : undefined" />',
+          template:
+            "<div :data-test=\"tab + '-tab'\" :data-range=\"range ? range.from + '\u2192' + range.to : undefined\" />",
         },
-        DateRangeFilter: { template: '<div data-test="range-filter" />' },
+        DateRangeFilter: {
+          emits: ["update:from", "update:to"],
+          template:
+            '<button type="button" data-test="range-filter" @click="$emit(\'update:from\', \'2026-09-01\'); $emit(\'update:to\', \'2026-09-15\')" />',
+        },
         // v3: both read the fleet figures through vue-query; the shell test is about which tab
         // the shell chose, so they are stubbed to their markers.
         SamsaraFeedLine: { template: '<span data-test="feed-chip" />' },
         FleetLeadLine: { template: '<span data-test="fleet-lead" />' },
-        PageHeader: { template: "<div><slot /><slot name=\"actions\" /></div>" },
+        PageHeader: { template: '<div><slot /><slot name="actions" /></div>' },
         Menu: { template: '<div data-test="export-menu"><slot /></div>' },
         MenuButton: true,
         MenuItems: { template: "<div><slot /></div>" },
         // Renders its slot so the export buttons exist to be clicked (the `active` slot prop is
         // headlessui's keyboard-focus flag and only drives a background class).
-        MenuItem: { template: "<div><slot :active=\"false\" /></div>" },
+        MenuItem: { template: '<div><slot :active="false" /></div>' },
         RouterLink: true,
       },
     },
@@ -111,29 +133,42 @@ function mountShell() {
 beforeEach(() => {
   setActivePinia(createPinia());
   sessionMock.role = "admin";
+  sessionMock.sections = null;
   sessionMock.canView = () => true;
   sessionMock.can = () => true;
   sessionMock.readOnly = false;
 });
 
+/** Click a tab in the strip by its label — the way a reader leaves the tab they landed on. */
+async function openTab(w: ReturnType<typeof mountShell>, label: string) {
+  const tab = w.findAll('[role="tab"]').find((t) => t.text().includes(label));
+  expect(tab, `a ${label} tab should be in the strip`).toBeTruthy();
+  await tab!.trigger("click");
+}
+
 describe("which dashboard a caller gets", () => {
-  it("gives an admin both tabs and opens the fleet overview", () => {
+  it("gives an admin every tab and opens Operations, the first", () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
-    expect(w.findAll('[role="tab"]')).toHaveLength(2);
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(true);
-    expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(false);
+    expect(w.findAll('[role="tab"]')).toHaveLength(3);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
+    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+  });
+
+  it("opens a fleet manager on Operations (FLEET-MANAGER-HOME-PLAN D-FM3)", () => {
+    sessionMock.role = "fleet_manager";
+    const w = mountShell();
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
+    expect(replaced.at(-1)?.query).toMatchObject({ tab: "ops" });
   });
 
   it("opens a dispatcher on the DISPATCH tab, not on the first one in the catalogue", () => {
     // The defaultFor rule. Without it a dispatcher would land on Fleet overview, which is the tab
     // they care least about — and the whole reason this split was asked for.
     sessionMock.role = "dispatcher";
-    sessionMock.canView = grants("fuel", "dispatch");
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(false);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(false);
 
     /**
      * ⚠ D-DR24: and the URL followed, which is not cosmetic. `AppShell` reads `?tab=` to decide
@@ -167,10 +202,9 @@ describe("which dashboard a caller gets", () => {
     // it. A component that tested `role === 'dispatcher'` would render identically twice and fail
     // exactly here.
     sessionMock.role = "safety_manager";
-    sessionMock.canView = grants("fuel");
     expect(mountShell().findAll('[role="tab"]')).toHaveLength(0);
 
-    sessionMock.canView = grants("fuel", "dispatch");
+    sessionMock.sections = { dispatch: "view" };
     const granted = mountShell();
     expect(granted.findAll('[role="tab"]')).toHaveLength(2);
     expect(granted.text()).toContain("Dispatch");
@@ -180,9 +214,8 @@ describe("which dashboard a caller gets", () => {
 describe("the tab strip actually switches the dashboard", () => {
   it("renders the dispatch tab after the admin picks it", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
-    expect(w.find('[data-test="fleet-tab"]').exists()).toBe(true);
+    expect(w.find('[data-test="ops-tab"]').exists()).toBe(true);
 
     const dispatchTab = w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"));
     expect(dispatchTab, "a Dispatch tab should be in the strip").toBeTruthy();
@@ -215,10 +248,12 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("keeps the strip after picking the workspace tab, so there is a way back", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
     expect(w.find('[data-test="dispatch-tab"]').exists(), "the map should be open").toBe(true);
 
     const fleetTab = w.findAll('[role="tab"]').find((t) => t.text().includes("Fleet overview"));
@@ -227,7 +262,10 @@ describe("the tab strip actually switches the dashboard", () => {
     // And it must actually work, not merely be painted: a strip that is present but inert would
     // satisfy the assertion above and strand the reader just as completely.
     await fleetTab!.trigger("click");
-    expect(w.find('[data-test="fleet-tab"]').exists(), "clicking it should return to Fleet overview").toBe(true);
+    expect(
+      w.find('[data-test="fleet-tab"]').exists(),
+      "clicking it should return to Fleet overview",
+    ).toBe(true);
     expect(replaced.at(-1)?.query).toMatchObject({ tab: "fleet" });
   });
 
@@ -238,11 +276,15 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("keeps the Customize teleport target on the workspace tab", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
-    expect(w.find("#dashboard-actions").exists(), "TabWidgets teleports Customize here by id").toBe(true);
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
+    expect(w.find("#dashboard-actions").exists(), "TabWidgets teleports Customize here by id").toBe(
+      true,
+    );
   });
 
   /**
@@ -255,10 +297,12 @@ describe("the tab strip actually switches the dashboard", () => {
    */
   it("lets the workspace tab's widgets shrink to whatever the row leaves them", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
     const w = mountShell();
 
-    await w.findAll('[role="tab"]').find((t) => t.text().includes("Dispatch"))!.trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((t) => t.text().includes("Dispatch"))!
+      .trigger("click");
     const widgets = w.find('[data-test="dispatch-tab"]');
     expect(widgets.classes()).toContain("min-h-0");
     expect(widgets.classes()).toContain("flex-1");
@@ -275,14 +319,16 @@ describe("the tab strip actually switches the dashboard", () => {
  * truck silently, in a production build, with no warning.
  */
 describe("the control row", () => {
-  it("keeps the tab strip and the scope controls in one row", () => {
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+  it("keeps the tab strip and the scope controls in one row", async () => {
     const w = mountShell();
+    await openTab(w, "Fleet overview");
 
     const tablist = w.find('[role="tablist"]');
     const actions = w.find("#dashboard-actions");
     expect(tablist.exists()).toBe(true);
-    expect(actions.exists(), "TabWidgets teleports Customize into #dashboard-actions by id").toBe(true);
+    expect(actions.exists(), "TabWidgets teleports Customize into #dashboard-actions by id").toBe(
+      true,
+    );
     // Siblings, not merely both-present: a row is what puts them on one line.
     expect(actions.element.parentElement).toBe(tablist.element.parentElement);
     // And the scope controls are inside it rather than back up in the header.
@@ -291,16 +337,17 @@ describe("the control row", () => {
 });
 
 describe("the header's fleet-only controls", () => {
-  it("offers the range filter and exports on the fleet tab", () => {
+  it("offers the range filter and exports on the fleet tab", async () => {
     sessionMock.role = "admin";
-    sessionMock.canView = grants("fuel", "dispatch", "accounting");
+    sessionMock.canView = grants("fuel", "dispatch", "accounting", "settings");
     const w = mountShell();
+    await openTab(w, "Fleet overview");
     expect(w.find('[data-test="range-filter"]').exists()).toBe(true);
+    expect(w.findComponent(ExportButton).exists()).toBe(true);
   });
 
   it("hides them on the dispatch tab, which has no range and nothing to export", () => {
     sessionMock.role = "dispatcher";
-    sessionMock.canView = grants("fuel", "dispatch");
     const w = mountShell();
     expect(w.find('[data-test="dispatch-tab"]').exists()).toBe(true);
     expect(w.find('[data-test="range-filter"]').exists()).toBe(false);
@@ -320,6 +367,8 @@ describe("the window the page asks about", () => {
 
   beforeEach(() => {
     // `settings` because the exports are `/api/reports/*`, `settings` view, and the menu asks that (SP5).
+    // A role that LANDS on Fleet overview, which is the tab that has a window.
+    sessionMock.role = "safety_manager";
     sessionMock.canView = grants("fuel", "dispatch", "settings");
     vi.useFakeTimers();
     vi.setSystemTime(AFTER_UTC_ROLLOVER);
@@ -352,16 +401,25 @@ describe("the window the page asks about", () => {
    */
   it("exports the same window it is showing, bounded on the carrier's clock", async () => {
     const w = mountShell();
-    // Click the real menu item, so this asserts what a reader pressing "Transactions CSV" gets.
-    const item = w.findAll("button").find((b) => b.text().includes("Transactions CSV"));
-    expect(item, "the Transactions CSV export button").toBeTruthy();
-    await item!.trigger("click");
+    const exportButton = w.findComponent(ExportButton);
+    expect(exportButton.props("scope")).toBe("08/21/2026 – 09/20/2026");
+    expect(w.text()).toContain("08/21/2026 – 09/20/2026");
+
+    const exports = exportButton.props("items") as readonly ExportItem[];
+    const item = exports.find((candidate) => candidate.key === "transactions");
+    expect(item?.label).toBe("Transactions CSV");
+    expect(item?.run).toBeTypeOf("function");
+    await item!.run!();
 
     const url = vi.mocked(downloadReport).mock.calls.at(-1)?.[0] ?? "";
     const q = new URLSearchParams(url.slice(url.indexOf("?")));
     expect(q.get("from")).toBe("2026-08-21T06:00:00.000Z"); // MDT, UTC-6 — Chicago would be 05:00
     // The day AFTER `to`, exclusive — never a T23:59:59.999 that drops the last sliver of a second.
     expect(q.get("to")).toBe("2026-09-21T06:00:00.000Z");
+
+    await w.get('[data-test="range-filter"]').trigger("click");
+    expect(exportButton.props("scope")).toBe("09/01/2026 – 09/15/2026");
+    expect(w.text()).toContain("09/01/2026 – 09/15/2026");
   });
 });
 
@@ -371,7 +429,7 @@ describe("the window the page asks about", () => {
  * the menu from a role the org granted `settings: view` and offered it to one the org had narrowed.
  */
 describe("the Export menu asks what the export endpoints ask (SP5)", () => {
-  const hasExport = (w: ReturnType<typeof mountShell>) => w.findAll("button").some((b) => b.text().includes("Transactions CSV"));
+  const hasExport = (w: ReturnType<typeof mountShell>) => w.findComponent(ExportButton).exists();
 
   it("shows for a settings VIEWER who manages nothing, and hides for a caller without settings", () => {
     // A role whose dashboard opens on the Fleet tab, which is where the menu lives.

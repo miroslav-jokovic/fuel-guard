@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import {
   QUEUE_FINDING_KINDS, FINDING_KIND_LABELS,
   FINDING_QUEUE_STATES, FINDING_QUEUE_STATE_LABELS,
@@ -9,8 +9,10 @@ import {
 } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import StatCard from "@/components/ui/StatCard.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -57,7 +59,7 @@ import { useProblemDrawer } from "./fuelProblems/useProblemDrawer";
 const toast = useToastStore();
 const session = useSessionStore();
 const f = useSpendFilters();
-const { param } = useQueryState();
+const { param, set } = useQueryState();
 
 /**
  * ── EVERY FILTER ON THIS PAGE IS NOW IN THE URL (FUEL-C3, D-FUI8, finished at P3) ───────────────
@@ -111,7 +113,38 @@ const kinds = computed<FindingKind[]>({
  * routed around. `mine` needs no directory: it is the caller's own id.
  */
 const mine = param("owner", ["me"]);
+const OWNER_OPTIONS = [
+  { value: "", label: "Anyone" },
+  { value: "me", label: "Assigned to me" },
+];
 const assignedTo = computed(() => (mine.value === "me" ? (session.userId ?? null) : null));
+
+/**
+ * What "Clear filters" would undo. The status filter OPENS on the three working states, so a status
+ * list equal to that default is not a narrowing — counting it would light the button on every visit.
+ * Grain is not counted: `useSpendFilters` carries it, but this page offers no control for it.
+ */
+const isDefaultStates = computed(
+  () => states.value.length === DEFAULT_STATES.length && DEFAULT_STATES.every((s) => states.value.includes(s)),
+);
+const activeFilterCount = computed(
+  () =>
+    (f.isDefaultWindow.value ? 0 : 1) +
+    (f.vehicleIds.value.length ? 1 : 0) +
+    (isDefaultStates.value ? 0 : 1) +
+    (kinds.value.length ? 1 : 0) +
+    (mine.value ? 1 : 0),
+);
+/**
+ * ONE patch through this page's own `useQueryState`, not `f.reset()` beside three `param` writes:
+ * `useSpendFilters` holds a second instance with its own buffer, and two instances writing in the
+ * same tick is the lost write that buffer exists to prevent — the later `router.replace` supersedes
+ * the earlier one. The window and truck keys are restated for that reason, as `useFuelCostFilters`'
+ * own `reset` restates them.
+ */
+function resetFilters(): void {
+  set({ from: undefined, to: undefined, trucks: undefined, grain: undefined, state: undefined, kind: undefined, owner: undefined });
+}
 
 const page = ref(1);
 const PAGE_SIZE = 25;
@@ -276,20 +309,27 @@ const truckOptions = computed(() =>
       <StatCard v-for="t in tiles" :key="t.label" :label="t.label" :value="t.value" :sub="t.sub" :value-tone="t.tone" />
     </div>
 
-    <FilterBar :count="total" count-label="problems">
+    <DataWorkspace>
+    <FilterBar
+      embedded
+      :count="total"
+      count-label="problems"
+      :active-count="activeFilterCount"
+      :more-count="mine ? 1 : 0"
+      :chips="mine ? [{ key: 'owner', label: 'Owner', value: 'Assigned to me' }] : []"
+      @remove="mine = ''"
+      @clear-all="resetFilters"
+    >
       <template #filters>
         <DateRangeFilter v-model:from="f.from.value" v-model:to="f.to.value" label="Dates" />
         <FilterSelect v-model="states" :options="stateOptions" label="Status" multiple />
         <FilterSelect v-model="kinds" :options="kindOptions" label="Finding" multiple />
         <FilterSelect v-model="f.vehicleIds.value" :options="truckOptions" label="Unit" multiple />
-        <FilterSelect
-          v-model="mine"
-          label="Owner"
-          :options="[
-            { value: '', label: 'Anyone' },
-            { value: 'me', label: 'Assigned to me' },
-          ]"
-        />
+      </template>
+      <!-- Owner is the secondary dimension: the contract keeps four controls in the row (§5.5 rule 3),
+           and "assigned to me" is a narrowing a reviewer reaches for after the dates and the kind. -->
+      <template #more>
+        <FilterSelect v-model="mine" label="Owner" :options="OWNER_OPTIONS" block />
       </template>
       <template #actions>
         <MoneyExportActions
@@ -305,7 +345,7 @@ const truckOptions = computed(() =>
     </FilterBar>
 
     <!-- A queue that is missing rows and does not say so is worse than one that refuses to load. -->
-    <p v-if="truncated" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-700 ring-1 ring-warning-100">
+    <p v-if="truncated" class="bg-warning-50 px-4 py-3 text-sm text-warning-700 sm:px-6">
       There are more problems than this page can hold at once. Narrow the window or the trucks to be sure you are
       seeing all of them.
     </p>
@@ -316,11 +356,11 @@ const truckOptions = computed(() =>
       an assignee who cannot close every finding in the batch — so offering a name it would reject is
       a control that exists to produce an error message.
     -->
-    <div
-      v-if="picked.size"
-      class="flex flex-wrap items-center gap-3 rounded-surface bg-surface-muted px-4 py-3 ring-1 ring-edge"
-    >
-      <span class="text-sm font-medium text-ink">{{ picked.size }} selected</span>
+    <BulkActionBar :count="picked.size" @clear="picked = new Set()">
+      <template v-if="!assigneeSection" #note>
+        This selection spans money findings and theft cases, which different people close. Narrow it to one kind to
+        assign it.
+      </template>
       <template v-if="assigneeSection">
         <FilterSelect
           :model-value="''"
@@ -328,23 +368,19 @@ const truckOptions = computed(() =>
           label="Assign to"
           @update:model-value="assignPicked(String($event) || null)"
         />
-        <BaseButton variant="secondary" :disabled="assignMutation.isPending.value" @click="assignPicked(null)">
+        <BaseButton size="sm" :disabled="assignMutation.isPending.value" @click="assignPicked(null)">
           Unassign
         </BaseButton>
       </template>
-      <span v-else class="text-sm text-ink-muted">
-        This selection spans money findings and theft cases, which different people close. Narrow it to one kind to
-        assign it.
-      </span>
-      <BaseButton variant="ghost" @click="picked = new Set()">Clear</BaseButton>
-    </div>
+    </BulkActionBar>
 
-    <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+    <p v-if="isError" class="bg-danger-50 px-4 py-3 text-sm text-danger-700 sm:px-6">
       Couldn't load fuel problems: {{ error instanceof Error ? error.message : "unknown error" }}
     </p>
 
-    <BaseCard v-else padding="none">
       <DataTable
+        v-else
+        embedded
         :columns="columns"
         :rows="tableRows"
         row-key="id"
@@ -372,7 +408,7 @@ const truckOptions = computed(() =>
           <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
         </template>
       </DataTable>
-    </BaseCard>
+    </DataWorkspace>
 
     <ExceptionSlideOver :id="drawer.findingId.value" @close="drawer.close" />
     <CaseDrawers

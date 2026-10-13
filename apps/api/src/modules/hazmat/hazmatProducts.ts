@@ -110,6 +110,22 @@ export interface SearchProductsOptions {
 export interface MarinePollutantRow { nameNormalized: string; severe?: boolean }
 
 /**
+ * Exactly the rows these `hmtRef`s name, in the order asked, for the document reader's calculator prefill
+ * (§7A N6): each read line already carries the table's own ref (`hmtWitness.ts`), so this is a lookup,
+ * never a search — a ref the dataset does not hold is simply absent and its line stays unresolved.
+ */
+export function productsByRef(entries: readonly HmtEntry[], refs: readonly string[], marinePollutants: MarinePollutantRow[]): HazmatProduct[] {
+  const wanted = new Set(refs);
+  const entryIds = new Set([...wanted].map((r) => r.slice(0, r.lastIndexOf("#"))));
+  const found = new Map<string, HazmatProduct>();
+  for (const entry of entries) {
+    if (!entryIds.has(entry.entryId)) continue;
+    for (const p of entryToProducts(entry, CURATED_SET.has(entry.idNumber), marinePollutants)) found.set(p.hmtRef, p);
+  }
+  return [...wanted].flatMap((r) => found.get(r) ?? []);
+}
+
+/**
  * Search HMT entries for the picker. No/blank query → the curated fuel shortlist (display order).
  * With a query → ranked exact-substring matches over ID and names, expanded to one row per pg-row.
  */

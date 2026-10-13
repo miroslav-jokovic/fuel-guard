@@ -14,8 +14,12 @@ vi.mock("@/stores/session", () => ({
   useSessionStore: () => ({ can: (s: string) => canManageSection(role.value as never, s as never) }),
 }));
 const Stub = (name: string) => defineComponent({ name, setup: () => () => h("div", { "data-stub": name }) });
-vi.mock("@/features/hazmat/HazmatCalculatorForm.vue", () => ({ default: Stub("form") }));
-vi.mock("@/features/hazmat/bolRead/BolReadPanel.vue", () => ({ default: Stub("bol-panel") }));
+vi.mock("@/features/hazmat/HazmatCalculatorForm.vue", () => ({
+  default: defineComponent({ name: "CalculatorFormStub", props: { bolRead: { type: Object, default: null } }, setup: (p) => () => h("div", { "data-stub": "form", "data-read": (p.bolRead as { id?: string } | null)?.id ?? "" }) }),
+}));
+vi.mock("@/features/hazmat/bolRead/BolReadPanel.vue", () => ({
+  default: defineComponent({ name: "BolPanelStub", emits: ["read"], setup: (_, { emit }) => () => h("button", { "data-stub": "bol-panel", onClick: () => emit("read", { id: "read-1" }) }) }),
+}));
 vi.mock("@/components/ui/PageHeader.vue", () => ({ default: Stub("header") }));
 
 const { default: HazmatCalculatorPage } = await import("./HazmatCalculatorPage.vue");
@@ -30,5 +34,13 @@ describe("HazmatCalculatorPage", () => {
     });
     expect(shown).toEqual(USER_ROLES.map((r) => [r, canManageSection(r, "hazmat")]));
     expect(new Set(shown.map(([, s]) => s)).size).toBe(2);
+  });
+
+  it("hands the panel's finished read to the form", async () => {
+    role.value = "dispatcher";
+    const w = mount(HazmatCalculatorPage);
+    expect(w.find("[data-stub='form']").attributes("data-read")).toBe("");
+    await w.find("[data-stub='bol-panel']").trigger("click");
+    expect(w.find("[data-stub='form']").attributes("data-read")).toBe("read-1");
   });
 });

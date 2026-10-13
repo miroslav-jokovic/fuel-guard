@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppIcon } from "@silvicom/ui";
+import { AppIcon, AppTabs, type TabItem } from "@silvicom/ui";
 import {
   ArrowsRightLeftIcon,
   BellIcon,
@@ -44,13 +44,15 @@ import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppSwitch as BaseSwitch } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import ScoreFeatureOptions from "@/features/settings/ScoreFeatureOptions.vue";
 type SettingsTab = "features" | "app" | "exceptions";
 const activeTab = ref<SettingsTab>("features");
-const tabs: { key: SettingsTab; label: string }[] = [
-  { key: "features", label: "Features" },
-  { key: "app", label: "App controls" },
-  { key: "exceptions", label: "Driver exceptions" },
+const tabs: TabItem[] = [
+  { value: "features", label: "Features" },
+  { value: "app", label: "App controls" },
+  { value: "exceptions", label: "Driver exceptions" },
 ];
 const toast = useToastStore();
 const modulesQ = useModulesQuery();
@@ -216,26 +218,18 @@ async function removeOverride(featureKey: string) {
 <template>
   <div class="mx-auto max-w-5xl space-y-6">
     <PageHeader description="Shape the Driver App experience for your fleet. Changes reach drivers on their next refresh—no app update required." />
-    <BaseCard v-if="rowsQ.isError.value" padding="sm">
-      <p class="text-sm font-semibold text-danger-600">Driver App settings could not be loaded.</p>
-      <p class="mt-1 text-sm text-ink-muted">{{ rowsQ.error.value?.message }} The controls remain unavailable until the connection is restored.</p>
-    </BaseCard>
-    <nav class="flex gap-1 overflow-x-auto rounded-surface bg-surface-muted p-1" role="tablist" aria-label="Driver App settings">
-      <BaseButton
-        v-for="tab in tabs"
-        :id="`driver-app-tab-${tab.key}`"
-        :key="tab.key"
-        type="button"
-        role="tab"
-        class="shrink-0 rounded-control px-3 py-2 text-sm font-medium transition"
-        :class="activeTab === tab.key ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
-        :aria-selected="activeTab === tab.key"
-        :aria-controls="`driver-app-panel-${tab.key}`"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </BaseButton>
-    </nav>
+    <!-- The catalogue below draws from code, so it stays on screen (switches disabled) while the org's
+         choices are missing; only the failure is drawn here, with a Retry (D-US5). Empty slot on purpose. -->
+    <QueryState :loading="false" :error="rowsQ.isError.value ? rowsQ.error.value : null" :retrying="rowsQ.isFetching.value"
+                error-text="Could not load the Driver App settings. The controls stay unavailable until they load."
+                @retry="rowsQ.refetch()" />
+    <AppTabs
+      v-model="activeTab"
+      :tabs="tabs"
+      label="Driver App settings"
+      id-prefix="driver-app"
+      scrollable
+    />
     <section
       v-if="activeTab === 'features'"
       id="driver-app-panel-features"
@@ -248,10 +242,9 @@ async function removeOverride(featureKey: string) {
           <h2 class="text-lg font-semibold text-ink">Driver experience</h2>
           <p class="mt-1 text-sm text-ink-muted">Choose the tools and information drivers can use in the app.</p>
         </div>
-        <p class="text-sm font-medium text-ink-secondary">
-          <template v-if="rowsQ.isLoading.value || modulesQ.isLoading.value">Loading settings…</template>
-          <template v-else>{{ activeFeatureCount }} of {{ availableFeatureCount }} available features on</template>
-        </p>
+        <QueryState :loading="rowsQ.isLoading.value || modulesQ.isLoading.value" loading-text="Loading settings…">
+          <p class="text-sm font-medium text-ink-secondary">{{ activeFeatureCount }} of {{ availableFeatureCount }} available features on</p>
+        </QueryState>
       </div>
       <BaseCard as="section" padding="none">
         <div class="border-b border-edge-subtle px-5 py-4">
@@ -420,7 +413,10 @@ async function removeOverride(featureKey: string) {
                   :disabled="driversQ.isLoading.value || driversQ.isError.value"
                 />
               </FormField>
-              <p v-if="driversQ.isError.value" class="mt-2 text-sm text-danger-600">Drivers could not be loaded.</p>
+              <div v-if="driversQ.isError.value" class="mt-2">
+                <QueryState compact :loading="false" error error-text="Could not load the drivers."
+                  :retrying="driversQ.isFetching.value" @retry="driversQ.refetch()" />
+              </div>
             </div>
           </div>
         </div>
@@ -431,16 +427,17 @@ async function removeOverride(featureKey: string) {
             <h3 class="text-sm font-semibold text-ink">Current exceptions</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ selectedDriverName }}</p>
           </div>
-          <p v-if="overridesQ.isLoading.value" class="p-5 text-sm text-ink-muted">Loading exceptions…</p>
+          <div v-if="overridesQ.isLoading.value || overridesQ.isError.value" class="p-5">
+            <QueryState compact :loading="overridesQ.isLoading.value" :error="overridesQ.isError.value ? overridesQ.error.value : null"
+                        :retrying="overridesQ.isFetching.value" loading-text="Loading exceptions…"
+                        error-text="Could not load this driver's exceptions." @retry="overridesQ.refetch()" />
+          </div>
           <ul v-else-if="(overridesQ.data.value ?? []).length" class="divide-y divide-edge-subtle">
             <li v-for="override in overridesQ.data.value" :key="override.feature_key" class="flex items-start justify-between gap-3 p-5">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-sm font-semibold text-ink">{{ featureLabel(override.feature_key) }}</span>
-                  <span
-                    class="rounded-full px-2 py-0.5 text-xs font-medium"
-                    :class="override.enabled ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'"
-                  >
+                  <span :class="[BADGE_BASE, toneClass(override.enabled ? 'success' : 'danger')]">
                     {{ override.enabled ? "Allowed" : "Disabled" }}
                   </span>
                 </div>

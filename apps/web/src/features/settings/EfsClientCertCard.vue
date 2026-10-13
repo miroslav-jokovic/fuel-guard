@@ -142,7 +142,7 @@ async function onWithdraw(): Promise<void> {
   <BaseCard as="section">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h3 class="text-base font-semibold text-ink">Client certificate (mutual TLS)</h3>
+        <h3 class="text-sm font-semibold text-ink">Client certificate (mutual TLS)</h3>
         <p class="mt-1 text-xs text-ink-muted">
           Only needed if EFS requires a client certificate on their endpoint. Without one, calls use
           ordinary TLS and everything works as before. The private key is encrypted before it is

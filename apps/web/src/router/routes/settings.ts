@@ -130,6 +130,17 @@ export const settingsRoutes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/settings/medstop",
+    name: "medstop-settings",
+    component: () => import("@/pages/MedstopSettingsPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "Med-Stop Integration",
+      parent: "/settings",
+    },
+  },
+  {
     path: "/settings/fleetpal",
     name: "fleetpal-settings",
     component: () => import("@/pages/FleetpalSettingsPage.vue"),

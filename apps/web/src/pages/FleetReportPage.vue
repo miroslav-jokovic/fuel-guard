@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { useQueryState } from "@/composables/useQueryState";
 import { computed, ref, watch } from "vue";
 import { ledgerMonthWhy } from "@silvicom/shared";
-import { AppButton as BaseButton, AppTabs, type TabItem } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout, AppTabs, type TabItem } from "@silvicom/ui";
 import ExplainerPanel from "@/components/ui/ExplainerPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import ActivityTable from "@/features/accounting/ActivityTable.vue";
 import FleetContractorsTab from "@/features/accounting/FleetContractorsTab.vue";
 import FleetDispatchersTab from "@/features/accounting/FleetDispatchersTab.vue";
@@ -95,13 +97,23 @@ const TABS: TabItem[] = [
   { value: "contractors", label: "Contractors" },
   { value: "statement", label: "Income statement" },
 ];
-const tab = ref<FleetTab>("overview");
+// The view is in the URL with each tab's own scoped list (D-US2), so a link to "Per truck, sorted by
+// miles" opens on Per truck rather than on Overview with the sort waiting behind it.
+const tabParam = useQueryState().param("tab", TABS.map((t) => t.value), "overview");
+const tab = computed({ get: () => tabParam.value as FleetTab, set: (v: FleetTab) => (tabParam.value = v) });
 
 /**
  * The fleet report (G1/G5) — one call carrying every tab's rows since G7b: the overview, the
  * families, the per-truck rows and the contractor rows (plan §2.5, every figure out of one call).
  */
-const { data: fleet, isLoading: fleetLoading, isError: fleetError, refetch: fleetRefetch } = useFleetReportQuery(filter, ready);
+const {
+  data: fleet,
+  isLoading: fleetLoading,
+  isError: fleetError,
+  error: fleetErr,
+  isFetching: fleetFetching,
+  refetch: fleetRefetch,
+} = useFleetReportQuery(filter, ready);
 
 /**
  * The trend behind the headlines (R3): the previous month's figures and the sparklines. It is the
@@ -132,7 +144,10 @@ watch(
   { immediate: true },
 );
 const statementFilter = computed(() => ({ ...filter.value, compare: compare.value }));
-const { data: statement, isLoading: statementLoading, isError: statementError } = useIncomeStatementQuery(statementFilter, ready);
+const {
+  data: statement, isLoading: statementLoading, isError: statementError,
+  isFetching: statementRetrying, refetch: statementRefetch,
+} = useIncomeStatementQuery(statementFilter, ready);
 /** The statement as a printed document (R6): the browser's own print, with everything but the statement hidden. */
 function printStatement() {
   window.print();
@@ -167,7 +182,7 @@ const pageDescription = computed(() =>
  */
 const trust = computed(() => (fleet.value ? fleetTrust(fleet.value) : null));
 const provenanceLine = computed(() => (fleet.value ? fleetProvenanceLine(fleet.value) : ""));
-const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : null));
+const fleetErrorText = computed(() => (fleetError.value ? "Could not load the fleet report." : null));
 </script>
 
 <template>
@@ -210,12 +225,7 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
 
     <!-- The coverage banner (G10), the WARNING only: a period short of trucks carries no per-mile
          figure at all, and saying so once, at the top, beats a dash on every row. -->
-    <p
-      v-if="coverage?.reason"
-      class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
-    >
-      {{ coverage.reason }}
-    </p>
+    <AppCallout v-if="coverage?.reason" tone="warning">{{ coverage.reason }}</AppCallout>
 
     <AppTabs v-model="tab" :tabs="TABS" label="Fleet report views" id-prefix="fleet-report" />
 
@@ -223,23 +233,30 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
          filters, and remounting is what resets them on a tab change (owner ruling 2026-08-29). -->
     <template v-if="period">
       <div v-if="tab === 'overview'" class="space-y-4">
-        <p v-if="fleetError" class="text-sm text-danger-600">
-          The overview could not be loaded. Try the period again in a moment.
-        </p>
-        <template v-else-if="fleet">
-          <!-- The four headlines (R3): kept, earned, spent, kept per mile — each with its
-               neighbour. Hidden with the rest when no month of the period could be reported; the
-               overview says why in full. -->
-          <FleetHeadlines
-            v-if="fleet.monthsCovered.length"
-            :report="fleet"
-            :trend="trend ?? null"
-            :period="period"
-            :loading="fleetLoading"
-          />
-          <FleetOverview :report="fleet" :loading="fleetLoading" />
-        </template>
-        <p v-else class="text-sm text-ink-secondary">Loading the overview…</p>
+        <!-- A failure wins over figures still on screen from the last period, as it did before
+             D-US5: an overview that is quietly the PREVIOUS period's is worse than none. -->
+        <QueryState
+          :loading="!fleet && !fleetError"
+          :error="fleetError ? (fleetErr ?? true) : null"
+          :retrying="fleetFetching"
+          loading-text="Loading the overview…"
+          error-text="Could not load the overview."
+          @retry="fleetRefetch()"
+        >
+          <template v-if="fleet">
+            <!-- The four headlines (R3): kept, earned, spent, kept per mile — each with its
+                 neighbour. Hidden with the rest when no month of the period could be reported; the
+                 overview says why in full. -->
+            <FleetHeadlines
+              v-if="fleet.monthsCovered.length"
+              :report="fleet"
+              :trend="trend ?? null"
+              :period="period"
+              :loading="fleetLoading"
+            />
+            <FleetOverview :report="fleet" :loading="fleetLoading" />
+          </template>
+        </QueryState>
 
         <!-- The trend (G9): whether this period is where the fleet has been sitting or where it has
              just moved to. It ends on the period on screen and reads its own twelve months back. -->
@@ -256,6 +273,8 @@ const fleetErrorText = computed(() => (fleetError.value ? "Failed to load" : nul
         :statement="statement ?? null"
         :statement-loading="statementLoading"
         :statement-error="statementError"
+        :statement-retrying="statementRetrying"
+        @retry="statementRefetch()"
         :fleet="fleet ?? null"
         :fleet-loading="fleetLoading"
         :period="period"

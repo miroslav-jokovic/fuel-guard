@@ -71,8 +71,9 @@ beforeEach(() => {
   );
 });
 
+let router: ReturnType<typeof createRouter>;
 async function mountPage(path: string) {
-  const router = createRouter({
+  router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: "/ifta", component: { template: "<div/>" }, meta: { title: "IFTA" } },
@@ -171,6 +172,33 @@ describe("IftaJurisdictionPage", () => {
     expect(fills.text().indexOf("El Paso")).toBeLessThan(fills.text().indexOf("Amarillo"));
   });
 
+  /**
+   * D-US8: a truck can buy fuel in one state hundreds of times a quarter, so its opened fills page —
+   * twenty at a time, with the page held by the row and not written to the URL (it is the row's
+   * detail, not the list's state).
+   */
+  it("pages an opened truck's fills twenty at a time, without touching the link", async () => {
+    const day = (i: number) => `2026-08-${String(1 + (i % 28)).padStart(2, "0")}`;
+    trucks.value = iftaJurisdictionTrucks(
+      [raw("732", 3_000, 3_100, 3)],
+      Array.from({ length: 45 }, (_, i) => fill(`f${i}`, "v-732", 10, 38, day(i), `Stop ${String(i).padStart(2, "0")}`)),
+    );
+    const w = await mountPage("/ifta/TX?q=2026-Q3");
+    await w.findAll("tbody tr").find((tr) => tr.text().includes("732"))!.trigger("click");
+    const fills = () => w.find('[data-testid="fills-v-732"]');
+    const stops = (): string[] => fills().text().match(/Stop \d\d/g) ?? [];
+    expect(stops()).toHaveLength(20);
+    expect(fills().text()).toMatch(/Showing\s*1\s*–\s*20\s*of\s*45/);
+    const first = stops();
+
+    await fills().findAll("button").find((b) => b.text().startsWith("Next"))!.trigger("click");
+    await flushPromises();
+    expect(fills().text()).toMatch(/Showing\s*21\s*–\s*40\s*of\s*45/);
+    expect(stops()).toHaveLength(20);
+    expect(stops().some((s) => first.includes(s))).toBe(false);
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3" });
+  });
+
   // ── McLeod's hand-keyed receipts (IP6) ─────────────────────────────────────────────────────────
   /** Unit 512's real shape: an owner-operator whose fuel reaches the IFTA only as paper receipts. */
   const withReceipts = () => {
@@ -229,6 +257,30 @@ describe("IftaJurisdictionPage", () => {
   it("says so when no truck drove there that quarter", async () => {
     trucks.value = iftaJurisdictionTrucks([]);
     expect((await mountPage("/ifta/NV?q=2026-Q3")).text()).toContain("No truck drove or bought fuel in Nevada");
+  });
+
+  // ── D-US2 (2026-10-12): the sort and page join the quarter and filters already in the link ──
+  it("reads a pasted sort and page back into the list", async () => {
+    // Ascending by taxable miles: the no-truck fills (0 miles) first, then 101 (1,000) before 732 (3,000).
+    const w = await mountPage("/ifta/TX?q=2026-Q3&show=all&sort=taxableMiles&dir=asc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "taxableMiles", dir: "asc" });
+    expect(listedUnits(w)[1]).toContain("101");
+
+    trucks.value = iftaJurisdictionTrucks(
+      Array.from({ length: 30 }, (_, i) => raw(String(100 + i), 1_000 + i, 1_000 + i, 3)),
+      Array.from({ length: 30 }, (_, i) => fill(`f${i}`, `v-${100 + i}`, 10, 38, "2026-07-14", "Pilot")),
+    );
+    expect(listedUnits(await mountPage("/ifta/TX?q=2026-Q3&page=2"))).toHaveLength(5);
+  });
+
+  it("writes a sort, and Clear filters keeps the quarter and the sort", async () => {
+    const w = await mountPage("/ifta/TX?q=2026-Q3&show=all&search=7");
+    w.findComponent({ name: "DataTable" }).vm.$emit("sort", "unit");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3", show: "all", search: "7", sort: "unit", dir: "asc" });
+    w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ q: "2026-Q3", sort: "unit", dir: "asc" });
   });
 
   it("renders the error rather than an empty table", async () => {

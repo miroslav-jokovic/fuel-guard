@@ -36,10 +36,12 @@ const EXCEPTIONS = [
   exception("e2", "L-not-mine", "Declined on someone else's truck"),
   exception("e3", null, "A shift auto-closed"), // names a driver, not a load
 ];
+// One ref for every mount, so a test can land a refetch of the exceptions, as the poll does.
+const exceptionsData = ref(EXCEPTIONS);
 vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
   ...(await orig<typeof import("@/features/dispatch/useDispatchLoads")>()),
   useLoadsQuery: () => ({ data: ref(LOADS), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: () => {}, isFetching: ref(false) }),
-  useExceptionsQuery: () => ({ data: ref(EXCEPTIONS), isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
+  useExceptionsQuery: () => ({ data: exceptionsData, isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
 }));
 
@@ -168,6 +170,17 @@ describe("the Loads page beside the dispatch board", () => {
     expect(w.text()).not.toContain("Clear all");
   });
 
+  it("clears a narrowed list back to every load, keeping the queue and the scope it was opened on", async () => {
+    board.value = response(true);
+    const w = await mountPage("/loads?queue=in_transit&scope=all&fleet=VLADI");
+    const clear = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    await clear()!.trigger("click");
+    await flushPromises();
+    expect(w.router.currentRoute.value.query).toEqual({ queue: "in_transit", scope: "all" });
+    expect(refs(w)).toEqual(["L-mine-fleet", "L-i-dispatch", "L-not-mine"]);
+    expect(clear()).toBeUndefined();
+  });
+
   it("writes the queue and the sort into the URL", async () => {
     board.value = response(false);
     const w = await mountPage();
@@ -178,5 +191,48 @@ describe("the Loads page beside the dispatch board", () => {
     await flushPromises();
     expect(w.router.currentRoute.value.query).toEqual({ sort: "ref", dir: "asc" });
     expect(refs(w)).toEqual(["L-i-dispatch", "L-mine-fleet", "L-not-mine"]);
+  });
+
+  /**
+   * D-US8: the Exceptions feed pages like the loads do — it is every open exception in the org. A
+   * pasted `?page=2` shows the 21st–40th, and is not pulled back to page 1 by the empty LOADS list that
+   * tab leaves behind; a search change starts again at page 1.
+   */
+  describe("pages the Exceptions feed", () => {
+    const many = Array.from({ length: 45 }, (_, i) => exception(`x${i + 1}`, null, `Shift ${String(i + 1).padStart(2, "0")} auto-closed`));
+    const summaries = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((tr) => tr.findAll("td")[1]!.text());
+
+    it("shows exceptions 21–40 on a pasted ?page=2, and a search goes back to page 1", async () => {
+      board.value = response(false);
+      const saved = EXCEPTIONS.splice(0, EXCEPTIONS.length, ...many);
+      try {
+        const w = await mountPage("/loads?queue=exceptions&page=2");
+        expect(summaries(w)).toEqual(many.slice(20, 40).map((e) => e.summary));
+        expect(w.router.currentRoute.value.query).toEqual({ queue: "exceptions", page: "2" });
+
+        w.findComponent({ name: "FilterBar" }).vm.$emit("update:search", "Shift");
+        await flushPromises();
+        expect(w.router.currentRoute.value.query).toEqual({ queue: "exceptions", search: "Shift" });
+        expect(summaries(w)[0]).toBe("Shift 01 auto-closed");
+      } finally {
+        EXCEPTIONS.splice(0, EXCEPTIONS.length, ...saved);
+      }
+    });
+
+    it("pulls the page back when the feed shrinks under it, rather than showing an empty page 3", async () => {
+      board.value = response(false);
+      const saved = EXCEPTIONS.splice(0, EXCEPTIONS.length, ...many);
+      try {
+        const w = await mountPage("/loads?queue=exceptions&page=3");
+        expect(summaries(w)).toEqual(many.slice(40).map((e) => e.summary));
+        exceptionsData.value = many.slice(0, 40); // five were cleared elsewhere; the poll lands
+        await flushPromises();
+        expect(w.router.currentRoute.value.query).toEqual({ queue: "exceptions", page: "2" });
+        expect(summaries(w)).toEqual(many.slice(20, 40).map((e) => e.summary));
+      } finally {
+        EXCEPTIONS.splice(0, EXCEPTIONS.length, ...saved);
+        exceptionsData.value = EXCEPTIONS;
+      }
+    });
   });
 });

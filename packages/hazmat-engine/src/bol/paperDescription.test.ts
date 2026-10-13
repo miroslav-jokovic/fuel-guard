@@ -167,6 +167,12 @@ describe("paper_quantity_present — total quantity with its unit (§172.202(a)(
   it("fails a line with no quantity at all", () => {
     expect(result({ lines: [[pline({ quantity: { value: null, unit: null }, packaging: "drums", packageCount: 4 }), rline(null, { packagingKind: "non_bulk" })]] }, "paper_quantity_present").reason).toBe("missing");
   });
+  it("cannot tell on a line that prints only its weight, naming the weight — (a)(5) never says whether a gross weight is the total", () => {
+    const r = result({ lines: [[pline({ quantity: { value: null, unit: null }, packaging: "6 drums", packageCount: 6, grossWeightLb: 3806 }), rline(null, { packagingKind: "non_bulk" })]] }, "paper_quantity_present");
+    expect(r).toMatchObject({ outcome: "cannot_tell", reason: "weight_only", facts: { weightLb: 3806 } });
+    const zero = result({ lines: [[pline({ quantity: { value: null, unit: null }, packaging: "6 drums", packageCount: 6, grossWeightLb: 0 }), rline(null, { packagingKind: "non_bulk" })]] }, "paper_quantity_present");
+    expect(zero.reason).toBe("missing");
+  });
   it("cannot tell when the quantity is Not read", () => {
     const r = result({ lines: [GASOLINE()], fieldStates: { "hazmat.lines[0].quantity.value": "not_read" } }, "paper_quantity_present");
     expect(r.outcome).toBe("cannot_tell");

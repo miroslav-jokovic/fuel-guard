@@ -3,7 +3,8 @@ import {
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
   parseVehicleFuelPercents,
-  parseCurrentAssignments,
+  parseDriverCurrentTrucks,
+  planDriverSeats,
   parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
@@ -19,6 +20,7 @@ import {
   type SamsaraOdometerFetcher,
   type SamsaraAssignmentFetcher,
 } from "./lib/samsara.js";
+import { recordMove } from "./vehicleRecordMoved.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara
@@ -39,6 +41,9 @@ export interface VehicleSyncResult {
    * still lists — reported, never re-linked (FL1b, Q-FL6). Unit or Samsara name, one per vehicle.
    */
   heldByOtherDevice: string[];
+  /** Samsara records that moved to another of our trucks and were re-linked to it, as
+   *  "<old unit> → <new unit>" (`vehicleRecordMoved.ts`: 603 → 819 on 2026-10-12). */
+  movedRecords: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -142,7 +147,7 @@ async function upsertSamsaraVehicle(
   maps: ReturnType<typeof buildVehicleMaps>,
   linkOnly: boolean,
   liveIds: Set<string>,
-): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string }> {
+): Promise<{ kind: "created" | "updated" | "unlinked" | "held"; unit?: string; moved?: string }> {
   const identity = {
     make: sv.make,
     model: sv.model,
@@ -171,10 +176,27 @@ async function upsertSamsaraVehicle(
     if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
     return out;
   };
+  // The id match is checked against the VIN before it is believed — see `vehicleRecordMoved.ts`.
+  const idMatch = maps.bySamsara.get(sv.samsaraId);
+  const move = recordMove(sv.samsaraId, sv.vin, idMatch, maps.byVin, liveIds);
+  if (move.kind === "contested") return { kind: "held", unit: sv.name };
+  if (move.kind === "moved") {
+    // Released first: `uq_vehicles_org_samsara` allows one row per record. The write repeats the id it
+    // expects, so a row re-linked since the read is left alone.
+    await admin
+      .from("vehicles")
+      .update({ samsara_vehicle_id: null })
+      .eq("id", move.from.id)
+      .eq("org_id", orgId)
+      .eq("samsara_vehicle_id", sv.samsaraId);
+    move.from.samsara_vehicle_id = null;
+    maps.bySamsara.set(sv.samsaraId, move.to);
+  }
   const match =
-    maps.bySamsara.get(sv.samsaraId) ??
+    (move.kind === "moved" ? move.to : idMatch) ??
     (sv.vin ? maps.byVin.get(sv.vin.toUpperCase()) : undefined) ??
     maps.byUnit.get(sv.name);
+  const moved = move.kind === "moved" ? `${move.from.unit_number} → ${move.to.unit_number}` : undefined;
   // ── A VIN OR NAME MATCH NEVER TAKES A ROW FROM ANOTHER DEVICE SAMSARA STILL LISTS (FL1b, Q-FL6) ──
   //
   // When a gateway is swapped, Samsara keeps the retired gateway's vehicle record (`568 - OLD`) and
@@ -211,7 +233,7 @@ async function upsertSamsaraVehicle(
       ? withStats({ samsara_vehicle_id: sv.samsaraId })
       : withStats({ ...identity, samsara_vehicle_id: sv.samsaraId });
     await admin.from("vehicles").update(patch).eq("id", match.id).eq("org_id", orgId);
-    return { kind: "updated" };
+    return { kind: "updated", moved };
   }
 
   const unit = pickUnitNumber(sv);
@@ -257,8 +279,7 @@ async function syncDriverAssignments(
 ): Promise<number> {
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
-    const rawAssign = (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0];
-    const links = parseCurrentAssignments(rawAssign, new Date().toISOString());
+    const rawAssign = (await fetcher()) as Parameters<typeof parseDriverCurrentTrucks>[0];
     const intervals = parseAssignmentIntervals(rawAssign);
     if (intervals.length) {
       const now = new Date().toISOString();
@@ -276,31 +297,42 @@ async function syncDriverAssignments(
         });
       }
     }
-    if (!links.length) return 0;
+    if (!intervals.length) return 0;
     const [{ data: vRows }, { data: dRows }] = await Promise.all([
       admin
         .from("vehicles")
-        .select("id, samsara_vehicle_id")
-        .eq("org_id", orgId)
-        .not("samsara_vehicle_id", "is", null),
+        .select("id, samsara_vehicle_id, assigned_driver_id")
+        .eq("org_id", orgId),
+      // Every roster row, not only those with a Samsara id or still employed: the plan must also see
+      // a former driver a truck still names, to take them off it (`planDriverSeats`).
       admin
         .from("drivers")
-        .select("id, samsara_driver_id")
-        .eq("org_id", orgId)
-        .not("samsara_driver_id", "is", null),
+        .select("id, samsara_driver_id, status, archived_at")
+        .eq("org_id", orgId),
     ]);
-    const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
-    const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
-    let assigned = 0;
-    for (const link of links) {
-      const vehId = vehById.get(link.vehicleSamsaraId);
-      const drvId = drvById.get(link.driverSamsaraId);
-      if (vehId && drvId) {
-        await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
-        assigned++;
-      }
+    type V = { id: string; samsara_vehicle_id: string | null; assigned_driver_id: string | null };
+    type D = { id: string; samsara_driver_id: string | null; status: string | null; archived_at: string | null };
+    // One truck per driver, one driver per truck, former drivers on none — the whole rule, and the
+    // production cases behind it (506/807, the team on 799, the trailer tie, 563), live in
+    // `driverTrucks.ts`. This function only reads and writes.
+    const plan = planDriverSeats(
+      rawAssign,
+      ((vRows ?? []) as V[]).map((v) => ({ id: v.id, samsaraVehicleId: v.samsara_vehicle_id, assignedDriverId: v.assigned_driver_id })),
+      ((dRows ?? []) as D[]).map((d) => ({ id: d.id, samsaraDriverId: d.samsara_driver_id, status: d.status, archived: d.archived_at !== null })),
+    );
+    for (const s of plan.set) {
+      await admin.from("vehicles").update({ assigned_driver_id: s.driverId }).eq("id", s.vehicleId).eq("org_id", orgId);
     }
-    return assigned;
+    // Each clear repeats the driver it expects, so an office edit made since the read is not undone.
+    for (const c of plan.clear) {
+      await admin
+        .from("vehicles")
+        .update({ assigned_driver_id: null })
+        .eq("id", c.vehicleId)
+        .eq("org_id", orgId)
+        .eq("assigned_driver_id", c.driverId);
+    }
+    return plan.seated;
   } catch {
     /* assignments are best-effort */
     return 0;
@@ -365,6 +397,7 @@ export async function syncVehiclesFromSamsara(
     samsaraMissing: await applyReplacementLifecycle(admin, orgId, existing, liveIds),
     unlinked: linkOnly ? [] : undefined,
     heldByOtherDevice: [],
+    movedRecords: [],
   };
 
   for (const sv of vehicles) {
@@ -378,6 +411,7 @@ export async function syncVehiclesFromSamsara(
       result.unlinked!.push(synced.unit!);
     } else {
       result.updated++;
+      if (synced.moved) result.movedRecords.push(synced.moved);
     }
   }
 
@@ -388,11 +422,14 @@ export async function syncVehiclesFromSamsara(
   if (result.unlinked?.length) {
     console.warn(`[vehicle-sync] ${result.unlinked.length} Samsara vehicle(s) are not on the TMS fleet list: ${result.unlinked.join(", ")}`);
   }
+  if (result.movedRecords.length) {
+    console.warn(`[vehicle-sync] ${result.movedRecords.length} Samsara vehicle(s) moved to another truck and were re-linked: ${result.movedRecords.join(", ")}`);
+  }
   if (result.heldByOtherDevice.length) {
     console.warn(`[vehicle-sync] ${result.heldByOtherDevice.length} Samsara vehicle(s) match a truck another listed device holds: ${result.heldByOtherDevice.join(", ")}`);
   }
 
-  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
+  // ── Driver assignments: put each driver on their one current truck, and off every other ──────
   // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
   // token scope. Any failure here leaves identity/odometer sync intact.
   result.assigned = await syncDriverAssignments(admin, env, token, orgId, assignmentOverride);

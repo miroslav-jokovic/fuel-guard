@@ -480,3 +480,10 @@ export const countSessionInputSchema = z
     path: ["kind"],
   });
 export type CountSessionInput = z.infer<typeof countSessionInputSchema>;
+
+/**
+ * What a part or asset photo may be (`inventory/photos.ts` signs only these). One list, read by the API's
+ * check and by the browser, which declares the type the file's bytes are (`lib/fileFormat.ts`).
+ */
+export const INVENTORY_PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"] as const;
+export type InventoryPhotoContentType = (typeof INVENTORY_PHOTO_CONTENT_TYPES)[number];

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 
 /**
  * The EFS integration and Card control pages speak to an office admin, not to the engineer who built
@@ -24,12 +26,19 @@ vi.mock("@/stores/toast", () => {
   return { useToastStore: () => ({ success: push, error: push, info: push, warning: push }) };
 });
 
-const efs = vi.hoisted(() => ({ status: null as unknown, test: null as unknown }));
+const efs = vi.hoisted(() => ({ status: null as unknown, test: null as unknown, failed: false, refetch: vi.fn() }));
 vi.mock("@/features/settings/useEfsSoap", async () => {
   const { ref } = await import("vue");
   const mutation = (run: () => unknown) => ({ isPending: ref(false), mutateAsync: vi.fn(async () => run()) });
   return {
-    useEfsSoapStatus: () => ({ data: ref(efs.status), isLoading: ref(false) }),
+    useEfsSoapStatus: () => ({
+      data: ref(efs.status),
+      isLoading: ref(false),
+      isError: ref(efs.failed),
+      error: ref(efs.failed ? new Error("502") : null),
+      isFetching: ref(false),
+      refetch: efs.refetch,
+    }),
     useEnableEfsSoap: () => mutation(() => ({ enabled: true })),
     useDisableEfsSoap: () => mutation(() => ({ enabled: false })),
     useTestEfsSoapConnection: () => mutation(() => efs.test),
@@ -76,6 +85,8 @@ const status = (configured: boolean, enabled: boolean) => ({
 
 beforeEach(() => {
   toasts.length = 0;
+  // The product's confirm (D-US7) is a Pinia store, so the pages need one to ask through.
+  setActivePinia(createPinia());
 });
 
 describe("the EFS integration page reads as plain words (W2)", () => {
@@ -91,6 +102,21 @@ describe("the EFS integration page reads as plain words (W2)", () => {
     });
   }
 
+  // D-US5: before it, a failed read fell through to the setup form and said "not set up".
+  it("says the configuration could not load, not that EFS is unset, and retries in place", async () => {
+    efs.status = undefined;
+    efs.failed = true;
+    efs.refetch.mockReset();
+    const { default: Page } = await import("./EfsSoapPage.vue");
+    const w = mount(Page, { global: { stubs } });
+    expect(w.text()).toContain("Could not load the EFS configuration.");
+    expect(w.text()).not.toContain("Not configured");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(efs.refetch).toHaveBeenCalledTimes(1);
+    efs.failed = false;
+    w.unmount();
+  });
+
   it("names both feeds by what they hold, and says which one is which", async () => {
     efs.status = status(true, true);
     const { default: Page } = await import("./EfsSoapPage.vue");
@@ -103,8 +129,7 @@ describe("the EFS integration page reads as plain words (W2)", () => {
 
   it("asks, and reports, in plain words when the admin tests and switches off", async () => {
     efs.status = status(true, true);
-    const asked: string[] = [];
-    vi.spyOn(window, "confirm").mockImplementation((m?: string) => (asked.push(m ?? ""), true));
+    const spy = answerConfirm(true);
     const { default: Page } = await import("./EfsSoapPage.vue");
     const w = mount(Page, { global: { stubs } });
     const button = (label: string) => w.findAll("button").find((b) => b.text().includes(label))!;
@@ -119,7 +144,9 @@ describe("the EFS integration page reads as plain words (W2)", () => {
     await button("Switch off and delete password").trigger("click");
     await flushPromises();
 
-    expect(asked).toHaveLength(1);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: "Switch off", tone: "danger" }));
+    const asked = spy.mock.calls.map(([q]) => `${q.title} ${q.message ?? ""} ${q.confirmLabel}`);
     expect(toasts.length).toBeGreaterThanOrEqual(2);
     expect(offenders([...asked, ...toasts, w.text()].join(" "))).toEqual([]);
     w.unmount();

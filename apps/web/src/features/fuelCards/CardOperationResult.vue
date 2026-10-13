@@ -40,7 +40,7 @@ const unconfirmed = computed(() => props.outcome.status === "sent");
 
 <template>
   <section class="space-y-4" aria-labelledby="result-heading">
-    <h3 id="result-heading" class="text-base font-semibold text-ink">{{ notice.title }}</h3>
+    <h3 id="result-heading" class="text-sm font-semibold text-ink">{{ notice.title }}</h3>
     <p class="text-sm leading-6 text-ink-muted">
       {{ notice.message ?? "The card now reads as shown on this page." }}
     </p>

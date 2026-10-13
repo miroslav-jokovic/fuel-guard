@@ -70,6 +70,14 @@ export interface BoardChecklist {
 const historyKey = (driverId: string) => ["recruitment", "employment", driverId] as const;
 
 /**
+ * How many applicants are waiting on `who` — the Applicants board's "Waiting on you / them" counts and
+ * the Operations tab's Hiring card, asked once so the card's figure is the row count of the board it
+ * opens (FLEET-MANAGER-HOME-PLAN D-FM7).
+ */
+export const countWaitingOn = (applicants: readonly PipelineApplicant[], who: "us" | "them"): number =>
+  applicants.filter((a) => a.checklist?.waiting_on === who).length;
+
+/**
  * The applicant board. `archived` asks for the OTHER half of the same list (migration 0235) rather
  * than a second endpoint: the "Archived" chip is a filter over one set of people, and two endpoints
  * would let the two views drift in stage computation, ordering or columns.

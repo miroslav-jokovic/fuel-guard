@@ -26,9 +26,17 @@ import type { JobHandler } from "../types.js";
  *
  * Transient vs terminal (§2): `executeRead` RETHROWS a transient model error, so the queue's backoff
  * retries it. The queue counts an attempt when it claims the job (0095 `claim_next_job`) and requeues a
- * failure only while `attempts < max_attempts` (`fail_job`), so on the last attempt this handler ends
- * the read as `model_unavailable` first — otherwise the job would fail and the read would poll as
- * `reading` for ever — and then rethrows, so the job records the error too.
+ * failure only while `attempts < max_attempts` (`fail_job`). Every OTHER throw ends the job for good, and
+ * so does a transient one on the last attempt: then this handler ends the read as `model_unavailable`
+ * first — otherwise the job fails and the read polls as `reading` for ever — and rethrows, so the job's
+ * error column still says what went wrong.
+ *
+ * Until 10/12/2026 a configuration error (a bad key, a retired model, an empty credit balance) was only
+ * rethrown, on the reasoning that it is not a READING failure. Production showed the cost: the owner's
+ * first two reads hit "credit balance is too low" (400), their jobs failed in three seconds, and both
+ * reads stayed `reading` — the screen waited three minutes and then said "It will keep going". The read
+ * now ends `model_unavailable`, an operational failure that READ_FAILURE_KIND keeps out of the reader's
+ * accuracy, and the cause stays in the job's error for whoever fixes it.
  */
 const GATES = {
   shipping_document: (admin, orgId) => shippingDocumentReadGate(admin, orgId),
@@ -47,7 +55,15 @@ export const documentReadHandler: JobHandler = async (ctx, job) => {
     const r = await executeRead(ctx.admin, job.org_id, readId, { client: anthropicClient(ctx.env), gateFor, env: ctx.env, ocr: ocrFor(ctx.env) });
     return { readId, ...r };
   } catch (e) {
-    if (e instanceof TransientModelError && job.attempts >= job.max_attempts) await failUnavailableRead(ctx.admin, job.org_id, readId);
+    const retried = e instanceof TransientModelError && job.attempts < job.max_attempts;
+    // A failure to END the read must not replace the error that killed it: the job's error says why.
+    if (!retried) {
+      try {
+        await failUnavailableRead(ctx.admin, job.org_id, readId);
+      } catch {
+        // Settled later: `getRead` ends a read whose job failed the next time the screen asks for it.
+      }
+    }
     throw e;
   }
 };

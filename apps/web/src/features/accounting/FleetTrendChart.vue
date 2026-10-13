@@ -4,6 +4,7 @@ import { ledgerMonthWhy } from "@silvicom/shared";
 import type { ChartConfiguration } from "chart.js";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import BaseChart from "@/components/BaseChart.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { MONEY_COLORS, areaFill, trendOptions, fmtMonth, viz } from "@/lib/chartTheme";
 import FleetMonthTable from "./FleetMonthTable.vue";
 import { useFleetTrendQuery, type FleetTrendPoint } from "./useFleetTrend";
@@ -34,7 +35,7 @@ const props = withDefaults(defineProps<{ to: string; months?: number }>(), { mon
 
 const to = computed(() => props.to);
 const months = computed(() => props.months);
-const { data, isLoading, isError } = useFleetTrendQuery(to, months);
+const { data, isLoading, isError, error, isFetching, refetch } = useFleetTrendQuery(to, months);
 
 const points = computed<FleetTrendPoint[]>(() => data.value?.points ?? []);
 /** Months carrying a rate. With none, there is no line to draw and the reasons are the answer. */
@@ -127,14 +128,22 @@ const span = computed(() => {
       mileage did not cover the whole fleet.
     </p>
 
-    <p v-if="isError" class="mt-4 text-sm text-danger-600">
-      The trend could not be loaded. Try the period again in a moment.
-    </p>
-    <p v-else-if="isLoading" class="mt-4 text-sm text-ink-secondary">Loading the trend…</p>
-    <p v-else-if="rated === 0" class="mt-4 text-sm text-ink-secondary">
-      No month in this span has mileage covering the whole fleet, so there is no rate to plot yet.
-    </p>
-    <BaseChart v-else :config="config" :height="260" class="mt-4" />
+    <div class="mt-4">
+      <QueryState
+        compact
+        :loading="isLoading"
+        :error="isError ? (error ?? true) : null"
+        :retrying="isFetching"
+        loading-text="Loading the trend…"
+        error-text="Could not load the trend."
+        @retry="refetch()"
+      >
+        <p v-if="rated === 0" class="text-sm text-ink-secondary">
+          No month in this span has mileage covering the whole fleet, so there is no rate to plot yet.
+        </p>
+        <BaseChart v-else :config="config" :height="260" />
+      </QueryState>
+    </div>
 
     <!-- The same months as rows (R5): money, miles, trucks, the three rates and the empty share,
          the month on screen highlighted. The chart is the shape; this is the figure a reader

@@ -187,6 +187,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/idling",
   },
   {
+    "name": "drug-alcohol",
+    "params": {},
+    "url": "/drug-alcohol",
+  },
+  {
+    "name": "roadside-inspections",
+    "params": {},
+    "url": "/roadside-inspections",
+  },
+  {
     "name": "drivers",
     "params": {},
     "url": "/drivers",
@@ -384,6 +394,16 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/shop/units/trailer/tr_1",
   },
   {
+    "name": "work-orders",
+    "params": {},
+    "url": "/shop/work-orders",
+  },
+  {
+    "name": "defects",
+    "params": {},
+    "url": "/shop/defects",
+  },
+  {
     "name": "count-session",
     "params": {
       "sessionId": "cs_1",
@@ -521,6 +541,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "name": "fleetpal-settings",
     "params": {},
     "url": "/settings/fleetpal",
+  },
+  {
+    "name": "medstop-settings",
+    "params": {},
+    "url": "/settings/medstop",
   },
   {
     "name": "mcleod-fleets-settings",
@@ -746,6 +771,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "driver-detail",
     "path": "/drivers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Drug & Alcohol",
+    },
+    "name": "drug-alcohol",
+    "path": "/drug-alcohol",
     "redirect": null,
   },
   {
@@ -1171,6 +1205,15 @@ exports[`the route table survives being split by area > route table 1`] = `
   {
     "meta": {
       "requiresAuth": true,
+      "title": "Roadside inspections",
+    },
+    "name": "roadside-inspections",
+    "path": "/roadside-inspections",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
       "title": "Settings",
     },
     "name": "settings",
@@ -1268,6 +1311,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "mcleod-fleets-settings",
     "path": "/settings/mcleod-fleets",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Med-Stop Integration",
+    },
+    "name": "medstop-settings",
+    "path": "/settings/medstop",
     "redirect": null,
   },
   {
@@ -1375,6 +1429,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     "meta": {
       "parent": "/shop",
       "requiresAuth": true,
+      "title": "Open defects",
+    },
+    "name": "defects",
+    "path": "/shop/defects",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
       "title": "Annual inspections",
     },
     "name": "annual-inspections",
@@ -1470,6 +1534,16 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "unit",
     "path": "/shop/units/:kind/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/shop",
+      "requiresAuth": true,
+      "title": "Open work orders",
+    },
+    "name": "work-orders",
+    "path": "/shop/work-orders",
     "redirect": null,
   },
   {

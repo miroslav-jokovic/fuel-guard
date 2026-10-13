@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter, type Router } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { useToastStore } from "@/stores/toast";
 
 /**
@@ -15,8 +17,18 @@ import { useToastStore } from "@/stores/toast";
  * actions are ON them, that Discard is offered for a DRAFT only, and that it asks before it acts.
  */
 
-const push = vi.hoisted(() => vi.fn());
-vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
+// A real memory router (the register keeps its tab, filters and page in the URL since D-US2, and
+// `useQueryState` needs a router that answers `replace`), with `push` spied on so the row actions'
+// navigation is still asserted without leaving the page.
+const push = vi.fn(async () => undefined);
+const newRouter = (): Router => {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/:any(.*)*", component: { template: "<div/>" } }],
+  });
+  router.push = push as never;
+  return router;
+};
 
 const state = vi.hoisted(() => ({
   admin: { value: true },
@@ -66,11 +78,11 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const page = (rows: unknown[]) => {
+const page = (rows: unknown[], router: Router = newRouter()) => {
   state.rows.value = rows;
   return mount(AnnualInspectionsPage, {
     attachTo: document.body,
-    global: { stubs: { PageHeader: true, NewInspectionDrawer: true, DeleteInspectionDrawer: true, PrintInspectionDrawer: true } },
+    global: { plugins: [router], stubs: { PageHeader: true, NewInspectionDrawer: true, DeleteInspectionDrawer: true, PrintInspectionDrawer: true } },
   });
 };
 
@@ -171,17 +183,18 @@ describe("carrying on with an unfinished inspection", () => {
 
 describe("throwing an unfinished one away", () => {
   it("is offered for a draft and asks before it acts", async () => {
-    const confirmed = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmed = answerConfirm(true);
     const w = page([row()]);
     await click(w, "Discard");
 
-    expect(confirmed).toHaveBeenCalled();
+    // The product's question, red, with its own verb (D-US7).
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: "Discard", tone: "danger" }));
     expect(state.discard.mutateAsync).toHaveBeenCalledWith("insp-1");
     expect(useToastStore().toasts[0]?.title).toBe("Inspection discarded");
   });
 
   it("does nothing when the question is answered no", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    answerConfirm(false);
     const w = page([row()]);
     await click(w, "Discard");
     expect(state.discard.mutateAsync).not.toHaveBeenCalled();
@@ -221,5 +234,73 @@ describe("destroying a record is a row action too, and a different one from Disc
     const labels = await openMenu(page([row({ status: "final", outcome: "pass" })]));
     expect(labels).not.toContain("Delete record");
     expect(labels).toContain("Open report");
+  });
+});
+
+describe("clearing the filters", () => {
+  it("offers Clear filters once a status is chosen, and clearing puts it back to any", async () => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    const w = page([row()]);
+    const status = () => w.findAllComponents(FilterSelect).find((c) => c.props("label") === "Status")!;
+    const clearFilters = () => w.findAll("button").find((b) => b.text() === "Clear filters");
+    expect(clearFilters()).toBeUndefined();
+    status().vm.$emit("update:modelValue", "draft");
+    await nextTick();
+    await clearFilters()!.trigger("click");
+    expect(status().props("modelValue")).toBe("");
+    expect(clearFilters()).toBeUndefined();
+  });
+});
+
+/**
+ * D-US2 (UI-STANDARDIZATION, 2026-10-12) — the register keeps its tab, filters and page in the URL,
+ * so Back from a report returns to the list it was opened from. Tractors is the default tab and
+ * stays out of the URL; Clear filters leaves the tab alone, because the tab picks WHICH register.
+ */
+describe("the register keeps its list in the URL", () => {
+  async function at(url: string) {
+    const router = newRouter();
+    // `push` is the row actions' spy, so the starting URL goes in through `replace`.
+    await router.replace(url);
+    await router.isReady();
+    const w = page([row()], router);
+    await flushPromises();
+    return { w, query: () => router.currentRoute.value.query };
+  }
+  const select = async (w: ReturnType<typeof page>, label: string) => {
+    const FilterSelect = (await import("@/components/ui/FilterSelect.vue")).default;
+    return w.findAllComponents(FilterSelect).find((c) => c.props("label") === label)!;
+  };
+
+  it("opens on Tractors with nothing in the URL", async () => {
+    const { w, query } = await at("/maintenance/inspections");
+    expect(w.findComponent({ name: "AppTabs" }).props("modelValue")).toBe("tractor");
+    expect(query()).toEqual({});
+  });
+
+  it("reads the tab, the filters and the page back from a pasted link", async () => {
+    const { w } = await at("/maintenance/inspections?type=trailer&status=final&result=fail&page=2");
+    expect(w.findComponent({ name: "AppTabs" }).props("modelValue")).toBe("trailer");
+    expect((await select(w, "Status")).props("modelValue")).toBe("final");
+    expect((await select(w, "Result")).props("modelValue")).toBe("fail");
+  });
+
+  it("writes a control change to the URL and returns to page 1", async () => {
+    const { w, query } = await at("/maintenance/inspections?page=3");
+    (await select(w, "Result")).vm.$emit("update:modelValue", "pass");
+    await flushPromises();
+    expect(query()).toEqual({ result: "pass" });
+  });
+
+  it("Clear filters keeps the tab", async () => {
+    const { w, query } = await at("/maintenance/inspections?type=trailer&status=draft&search=11");
+    w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
+    await flushPromises();
+    expect(query()).toEqual({ type: "trailer" });
+  });
+
+  it("reads a type outside the catalogue as Tractors", async () => {
+    const { w } = await at("/maintenance/inspections?type=forklift");
+    expect(w.findComponent({ name: "AppTabs" }).props("modelValue")).toBe("tractor");
   });
 });

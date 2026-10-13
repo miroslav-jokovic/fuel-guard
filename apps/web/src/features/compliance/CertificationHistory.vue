@@ -91,6 +91,7 @@ const columns: DataTableColumn[] = [
 
     <div v-if="open" class="mt-4">
       <DataTable
+        embedded
         :columns="columns"
         :rows="rows"
         row-key="id"

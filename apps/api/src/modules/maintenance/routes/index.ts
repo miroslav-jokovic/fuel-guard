@@ -18,6 +18,7 @@ import { inventoryUnitsRouter, kitExpectationsRouter } from "./inventoryUnits.js
 import { inventoryLabelsRouter } from "./inventoryLabels.js";
 import { fleetpalCostRouter } from "./fleetpalCost.js";
 import { fleetpalUnitsRouter } from "./fleetpalUnits.js";
+import { shopSummaryRouter } from "./shopSummary.js";
 
 const spendSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -96,6 +97,10 @@ export function maintenanceRouter(): Router {
   // `fleetpal` would invite the opposite. `/fleetpal/coverage` inside it is the one route that
   // really is about the vendor's own figures.
   router.use(fleetpalCostRouter());
+
+  // The Operations tab's Shop card (FLEET-MANAGER-HOME-PLAN.md FM3): FleetPal's backlog and the
+  // shelf's shortages as counts, each from the reader that owns it.
+  router.use(shopSummaryRouter());
 
   router.get(
     "/spend",

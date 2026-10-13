@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput, AppTable } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCard as BaseCard, AppFormField as FormField, AppIcon, AppInput as BaseInput } from "@silvicom/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useStepUpRetry } from "@/composables/useStepUpRetry";
@@ -61,6 +64,13 @@ async function onToggle(enabled: boolean) {
   }
 }
 
+// D-US4: the per-collection table is a DataTable inside the section's card.
+const resourceColumns: DataTableColumn[] = [
+  { key: "resource", label: "Collection", cellClass: "font-medium text-ink" },
+  { key: "rowsSeen", label: "Rows read", numeric: true },
+  { key: "lastRunAt", label: "Last run", cellClass: "text-ink-muted" },
+];
+
 function when(at: string | null): string {
   return at ? formatDateTime(at) : "never";
 }
@@ -73,12 +83,16 @@ function when(at: string | null): string {
       costs, defects and purchase invoices every hour. It never writes to FleetPal.
     </PageHeader>
 
-    <div v-if="state === 'loading'" class="text-sm text-ink-muted">Loading the connection…</div>
-    <BaseCard v-else-if="state === 'error'">
-      <p class="text-sm text-danger-600">Could not load the FleetPal connection. Reload the page to try again.</p>
-    </BaseCard>
-
-    <template v-else>
+    <!-- `state` already folds "no data and not loading" into `error`; the query's own error is passed
+         through when there is one, and `true` when the read simply came back empty. -->
+    <QueryState
+      :loading="state === 'loading'"
+      :error="state === 'error' ? (status.error.value ?? true) : null"
+      :retrying="status.isFetching.value"
+      loading-text="Loading the connection…"
+      error-text="Could not load the FleetPal connection."
+      @retry="status.refetch()"
+    >
       <BaseCard>
         <div class="flex items-start gap-3">
           <AppIcon
@@ -87,7 +101,7 @@ function when(at: string | null): string {
             :class="state === 'on' ? 'text-success-500' : state === 'no_key' ? 'text-brand-500' : 'text-caution-500'"
           />
           <div class="min-w-0 text-sm">
-            <h2 class="font-semibold text-ink">
+            <h2 class="text-sm font-semibold text-ink">
               {{
                 state === "on" ? "Connected, sweeping every " + (s!.syncHours === 1 ? "hour" : s!.syncHours + " hours")
                 : state === "no_key" ? "Not connected"
@@ -114,7 +128,7 @@ function when(at: string | null): string {
       </BaseCard>
 
       <BaseCard v-else as="section">
-        <h2 class="text-base font-semibold text-ink">{{ s!.hasKey ? "Replace the API key" : "API key" }}</h2>
+        <h2 class="text-sm font-semibold text-ink">{{ s!.hasKey ? "Replace the API key" : "API key" }}</h2>
         <p class="mt-1 text-xs text-ink-muted">
           FleetPal checks the key before it is saved. It is stored encrypted and never shown again. The key
           reads with the role of the FleetPal user who issued it, so issue it from a user who can see work
@@ -163,27 +177,24 @@ function when(at: string | null): string {
       />
 
       <BaseCard v-if="s!.resources.length > 0" as="section">
-        <h2 class="text-base font-semibold text-ink">What each collection last brought in</h2>
-        <AppTable class="mt-3 w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs text-ink-muted">
-              <th scope="col" class="py-1 font-medium">Collection</th>
-              <th scope="col" class="py-1 text-right font-medium">Rows read</th>
-              <th scope="col" class="py-1 pl-4 font-medium">Last run</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in s!.resources" :key="r.resource" class="border-t border-edge-subtle">
-              <td class="py-1.5 text-ink">
-                {{ r.resource }}
-                <span v-if="r.lastError" class="block text-xs text-caution-700">{{ r.lastError.slice(0, 200) }}</span>
-              </td>
-              <td class="py-1.5 text-right tabular-nums">{{ r.rowsSeen.toLocaleString() }}</td>
-              <td class="py-1.5 pl-4 text-ink-muted">{{ when(r.lastRunAt) }}</td>
-            </tr>
-          </tbody>
-        </AppTable>
+        <h2 class="text-sm font-semibold text-ink">What each collection last brought in</h2>
+        <DataTable
+          class="mt-3"
+          embedded
+          dense
+          :sticky-header="false"
+          :columns="resourceColumns"
+          :rows="s!.resources"
+          row-key="resource"
+        >
+          <template #cell-resource="{ row }">
+            {{ row.resource }}
+            <span v-if="row.lastError" class="block whitespace-normal text-xs font-normal text-caution-700">{{ row.lastError.slice(0, 200) }}</span>
+          </template>
+          <template #cell-rowsSeen="{ row }">{{ row.rowsSeen.toLocaleString() }}</template>
+          <template #cell-lastRunAt="{ row }">{{ when(row.lastRunAt) }}</template>
+        </DataTable>
       </BaseCard>
-    </template>
+    </QueryState>
   </div>
 </template>

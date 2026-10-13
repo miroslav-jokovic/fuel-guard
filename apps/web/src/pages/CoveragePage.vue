@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { formatDateTime as fmtDateTime } from "@/lib/format";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
+import { useQueryState } from "@/composables/useQueryState";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
@@ -22,15 +25,19 @@ const opens = useOpens();
 const unit = (id: string) => vehicles.value?.find((v) => v.id === id)?.unit_number ?? id;
 const trucks = computed(() => data.value?.perTruck ?? []);
 
-const search = ref("");
+// Search and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep the list.
+const qs = useQueryState();
+const search = qs.param("search");
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return q ? trucks.value.filter((t) => unit(t.vehicleId).toLowerCase().includes(q)) : trucks.value;
 });
 
 const PAGE_SIZE = 20;
-const page = ref(1);
-watch(filtered, () => (page.value = 1));
+const page = qs.page();
+// Reset on the SEARCH, not on `filtered`: `filtered` also changes when the coverage data arrives, and
+// watching it would throw a pasted `?page=3` away the moment the list loaded (D-US2).
+watch(search, () => (page.value = 1));
 const paged = computed(() =>
   filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
@@ -71,71 +78,51 @@ const columns: DataTableColumn[] = [
       v-if="!isLoading && !isError && data"
       class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
     >
-      <BaseCard>
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Checked against Samsara
-        </dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.reconciledPct)">
-          {{ fmtPct(data.reconciledPct) }}
-        </dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">
-          {{ data.blindFills.toLocaleString() }} of {{ data.totalFills.toLocaleString() }} fills
-          not matched
-        </dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Location-confirmed
-        </dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.locationConfirmedPct)">
-          {{ fmtPct(data.locationConfirmedPct) }}
-        </dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">
-          GPS placed the truck at the station · {{ fmtPct(data.locationPct) }} could be checked
-          (including in the right state)
-        </dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Odometer-verifiable
-        </dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.odometerPct)">
-          {{ fmtPct(data.odometerPct) }}
-        </dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">fueling-time odometer available</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Attributed</dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.attributedPct)">
-          {{ fmtPct(data.attributedPct) }}
-        </dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">
-          {{ data.unattributed.toLocaleString() }} unmatched to a truck/driver
-        </dd>
-      </BaseCard>
-      <BaseCard v-if="capacity">
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Tank capacity set
-        </dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(capacity.setPct)">
-          {{ fmtPct(capacity.setPct) }}
-        </dd>
-        <dd
-          class="mt-0.5 text-xs text-ink-tertiary"
-          :title="capacity.missing.map((m) => m.unit).join(', ')"
-        >
-          {{
-            capacity.missing.length
-              ? `${capacity.missing.length} truck${capacity.missing.length > 1 ? "s" : ""} missing (capacity rules dead): ${capacity.missing
-                  .slice(0, 4)
-                  .map((m) => m.unit)
-                  .join(", ")}${capacity.missing.length > 4 ? "…" : ""}`
-              : "all fuel trucks have a tank capacity"
-          }}
-        </dd>
-        <dd
+      <StatCard
+        label="Checked against Samsara"
+        :value="fmtPct(data.reconciledPct)"
+        :value-tone="covTone(data.reconciledPct)"
+        :sub="`${data.blindFills.toLocaleString()} of ${data.totalFills.toLocaleString()} fills not matched`"
+      />
+      <StatCard
+        label="Location-confirmed"
+        :value="fmtPct(data.locationConfirmedPct)"
+        :value-tone="covTone(data.locationConfirmedPct)"
+        :sub="`GPS placed the truck at the station · ${fmtPct(data.locationPct)} could be checked (including in the right state)`"
+      />
+      <StatCard
+        label="Odometer-verifiable"
+        :value="fmtPct(data.odometerPct)"
+        :value-tone="covTone(data.odometerPct)"
+        sub="fueling-time odometer available"
+      />
+      <StatCard
+        label="Attributed"
+        :value="fmtPct(data.attributedPct)"
+        :value-tone="covTone(data.attributedPct)"
+        :sub="`${data.unattributed.toLocaleString()} unmatched to a truck/driver`"
+      />
+      <StatCard
+        v-if="capacity"
+        label="Tank capacity set"
+        :value="fmtPct(capacity.setPct)"
+        :value-tone="covTone(capacity.setPct)"
+      >
+        <template #sub>
+          <span :title="capacity.missing.map((m) => m.unit).join(', ')">
+            {{
+              capacity.missing.length
+                ? `${capacity.missing.length} truck${capacity.missing.length > 1 ? "s" : ""} missing (capacity rules dead): ${capacity.missing
+                    .slice(0, 4)
+                    .map((m) => m.unit)
+                    .join(", ")}${capacity.missing.length > 4 ? "…" : ""}`
+                : "all fuel trucks have a tank capacity"
+            }}
+          </span>
+        </template>
+        <p
           v-if="capacity.divergent.length"
-          class="mt-1 text-xs text-warning-600"
+          class="text-warning-600"
           :title="
             capacity.divergent
               .map(
@@ -156,21 +143,22 @@ const columns: DataTableColumn[] = [
               .join(", ")
           }}{{ capacity.divergent.length > 3 ? "…" : "" }}
           — alerts run on the measured value; fix the entry on the Fleet page.
-        </dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Card identity</dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.cardIdentifiablePct)">
-          {{ fmtPct(data.cardIdentifiablePct) }}
-        </dd>
-        <dd
-          class="mt-0.5 text-xs text-ink-tertiary"
-          title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks"
-        >
-          {{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card
-          fills could not be tied to one card
-        </dd>
-      </BaseCard>
+        </p>
+      </StatCard>
+      <StatCard
+        label="Card identity"
+        :value="fmtPct(data.cardIdentifiablePct)"
+        :value-tone="covTone(data.cardIdentifiablePct)"
+      >
+        <template #sub>
+          <span
+            title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks"
+          >
+            {{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card
+            fills could not be tied to one card
+          </span>
+        </template>
+      </StatCard>
     </div>
 
     <!-- Fueling-time confidence mix -->
@@ -217,23 +205,25 @@ const columns: DataTableColumn[] = [
       </div>
     </BaseCard>
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck…"
-      :count="filtered.length"
-      count-label="trucks"
-    />
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search truck…"
+        :count="filtered.length"
+        count-label="trucks"
+      />
 
-    <div class="space-y-2">
-      <p v-if="!isLoading && !isError && trucks.length > 0" class="text-xs text-ink-muted">
+      <p v-if="!isLoading && !isError && trucks.length > 0" class="px-4 py-3 text-xs text-ink-muted">
         Trucks with the most unmatched fills first. These are where the checks are weakest.
       </p>
       <DataTable
+        embedded
         :columns="columns"
         :rows="paged"
         row-key="vehicleId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the coverage.') : null"
         :retrying="isFetching"
         empty-text="No fuel activity in the last 90 days."
         @retry="refetch"
@@ -270,6 +260,6 @@ const columns: DataTableColumn[] = [
           />
         </template>
       </DataTable>
-    </div>
+    </DataWorkspace>
   </div>
 </template>

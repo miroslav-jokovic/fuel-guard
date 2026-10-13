@@ -20,12 +20,15 @@ const ASSEMBLY = "44444444-4444-4444-8444-444444444444";
 const SRC = { kind: "source", id: SOURCE } as const;
 
 describe("requestRead", () => {
-  function world(prior: string | null, source = true) {
+  /** `priorJob`: the status of the prior read's latest `document_read` job, or none. */
+  function world(prior: string | null, source = true, priorJob: string | null = "running", priorStatus = "reading") {
     const rec = createSupabaseRecorder({
       tables: {
         document_sources: source ? [{ id: SOURCE }] : [],
-        document_reads: (q) => (q.write ? [{ id: READ }] : prior ? [{ id: prior }] : []),
+        document_reads: (q) => (q.write ? [{ id: READ }] : prior ? [{ id: prior, status: priorStatus }] : []),
+        jobs: priorJob ? [{ status: priorJob }] : [],
       },
+      rpc: { document_read_transition: null },
     });
     const dispatched: string[] = [];
     return { rec, dispatched, dispatch: async (id: string) => void dispatched.push(id) };
@@ -48,6 +51,26 @@ describe("requestRead", () => {
     expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toEqual({ readId: "prior-read", reused: true });
     expect(dispatched).toEqual([]);
     expect(rec.writes()).toEqual([]);
+  });
+
+  it("does not hand back a read in flight whose job has failed for good: it ends that read and queues a new one", async () => {
+    const { rec, dispatched, dispatch } = world("stuck-read", true, "failed");
+    expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toEqual({ readId: READ, reused: false });
+    expect(dispatched).toEqual([READ]);
+    expect(rec.rpcs().map((r) => [r.fn, (r.args as { p_read: string; p_to: string }).p_read, (r.args as { p_to: string }).p_to]))
+      .toEqual([["document_read_transition", "stuck-read", "failed"]]);
+    expect(rec.forTable("jobs")[0]!.filters()).toEqual(expect.arrayContaining([
+      { col: "kind", val: "document_read" }, { col: "dedup_key", val: "document_read:stuck-read" },
+    ]));
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("still reuses a read in flight whose job is queued, running, or waiting out a retry", async () => {
+    for (const status of ["queued", "running"]) {
+      const { rec, dispatch } = world("prior-read", true, status);
+      expect(await requestRead(rec.client, ORG, USER, SRC, "shipping_document", dispatch)).toEqual({ readId: "prior-read", reused: true });
+      expect(rec.rpcs()).toEqual([]);
+    }
   });
 
   it("answers not_found for a source outside the org", async () => {
@@ -92,10 +115,10 @@ describe("getRead", () => {
     { id: "p1", page_number: 1, working_path: `${ORG}/${SOURCE}/pages/1.webp`, width: 2550, height: 3300 },
     { id: "p2", page_number: 2, working_path: `${ORG}/${SOURCE}/pages/2.webp`, width: 3300, height: 2550 },
   ];
-  function world(signed: (paths: string[]) => unknown, read: unknown = readRow) {
+  function world(signed: (paths: string[]) => unknown, read: unknown = readRow, job: string | null = null) {
     return createSupabaseRecorder({
-      tables: { document_reads: read ? [read] : [], document_pages: pageRows },
-      rpc: { document_page_current_class: [{ page_id: "p1", page_class: "bol" }] },
+      tables: { document_reads: read ? [read] : [], document_pages: pageRows, jobs: job ? [{ status: job }] : [] },
+      rpc: { document_page_current_class: [{ page_id: "p1", page_class: "bol" }], document_read_transition: null },
       storage: { createSignedUrls: (paths: string[]) => signed(paths) },
     });
   }
@@ -112,6 +135,16 @@ describe("getRead", () => {
     expect(rec.storageCalls()).toEqual([{ bucket: DOCUMENT_BUCKET, fn: "createSignedUrls", args: [pageRows.map((p) => p.working_path), PAGE_URL_TTL_SEC] }]);
     expect(rec.rpcs()).toEqual([{ fn: "document_page_current_class", args: { p_org: ORG, p_pages: ["p1", "p2"] } }]);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("carries the paper audit for a finished shipping-document read, and none for a read still in flight", async () => {
+    const result = { hazmat: { lines: [{ idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II", quantity: { value: 8000, unit: "gal" }, packageCount: 1, packaging: "1 cargo tank" }] } };
+    const done = await getRead(world(signAll, { ...readRow, result }).client, ORG, READ);
+    expect("paperAudit" in done && done.paperAudit?.results.find((r) => r.ruleId === "paper_psn_matches_hmt")).toMatchObject({ outcome: "pass", lineIndex: 0 });
+    const reading = await getRead(world(signAll, { ...readRow, result: null, status: "reading" }).client, ORG, READ);
+    expect("paperAudit" in reading && reading.paperAudit).toBeNull();
+    const failed = await getRead(world(signAll, { ...readRow, result, status: "failed" }).client, ORG, READ);
+    expect("paperAudit" in failed && failed.paperAudit).toBeNull();
   });
 
   it("refuses to show a read with a page it could not sign, rather than a document missing a page", async () => {
@@ -139,6 +172,22 @@ describe("getRead", () => {
     expect("pages" in out && out.pages.map((p) => [p.page, p.url.split("/").at(-3)])).toEqual([[1, "b"], [2, "a"]]);
     expect(rec.forTable("document_assembly_pages")[0]!.filters()).toContainEqual({ col: "assembly_id", val: ASSEMBLY });
     expectOrgScoped(rec, ORG);
+  });
+
+  it("answers failed, not reading, for a read whose job died — and ends it so it stays failed (10/12/2026)", async () => {
+    for (const status of ["reading", "queued"]) {
+      const rec = world(signAll, { ...readRow, status, result: null }, "failed");
+      expect(await getRead(rec.client, ORG, READ)).toMatchObject({ status: "failed", failureCode: "model_unavailable" });
+      const moves = rec.rpcs().filter((r) => r.fn === "document_read_transition").map((r) => (r.args as { p_to: string }).p_to);
+      expect(moves).toEqual(status === "queued" ? ["reading", "failed"] : ["failed"]);
+      expectOrgScoped(rec, ORG);
+    }
+  });
+
+  it("leaves a read in flight alone while its job is alive", async () => {
+    const rec = world(signAll, { ...readRow, status: "reading", result: null }, "running");
+    expect(await getRead(rec.client, ORG, READ)).toMatchObject({ status: "reading", failureCode: null });
+    expect(rec.rpcs().filter((r) => r.fn === "document_read_transition")).toEqual([]);
   });
 
   it("answers not_found for a read outside the org", async () => {

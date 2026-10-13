@@ -12,6 +12,7 @@ import {
 } from "@silvicom/ui/icons";
 import { computed } from "vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { PlanResult } from "./useFuelPlan";
 
 const props = defineProps<{
@@ -24,14 +25,15 @@ const props = defineProps<{
   breakAdvice?: NonNullable<PlanResult["breakAdvice"]>;
 }>();
 
-const hoursLabel = (h: number | null | undefined) => (h == null ? "—" : `${h}h`);
-const clocks = computed(() =>
+// A clock the truck did not report is a blank, so FactList draws its em dash (D-US6).
+const hoursLabel = (h: number | null | undefined) => (h == null ? null : `${h}h`);
+const clocks = computed<Fact[]>(() =>
   props.truck
     ? [
-        { label: "Drive", value: hoursLabel(props.truck.driveRemainingHours) },
-        { label: "Break in", value: hoursLabel(props.truck.breakInHours) },
-        { label: "Shift", value: hoursLabel(props.truck.shiftRemainingHours) },
-        { label: "Cycle", value: hoursLabel(props.truck.cycleRemainingHours) },
+        { label: "Drive", value: hoursLabel(props.truck.driveRemainingHours), numeric: true },
+        { label: "Break in", value: hoursLabel(props.truck.breakInHours), numeric: true },
+        { label: "Shift", value: hoursLabel(props.truck.shiftRemainingHours), numeric: true },
+        { label: "Cycle", value: hoursLabel(props.truck.cycleRemainingHours), numeric: true },
       ]
     : [],
 );
@@ -67,6 +69,7 @@ const facts = computed(() => [
         <span class="text-ink-secondary"><span class="font-medium text-ink">Destination:</span> {{ destination }}</span>
       </li>
     </ol>
+    <!-- ui-adoption: not-a-fact-list — each figure is drawn with its own icon beside it, a route stat strip that FactList's label-over-value cell has no place for. -->
     <dl class="mt-4 grid grid-cols-1 gap-3 border-t border-edge pt-4 sm:grid-cols-3">
       <div v-for="f in facts" :key="f.label" class="flex items-center gap-2">
         <AppIcon :icon="f.icon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
@@ -99,12 +102,7 @@ const facts = computed(() => [
       </div>
       <div class="mt-3">
         <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-ink-muted">Hours of service (remaining)</p>
-        <dl class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div v-for="c in clocks" :key="c.label" class="rounded-control bg-surface-subtle px-3 py-2">
-            <dt class="text-xs text-ink-muted">{{ c.label }}</dt>
-            <dd class="text-sm font-semibold text-ink">{{ c.value }}</dd>
-          </div>
-        </dl>
+        <FactList :facts="clocks" data-testid="route-hos-clocks" />
       </div>
       <div v-if="breakAdvice && breakAdvice.breakDueMiles != null" class="mt-3 text-sm">
         <p v-if="breakAdvice.coincidesStopIndex != null" class="inline-flex items-center gap-1.5 rounded-control bg-success-50 px-2.5 py-1.5 font-medium text-success-800">

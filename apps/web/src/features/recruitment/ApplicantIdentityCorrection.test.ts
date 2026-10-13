@@ -53,6 +53,12 @@ beforeEach(() => {
 });
 
 describe("the office's identity correction", () => {
+  it("lists date of birth, licence number and state as labelled facts (D-US6)", () => {
+    const w = mountIt();
+    expect(w.findAll("dt").map((d) => d.text())).toEqual(["Date of birth", "Licence number", "State"]);
+    expect(w.findAll("dd").map((d) => d.text())).toEqual(["04/02/1980", "PA334554", "PA"]);
+  });
+
   it("shows what is on file, the date as the product writes dates", () => {
     const text = mountIt().text();
     expect(text).toContain("04/02/1980");

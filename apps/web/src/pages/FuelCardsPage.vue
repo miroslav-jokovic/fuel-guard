@@ -8,6 +8,7 @@
 import { computed, ref, watch, type WritableComputedRef } from "vue";
 import { useRouter } from "vue-router";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -110,7 +111,6 @@ const columns: DataTableColumn[] = [
   { key: "driverIdPrompt", label: "Driver ID", sortable: true, width: "md" },
   { key: "policyNumber", label: "Policy", sortable: true, numeric: true, width: "sm" },
   { key: "overrideUses", label: "Override", sortable: true, width: "sm" },
-  { key: "actions", label: "", headerClass: "w-12", cellClass: "text-right" },
 ];
 
 /**
@@ -282,6 +282,10 @@ function onRemoveChip(key: string): void {
   if (facet) facet.value = "";
 }
 
+const activeFilterCount = computed(
+  () => Object.values(FACETS).filter((facet) => facet.value).length + (search.value ? 1 : 0),
+);
+
 /** Search included, unlike `FACETS` — a chip removes one facet, this clears the screen. The sort is
  *  kept: it is how the list is ordered, not how it is narrowed. */
 function clearAll(): void {
@@ -327,15 +331,18 @@ const mileageOpen = ref(false);
          must not be narrowed by whatever the table below is currently filtered to (audit B3). -->
     <ActiveOverridesPanel />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Last four, unit or driver ID…"
-      :count="rows.length"
-      count-label="cards"
-      :chips="chips"
-      @remove="onRemoveChip"
-      @clear-all="clearAll"
-    >
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search last four, unit, driver ID…"
+        :count="rows.length"
+        count-label="cards"
+        :chips="chips"
+        :active-count="activeFilterCount"
+        @remove="onRemoveChip"
+        @clear-all="clearAll"
+      >
       <template #filters>
         <FilterSelect
           v-model="status"
@@ -392,24 +399,25 @@ const mileageOpen = ref(false);
           :disabled="rows.length === 0"
         />
       </template>
-    </FilterBar>
+      </FilterBar>
 
-    <p v-if="truncated" class="text-sm text-caution-700">
-      Showing {{ allRows.length }} of {{ query.data.value?.total }} cards. Narrow the search to see the rest.
-    </p>
+      <p v-if="truncated" class="px-4 py-3 text-sm text-caution-700">
+        Showing {{ allRows.length }} of {{ query.data.value?.total }} cards. Narrow the search to see the rest.
+      </p>
 
-    <DataTable
-      :columns="columns"
-      :rows="paged"
-      row-key="id"
-      :sort="sort"
-      :loading="query.isLoading.value"
-      :error="query.isError.value ? (query.error.value?.message ?? 'Could not load cards') : undefined"
-      empty-text="No cards yet — the next EFS sync will pull this account's card list."
-      @sort="onSort"
-      @retry="query.refetch()"
-      @row-click="(row) => router.push(`/fuel-cards/${(row as EfsCardRow).id}`)"
-    >
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="paged"
+        row-key="id"
+        :sort="sort"
+        :loading="query.isLoading.value"
+        :error="query.isError.value ? (query.error.value?.message ?? 'Could not load cards') : undefined"
+        empty-text="No cards yet — the next EFS sync will pull this account's card list."
+        @sort="onSort"
+        @retry="query.refetch()"
+        @row-click="(row) => router.push(`/fuel-cards/${(row as EfsCardRow).id}`)"
+      >
       <template #cell-driverName="{ row }">
         <span v-if="(row as EfsCardRow).driverName">{{ (row as EfsCardRow).driverName }}</span>
         <span v-else class="text-ink-tertiary">—</span>
@@ -439,7 +447,7 @@ const mileageOpen = ref(false);
         </span>
         <span v-else class="text-ink-tertiary">—</span>
       </template>
-      <template #cell-actions="{ row }">
+      <template #actions="{ row }">
         <KebabMenu
           v-if="rowOperations(row as EfsCardRow).length > 0"
           :trigger-label="`Actions for ${(row as EfsCardRow).maskedRef}`"
@@ -467,6 +475,7 @@ const mileageOpen = ref(false);
       <template #footer>
         <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="rows.length" />
       </template>
-    </DataTable>
+      </DataTable>
+    </DataWorkspace>
   </div>
 </template>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { FleetTruck } from "./useFleetReport";
 import type { SortState } from "@/lib/sort";
-import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import { CPM_TRUCK_COLUMNS } from "./cpmTruckColumns";
 import TablePagination from "@/components/TablePagination.vue";
 
 /**
@@ -46,13 +47,7 @@ const NO_RATE = "—";
 // rows moved onto the fleet report at G7b and started arriving in the unit the page prints.
 const fmtRate = (n: number | null) => (n == null ? NO_RATE : `$${n.toFixed(2)}`);
 
-const columns: DataTableColumn[] = [
-  { key: "tractor_unit", label: "Truck", cellClass: "font-mono text-xs", sortable: true },
-  { key: "loads", label: "Loads", numeric: true, sortable: true },
-  { key: "miles", label: "Miles driven", numeric: true, sortable: true },
-  { key: "revenue", label: "Earned", numeric: true, sortable: true },
-  { key: "revenuePerMile", label: "Earned / mile", numeric: true, sortable: true },
-];
+const columns = CPM_TRUCK_COLUMNS;
 
 </script>
 

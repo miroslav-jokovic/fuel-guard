@@ -19,7 +19,12 @@ import DriverDetailPage from "@/pages/DriverDetailPage.vue";
  * profile instead.
  */
 const scrollIntoView = vi.fn();
-const driver = ref<Record<string, unknown> | null>({ id: "d-1", full_name: "Marcus Reyes", status: "active" });
+const driver = ref<Record<string, unknown> | null>({
+  id: "d-1",
+  full_name: "Marcus Reyes",
+  status: "active",
+});
+const requestBinder = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
@@ -32,8 +37,20 @@ vi.mock("@/lib/supabase", () => ({
     }),
   },
 }));
-vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
+vi.mock("@/lib/api", () => ({
+  apiDownload: vi.fn(async () => undefined),
+  apiFetch: vi.fn(async () => ({ ok: true, data: { driver: driver.value } })),
+}));
+vi.mock("@/stores/session", () => ({
+  useSessionStore: () => ({ can: () => true, canView: () => true }),
+}));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
+vi.mock("@/composables/useDqExports", async () => {
+  const { ref } = await import("vue");
+  return {
+    useRequestBinder: () => ({ mutateAsync: requestBinder, isPending: ref(false) }),
+  };
+});
 
 // The heavy children are stubbed: this file is about the page's SHAPE, not their contents, and each
 // owns its own suite.
@@ -65,12 +82,29 @@ const mountAt = async (query = "") => {
 };
 
 beforeEach(() => {
+  requestBinder.mockReset();
+  requestBinder.mockResolvedValue(undefined);
   scrollIntoView.mockClear();
   Element.prototype.scrollIntoView = scrollIntoView;
   document.body.innerHTML = "";
 });
 
 describe("DriverDetailPage — one scroll, not three tabs (R6b)", () => {
+  it("uses the standard export action and requests this driver's binder", async () => {
+    const { w } = await mountAt();
+    const exportButton = w
+      .findAll("button")
+      .find((button) => button.text().includes("Export this file"));
+    expect(exportButton).toBeTruthy();
+    expect(w.text()).toContain("Marcus Reyes · Complete qualification file");
+
+    await exportButton!.trigger("click");
+    await flushPromises();
+
+    expect(requestBinder).toHaveBeenCalledOnce();
+    expect(requestBinder).toHaveBeenCalledWith({ driverIds: ["d-1"], asAt: null });
+  });
+
   it("renders every remaining section at once, whatever ?section= says", async () => {
     const { w } = await mountAt();
     // All three anchors present on a plain load: this is what "one scroll" means, and a stray `v-if`
@@ -104,5 +138,24 @@ describe("DriverDetailPage — the relocated sections still land somewhere (R7)"
   it("leaves a section that still lives here alone", async () => {
     const { router } = await mountAt("?section=qualification");
     expect(router.currentRoute.value.path).toBe("/drivers/d-1");
+  });
+});
+
+describe("DriverDetailPage — the summary's fuel facts (D-US6)", () => {
+  it("pairs each fuel figure with its label, and a dash for an MPG no fill can give", async () => {
+    const FactList = (await import("@/components/ui/FactList.vue")).default;
+    const { w } = await mountAt();
+    const facts = w.findAllComponents(FactList).find((c) => c.text().includes("Fills"))!;
+    expect(facts.findAll("dt").map((d) => d.text())).toEqual([
+      "Fills",
+      "Gallons",
+      "MPG on this driver's fills",
+      "Open anomalies",
+    ]);
+    // The fixture's fills read never answers, so the count is not known — a blank, never a "0" or an
+    // empty cell — and an MPG over no spans is a blank too.
+    const [fills, gallons, mpg, open] = facts.findAll("dd").map((d) => d.text());
+    expect([fills, gallons, open]).toEqual(["—", "0", "0"]);
+    expect(mpg!.startsWith("—")).toBe(true);
   });
 });

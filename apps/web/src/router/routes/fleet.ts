@@ -50,4 +50,19 @@ export const fleetRoutes: RouteRecordRaw[] = [
     component: () => import("@/pages/IdlingPage.vue"),
     meta: { requiresAuth: true, title: "Idling" },
   },
+  {
+    // Safety › Drug & Alcohol (MEDSTOP-PLAN §6). Gated by its surface entry, `section("safety")`.
+    path: "/drug-alcohol",
+    name: "drug-alcohol",
+    component: () => import("@/pages/DrugAlcoholPage.vue"),
+    meta: { requiresAuth: true, title: "Drug & Alcohol" },
+  },
+  {
+    // Safety › Roadside inspections (INSPECTION-CHALLENGE-PLAN §6, Q-FM7 (a)). Gated by its surface
+    // entry, `section("safety")`.
+    path: "/roadside-inspections",
+    name: "roadside-inspections",
+    component: () => import("@/pages/RoadsideInspectionsPage.vue"),
+    meta: { requiresAuth: true, title: "Roadside inspections" },
+  },
 ];

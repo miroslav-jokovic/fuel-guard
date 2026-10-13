@@ -21,11 +21,13 @@ const truck = (o: Partial<TruckIdleVerdict>): TruckIdleVerdict => ({
 });
 
 const rows = vi.hoisted(() => ({ trucks: [] as unknown[] }));
+/** The date window the breakdown was asked for — what the summary tiles read too. */
+const seen = vi.hoisted(() => ({ filter: null as null | { value: unknown } }));
 const query = (data: unknown) => ({
   data: computed(() => data), isLoading: ref(false), isError: ref(false), error: ref(null), isFetching: ref(false), refetch: vi.fn(),
 });
 vi.mock("@/composables/useIdleBreakdown", () => ({
-  useIdleBreakdown: () => query({
+  useIdleBreakdown: (filter: { value: unknown }) => (seen.filter = filter, query({
     trucks: rows.trucks,
     fleet: {
       engineOnH: 1000, driveH: 700, idleH: 300, offH: 0, drivePct: 70, idlePct: 30, avoidableH: 20, avoidableUsd: 80,
@@ -34,7 +36,7 @@ vi.mock("@/composables/useIdleBreakdown", () => ({
       avoidablePricing: { blendedPricePerGal: 5.912, pricedDays: 27, unpricedDays: 3 },
       reduciblePricing: { blendedPricePerGal: 5.9, pricedDays: 30, unpricedDays: 0 },
     },
-  }),
+  })),
 }));
 vi.mock("@/features/idle/useIdleDrivers", () => ({ useIdleDrivers: () => query([]) }));
 vi.mock("@/composables/useIdleCostBasis", () => ({
@@ -57,6 +59,8 @@ vi.mock("@/features/idle/useIdleSettings", () => ({
 vi.mock("@/features/idle/useIdleConfidence", () => ({ useIdleConfidence: () => ({ data: computed(() => null) }) }));
 
 import IdlingPage from "./IdlingPage.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 
 beforeEach(() => {
   Object.assign(caps, { loading: false, failed: false, refetch: vi.fn() });
@@ -74,21 +78,33 @@ beforeEach(() => {
   });
 });
 
-async function mountPage() {
+let router: ReturnType<typeof createRouter>;
+async function mountPage(url = "/idling") {
   // PageHeader reads the route's meta for its title.
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/idling", component: { template: "<div/>" }, meta: { title: "Idling" } }] });
-  await router.push("/idling");
+  router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/idling", component: { template: "<div/>" }, meta: { title: "Idling" } }] });
+  await router.push(url);
   await router.isReady();
   const pinia = createPinia();
   setActivePinia(pinia);
   const w = mount(IdlingPage, {
-    global: { plugins: [router, pinia], stubs: { SamsaraFeedLine: true, IdleBurnRatesPanel: true, IdleEngineParityPanel: true } },
+    global: { plugins: [router, pinia], stubs: { SamsaraFeedLine: true, IdleBurnRatesPanel: true } },
   });
   await flushPromises();
   return w;
 }
 
 const headers = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("thead th").map((h) => h.text()).filter(Boolean);
+
+describe("IdlingPage — the engine release gate is not an office figure (Q-FSV17 step 3)", () => {
+  it("shows the burn rates under 'How idle is scored' and never the parity gate", async () => {
+    const w = await mountPage();
+    const scored = w.findAll("button").find((b) => b.text() === "How idle is scored")!;
+    await scored.trigger("click");
+    expect(w.findComponent({ name: "IdleBurnRatesPanel" }).exists()).toBe(true);
+    const t = w.text();
+    for (const s of ["Days with data missing", "finished days", "release", "parity"]) expect(t.toLowerCase(), s).not.toContain(s.toLowerCase());
+  });
+});
 
 describe("IdlingPage — each total says what it covers, how it was priced, and how far the data reaches", () => {
   it("puts the coverage and pricing lines on the card they qualify, and the reach above the cards", async () => {
@@ -113,6 +129,15 @@ describe("IdlingPage — each total says what it covers, how it was priced, and 
 });
 
 describe("IdlingPage — the Trucks table", () => {
+  it("gives the active tab one embedded toolbar-and-table workspace", async () => {
+    const w = await mountPage();
+    const workspaces = w.findAllComponents(DataWorkspace);
+
+    expect(workspaces).toHaveLength(1);
+    expect(workspaces[0]!.getComponent(FilterBar).props("embedded")).toBe(true);
+    expect(workspaces[0]!.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
+  });
+
   it("leads with the two costs, and keeps the table to seven columns", async () => {
     const w = await mountPage();
     expect(headers(w)).toEqual([
@@ -152,6 +177,8 @@ describe("IdlingPage — the Trucks table", () => {
     const value = (label: string) => detail.findAll("div").find((d) => d.find("dt").text() === label)!.find("dd").text();
     expect(value("Idling while off duty or sleeping")).toBe("—");
     expect(value("Idling on duty")).toBe("—");
+    // The learned capability is a fact like the hours (D-US6): its badge sits in its own dd.
+    expect(value("Idle capability")).toBe("Continuous idle only");
     expect(detail.text()).toContain("Continuous idle only");
   });
 });
@@ -230,9 +257,71 @@ describe("IdlingPage — the dollar totals carry no direction (Q-FSV15 ruling 2,
   it("prints both money figures in the same ink as the other cards, with no danger or warning tone", async () => {
     const w = await mountPage();
     for (const id of ["avoidable-usd", "reducible-usd"]) {
-      const cls = w.get(`[data-testid="${id}"]`).classes();
+      // The testid sits on the StatCard; the figure is its line that starts with the dollar sign.
+      const value = w.get(`[data-testid="${id}"]`).findAll("p").find((p) => p.text().startsWith("$"));
+      expect(value, id).toBeTruthy();
+      const cls = value!.classes();
       expect(cls, id).toContain("text-ink");
       expect(cls.filter((c) => /^text-(danger|warning|success)/.test(c)), id).toEqual([]);
     }
+  });
+});
+
+describe("IdlingPage — Clear filters on the Drivers tab", () => {
+  it("clears the driver search but leaves the page's date window alone", async () => {
+    const w = await mountPage();
+    await w.findAll('[role="tab"]')[1]!.trigger("click");
+    const panel = () => w.get('[role="tabpanel"]');
+    const clear = () => panel().findAll("button").filter((b) => b.text() === "Clear filters");
+    expect(clear()).toHaveLength(0);
+
+    await panel().get('input[placeholder="Search driver…"]').setValue("smith");
+    // AppSearchField debounces its emit by 250 ms; the count follows the emitted value.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+    expect(clear()).toHaveLength(1);
+
+    await clear()[0]!.trigger("click");
+    await flushPromises();
+    expect(panel().get<HTMLInputElement>('input[placeholder="Search driver…"]').element.value).toBe("");
+    expect(clear()).toHaveLength(0);
+  });
+});
+
+// ── D-US2 (2026-10-12): the date window, the tab, and each tab's filters, sort and page live in the URL ──
+describe("IdlingPage keeps what the reader was looking at in the URL", () => {
+  const query = () => router.currentRoute.value.query;
+  const units = (w: Awaited<ReturnType<typeof mountPage>>) => w.findAll("tbody tr").map((r) => r.find("td").text());
+
+  it("asks for the pasted date window — which the tiles above the tabs read too — and ignores one that is not a day", async () => {
+    await mountPage("/idling?from=2026-09-01&to=2026-09-30");
+    expect(seen.filter!.value).toEqual({ from: "2026-09-01T00:00:00", to: "2026-09-30T23:59:59" });
+    await mountPage("/idling?from=yesterday");
+    expect(seen.filter!.value).toEqual({ from: undefined, to: undefined });
+  });
+
+  it("opens the tab the link names, and each tab's list reads its own scoped keys", async () => {
+    const w = await mountPage("/idling?tab=drivers&trucks.search=701");
+    expect(w.findAll('[role="tab"]').map((t) => t.attributes("aria-selected"))).toEqual(["false", "true", "false"]);
+    // The Trucks search is not the Drivers search.
+    expect(w.get('input[placeholder="Search driver…"]').element).toHaveProperty("value", "");
+  });
+
+  it("reads the Trucks tab's filter and sort back from a pasted link", async () => {
+    const w = await mountPage("/idling?trucks.sort=unit&trucks.dir=desc");
+    expect(w.findComponent({ name: "DataTable" }).props("sort")).toEqual({ key: "unit", dir: "desc" });
+    expect(units(w)).toEqual(["754", "701"]);
+    const narrowed = await mountPage("/idling?trucks.capability=continuous_only");
+    expect(units(narrowed)).toEqual(["754"]);
+  });
+
+  it("writes a chosen capability under the tab's scope; Clear filters keeps the window and the sort", async () => {
+    const w = await mountPage("/idling?from=2026-09-01&trucks.sort=unit&trucks.dir=desc");
+    w.findAllComponents({ name: "FilterSelect" }).find((c) => c.props("label") === "Capability")!.vm.$emit("update:modelValue", "apu");
+    await flushPromises();
+    expect(query()).toEqual({ from: "2026-09-01", "trucks.sort": "unit", "trucks.dir": "desc", "trucks.capability": "apu" });
+    w.findComponent(FilterBar).vm.$emit("clear-all");
+    await flushPromises();
+    expect(query()).toEqual({ from: "2026-09-01", "trucks.sort": "unit", "trucks.dir": "desc" });
   });
 });

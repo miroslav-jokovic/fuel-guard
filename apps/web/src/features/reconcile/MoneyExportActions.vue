@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { computed } from "vue";
 import {
   QUEUE_EXCEPTION_KINDS, exceptionStatusesIn,
   type FindingKind, type FindingQueueState, type FuelExceptionKind,
 } from "@silvicom/shared";
-import ExportButton from "@/components/ExportButton.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
 import { formatDate } from "@/lib/format";
 import { exceptionExportQuery, type ExceptionQuery } from "@/features/reconcile/useExceptions";
 import { apiDownload } from "@/lib/api";
-import { useToastStore } from "@/stores/toast";
 
 /**
  * The CSV and the dispute packet of Fuel problems (`FuelProblemsPage`), out of the page at 8c4 (its file budget).
@@ -43,8 +41,6 @@ const props = defineProps<{
   moneyIds: string[];
 }>();
 
-const toast = useToastStore();
-
 const ledgerQuery = computed<ExceptionQuery>(() => ({
   // Translated through C7a rather than restated: the axis maps back into each source's vocabulary.
   status: [...new Set(props.states.flatMap((st) => exceptionStatusesIn(st)))],
@@ -73,33 +69,38 @@ const exportTarget = computed(() => {
   };
 });
 
-const packetBusy = ref(false);
 /**
  * The document you send Pilot. Rendered on the server from the persisted runs, not from whatever this
  * screen is showing — a figure in a dispute packet gets quoted back months later, so it comes from the
  * same records the finding was written from.
  */
-async function downloadPacket() {
-  if (packetBusy.value || props.moneyIds.length === 0) return;
-  packetBusy.value = true;
-  try {
-    await apiDownload(`/api/fueling/exceptions/packet.pdf?ids=${props.moneyIds.join(",")}`, `fuel-dispute-packet-${props.from}.pdf`);
-  } catch (e) {
-    toast.error("Could not build the packet", e instanceof Error ? e.message : undefined);
-  } finally {
-    packetBusy.value = false;
-  }
-}
+const exportItems = computed<readonly ExportItem[]>(() => [
+  {
+    key: "csv",
+    label: "CSV findings",
+    description: "Filtered money findings for analysis",
+    href: exportTarget.value.href,
+    filename: exportTarget.value.filename,
+  },
+  {
+    key: "packet",
+    label: "PDF dispute packet",
+    description: "Documents for the selected money findings",
+    busyLabel: "Building packet…",
+    errorTitle: "Could not build the packet",
+    run: () =>
+      apiDownload(
+        `/api/fueling/exceptions/packet.pdf?ids=${props.moneyIds.join(",")}`,
+        `fuel-dispute-packet-${props.from}.pdf`,
+      ),
+  },
+]);
 </script>
 
 <template>
   <ExportButton
-    :href="exportTarget.href"
-    :filename="exportTarget.filename"
+    :items="exportItems"
     :scope="exportTarget.scope"
     :disabled="!moneyIds.length"
   />
-  <BaseButton variant="secondary" :disabled="!moneyIds.length || packetBusy" @click="downloadPacket">
-    {{ packetBusy ? "Building…" : "Dispute packet" }}
-  </BaseButton>
 </template>

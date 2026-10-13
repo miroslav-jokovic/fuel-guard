@@ -387,6 +387,12 @@
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "medstop_credentials": [
+    "apps/api/src/modules/medstop/credentials.ts"
+  ],
+  "medstop_tests": [
+    "apps/api/src/modules/medstop/outcomes.ts"
+  ],
   "memberships": [
     "apps/api/src/modules/org/inviteRedemption.ts",
     "apps/api/src/modules/roster/driverCredentials.ts"

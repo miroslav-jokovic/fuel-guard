@@ -37,10 +37,12 @@ import {
   SAVED_VIEW_TABLES,
   canManageDriverIdentity,
   matchesDqFilters,
+  seatedDriverIds,
   dqStateFilterOptions,
   dqDueFilterOptions,
 } from "@silvicom/shared";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import {
   useRosterFilters,
   ROSTER_PAGE_SIZE,
@@ -147,9 +149,23 @@ const rosterColumns = useTableColumns(ROSTER_TABLE, () => DRIVER_ROSTER_COLUMNS)
  * not erase the person from records they appear in.
  */
 const {
-  search, status: statusFilter, dqState, dqDue, dqRequirement,
-  view, showArchived, sort, onSort, page, active, reset,
+  search, status: statusFilter, dqState, dqDue, dqRequirement, seat,
+  view, showArchived, sort, onSort, page, reset,
 } = useRosterFilters();
+const { data: vehicles } = useVehiclesQuery();
+const seated = computed(() => seatedDriverIds(vehicles.value ?? []));
+
+/**
+ * How many controls narrow the roster, for FilterBar's one "Clear filters" — a count where
+ * `active` is only a yes/no; a re-sort counts in neither. The requirement (`req`)
+ * counts although no control shows it — a built-in view sets it, and the reader still needs the
+ * way back from it.
+ */
+const activeFilterCount = computed(
+  () =>
+    [search.value, statusFilter.value, dqState.value, dqDue.value, dqRequirement.value, seat.value].filter(Boolean).length +
+    (showArchived.value ? 1 : 0),
+);
 
 /**
  * Saved views (R3c-2): a name and this page's query string, applied by navigating — the wiring is
@@ -212,6 +228,7 @@ const filtered = computed(() => {
   return (drivers.value ?? []).filter((d) => {
     if (Boolean(d.archived_at) !== showArchived.value) return false;
     if (statusFilter.value && d.status !== statusFilter.value) return false;
+    if (seat.value === "none" && seated.value.has(d.id)) return false;
     if (filteringDq) {
       const row = overviewRows.value.get(d.id);
       // A driver the rollup does not return (an EFS stub, a terminated file) has no §391.51 picture
@@ -285,12 +302,16 @@ async function onSubmit(input: DriverInput) {
     </PageHeader>
 
     <DataWorkspace>
+    <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a way back
+         that does not require knowing which controls were set — FilterBar's "Clear filters". -->
     <FilterBar
       v-model:search="search"
       embedded
       search-placeholder="Search name, driver ID, employee ID, phone…"
       :count="filtered.length"
       count-label="drivers"
+      :active-count="activeFilterCount"
+      @clear-all="reset"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
@@ -300,9 +321,6 @@ async function onSubmit(input: DriverInput) {
         <FilterSelect v-model="dqDue" label="Due" :options="DQ_DUE_OPTIONS" />
       </template>
       <template #actions>
-        <!-- The roster can now be arrived at narrowed, from a link or a saved view, so it needs a
-             way back that does not require knowing which controls were set (OdometerPage's shape). -->
-        <BaseButton v-if="active" variant="ghost" size="sm" @click="reset">Clear filters</BaseButton>
         <SavedViewMenu
           :built-ins="viewMenu.builtIns"
           :views="viewMenu.views.value"
@@ -321,7 +339,7 @@ async function onSubmit(input: DriverInput) {
       :rows="pageRows"
       :columns="rosterColumns.visible.value"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the drivers.') : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="
@@ -427,10 +445,16 @@ async function onSubmit(input: DriverInput) {
     >
       <DriverForm
         :driver="editing"
-        :submitting="saving"
         @submit="onSubmit"
-        @cancel="drawerOpen = false"
       />
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+          <BaseButton form="driver-form" type="submit" variant="primary" :disabled="saving">
+            {{ saving ? "Saving…" : "Save driver" }}
+          </BaseButton>
+        </div>
+      </template>
     </SlideOver>
 
     <DocumentsModal

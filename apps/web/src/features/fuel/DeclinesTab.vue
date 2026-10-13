@@ -28,9 +28,9 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
-import { AppTable } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
@@ -39,6 +39,7 @@ import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
 import { useCardAssignments, maskCardRef } from "@/composables/useCardAssignments";
 import { useUnitOptions } from "./unitFilter";
 import ExportButton from "@/components/ExportButton.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { fuelLogExportTarget } from "./fuelLogExport";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
 
@@ -110,11 +111,18 @@ const cardList = computed(() =>
   (cardRows.value ?? []).map((c) => ({
     id: c.id,
     card: maskCardRef(c.card_ref, c.card_last4),
-    unit: c.vehicle_id ? (unitByVehicleId.value.get(c.vehicle_id) ?? "?") : "—",
+    unit: c.vehicle_id ? (unitByVehicleId.value.get(c.vehicle_id) ?? "?") : null,
     source: c.assignment_source ?? "manual",
     updated: c.updated_at,
   })),
 );
+
+// D-US4: the drawer's table is a DataTable like every other; an unassigned card's blank truck renders as its em dash.
+const cardColumns: DataTableColumn[] = [
+  { key: "card", label: "Card", cellClass: "font-mono text-ink" },
+  { key: "unit", label: "Assigned truck", cellClass: "text-ink" },
+  { key: "source", label: "Source" },
+];
 
 /** The shared half, proxied for the controls that write it back to the URL. */
 const unit = computed<string[]>({
@@ -164,6 +172,16 @@ function removeChip(key: string) {
  * stays — it is how the list is ordered, not how it is narrowed. Every assignment is one `set` in
  * the same tick, which `useQueryState`'s buffer coalesces into one navigation.
  */
+/**
+ * What `clearAll` would undo, counted the way FilterBar reads it: the unit list is one filter however
+ * many trucks it holds, and the window is one however many ends it has.
+ */
+const activeFilterCount = computed(
+  () =>
+    [suspicion.value, search.value, errorCode.value, stateF.value, driver.value, policy.value].filter(Boolean).length +
+    (props.shared.units.value.length ? 1 : 0) +
+    (props.shared.from.value || props.shared.to.value ? 1 : 0),
+);
 function clearAll() {
   suspicion.value = "";
   search.value = "";
@@ -210,6 +228,20 @@ const driverNote = (row: DeclinedTransactionRow): string =>
 
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
+/** The drill-down's facts (D-US6). A field EFS left empty is a blank, so FactList draws its dash. */
+const selectedFacts = computed<Fact[]>(() => {
+  const r = selectedRow.value;
+  if (!r) return [];
+  return [
+    { key: "driver", label: "Driver", value: r.driver_name || null },
+    { label: "Card #", value: r.card_ref || null },
+    { label: "Invoice", value: r.invoice || null },
+    { label: "Location", value: r.location_text || null },
+    { label: "City", value: r.city || null },
+    { label: "State", value: r.state || null },
+    { key: "import", label: "Import ID", value: r.import_id || null },
+  ];
+});
 
 const rescoring = ref(false);
 async function rescore() {
@@ -254,13 +286,16 @@ const columns: DataTableColumn[] = [
          fraud signal. A reader scoping this to a unit was seeing four fifths of it, unannounced. -->
     <RowCoverageLine :coverage="coverage" />
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search unit, driver, location, reason…"
       :count="total"
       count-label="declines"
       :chips="chips"
       :more-count="moreCount"
+      :active-count="activeFilterCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >
@@ -304,9 +339,10 @@ const columns: DataTableColumn[] = [
 
     <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
          tabs mean EFS's Central day, so they say it in the one shared sentence. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
+    <p class="px-4 py-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
@@ -354,6 +390,7 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <!-- Card → truck assignments (read-only; learned from fill history, manual rows authoritative) -->
     <SlideOver :open="cardsOpen" title="Card assignments" @close="cardsOpen = false">
@@ -366,24 +403,14 @@ const columns: DataTableColumn[] = [
         <p v-if="!cardList.length" class="text-ink-tertiary">
           No card has a truck yet. Assignments appear when a card has enough fills, or after Recheck.
         </p>
-        <AppTable v-else class="w-full text-left text-sm">
-          <thead>
-            <tr class="text-xs uppercase tracking-wide text-ink-muted">
-              <th class="py-1.5 pr-3 font-semibold">Card</th>
-              <th class="py-1.5 pr-3 font-semibold">Assigned truck</th>
-              <th class="py-1.5 font-semibold">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in cardList" :key="c.id" class="border-t border-edge-subtle">
-              <td class="py-1.5 pr-3 font-mono text-ink">{{ c.card }}</td>
-              <td class="py-1.5 pr-3 text-ink">{{ c.unit }}</td>
-              <td class="py-1.5">
-                <span :class="[BADGE_BASE, toneClass(c.source === 'manual' ? 'brand' : 'neutral')]">{{ c.source }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </AppTable>
+        <DataTable
+          v-else embedded dense :sticky-header="false"
+          :columns="cardColumns" :rows="cardList" row-key="id"
+        >
+          <template #cell-source="{ row }">
+            <span :class="[BADGE_BASE, toneClass(row.source === 'manual' ? 'brand' : 'neutral')]">{{ row.source }}</span>
+          </template>
+        </DataTable>
       </div>
     </SlideOver>
 
@@ -406,6 +433,7 @@ const columns: DataTableColumn[] = [
           <span v-else class="text-xs text-ink-tertiary">Clear</span>
         </div>
 
+        <!-- ui-adoption: not-a-notice — the decline's own record (code badge, plain reason, the raw EFS string, the policy), structured content on a tint rather than a sentence about the page. -->
         <div class="rounded-control bg-danger-50 p-3 ring-1 ring-danger-100">
           <div class="flex items-center gap-2">
             <span :class="[BADGE_BASE, toneClass('danger')]">{{ selectedRow.error_code }}</span>
@@ -425,24 +453,24 @@ const columns: DataTableColumn[] = [
           </ul>
         </div>
 
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div class="col-span-2">
-            <dt class="text-xs text-ink-tertiary">Driver</dt>
-            <dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd>
-            <dd v-if="selectedRow.driver_name && driverNote(selectedRow)" class="mt-0.5 text-xs text-ink-tertiary">
+        <FactList :facts="selectedFacts" :columns="2" data-testid="decline-facts">
+          <!-- The driver carries where the name came from, or why there is none: an unmarked name
+               would read as evidence of presence (DRIVER_SOURCE_NOTE above). -->
+          <template #value-driver="{ fact }">
+            <span v-if="fact.value">{{ fact.value }}</span>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+            <span v-if="selectedRow.driver_name && driverNote(selectedRow)" class="mt-0.5 block text-xs font-normal text-ink-tertiary">
               {{ driverNote(selectedRow) }}
-            </dd>
-            <dd v-else-if="!selectedRow.driver_name" class="mt-0.5 text-xs text-ink-tertiary">
+            </span>
+            <span v-else-if="!selectedRow.driver_name" class="mt-0.5 block text-xs font-normal text-ink-tertiary">
               EFS does not say who used the card for a declined attempt, and this card could not be matched to a driver.
-            </dd>
-          </div>
-          <div><dt class="text-xs text-ink-tertiary">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Invoice</dt><dd class="text-ink">{{ selectedRow.invoice || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-tertiary">Import ID</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
-        </dl>
+            </span>
+          </template>
+          <template #value-import="{ fact }">
+            <span v-if="fact.value" class="font-mono text-xs">{{ fact.value }}</span>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+          </template>
+        </FactList>
       </div>
     </SlideOver>
   </div>

@@ -109,6 +109,24 @@ export const printedHazmatLineSchema = z.object({
 });
 export type PrintedHazmatLine = z.infer<typeof printedHazmatLineSchema>;
 
+export type LineLoadState = "loaded" | "preprinted_not_loaded" | "partial";
+/**
+ * Is this printed line aboard? (Hazmat plan H6 step 4c2 — a verified real-world pattern.) Shipper templates
+ * pre-print every product they ever ship; only lines with handwritten counts/weights are aboard. A line with
+ * NO quantity, NO count AND NO weight is a dormant template line (surfaced as a one-tap "not loaded —
+ * correct?" confirmation, never a hard flag). A count without a weight (or vice versa) is a `partial` — a
+ * normal flag, because a half-filled line is a real error until confirmed. Shared by the hazmat extractor
+ * (`bolFields.ts` re-exports it) and the calculator prefill (`bolPrefill.ts`), which must agree on it.
+ */
+export function classifyLineLoadState(line: Pick<PrintedHazmatLine, "quantity" | "packageCount" | "grossWeightLb">): LineLoadState {
+  const hasQty = line.quantity.value != null && line.quantity.value > 0;
+  const hasCount = line.packageCount != null && line.packageCount > 0;
+  const hasWeight = line.grossWeightLb != null && line.grossWeightLb > 0;
+  if (!hasQty && !hasCount && !hasWeight) return "preprinted_not_loaded";
+  if (hasQty || (hasCount && hasWeight)) return "loaded";
+  return "partial";
+}
+
 const pageOfSchema = z.object({ page: int(), of: int() });
 
 /**

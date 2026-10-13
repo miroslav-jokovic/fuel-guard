@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
+import { useQueryState } from "@/composables/useQueryState";
 import {
   INQUIRY_STATE_LABELS,
   INVESTIGATION_FILE_DAYS,
@@ -35,11 +36,29 @@ import RecruitmentTabs from "@/features/recruitment/RecruitmentTabs.vue";
  */
 const queueQ = useInquiryQueueQuery();
 
-const filter = ref("all");
-const search = ref("");
+// The queue's view, search and page live in the URL (D-US2), so Back from a driver's file returns to
+// the same slice of the queue. "all" is the fallback — the queue's resting value — so a plain link
+// stays plain; `allowed` is read off the options below, never retyped.
+const filterOptions = [
+  { value: "all", label: "Everything outstanding" },
+  { value: "overdue", label: "Past the deadline" },
+  { value: "chase", label: "Ready to chase or document" },
+  { value: "applicants", label: "Applicants" },
+];
+const qs = useQueryState();
+const filter = qs.param("show", filterOptions.map((o) => o.value), "all");
+const search = qs.param("search");
 const PAGE_SIZE = 20;
-const page = ref(1);
+const page = qs.page();
 watch([filter, search], () => (page.value = 1));
+
+// "all" is the queue's resting value, so it is not a filter — as is `""`, which FilterSelect's ✕ sets.
+const activeFilterCount = computed(
+  () => [search.value.trim(), filter.value !== "all" && filter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  qs.set({ search: undefined, show: undefined });
+}
 
 const filtered = computed<InquiryQueueRow[]>(() => {
   let all = queueQ.data.value?.rows ?? [];
@@ -123,17 +142,14 @@ const columns: DataTableColumn[] = [
         search-placeholder="Search driver, former employer…"
         :count="filtered.length"
         count-label="files"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect
             v-model="filter"
             label="Show"
-            :options="[
-              { value: 'all', label: 'Everything outstanding' },
-              { value: 'overdue', label: 'Past the deadline' },
-              { value: 'chase', label: 'Ready to chase or document' },
-              { value: 'applicants', label: 'Applicants' },
-            ]"
+            :options="filterOptions"
           />
         </template>
       </FilterBar>

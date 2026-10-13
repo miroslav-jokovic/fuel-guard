@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canViewSection, type AppSection, type UserRole } from "@silvicom/shared";
+import { surfaceGateAllows, type Gated, type SectionClaim, type UserRole } from "@silvicom/shared";
 import { visibleTabs, initialTab, showsTabStrip, DASHBOARD_TABS } from "./dashboardTabs";
 
 /**
@@ -8,26 +8,33 @@ import { visibleTabs, initialTab, showsTabStrip, DASHBOARD_TABS } from "./dashbo
  * mechanism, and that a `session.role` branch has not crept back in.
  */
 
-/** The real matrix, asked the way the component asks it. */
-const forRole = (role: UserRole) => (section: AppSection) => canViewSection(role, section);
+/** The real matrix, asked the way the page asks it — the surface gate's own evaluator. */
+const forRole = (role: UserRole, sections: SectionClaim | null = null) => (tab: Gated) =>
+  surfaceGateAllows(tab, role, sections);
 
 describe("visibleTabs", () => {
-  it("gives an admin every tab", () => {
-    expect(visibleTabs(forRole("admin")).map((t) => t.key)).toEqual(["fleet", "dispatch"]);
+  it("gives an admin every tab, Operations first", () => {
+    expect(visibleTabs(forRole("admin")).map((t) => t.key)).toEqual(["ops", "fleet", "dispatch"]);
+  });
+
+  it("gives a fleet manager every tab", () => {
+    expect(visibleTabs(forRole("fleet_manager")).map((t) => t.key)).toEqual(["ops", "fleet", "dispatch"]);
   });
 
   it("gives a dispatcher both, because they hold fuel: view — and the money inside fleet is gated separately", () => {
     // This is the case that looks wrong and is right: Q-LM-F1 ruled the split is per element, so a
     // dispatcher may open Fleet overview and finds no dollar figure on it (see moneyGate.test.ts).
+    // They hold `equipment: view` and not manage, so Operations is not theirs (D-FM2).
     expect(visibleTabs(forRole("dispatcher")).map((t) => t.key)).toEqual(["fleet", "dispatch"]);
   });
 
-  it("gives a safety manager the fleet tab only — they hold dispatch: none", () => {
+  it("gives a safety manager the fleet tab only — they hold dispatch: none and equipment: view", () => {
     expect(visibleTabs(forRole("safety_manager")).map((t) => t.key)).toEqual(["fleet"]);
   });
 
-  it("gives an accountant the fleet tab only", () => {
+  it("gives an accountant and an auditor no Operations tab — neither manages the fleet's record", () => {
     expect(visibleTabs(forRole("accountant")).map((t) => t.key)).toEqual(["fleet"]);
+    expect(visibleTabs(forRole("auditor")).map((t) => t.key)).toEqual(["fleet", "dispatch"]);
   });
 
   it("gives a driver nothing — every section is none for them (Q-LM-T1)", () => {
@@ -36,10 +43,15 @@ describe("visibleTabs", () => {
 
   it("follows the GRANT, not the role — the property that proves the matrix is the mechanism", () => {
     // An org that grants `dispatch` to a role that does not ship with it gets the tab, with no code
-    // change. Mutating the component to test `role === 'dispatcher'` would fail exactly here.
-    const safetyPlusDispatch = (section: AppSection) =>
-      section === "dispatch" ? true : canViewSection("safety_manager", section);
-    expect(visibleTabs(safetyPlusDispatch).map((t) => t.key)).toEqual(["fleet", "dispatch"]);
+    // change. Mutating the page to test `role === 'dispatcher'` would fail exactly here.
+    expect(visibleTabs(forRole("safety_manager", { dispatch: "view" })).map((t) => t.key)).toEqual(["fleet", "dispatch"]);
+  });
+
+  it("gives Operations to whoever is granted equipment: manage, and only at manage", () => {
+    // D-FM2: the tab gate is `manage("equipment")`. A dispatcher an org trusts with the fleet's record
+    // gets the tab; the same dispatcher at `view` — their default — does not.
+    expect(visibleTabs(forRole("dispatcher", { equipment: "manage" })).map((t) => t.key)).toContain("ops");
+    expect(visibleTabs(forRole("dispatcher", { equipment: "view" })).map((t) => t.key)).not.toContain("ops");
   });
 });
 
@@ -49,19 +61,29 @@ describe("initialTab", () => {
     expect(initialTab(tabs, "dispatcher")!.key).toBe("dispatch");
   });
 
+  it("lands a fleet manager on Operations, with Fleet overview and Dispatch one tab away", () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM3 (owner, 2026-10-12): this replaced the Dispatch default set earlier that day.
+    const tabs = visibleTabs(forRole("fleet_manager"));
+    expect(initialTab(tabs, "fleet_manager")!.key).toBe("ops");
+    // By NAME, not by being first: Q-FM2 put Operations first, and reversing that ruling must not
+    // quietly move the fleet manager's landing tab with it.
+    expect(initialTab([...tabs].reverse(), "fleet_manager")!.key).toBe("ops");
+  });
+
   it("lands an admin on the first tab, because no tab names them", () => {
     const tabs = visibleTabs(forRole("admin"));
-    expect(initialTab(tabs, "admin")!.key).toBe("fleet");
+    expect(initialTab(tabs, "admin")!.key).toBe("ops");
   });
 
   it("honours an explicitly requested tab", () => {
-    const tabs = visibleTabs(forRole("admin"));
-    expect(initialTab(tabs, "admin", "dispatch")!.key).toBe("dispatch");
+    const tabs = visibleTabs(forRole("fleet_manager"));
+    expect(initialTab(tabs, "fleet_manager", "dispatch")!.key).toBe("dispatch");
   });
 
   it("ignores a requested tab the caller may not see, rather than rendering it", () => {
     const tabs = visibleTabs(forRole("safety_manager"));
     expect(initialTab(tabs, "safety_manager", "dispatch")!.key).toBe("fleet");
+    expect(initialTab(visibleTabs(forRole("dispatcher")), "dispatcher", "ops")!.key).toBe("dispatch");
   });
 
   it("returns null when the caller may see nothing", () => {
@@ -78,9 +100,8 @@ describe("showsTabStrip", () => {
 });
 
 describe("the catalogue itself", () => {
-  it("names a section on every tab and never a role", () => {
+  it("gates every tab on a section and never on a role", () => {
     // `defaultFor` may name roles; `gate` may not. Pins D-DW6's one rule.
-    for (const tab of DASHBOARD_TABS) expect(typeof tab.gate).toBe("string");
-    expect(DASHBOARD_TABS.every((t) => t.gate.length > 0)).toBe(true);
+    for (const tab of DASHBOARD_TABS) expect(tab.gate.kind).toBe("section");
   });
 });

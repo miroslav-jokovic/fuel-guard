@@ -5,6 +5,8 @@ import { createPinia, setActivePinia } from "pinia";
 import { computed, ref } from "vue";
 // The spend window reads "today" on the carrier's clock; no org row in a mounted page test.
 vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: computed(() => "America/Chicago") }) }));
+const apiDownload = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api", () => ({ apiDownload }));
 
 /**
  * The Findings inbox, mounted (C7b — was the fuel exception ledger).
@@ -101,6 +103,10 @@ vi.mock("@/features/anomalies/IncidentDetail.vue", async () => {
 });
 
 import FuelProblemsPage from "./FuelProblemsPage.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import ExportButton, { type ExportItem } from "@/components/ExportButton.vue";
+import MoneyExportActions from "@/features/reconcile/MoneyExportActions.vue";
 import { fuelRoutes } from "@/router/routes/fuel";
 
 /** The real `/findings` redirect, so a test of an old link proves the route table, not a copy of it. */
@@ -130,6 +136,7 @@ const theftRow = (o: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  apiDownload.mockReset();
   listed.value = [row()];
   listed.total = 1;
   truncated.value = false;
@@ -177,6 +184,13 @@ async function mountPage(query = "", path = "/fuel-problems") {
 }
 
 describe("Fuel problems", () => {
+  it("keeps its toolbar and queue in one embedded data workspace", async () => {
+    const workspace = (await mountPage()).w.getComponent(DataWorkspace);
+
+    expect(workspace.getComponent(FilterBar).props("embedded")).toBe(true);
+    expect(workspace.getComponent({ name: "DataTable" }).props()["embedded"]).toBe(true);
+  });
+
   // Chunk 9b: the claim from open to paid. "We can claim $56" is a claim about the bills; "we got $275
   // back" is a claim about the business, and only the second one renews a contract.
   it("leads with can be disputed, disputed and credited back — three numbers, never one", async () => {
@@ -305,14 +319,16 @@ describe("Fuel problems", () => {
 
   it("carries the whole filter into the export's address, not just the window", async () => {
     const { w } = await mountPage("?from=2026-06-01&to=2026-06-30&trucks=v-701&state=closed");
-    const href = w.findAllComponents({ name: "ExportButton" })[0]?.props("href") as string;
-    expect(href).toContain("/api/fueling/exceptions/export.csv?");
-    expect(href).toContain("from=2026-06-01");
-    expect(href).toContain("vehicles=v-701");
+    const exportButton = w.getComponent(MoneyExportActions).getComponent(ExportButton);
+    const csv = (exportButton.props("items") as ExportItem[]).find((item) => item.key === "csv")!;
+    expect(csv).toMatchObject({
+      href: "/api/fueling/exceptions/export.csv?from=2026-06-01&to=2026-06-30&status=credited%2Cdismissed%2Cresolved_by_reingest&vehicles=v-701",
+      filename: "fuel-findings-2026-06-01-to-2026-06-30.csv",
+    });
     // ⚠ The queue state is translated into the LEDGER's own statuses on the way out, through C7a
     // rather than restated here. `closed` covers three of them, and a file built from the axis word
     // would have asked the export for a status the ledger has never heard of.
-    expect(href).toContain("status=credited%2Cdismissed%2Cresolved_by_reingest");
+    expect(csv.href).not.toContain("status=closed");
   });
 
   it("states the empty case as a fact and a next action", async () => {
@@ -327,22 +343,24 @@ describe("Fuel problems", () => {
     listed.value = [];
     listed.total = 0;
     const w = (await mountPage()).w;
-    const packet = w.findAll("button").find((b) => b.text().includes("Dispute packet"));
-    expect(packet?.attributes("disabled")).toBeDefined();
+    expect(w.getComponent(MoneyExportActions).getComponent(ExportButton).props("disabled")).toBe(true);
   });
 
   it("offers the packet and the CSV once there is", async () => {
     const w = (await mountPage()).w;
-    expect(w.findAll("button").some((b) => b.text().includes("Dispute packet"))).toBe(true);
-    expect(w.findAll("button").some((b) => b.text().includes("Export CSV"))).toBe(true);
+    const button = w.getComponent(MoneyExportActions).getComponent(ExportButton);
+    expect(button.props("disabled")).toBe(false);
+    expect((button.props("items") as ExportItem[]).map(({ key, label }) => ({ key, label }))).toEqual([
+      { key: "csv", label: "CSV findings" },
+      { key: "packet", label: "PDF dispute packet" },
+    ]);
   });
 
   it("disables the export when there is nothing to export", async () => {
     listed.value = [];
     listed.total = 0;
     const w = (await mountPage()).w;
-    const csv = w.findAll("button").find((b) => b.text().includes("Export CSV"));
-    expect(csv?.attributes("disabled")).toBeDefined();
+    expect(w.getComponent(MoneyExportActions).getComponent(ExportButton).props("disabled")).toBe(true);
   });
 
   /* ── C7b · both sources, one queue ───────────────────────────────────────────────────────── */
@@ -466,8 +484,19 @@ describe("Fuel problems", () => {
     listed.value = [theftRow()];
     listed.total = 1;
     const { w } = await mountPage();
-    const packet = w.findAll("button").find((b) => b.text().includes("Dispute packet"));
-    expect(packet?.attributes("disabled")).toBeDefined();
+    expect(w.getComponent(MoneyExportActions).getComponent(ExportButton).props("disabled")).toBe(true);
+  });
+
+  it("keeps the dispute packet's exact URL and filename behind the export menu", async () => {
+    const { w } = await mountPage("?from=2026-06-01&to=2026-06-30");
+    const items = w.getComponent(MoneyExportActions).getComponent(ExportButton).props("items") as ExportItem[];
+    const packet = items.find((item) => item.key === "packet")!;
+    expect(packet.run).toBeTypeOf("function");
+    await packet.run!();
+    expect(apiDownload).toHaveBeenCalledWith(
+      "/api/fueling/exceptions/packet.pdf?ids=e1",
+      "fuel-dispute-packet-2026-06-01.pdf",
+    );
   });
 
   /* ── C7b merge 3 · assignment ────────────────────────────────────────────────────────────── */
@@ -542,5 +571,29 @@ describe("Fuel problems", () => {
     await pick(w);
     const t = w.text();
     for (const word of ["Dismiss", "Close selected", "Mark as"]) expect(t).not.toContain(word);
+  });
+
+  it("clears every filter back to the working queue, and offers no clear on the default", async () => {
+    const clearButton = (w: Awaited<ReturnType<typeof mountPage>>["w"]) =>
+      w.findAll("button").find((b) => b.text() === "Clear filters");
+    // The three working states are where the queue opens — spelled out in a link, still nothing to clear.
+    expect(clearButton((await mountPage("?state=open,investigating,working")).w)).toBeUndefined();
+
+    const { w, router } = await mountPage("?state=closed&kind=recon_amount&owner=me");
+    expect(w.getComponent(FilterBar).props("activeCount")).toBe(3);
+    await clearButton(w)!.trigger("click");
+    await flushPromises();
+
+    const q = router.currentRoute.value.query;
+    for (const key of ["state", "kind", "owner"]) expect(q[key], key).toBeUndefined();
+    // `seen.listQuery` is a snapshot from mount, so read the controls the reader sees instead.
+    const select = (label: string) =>
+      w.findAllComponents({ name: "FilterSelect" }).find((s) => s.props("label") === label)!.props("modelValue");
+    expect(select("Status")).toEqual(["open", "investigating", "working"]);
+    expect(select("Finding")).toEqual([]);
+    expect(clearButton(w)).toBeUndefined();
+    // Owner lives in the "Filters" popover, which renders its controls only while open.
+    await w.findAll("button").find((b) => b.text().startsWith("Filters"))!.trigger("click");
+    expect(select("Owner")).toBe("");
   });
 });

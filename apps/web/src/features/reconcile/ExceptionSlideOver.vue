@@ -6,6 +6,8 @@ import {
   type FuelExceptionStatus,
 } from "@silvicom/shared";
 import SlideOver from "@/components/SlideOver.vue";
+import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass, fuelExceptionStatusBadge } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -34,7 +36,7 @@ const session = useSessionStore();
 /** The PATCH route is `fuel: manage`; a viewer is shown the record and no buttons that would 403. */
 const canAct = computed(() => session.can("fuel"));
 const id = computed(() => props.id);
-const { data, isLoading } = useExceptionQuery(id);
+const { data, isLoading, isError, error, isFetching, refetch } = useExceptionQuery(id);
 const move = useMoveException();
 
 const ex = computed(() => data.value?.exception ?? null);
@@ -88,22 +90,41 @@ async function apply(status: FuelExceptionStatus | undefined) {
 const creditReady = computed(() => creditedAmount.value !== "" && Number(creditedAmount.value) >= 0);
 
 const money = (v: number | string | null | undefined) => (v == null ? "—" : usd(Number(v)));
-const site = computed(() =>
-  [ex.value?.site_number, ex.value?.city, ex.value?.state].filter(Boolean).join(" ") || "—",
-);
+/** The finding's own facts (D-US6). A site with no number, city or state is a blank, so FactList draws its dash. */
+const findingFacts = computed<Fact[]>(() => {
+  const e = ex.value;
+  if (!e) return [];
+  const facts: Fact[] = [
+    { label: "Site", value: [e.site_number, e.city, e.state].filter(Boolean).join(" ") || null },
+    { label: "First seen", value: formatDate(e.first_seen_at) },
+  ];
+  if (e.credited_amount != null) {
+    facts.push({ label: "Credited", value: `${money(e.credited_amount)} on ${formatDate(e.credited_on)}`, tone: "text-success-700" });
+  }
+  return facts;
+});
 /** The evidence blob, as label/value pairs — it differs per kind and the template must not assume. */
-const evidenceRows = computed(() =>
+const evidenceRows = computed<Fact[]>(() =>
   Object.entries(ex.value?.evidence ?? {})
     .filter(([, v]) => v != null && v !== "")
-    .map(([k, v]) => ({ label: k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), value: String(v) })),
+    .map(([k, v]) => ({ key: k, label: k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), value: String(v) })),
 );
 </script>
 
 <template>
   <SlideOver :open="id != null" :title="ex ? FUEL_EXCEPTION_KIND_LABELS[ex.kind] : 'Finding'" size="lg" @close="emit('close')">
-    <p v-if="isLoading && !ex" class="text-sm text-ink-muted">Loading…</p>
-
-    <div v-else-if="ex" class="space-y-6">
+    <!-- A finding that failed to load used to leave the drawer blank under its title; it now says so
+         and offers a Retry (D-US5). Compact: this is a drawer, and the block form would crowd it. -->
+    <QueryState
+      compact
+      :loading="isLoading && !ex"
+      :error="isError && !ex ? (error ?? true) : null"
+      :retrying="isFetching"
+      loading-text="Loading the finding…"
+      error-text="Could not load this finding."
+      @retry="refetch()"
+    >
+    <div v-if="ex" class="space-y-6">
       <div class="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <p class="text-2xl font-bold" :class="ex.amount_kind === 'unrecorded' ? 'text-danger-700' : 'text-ink'">
@@ -116,25 +137,18 @@ const evidenceRows = computed(() =>
         </span>
       </div>
 
-      <dl class="grid grid-cols-2 gap-4 border-t border-edge-subtle pt-4">
-        <div><dt class="text-xs text-ink-muted">Site</dt><dd class="text-sm text-ink">{{ site }}</dd></div>
-        <div><dt class="text-xs text-ink-muted">First seen</dt><dd class="text-sm text-ink">{{ formatDate(ex.first_seen_at) }}</dd></div>
-        <div v-if="ex.credited_amount != null">
-          <dt class="text-xs text-ink-muted">Credited</dt>
-          <dd class="text-sm font-medium text-success-700">{{ money(ex.credited_amount) }} on {{ formatDate(ex.credited_on) }}</dd>
-        </div>
-      </dl>
+      <FactList :facts="findingFacts" :columns="2" class="border-t border-edge-subtle pt-4" data-testid="finding-facts" />
 
       <!-- The evidence, so nobody has to open the statement PDF to decide whether this is worth
            chasing. Rendered from the blob rather than a fixed list: it differs per kind. -->
       <div v-if="evidenceRows.length">
         <h4 class="text-sm font-semibold text-ink">What the report and our records say</h4>
-        <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
-          <template v-for="r in evidenceRows" :key="r.label">
-            <dt class="text-xs text-ink-muted">{{ r.label }}</dt>
-            <dd class="text-xs font-mono text-ink-secondary">{{ r.value }}</dd>
+        <!-- Monospaced, as before: these are the identifiers a person reads back to the vendor, digit by digit. -->
+        <FactList :facts="evidenceRows" layout="rows" class="mt-2" data-testid="finding-evidence">
+          <template v-for="r in evidenceRows" :key="r.key" #[`value-${r.key}`]="{ fact }">
+            <span class="font-mono text-xs">{{ fact.value }}</span>
           </template>
-        </dl>
+        </FactList>
       </div>
 
       <div v-if="events.length">
@@ -150,6 +164,7 @@ const evidenceRows = computed(() =>
         </ul>
       </div>
     </div>
+    </QueryState>
 
     <template #footer>
       <div v-if="ex && canAct" class="flex w-full flex-col gap-3">

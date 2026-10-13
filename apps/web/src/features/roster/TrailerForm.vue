@@ -12,11 +12,10 @@ import {
 } from "@silvicom/shared";
 import { AppSelect } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCheckbox as BaseCheckbox } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 
-const props = defineProps<{ trailer?: Trailer | null; vehicles: Vehicle[]; submitting?: boolean }>();
+const props = defineProps<{ trailer?: Trailer | null; vehicles: Vehicle[] }>();
 
 // Q-7: the roster sweep writes a McLeod-linked trailer's status on every run (E5), so an edit here
 // would silently revert. Shown read-only with its source named — see `VehicleForm`.
@@ -25,7 +24,7 @@ const statusFromTms = computed(() =>
     ? isStatusFromTms({ link: props.trailer.mcleod_trailer_id, identity_source: props.trailer.identity_source })
     : false,
 );
-const emit = defineEmits<{ submit: [input: TrailerInput]; cancel: [] }>();
+const emit = defineEmits<{ submit: [input: TrailerInput] }>();
 
 const form = reactive({
   unit_number: props.trailer?.unit_number ?? "",
@@ -61,6 +60,10 @@ function onSubmit() {
   const isTanker = form.trailer_type === "tanker";
   const result = trailerInputSchema.safeParse({
     ...rest,
+    // "Not set" is the select's empty string, and the schema's type is an enum or null — never "". Sent
+    // as "", every save of an untyped trailer failed validation on a field that showed no error, so
+    // Save did nothing and said nothing (found 2026-10-12 while moving Save into the drawer footer).
+    trailer_type: form.trailer_type || null,
     // Only a tanker carries cargo-tank data; switching the type away clears it rather than orphaning it.
     cargo_capacity_gal: isTanker ? form.cargo_capacity_gal : "",
     cargo_compartments: isTanker ? parseCompartments(cargo_compartments_text) : [],
@@ -80,7 +83,9 @@ function onSubmit() {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="onSubmit">
+  <!-- D-US5b: the drawer's footer holds Cancel and Save (`form="trailer-form"`), so Save stays on screen
+       however long this form runs; this file owns the fields and the submit, not the buttons. -->
+  <form id="trailer-form" class="space-y-4" @submit.prevent="onSubmit">
     <FormField v-slot="{ id }" label="Trailer unit number" :error="errors.unit_number">
       <BaseInput :id="id" v-model="form.unit_number" :invalid="!!errors.unit_number" />
     </FormField>
@@ -100,7 +105,7 @@ function onSubmit() {
       </FormField>
     </div>
 
-    <FormField v-slot="{ id }" label="Type" hint="Marking a trailer as a tanker is what tells HazmatGuard this is bulk packaging.">
+    <FormField v-slot="{ id }" label="Type" hint="Marking a trailer as a tanker is what tells HazmatGuard this is bulk packaging." :error="errors.trailer_type">
       <AppSelect
         :id="id"
         v-model="form.trailer_type"
@@ -109,6 +114,7 @@ function onSubmit() {
     </FormField>
 
     <!-- H-C2: a tank is a trailer — its cargo data lives here, not on a separate hazmat page. -->
+    <!-- ui-adoption: not-a-notice — a tinted group of form fields (the cargo tank's capacity and compartments). -->
     <div v-if="form.trailer_type === 'tanker'" class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <p class="text-sm font-medium text-ink">Cargo tank</p>
       <p class="mt-0.5 text-xs text-ink-muted">Used by HazmatGuard load analysis. This is the CARGO tank, not a fuel tank.</p>
@@ -122,6 +128,7 @@ function onSubmit() {
       </div>
     </div>
 
+    <!-- ui-adoption: not-a-notice — a tinted frame around the reefer checkbox, a form control. -->
     <div class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <BaseCheckbox v-model="form.is_reefer">
         <span class="text-sm">
@@ -160,12 +167,5 @@ function onSubmit() {
     <FormField v-slot="{ id }" label="Samsara asset ID">
       <BaseInput :id="id" v-model="form.samsara_asset_id" placeholder="Auto-filled by Samsara sync" />
     </FormField>
-
-    <div class="flex justify-end gap-3 pt-2">
-      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
-      <BaseButton type="submit" variant="primary" :disabled="submitting">
-        {{ submitting ? "Saving…" : "Save trailer" }}
-      </BaseButton>
-    </div>
   </form>
 </template>

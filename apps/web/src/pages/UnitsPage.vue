@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { Cog6ToothIcon } from "@silvicom/ui/icons";
 import { UNIT_KIND_LABELS, type UnitKitDto } from "@silvicom/shared";
@@ -15,7 +17,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import KitRulesDrawer from "@/features/inventory/KitRulesDrawer.vue";
 import { useUnitsQuery } from "@/features/inventory/useUnits";
 import { BADGE_BASE, kitStatusBadge, toneClass } from "@/lib/badges";
-import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -53,7 +55,6 @@ import { useSessionStore } from "@/stores/session";
  * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
  */
 
-const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 
@@ -69,20 +70,25 @@ const KIT_OPTIONS = [
 
 const PAGE_SIZE = 20;
 
-const search = ref("");
-const kind = ref("");
-/** The shop home's shortfall card links here with `?kit=short`; the filter is the page's own after that. */
-const kit = ref(route.query.kit === "short" ? "short" : "");
-watch(kit, (v) => void router.replace({ query: v === "short" ? { kit: "short" } : {} }));
+// Filters, sort and page live in the URL (D-US2). The shop home's shortfall card links here with
+// `?kit=short`, and that link is now simply this parameter rather than a one-time seed the page
+// mirrored back by hand — so it also survives a reload and Back from a unit. Each `allowed` list is
+// read off its options, never retyped.
+const qs = useQueryState();
+const search = qs.param("search");
+const kind = qs.param("kind", KIND_OPTIONS.map((o) => o.value));
+const kit = qs.param("kit", KIT_OPTIONS.map((o) => o.value));
+
+const activeFilterCount = computed(() => [search.value.trim(), kind.value, kit.value].filter(Boolean).length);
+function resetFilters() {
+  qs.set({ search: undefined, kind: undefined, kit: undefined });
+}
 
 const filter = computed(() => ({
   kind: (kind.value || undefined) as "tractor" | "trailer" | undefined,
   shortOnly: kit.value === "short",
 }));
 const units = useUnitsQuery(filter);
-
-const sort = ref<SortState>({ key: null, dir: "asc" });
-const onSort = (key: string) => (sort.value = toggleSort(sort.value, key));
 
 const rows = computed(() => {
   const term = search.value.trim().toLowerCase();
@@ -91,8 +97,7 @@ const rows = computed(() => {
   return sortRows(found, sort.value);
 });
 
-const page = ref(1);
-watch([search, kind, kit, sort], () => (page.value = 1));
+const page = qs.page();
 const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const COLUMNS: DataTableColumn[] = [
@@ -102,6 +107,13 @@ const COLUMNS: DataTableColumn[] = [
   { key: "shortBy", label: "Missing", sortable: true, numeric: true },
   { key: "state", label: "Status", sortable: true, width: "sm" },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", COLUMNS.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+// The sort is watched by its two strings, not as the `sort` object: a re-sort returns to page 1, and
+// nothing but a re-sort may — a pasted `?page=2&sort=…` has to land on page 2.
+watch([search, kind, kit, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
 
 /** "3 of 5 kinds carried" — what the row is about, in the words the reader is looking for. */
 const carried = (u: UnitKitDto) => u.lines.filter((l) => l.expected > 0 && l.delta >= 0).length;
@@ -139,6 +151,8 @@ const rulesOpen = ref(false);
         search-placeholder="Search unit number…"
         :count="rows.length"
         count-label="units"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="kind" label="Kind" :options="KIND_OPTIONS" />

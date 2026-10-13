@@ -77,8 +77,8 @@ export const AREAS = [
   { id: "maintenance", title: "Maintenance and inventory",
     api: ["maintenance", "fleetpal"], web: ["maintenance", "inventory"], packages: ["qr"], plans: ["maintenance"] },
   { id: "drivers", title: "Drivers, hiring and compliance",
-    api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections"],
-    web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal"],
+    api: ["recruiting", "evidence", "psp", "roster", "hazmat", "performance", "document-reading", "inspections", "medstop"],
+    web: ["apply", "recruitment", "compliance", "drivers", "roster", "hazmat", "legal", "drugAlcohol", "roadside"],
     packages: ["hazmat-data", "hazmat-engine", "hazmat-golden", "hazmat-placards", "sms-engine"],
     plans: ["recruitment", "roster", "safety-dqf", "hazmat-consolidation", "document-reading"] },
   { id: "dispatch", title: "Dispatch and live map",
@@ -95,7 +95,7 @@ export const AREAS = [
   { id: "platform", title: "Platform",
     api: ["org"], web: ["audit", "jobs", "permissions", "settings"], apps: ["admin", "admin-api"],
     packages: ["shared", "ui", "tokens"],
-    plans: ["architecture", "ci", "design-system", "permissions", "platform-console", "product-readiness", "ship-pipeline", "silvicom360"] },
+    plans: ["architecture", "ci", "design-system", "notifications", "permissions", "partner-api", "platform-console", "product-readiness", "ship-pipeline", "silvicom360"] },
   { id: "docs", title: "Plans and docs" },
 ];
 

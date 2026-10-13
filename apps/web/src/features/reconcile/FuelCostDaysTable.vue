@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { AppCard as BaseCard, AppButton as BaseButton } from "@silvicom/ui";
+import { AppCard as BaseCard } from "@silvicom/ui";
+import ExportButton from "@/components/ExportButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { downloadCsv } from "@/lib/csv";
@@ -55,11 +56,16 @@ function exportCsv(): void {
 <template>
   <div>
     <div class="mb-2 flex items-center justify-between gap-3">
-      <h3 class="text-base font-semibold text-ink">By day</h3>
-      <BaseButton variant="ghost" :disabled="rows.length === 0" @click="exportCsv">Export CSV</BaseButton>
+      <h3 class="text-sm font-semibold text-ink">By day</h3>
+      <ExportButton
+        :run="exportCsv"
+        :scope="`${rows.length.toLocaleString()} days`"
+        label="Export CSV"
+        :disabled="rows.length === 0"
+      />
     </div>
     <BaseCard padding="none">
-      <DataTable :columns="columns" :rows="shown" row-key="id" :loading="loading" empty-text="No days in this range.">
+      <DataTable embedded :columns="columns" :rows="shown" row-key="id" :loading="loading" empty-text="No days in this range.">
         <!-- A withheld MPG says why on hover rather than leaving a bare dash to be guessed at. -->
         <template #cell-mpg="{ row }">
           <span v-if="row.mpg" class="tabular-nums">{{ row.mpg }}</span>

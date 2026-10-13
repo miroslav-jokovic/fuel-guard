@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { answerConfirm } from "@/testing/confirm";
 import { defaultInspectionItems, deriveInspectionOutcome, INSPECTION_ITEMS } from "@silvicom/shared";
 
 /**
@@ -157,32 +158,33 @@ describe("the verdict is the shared function's, not the page's", () => {
 });
 
 describe("completing is irreversible, so it is confirmed the way this app confirms things", () => {
-  it("does NOT finalize when the confirmation is declined", () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
-    const w = mountPage(items());
-    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+  const complete = async (w: ReturnType<typeof mountPage>) => {
+    await w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+    await flushPromises();
+  };
+
+  it("does NOT finalize when the confirmation is declined", async () => {
+    answerConfirm(false);
+    await complete(mountPage(items()));
     expect(state.finalize.mutate).not.toHaveBeenCalled();
-    spy.mockRestore();
   });
 
-  it("finalizes when it is accepted, and says what is being recorded", () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const w = mountPage(items());
-    void w.findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
+  it("finalizes when it is accepted, and says what is being recorded", async () => {
+    const spy = answerConfirm(true);
+    await complete(mountPage(items()));
     expect(state.finalize.mutate).toHaveBeenCalled();
     // The sentence has to carry the verdict and the fact that it cannot be undone — a bare
-    // "Are you sure?" tells somebody nothing they did not already know.
-    const asked = spy.mock.calls[0]![0] as string;
-    expect(asked).toContain("PASSED");
-    expect(asked).toContain("cannot be edited");
-    spy.mockRestore();
+    // "Are you sure?" tells somebody nothing they did not already know. Red, with its own verb (D-US7).
+    const asked = spy.mock.calls[0]![0];
+    expect(asked.title).toContain("PASSED");
+    expect(asked.message).toContain("cannot be edited");
+    expect(asked).toMatchObject({ confirmLabel: "Complete inspection", tone: "danger" });
   });
 
-  it("warns in the confirmation when parts still carry their opening answer", () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
-    mountPage(items()).findAll("button").find((b) => b.text() === "Complete inspection")!.trigger("click");
-    expect(spy.mock.calls[0]![0] as string).toMatch(/\d+ part\(s\) still carry/);
-    spy.mockRestore();
+  it("warns in the confirmation when parts still carry their opening answer", async () => {
+    const spy = answerConfirm(false);
+    await complete(mountPage(items()));
+    expect(spy.mock.calls[0]![0].message).toMatch(/\d+ part\(s\) still carry/);
   });
 });
 
@@ -203,13 +205,24 @@ describe("a certified report is read-only (D-AVI4)", () => {
   });
 
   it("offers a CORRECTION, because a completed report cannot be edited (D-AVI4)", async () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const spy = answerConfirm(true);
     const w = mountPage(items(), final);
     await w.findAll("button").find((b) => b.text() === "Record a correction")!.trigger("click");
+    await flushPromises();
     // Without this the immutability rule has no escape hatch and the column that records the link
     // is never written — which is exactly what shipped for a week.
     expect(state.correct.mutateAsync).toHaveBeenCalledWith("insp_1");
-    spy.mockRestore();
+    // Not red: the completed report is kept, nothing is lost (D-US7).
+    expect(spy.mock.calls[0]![0]).toMatchObject({ title: "Start a correction?", confirmLabel: "Start correction" });
+    expect(spy.mock.calls[0]![0].tone).toBeUndefined();
+  });
+
+  it("starts no correction when the question is declined", async () => {
+    answerConfirm(false);
+    const w = mountPage(items(), final);
+    await w.findAll("button").find((b) => b.text() === "Record a correction")!.trigger("click");
+    await flushPromises();
+    expect(state.correct.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("does not offer to discard a completed inspection", () => {
@@ -255,19 +268,20 @@ describe("destroying the record is admin-only and separate from Discard (D-AVI29
 
 describe("a draft can be abandoned", () => {
   it("discards on confirmation, and only while it is a draft", async () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const spy = answerConfirm(true);
     const w = mountPage(items());
     await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    await flushPromises();
     expect(state.discard.mutateAsync).toHaveBeenCalledWith("insp_1");
-    spy.mockRestore();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: "Discard", tone: "danger" }));
   });
 
   it("does nothing when the confirmation is declined", async () => {
-    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    answerConfirm(false);
     const w = mountPage(items());
     await w.findAll("button").find((b) => b.text() === "Discard")!.trigger("click");
+    await flushPromises();
     expect(state.discard.mutateAsync).not.toHaveBeenCalled();
-    spy.mockRestore();
   });
 });
 

@@ -221,3 +221,21 @@ describe("what the office can finally see", () => {
     expect(wrapper.text()).not.toContain("given inside the FMCSA portal");
   });
 });
+
+/**
+ * D-US5: the panel does not own the query (the step drawer does), so a failure is said in the
+ * drawer's sentence with a Retry that asks the DRAWER to refetch — and the releases are not drawn
+ * as five "Not signed yet" rows, which would be a claim about the applicant made from no data.
+ */
+describe("when the releases cannot be read (D-US5)", () => {
+  it("says the drawer's sentence instead of the rows, and Retry asks the drawer to fetch again", async () => {
+    const w = mount(AuthorizationsPanel, {
+      props: { rows: [], loading: false, error: "Could not load the signed releases.", invitationId: INVITATION },
+      global: { stubs: { BaseModal: BaseModalStub } },
+    });
+    expect(w.get("[role=alert]").text()).toContain("Could not load the signed releases.");
+    expect(w.findAll("li")).toHaveLength(0);
+    await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
+  });
+});

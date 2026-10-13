@@ -391,7 +391,7 @@ const environmentBadge = computed(() =>
 
       <!-- Invariant 3, and invariant 4's exit: one decision on screen at a time. -->
       <div v-if="confirmingDiscard" class="space-y-4" aria-labelledby="discard-heading">
-        <h3 id="discard-heading" class="text-base font-semibold text-ink">Discard this change?</h3>
+        <h3 id="discard-heading" class="text-sm font-semibold text-ink">Discard this change?</h3>
         <p class="text-sm leading-6 text-ink-muted">Nothing has been sent to EFS. What you typed will be lost.</p>
         <div class="flex justify-end gap-3">
           <BaseButton @click="confirmingDiscard = false">Keep editing</BaseButton>
@@ -420,7 +420,7 @@ const environmentBadge = computed(() =>
       <template v-else>
         <!-- ── Region 2: what this does ───────────────────────────────────────────────────────── -->
         <section v-if="confirmation" class="space-y-2" aria-labelledby="intent-heading">
-          <h3 id="intent-heading" class="text-base font-semibold text-ink">{{ confirmation.title }}</h3>
+          <h3 id="intent-heading" class="text-sm font-semibold text-ink">{{ confirmation.title }}</h3>
           <p class="text-sm leading-6 text-ink-muted">{{ confirmation.body }}</p>
         </section>
 

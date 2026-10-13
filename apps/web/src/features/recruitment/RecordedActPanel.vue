@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, reactive, ref, watch } from "vue";
 import {
   DQ_KIND_LABELS,
@@ -14,6 +15,7 @@ import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useDocumentsQuery, useQualificationRecordsQuery } from "@/composables/useCompliance";
 import { useRecordHiringAct } from "@/features/recruitment/useHiringEvidence";
 
@@ -140,6 +142,9 @@ async function save(): Promise<void> {
 
 /** The row's own words for the kind, so the toast and the history read as the §391.51 file does. */
 const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "record") : "record"));
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 </script>
 
 <template>
@@ -153,44 +158,56 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
          has is whether somebody already did it. -->
     <div v-if="canRead">
       <p class="text-sm font-medium text-ink">On file</p>
-      <p v-if="recordsQ.isLoading.value" class="mt-1 text-xs text-ink-muted">Loading…</p>
-      <p v-else-if="filed.length === 0" class="mt-1 text-xs text-ink-muted">
-        Nothing yet. Record it below once you have it.
-      </p>
-      <!-- ⚠ Two lines, not one, and each optional value carries a WORD. Rendered at 1440 on
-           2026-09-19 the row read `2026-09-10  clean  SambaSafety  MVR-771` — four unlabelled
-           values in a line, where a reader has to guess which is the result and which is the
-           agency. The date and what came back are the answer; who did it and its number are
-           metadata, which is what `text-2xs` is for (D-DS6). -->
-      <ul v-else class="mt-2 space-y-3">
-        <li v-for="row in filed" :key="row.id">
-          <p class="text-xs">
-            <span class="font-medium text-ink">{{ row.occurred_on }}</span>
-            <span v-if="jurisdictionOf(row)" class="text-ink"> · {{ jurisdictionOf(row) }}</span>
-            <span v-if="row.result" class="text-ink-secondary"> · {{ row.result }}</span>
+      <div class="mt-1">
+        <QueryState
+          :loading="recordsQ.isLoading.value"
+          :error="recordsQ.isError.value ? recordsQ.error.value : null"
+          :retrying="recordsQ.isFetching.value"
+          loading-text="Loading the qualification file…"
+          error-text="Could not load the qualification file."
+          compact
+          @retry="recordsQ.refetch()"
+        >
+          <p v-if="filed.length === 0" class="text-xs text-ink-muted">
+            Nothing yet. Record it below once you have it.
           </p>
-          <p class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-2xs text-ink-secondary">
-            <span v-if="row.performed_by">By {{ row.performed_by }}</span>
-            <span v-if="row.reference" class="font-mono">Ref {{ row.reference }}</span>
-            <!-- Three states, `PspRecordsSection`'s reasoning: a document can be on file with no
-                 link this minute, because `signDocumentRows` degrades a row to `url: null` rather
-                 than failing the page. "Unavailable" is the honest word; a dead link and an em dash
-                 are both lies about evidence. -->
-            <a
-              v-if="row.document_id && scanUrl.get(row.document_id)"
-              :href="scanUrl.get(row.document_id)"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-medium hover:text-link"
-            >
-              Open the scan
-            </a>
-            <span v-else-if="row.document_id && docsQ.isLoading.value" class="text-ink-muted">Loading…</span>
-            <span v-else-if="row.document_id" class="text-ink-muted">Scan unavailable</span>
-            <span v-else class="text-ink-muted">No scan</span>
-          </p>
-        </li>
-      </ul>
+          <!-- ⚠ Two lines, not one, and each optional value carries a WORD. Rendered at 1440 on
+               2026-09-19 the row read `2026-09-10  clean  SambaSafety  MVR-771` — four unlabelled
+               values in a line, where a reader has to guess which is the result and which is the
+               agency. The date and what came back are the answer; who did it and its number are
+               metadata, which is what `text-2xs` is for (D-DS6). -->
+          <ul v-else class="mt-1 space-y-3">
+            <li v-for="row in filed" :key="row.id">
+              <p class="text-xs">
+                <span class="font-medium text-ink">{{ row.occurred_on }}</span>
+                <span v-if="jurisdictionOf(row)" class="text-ink"> · {{ jurisdictionOf(row) }}</span>
+                <span v-if="row.result" class="text-ink-secondary"> · {{ row.result }}</span>
+              </p>
+              <p class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-2xs text-ink-secondary">
+                <span v-if="row.performed_by">By {{ row.performed_by }}</span>
+                <span v-if="row.reference" class="font-mono">Ref {{ row.reference }}</span>
+                <!-- Three states, `PspRecordsSection`'s reasoning: a document can be on file with no
+                     link this minute, because `signDocumentRows` degrades a row to `url: null` rather
+                     than failing the page. "Unavailable" is the honest word; a dead link and an em dash
+                     are both lies about evidence. -->
+                <a
+                  v-if="row.document_id && scanUrl.get(row.document_id)"
+                  :href="scanUrl.get(row.document_id)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="font-medium hover:text-link"
+                >
+                  Open the scan
+                </a>
+                <!-- ui-adoption: not-a-page-state — one cell's link standing in while the documents list loads; the panel's own fetch is QueryState's. -->
+                <span v-else-if="row.document_id && docsQ.isLoading.value" class="text-ink-muted">Loading…</span>
+                <span v-else-if="row.document_id" class="text-ink-muted">Scan unavailable</span>
+                <span v-else class="text-ink-muted">No scan</span>
+              </p>
+            </li>
+          </ul>
+        </QueryState>
+      </div>
     </div>
 
     <!-- ⚠ §382.401(a). Not a permission apology — it names who holds the file, because the recruiter
@@ -232,7 +249,7 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
         </p>
         <div class="mt-2">
           <FileDropzone
-            accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+            :accept="uploadAccept"
             :busy="record.isPending.value"
             busy-label="Uploading…"
             :label="scan ? scan.name : 'Drag & drop the scan here'"

@@ -128,11 +128,16 @@ describe("useRosterFilters", () => {
     expect(f.view.value).toBe("live");
   });
 
-  it("clears everything at once and leaves no parameters behind", async () => {
+  it("clears every filter at once and keeps the sort, which orders the roster rather than narrowing it", async () => {
     const { f, router } = await mountFilters("/drivers?q=reyes&status=active&show=archived&sort=phone&dir=desc&page=2");
     f.reset();
     await settle();
-    expect(router.currentRoute.value.query).toEqual({});
+    expect(router.currentRoute.value.query).toEqual({ sort: "phone", dir: "desc" });
+    expect(f.active.value).toBe(false);
+  });
+
+  it("does not count a re-sort as a narrowed roster", async () => {
+    const { f } = await mountFilters("/drivers?sort=phone&dir=desc");
     expect(f.active.value).toBe(false);
   });
 
@@ -159,6 +164,21 @@ describe("useRosterFilters", () => {
     f.reset();
     await settle();
     expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("reads the Seats card's door, and clears it with everything else", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM9: no control sets `seat` — the Operations tab's Seats card does.
+    const { f, router } = await mountFilters("/drivers?status=active&seat=none");
+    expect(f.seat.value).toBe("none");
+    expect(f.active.value).toBe(true);
+    f.reset();
+    await settle();
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it("reads any other seat value as no filter, because it arrives from a URL", async () => {
+    const { f } = await mountFilters("/drivers?seat=banana");
+    expect(f.seat.value).toBe("");
   });
 
   it("does not count the column choice as a narrowed roster", async () => {

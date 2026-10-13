@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
+import { useQueryState } from "@/composables/useQueryState";
 import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { Cog6ToothIcon, PlusIcon, ScanIcon } from "@silvicom/ui/icons";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS, type AssetDto } from "@silvicom/shared";
@@ -54,7 +55,6 @@ import { useOpens } from "@/composables/useOpens";
  * `FilterSelect` reads any non-empty value as applied. `PartsPage.vue` carries the measurement.
  */
 
-const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 const opens = useOpens();
@@ -64,10 +64,15 @@ const STATUS_OPTIONS = [
   ...ASSET_STATUSES.map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
 ];
 
-const search = ref("");
-const status = ref<string>("");
-const typeId = ref<string>("");
-const page = ref(1);
+// Filters and page live in the URL (D-US2), so Back from an asset returns to the same page of the
+// same list. Status is a closed set and is checked against the shared catalogue; Kind is not — the
+// org's asset types arrive after the first render, and an unknown type id is not a hazard: it is
+// sent as `assetTypeId` and the API answers it with an empty list, which the chip explains.
+const qs = useQueryState();
+const search = qs.param("search");
+const status = qs.param("status", ASSET_STATUSES);
+const typeId = qs.param("kind");
+const page = qs.page();
 watch([search, status, typeId], () => (page.value = 1));
 
 const { data: types } = useAssetTypesQuery();
@@ -77,6 +82,10 @@ const typeOptions = computed(() => [
 ]);
 
 const filtered = computed(() => Boolean(search.value || status.value || typeId.value));
+const activeFilterCount = computed(() => [search.value.trim(), status.value, typeId.value].filter(Boolean).length);
+function resetFilters() {
+  qs.set({ search: undefined, status: undefined, kind: undefined });
+}
 
 const filter = computed(() => ({
   search: search.value.trim() || undefined,
@@ -99,10 +108,10 @@ const openAsset = (row: Record<string, unknown>) =>
   void router.push({ name: "asset", params: { id: String(row.id) } });
 
 const typesOpen = ref(false);
-const creating = ref(route.query.new === "1");
-watch(creating, (open) => {
-  if (!open && route.query.new) void router.replace({ query: {} });
-});
+// `?new=1` opens the drawer (a link may carry it). It is a flag in the same query
+// buffer as the filters (D-US2): closing the drawer removes `new` alone, where the old
+// `router.replace({ query: {} })` would now also have thrown the reader's filters away.
+const creating = qs.flag("new");
 </script>
 
 <template>
@@ -135,6 +144,8 @@ watch(creating, (open) => {
         search-placeholder="Search number, name, serial or tag…"
         :count="assets.data.value?.total ?? 0"
         count-label="assets"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
       >
         <template #filters>
           <FilterSelect v-model="typeId" label="Kind" :options="typeOptions" />

@@ -5,6 +5,8 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SignatoryAddForm from "@/features/recruitment/SignatoryAddForm.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useDeleteRepresentative, useRepresentatives } from "@/features/recruitment/useHandbook";
 import { useRetireRoadTestExaminer, useRoadTestExaminers } from "@/features/recruitment/useRoadTest";
 
@@ -32,6 +34,7 @@ const emit = defineEmits<{ added: [person: { id: string; full_name: string }]; r
 
 const session = useSessionStore();
 const toast = useToastStore();
+const confirmAsk = useConfirm();
 /**
  * Whose managers keep each register — the same section the api's add and remove ask. Examiners are the
  * admin's since 2026-09-29 (`ROAD_TEST_EXAMINER_SECTION`, Q-AW19); Representatives stay recruiting's.
@@ -43,22 +46,30 @@ const listQ = props.kind === "representative" ? useRepresentatives() : useRoadTe
 const takeOff = props.kind === "representative" ? useDeleteRepresentative() : useRetireRoadTestExaminer();
 const people = computed(() => listQ.data.value ?? []);
 
-const COPY: Record<Kind, { empty: string; add: string; act: string; ask: (name: string) => string; done: string; failed: string }> = {
+const COPY: Record<Kind, { loading: string; loadFailed: string; empty: string; add: string; act: string; ask: (name: string) => { title: string; message: string }; done: string; failed: string }> = {
   representative: {
+    loading: "Loading the representatives…",
+    loadFailed: "Could not load the representatives.",
     empty: "Nobody signs for the carrier yet. Add a representative to countersign handbooks.",
     add: "Add a representative",
     act: "Remove",
-    ask: (name) =>
-      `Remove ${name}? Anybody who has countersigned a handbook stays on file, and you will be told so.`,
+    ask: (name) => ({
+      title: `Remove ${name}?`,
+      message: "Anybody who has countersigned a handbook stays on file, and you will be told so.",
+    }),
     done: "Representative removed",
     failed: "Could not remove the representative",
   },
   examiner: {
+    loading: "Loading the examiners…",
+    loadFailed: "Could not load the examiners.",
     empty: "No examiner is on file yet. Add one to record a road test.",
     add: "Add an examiner",
     act: "Retire",
-    ask: (name) =>
-      `Retire ${name}? They can no longer give a road test. The road tests they already signed keep their signature.`,
+    ask: (name) => ({
+      title: `Retire ${name}?`,
+      message: "They can no longer give a road test. The road tests they already signed keep their signature.",
+    }),
     done: "Examiner retired",
     failed: "Could not retire the examiner",
   },
@@ -72,7 +83,9 @@ function onAdded(person: { id: string; full_name: string }): void {
 }
 
 async function takeOffList(id: string, name: string): Promise<void> {
-  if (!confirm(copy.value.ask(name))) return;
+  // The product's dialog, not the browser's (D-US7). Red, and the verb is the row's own button
+  // ("Remove" / "Retire"): neither act can be undone from the product, as the header above says.
+  if (!(await confirmAsk({ ...copy.value.ask(name), confirmLabel: copy.value.act, tone: "danger" }))) return;
   try {
     await takeOff.mutateAsync(id);
     toast.success(copy.value.done, `${name} is no longer on the list.`);
@@ -85,28 +98,35 @@ async function takeOffList(id: string, name: string): Promise<void> {
 
 <template>
   <div class="space-y-3">
-    <p v-if="listQ.isLoading.value" class="text-xs text-ink-muted">Loading…</p>
-    <p v-else-if="listQ.isError.value" class="text-xs text-danger-700">
-      {{ listQ.error.value?.message ?? "Could not load the list." }}
-    </p>
-    <p v-else-if="people.length === 0" class="text-xs text-ink-muted">{{ copy.empty }}</p>
-    <ul v-else class="divide-y divide-edge border-y border-edge">
-      <li v-for="person in people" :key="person.id" class="flex items-center justify-between gap-3 py-2 text-xs">
-        <span class="text-ink">
-          {{ person.full_name }} <span class="text-ink-secondary">· {{ person.title }}</span>
-          <span class="text-ink-muted"> · added {{ formatDisplayDate(person.created_at, "") }}</span>
-        </span>
-        <BaseButton
-          v-if="canManage"
-          variant="ghost"
-          size="sm"
-          :disabled="takeOff.isPending.value"
-          @click="takeOffList(person.id, person.full_name)"
-        >
-          {{ copy.act }}
-        </BaseButton>
-      </li>
-    </ul>
+    <!-- The api's own sentence when it gave one, as before; the retry is new (D-US5). -->
+    <QueryState
+      :loading="listQ.isLoading.value"
+      :error="listQ.isError.value ? listQ.error.value : null"
+      :error-text="listQ.error.value?.message || copy.loadFailed"
+      :retrying="listQ.isFetching.value"
+      :loading-text="copy.loading"
+      compact
+      @retry="listQ.refetch()"
+    >
+      <p v-if="people.length === 0" class="text-xs text-ink-muted">{{ copy.empty }}</p>
+      <ul v-else class="divide-y divide-edge border-y border-edge">
+        <li v-for="person in people" :key="person.id" class="flex items-center justify-between gap-3 py-2 text-xs">
+          <span class="text-ink">
+            {{ person.full_name }} <span class="text-ink-secondary">· {{ person.title }}</span>
+            <span class="text-ink-muted"> · added {{ formatDisplayDate(person.created_at, "") }}</span>
+          </span>
+          <BaseButton
+            v-if="canManage"
+            variant="ghost"
+            size="sm"
+            :disabled="takeOff.isPending.value"
+            @click="takeOffList(person.id, person.full_name)"
+          >
+            {{ copy.act }}
+          </BaseButton>
+        </li>
+      </ul>
+    </QueryState>
 
     <template v-if="canManage && !listQ.isLoading.value && !listQ.isError.value">
       <SignatoryAddForm

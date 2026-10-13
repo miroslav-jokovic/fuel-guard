@@ -4,7 +4,9 @@ import {
   PlusIcon,
 } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
-import { VEHICLE_STATUSES, isStatusFromTms, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
+import { VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesVehicleCheck, todayInZone, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -15,6 +17,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
@@ -24,26 +27,48 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import VehicleForm from "@/features/roster/VehicleForm.vue";
 import VehicleSetupImport from "@/features/roster/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 import { formatDate } from "@/lib/format";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
 const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
-const search = ref("");
-const statusFilter = ref<string>("active");
+// Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
+// the list. "active" is the fallback, so it stays out of a plain link and "All statuses" writes `any`.
+const qs = useQueryState();
+const search = qs.param("search");
+const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
+/**
+ * What a truck is missing — the Operations tab's Seats and Truck paperwork cards link here with it
+ * (FLEET-MANAGER-HOME-PLAN D-FM9), so "11 registrations overdue" opens exactly those eleven. Asked of
+ * `matchesVehicleCheck`, the predicate the cards count with, on the carrier's calendar day.
+ */
+const checkFilter = qs.param("check", VEHICLE_CHECKS);
+const { zone } = useOrgTimezone();
+const today = computed(() => todayInZone(new Date(), zone.value));
+const checkOptions = [{ value: "", label: "Any" }, ...VEHICLE_CHECKS.map((c) => ({ value: c, label: VEHICLE_CHECK_LABELS[c] }))];
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
+// "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (checkFilter.value ? 1 : 0),
+);
+function resetFilters() {
+  qs.set({ search: undefined, status: undefined, check: undefined });
+}
 
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   return (vehicles.value ?? []).filter((v) => {
     if (statusFilter.value && v.status !== statusFilter.value) return false;
+    if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, today.value)) return false;
     if (!term) return true;
     return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]
       .filter(Boolean)
@@ -51,10 +76,6 @@ const filtered = computed(() => {
   });
 });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
 const getVal = (v: Vehicle, key: string): unknown => {
   const raw = (v as unknown as Record<string, unknown>)[key];
   return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
@@ -73,17 +94,23 @@ const columns: DataTableColumn[] = [
   { key: "has_apu", label: "APU", sortable: true, width: "sm" },
   { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md" },
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md" },
+  { key: "registration_expires_at", label: "Registration", sortable: true, width: "md" },
   { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 
-const page = ref(1);
-watch([search, statusFilter], () => (page.value = 1));
+const page = qs.page();
+watch([search, statusFilter, checkFilter], () => (page.value = 1));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
 const retireVehicle = useRetireVehicle();
 
 const toast = useToastStore();
+const ask = useConfirm();
 const drawerOpen = ref(false);
 const editing = ref<Vehicle | null>(null);
 
@@ -138,7 +165,14 @@ async function onSubmit(input: VehicleInput) {
 const setupOpen = ref(false);
 
 async function onRetire(v: Vehicle) {
-  if (confirm(`Retire vehicle ${v.unit_number}? Its history is preserved.`)) {
+  // The product's dialog, red: a retired vehicle leaves the active list (D-US7). Its history is kept.
+  const asked = await ask({
+    title: `Retire vehicle ${v.unit_number}?`,
+    message: "Its history is preserved.",
+    confirmLabel: "Retire",
+    tone: "danger",
+  });
+  if (asked) {
     try {
       await retireVehicle.mutateAsync(v.id);
       toast.success(`Vehicle ${v.unit_number} retired`);
@@ -175,22 +209,23 @@ async function onRetire(v: Vehicle) {
       search-placeholder="Search unit, make, model, plate, VIN…"
       :count="filtered.length"
       count-label="vehicles"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+        <FilterSelect v-model="checkFilter" label="Needs" :options="checkOptions" />
       </template>
     </FilterBar>
 
     <!-- Bulk idle-reduction capability: select trucks, then set APU / Optimized-Idle on all of them at once. -->
-    <div v-if="session.can('equipment') && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <span class="text-xs text-brand-700">Set idle-reduction capability:</span>
+    <BulkActionBar v-if="session.can('equipment')" :count="selectedCount" @clear="selected = new Set()">
+      <template #note>Set idle-reduction capability:</template>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: true }, 'Marked as having an APU')">Has APU</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: false, apu_type: 'none' }, 'Marked as no APU')">No APU</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: true }, 'Marked as having Optimized-Idle')">Has Optimized-Idle</BaseButton>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: false }, 'Marked as no Optimized-Idle')">No Optimized-Idle</BaseButton>
-      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-    </div>
+    </BulkActionBar>
 
     <DataTable
       embedded
@@ -200,7 +235,7 @@ async function onRetire(v: Vehicle) {
       :selectable="session.can('equipment')"
       :selected="selected"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the vehicles.') : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"
@@ -239,7 +274,10 @@ async function onRetire(v: Vehicle) {
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
       <template #cell-dot_annual_inspection_expires_at="{ row }">
-        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
+        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" :today="today" />
+      </template>
+      <template #cell-registration_expires_at="{ row }">
+        <InspectionExpiryCell :expires-on="row.registration_expires_at" :today="today" />
       </template>
       <template #cell-has_apu="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
@@ -282,10 +320,16 @@ async function onRetire(v: Vehicle) {
       <VehicleForm
         :vehicle="editing"
         :drivers="drivers ?? []"
-        :submitting="saving"
         @submit="onSubmit"
-        @cancel="drawerOpen = false"
       />
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+          <BaseButton form="vehicle-form" type="submit" variant="primary" :disabled="saving">
+            {{ saving ? "Saving…" : "Save vehicle" }}
+          </BaseButton>
+        </div>
+      </template>
     </SlideOver>
   </div>
 </template>

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { useJob } from "./useJob";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
@@ -26,6 +27,7 @@ const props = defineProps<{
 }>();
 
 const toast = useToastStore();
+const ask = useConfirm();
 const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, markRunning, lastDone } = useJob(props.kind);
 
 // Outcome of the last successful run (e.g. EFS "found 2, imported 0, quarantined 2"), so a "successful" sync
@@ -35,8 +37,21 @@ const runSummary = computed(() => {
   return props.resultSummary(lastDone.value.stats);
 });
 
-async function run(body?: Record<string, unknown>, confirmMsg?: string) {
-  if (confirmMsg && !window.confirm(confirmMsg)) return;
+/**
+ * The product's confirm, not the browser's (D-US7). A card's `confirm` / `secondaryConfirm` prop is
+ * written as one sentence-pair — "Re-score the last 30 days? Existing false flags will clear; your
+ * notes are kept." — so the question up to its first "?" is the dialog's title and the rest is the
+ * message. The button's verb is the label of the button that was pressed, read rather than restated, so
+ * the dialog says "Re-check all history" when that is what was clicked. Not `danger`: every one of
+ * these re-runs a sync, and the prose says what it keeps.
+ */
+async function run(body?: Record<string, unknown>, confirmMsg?: string, verb?: string) {
+  if (confirmMsg) {
+    const cut = confirmMsg.indexOf("?");
+    const title = cut === -1 ? confirmMsg : confirmMsg.slice(0, cut + 1);
+    const message = cut === -1 ? undefined : confirmMsg.slice(cut + 1).trim() || undefined;
+    if (!(await ask({ title, message, confirmLabel: verb ?? props.actionLabel }))) return;
+  }
   // Engage the progress bar + polling on THIS click. The endpoint keeps the request open for the whole run, so
   // we can't wait on the POST to show progress — the job row is created server-side as the run starts and the
   // poll takes over from here.
@@ -71,11 +86,11 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
       <BaseButton
         v-if="secondaryLabel"
         :disabled="isRunning || disabled"
-        @click="run(secondaryBody, secondaryConfirm)"
+        @click="run(secondaryBody, secondaryConfirm, secondaryLabel)"
       >
         {{ secondaryLabel }}
       </BaseButton>
-      <BaseButton variant="primary" :disabled="isRunning || disabled" @click="run(body, confirm)">
+      <BaseButton variant="primary" :disabled="isRunning || disabled" @click="run(body, confirm, actionLabel)">
         {{ isRunning ? "Running…" : actionLabel }}
       </BaseButton>
     </div>

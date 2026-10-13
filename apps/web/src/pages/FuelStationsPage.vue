@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useFuelStations, type FuelStationRow } from "@/features/fueling/useFuelStations";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import PriceUploadDrawer from "@/features/fueling/PriceUploadDrawer.vue";
-import { AppCard as BaseCard, AppButton as BaseButton, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
 import { useSessionStore } from "@/stores/session";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 
 const PAGE_SIZE = 25;
-const { data, isLoading, isError, error } = useFuelStations();
+const { data, isLoading, isError, error, isFetching, refetch } = useFuelStations();
 
 /**
  * FUEL-C4, D-FUI3 — the price and locations uploads moved here from `/import`, which is gone.
@@ -27,12 +30,17 @@ const { data, isLoading, isError, error } = useFuelStations();
 const session = useSessionStore();
 const uploadOpen = ref(false);
 
-const search = ref("");
-const stateFilter = ref("");
-const brandFilter = ref("");
-const priceFilter = ref("");
-const page = ref(1);
-const sort = ref<SortState>({ key: "netPrice", dir: "asc" });
+/**
+ * Filters, sort and page live in the URL (D-US2), so a reload, a forwarded "cheapest Pilot in OK" link
+ * and Back keep the list. The price filter is checked against its own options; state and network are
+ * not, because their options are read off the loaded stations and a pasted link is read before they
+ * load — an unknown one filters to nothing, and the count says so.
+ */
+const qs = useQueryState();
+const search = qs.param("search");
+const stateFilter = qs.param("state");
+const brandFilter = qs.param("network");
+const page = qs.page();
 
 const rows = computed(() => data.value?.stations ?? []);
 const stateOptions = computed(() => {
@@ -50,6 +58,7 @@ const priceOptions = [
   { value: "stale", label: "Stale quote" },
   { value: "none", label: "No price" },
 ];
+const priceFilter = qs.param("price", priceOptions.map((o) => o.value).filter(Boolean));
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -64,9 +73,16 @@ const filtered = computed(() => {
     return [r.name, r.storeNumber, r.state, r.brand].some((v) => String(v ?? "").toLowerCase().includes(q));
   });
 });
-const sorted = computed(() => sortRows(filtered.value, sort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]));
-const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
-function onSort(key: string) { sort.value = toggleSort(sort.value, key); }
+const activeFilterCount = computed(
+  () => [search.value.trim(), stateFilter.value, brandFilter.value, priceFilter.value].filter(Boolean).length,
+);
+function clearFilters(): void {
+  // The filters only: the sort is how the reader is LOOKING at the list, not what they narrowed it to.
+  qs.set({ search: undefined, state: undefined, network: undefined, price: undefined });
+}
+// Narrowing while on page four lands on an empty page that reads as "no stations" — and with the page
+// in the URL, a stale `?page=` from a wider list would do the same.
+watch([search, stateFilter, brandFilter, priceFilter], () => (page.value = 1));
 
 const price = (n: number | null) => (n == null ? "—" : `$${n.toFixed(3)}`);
 const brandLabel = (b: string) => b.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -81,6 +97,19 @@ const columns: DataTableColumn[] = [
   { key: "postedPrice", label: "Posted", sortable: true, numeric: true, width: "sm" },
   { key: "ageHours", label: "Price age", sortable: true, numeric: true, width: "sm" },
 ];
+/**
+ * Cheapest net price first is where the list OPENS — it is the question a dispatcher brings here — so
+ * `netPrice` is the sort key's fallback and a plain link never carries it. The direction needs no
+ * fallback: absent already reads as ascending. The third click on a column ("no sort") has to say so
+ * against a default, and it does in `useQueryState`'s own word for that: `?sort=any`, which reads as
+ * the stations' loaded order. Clear filters leaves the sort alone.
+ */
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key), "netPrice"),
+  qs.param("dir", SORT_DIRECTIONS),
+);
+const sorted = computed(() => sortRows(filtered.value, sort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]));
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 </script>
 
 <template>
@@ -95,15 +124,15 @@ const columns: DataTableColumn[] = [
 
     <PriceUploadDrawer :open="uploadOpen" @close="uploadOpen = false" />
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <BaseCard v-else-if="isError" class="text-sm text-danger-600">{{ error instanceof Error ? error.message : "Could not load stations." }}</BaseCard>
-
-    <template v-else>
+    <DataWorkspace>
       <FilterBar
         v-model:search="search"
+        embedded
         search-placeholder="Search stop, store #, state…"
-        :count="filtered.length"
+        :count="isLoading || isError ? null : filtered.length"
         count-label="truck stops"
+        :active-count="activeFilterCount"
+        @clear-all="clearFilters"
       >
         <template #filters>
           <FilterSelect v-model="brandFilter" label="Network" :options="brandOptions" />
@@ -112,8 +141,19 @@ const columns: DataTableColumn[] = [
         </template>
       </FilterBar>
 
-      <BaseCard padding="none">
-        <DataTable :columns="columns" :rows="paged" row-key="id" :sort="sort" empty-text="No truck stops match." @sort="onSort">
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="paged"
+        row-key="id"
+        :sort="sort"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load stations.') : null"
+        :retrying="isFetching"
+        empty-text="No truck stops match."
+        @sort="onSort"
+        @retry="refetch"
+      >
           <template #cell-name="{ row }">{{ (row as FuelStationRow).name ?? "—" }}</template>
           <template #cell-brand="{ row }">{{ brandLabel((row as FuelStationRow).brand) }}</template>
           <template #cell-city="{ row }">
@@ -150,10 +190,10 @@ const columns: DataTableColumn[] = [
               {{ (row as FuelStationRow).ageHours }}h{{ (row as FuelStationRow).stale ? " · stale" : "" }}
             </span>
           </template>
-        </DataTable>
-      </BaseCard>
-
-      <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="filtered.length" />
-    </template>
+          <template #footer>
+            <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="filtered.length" />
+          </template>
+      </DataTable>
+    </DataWorkspace>
   </div>
 </template>

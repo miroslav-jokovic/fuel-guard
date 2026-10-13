@@ -13,8 +13,10 @@ import {
   type ReviewTarget,
   type UserRole,
 } from "@silvicom/shared";
-import { AppBadge, AppButton as BaseButton, AppFormField, AppCombobox as ComboSelect } from "@silvicom/ui";
+import { AppBadge, AppFormField, AppCombobox as ComboSelect } from "@silvicom/ui";
+import ExportButton, { type ExportRetry } from "@/components/ExportButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useToastStore } from "@/stores/toast";
 import AccessCard from "./AccessCard.vue";
 import { reviewLayerTag } from "./rows";
@@ -42,15 +44,19 @@ import { downloadAccessReview, useAccessReviewQuery } from "./useAccessReview";
  * The page's ONE password prompt (SP9), handed down as the Roles and People tabs get it: the export
  * requires a fresh password, and a refusal must open that prompt and then download, not toast.
  */
-const props = defineProps<{ holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean }>();
+const props = defineProps<{
+  holdForStepUp: (error: unknown, retry: () => Promise<void>) => boolean;
+}>();
 const toast = useToastStore();
 const review = useAccessReviewQuery();
 const picked = ref("");
-const exporting = ref(false);
 
 const options = computed(() => [
   ...APP_SECTIONS.map((s) => ({ value: `section:${s}`, label: `Section · ${SECTION_LABELS[s]}` })),
-  ...REVIEW_SCREENS.map((s) => ({ value: `screen:${s.key}`, label: `Screen · ${reviewScreenLabel(s)}` })),
+  ...REVIEW_SCREENS.map((s) => ({
+    value: `screen:${s.key}`,
+    label: `Screen · ${reviewScreenLabel(s)}`,
+  })),
 ]);
 
 const target = computed<ReviewTarget | null>(() => {
@@ -68,7 +74,9 @@ const target = computed<ReviewTarget | null>(() => {
 const title = computed(() => {
   const t = target.value;
   if (!t) return "";
-  return t.kind === "section" ? `${SECTION_LABELS[t.section]} section` : reviewScreenLabel(t.surface);
+  return t.kind === "section"
+    ? `${SECTION_LABELS[t.section]} section`
+    : reviewScreenLabel(t.surface);
 });
 
 /** What the screen sits behind, in the reader's words — the reason a "No section access" row exists. */
@@ -76,21 +84,40 @@ const needs = computed(() => {
   const t = target.value;
   if (!t || t.kind === "section") return "";
   const g = t.surface.gate;
-  const gate = g.kind === "admin" ? "Admin only" : g.kind === "section" ? `Needs ${SECTION_LABELS[g.section]} · ${g.level === "manage" ? "Manage" : "View"}` : "";
+  const gate =
+    g.kind === "admin"
+      ? "Admin only"
+      : g.kind === "section"
+        ? `Needs ${SECTION_LABELS[g.section]} · ${g.level === "manage" ? "Manage" : "View"}`
+        : "";
   const mod = t.surface.module ? `the ${MODULE_LABELS[t.surface.module]} module` : "";
   return [gate, mod].filter(Boolean).join(", and ");
 });
 
-const result = computed(() => (review.data.value && target.value ? whoHasAccess(review.data.value, target.value) : null));
+const result = computed(() =>
+  review.data.value && target.value ? whoHasAccess(review.data.value, target.value) : null,
+);
 const lists = computed(() =>
   result.value
     ? [
-        { key: "holders", title: "Has access", rows: result.value.holders, empty: "Nobody in this organisation has this." },
-        { key: "without", title: "No access", rows: result.value.without, empty: "Every active member has this." },
+        {
+          key: "holders",
+          title: "Has access",
+          rows: result.value.holders,
+          empty: "Nobody in this organisation has this.",
+        },
+        {
+          key: "without",
+          title: "No access",
+          rows: result.value.without,
+          empty: "Every active member has this.",
+        },
       ]
     : [],
 );
-const activeCount = computed(() => (result.value ? result.value.holders.length + result.value.without.length : 0));
+const activeCount = computed(() =>
+  result.value ? result.value.holders.length + result.value.without.length : 0,
+);
 
 const columns: DataTableColumn[] = [
   { key: "name", label: "Name", width: "lg" },
@@ -110,16 +137,12 @@ const toRows = (rows: ReviewRow[]) =>
   }));
 
 async function exportReview() {
-  exporting.value = true;
-  try {
-    await downloadAccessReview();
-    toast.success("Access review exported", "The export is recorded in the audit log.");
-  } catch (e) {
-    if (props.holdForStepUp(e, () => exportReview())) return;
-    toast.error("Could not export the access review", (e as Error).message);
-  } finally {
-    exporting.value = false;
-  }
+  await downloadAccessReview();
+  toast.success("Access review exported", "The export is recorded in the audit log.");
+}
+
+function handleExportError(error: unknown, retry: ExportRetry): boolean {
+  return props.holdForStepUp(error, retry);
 }
 </script>
 
@@ -135,16 +158,27 @@ async function exportReview() {
           empty-text="Nothing matches that name."
         />
       </AppFormField>
-      <BaseButton :disabled="exporting" @click="exportReview">
-        Export access review (CSV)
-      </BaseButton>
+      <ExportButton
+        :run="exportReview"
+        :on-error="handleExportError"
+        scope="All active members and permissions"
+        label="Export access review (CSV)"
+        busy-label="Exporting…"
+        error-title="Could not export the access review"
+      />
     </div>
 
-    <p v-if="review.isPending.value" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="!review.data.value" class="text-sm text-ink-muted">
-      Could not load who has access. Reload the page to try again.
-    </p>
-    <p v-else-if="!result" class="text-sm text-ink-muted">
+    <!-- D-US5: the failure used to say "Reload the page to try again", which also dropped the screen
+         or section picked above; Retry reads the review again in place. -->
+    <QueryState
+      :loading="review.isPending.value && !review.isError.value"
+      :error="review.isError.value ? review.error.value : null"
+      :retrying="review.isFetching.value"
+      loading-text="Loading who has access…"
+      error-text="Could not load who has access."
+      @retry="review.refetch()"
+    >
+    <p v-if="!result" class="text-sm text-ink-muted">
       Pick a screen or section to see everyone who has it, why, and who does not.
     </p>
 
@@ -152,7 +186,11 @@ async function exportReview() {
       <div class="min-w-0">
         <h2 class="truncate text-lg font-semibold text-ink">{{ title }}</h2>
         <p class="mt-0.5 text-sm text-ink-muted">
-          {{ result.holders.length }} of {{ activeCount }} active members have access.<template v-if="needs"> {{ needs }}.</template>
+          {{ result.holders.length }} of {{ activeCount }} active members have access.<template
+            v-if="needs"
+          >
+            {{ needs }}.</template
+          >
         </p>
       </div>
 
@@ -187,5 +225,6 @@ async function exportReview() {
         </DataTable>
       </AccessCard>
     </template>
+    </QueryState>
   </div>
 </template>

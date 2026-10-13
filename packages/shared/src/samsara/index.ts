@@ -63,6 +63,8 @@ export {
   parseSamsaraVehicles,
   locationDistanceMiles,
 } from "./entities.js";
+export { parseDriverCurrentTrucks, planDriverSeats } from "./driverTrucks.js";
+export type { SeatTruck, SeatDriver, SeatPlan } from "./driverTrucks.js";
 export {
   parseIftaVehicleReport,
   mergeIftaPages,

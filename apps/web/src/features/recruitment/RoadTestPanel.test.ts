@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { ROAD_TEST_ITEMS, sectionAccess } from "@silvicom/shared";
 import RoadTestPanel from "@/features/recruitment/RoadTestPanel.vue";
+import { apiFetch } from "@/lib/api";
 
 /**
  * The road test's screen (D2 RT3). ⚠ Asserts the BODY the API receives — the server re-decides
@@ -232,5 +233,41 @@ describe("the driver's copy of the certificate", () => {
     await settle(w);
     expect(w.text()).not.toContain("copy");
     expect(paperButton(w)).toBeUndefined();
+  });
+});
+
+/**
+ * D-US5: a read of the file that fails says so in a sentence and offers a Retry that asks the API again.
+ * Before, the failure was a tinted line with no way back but the browser's reload, which resets
+ * everything else the recruiter had open. `retry: false` so the first failure is the one shown.
+ */
+describe("when the read of the file fails (D-US5)", () => {
+  it("says what could not be loaded, and Retry asks the API again", async () => {
+    const real = vi.mocked(apiFetch).getMockImplementation()!;
+    let failing = true;
+    const asked = (): number =>
+      vi.mocked(apiFetch).mock.calls.filter(([u, o]) => String(u).includes("/api/compliance/qualification-records") && !(o as { method?: string } | undefined)?.method).length;
+    vi.mocked(apiFetch).mockImplementation(((url: string, opts?: { method?: string }) =>
+      failing && !opts?.method && url.includes("/api/compliance/qualification-records")
+        ? Promise.resolve({ ok: false, status: 500, data: null, error: { message: "The API is down." } })
+        : real(url as never, opts as never)) as never);
+    try {
+      const w = mount(RoadTestPanel, {
+        props: { driverId: "d1", done: false },
+        global: {
+          plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
+        },
+      });
+      await settle(w as never);
+      expect(w.text()).toContain("Could not load the road tests on file.");
+      const before = asked();
+      failing = false;
+      await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+      await settle(w as never);
+      expect(asked()).toBe(before + 1);
+      expect(w.text()).not.toContain("Could not load the road tests on file.");
+    } finally {
+      vi.mocked(apiFetch).mockImplementation(real);
+    }
   });
 });

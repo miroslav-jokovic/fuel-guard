@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, reactive, ref, watch } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ClipboardDocumentCheckIcon } from "@silvicom/ui/icons";
@@ -196,6 +197,9 @@ async function save(): Promise<void> {
     );
   }
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 </script>
 
 <template>
@@ -321,7 +325,7 @@ async function save(): Promise<void> {
           </p>
           <div class="mt-2">
             <FileDropzone
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+              :accept="uploadAccept"
               :busy="upload.isPending.value"
               busy-label="Uploading…"
               :label="scan ? scan.name : 'Drag & drop the scan here'"

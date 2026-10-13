@@ -72,6 +72,32 @@ export const greyJpeg = () => raw(1600, 1200).toColourspace("b-w").jpeg({ qualit
 
 export const heicFixture = () => readFileSync(new URL("./hevc-page.heic", import.meta.url));
 
+/**
+ * A JPEG with the JFIF APP0 header a Google Voice download carries (`FF D8 FF E0 … "JFIF\0"`) — sharp
+ * writes none, so it is spliced in after the SOI marker. Saved as `.jfif`, it is still a JPEG.
+ */
+export async function jfifJpeg(): Promise<Buffer> {
+  const jpeg = await pageJpeg();
+  const app0 = Buffer.from([0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]);
+  return Buffer.concat([jpeg.subarray(0, 2), app0, jpeg.subarray(2)]);
+}
+export const pageTiff = () => raw(1600, 1200).tiff().toBuffer();
+export const pageGif = () => raw(1600, 1200).gif().toBuffer();
+export const pageAvif = () => raw(1600, 1200).avif({ quality: 70 }).toBuffer();
+
+/** Where page `i` of `multiPageTiff` carries its black square — a different place on each page, so order shows. */
+export const tiffPageMark = (i: number) => ({ left: 200 + i * 120, top: 600, size: 80 });
+
+/** A scanner's or fax gateway's multi-page TIFF: `count` pages of 1600×1200, page `i` marked at `tiffPageMark(i)`. */
+export async function multiPageTiff(count: number): Promise<Buffer> {
+  const pages = await Promise.all(Array.from({ length: count }, (_, i) => {
+    const { left, top, size } = tiffPageMark(i);
+    const square = { create: { width: size, height: size, channels: 3 as const, background: "#000" } };
+    return raw(1600, 1200).composite([{ input: square, left, top }]).png().toBuffer();
+  }));
+  return sharp(pages, { join: { animated: true } }).tiff().toBuffer();
+}
+
 // ── PDFs (pdfkit, Helvetica — one of the 14 standard fonts, so nothing is embedded) ─────────────────
 export const LETTER = { width: 612, height: 792 } as const;
 export const BORN_DIGITAL_LINES = [
@@ -250,4 +276,35 @@ async function writeAll(outDir: string, regenerateHeic: boolean): Promise<void> 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const args = process.argv.slice(2);
   await writeAll(args.find((a) => !a.startsWith("--")) ?? "fixtures-out", args.includes("--regenerate-heic"));
+}
+
+/**
+ * A "normal"-mode fax as a fax gateway writes it: pages of 1728 × 1100 stored pixels at 204 × 98 dpi
+ * (ITU-T T.4 standard resolution), so each pixel is about twice as tall as it is wide.
+ */
+export async function faxTiff(pages = 1): Promise<Buffer> {
+  const page = () => raw(1728, 1100).png().toBuffer();
+  const input = pages === 1 ? await page() : await Promise.all(Array.from({ length: pages }, page));
+  return sharp(input, pages === 1 ? {} : { join: { animated: true } }).tiff({ xres: 204 / 25.4, yres: 98 / 25.4 }).toBuffer();
+}
+
+/**
+ * `tiff` with page `page`'s XResolution/YResolution rewritten to `dpi` — a fax that mixes a fine page with
+ * a normal one, which sharp cannot write (its join gives every page one resolution). Only the two
+ * RATIONAL values change; each page's IFD points at its own, so the other pages keep theirs.
+ */
+export function withPageResolution(tiff: Buffer, page: number, dpi: { x: number; y: number }): Buffer {
+  const b = Buffer.from(tiff);
+  let ifd = b.readUInt32LE(4);
+  for (let i = 0; i < page; i++) ifd = b.readUInt32LE(ifd + 2 + b.readUInt16LE(ifd) * 12);
+  const n = b.readUInt16LE(ifd);
+  for (let e = 0; e < n; e++) {
+    const at = ifd + 2 + e * 12;
+    const tag = b.readUInt16LE(at);
+    if (tag !== 282 && tag !== 283) continue;
+    const value = b.readUInt32LE(at + 8);
+    b.writeUInt32LE(Math.round((tag === 282 ? dpi.x : dpi.y) * 100), value);
+    b.writeUInt32LE(100, value + 4);
+  }
+  return b;
 }

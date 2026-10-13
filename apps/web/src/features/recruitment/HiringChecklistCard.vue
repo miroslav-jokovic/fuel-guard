@@ -5,6 +5,7 @@ import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { hiringStepStateBadge } from "@/lib/badges.recruiting";
 import { hiringArtifactLink } from "@/features/recruitment/hiringArtifacts";
+import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * Where one applicant has got to, a row at a time (B5, `HIRING-UI-PLAN.md` §5, mockup screen 2).
@@ -38,6 +39,8 @@ const props = defineProps<{
   checklist: HiringChecklist | null;
   loading?: boolean;
   error?: string | null;
+  /** The page's query is fetching again — the failure's Retry spins while it does (D-US5). */
+  retrying?: boolean;
 }>();
 
 /**
@@ -48,7 +51,14 @@ const props = defineProps<{
  * page as the second consumer that promotes this component out of `features/`, and a drawer wired
  * in here would be a recruitment-shaped assumption baked into it before that move.
  */
-const emit = defineEmits<{ open: [step: HiringStep] }>();
+const emit = defineEmits<{
+  open: [step: HiringStep];
+  /**
+   * The checklist failed and the reader asked again (D-US5). The card does not own the query, by the
+   * same boundary as `open`: the page that fetched it refetches it.
+   */
+  retry: [];
+}>();
 
 /**
  * Progress is a percentage of STEPS, not of screens.
@@ -158,74 +168,81 @@ const artifactOf = (key: HiringStepKey) => {
         {{ travel.sentence }}
       </p>
 
-      <p v-if="loading" class="text-xs text-ink-muted">Loading the checklist…</p>
-      <p v-else-if="error" class="text-xs text-danger-700">{{ error }}</p>
+      <QueryState
+        :loading="Boolean(loading)"
+        :error="error || null"
+        :error-text="error || undefined"
+        :retrying="retrying"
+        loading-text="Loading the checklist…"
+        compact
+        @retry="emit('retry')"
+      >
+        <ul v-if="checklist" class="divide-y divide-edge border-t border-edge">
+          <li
+            v-for="step in checklist.steps"
+            :key="step.key"
+            class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
+          >
+            <!-- ⚠ `BaseButton size="row"`, never a raw `<button>`: `lint:ui-adoption` fails on ANY
+                 raw button in a page or a feature, and the `row` size exists for this exact shape —
+                 `h-auto w-full`, left-aligned, normal weight, wrapping. Its own header records that
+                 it was added because two call sites were faking it with six `!important`s.
 
-      <ul v-else-if="checklist" class="divide-y divide-edge border-t border-edge">
-        <li
-          v-for="step in checklist.steps"
-          :key="step.key"
-          class="grid gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
-        >
-          <!-- ⚠ `BaseButton size="row"`, never a raw `<button>`: `lint:ui-adoption` fails on ANY
-               raw button in a page or a feature, and the `row` size exists for this exact shape —
-               `h-auto w-full`, left-aligned, normal weight, wrapping. Its own header records that
-               it was added because two call sites were faking it with six `!important`s.
+                 ⚠ And the artifact stays OUTSIDE the button rather than inside it. It is a link, and
+                 a link nested in a button is invalid markup and an unreachable target for a keyboard
+                 — two destinations in one row have to be two siblings. -->
+            <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', step)">
+              <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
+                <span class="text-xs font-medium text-ink">{{ step.label }}</span>
 
-               ⚠ And the artifact stays OUTSIDE the button rather than inside it. It is a link, and
-               a link nested in a button is invalid markup and an unreachable target for a keyboard
-               — two destinations in one row have to be two siblings. -->
-          <BaseButton size="row" variant="ghost" class="rounded-detail" @click="emit('open', step)">
-            <span class="grid w-full grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4">
-              <span class="text-xs font-medium text-ink">{{ step.label }}</span>
-
-              <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
-                   good/bad axis, so only the one that means YOU is toned at all. -->
-              <span
-                :class="[BADGE_BASE, toneClass(hiringStepStateBadge(step.state).tone), 'justify-self-start']"
-              >
-                <AppIcon :icon="hiringStepStateBadge(step.state).icon" class="size-3.5" aria-hidden="true" />
-                {{ hiringStepStateBadge(step.state).label }}
+                <!-- D-HUI4: icon AND word, never a coloured dot. The four states are not ordered on a
+                     good/bad axis, so only the one that means YOU is toned at all. -->
+                <span
+                  :class="[BADGE_BASE, toneClass(hiringStepStateBadge(step.state).tone), 'justify-self-start']"
+                >
+                  <AppIcon :icon="hiringStepStateBadge(step.state).icon" class="size-3.5" aria-hidden="true" />
+                  {{ hiringStepStateBadge(step.state).label }}
+                </span>
               </span>
-            </span>
-          </BaseButton>
+            </BaseButton>
 
-          <!-- D-HUI3's third column, load-bearing: the artifact when there is one, the blocker in
-               WORDS when the row is blocked, and an em dash when there is honestly nothing to say.
-               ⚠ A blocked row never renders as a grey with no explanation — that is the difference
-               between a checklist and a wall. -->
-          <span class="px-3 text-2xs sm:px-0 sm:justify-self-end sm:text-right">
-            <template v-if="artifactOf(step.key)">
-              <router-link
-                v-if="artifactOf(step.key)!.to"
-                :to="artifactOf(step.key)!.to!"
-                class="text-brand-700 underline underline-offset-2"
-              >
-                {{ artifactOf(step.key)!.label }} ↗
-              </router-link>
-              <!-- ⚠ Words with no link rather than a link to somewhere nearby. `hiringArtifacts.ts`
-                   names the four artifacts that have no address yet and why; three of them are on
-                   this page and the fourth is the open Q-HUI6. -->
-              <span v-else class="text-ink-secondary">{{ artifactOf(step.key)!.label }}</span>
-            </template>
-            <!-- ⚠ `Needs: <Label>` and not `needs <label>`, which is what shipped for an hour and
-                 was found by looking at the page at 1440 on 2026-09-18. The step labels are not one
-                 grammatical form — "Permissions signed" is a past-tense fact, "Driving record" is a
-                 noun, "Office approved it" is a clause with its own object — so no preposition
-                 composes with all twelve. *"needs office approved it"* is what that produced. The
-                 colon makes it a label and a value, which reads correctly whatever the value is. -->
-            <span v-else-if="step.blockedBy" class="text-ink-muted">
-              Needs: {{ stepLabel(step.blockedBy) }}
+            <!-- D-HUI3's third column, load-bearing: the artifact when there is one, the blocker in
+                 WORDS when the row is blocked, and an em dash when there is honestly nothing to say.
+                 ⚠ A blocked row never renders as a grey with no explanation — that is the difference
+                 between a checklist and a wall. -->
+            <span class="px-3 text-2xs sm:px-0 sm:justify-self-end sm:text-right">
+              <template v-if="artifactOf(step.key)">
+                <router-link
+                  v-if="artifactOf(step.key)!.to"
+                  :to="artifactOf(step.key)!.to!"
+                  class="text-brand-700 underline underline-offset-2"
+                >
+                  {{ artifactOf(step.key)!.label }} ↗
+                </router-link>
+                <!-- ⚠ Words with no link rather than a link to somewhere nearby. `hiringArtifacts.ts`
+                     names the four artifacts that have no address yet and why; three of them are on
+                     this page and the fourth is the open Q-HUI6. -->
+                <span v-else class="text-ink-secondary">{{ artifactOf(step.key)!.label }}</span>
+              </template>
+              <!-- ⚠ `Needs: <Label>` and not `needs <label>`, which is what shipped for an hour and
+                   was found by looking at the page at 1440 on 2026-09-18. The step labels are not one
+                   grammatical form — "Permissions signed" is a past-tense fact, "Driving record" is a
+                   noun, "Office approved it" is a clause with its own object — so no preposition
+                   composes with all twelve. *"needs office approved it"* is what that produced. The
+                   colon makes it a label and a value, which reads correctly whatever the value is. -->
+              <span v-else-if="step.blockedBy" class="text-ink-muted">
+                Needs: {{ stepLabel(step.blockedBy) }}
+              </span>
+              <!-- AF7, §391.23(a)(1): the licensing states with no MVR on file yet, as the applicant
+                   wrote them, so the row says which record to pull rather than only that one is owed. -->
+              <span v-else-if="step.outstandingJurisdictions.length" class="text-ink-muted">
+                Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
+              </span>
+              <span v-else class="text-ink-muted">—</span>
             </span>
-            <!-- AF7, §391.23(a)(1): the licensing states with no MVR on file yet, as the applicant
-                 wrote them, so the row says which record to pull rather than only that one is owed. -->
-            <span v-else-if="step.outstandingJurisdictions.length" class="text-ink-muted">
-              Still needed from: {{ step.outstandingJurisdictions.join(", ") }}
-            </span>
-            <span v-else class="text-ink-muted">—</span>
-          </span>
-        </li>
-      </ul>
+          </li>
+        </ul>
+      </QueryState>
       <p v-if="checklist && unbuilt" class="text-2xs text-ink-muted">Not built yet: {{ unbuilt }}.</p>
     </div>
   </BaseCard>

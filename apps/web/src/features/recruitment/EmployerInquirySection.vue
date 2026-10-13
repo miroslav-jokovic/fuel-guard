@@ -188,6 +188,7 @@ const FORM_ID = "employer-inquiry-form";
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="inquiriesQ.data.value ?? []"
         row-key="id"

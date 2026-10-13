@@ -4,7 +4,9 @@ import { useRoute } from "vue-router";
 import { isDispatchable, loadBoardState, LOAD_EVENT_LABELS } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
+import QueryState from "@/components/ui/QueryState.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
@@ -40,7 +42,7 @@ const session = useSessionStore();
 const { zone } = useOrgTimezone();
 
 const loadId = computed(() => (typeof route.params.id === "string" ? route.params.id : null));
-const { data: load, isLoading, isError, error } = useLoadDetailQuery(loadId);
+const { data: load, isLoading, isError, error, isFetching, refetch } = useLoadDetailQuery(loadId);
 
 const canDispatch = computed(() => !!load.value && isDispatchable(load.value));
 const dispatchOpen = ref(false);
@@ -71,6 +73,27 @@ const provenance = computed(() => {
     { label: "Declined", at: l.declined_at },
     { label: "Delivered", at: l.completed_at },
   ].filter((s) => s.at);
+});
+const provenanceFacts = computed<Fact[]>(() => provenance.value.map((s) => ({ label: s.label, value: when(s.at) })));
+
+/**
+ * The load card's facts (D-US6). Customer, dispatcher, TMS reference and the dispatch state are only
+ * facts about some loads, so they are left out rather than shown blank; a blank is `null`, so
+ * `FactList` draws its em dash.
+ */
+const loadFacts = computed<Fact[]>(() => {
+  const l = load.value;
+  if (!l) return [];
+  const tms = l.source === "tms";
+  return [
+    ...(l.customer_name ? [{ label: "Customer", value: l.customer_name }] : []),
+    ...(tms ? [{ label: "Dispatcher", value: l.dispatcher_name }] : []),
+    { label: "Driver", value: l.driver_name ?? "Unassigned" },
+    { key: "truck", label: "Truck", value: l.vehicle_unit },
+    { label: "Trailer", value: l.trailer_unit },
+    ...(l.external_id ? [{ label: "TMS reference", value: l.external_id }] : []),
+    ...(tms ? [{ key: "dispatch", label: "Dispatch", value: dispatchHeadline(l.dispatches[0]) }] : []),
+  ];
 });
 
 const STOP_TONE: Record<string, string> = {
@@ -136,192 +159,183 @@ function markBroken(id: string) {
       </template>
     </PageHeader>
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading…</p>
-    <p v-else-if="isError" class="text-sm text-danger-600">
-      {{ error instanceof Error ? error.message : "That load could not be loaded." }}
-    </p>
-
-    <template v-else-if="load">
-      <!-- Summary + action rail -->
-      <BaseCard>
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-lg font-semibold text-ink">{{ load.ref }}</span>
-              <span v-if="boardState" :class="[BADGE_BASE, toneClass(boardState.tone)]" :title="boardState.mcleodWords ?? undefined">
-                {{ boardState.label }}
-              </span>
-              <span v-if="load.hazmat" :class="[BADGE_BASE, toneClass('warning')]">Hazmat</span>
-              <span v-if="load.source === 'tms'" :class="[BADGE_BASE, toneClass('info')]">
-                {{ load.provider ?? "TMS" }}
-              </span>
-            </div>
-            <p class="mt-1 text-sm text-ink-muted">
-              {{ load.equipment ?? "No equipment" }}<span v-if="load.commodity"> · {{ load.commodity }}</span>
-              <span v-if="load.total_miles"> · {{ Math.round(load.total_miles) }} mi</span>
-            </p>
-          </div>
-
-          <div v-if="session.can('dispatch') && canDispatch" class="flex flex-wrap items-center gap-2">
-            <BaseButton variant="primary" size="sm" @click="dispatchOpen = true">{{ load.dispatches.length ? "Dispatch again" : "Dispatch" }}</BaseButton>
-          </div>
-        </div>
-
-        <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-          <div v-if="load.customer_name"><dt class="text-ink-tertiary">Customer</dt><dd class="text-ink">{{ load.customer_name }}</dd></div>
-          <div v-if="load.source === 'tms'"><dt class="text-ink-tertiary">Dispatcher</dt><dd class="text-ink">{{ load.dispatcher_name ?? "—" }}</dd></div>
-          <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
-          <div>
-            <dt class="text-ink-tertiary">Truck</dt>
-            <!-- DISPATCH-BOARD-PLAN D-DB6 point 4: the truck opens on the Dispatch board, its drawer open. -->
-            <dd class="text-ink">
-              <RouterLink v-if="load.vehicle_unit" :to="{ name: 'assignments', query: { truck: load.vehicle_unit } }" class="text-link hover:text-link-hover">
-                {{ load.vehicle_unit }}
-              </RouterLink>
-              <template v-else>—</template>
-            </dd>
-          </div>
-          <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
-          <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
-          <div v-if="load.source === 'tms'" class="col-span-2" data-testid="dispatch-state"><dt class="text-ink-tertiary">Dispatch</dt><dd class="text-ink">{{ dispatchHeadline(load.dispatches[0]) }}</dd><dd v-if="load.dispatches[0]?.outcomeReason" class="text-xs text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</dd></div>
-        </dl>
-
-        <p v-if="load.decline_reason" class="mt-3 rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
-          Declined by the driver — &ldquo;{{ load.decline_reason }}&rdquo;
-        </p>
-        <p v-if="load.cancel_reason" class="mt-3 rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-inset ring-danger-200">
-          Cancelled — &ldquo;{{ load.cancel_reason }}&rdquo;
-        </p>
-      </BaseCard>
-
-      <!-- Provenance: who moved this load, and when -->
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Progress</h2>
-        <p class="mt-1 text-xs text-ink-muted">Every stage this load has actually reached.</p>
-        <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-          <div v-for="stage in provenance" :key="stage.label">
-            <dt class="text-ink-tertiary">{{ stage.label }}</dt>
-            <dd class="text-ink">{{ when(stage.at) }}</dd>
-          </div>
-        </dl>
-      </BaseCard>
-
-      <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->
-      <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.can('dispatch')" />
-
-      <!-- Stops: the plan, and what actually happened at each one -->
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Stops</h2>
-        <ol class="mt-3 space-y-3">
-          <li v-for="stop in load.stops" :key="stop.id" class="rounded-surface border border-edge p-3 text-sm">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="font-medium text-ink">
-                {{ stop.seq }}. {{ stop.kind === "pickup" ? "Pickup" : "Drop-off" }} — {{ stop.location_name || stop.name || "Unnamed" }}
-              </span>
-              <div class="flex items-center gap-2">
-                <span class="text-xs text-ink-muted">{{ [stop.city, stop.state].filter(Boolean).join(", ") }}</span>
-                <span
-                  v-if="outstandingSlots(stop).length"
-                  :class="[BADGE_BASE, toneClass('warning')]"
-                  :title="`Missing: ${outstandingSlots(stop).join(', ')}`"
-                >
-                  {{ outstandingSlots(stop).length }} photo{{ outstandingSlots(stop).length === 1 ? "" : "s" }} missing
-                </span>
-                <span :class="[BADGE_BASE, toneClass(stopTone(stop.status)), 'capitalize']">{{ stop.status ?? "pending" }}</span>
-              </div>
-            </div>
-            <p class="mt-0.5 text-xs text-ink-muted">{{ apptLabel(stop.appointment_start, stop.appointment_end) }}</p>
-            <!-- LR7: what McLeod saw — its actual arrival and departure, else its ETA — beside the
-                 driver app's own times below, never merged into them (Q-LMR2 decides whose counts). -->
-            <p v-if="stop.actual_arrival_at || stop.actual_departure_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-actual">
-              McLeod: <span v-if="stop.actual_arrival_at">arrived {{ when(stop.actual_arrival_at) }}</span><span v-if="stop.actual_arrival_at && stop.actual_departure_at"> · </span><span v-if="stop.actual_departure_at">departed {{ when(stop.actual_departure_at) }}</span>
-            </p>
-            <p v-else-if="stop.eta_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-eta">McLeod ETA {{ when(stop.eta_at) }}</p>
-            <p v-if="stop.arrived_at || stop.completed_at" class="mt-0.5 text-xs text-ink-muted">
-              <span v-if="stop.arrived_at">Driver arrived {{ when(stop.arrived_at) }}</span>
-              <span v-if="stop.arrived_at && stop.completed_at"> · </span>
-              <span v-if="stop.completed_at">Finished {{ when(stop.completed_at) }}</span>
-            </p>
-
-            <p
-              v-if="stop.skip_reason"
-              class="mt-2 rounded-surface bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
-            >
-              Driver&rsquo;s note — &ldquo;{{ stop.skip_reason }}&rdquo;
-            </p>
-
-            <!-- The proof of work, by the slot that was asked for. Captured since 0085; visible for
-                 the first time in LD2, and legible for the first time here. -->
-            <div v-if="slotGroups(stop).length" class="mt-3 space-y-2">
-              <div v-for="group in slotGroups(stop)" :key="group.slot" class="flex flex-wrap items-center gap-2">
-                <span
-                  :class="[
-                    'inline-flex min-w-[5rem] items-center rounded-control px-1.5 py-0.5 text-2xs',
-                    group.photos.length
-                      ? 'bg-success-50 text-success-700'
-                      : 'bg-warning-50 text-warning-700',
-                  ]"
-                >
-                  {{ group.slot }}<span v-if="!group.required" class="pl-1 opacity-70">· extra</span>
-                </span>
-
-                <a
-                  v-for="photo in group.photos"
-                  :key="photo.id"
-                  :href="photo.url ?? undefined"
-                  target="_blank"
-                  rel="noopener"
-                  :title="`${photo.slot} · captured ${when(photo.captured_at)}`"
-                  class="block"
-                >
-                  <img
-                    v-if="photo.url && !brokenPhotoIds.has(photo.id)"
-                    :src="photo.url"
-                    :alt="`${photo.slot} photo`"
-                    class="size-20 rounded-control object-cover ring-1 ring-edge"
-                    @error="markBroken(photo.id)"
-                  />
-                  <span
-                    v-else
-                    class="flex size-20 items-center justify-center rounded-control bg-danger-50 px-1 text-center text-2xs text-danger-700 ring-1 ring-danger-200"
-                    :title="'The record says this photo exists but the image could not be retrieved.'"
-                  >
-                    Image missing
-                  </span>
-                </a>
-
-                <span v-if="!group.photos.length" class="text-xs text-ink-muted">
-                  {{ stop.status === "completed" || stop.status === "skipped" ? "Not captured" : "Not captured yet" }}
-                </span>
-              </div>
-            </div>
-            <p v-else-if="stop.status === 'completed'" class="mt-2 text-xs text-ink-muted">
-              No photos were asked for at this stop.
-            </p>
-          </li>
-          <li v-if="load.stops.length === 0" class="py-2 text-sm text-ink-muted">No stops on this load yet.</li>
-        </ol>
-      </BaseCard>
-
-      <!-- History -->
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">History</h2>
-        <ol v-if="load.events.length" class="mt-3 space-y-2">
-          <li v-for="e in load.events" :key="e.id" class="flex gap-2 text-sm">
-            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-edge-strong" />
+    <QueryState
+      :loading="isLoading"
+      :error="isError ? error : null"
+      :retrying="isFetching"
+      loading-text="Loading the load…"
+      error-text="Could not open this load."
+      @retry="refetch()"
+    >
+      <template v-if="load">
+        <!-- Summary + action rail -->
+        <BaseCard>
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p class="text-ink">{{ LOAD_EVENT_LABELS[e.kind] ?? e.kind }}</p>
-              <p class="text-xs text-ink-muted">
-                {{ e.actor_name ?? e.actor_role ?? "System" }} · {{ when(e.occurred_at) }}
-                <span v-if="e.payload && e.payload.reason"> · &ldquo;{{ e.payload.reason }}&rdquo;</span>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-lg font-semibold text-ink">{{ load.ref }}</span>
+                <span v-if="boardState" :class="[BADGE_BASE, toneClass(boardState.tone)]" :title="boardState.mcleodWords ?? undefined">
+                  {{ boardState.label }}
+                </span>
+                <span v-if="load.hazmat" :class="[BADGE_BASE, toneClass('warning')]">Hazmat</span>
+                <span v-if="load.source === 'tms'" :class="[BADGE_BASE, toneClass('info')]">
+                  {{ load.provider ?? "TMS" }}
+                </span>
+              </div>
+              <p class="mt-1 text-sm text-ink-muted">
+                {{ load.equipment ?? "No equipment" }}<span v-if="load.commodity"> · {{ load.commodity }}</span>
+                <span v-if="load.total_miles"> · {{ Math.round(load.total_miles) }} mi</span>
               </p>
             </div>
-          </li>
-        </ol>
-        <p v-else class="mt-3 text-sm text-ink-muted">No history yet.</p>
-      </BaseCard>
 
-      <DispatchLoadDrawer :load="dispatchOpen ? { ...load, last_dispatch: load.dispatches[0] ?? null } : null" @close="dispatchOpen = false" />
-    </template>
+            <div v-if="session.can('dispatch') && canDispatch" class="flex flex-wrap items-center gap-2">
+              <BaseButton variant="primary" size="sm" @click="dispatchOpen = true">{{ load.dispatches.length ? "Dispatch again" : "Dispatch" }}</BaseButton>
+            </div>
+          </div>
+
+          <FactList class="mt-4" :facts="loadFacts">
+            <!-- DISPATCH-BOARD-PLAN D-DB6 point 4: the truck opens on the Dispatch board, its drawer open. -->
+            <template #value-truck="{ fact }">
+              <RouterLink v-if="fact.value" :to="{ name: 'assignments', query: { truck: fact.value } }" class="text-link hover:text-link-hover">
+                {{ fact.value }}
+              </RouterLink>
+              <span v-else class="font-normal text-ink-tertiary">—</span>
+            </template>
+            <template #value-dispatch>
+              <span data-testid="dispatch-state">{{ dispatchHeadline(load.dispatches[0]) }}</span>
+              <span v-if="load.dispatches[0]?.outcomeReason" class="block text-xs font-normal text-ink-muted">{{ smsReasonText(load.dispatches[0].outcomeReason) }}</span>
+            </template>
+          </FactList>
+
+          <AppCallout v-if="load.decline_reason" tone="warning" class="mt-3">
+            Declined by the driver — &ldquo;{{ load.decline_reason }}&rdquo;
+          </AppCallout>
+          <AppCallout v-if="load.cancel_reason" tone="danger" class="mt-3">
+            Cancelled — &ldquo;{{ load.cancel_reason }}&rdquo;
+          </AppCallout>
+        </BaseCard>
+
+        <!-- Provenance: who moved this load, and when -->
+        <BaseCard>
+          <h2 class="text-sm font-semibold text-ink">Progress</h2>
+          <p class="mt-1 text-xs text-ink-muted">Every stage this load has actually reached.</p>
+          <FactList class="mt-4" :facts="provenanceFacts" />
+        </BaseCard>
+
+        <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->
+        <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.can('dispatch')" />
+
+        <!-- Stops: the plan, and what actually happened at each one -->
+        <BaseCard>
+          <h2 class="text-sm font-semibold text-ink">Stops</h2>
+          <ol class="mt-3 space-y-3">
+            <li v-for="stop in load.stops" :key="stop.id" class="rounded-surface border border-edge p-3 text-sm">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-medium text-ink">
+                  {{ stop.seq }}. {{ stop.kind === "pickup" ? "Pickup" : "Drop-off" }} — {{ stop.location_name || stop.name || "Unnamed" }}
+                </span>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-ink-muted">{{ [stop.city, stop.state].filter(Boolean).join(", ") }}</span>
+                  <span
+                    v-if="outstandingSlots(stop).length"
+                    :class="[BADGE_BASE, toneClass('warning')]"
+                    :title="`Missing: ${outstandingSlots(stop).join(', ')}`"
+                  >
+                    {{ outstandingSlots(stop).length }} photo{{ outstandingSlots(stop).length === 1 ? "" : "s" }} missing
+                  </span>
+                  <span :class="[BADGE_BASE, toneClass(stopTone(stop.status)), 'capitalize']">{{ stop.status ?? "pending" }}</span>
+                </div>
+              </div>
+              <p class="mt-0.5 text-xs text-ink-muted">{{ apptLabel(stop.appointment_start, stop.appointment_end) }}</p>
+              <!-- LR7: what McLeod saw — its actual arrival and departure, else its ETA — beside the
+                   driver app's own times below, never merged into them (Q-LMR2 decides whose counts). -->
+              <p v-if="stop.actual_arrival_at || stop.actual_departure_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-actual">
+                McLeod: <span v-if="stop.actual_arrival_at">arrived {{ when(stop.actual_arrival_at) }}</span><span v-if="stop.actual_arrival_at && stop.actual_departure_at"> · </span><span v-if="stop.actual_departure_at">departed {{ when(stop.actual_departure_at) }}</span>
+              </p>
+              <p v-else-if="stop.eta_at" class="mt-0.5 text-xs text-ink-secondary" data-testid="mcleod-eta">McLeod ETA {{ when(stop.eta_at) }}</p>
+              <p v-if="stop.arrived_at || stop.completed_at" class="mt-0.5 text-xs text-ink-muted">
+                <span v-if="stop.arrived_at">Driver arrived {{ when(stop.arrived_at) }}</span>
+                <span v-if="stop.arrived_at && stop.completed_at"> · </span>
+                <span v-if="stop.completed_at">Finished {{ when(stop.completed_at) }}</span>
+              </p>
+
+              <AppCallout v-if="stop.skip_reason" tone="warning" class="mt-2">
+                Driver&rsquo;s note — &ldquo;{{ stop.skip_reason }}&rdquo;
+              </AppCallout>
+
+              <!-- The proof of work, by the slot that was asked for. Captured since 0085; visible for
+                   the first time in LD2, and legible for the first time here. -->
+              <div v-if="slotGroups(stop).length" class="mt-3 space-y-2">
+                <div v-for="group in slotGroups(stop)" :key="group.slot" class="flex flex-wrap items-center gap-2">
+                  <span
+                    :class="[
+                      'inline-flex min-w-[5rem] items-center rounded-control px-1.5 py-0.5 text-2xs',
+                      group.photos.length
+                        ? 'bg-success-50 text-success-700'
+                        : 'bg-warning-50 text-warning-700',
+                    ]"
+                  >
+                    {{ group.slot }}<span v-if="!group.required" class="pl-1 opacity-70">· extra</span>
+                  </span>
+
+                  <a
+                    v-for="photo in group.photos"
+                    :key="photo.id"
+                    :href="photo.url ?? undefined"
+                    target="_blank"
+                    rel="noopener"
+                    :title="`${photo.slot} · captured ${when(photo.captured_at)}`"
+                    class="block"
+                  >
+                    <img
+                      v-if="photo.url && !brokenPhotoIds.has(photo.id)"
+                      :src="photo.url"
+                      :alt="`${photo.slot} photo`"
+                      class="size-20 rounded-control object-cover ring-1 ring-edge"
+                      @error="markBroken(photo.id)"
+                    />
+                    <span
+                      v-else
+                      class="flex size-20 items-center justify-center rounded-control bg-danger-50 px-1 text-center text-2xs text-danger-700 ring-1 ring-danger-200"
+                      :title="'The record says this photo exists but the image could not be retrieved.'"
+                    >
+                      Image missing
+                    </span>
+                  </a>
+
+                  <span v-if="!group.photos.length" class="text-xs text-ink-muted">
+                    {{ stop.status === "completed" || stop.status === "skipped" ? "Not captured" : "Not captured yet" }}
+                  </span>
+                </div>
+              </div>
+              <p v-else-if="stop.status === 'completed'" class="mt-2 text-xs text-ink-muted">
+                No photos were asked for at this stop.
+              </p>
+            </li>
+            <li v-if="load.stops.length === 0" class="py-2 text-sm text-ink-muted">No stops on this load yet.</li>
+          </ol>
+        </BaseCard>
+
+        <!-- History -->
+        <BaseCard>
+          <h2 class="text-sm font-semibold text-ink">History</h2>
+          <ol v-if="load.events.length" class="mt-3 space-y-2">
+            <li v-for="e in load.events" :key="e.id" class="flex gap-2 text-sm">
+              <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-edge-strong" />
+              <div>
+                <p class="text-ink">{{ LOAD_EVENT_LABELS[e.kind] ?? e.kind }}</p>
+                <p class="text-xs text-ink-muted">
+                  {{ e.actor_name ?? e.actor_role ?? "System" }} · {{ when(e.occurred_at) }}
+                  <span v-if="e.payload && e.payload.reason"> · &ldquo;{{ e.payload.reason }}&rdquo;</span>
+                </p>
+              </div>
+            </li>
+          </ol>
+          <p v-else class="mt-3 text-sm text-ink-muted">No history yet.</p>
+        </BaseCard>
+
+        <DispatchLoadDrawer :load="dispatchOpen ? { ...load, last_dispatch: load.dispatches[0] ?? null } : null" @close="dispatchOpen = false" />
+      </template>
+    </QueryState>
   </div>
 </template>

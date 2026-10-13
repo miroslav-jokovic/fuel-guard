@@ -134,6 +134,36 @@ describe("the dispatch board", () => {
     expect(b.rows[1]!.flags.emptyNow).toBe(true);
   });
 
+  it("leaves out a truck McLeod is winding down — 506 on 2026-10-12 — and keeps one not yet reported", async () => {
+    const rec = recorder({
+      vehicles: [
+        vehicle(),
+        vehicle({ id: "veh-506", unit_number: "506", assigned_driver_id: null, winding_down: true }),
+        vehicle({ id: "veh-552", unit_number: "552", assigned_driver_id: null, winding_down: null }),
+        vehicle({ id: "veh-601", unit_number: "601", assigned_driver_id: null, winding_down: false }),
+      ],
+    });
+    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    expect(b.rows.map((r) => r.unitNumber)).toEqual(["552", "601", "773"]);
+  });
+
+  it("keeps a truck McLeod is winding down while it still holds a load — a load is work", async () => {
+    const rec = recorder({
+      vehicles: [vehicle({ winding_down: true }), vehicle({ id: "veh-506", unit_number: "506", winding_down: true })],
+      loads: [load({ id: "load-2", vehicle_id: "veh-506", ref: "291386", status: "pending_approval", external_status: "A", dispatcher_external_id: null })],
+      stops: [stop({ load_id: "load-2", seq: 1, kind: "pickup", appointment_start: "2026-10-10T12:00:00Z" })],
+    });
+    const b = await readDispatchBoard(rec.client, ORG, USER, NOW);
+    // 773 has no load here and is winding down, so it goes; 506's only load is its NEXT one, so it stays.
+    expect(b.rows.map((r) => r.unitNumber)).toEqual(["506"]);
+    expect(b.rows[0]!.next!.ref).toBe("291386");
+  });
+
+  it("keeps a winding-down truck that is carrying a load right now", async () => {
+    const b = await readDispatchBoard(recorder({ vehicles: [vehicle({ winding_down: true })] }).client, ORG, USER, NOW);
+    expect(b.rows.map((r) => r.current?.ref)).toEqual(["291013"]);
+  });
+
   it("scopes every read to the caller's org", async () => {
     const rec = recorder();
     await readDispatchBoard(rec.client, ORG, USER, NOW);

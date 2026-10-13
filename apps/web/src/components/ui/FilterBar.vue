@@ -15,15 +15,17 @@ import { countLabelFor } from "@/lib/plural";
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
  *
  *   [ search ] [ primary filter controls … ] [⏷ Filters] ······ count · actions
- *   [ chip: Unit 204 ✕ ] [ chip: Dates Jul 1 – 13 ✕ ]  Clear all      ← when active
+ *   [ chip: Unit 204 ✕ ] [ chip: Dates Jul 1 – 13 ✕ ]                ← when secondary filters set
+ *   "Clear filters" sits before the count whenever `activeCount` > 0.
  *
  * - #filters — the 2–4 PRIMARY dimensions as compact FilterSelect /
  *   DateRangeFilter triggers, live-applied (each shows its active value).
  * - #more — secondary filters, shown in the "Filters" popover (only render
  *   the button when the slot is provided). `moreCount` badges active ones.
  * - chips — removable tokens for the SECONDARY (popover) filters only; the
- *   inline triggers already show their values. Emits `remove(key)` /
- *   `clear-all`.
+ *   inline triggers already show their values. Emits `remove(key)`.
+ * - activeCount — how many filters (search included) currently narrow the list. While it is
+ *   above zero the bar shows ONE "Clear filters" button, which emits `clear-all`.
  * - count — always-visible result feedback ("1,204 transactions", "1 transaction").
  * - #actions — page-level buttons that belong to the table (Export, Rescore…).
  */
@@ -46,6 +48,15 @@ withDefaults(
     countLabel?: string;
     chips?: FilterChip[];
     moreCount?: number;
+    /**
+     * How many filters narrow the list right now, the search included. FilterBar owns "Clear
+     * filters" because before 2026-10-12 nine pages each drew their own — in `#actions`, inside
+     * `#filters`, or as the chip row's "Clear all", which only appeared once a SECONDARY filter was
+     * set — and twenty more filtered lists offered no way back at all. The caller still decides
+     * what clearing means (`clear-all`); the convention every existing one shared is: every filter
+     * and the search, never the sort, because the sort orders the list rather than narrowing it.
+     */
+    activeCount?: number;
     embedded?: boolean;
   }>(),
   {
@@ -55,6 +66,7 @@ withDefaults(
     countLabel: "results",
     chips: () => [],
     moreCount: 0,
+    activeCount: 0,
     embedded: false,
   },
 );
@@ -77,7 +89,11 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
 
 <template>
   <component :is="embedded ? 'div' : BaseCard" :padding="embedded ? undefined : 'sm'" :class="embedded ? 'p-4' : ''">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <!-- `lg:flex-wrap`: when the filters and the right-hand group (Clear filters, count, export with
+         its scope sentence) cannot share one line, the right-hand group drops to its own line,
+         still right-aligned, instead of squeezing the filters onto two or three lines beside it.
+         Seen in the browser 2026-10-12 on Fuel costs and Fuel problems at 1440px. -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
       <div v-if="search !== undefined" class="w-full lg:w-64 lg:shrink-0">
         <SearchInput
           :model-value="search"
@@ -127,6 +143,9 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
       </div>
 
       <div class="flex items-center gap-3 lg:ml-auto lg:shrink-0">
+        <BaseButton v-if="activeCount > 0" variant="ghost" size="sm" @click="emit('clear-all')">
+          Clear filters
+        </BaseButton>
         <span v-if="count != null" class="whitespace-nowrap text-sm text-ink-muted">
           {{ count.toLocaleString() }} {{ countLabelFor(count, countLabel) }}
         </span>
@@ -148,7 +167,6 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         {{ c.value }}
         <AppIcon :icon="XMarkIcon" class="size-3.5 text-ink-tertiary group-hover:text-ink-secondary" aria-hidden="true" />
       </button>
-      <BaseButton variant="ghost" size="sm" @click="emit('clear-all')">Clear all</BaseButton>
     </div>
   </component>
 </template>

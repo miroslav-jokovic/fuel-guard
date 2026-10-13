@@ -15,6 +15,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { employmentInquiryBadge } from "@/lib/badges.recruiting";
@@ -64,6 +65,17 @@ const toPeriod = (r: EmploymentHistory): EmploymentPeriod => ({
 const coverage = computed(() =>
   employmentCoverage((historyQ.data.value ?? []).map(toPeriod), asOf.value),
 );
+
+// The two coverage summaries (D-US6). Zero gaps or inquiries reads "None" — an answer, not a blank.
+const allEmploymentFacts = computed<Fact[]>(() => [
+  { label: "Employers", value: coverage.value.segmentA.employers, numeric: true },
+  { label: "Gaps", value: coverage.value.segmentA.gaps.length || "None", numeric: true },
+  { label: "Inquiries due", value: coverage.value.inquiriesOutstanding.length || "None", numeric: true },
+]);
+const cmvFacts = computed<Fact[]>(() => [
+  { label: "CMV employers", value: coverage.value.segmentB.cmvEmployers, numeric: true },
+  { label: "Other listed", value: coverage.value.segmentB.otherEmployers, numeric: true },
+]);
 
 const drawerOpen = ref(false);
 const editing = ref<EmploymentHistory | null>(null);
@@ -142,39 +154,13 @@ const sourceLabel = (s: string): string =>
           <p class="text-xs font-medium text-ink-secondary">
             All employment · {{ coverage.segmentA.start }} → {{ coverage.segmentA.end }}
           </p>
-          <dl class="mt-2 grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <dt class="text-ink-muted">Employers</dt>
-              <dd class="font-medium text-ink">{{ coverage.segmentA.employers }}</dd>
-            </div>
-            <div>
-              <dt class="text-ink-muted">Gaps</dt>
-              <dd class="font-medium" :class="coverage.segmentA.gaps.length ? 'text-ink' : 'text-ink-muted'">
-                {{ coverage.segmentA.gaps.length || "None" }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-ink-muted">Inquiries due</dt>
-              <dd class="font-medium" :class="coverage.inquiriesOutstanding.length ? 'text-ink' : 'text-ink-muted'">
-                {{ coverage.inquiriesOutstanding.length || "None" }}
-              </dd>
-            </div>
-          </dl>
+          <FactList class="mt-2" :columns="3" :facts="allEmploymentFacts" />
         </div>
         <div class="rounded-surface bg-surface-muted p-3">
           <p class="text-xs font-medium text-ink-secondary">
             Commercial driving only · {{ coverage.segmentB.start }} → {{ coverage.segmentB.end }}
           </p>
-          <dl class="mt-2 grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <dt class="text-ink-muted">CMV employers</dt>
-              <dd class="font-medium text-ink">{{ coverage.segmentB.cmvEmployers }}</dd>
-            </div>
-            <div>
-              <dt class="text-ink-muted">Other listed</dt>
-              <dd class="font-medium text-ink-muted">{{ coverage.segmentB.otherEmployers }}</dd>
-            </div>
-          </dl>
+          <FactList class="mt-2" :columns="3" :facts="cmvFacts" />
           <!-- No gap figure here, deliberately: (b)(11) asks only for the CMV jobs, so a stretch
                without one is somebody who was not driving. -->
           <p class="mt-2 text-xs text-ink-muted">
@@ -197,6 +183,7 @@ const sourceLabel = (s: string): string =>
 
     <BaseCard padding="none">
       <DataTable
+        embedded
         :columns="columns"
         :rows="historyQ.data.value ?? []"
         row-key="id"

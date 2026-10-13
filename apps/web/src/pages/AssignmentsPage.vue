@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import type { DispatchBoardRow } from "@silvicom/shared";
 import { AppCallout, AppTabs, AppButton as BaseButton } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -78,6 +78,13 @@ const { choice: scopeChoice, choose: setScope } = useScopeChoice(computed(() => 
 const search = qs.param("search");
 const fleet = qs.param("fleet");
 const dispatcher = qs.param("dispatcher");
+/**
+ * FilterBar's "Clear filters": Fleet, Dispatched by and the search narrow the board. The queue tab and
+ * My fleet · All choose WHICH board it is, and the sort and an open truck are not filters, so clearing
+ * keeps all four.
+ */
+const activeFilterCount = computed(() => [search.value.trim(), fleet.value, dispatcher.value].filter(Boolean).length);
+const clearFilters = (): void => qs.set({ search: undefined, fleet: undefined, dispatcher: undefined });
 const { sort, onSort } = useUrlSort(qs.param("sort", BOARD_SORT_KEYS), qs.param("dir", SORT_DIRECTIONS));
 
 /**
@@ -100,6 +107,28 @@ const fleetOwner = (code: string | null) => board.value?.fleets.find((f) => f.co
 const base = computed(() => ({ mine: scopeChoice.value === "mine", fleet: fleet.value, dispatcher: dispatcher.value, search: search.value }));
 const filtered = computed(() => filterBoard(rows.value, scope.value, { ...base.value, queue: queue.value }));
 const sorted = computed(() => sortRows(filtered.value, sort.value, boardSortValue));
+
+/**
+ * The board pages (D-US8): 197 active trucks in production were one table on 2026-10-13, and the owner
+ * named this board as the list nobody could reach the bottom of. Twenty a page, like every client-paged
+ * list, and the page is in the URL (`?page=`, D-US2) so Back from a load's page returns to page 3.
+ *
+ * A filter, the scope or the queue tab starts again at page 1 — watched, not derived from the rows, so
+ * the board's minute poll never throws a pasted `?page=2` away. The sort keeps the page, as a sort does
+ * everywhere else. And when a narrower set leaves the reader past its last page (a truck left the queue
+ * between two polls), the page is pulled back to the last one rather than showing an empty table.
+ */
+const PAGE_SIZE = 20;
+const page = qs.page();
+watch([search, fleet, dispatcher, () => qs.one("scope"), queue], () => (page.value = 1));
+watch(
+  () => filtered.value.length,
+  (n) => {
+    const last = Math.max(1, Math.ceil(n / PAGE_SIZE));
+    if (board.value && page.value > last) page.value = last;
+  },
+);
+const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const tabItems = computed(() => [
   ...BOARD_QUEUES.map((q) => ({
     value: q.value,
@@ -147,6 +176,8 @@ const emptyText = computed(() =>
           search-placeholder="Search truck, driver, load, customer, city…"
           :count="filtered.length"
           count-label="trucks"
+          :active-count="activeFilterCount"
+          @clear-all="clearFilters"
         >
           <template #filters>
             <DispatchScopeControls
@@ -182,7 +213,7 @@ const emptyText = computed(() =>
         </FilterBar>
 
         <DispatchBoardTable
-          :rows="sorted"
+          :rows="pageRows"
           :columns="boardColumns.visible.value"
           :loading="isLoading"
           :error="isError ? (error instanceof Error ? error.message : 'Could not load the dispatch board') : null"
@@ -192,6 +223,10 @@ const emptyText = computed(() =>
           :dispatchers="dispatchers"
           :fleet-owner="fleetOwner"
           :sort="sort"
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="filtered.length"
+          @update:page="page = $event"
           @retry="refetch"
           @open="openTruck"
           @sort="onSort"

@@ -2,6 +2,8 @@
 import { AppIcon } from "@silvicom/ui";
 import { PlusIcon } from "@silvicom/ui/icons";
 import { ref, computed, watch } from "vue";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, isStatusFromTms, type Trailer, type TrailerInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -19,6 +21,7 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import BulkActionBar from "@/components/ui/BulkActionBar.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import InspectionExpiryCell from "@/features/maintenance/InspectionExpiryCell.vue";
 import RosterFreshnessLine from "@/components/RosterFreshnessLine.vue";
@@ -27,23 +30,34 @@ import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import TrailerForm from "@/features/roster/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
 const { data: trailers, isLoading, isError, error, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
+const ask = useConfirm();
 
 // ── filters ─────────────────────────────────────────────────────────────────────
-const search = ref("");
-const statusFilter = ref("active");
-const reeferFilter = ref(""); // "" | "reefer" | "non"
+// Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back keep the list.
+const qs = useQueryState();
+const search = qs.param("search");
+const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
+const reeferFilter = qs.param("reefer", ["reefer", "non"]);
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
+// "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (reeferFilter.value ? 1 : 0),
+);
+function resetFilters() {
+  qs.set({ search: undefined, status: undefined, reefer: undefined });
+}
 const reeferOptions = [
   { value: "", label: "All trailers" },
   { value: "reefer", label: "Reefers only" },
@@ -63,14 +77,10 @@ const filtered = computed(() => {
   });
 });
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
 const getVal = (t: Trailer, key: string): unknown => (t as unknown as Record<string, unknown>)[key];
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
 
-const page = ref(1);
+const page = qs.page();
 watch([search, statusFilter, reeferFilter], () => (page.value = 1));
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
@@ -94,6 +104,10 @@ const columns: DataTableColumn[] = [
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true },
   { key: "status", label: "Status", sortable: true },
 ];
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key)),
+  qs.param("dir", SORT_DIRECTIONS),
+);
 
 // ── selection (bulk edit) ─────────────────────────────────────────────────────────
 const selected = ref<Set<string>>(new Set());
@@ -160,7 +174,14 @@ async function toggleReefer(t: Trailer) {
 }
 
 async function onRetire(t: Trailer) {
-  if (confirm(`Retire trailer ${t.unit_number}? Its history is preserved.`)) {
+  // The product's dialog, red: a retired trailer leaves the active list (D-US7). Its history is kept.
+  const asked = await ask({
+    title: `Retire trailer ${t.unit_number}?`,
+    message: "Its history is preserved.",
+    confirmLabel: "Retire",
+    tone: "danger",
+  });
+  if (asked) {
     try {
       await retireTrailer.mutateAsync(t.id);
       toast.success(`Trailer ${t.unit_number} retired`);
@@ -193,6 +214,8 @@ async function onRetire(t: Trailer) {
       search-placeholder="Search unit, make, model, plate…"
       :count="filtered.length"
       count-label="trailers"
+      :active-count="activeFilterCount"
+      @clear-all="resetFilters"
     >
       <template #filters>
         <FilterSelect v-model="reeferFilter" label="Type" :options="reeferOptions" />
@@ -201,32 +224,11 @@ async function onRetire(t: Trailer) {
     </FilterBar>
 
     <!-- Bulk action bar -->
-    <div
-      v-if="session.can('equipment') && selectedCount > 0"
-      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
-    >
-      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <BaseButton
-        :disabled="bulkUpdate.isPending.value"
-        class="rounded-control bg-surface px-3 py-1.5 text-sm font-medium text-info-700 ring-1 ring-info-300 ring-inset hover:bg-info-50 disabled:opacity-50"
-        @click="bulkSet({ is_reefer: true })"
-      >
-        Mark as reefer
-      </BaseButton>
-      <BaseButton
-        size="sm"
-        :disabled="bulkUpdate.isPending.value"
-        @click="bulkSet({ is_reefer: false })"
-        >Unmark reefer</BaseButton
-      >
-      <BaseButton
-        size="sm"
-        :disabled="bulkUpdate.isPending.value"
-        @click="bulkSet({ status: 'retired' })"
-        >Retire</BaseButton
-      >
-      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
-    </div>
+    <BulkActionBar v-if="session.can('equipment')" :count="selectedCount" @clear="selected = new Set()">
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ is_reefer: true })">Mark as reefer</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ is_reefer: false })">Unmark reefer</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ status: 'retired' })">Retire</BaseButton>
+    </BulkActionBar>
 
     <DataTable
       embedded
@@ -234,7 +236,7 @@ async function onRetire(t: Trailer) {
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load trailers') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the trailers.') : null"
       :retrying="isFetching"
       :sort="sort"
       :selectable="session.can('equipment')"
@@ -302,10 +304,16 @@ async function onRetire(t: Trailer) {
       <TrailerForm
         :trailer="editing"
         :vehicles="vehicles ?? []"
-        :submitting="saving"
         @submit="onSubmit"
-        @cancel="drawerOpen = false"
       />
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+          <BaseButton form="trailer-form" type="submit" variant="primary" :disabled="saving">
+            {{ saving ? "Saving…" : "Save trailer" }}
+          </BaseButton>
+        </div>
+      </template>
     </SlideOver>
   </div>
 </template>

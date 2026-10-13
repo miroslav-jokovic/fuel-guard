@@ -19,13 +19,21 @@
  * data — the worst a wrong one does is open the wrong tab of a set the gates already approved — so
  * it is the one place a role may legitimately be named. Every gate above it is still a section.
  */
-import type { AppSection, UserRole } from "@silvicom/shared";
+import { manage, section, type Gated, type SurfaceGate, type UserRole } from "@silvicom/shared";
 
-export interface DashboardTab {
+export interface DashboardTab extends Gated {
   key: string;
   label: string;
-  /** The section the caller must be able to VIEW. Always a section — never a role. */
-  gate: AppSection;
+  /**
+   * A `SurfaceGate`, built with `section()`/`manage()` — never a role.
+   *
+   * It was an `AppSection` read at `view` until FM1 (FLEET-MANAGER-HOME-PLAN D-FM2), and that was the
+   * one gate in the Dashboard that could not say "manage": the Operations tab is for whoever RUNS the
+   * fleet's record, and every section at `view` also hands it to a dispatcher, a safety manager or
+   * the accountant. Widening the type to the one widgets and sidebar entries already use was the fix;
+   * a role list here would have been the `canManage` boolean again.
+   */
+  gate: SurfaceGate;
   /** Roles that land on this tab first. A DEFAULT, not a gate (D-DW2). */
   defaultFor?: readonly UserRole[];
 }
@@ -40,13 +48,31 @@ export interface DashboardTab {
  * therefore may open Fleet overview and will not find a dollar figure on it.
  */
 export const DASHBOARD_TABS: readonly DashboardTab[] = [
-  { key: "fleet", label: "Fleet overview", gate: "fuel" },
-  { key: "dispatch", label: "Dispatch", gate: "dispatch", defaultFor: ["dispatcher"] },
+  /**
+   * ── OPERATIONS FIRST (FLEET-MANAGER-HOME-PLAN, Q-FM2 ruled (b) 2026-10-12) ──────────────────────
+   * The fleet's readiness today — trucks, road, driver files, seats, paperwork — and no money (D-FM6).
+   * First because it is the summary the other two tabs drill into, which also makes it where an
+   * admin lands: they are in no `defaultFor`, so they open on the first tab they pass.
+   *
+   * `manage("equipment")` (D-FM2) is held by admin and fleet_manager and by anybody an org grants it.
+   * Every card on the tab carries its own section gate as well (D-FM4), so the tab gate decides who
+   * gets the page and never what is on it.
+   *
+   * `fleet_manager` moved here from Dispatch's list, which was the morning's "for now" (2026-10-12) — the ruling's own
+   * undo. Dispatch and Fleet overview stay one tab away.
+   */
+  { key: "ops", label: "Operations", gate: manage("equipment"), defaultFor: ["fleet_manager"] },
+  { key: "fleet", label: "Fleet overview", gate: section("fuel") },
+  { key: "dispatch", label: "Dispatch", gate: section("dispatch"), defaultFor: ["dispatcher"] },
 ];
 
-/** The tabs this caller may see, in catalogue order. `canView` is `session.canView`. */
-export function visibleTabs(canView: (section: AppSection) => boolean): DashboardTab[] {
-  return DASHBOARD_TABS.filter((t) => canView(t.gate));
+/**
+ * The tabs this caller may see, in catalogue order. `allows` is the surface gate's own evaluator
+ * (`surfaceGateAllows` with the caller's role and section claim) — the same question a sidebar entry
+ * asks, so an org's sparse override reaches a tab exactly as it reaches a screen.
+ */
+export function visibleTabs(allows: (tab: Gated) => boolean): DashboardTab[] {
+  return DASHBOARD_TABS.filter((t) => allows(t));
 }
 
 /**

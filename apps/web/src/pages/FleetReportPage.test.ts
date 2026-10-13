@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { createMemoryHistory, createRouter } from "vue-router";
 import { ref } from "vue";
 import FleetReportPage from "./FleetReportPage.vue";
 import type { FleetReportResponse, FleetTruck } from "@/features/accounting/useFleetReport";
@@ -26,6 +27,7 @@ const state = vi.hoisted(() => ({
   fleetError: null as string | null,
   coverageReason: null as string | null,
   truckCount: 3,
+  statementError: null as string | null,
 }));
 
 const q = (data: unknown, err: string | null = null) => ({
@@ -89,12 +91,16 @@ const report = (): FleetReportResponse => ({
   toDateFrom: "2026-01-01",
 });
 
+/** The fleet report's own `refetch`, kept so the overview's Retry can be seen to reach it (D-US5). */
+const fleetRefetch = vi.hoisted(() => vi.fn());
 vi.mock("@/features/accounting/useFleetReport", () => ({
-  useFleetReportQuery: () => q(report(), state.fleetError),
+  useFleetReportQuery: () => ({ ...q(report(), state.fleetError), refetch: fleetRefetch }),
 }));
+/** The statement's own `refetch`: the tab's Retry reaches it through the page (D-US5). */
+const statementRefetch = vi.hoisted(() => vi.fn());
 vi.mock("@/features/accounting/useIncomeStatement", () => ({
-  useIncomeStatementQuery: () =>
-    q({
+  useIncomeStatementQuery: () => ({
+    ...q({
       sections: [
         {
           typeId: "OE",
@@ -118,7 +124,9 @@ vi.mock("@/features/accounting/useIncomeStatement", () => ({
       monthsPartial: [],
       ledgerReason: null,
       toDateFrom: "2026-01-01",
-    }),
+    }, state.statementError),
+    refetch: statementRefetch,
+  }),
 }));
 vi.mock("@/composables/useDispatcherEarnings", () => ({
   useDispatcherEarningsQuery: () =>
@@ -145,10 +153,15 @@ vi.mock("@/features/accounting/useFleetTrend", () => ({
 
 type W = VueWrapper<InstanceType<typeof FleetReportPage>>;
 
+// A real memory router: the per-dispatcher, per-truck and contractor tabs keep their lists in the
+// URL since D-US2, each under its own scope.
 async function mountPage(): Promise<W> {
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/accounting/fleet", component: { template: "<div />" } }] });
+  await router.push("/accounting/fleet");
+  await router.isReady();
   const w = mount(FleetReportPage, {
     global: {
-      plugins: [createPinia()],
+      plugins: [createPinia(), router],
       stubs: { PageHeader: { template: "<div />" }, BaseChart: { template: "<div />" }, RouterLink: { template: "<a><slot /></a>" } },
     },
     attachTo: document.body,
@@ -166,6 +179,8 @@ async function openTab(w: W, label: string) {
 beforeEach(() => {
   setActivePinia(createPinia());
   state.fleetError = null;
+  state.statementError = null;
+  statementRefetch.mockClear();
   state.coverageReason = null;
   state.truckCount = 3;
 });
@@ -275,13 +290,28 @@ describe("FleetReportPage — the shell (R1)", () => {
   it("says in words when the fleet report could not be loaded, on the overview and in the truck table", async () => {
     state.fleetError = "fleet report unavailable";
     const w = await mountPage();
-    expect(w.text()).toContain("The overview could not be loaded");
+    expect(w.text()).toContain("Could not load the overview.");
+    // A Retry, not "try the period again in a moment" (D-US5).
+    fleetRefetch.mockClear();
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(fleetRefetch).toHaveBeenCalledTimes(1);
     // No headline strip and no bridge without the report — the month table beneath the chart is
     // the trend's own call and may still show, which is the point of the two being separate.
     expect(w.text()).not.toContain("Kept per mile driven");
     expect(w.text()).not.toContain("Where every dollar went");
     await openTab(w, "Per truck");
-    expect(w.text()).toContain("Failed to load");
+    expect(w.text()).toContain("Could not load the fleet report.");
     w.unmount();
+  });
+});
+
+describe("FleetReportPage — the income statement's failure retries the statement (D-US5)", () => {
+  it("says what failed on the Income statement tab, and Retry reads the statement again", async () => {
+    state.statementError = "timeout";
+    const w = await mountPage();
+    await openTab(w, "Income statement");
+    expect(w.text()).toContain("Could not");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(statementRefetch).toHaveBeenCalled();
   });
 });

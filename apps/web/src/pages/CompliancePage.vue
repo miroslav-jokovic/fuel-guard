@@ -15,6 +15,8 @@ import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { buildAttentionStrip } from "@/features/compliance/attentionStrip";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
+import { useQueryState } from "@/composables/useQueryState";
+import { DQ_DUE_FILTERS, DQ_STATE_FILTERS } from "@silvicom/shared";
 
 /**
  * Driver Qualification. The page COMPOSES; every surface is a component.
@@ -33,11 +35,13 @@ const orgCertsQ = useCertificationsQuery(
   computed(() => session.orgId ?? null),
 );
 
-const tab = ref("drivers");
 const TABS: TabItem[] = [
   { value: "drivers", label: "Drivers" },
   { value: "exports", label: "Exports" },
 ];
+// The view, the tiles and the fleet table's filters all read the URL through one buffer (D-US2).
+const qs = useQueryState();
+const tab = qs.param("tab", TABS.map((t) => t.value), "drivers");
 
 const carrierOpen = ref(false);
 const setupOpen = ref(false);
@@ -45,10 +49,12 @@ const setupOpen = ref(false);
 /**
  * The attention strip (C5): five tiles, each a CLICK-TO-FILTER on the fleet table's existing filter
  * models — it never introduces a second filter mechanism. Counts come from the same overview query
- * the table renders, so a tile and the rows it reveals cannot disagree.
+ * the table renders, so a tile and the rows it reveals cannot disagree. Since D-US2 that one model is
+ * the URL's `state` and `due`: the tiles write them and the table reads them, through the same buffer
+ * and the same shared vocabulary, so a pasted link lights its tile with nothing to keep in sync.
  */
-const tableStateFilter = ref("");
-const tableDueFilter = ref("");
+const tableStateFilter = qs.param("state", DQ_STATE_FILTERS);
+const tableDueFilter = qs.param("due", DQ_DUE_FILTERS);
 const strip = computed(() => buildAttentionStrip(overview.data.value?.drivers ?? []));
 const activeTile = computed(() => {
   const t = strip.value.find((x) => x.state === tableStateFilter.value && x.due === tableDueFilter.value);
@@ -166,8 +172,6 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
         </div>
 
         <QualificationFleetTable
-          v-model:state-filter="tableStateFilter"
-          v-model:due-filter="tableDueFilter"
           :building="requestBinder.isPending.value"
           @build-binder="buildBinder"
         />

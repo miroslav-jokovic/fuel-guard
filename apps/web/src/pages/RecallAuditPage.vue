@@ -11,6 +11,8 @@ import ErrorState from "@/components/ErrorState.vue";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
@@ -33,8 +35,18 @@ const done = ref<Set<string>>(new Set());
 const pending = computed(() => (sample.value ?? []).filter((f) => !done.value.has(f.id)));
 
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
-const usd = (n: number | null) => (n == null ? "—" : n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
-const place = (f: SampledFill) => f.locationText || [f.city, f.state].filter(Boolean).join(", ") || "—";
+const usd = (n: number | null) => (n == null ? null : n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
+const place = (f: SampledFill) => f.locationText || [f.city, f.state].filter(Boolean).join(", ") || null;
+
+/** One sampled fill's facts (D-US6). A blank is `null`, so `FactList` draws its em dash. */
+const fillFacts = (f: SampledFill): Fact[] => [
+  { label: "Gallons", value: f.gallons, numeric: true },
+  { label: "Cost", value: usd(f.totalCost), numeric: true },
+  { label: "MPG", value: f.computedMpg, numeric: true },
+  { label: "Odometer", value: f.odometer?.toLocaleString(), numeric: true },
+  { label: "EFS location", value: place(f) },
+  { label: "Samsara saw", value: [f.observedCity, f.observedState].filter(Boolean).join(", ") || null },
+];
 
 async function judge(f: SampledFill, verdict: AuditVerdict) {
   try {
@@ -65,26 +77,25 @@ function loadNewBatch() {
       <h2 class="text-sm font-semibold text-ink">Share of problems caught <span class="font-normal text-ink-tertiary">(all time, from your checks)</span></h2>
       <template v-if="metrics && metrics.audited > 0">
         <div class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Caught</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.estimatedRecall) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">range {{ pct(metrics.recallLow) }}–{{ pct(metrics.recallHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Missed in your checks</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.missRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">likely between {{ pct(metrics.missRateCiLow) }} and {{ pct(metrics.missRateCiHigh) }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Fills checked</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.audited.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.missed }} marked Missed</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Likely missed overall</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.estimatedMisses?.toLocaleString() ?? "—" }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-tertiary">of {{ metrics.coveredClears.toLocaleString() }} unflagged fills Samsara could see</dd>
-          </div>
+          <StatCard
+            embedded
+            label="Caught"
+            :value="pct(metrics.estimatedRecall)"
+            :sub="`range ${pct(metrics.recallLow)}–${pct(metrics.recallHigh)}`"
+          />
+          <StatCard
+            embedded
+            label="Missed in your checks"
+            :value="pct(metrics.missRate)"
+            :sub="`likely between ${pct(metrics.missRateCiLow)} and ${pct(metrics.missRateCiHigh)}`"
+          />
+          <StatCard embedded label="Fills checked" :value="metrics.audited.toLocaleString()" :sub="`${metrics.missed} marked Missed`" />
+          <StatCard
+            embedded
+            label="Likely missed overall"
+            :value="metrics.estimatedMisses?.toLocaleString() ?? '—'"
+            :sub="`of ${metrics.coveredClears.toLocaleString()} unflagged fills Samsara could see`"
+          />
         </div>
         <p class="mt-3 text-xs text-ink-tertiary">These figures are estimates from the fills you checked, and they get closer as you check more. Only fills Samsara could see are shown, so a Missed is a real miss and not a gap in the data.</p>
       </template>
@@ -116,14 +127,7 @@ function loadNewBatch() {
               <span v-else class="text-sm font-semibold text-ink">—</span>
               <span class="text-xs text-ink-tertiary">{{ fmtDate(f.fueledAt) }}</span>
             </div>
-            <dl class="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-              <div><dt class="text-xs text-ink-tertiary">Gallons</dt><dd class="text-ink-secondary">{{ f.gallons ?? "—" }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">Cost</dt><dd class="text-ink-secondary">{{ usd(f.totalCost) }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">MPG</dt><dd class="text-ink-secondary">{{ f.computedMpg ?? "—" }}</dd></div>
-              <div><dt class="text-xs text-ink-tertiary">Odometer</dt><dd class="text-ink-secondary">{{ f.odometer?.toLocaleString() ?? "—" }}</dd></div>
-              <div class="col-span-2"><dt class="text-xs text-ink-tertiary">EFS location</dt><dd class="truncate text-ink-secondary">{{ place(f) }}</dd></div>
-              <div class="col-span-2"><dt class="text-xs text-ink-tertiary">Samsara saw</dt><dd class="truncate text-ink-secondary">{{ [f.observedCity, f.observedState].filter(Boolean).join(", ") || "—" }}</dd></div>
-            </dl>
+            <FactList class="mt-2" :facts="fillFacts(f)" />
           </div>
           <div v-if="canJudge" class="flex shrink-0 gap-2">
             <BaseButton

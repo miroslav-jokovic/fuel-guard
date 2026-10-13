@@ -7,16 +7,14 @@ import {
   type Driver,
   type DriverInput,
 } from "@silvicom/shared";
-import { AppSelect } from "@silvicom/ui";
+import { AppCallout, AppSelect } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{
   driver?: Driver | null;
-  submitting?: boolean;
 }>();
-const emit = defineEmits<{ submit: [input: DriverInput]; cancel: [] }>();
+const emit = defineEmits<{ submit: [input: DriverInput] }>();
 
 const form = reactive({
   full_name: props.driver?.full_name ?? "",
@@ -65,17 +63,16 @@ function onSubmit() {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="onSubmit">
+  <!-- D-US5b: the drawer's footer holds Cancel and Save (`form="driver-form"`), so Save stays on screen
+       however long this form runs; this file owns the fields and the submit, not the buttons. -->
+  <form id="driver-form" class="space-y-4" @submit.prevent="onSubmit">
     <!-- Stated where the eye already is, above Save, and only when it is actually true of THIS edit.
          A permanent warning on every synced driver would be wallpaper. -->
-    <p
-      v-if="claimsFromTelematics"
-      class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20"
-    >
+    <AppCallout v-if="claimsFromTelematics" tone="warning">
       Saving this claims {{ props.driver?.full_name }} from the
       {{ props.driver?.identity_source }} sync. Their name and phone stop updating from it, and that
       does not undo if you change the field back.
-    </p>
+    </AppCallout>
     <FormField v-slot="{ id }" label="Full name" :error="errors.full_name">
       <BaseInput :id="id" v-model="form.full_name" :invalid="!!errors.full_name" />
     </FormField>
@@ -93,12 +90,5 @@ function onSubmit() {
         :options="DRIVER_STATUSES.map((s) => ({ value: s, label: s }))"
       />
     </FormField>
-
-    <div class="flex justify-end gap-3 pt-2">
-      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
-      <BaseButton type="submit" variant="primary" :disabled="submitting">
-        {{ submitting ? "Saving…" : "Save driver" }}
-      </BaseButton>
-    </div>
   </form>
 </template>

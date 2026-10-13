@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
+import { createRouter, createMemoryHistory } from "vue-router";
+import { ROUTE_TABLE } from "@/router/table";
 
 /**
  * SP5 on the pages whose links and buttons asked a different gate from their target
@@ -63,9 +65,16 @@ vi.mock("@/features/maintenance/useMaintenanceSpend", () => ({
 
 const RouterLink = { props: ["to"], template: `<a :href="String(to)"><slot /></a>` };
 const PageHeader = { template: "<header><slot /><slot name='actions' /></header>" };
+// A real (memory) router, because a filtered list keeps its filters in the URL (D-US2) and reads and
+// writes them through it. It is built from the app's own route table, because `useOpens` asks the
+// installed router whether a door opens — a catch-all route would answer yes to every link.
+// `RouterLink` stays stubbed: the doors are read off its `to`.
 const mountPage = async (component: object) => {
+  const router = createRouter({ history: createMemoryHistory(), routes: [...ROUTE_TABLE] });
+  await router.push("/__test__");
+  await router.isReady();
   const w = mount(component, {
-    global: { stubs: { RouterLink, PageHeader, DateRangeFilter: true, SamsaraFeedLine: true } },
+    global: { plugins: [router], stubs: { RouterLink, PageHeader, DateRangeFilter: true, SamsaraFeedLine: true } },
   });
   await flushPromises();
   return w;

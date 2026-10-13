@@ -9,6 +9,7 @@ import {
 } from "@silvicom/ui";
 import { applicantIdentitySchema, jurisdictionOptions } from "@silvicom/shared";
 import { formatDate } from "@/lib/format";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useCorrectApplicantIdentity } from "@/features/recruitment/useApplicantIdentity";
@@ -49,6 +50,12 @@ const form = reactive({ date_of_birth: "", cdl_number: "", cdl_state: "" });
 const errors = ref<Partial<Record<keyof typeof form, string>>>({});
 
 const onFile = computed(() => Boolean(props.identity?.date_of_birth && props.identity.cdl_number && props.identity.cdl_state));
+/** Shown only when all three are on file (`onFile`); the licence number keeps its monospace (D-US6). */
+const facts = computed<Fact[]>(() => [
+  { label: "Date of birth", value: formatDate(props.identity?.date_of_birth) },
+  { label: "Licence number", value: props.identity?.cdl_number, tone: "font-mono text-ink" },
+  { label: "State", value: props.identity?.cdl_state },
+]);
 
 function startEditing(): void {
   form.date_of_birth = props.identity?.date_of_birth ?? "";
@@ -82,7 +89,7 @@ async function save(): Promise<void> {
 <template>
   <section class="space-y-3 border-t border-edge pt-4">
     <div>
-      <h3 class="text-xs font-semibold text-ink">Date of birth and licence</h3>
+      <h3 class="text-sm font-semibold text-ink">Date of birth and licence</h3>
       <p class="mt-0.5 text-2xs text-ink-muted">
         PSP, the driving record and the Clearinghouse query run on these. A correction changes the
         applicant's record and their application together.
@@ -90,11 +97,7 @@ async function save(): Promise<void> {
     </div>
 
     <template v-if="!editing">
-      <dl v-if="onFile" class="grid grid-cols-3 gap-3 text-xs">
-        <div><dt class="text-ink-muted">Date of birth</dt><dd class="text-ink">{{ formatDate(identity?.date_of_birth) }}</dd></div>
-        <div><dt class="text-ink-muted">Licence number</dt><dd class="font-mono text-ink">{{ identity?.cdl_number }}</dd></div>
-        <div><dt class="text-ink-muted">State</dt><dd class="text-ink">{{ identity?.cdl_state }}</dd></div>
-      </dl>
+      <FactList v-if="onFile" :columns="3" :facts="facts" />
       <p v-else class="text-xs text-ink-muted">Not given yet. The applicant enters these before signing.</p>
       <BaseButton v-if="canCorrect" size="sm" variant="secondary" @click="startEditing">
         {{ onFile ? "Correct" : "Enter them" }}

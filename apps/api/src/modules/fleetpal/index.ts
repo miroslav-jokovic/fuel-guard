@@ -63,6 +63,13 @@ export {
 } from "./unitMatch.js";
 export { resolveStagedUnits, type ResolveOutcome } from "./resolveUnits.js";
 export { readCoverage, monthsBetween, type CoverageAnswer } from "./coverage.js";
+export {
+  readShopBacklog,
+  readOpenWorkOrders,
+  readUnresolvedDefects,
+  OPEN_WORK_ORDER_STATUS,
+  type ShopBacklog,
+} from "./shopBacklog.js";
 export { readUnitCost, resolveUnitIds, type UnitCostAnswer, type UnitRepair } from "./unitCost.js";
 export { describeComponents, clearComponentCache, type ComponentLabel } from "./vmrs.js";
 export { labelRepairs } from "./componentLabels.js";

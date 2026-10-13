@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadDataset } from "@hazmat/data";
-import { searchProducts } from "./hazmatProducts.js";
+import { productsByRef, searchProducts } from "./hazmatProducts.js";
 
 /**
  * HMT product lookup (plan H5) — verified against the REAL shipped dataset (2026.07.1), matching the
@@ -64,5 +64,17 @@ describe("searchProducts — HMT picker lookup", () => {
   it("unknown product → empty (fail-closed at the source; no free-text products)", () => {
     const products = searchProducts(entries, { q: "zzzznotathing", limit: 50, marinePollutants: [] });
     expect(products).toEqual([]);
+  });
+});
+
+describe("productsByRef — the document reader's prefill lookup", () => {
+  it("returns exactly the named rows, in the order asked, each ref once", () => {
+    const refs = (asked: string[]) => productsByRef(entries, asked, []).map((p) => p.hmtRef);
+    expect(refs(["NA1993-diesel-fuel#III", "UN1203-gasoline#II", "NA1993-diesel-fuel#III"])).toEqual(["NA1993-diesel-fuel#III", "UN1203-gasoline#II"]);
+    expect(refs(["UN1203-gasoline#II", "NA1993-diesel-fuel#III"])).toEqual(["UN1203-gasoline#II", "NA1993-diesel-fuel#III"]);
+  });
+
+  it("leaves out a ref the dataset does not hold, and the other packing group of a held entry", () => {
+    expect(productsByRef(entries, ["UN1203-gasoline#I", "UN9999-nothing#II"], [])).toEqual([]);
   });
 });

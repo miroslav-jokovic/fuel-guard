@@ -35,10 +35,10 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import FeedFreshnessLine from "@/components/FeedFreshnessLine.vue";
 import RowCoverageLine from "@/components/RowCoverageLine.vue";
-import { AppCard as BaseCard } from "@silvicom/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { useUrlSort, SORT_DIRECTIONS } from "@/composables/useUrlSort";
 import { useUnitOptions, useVehicleIdsForUnits } from "./unitFilter";
@@ -47,6 +47,7 @@ import { fuelLogExportTarget } from "./fuelLogExport";
 import { flaggedCasesLink } from "./flaggedCasesLink";
 import DoorLink from "@/components/ui/DoorLink.vue";
 import type { FuelLogSharedFilters } from "./useFuelLogFilters";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 
 const props = defineProps<{ shared: FuelLogSharedFilters }>();
 
@@ -216,6 +217,16 @@ function removeChip(key: string) {
  * stays — it is how the list is ordered, not how it is narrowed. Every assignment is one `set` in
  * the same tick, which `useQueryState`'s buffer coalesces into one navigation.
  */
+/**
+ * What `clearAll` would undo, counted the way FilterBar reads it: the unit list is one filter however
+ * many trucks it holds, and the window is one however many ends it has.
+ */
+const activeFilterCount = computed(
+  () =>
+    [tankTypeFilter.value, driverFilter.value, searchBind.value].filter(Boolean).length +
+    (props.shared.units.value.length ? 1 : 0) +
+    (props.shared.from.value || props.shared.to.value ? 1 : 0),
+);
 function clearAll() {
   tankTypeFilter.value = "";
   driverFilter.value = "";
@@ -333,13 +344,16 @@ const columns: DataTableColumn[] = [
     <FeedFreshnessLine feed="posted" :from="props.shared.from.value" :to="props.shared.to.value" />
     <RowCoverageLine :coverage="coverage" />
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="searchBind"
+      embedded
       search-placeholder="Search vehicle, driver, location, card…"
       :count="total"
       count-label="fill-ups"
       :chips="chips"
       :more-count="moreCount"
+      :active-count="activeFilterCount"
       @remove="removeChip"
       @clear-all="clearAll"
     >
@@ -363,57 +377,48 @@ const columns: DataTableColumn[] = [
 
     <!-- D-FUI11: one date contract, and each control says which day it means. Since 10b (Q-F5) all three
          tabs mean EFS's Central day, so they say it in the one shared sentence. -->
-    <p class="-mt-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
+    <p class="px-4 py-3 text-xs text-ink-tertiary">{{ FUEL_LOG_DATES_NOTE }}</p>
 
     <!-- Summary stats block -->
-    <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
-      <dl class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total fill-ups</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ total.toLocaleString() }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">matching current filters</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ totalsReady ? flaggedCount : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs" :class="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
-            {{ !totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range' }}
-          </dd>
-          <dd v-if="flaggedLink" class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ totalsReady ? clearCount : NO_FIGURE }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink">{{ totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE }}</dd>
-          <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
-               needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
-               never did. -->
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ !totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range' }}</dd>
-        </div>
-        <div class="px-5 py-4">
-          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
-          <dd class="mt-1 text-2xl font-bold text-ink" :title="avgMpgNote">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ avgMpgNote }}</dd>
-        </div>
-      </dl>
-    </BaseCard>
+    <section v-if="!isLoading && !isError && total > 0" aria-label="Fuel summary">
+      <div class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
+        <StatCard embedded class="px-5 py-4" label="Total fill-ups" :value="total.toLocaleString()" sub="matching current filters" />
+        <StatCard embedded class="px-5 py-4" label="Total miles" :value="totalsReady ? fmtNum(totalMiles, 0) : NO_FIGURE"
+          :sub="totalsReady ? 'driven in selected range' : NO_FIGURE_NOTE" />
+        <StatCard
+          embedded
+          class="px-5 py-4"
+          label="Flagged"
+          :value="totalsReady ? flaggedCount : NO_FIGURE"
+          :value-tone="totalsReady && flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'"
+          :sub="!totalsReady ? NO_FIGURE_NOTE : flaggedCount ? 'fills with an open case' : 'none open in selected range'"
+          :sub-tone="totalsReady && flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'"
+        >
+          <template v-if="flaggedLink" #default>
+            <p class="-ml-1.5 mt-1"><DoorLink :to="flaggedLink">Open cases</DoorLink></p>
+          </template>
+        </StatCard>
+        <StatCard embedded class="px-5 py-4" label="Clear" :value="totalsReady ? clearCount : NO_FIGURE"
+          :value-tone="totalsReady && clearCount ? 'text-success-600' : 'text-ink-tertiary'"
+          :sub="totalsReady ? 'transactions with no flags' : NO_FIGURE_NOTE" />
+        <!-- The total cost moved here from under Avg MPG when that tile took the coverage line it
+             needs (M4). Gallons and what they cost belong together; cost under an efficiency figure
+             never did. -->
+        <StatCard embedded class="px-5 py-4" label="Gallons" :value="totalsReady ? fmtNum(totalGallons, 0) : NO_FIGURE"
+          :sub="!totalsReady ? NO_FIGURE_NOTE : hasCost ? fmtUsd(totalCost) + ' total cost' : 'in selected range'" />
+        <StatCard embedded class="px-5 py-4" label="Avg MPG" :value="avgMpg != null ? avgMpg.toFixed(1) : '—'"
+          :value-title="avgMpgNote" :sub="avgMpgNote" />
+      </div>
+    </section>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
       dense
       :loading="isLoading || unitPending"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load fuel log') : null"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the fuel log.') : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column
@@ -475,5 +480,6 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

@@ -1,4 +1,4 @@
-import { buildDatasetIndex, LATEST_DATASET_VERSION, loadDataset, resolveHmtLine, type DatasetIndex } from "@hazmat/data";
+import { buildDatasetIndex, LATEST_DATASET_VERSION, loadDataset, resolveHmtLine, type Dataset, type DatasetIndex, type ResolveLineResult } from "@hazmat/data";
 import type { PrintedHazmatLine } from "@silvicom/shared";
 
 /**
@@ -25,17 +25,45 @@ export type HmtVerdict =
   | { consistent: true; dataset: string; hmtRef: string; findings: string[] }
   | { consistent: false; dataset: string; reason: string };
 
-let index: { version: string; index: DatasetIndex } | null = null;
-function datasetIndex(): { version: string; index: DatasetIndex } {
-  index ??= { version: LATEST_DATASET_VERSION, index: buildDatasetIndex(loadDataset(LATEST_DATASET_VERSION)) };
-  return index;
+let loaded: { version: string; dataset: Dataset; index: DatasetIndex } | null = null;
+/**
+ * The dataset the witnesses judge against, parsed once per process (`loadDataset` parses the whole file on
+ * every call). The paper audit (`paperAudit.ts`) reads the same one, so the table's verdict on a line and
+ * the audit's rules over it can never come from two dataset versions.
+ */
+export function witnessDataset(): { version: string; dataset: Dataset; index: DatasetIndex } {
+  if (!loaded) {
+    const dataset = loadDataset(LATEST_DATASET_VERSION);
+    loaded = { version: LATEST_DATASET_VERSION, dataset, index: buildDatasetIndex(dataset) };
+  }
+  return loaded;
 }
 
-/** Pure over the dataset: the table's verdict on one printed line. */
+/**
+ * Pure over the dataset: the table's verdict on one printed line.
+ *
+ * A class printed "Combustible liquid" is resolved WITH the §173.150(f) election, exactly as the hazmat
+ * extractor's mapper does (`mapBolLines.ts`): the resolver then accepts it only on a Class 3 entry the
+ * election can apply to, and still refuses it on gasoline or an acid. Without it, NA1993 "Diesel fuel,
+ * Combustible liquid, PG III" — how most fuel BOLs print diesel — was a class mismatch (found 2026-10-12
+ * building N6's prefill, which takes the line's product from this verdict). Whether the election applies
+ * to the placard is the offeror's to confirm and not this witness's question.
+ */
 export function hmtVerdict(line: Pick<PrintedHazmatLine, "idText" | "psn" | "hazardClass" | "pg">): HmtVerdict {
-  const { version, index: idx } = datasetIndex();
-  const r = resolveHmtLine(idx, { idText: line.idText, psn: line.psn, hazardClass: line.hazardClass, pg: line.pg });
+  const { version } = witnessDataset();
+  const r = hmtResolution(line);
   return r.ok
     ? { consistent: true, dataset: version, hmtRef: r.hmtRef, findings: [...r.findings] }
     : { consistent: false, dataset: version, reason: r.reason };
+}
+
+/** The resolver's whole answer on one printed line, the election applied as above — the paper audit's input. */
+export function hmtResolution(line: Pick<PrintedHazmatLine, "idText" | "psn" | "hazardClass" | "pg">): ResolveLineResult {
+  return resolveHmtLine(witnessDataset().index, {
+    idText: line.idText,
+    psn: line.psn,
+    hazardClass: line.hazardClass,
+    pg: line.pg,
+    reclassedCombustible: /combustible/i.test(line.hazardClass ?? ""),
+  });
 }

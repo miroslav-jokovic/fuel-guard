@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import DrugTestPanel from "@/features/recruitment/DrugTestPanel.vue";
+import { apiFetch } from "@/lib/api";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §6.3, C2b3). ⚠ Asserts the BODY the API
@@ -129,5 +130,41 @@ describe("texting it to the driver (C2d)", () => {
     const w = mountPanel();
     await settle(w);
     expect(button(w, "Text it to the driver")).toBeUndefined();
+  });
+});
+
+/**
+ * D-US5: a list of appointments that fails says so in a sentence and offers a Retry that asks the API again.
+ * Before, the failure was a tinted line with no way back but the browser's reload, which resets
+ * everything else the recruiter had open. `retry: false` so the first failure is the one shown.
+ */
+describe("when the list of appointments fails (D-US5)", () => {
+  it("says what could not be loaded, and Retry asks the API again", async () => {
+    const real = vi.mocked(apiFetch).getMockImplementation()!;
+    let failing = true;
+    const asked = (): number =>
+      vi.mocked(apiFetch).mock.calls.filter(([u, o]) => String(u).includes("/drug-test-appointments") && !(o as { method?: string } | undefined)?.method).length;
+    vi.mocked(apiFetch).mockImplementation(((url: string, opts?: { method?: string }) =>
+      failing && !opts?.method && url.includes("/drug-test-appointments")
+        ? Promise.resolve({ ok: false, status: 500, data: null, error: { message: "The API is down." } })
+        : real(url as never, opts as never)) as never);
+    try {
+      const w = mount(DrugTestPanel, {
+        props: { driverId: "d1", done: false },
+        global: {
+          plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
+        },
+      });
+      await settle(w as never);
+      expect(w.text()).toContain("Could not load the appointments.");
+      const before = asked();
+      failing = false;
+      await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");
+      await settle(w as never);
+      expect(asked()).toBe(before + 1);
+      expect(w.text()).not.toContain("Could not load the appointments.");
+    } finally {
+      vi.mocked(apiFetch).mockImplementation(real);
+    }
   });
 });

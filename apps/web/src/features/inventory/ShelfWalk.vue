@@ -9,6 +9,7 @@ import {
 } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppCard as BaseCard } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import QuantityStepper from "@/components/ui/QuantityStepper.vue";
@@ -23,6 +24,7 @@ import { useWalk } from "@/features/inventory/useWalk";
 import WalkActions, { type WalkAction } from "@/features/inventory/WalkActions.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { useSessionStore } from "@/stores/session";
 
 /**
@@ -78,12 +80,19 @@ import { useSessionStore } from "@/stores/session";
 const route = useRoute();
 const router = useRouter();
 const toast = useToastStore();
+const ask = useConfirm();
 const session = useSessionStore();
 const sessionId = computed(() => String(route.params.sessionId ?? ""));
 
-const { data: walk, isLoading: walkLoading, isError: walkFailed } = useCountSessionQuery(sessionId);
+const { data: walk } = useCountSessionQuery(sessionId);
 const locationId = computed(() => walk.value?.locationId ?? undefined);
-const { data: stock, isLoading: stockLoading } = useStockQuery(locationId);
+// The shelf's own failure is read too (D-US5): with no stock the walk has no lines left, and a
+// failed read used to fall through to "Every line is counted" — a success callout for a shelf
+// nobody had seen.
+const {
+  data: stock, isLoading: stockLoading, isError: stockFailed, error: stockError, isFetching: stockFetching,
+  refetch: refetchStock,
+} = useStockQuery(locationId);
 const record = useRecordMovement();
 const closeWalk = useCloseCountSession();
 const wakeLock = useWakeLock();
@@ -135,11 +144,14 @@ async function commit() {
   const tier = countVarianceTier(line.quantityOnHand, draft.value);
   if (tier !== "none") {
     // The consequence, not "Are you sure" — the reader has to be able to answer without re-deriving
-    // what they are about to do.
-    const ok = window.confirm(
-      `Record ${draft.value} of ${line.quantityOnHand} for ${line.partNumber}?\n\n` +
-        `OK records it. Cancel keeps counting.`,
-    );
+    // what they are about to do. The product's dialog, not the browser's (D-US7): on a shop phone the
+    // native one was titled with the site's address and its buttons said "OK", so the words had to
+    // explain the buttons; here the button says what it does and Cancel keeps counting.
+    const ok = await ask({
+      title: `Record ${draft.value} of ${line.quantityOnHand} for ${line.partNumber}?`,
+      message: "Cancel keeps counting.",
+      confirmLabel: "Record count",
+    });
     if (!ok) return;
   }
 
@@ -288,11 +300,21 @@ const actions = computed<WalkAction[]>(() => {
 
 async function close() {
   const uncounted = review.value.filter((r) => r.state === "uncounted").length;
-  const ok = window.confirm(
+  // D-US7: the product's dialog, red because closing cannot be undone.
+  const ok = await ask(
     uncounted > 0
-      ? `Close this count with ${uncounted} shelf line${uncounted === 1 ? "" : "s"} not counted?\n\n` +
-          `Uncounted lines are left exactly as they are. Closing cannot be undone.`
-      : "Close this count?\n\nClosing cannot be undone; a correction is a new count.",
+      ? {
+          title: `Close with ${uncounted} line${uncounted === 1 ? "" : "s"} not counted?`,
+          message: "Uncounted lines are left exactly as they are. Closing cannot be undone.",
+          confirmLabel: "Close count",
+          tone: "danger",
+        }
+      : {
+          title: "Close this count?",
+          message: "Closing cannot be undone; a correction is a new count.",
+          confirmLabel: "Close count",
+          tone: "danger",
+        },
   );
   if (!ok) return;
   try {
@@ -307,9 +329,10 @@ async function close() {
 
 <template>
   <div class="space-y-6 pb-20 sm:pb-0">
-    <AppCallout v-if="walkFailed" tone="danger">That count is not on file.</AppCallout>
-
-    <template v-else-if="walk">
+    <!-- The walk's own load and failure are drawn by CountSessionPage, the one place that reads the
+         session and decides which body to mount (D-INV19); this body is mounted only once the walk
+         has arrived, so it draws no second "not on file" of its own (D-US5). -->
+    <template v-if="walk">
       <PageHeader :title="walk.holderLabel ?? 'Count'" :description="progress">
         <template v-if="walk.status === 'open'" #actions>
           <WalkActions :actions="actions" />
@@ -322,9 +345,15 @@ async function close() {
         Saving on this phone — will sync when connected. {{ queued }} waiting.
       </AppCallout>
 
-      <p v-if="walkLoading || stockLoading" class="text-sm text-ink-tertiary">Loading the shelf…</p>
-
-      <BaseCard v-else-if="!reviewing && current">
+      <QueryState
+        :loading="stockLoading"
+        :error="stockFailed ? stockError : null"
+        :retrying="stockFetching"
+        loading-text="Loading the shelf…"
+        error-text="Could not load the shelf."
+        @retry="refetchStock()"
+      >
+      <BaseCard v-if="!reviewing && current">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <h2 class="text-sm font-semibold text-ink">Now counting</h2>
@@ -363,6 +392,7 @@ async function close() {
           </template>
         </DataTable>
       </section>
+      </QueryState>
 
       <WalkActions v-if="walk.status === 'open'" :actions="actions" bar />
     </template>

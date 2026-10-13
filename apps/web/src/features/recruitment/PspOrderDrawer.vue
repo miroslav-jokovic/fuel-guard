@@ -4,6 +4,7 @@ import { AppButton as BaseButton } from "@silvicom/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useToastStore } from "@/stores/toast";
 import { usePspPreflightQuery, useOrderPspRecord } from "@/features/recruitment/usePspOrder";
 
@@ -41,6 +42,16 @@ watch(open, (isOpen) => {
 
 const blocked = computed(() => preflight.data.value?.refusal ?? null);
 const canOrder = computed(() => Boolean(preflight.data.value?.enabled) && !blocked.value);
+/** The org's PSP allowance this month (D-US6). */
+const budgetFacts = computed<Fact[]>(() => {
+  const b = preflight.data.value?.budget;
+  if (!b) return [];
+  return [
+    { label: "Used this month", value: b.used, numeric: true },
+    { label: "Monthly limit", value: b.limit, numeric: true },
+    { label: "Remaining", value: b.remaining, numeric: true },
+  ];
+});
 
 async function place(): Promise<void> {
   try {
@@ -95,20 +106,7 @@ async function place(): Promise<void> {
           </p>
         </div>
 
-        <dl class="grid grid-cols-3 gap-3 text-sm">
-          <div>
-            <dt class="text-ink-muted">Used this month</dt>
-            <dd class="font-medium text-ink">{{ preflight.data.value.budget.used }}</dd>
-          </div>
-          <div>
-            <dt class="text-ink-muted">Monthly limit</dt>
-            <dd class="font-medium text-ink">{{ preflight.data.value.budget.limit }}</dd>
-          </div>
-          <div>
-            <dt class="text-ink-muted">Remaining</dt>
-            <dd class="font-medium text-ink">{{ preflight.data.value.budget.remaining }}</dd>
-          </div>
-        </dl>
+        <FactList :columns="3" :facts="budgetFacts" />
 
         <div v-if="blocked" class="rounded-surface bg-surface-muted p-3">
           <span :class="[BADGE_BASE, toneClass('warning')]">Cannot order</span>

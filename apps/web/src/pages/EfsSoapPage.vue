@@ -16,11 +16,13 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
+import { useConfirm } from "@/stores/confirm";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import { AppSelect, type SelectOption } from "@silvicom/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
@@ -51,6 +53,7 @@ const enable = useEnableEfsSoap();
 const disable = useDisableEfsSoap();
 const testConn = useTestEfsSoapConnection();
 const toast = useToastStore();
+const ask = useConfirm();
 /**
  * Enable and disable are step-up routes (`requireFreshAuth` in integrationSoap.ts), and until the
  * 2026-09-22 security audit this page had no prompt for them: an admin without a live step-up token
@@ -142,9 +145,13 @@ async function onSaveAndEnable() {
 }
 
 async function onDisable() {
-  const ok = window.confirm(
-    "Stop collecting from EFS and delete the saved password? To switch it on again, you will need to type the password again.",
-  );
+  // The product's dialog, red: the saved password is deleted and cannot be read back (D-US7).
+  const ok = await ask({
+    title: "Stop collecting from EFS and delete the saved password?",
+    message: "To switch it on again, you will need to type the password again.",
+    confirmLabel: "Switch off",
+    tone: "danger",
+  });
   if (!ok) return;
   await disableConfirmed();
 }
@@ -226,10 +233,18 @@ const testChipClass = computed(() => {
       attempts EFS declined. One sign-in covers both.
     </PageHeader>
 
-    <!-- ── Loading ────────────────────────────────────────────────────────────── -->
-    <div v-if="overallState === 'loading'" class="text-sm text-ink-muted">Loading configuration…</div>
-
-    <template v-else>
+    <!-- ── Loading / failure ──────────────────────────────────────────────────── -->
+    <!-- A failed read is a failure, not "not configured": before D-US5 it fell through to the setup
+         form, which told an office whose connection was working that it had none. Only a failure
+         with nothing cached stops the page; a background refetch that fails keeps what is shown. -->
+    <QueryState
+      :loading="overallState === 'loading'"
+      :error="status.isError.value && !status.data.value ? status.error.value : null"
+      :retrying="status.isFetching.value"
+      loading-text="Loading the EFS configuration…"
+      error-text="Could not load the EFS configuration."
+      @retry="status.refetch()"
+    >
       <!-- ── Overall state banner ─────────────────────────────────────────────── -->
       <BaseCard>
         <div class="flex items-start gap-3">
@@ -274,7 +289,7 @@ const testChipClass = computed(() => {
 
       <!-- ── Credentials form ─────────────────────────────────────────────────── -->
       <BaseCard v-else as="section">
-        <h3 class="text-base font-semibold text-ink">
+        <h3 class="text-sm font-semibold text-ink">
           {{ isConfigured ? "Change the sign-in" : "Enter the sign-in" }}
         </h3>
         <p class="mt-1 text-xs text-ink-muted">
@@ -373,7 +388,7 @@ const testChipClass = computed(() => {
       <BaseCard v-if="isConfigured" as="section">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <h3 class="text-base font-semibold text-ink">Test connection</h3>
+            <h3 class="text-sm font-semibold text-ink">Test connection</h3>
             <p class="mt-1 text-xs text-ink-muted">
               Sends one request to EFS with the saved sign-in and shows how long EFS took to answer.
               Use it after saving, and after EFS confirms that our address is allowed.
@@ -440,6 +455,6 @@ const testChipClass = computed(() => {
           </div>
         </div>
       </section>
-    </template>
+    </QueryState>
   </div>
 </template>

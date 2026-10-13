@@ -52,7 +52,7 @@ vi.mock("@/features/reconcile/CheckInvoiceDrawer.vue", () => ({
 import FuelInvoicesPage from "./FuelInvoicesPage.vue";
 
 let router: Router;
-async function mountPage() {
+async function mountPage(url = "/fuel-invoices") {
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -60,7 +60,7 @@ async function mountPage() {
       { path: "/fuel-invoices/:id", name: "fuel-invoice-check", component: { template: "<div/>" } },
     ],
   });
-  await router.push("/fuel-invoices");
+  await router.push(url);
   await router.isReady();
   const w = mount(FuelInvoicesPage, { global: { plugins: [router, createPinia()] } });
   await flushPromises();
@@ -130,5 +130,32 @@ describe("FuelInvoicesPage", () => {
     const reader = await mountPage();
     expect(has(reader)).toBe(false);
     expect(reader.text()).toContain("Invoice inv-r1"); // still reads the list
+  });
+
+  /**
+   * D-US2 (UI-STANDARDIZATION, 2026-10-12): the page is in the URL, so Back from a check returns to the
+   * page of checks it was opened from. Page 1 is absent, so a plain link stays plain.
+   */
+  it("reads the page from a pasted link and writes a page change to the URL", async () => {
+    await mountPage("/fuel-invoices?page=3");
+    expect(asked).toEqual([3]);
+
+    asked.length = 0;
+    const w = await mountPage();
+    expect(router.currentRoute.value.query).toEqual({});
+    await w.findAll("button").find((b) => /next/i.test(b.attributes("aria-label") ?? b.text()))!.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({ page: "2" });
+  });
+
+  it("returns to the same page of checks on Back from a check", async () => {
+    const w = await mountPage("/fuel-invoices?page=2");
+    await w.find("tbody tr").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.fullPath).toBe("/fuel-invoices/r2");
+    router.back();
+    await flushPromises();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(router.currentRoute.value.fullPath).toBe("/fuel-invoices?page=2");
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
+import { createRouter, createMemoryHistory, type Router } from "vue-router";
 import { AUDIT_LOG_PAGE_SIZE, type AuditLog } from "@silvicom/shared";
 import AuditPage from "@/pages/AuditPage.vue";
 
@@ -25,7 +26,6 @@ vi.mock("@/lib/api", () => ({
     return { ok: true, data: state.pages[cursor] ?? { rows: [], hasNext: false, nextCursor: null } };
   }),
 }));
-vi.mock("vue-router", () => ({ useRoute: () => ({ query: {} }) }));
 
 const row = (n: number): AuditLog => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
@@ -47,11 +47,18 @@ const settle = async (w: ReturnType<typeof mount>) => {
     await new Promise((r) => setTimeout(r, 0));
   }
 };
-const page = async () => {
-  const w = mount(AuditPage, { global: { plugins: [[VueQueryPlugin, { queryClientConfig: { defaultOptions: { queries: { retry: false } } } }]], stubs: { PageHeader: true, CardChangeLog: true } } });
+// A real memory router, not a mocked `useRoute`: the tab and the search are read from and written to
+// the URL through `useQueryState` (D-US2), which needs `router.replace` to answer a promise.
+let router: Router;
+const page = async (url = "/audit") => {
+  router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/audit", component: { template: "<div/>" } }] });
+  await router.push(url);
+  await router.isReady();
+  const w = mount(AuditPage, { global: { plugins: [router, [VueQueryPlugin, { queryClientConfig: { defaultOptions: { queries: { retry: false } } } }]], stubs: { PageHeader: true, CardChangeLog: { name: "CardChangeLog", props: ["cardId"], template: "<div/>" } } } });
   await settle(w);
   return w;
 };
+const query = () => router.currentRoute.value.query;
 const button = (w: ReturnType<typeof mount>, text: string) => w.findAll("button").find((b) => b.text().includes(text))!;
 
 beforeEach(() => {
@@ -62,6 +69,26 @@ beforeEach(() => {
 });
 
 describe("the Audit log page (SP4)", () => {
+  it("switches the canonical tabs and exposes the matching labelled panel", async () => {
+    const w = await page();
+    expect(w.get('[role="tab"][aria-selected="true"]').text()).toBe("Activity");
+    expect(w.get("#audit-panel-activity").attributes("aria-labelledby")).toBe("audit-tab-activity");
+
+    await button(w, "Card changes").trigger("click");
+
+    expect(w.get('[role="tab"][aria-selected="true"]').text()).toBe("Card changes");
+    expect(w.get("#audit-panel-cards").attributes("aria-labelledby")).toBe("audit-tab-cards");
+    expect(w.find("#audit-panel-activity").exists()).toBe(false);
+  });
+
+  it("keeps the activity toolbar and table in one data workspace", async () => {
+    const w = await page();
+    const workspace = w.find("section.divide-y");
+    expect(workspace.exists()).toBe(true);
+    expect(workspace.find('input[type="search"], input').exists()).toBe(true);
+    expect(workspace.text()).toContain("No audit entries.");
+  });
+
   it("reads the API, not PostgREST, and says it has nothing when there is nothing", async () => {
     const w = await page();
     expect(state.urls).toEqual(["/api/audit/log?"]);
@@ -103,5 +130,43 @@ describe("the Audit log page (SP4)", () => {
     await new Promise((r) => setTimeout(r, 400));
     await settle(w);
     expect(new URL(state.urls.at(-1)!, "http://x").searchParams.get("action")).toBe("invite");
+  });
+});
+
+/**
+ * D-US2 (UI-STANDARDIZATION, 2026-10-12): the tab and the Activity search are in the URL, so Back from
+ * a card the Card changes tab linked to lands on that tab, and a forwarded search reopens. The page is
+ * not — the keyset walk cannot be rebuilt from a page number; the page's own comment says why.
+ */
+describe("the Audit log keeps its view in the URL (D-US2)", () => {
+  it("opens on Activity with nothing in the URL, and a tab click writes the tab", async () => {
+    const w = await page();
+    expect(query()).toEqual({});
+    await button(w, "Card changes").trigger("click");
+    await settle(w);
+    expect(query()).toEqual({ tab: "cards" });
+    await button(w, "Activity").trigger("click");
+    await settle(w);
+    expect(query()).toEqual({});
+  });
+
+  it("opens the card ledger for one card from the card page's link", async () => {
+    const w = await page("/audit?tab=cards&cardId=card-9");
+    expect(w.get('[role="tab"][aria-selected="true"]').text()).toBe("Card changes");
+    expect(w.getComponent({ name: "CardChangeLog" }).props("cardId")).toBe("card-9");
+  });
+
+  it("reads a pasted search back into the box and the request", async () => {
+    const w = await page("/audit?action=invite");
+    expect((w.find('input[type="search"], input').element as HTMLInputElement).value).toBe("invite");
+    expect(new URL(state.urls.at(-1)!, "http://x").searchParams.get("action")).toBe("invite");
+  });
+
+  it("writes the search to the URL", async () => {
+    const w = await page();
+    await w.find('input[type="search"], input').setValue("anomaly");
+    await new Promise((r) => setTimeout(r, 400));
+    await settle(w);
+    expect(query().action).toBe("anomaly");
   });
 });

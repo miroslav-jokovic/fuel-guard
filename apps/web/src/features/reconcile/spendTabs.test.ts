@@ -15,19 +15,23 @@ vi.mock("@/stores/session", async () => {
 
 // The coverage strip reads `fuel_price_coverage` from PostgREST. These tests are about the tabs, and
 // the strip has its own; stubbed to "fully covered" so it renders without asserting anything here.
-vi.mock("./usePriceCoverage", async (orig) => {
-  const actual = await orig<typeof import("./usePriceCoverage")>();
-  return {
-    ...actual,
-    usePriceCoverageQuery: () => ({
-      data: computed(() => ({ days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null })),
-      isLoading: ref(false), isError: ref(false), error: ref(null),
-    }),
-  };
-});
+vi.mock("./usePriceCoverage", () => ({
+  usePriceCoverageQuery: () => ({
+    data: computed(() => ({ days: [], covered: 0, carried: 0, uncovered: 0, firstPricedDay: null, lastPricedDay: null })),
+    isLoading: ref(false), isError: ref(false), error: ref(null),
+  }),
+  pricedRangeIsNarrower: () => false,
+}));
 
 import DiscountCaptureTab from "./DiscountCaptureTab.vue";
+import DiscountCaptureCard from "./DiscountCaptureCard.vue";
 import ExceptionsTab from "./ExceptionsTab.vue";
+import ExportButton from "@/components/ExportButton.vue";
+
+const downloadCsv = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/csv", () => ({ downloadCsv }));
+vi.mock("@/lib/api", () => ({ apiDownload: vi.fn() }));
+vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ error: vi.fn() }) }));
 
 /**
  * These tabs are the only place the fuel-spend analytics are ever seen. The functions are covered in
@@ -51,6 +55,7 @@ const withRouter = { global: { plugins: [router] } };
 
 // DataTable branches on `matchMedia`; jsdom has none, so it renders its narrow card view by default.
 beforeEach(() => {
+  downloadCsv.mockReset();
   Object.defineProperty(window, "matchMedia", {
     writable: true, configurable: true,
     value: (query: string) => ({
@@ -97,6 +102,21 @@ describe("DiscountCaptureTab", () => {
       contractAmount: l.site === "3" ? l.netAmount! - 0.1 * l.gallons : l.netAmount,
       quoteStaleDays: 0,
     }));
+
+  it("uses the shared export action for every contract exception", async () => {
+    const w = mount(DiscountCaptureTab, {
+      props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" },
+      ...withRouter,
+    });
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toMatch(/\d+ exceptions/);
+    await exportAction.get("button").trigger("click");
+    expect(downloadCsv).toHaveBeenCalledWith(
+      "fuel-contract-reconciliation",
+      expect.any(Array),
+      expect.any(Array),
+    );
+  });
 
   it("compares what was billed against what was quoted, and names the gap", () => {
     const t = mount(DiscountCaptureTab, { props: { lines: quoted(), from: "2026-08-01", to: "2026-08-31" }, ...withRouter }).text();
@@ -169,6 +189,21 @@ describe("DiscountCaptureTab", () => {
 
 describe("ExceptionsTab", () => {
   const ex = () => analyzePolicyExceptions(eightWeeks());
+
+  it("uses the shared export action for all policy-exception fills", async () => {
+    const report = ex().avoidedBrands;
+    const w = mount(ExceptionsTab, {
+      props: { title: "ONE9", blurb: "…", report, slug: "one9" },
+    });
+    const exportAction = w.getComponent(ExportButton);
+    expect(exportAction.props("scope")).toBe(`${report.fills.length} fills`);
+    await exportAction.get("button").trigger("click");
+    expect(downloadCsv).toHaveBeenCalledWith(
+      "fuel-one9",
+      expect.any(Array),
+      expect.any(Array),
+    );
+  });
 
   it("prices an avoided brand against the rest of the fleet", () => {
     const t = mount(ExceptionsTab, {
@@ -303,6 +338,18 @@ describe("saying what is measured", () => {
     expect(t).toMatch(/over 1 of 2 priced fills/);
   });
 
+  it("pairs each rate with its label through FactList, the captured figure carrying its denominator (D-US6)", () => {
+    const mixed = [
+      { ...fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560 }), contractAmount: 500, quoteStaleDays: 0 },
+      { ...fill({ tranDate: "2026-08-18", gallons: 100, netAmount: 520, retailAmount: null }), contractAmount: 500, quoteStaleDays: 0 },
+    ];
+    const list = mount(DiscountCaptureTab, { props: { lines: mixed, from: "2026-08-01", to: "2026-08-31" }, ...withRouter })
+      .get("[data-testid=capture-rates]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Quoted / gal", "Billed / gal", "Billed at contract", "Captured vs retail"]);
+    const values = list.findAll("dd").map((d) => d.text().replace(/\s+/g, " "));
+    expect(values).toEqual(["$5.000", "$5.200", "0.0%", "$40 over 1 of 2 priced fills"]);
+  });
+
   it("warns that the exception tabs overlap and must not be added", () => {
     const t = mount(ExceptionsTab, {
       props: { title: "ONE9", blurb: "…", report: analyzePolicyExceptions(eightWeeks()).avoidedBrands, slug: "one9" },
@@ -319,5 +366,20 @@ describe("saying what is measured", () => {
     }).text();
     expect(t).toContain("Which trucks");
     expect(t).toContain("754");
+  });
+});
+
+// D-US5: the fills behind the tile used to fail with "close it and open it again to retry".
+describe("DiscountCaptureCard", () => {
+  it("says the fills could not be loaded and offers a Retry that asks the page to read them again", async () => {
+    const totals = { measuredLines: 4, measuredGallons: 400, measuredPaid: 1500, measuredExpected: 1480, unmeasuredLines: 0, unmeasuredPaid: 0 };
+    const w = mount(DiscountCaptureCard, {
+      props: { totals, lines: [], linesError: true, open: true, from: "2026-08-01", to: "2026-08-31" },
+      ...withRouter,
+    });
+    expect(w.text()).toContain("Could not load the fills behind this figure.");
+    expect(w.text()).not.toContain("open it again");
+    await w.findAll("button").find((b) => b.text().includes("Retry"))!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
   });
 });

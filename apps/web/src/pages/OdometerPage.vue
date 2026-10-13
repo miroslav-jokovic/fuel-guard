@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import GatedLink from "@/components/GatedLink.vue";
 import { useOdometerMismatches } from "@/features/roster/useOdometerMismatches";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -8,13 +8,15 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { AppCard as BaseCard } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { sortRows } from "@/lib/sort";
+import { useQueryState } from "@/composables/useQueryState";
+import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { formatDate as fmtDate, formatDateTime as fmtDateTime } from "@/lib/format";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
@@ -25,27 +27,34 @@ const rows = computed(() => data.value?.rows ?? []);
 const offenders = computed(() => (data.value?.offenders ?? []).slice(0, 8));
 
 // ── Search + filters (standard toolbar) ──────────────────────────────────────
-const search = ref("");
-const vehicleId = ref<string | undefined>(undefined);
-const from = ref<string | undefined>(undefined);
-const to = ref<string | undefined>(undefined);
+// Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
+// the list. The vehicle is not checked against a list: the ids arrive with the roster, after the first
+// read, and an id that matches nothing narrows to nothing — which the empty state already explains.
+const qs = useQueryState();
+const search = qs.param("search");
 // Filter by vehicle id (what the rows carry) but show unit numbers.
-const vehicleFilter = computed<string>({
-  get: () => vehicleId.value ?? "",
-  set: (v) => (vehicleId.value = v || undefined),
-});
+const vehicleFilter = qs.param("vehicle");
+const vehicleId = computed(() => vehicleFilter.value || undefined);
+/** A hand-edited date that is not a calendar day reads as unset; it is compared as a string below. */
+const isoDay = (key: string) => {
+  const p = qs.param(key);
+  return computed<string | undefined>({
+    get: () => (/^\d{4}-\d{2}-\d{2}$/.test(p.value) ? p.value : undefined),
+    set: (v) => (p.value = v ?? ""),
+  });
+};
+const from = isoDay("from");
+const to = isoDay("to");
 const vehicleOptions = computed(() => [
   { value: "", label: "All vehicles" },
   ...[...(vehicles.value ?? [])]
     .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
     .map((v) => ({ value: v.id, label: v.unit_number })),
 ]);
-const activeFilterCount = computed(() => [vehicleId.value, from.value, to.value].filter(Boolean).length + (search.value.trim() ? 1 : 0));
+// The date range is one filter (FilterBar's convention), however many of its ends are set.
+const activeFilterCount = computed(() => (vehicleId.value ? 1 : 0) + (from.value || to.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
 function resetFilters() {
-  search.value = "";
-  vehicleId.value = undefined;
-  from.value = undefined;
-  to.value = undefined;
+  qs.set({ search: undefined, vehicle: undefined, from: undefined, to: undefined });
 }
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -60,10 +69,7 @@ const filtered = computed(() => {
 });
 
 // Sorting — default newest → oldest; headers are clickable to re-sort. "Difference" sorts by magnitude.
-const sort = ref<SortState>({ key: "fueledAt", dir: "desc" });
-function onSort(key: string) {
-  sort.value = toggleSort(sort.value, key);
-}
+// The sort itself is declared under `columns`, which it is checked against; `sorted` reads it lazily.
 const getVal = (r: (typeof rows.value)[number], key: string): unknown => {
   if (key === "fueledAt") return r.fueledAt; // ISO strings sort chronologically
   if (key === "unit") return r.unit ?? "";
@@ -75,12 +81,6 @@ const getVal = (r: (typeof rows.value)[number], key: string): unknown => {
   return (r as unknown as Record<string, unknown>)[key];
 };
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
-
-// Client-side pagination over the filtered mismatch list (reuses the shared jump-to-page control).
-const PAGE_SIZE = 20;
-const page = ref(1);
-watch([filtered, sort], () => (page.value = 1));
-const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const fmtOdo = (n: number) => `${Math.round(n).toLocaleString()} mi`;
 const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString()} mi`;
@@ -122,6 +122,22 @@ const columns: DataTableColumn[] = [
   { key: "timeBasis", label: "Time basis" },
   { key: "locationConfidence", label: "Location" },
 ];
+// The default (newest first) is the fallback of both parameters, so a plain link opens on it and it
+// never reaches the URL. The third click on Date — "no sort" — is still a state of its own: choosing
+// "" against a fallback writes `any` for both, which reads back as unsorted rather than snapping back
+// to newest-first (D-US2).
+const { sort, onSort } = useUrlSort(
+  qs.param("sort", columns.filter((c) => c.sortable).map((c) => c.key), "fueledAt"),
+  qs.param("dir", SORT_DIRECTIONS, "desc"),
+);
+
+// Client-side pagination over the filtered mismatch list (reuses the shared jump-to-page control).
+const PAGE_SIZE = 20;
+const page = qs.page();
+// On the inputs, not on `filtered`: `filtered` also changes when the readings arrive, and watching it
+// would throw a pasted `?page=2` away the moment the list loaded (D-US2).
+watch([search, vehicleFilter, from, to, () => sort.value.key, () => sort.value.dir], () => (page.value = 1));
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 </script>
 
@@ -134,32 +150,34 @@ const columns: DataTableColumn[] = [
          daily odometer tier — this table is empty for a fill telematics has not reached. -->
     <SamsaraFeedLine :feeds="['telematics']" />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search truck or driver…"
-      :count="filtered.length"
-      count-label="readings"
-    >
+    <DataWorkspace>
+      <FilterBar
+        v-model:search="search"
+        embedded
+        search-placeholder="Search truck or driver…"
+        :count="filtered.length"
+        count-label="readings"
+        :active-count="activeFilterCount"
+        @clear-all="resetFilters"
+      >
       <template #filters>
         <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
-        <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v)" @update:to="(v) => (to = v)" />
+        <DateRangeFilter v-model:from="from" v-model:to="to" />
       </template>
-      <template #actions>
-        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-      </template>
-    </FilterBar>
+      </FilterBar>
 
-    <DataTable
-      :columns="columns"
-      :rows="paged"
-      row-key="id"
-      :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
-      :retrying="isFetching"
-      :sort="sort"
-      @sort="onSort($event)"
-      @retry="refetch"
-    >
+      <DataTable
+        embedded
+        :columns="columns"
+        :rows="paged"
+        row-key="id"
+        :loading="isLoading"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the odometer readings.') : null"
+        :retrying="isFetching"
+        :sort="sort"
+        @sort="onSort($event)"
+        @retry="refetch"
+      >
       <template #empty>
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
         <p class="mt-1 text-ink-tertiary">
@@ -194,7 +212,8 @@ const columns: DataTableColumn[] = [
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
-    </DataTable>
+      </DataTable>
+    </DataWorkspace>
 
     <!-- Repeat offenders (drivers who most often mis-enter the odometer) — coaching list, not alerts. -->
     <BaseCard v-if="offenders.length > 1" padding="sm">

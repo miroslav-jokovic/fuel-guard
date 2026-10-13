@@ -44,6 +44,7 @@ const STATUS: Record<string, number> = {
   invalid_review: 400,
   invalid_assembly: 400,
   edited_elsewhere: 409,
+  not_ready: 409,
   sign_failed: 502,
   query_failed: 500,
   insert_failed: 500,

@@ -7,18 +7,19 @@ import { AppButton as BaseButton, AppTabs } from "@silvicom/ui";
 import { AppCard as BaseCard, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import DataTable from "@/components/ui/DataTable.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import SamsaraFeedLine from "@/components/SamsaraFeedLine.vue";
 import { toneClass } from "@/lib/badges";
-import { toggleSort } from "@/lib/sort";
 import { useIdlingPage } from "@/features/idle/useIdlingPage";
 import IdleBurnRatesPanel from "@/features/idle/IdleBurnRatesPanel.vue";
-import IdleEngineParityPanel from "@/features/idle/IdleEngineParityPanel.vue";
 
 const {
   isLoading, isError, error, isFetching, refetch,
   fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
-  trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
+  trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, onTrkSort, trkPage,
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
@@ -26,10 +27,16 @@ const {
   dateFrom, dateTo, rangeLabel, estimate,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
-  drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
-  capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
+  drvSearch, drvFilterCount, clearDrv, drvSort, onDrvSort, drvPage, drvFiltered, drvPaged, drvColumns,
+  capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   capLoading, capIsError, capError, capFetching, capRefetch,
 } = useIdlingPage();
+
+/** The expanded row's facts (D-US6): where the truck's running time went, then its learned capability as a badge. */
+const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
+  ...trkDetail(row).map((d) => ({ ...d, numeric: true })),
+  { key: "capability", label: "Idle capability", value: capBadge(row.capability).label },
+];
 </script>
 
 <template>
@@ -54,29 +61,31 @@ const {
          plain ink, as on Fuel Costs (Q-FSV15 ruling 2, extended here 2026-10-04): a total says how much, not
          whether it is good news — avoidable idle is a coaching queue and "Needs an APU" an investment case. -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.engineOnH.toLocaleString() }} <span class="text-base font-normal text-ink-tertiary">engine-on h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">{{ fleet.driveH.toLocaleString() }} h driving · {{ fleet.idleH.toLocaleString() }} h idling</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Idle share of runtime</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.idlePct }}%</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">of engine-on time was spent idling ({{ fleet.drivePct }}% driving)</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="avoidable-usd">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</dd>
-        <dd v-if="estimate?.avoidablePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</dd>
-      </BaseCard>
-      <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs an APU</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink" data-testid="reducible-usd">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach</dd>
-        <dd class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</dd>
-        <dd v-if="estimate?.reduciblePricing" class="mt-0.5 text-xs text-ink-tertiary" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</dd>
-      </BaseCard>
+      <StatCard
+        label="Fleet running time"
+        :value="fleet.engineOnH.toLocaleString()"
+        unit="engine-on h"
+        :sub="`${fleet.driveH.toLocaleString()} h driving · ${fleet.idleH.toLocaleString()} h idling`"
+      />
+      <StatCard
+        label="Idle share of runtime"
+        :value="`${fleet.idlePct}%`"
+        :sub="`of engine-on time was spent idling (${fleet.drivePct}% driving)`"
+      />
+      <StatCard label="Avoidable idle" :value="usd(fleet.avoidableUsd)" :unit="`· ${fleet.avoidableH.toLocaleString()} h`" data-testid="avoidable-usd">
+        <template #sub><span data-testid="avoidable-coverage">{{ estimate?.avoidableCoverage }}</span></template>
+        <p v-if="estimate?.avoidablePricing" data-testid="avoidable-pricing">{{ estimate.avoidablePricing }}</p>
+      </StatCard>
+      <StatCard
+        label="Needs an APU"
+        :value="usd(fleet.reducibleUsd)"
+        :unit="`· ${fleet.reducibleH.toLocaleString()} h`"
+        sub="rest idle an APU or optimized idle would carry — the case for fitting it, not waste to coach"
+        data-testid="reducible-usd"
+      >
+        <p data-testid="reducible-coverage">{{ estimate?.reducibleCoverage }}</p>
+        <p v-if="estimate?.reduciblePricing" data-testid="reducible-pricing">{{ estimate.reduciblePricing }}</p>
+      </StatCard>
     </div>
 
     <!-- Tab strip + the two disclosures. The strip was hand-rolled buttons with no tab semantics and the
@@ -150,8 +159,6 @@ const {
     </BaseCard>
     <!-- IE4: the measured idle burn rate beside the configured one (a table carries its own card) -->
     <IdleBurnRatesPanel />
-    <!-- IE5: how far the new idle engine is from replacing the figures above (D-IE9) -->
-    <IdleEngineParityPanel />
     </div>
 
     <!-- Data completeness: how complete the inputs behind these numbers are -->
@@ -177,34 +184,36 @@ const {
     </BaseCard>
 
     <!-- ── TAB: Trucks — engine-on = drive + idle, avoidable ─────────────────── -->
-    <div v-if="activeTab === 'trucks'" id="idling-panel-trucks" role="tabpanel" aria-labelledby="idling-tab-trucks" class="space-y-6">
+    <div v-if="activeTab === 'trucks'" id="idling-panel-trucks" role="tabpanel" aria-labelledby="idling-tab-trucks">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="trkSearch"
         search-placeholder="Search truck…"
         :count="answered.trucks ? trkFiltered.length : null"
         count-label="trucks"
+        :active-count="trkFilterCount"
+        @clear-all="clearTrk"
       >
         <template #filters>
           <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
           <FilterSelect v-model="trkCapFilter" label="Capability" :options="trkCapOptions" />
           <FilterSelect v-model="trkConfSel" label="Data" :options="trkConfOptions" />
         </template>
-        <template #actions>
-          <BaseButton v-if="trkFilterCount" variant="ghost" size="sm" @click="clearTrk">Clear filters</BaseButton>
-        </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="trkColumns"
         :rows="trkPaged"
         row-key="vehicleId"
         :loading="trkLoading"
-        :error="trkIsError ? (trkError instanceof Error ? trkError.message : 'Failed to load') : null"
+        :error="trkIsError ? (trkError instanceof Error ? trkError.message : 'Could not load the trucks.') : null"
         :retrying="trkFetching"
         :sort="trkSort"
         :expanded="trkExpanded"
         empty-text="No engine-state data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(t) => (t.confident ? '' : 'opacity-60')"
-        @sort="trkSort = toggleSort(trkSort, $event)"
+        @sort="onTrkSort"
         @retry="trkRefetch"
         @row-click="toggleTrk"
       >
@@ -236,48 +245,47 @@ const {
         </template>
         <!-- Where the truck's running time went: the split behind its costs, one click away (design verdict, E3). -->
         <template #expanded="{ row }">
-          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6" data-testid="truck-detail">
-            <div v-for="d in trkDetail(row)" :key="d.label">
-              <dt class="text-xs text-ink-muted">{{ d.label }}</dt>
-              <dd class="tabular-nums text-ink">{{ d.value }}</dd>
-            </div>
-            <div>
-              <dt class="text-xs text-ink-muted">Idle capability</dt>
-              <dd>
-                <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(row.capability).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(row.capability).label }}</span>
-              </dd>
-            </div>
-          </dl>
+          <FactList :facts="truckFacts(row)" :columns="3" data-testid="truck-detail">
+            <template #value-capability>
+              <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(row.capability).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(row.capability).label }}</span>
+            </template>
+          </FactList>
         </template>
         <template #footer>
           <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
 
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'drivers'" id="idling-panel-drivers" role="tabpanel" aria-labelledby="idling-tab-drivers" class="space-y-6">
+    <div v-else-if="activeTab === 'drivers'" id="idling-panel-drivers" role="tabpanel" aria-labelledby="idling-tab-drivers">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="drvSearch"
         search-placeholder="Search driver…"
         :count="answered.drivers ? drvFiltered.length : null"
         count-label="drivers"
+        :active-count="drvFilterCount"
+        @clear-all="clearDrv"
       >
         <template #filters>
           <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
         </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="drvColumns"
         :rows="drvPaged"
         row-key="driverId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+        :error="isError ? (error instanceof Error ? error.message : 'Could not load the drivers.') : null"
         :retrying="isFetching"
         :sort="drvSort"
         empty-text="No idle data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(d) => (d.driverId === '__unattributed__' ? 'bg-surface-subtle/60' : '')"
-        @sort="drvSort = toggleSort(drvSort, $event)"
+        @sort="onDrvSort"
         @retry="refetch"
       >
         <template #cell-driverName="{ row }">
@@ -295,34 +303,37 @@ const {
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
 
     <!-- ── TAB: Truck capability ─────────────────────────────────────────────── -->
-    <div v-else id="idling-panel-capability" role="tabpanel" aria-labelledby="idling-tab-capability" class="space-y-6">
+    <div v-else id="idling-panel-capability" role="tabpanel" aria-labelledby="idling-tab-capability">
+      <DataWorkspace>
       <FilterBar
+        embedded
         v-model:search="capSearch"
         search-placeholder="Search truck or batch…"
         :count="answered.capability ? capFiltered.length : null"
         count-label="trucks"
+        :active-count="capFilterCount"
+        @clear-all="clearCap"
       >
         <template #filters>
           <FilterSelect v-model="capFilter" label="Long parks" :options="capOptions" />
         </template>
-        <template #actions>
-          <BaseButton v-if="capFilterCount" variant="ghost" size="sm" @click="clearCap">Clear filters</BaseButton>
-        </template>
       </FilterBar>
       <DataTable
+        embedded
         :columns="capColumns"
         :rows="capPaged"
         row-key="unit_number"
         :loading="capLoading"
-        :error="capIsError ? (capError instanceof Error ? capError.message : 'Failed to load') : null"
+        :error="capIsError ? (capError instanceof Error ? capError.message : 'Could not load the idle capability.') : null"
         :retrying="capFetching"
         :sort="capSort"
         empty-text="No trucks match. Recorded equipment is set on the Vehicles page; the long-park columns fill in as trucks park for four hours or more."
         :row-class="(t) => (t.cross_check === 'disagree' ? 'bg-danger-50/40' : '')"
-        @sort="capSort = toggleSort(capSort, $event)"
+        @sort="onCapSort"
         @retry="capRefetch"
       >
         <template #cell-recorded="{ row }">
@@ -342,6 +353,7 @@ const {
           <TablePagination :page="capPage" :page-size="PAGE_SIZE" :total="capFiltered.length" @update:page="capPage = $event" />
         </template>
       </DataTable>
+      </DataWorkspace>
     </div>
   </div>
 </template>

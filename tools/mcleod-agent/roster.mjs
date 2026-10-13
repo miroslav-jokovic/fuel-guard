@@ -143,6 +143,17 @@ export const MAP = {
            */
           in_shop: s(r.tractor_status) === "S",
           /**
+           * McLeod is winding the truck down — `I`, sent as the FACT (DISPATCH-BOARD-PLAN D-DB11, 0462).
+           *
+           * Still in service (`service_status = 'A'`, so still ours, D-FC0), but on its way out: on
+           * 2026-10-12 every one of the 27 trucks silent for a week carried `I`, home fleet '1' and an
+           * out-of-service date set that autumn — sold and waiting for pickup (Q-FL4), or retiring.
+           * Like `in_shop`, a display fact and never membership: the dispatch board leaves such a truck
+           * out unless it is on a load. Absent (undefined) when this query did not read the column, so
+           * an older query can never clear the fact.
+           */
+          winding_down: "tractor_status" in r ? s(r.tractor_status) === "I" : undefined,
+          /**
            * McLeod's fuel-tax exclusion, sent as the FACT. `Y` excludes; `N` includes. A blank or any
            * other letter sends nothing (undefined) rather than a guess — Silvicom 360 treats an absent
            * fact as "unknown" and never closes an exclusion period on it.

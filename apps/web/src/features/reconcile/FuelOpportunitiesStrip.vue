@@ -17,6 +17,7 @@
  */
 import { RouterLink } from "vue-router";
 import { formatDisplayDate, type FuelOpportunity } from "@silvicom/shared";
+import QueryState from "@/components/ui/QueryState.vue";
 import { usd } from "./format";
 
 const props = defineProps<{
@@ -37,6 +38,11 @@ const props = defineProps<{
    */
   variant?: "page" | "card";
 }>();
+/**
+ * A failed read asks the page to read again (D-US5). It used to say "Reload to try again", which reset
+ * everything else the page had open; the page owns the query, so its Retry refetches it.
+ */
+const emit = defineEmits<{ retry: [] }>();
 
 const linkFor = (kind: string) => ({
   path: "/fuel-problems",
@@ -55,11 +61,16 @@ const detail = (o: FuelOpportunity) =>
   <section class="space-y-2" :aria-labelledby="variant === 'card' ? undefined : 'fuel-opportunities-heading'" :aria-label="variant === 'card' ? 'Open fuel findings' : undefined">
     <h3 v-if="variant !== 'card'" id="fuel-opportunities-heading" class="text-sm font-semibold text-ink">Open fuel findings</h3>
 
-    <p v-if="error" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
-      Couldn't load the open findings. Reload to try again.
-    </p>
-    <p v-else-if="loading && rows === undefined" class="text-sm text-ink-muted">Loading the open findings…</p>
-    <p v-else-if="rows && rows.length === 0" class="text-sm text-ink-muted">
+    <!-- Compact inside a Dashboard card, where the card is the frame; the block form on the page. -->
+    <QueryState
+      :loading="loading && rows === undefined"
+      :error="error"
+      :compact="variant === 'card'"
+      loading-text="Loading the open findings…"
+      error-text="Could not load the open findings."
+      @retry="emit('retry')"
+    >
+    <p v-if="rows && rows.length === 0" class="text-sm text-ink-muted">
       Nothing is waiting for review in these dates.
     </p>
 
@@ -81,5 +92,6 @@ const detail = (o: FuelOpportunity) =>
         claim or a price difference that still has to be checked, not money saved.
       </p>
     </template>
+    </QueryState>
   </section>
 </template>
