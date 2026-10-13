@@ -227,3 +227,32 @@ describe("StatCard — what the hand-built tiles needed (2026-10-12)", () => {
     expect(bare.text()).toContain("Fills");
   });
 });
+
+/**
+ * F1 (US6b): a tile over a failed read says so — a dash, the page's sentence and a Retry — and is
+ * neither a link nor a toggle while it does, so the Retry is the only control in it.
+ */
+describe("StatCard — a failed read", () => {
+  it("shows a dash, the sentence and a Retry that emits retry, in place of the figure", async () => {
+    const w = mount(StatCard, { props: { label: "Open work orders", value: 0, error: "Could not load the work orders." } });
+    expect(w.text()).toContain("—");
+    expect(w.text()).toContain("Could not load the work orders.");
+    expect(w.text()).not.toContain("0");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(w.emitted("retry")).toHaveLength(1);
+  });
+
+  it("is not a link or a toggle while failed", () => {
+    const w = mount(StatCard, {
+      props: { label: "Low stock", value: 3, to: "/shop/inventory", pressed: false, error: "Could not load the reorder list." },
+      global: { stubs: { RouterLink: { template: "<a><slot /></a>" } } },
+    });
+    expect(w.find("a").exists()).toBe(false);
+    expect(w.find("[aria-pressed]").exists()).toBe(false);
+  });
+
+  it("draws the loading skeleton, not the failure, while the read is asked again", () => {
+    const w = mount(StatCard, { props: { label: "Low stock", value: 3, loading: true, error: "Could not load the reorder list." } });
+    expect(w.text()).not.toContain("Could not load");
+  });
+});
