@@ -343,6 +343,48 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
 5. **Who is notified** of an order: the driver by SMS + e-mail (Med-Stop sends it)? And a copy to the
    DER?
 
+### 7A.10 Owner answers (2026-10-13) and what they decide
+
+1. **Who orders: safety_manager, admin and recruiter** — for every reason. D-MSUX1: the order action is
+   gated on those three roles (derived from the role list in shared, never typed twice). The recruiter
+   still never sees a RESULT (`canReadTestingRecords` unchanged); ordering is not reading.
+2. **First order: after everything is built, on a real person who needs one** (no test host, Q-MS2).
+   D-MSUX2: the order flow ships behind the per-org switch it already has (the credential's
+   `enabled`) and is exercised for the first time by the owner, watched.
+3. **Gender joins the 360 flow.** D-MSUX3: Part 1 asks it (with home address, CDL class, CDL expiry —
+   D-MS1), as new columns in their own merge first (`lint:migration-ordering`), wording reviewed beside
+   the EEO questions. Unblocks observed collections and auto-creating the Med-Stop applicant.
+4. **Medical-card expiry comes from Samba and Med-Stop, and the DQF pulls it from there, cross-checked.**
+   What exists today [V]: the DQF's medical card (`certifications.medical_card`) is filed by McLeod's
+   nightly roster sweep through `recordSyncedCredentials` and by office uploads; **Samba is not
+   connected to the product at all** (deferred on cost 2026-08-26; 2026-09-17 note: the carrier has a
+   live account, "do not build an integration"). So:
+   - D-MSUX4a: Med-Stop's `medexpiration` becomes a FILER of the medical card through the same
+     `recordSyncedCredentials` door (source `medstop`, write-only-on-change), for certain matches only.
+   - D-MSUX4b: the cross-check compares every source we hold per driver (McLeod, Med-Stop, the card on
+     file; Samba once connected) and lists only the disagreements, with each source's date beside it.
+   - **Q-MSUX6 (new, blocks Samba):** connecting Samba reopens the 2026-08-26 cost decision. What we
+     would need: Samba API credentials and which product carries the medical (the CDLIS MVR carries the
+     self-certification + medical expiry for CDL holders; a monitoring subscription pushes changes).
+     Recommend: Med-Stop now (we already pay for it, 170/170 active employees carry a date), Samba as a
+     second source once its access and per-pull cost are known.
+   - Q-MSUX7: when sources disagree, which date does the DQF keep? Recommend: the LATEST expiry backed by
+     a document on file wins; without a document, the EARLIEST (the safe side), flagged for review.
+5. **Never text or e-mail drivers.** Read from Med-Stop, GET only [V]: the order form carries
+   `sendsms` and `sendemail` (BOOLEAN Y/N, empty by default); the spec says only "requested SMS/email
+   notifications are sent"; the 20 newest orders show no notify fields set and the newest has zero
+   messages (`/Request/{id}/messages`). `tosms` and `toemail` are still REQUIRED fields.
+   D-MSUX5: every order is sent with `sendsms=N`, `sendemail=N`, `tosms`/`toemail` = the ORDERING
+   OFFICE's contact (the org's DER phone/e-mail), never the driver's — so even a Med-Stop default we
+   cannot see lands in the office. `POST /Request/{id}/notify` is never called (allow-list). After the
+   first real order, `/Request/{id}/messages` must read zero driver messages; that check is part of
+   the first-order runbook. The preview shows "Med-Stop will not text or e-mail the driver."
+   `notification` (CATEGORYNOTIFY: DIRECT COMMUNICATION · SIGNED TEST NOTIFICATION FORM · PHONE CALL ·
+   OTHER) is how the EMPLOYER told the donor — the order form asks the office which.
+6. **Sync on.** The Settings switch was on; the second switch, `MEDSTOP_SYNC_ENABLED`, was NOT set on
+   `@fleetguard/api`. Set 2026-10-13 ~13:10 CDT (api only — no other service has it); first sweep ~7
+   min after the restart.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -490,3 +532,7 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
   1 open order, Med-Stop medical expiry ≤60 d for 14 of 170; the request form and site search read;
   the sidebar icon is Fuel's; the production sweep is not switched on. Five tabs, an order SlideOver
   with preview, hiring entry point, precision rules R1–R5, questions Q-MSUX 1–5. Nothing built.
+- 2026-10-13 — Owner answered Q-MSUX 1–5 + sync (§7A.10). Orders: safety, admin, recruiter. Gender
+  into Part 1. Medical from Samba + Med-Stop into the DQF, cross-checked (Samba not connected — Q-MSUX6).
+  No driver texts/e-mails: `sendsms=N`, `sendemail=N`, office contact in `tosms`/`toemail` (D-MSUX5).
+  `MEDSTOP_SYNC_ENABLED=true` set on `@fleetguard/api`.
