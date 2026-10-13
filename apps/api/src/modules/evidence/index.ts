@@ -34,6 +34,10 @@ export { insertQualificationRecord } from "./compliance.js";
 // D-ARC3's dual-source finding closed at the seam the McLeod sweep would otherwise have widened.
 export { recordSyncedCredentials, SYNC_NOTE } from "./syncedCredentials.js";
 export type { SyncedCredentialInput, SyncedCredentialResult } from "./syncedCredentials.js";
+// The medical card's second source (Med-Stop, D-MSUX4a): a collector reports its claims here and the
+// owner files what Q-MSUX7's rule decides. `readMedicalStates` is the cross-check's read (D-MSUX4b).
+export { readMedicalStates, recordMedicalSourceDates } from "./syncedMedical.js";
+export type { MedicalSourceSweepResult } from "./syncedMedical.js";
 // The one deletion `RETENTION_FORBIDDEN` has always permitted — an explicit, audited, service-role
 // act — behind a single door. `maintenance` uses it for D-AVI29's hard delete; the caller writes the
 // audit row first, while there is still a record to describe.

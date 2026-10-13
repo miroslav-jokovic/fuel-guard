@@ -368,8 +368,13 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
      self-certification + medical expiry for CDL holders; a monitoring subscription pushes changes).
      Recommend: Med-Stop now (we already pay for it, 170/170 active employees carry a date), Samba as a
      second source once its access and per-pull cost are known.
-   - Q-MSUX7: when sources disagree, which date does the DQF keep? Recommend: the LATEST expiry backed by
-     a document on file wins; without a document, the EARLIEST (the safe side), flagged for review.
+   - ~~Q-MSUX7~~ — **answered 2026-10-13: the recommendation.** When sources disagree, the card on file
+     backed by a scan (`certifications.document_id`) wins; without one, the EARLIEST date any source
+     gives (the safe side), and the driver is flagged for review. D-MSUX7: one pure rule
+     (`resolveMedicalExpiry`, shared) over the scanned card and each source's latest claim
+     (`credential_source_dates`, 0467), called by BOTH sweeps — so McLeod and Med-Stop reach the same
+     answer and can never take turns superseding each other. ⚠ This changes McLeod alone too: its date
+     no longer supersedes a scanned card, either direction.
 5. **Never text or e-mail drivers.** Read from Med-Stop, GET only [V]: the order form carries
    `sendsms` and `sendemail` (BOOLEAN Y/N, empty by default); the spec says only "requested SMS/email
    notifications are sent"; the 20 newest orders show no notify fields set and the newest has zero
@@ -546,3 +551,15 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
   **Roster check** (the two violation lists only). Removed: licence-we-lack, the medical-disagreement
   list, the matched footer. Freshness line; caution when the last read is older than 2 h. Sidebar
   icon: `MicroscopeIcon` (was Fuel's test tube). No writes to Med-Stop.
+- 2026-10-13 — **UX2 built** (branch `claude/medstop-ux2`). Q-MSUX7 answered (recommendation).
+  Finding that shaped it: McLeod's sweep already files `medical_card` through
+  `recordSyncedCredentials`, write-on-change in EITHER direction, so Med-Stop filing through the same
+  door would have ping-ponged A/B rows (~24 a day per disagreeing driver, 37 drivers) in an append-only
+  table. Built: 0467 `credential_source_dates` (evidence-owned; one row per driver × kind × source;
+  `record_credential_source_date` writes only on change; McLeod's claim backfilled from current rows
+  carrying SYNC_NOTE) · `resolveMedicalExpiry` + `medicalCards` in shared · evidence `syncedMedical.ts`
+  (`fileMedicalClaim`, `recordMedicalSourceDates`, `readMedicalStates`) · McLeod's medical path and
+  the Med-Stop sweep (step 6, active + certain matches only, R3) both report claims there · Medical
+  tab: the due list by the rule's date, plus "Sources disagree" with one column per source.
+  Samba still waits on Q-MSUX6. R2's sample was not made (production read); the risk is stated in the
+  PR: on first sweep, a driver whose Med-Stop date is earlier than McLeod's gets the earlier date filed.

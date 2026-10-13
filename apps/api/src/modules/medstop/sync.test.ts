@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped } from "../../testing/supabaseRecorder.js";
 import { MedstopClient } from "./client.js";
-import { sweepMedstop } from "./sync.js";
+import { medicalClaims, sweepMedstop } from "./sync.js";
 
 /**
  * One sweep (MEDSTOP-PLAN.md §6 MS1). Proved here: everything is fetched before anything is written,
@@ -52,5 +52,44 @@ describe("sweepMedstop", () => {
       "/Employee/terminated": "fail",
     }), ORG)).rejects.toThrow();
     expect(db.rpcs()).toEqual([]);
+  });
+
+  /**
+   * UX2 (D-MSUX4a): Med-Stop's medical date reaches the qualification file as a CLAIM, through
+   * evidence's door — never `.from("certifications")` here — and only for a certain match (R3).
+   */
+  it("reports a matched driver's medical date to evidence, which files it on an empty file", async () => {
+    const db = createSupabaseRecorder({
+      tables: { drivers },
+      rpc: (fn) => (fn === "insert_certification" ? [{ id: "c1", superseded_id: null }] : fn === "record_credential_source_date" ? true : 1),
+    });
+    const result = await sweepMedstop(db.client, medstop({
+      "/Employee/list": [{ id: "e1", fname: "ANN", lname: "POOLED", license: "A1", licensestate: "il", medexpiration: "2027-03-01" }],
+      "/Employee/applicants": [],
+      "/Employee/terminated": [],
+      "/Random/pools": [],
+      "/Random/selections": [],
+    }), ORG);
+    expect(result.medical).toEqual({ written: 1, unchanged: 0, failed: 0 });
+    const claim = db.rpcs().find((c) => c.fn === "record_credential_source_date");
+    expect(claim?.args).toMatchObject({ p_org: ORG, p_driver: "d1", p_source: "medstop", p_expires_on: "2027-03-01" });
+    const filed = db.rpcs().find((c) => c.fn === "insert_certification");
+    expect(filed?.args).toMatchObject({ p_org_id: ORG, p_subject_id: "d1", p_kind: "medical_card", p_expires_at: "2027-03-01" });
+    expect(db.writes().filter((w) => w.table === "certifications")).toEqual([]);
+    expectOrgScoped(db, ORG);
+  });
+});
+
+describe("medicalClaims", () => {
+  const row = (over: Record<string, unknown>) =>
+    ({ driver_id: "d1", roster: "active", match_rule: "licence", medical_expires_on: "2027-03-01", ...over }) as never;
+  it("claims for an active, certain match only", () => {
+    expect(medicalClaims([row({})])).toEqual([{ driverId: "d1", expiresOn: "2027-03-01" }]);
+    expect(medicalClaims([row({ match_rule: "name_dob" })])).toHaveLength(1);
+    // R3: a name-only match never moves a qualification file.
+    expect(medicalClaims([row({ match_rule: "name" })])).toEqual([]);
+    expect(medicalClaims([row({ roster: "terminated" })])).toEqual([]);
+    expect(medicalClaims([row({ roster: "applicant" })])).toEqual([]);
+    expect(medicalClaims([row({ driver_id: null, match_rule: null })])).toEqual([]);
   });
 });

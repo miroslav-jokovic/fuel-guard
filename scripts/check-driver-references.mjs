@@ -41,6 +41,10 @@ const HANDLED_IN_FUNCTION = new Set([
 const EXEMPT = new Map([
   // The application PDF's capture rows key on the application, not the driver, once certified;
   // driver_id there is provenance. Anything listed here carries the argument with it.
+  ["credential_source_dates.driver_id",
+    "0467: each source's CURRENT claim about a medical card, not evidence — a merged-away driver's " +
+    "rows cascade and the next McLeod/Med-Stop sweep re-reports them for the canonical driver. " +
+    "Moving them would collide on the (driver, kind, source) key the two drivers both hold."],
 ]);
 
 // Tables that no longer exist take their FKs with them.

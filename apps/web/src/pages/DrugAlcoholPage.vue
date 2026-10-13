@@ -32,7 +32,7 @@ const tabs = computed(() => {
     ...(d.selections ? [{ value: "random", label: "Random selections", badge: d.selections.due.length || undefined }] : []),
     { value: "progress", label: "In progress", badge: d.inProgress.length || undefined },
     ...(d.results ? [{ value: "results", label: "Results", badge: d.results.recent.length || undefined }] : []),
-    { value: "medical", label: "Medical cards", badge: d.medical.length || undefined },
+    { value: "medical", label: "Medical cards", badge: d.medical.due.length || undefined },
     { value: "roster", label: "Roster check", badge: d.roster.notInPool.length + d.roster.leftButInPool.length || undefined },
   ];
 });
@@ -82,7 +82,7 @@ const stale = computed(() => {
         <RandomTab v-if="tab === 'random' && p.selections" :due="p.selections.due" :reserves="p.selections.reserves" :pools="p.pools" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
         <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
-        <MedicalTab v-else-if="tab === 'medical'" :rows="p.medical" />
+        <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />
         <div v-else-if="tab === 'roster'" class="space-y-6">
           <ProgramPeopleTable
             title="Driving here, not in Med-Stop's random pool"

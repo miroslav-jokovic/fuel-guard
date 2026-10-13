@@ -22,6 +22,17 @@ vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({
 import DrugAlcoholPage from "./DrugAlcoholPage.vue";
 
 const person = (id: string, name: string) => ({ driverId: id, medstopId: `m-${id}`, name });
+// Unscanned card, sources disagree: the file keeps the earlier (Med-Stop's). A scanned card that
+// McLeod disagrees with is flagged but not due.
+const medDiff = {
+  person: person("d2", "Med Diff"), expiresOn: "2026-11-10", daysLeft: 28, documented: false, disagree: true,
+  sources: [{ source: "mcleod" as const, expiresOn: "2027-01-01" }, { source: "medstop" as const, expiresOn: "2026-11-10" }],
+};
+const scanned = {
+  person: person("d6", "Scan Kept"), expiresOn: "2027-08-01", daysLeft: 292, documented: true, disagree: true,
+  sources: [{ source: "mcleod" as const, expiresOn: "2026-12-31" }],
+};
+
 const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => ({
   connected: true,
   syncedAt: new Date().toISOString(),
@@ -38,9 +49,10 @@ const program = (over: Partial<DrugAlcoholProgram> = {}): DrugAlcoholProgram => 
     { key: "test:t1", person: person("d5", "Pat Pending"), kind: "drug", reason: "PRE-EMPLOYMENT", stage: "At the lab", orderedOn: null, collectedOn: "2026-10-09", expectedOn: "2026-10-13", daysWaiting: 4 },
   ],
   results: { recent: [], history: [] },
-  medical: [
-    { person: person("d2", "Med Diff"), ours: "2027-01-01", medstop: "2026-11-10", expiresOn: "2026-11-10", daysLeft: 28 },
-  ],
+  medical: {
+    due: [medDiff],
+    disagree: [medDiff, scanned],
+  },
   roster: { notInPool: [person("d1", "Bob Outside")], leftButInPool: [] },
   ...over,
 });
@@ -87,6 +99,11 @@ describe("DrugAlcoholPage", () => {
     expect(w.text()).toContain("Med Diff");
     expect(w.text()).toContain("01/01/2027");
     expect(w.text()).toContain("11/10/2026");
+    // The flagged list names each source and why the file keeps its date.
+    expect(w.text()).toContain("Sources disagree");
+    expect(w.text()).toContain("Scan Kept");
+    expect(w.text()).toContain("Scanned card on file");
+    expect(w.text()).toContain("Earliest of the sources");
     await w.findAll('[role="tab"]').find((t) => t.text().startsWith("Roster check"))!.trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.query.tab).toBe("roster");

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import type { CertificationCreateRequest } from "@silvicom/shared";
 import { insertCertification } from "./compliance.js";
+import { fileMedicalClaim, medicalStateOf, readDriverClaims, SYNC_NOTES } from "./syncedMedical.js";
 
 /**
  * A licence or medical card learned from the carrier's TMS, filed into the evidence record.
@@ -50,6 +51,9 @@ import { insertCertification } from "./compliance.js";
  *    on a row the office has claimed. So an EARLIER date is filed too, and it will correctly
  *    un-qualify a driver: if the carrier's safety department believes the card lapsed, the gate
  *    should fail closed rather than keep dispatching on our more optimistic copy.
+ *    ⚠ Since 2026-10-13 that holds for the LICENCE only. The medical card has a second source,
+ *    Med-Stop, and is filed by `syncedMedical.ts`'s rule (Q-MSUX7): a scanned card wins, else the
+ *    earliest date any source gives — so McLeod's date is a claim there, not the filing.
  * 3. **Superseding a documented row with an undocumented one is correct, not lossy.** A new expiry
  *    means a new physical card, whose scan nobody has filed yet; the old scan stays attached to the
  *    row it actually evidenced, which is what an append-only chain is for.
@@ -62,8 +66,8 @@ import { insertCertification } from "./compliance.js";
  * distinct from `present` can then be built over them rather than guessed at.
  */
 
-/** Stamped on every synced row. The marker Q6's fix will find these by — keep it stable. */
-export const SYNC_NOTE = "Recorded from the carrier's TMS (McLeod) roster sync — no scan filed by the sync.";
+/** Stamped on every McLeod-synced row. The marker Q6's fix will find these by — keep it stable. */
+export const SYNC_NOTE = SYNC_NOTES.mcleod;
 
 /** What a sweep learned about one driver's credentials. Absent fields are skipped, never nulled. */
 export interface SyncedCredentialInput {
@@ -82,7 +86,9 @@ export interface SyncedCredentialResult {
   failed: Array<{ kind: string; error: string }>;
 }
 
-type CurrentCert = { kind: string; identifier: string | null; issuing_authority: string | null; expires_at: string | null };
+type CurrentCert = {
+  kind: string; identifier: string | null; issuing_authority: string | null; expires_at: string | null; document_id: string | null;
+};
 
 /** ISO date or null, compared as text — both sides are `date` columns rendered YYYY-MM-DD. */
 const sameDate = (a: string | null | undefined, b: string | null | undefined): boolean =>
@@ -100,15 +106,19 @@ export async function recordSyncedCredentials(
   const wantsMedical = Boolean(input.medicalExpiresAt);
   if (!wantsCdl && !wantsMedical) return out;
 
-  // One read for both kinds. `superseded_by is null` is the current row by 0127's model.
-  const { data, error } = await admin
-    .from("certifications")
-    .select("kind, identifier, issuing_authority, expires_at")
-    .eq("org_id", orgId)
-    .eq("subject_type", "driver")
-    .eq("subject_id", driverId)
-    .in("kind", ["cdl", "medical_card"])
-    .is("superseded_by", null);
+  // One read for both kinds, and the medical card's per-source claims beside it (0467).
+  const [certs, claims] = await Promise.all([
+    admin
+      .from("certifications")
+      .select("kind, identifier, issuing_authority, expires_at, document_id")
+      .eq("org_id", orgId)
+      .eq("subject_type", "driver")
+      .eq("subject_id", driverId)
+      .in("kind", ["cdl", "medical_card"])
+      .is("superseded_by", null),
+    wantsMedical ? readDriverClaims(admin, orgId, driverId) : Promise.resolve([]),
+  ]);
+  const { data, error } = certs;
   if (error) {
     // Fail the FILING, never the sweep. A roster sync that aborts because the evidence read blipped
     // would leave the driver rows half-updated, which is worse than a credential filed next sweep.
@@ -119,7 +129,7 @@ export async function recordSyncedCredentials(
 
   /** `created_by` is null: a sweep has no user behind it, and 0127's column is nullable for that. */
   const file = async (
-    kind: "cdl" | "medical_card",
+    kind: "cdl",
     changed: boolean,
     fields: Pick<CertificationCreateRequest, "identifier" | "issuingAuthority" | "expiresAt">,
   ) => {
@@ -157,9 +167,14 @@ export async function recordSyncedCredentials(
   }
 
   if (wantsMedical) {
-    const prior = current.get("medical_card");
-    const changed = !prior || !sameDate(prior.expires_at, input.medicalExpiresAt);
-    await file("medical_card", changed, { identifier: null, issuingAuthority: null, expiresAt: input.medicalExpiresAt });
+    // Q-MSUX7: McLeod's date is one source's claim; `fileMedicalClaim` files what the rule decides.
+    const filed =
+      "error" in claims
+        ? claims
+        : await fileMedicalClaim(admin, orgId, driverId, "mcleod", input.medicalExpiresAt!, medicalStateOf(current.get("medical_card"), claims));
+    if (filed === "written") out.written.push("medical_card");
+    else if (filed === "unchanged") out.unchanged.push("medical_card");
+    else out.failed.push({ kind: "medical_card", error: filed.error });
   }
 
   return out;
