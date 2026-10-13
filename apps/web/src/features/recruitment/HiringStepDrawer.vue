@@ -67,7 +67,9 @@ const props = defineProps<{
   identity?: { date_of_birth?: string | null; cdl_number?: string | null; cdl_state?: string | null } | null;
 }>();
 
-const emit = defineEmits<{ close: []; review: [invitationId: string] }>();
+// `orderTest` (UX4): the drug-test step's Med-Stop card asks for the order drawer, which the page
+// opens in place of this one — for the reason `review` is emitted rather than opened here.
+const emit = defineEmits<{ close: []; review: [invitationId: string]; orderTest: [medstopId: string] }>();
 
 const body = computed(() => (props.step ? hiringDrawerBody(props.step.key) : null));
 const badge = computed(() => (props.step ? hiringStepStateBadge(props.step.state) : null));
@@ -242,7 +244,7 @@ const authorizationsQ = useAuthorizationsQuery(driverId);
         <DrugTestPanel v-if="step.key === 'drug_test'" :driver-id="driverId" :done="step.state === 'done'" />
         <!-- MS2c (MEDSTOP-PLAN F-4): the same step as Med-Stop sees it — order, stage, expected by.
              Renders nothing for a carrier that has not connected Med-Stop. -->
-        <MedstopTestCard v-if="step.key === 'drug_test'" :driver-id="driverId" />
+        <MedstopTestCard v-if="step.key === 'drug_test'" :driver-id="driverId" @order="emit('orderTest', $event)" />
         <ClearinghouseConsentPanel
           v-if="step.key === 'clearinghouse'"
           :driver-id="driverId"

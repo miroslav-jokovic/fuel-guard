@@ -122,6 +122,12 @@ export interface MedstopPersonTests {
   connected: boolean;
   /** Med-Stop's record of this person is matched to our driver by licence or name + date of birth. */
   matched: boolean;
+  /**
+   * Med-Stop's id for this person on its APPLICANT roster, certainly matched — what a pre-employment
+   * order is placed on (UX4). NULL when Med-Stop does not hold them as an applicant: not at all
+   * (`matched` false — "add them in Med-Stop first"), or already on its active roster.
+   */
+  applicantMedstopId: string | null;
   orders: MedstopOrderView[];
   tests: MedstopTestView[];
   outcomesVisible: boolean;

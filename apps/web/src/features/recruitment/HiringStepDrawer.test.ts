@@ -47,6 +47,9 @@ const STUBS = {
   // No declared props: `consented` falls through as an attribute, so a test can read what was passed.
   ClearinghouseConsentPanel: stub("consent"),
   EmployerCallsPanel: stub("calls"),
+  // UX4: no `data-body` — Med-Stop's card is not a body the map chooses; it only asks for the order
+  // drawer, which the page opens in place of this one.
+  MedstopTestCard: { name: "MedstopTestCard", emits: ["order"], template: `<button data-medstop @click="$emit('order', 'EE-APP')" />` },
 };
 
 /** Everything the schema can see is done, so every step has a state worth opening. */
@@ -214,6 +217,13 @@ describe("the three recorded acts D1 built (D-HM6)", () => {
     expect(bodies(await openOn("drug_test"))).toEqual(["record", "drug-test"]);
     expect(bodies(await openOn("clearinghouse"))).toEqual(["record", "consent"]);
     expect(bodies(await openOn("mvr"))).toEqual(["record"]);
+  });
+
+  /** UX4: the order drawer is the page's to open — a SlideOver inside this one would trap focus twice. */
+  it("hands the Med-Stop card's pre-employment order up to the page, with Med-Stop's id", async () => {
+    const root = await openOn("drug_test");
+    (root.querySelector("[data-medstop]") as HTMLButtonElement).click();
+    expect(wrapper!.emitted("orderTest")).toEqual([["EE-APP"]]);
   });
 
   /** The consent's reading IS the row's state: "waiting on them" is no consent on file (D-AW5). */

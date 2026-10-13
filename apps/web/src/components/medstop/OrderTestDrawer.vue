@@ -3,9 +3,9 @@ import { computed, ref, watch } from "vue";
 import {
   DEFAULT_ORG_TIMEZONE,
   MEDSTOP_NOTIFY_BY,
+  MEDSTOP_HEADER_ORDER_REASONS,
   MEDSTOP_NOTIFY_BY_LABEL,
   MEDSTOP_ORDER_MAX_DAYS_AHEAD,
-  MEDSTOP_ORDER_REASONS,
   MEDSTOP_ORDER_REASON_LABEL,
   shiftDay,
   todayInZone,
@@ -31,11 +31,14 @@ import SlideOver from "@/components/SlideOver.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { useToastStore } from "@/stores/toast";
 import { formatDate } from "@/lib/format";
-import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "./useMedstopOrder";
+import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "@/composables/useMedstopOrder";
 
 /**
- * "Order a test" (MEDSTOP-PLAN.md §7A.4, UX3) — one drawer, opened from the page header (any reason
- * this drawer orders) or from a random selection (reason and test fixed, the selection is the seed).
+ * "Order a test" (MEDSTOP-PLAN.md §7A.4, UX3/UX4) — one drawer, three entry points: Safety's page
+ * header (a working driver, any reason that header offers), a random selection (reason and test
+ * fixed, the selection is the seed), and the hiring drawer's drug-test step (UX4: pre-employment, the
+ * applicant fixed — Med-Stop's APPLICANT-roster id is the seed; the test may be drug or alcohol).
+ * Lives outside `features/` because Safety and recruitment both open it.
  *
  * Every order is billed and real (there is no Med-Stop test host), so it is two steps on purpose:
  * **Review order** asks the api to build the exact payload and shows it; **Place order** sends the
@@ -43,12 +46,9 @@ import { searchSites, useOrderContext, useOrderPreview, usePlaceOrder } from "./
  * What the review must say, because the owner ruled it (answer 5): Med-Stop will not text or e-mail
  * the driver — its notices go to the office.
  */
-export interface OrderSeed {
-  selectionId: string;
-  medstopId: string;
-  name: string;
-  service: MedstopOrderService;
-}
+export type OrderSeed =
+  | { kind: "selection"; selectionId: string; medstopId: string; name: string; service: MedstopOrderService }
+  | { kind: "applicant"; medstopId: string; name: string };
 const props = defineProps<{ open: boolean; seed: OrderSeed | null }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -76,8 +76,8 @@ watch(
   ([open, seed]) => {
     if (!open) return;
     medstopId.value = seed?.medstopId ?? "";
-    service.value = seed?.service ?? "drug";
-    reason.value = seed ? "RANDOM" : "POST-ACCIDENT";
+    service.value = seed?.kind === "selection" ? seed.service : "drug";
+    reason.value = seed?.kind === "selection" ? "RANDOM" : seed?.kind === "applicant" ? "PRE-EMPLOYMENT" : "POST-ACCIDENT";
     sites.value = [];
     siteId.value = "";
     near.value = null;
@@ -89,7 +89,13 @@ watch(
 const people = computed(() => context.data.value?.people ?? []);
 const person = computed(() => people.value.find((p) => p.medstopId === medstopId.value) ?? null);
 const off = computed(() => context.data.value !== undefined && (!context.data.value.enabled || !context.data.value.contactSet));
-const reasonOptions = MEDSTOP_ORDER_REASONS.filter((r) => r !== "RANDOM").map((r) => ({ value: r, label: MEDSTOP_ORDER_REASON_LABEL[r] }));
+const reasonOptions = MEDSTOP_HEADER_ORDER_REASONS.map((r) => ({ value: r, label: MEDSTOP_ORDER_REASON_LABEL[r] }));
+const applicant = computed(() => props.seed?.kind === "applicant");
+const title = computed(() =>
+  props.seed?.kind === "selection" ? `Random selection · ${props.seed.name}`
+  : props.seed?.kind === "applicant" ? `Pre-employment · ${props.seed.name}`
+  : "Drug or alcohol test through Med-Stop",
+);
 const notifyOptions = MEDSTOP_NOTIFY_BY.map((n) => ({ value: n, label: MEDSTOP_NOTIFY_BY_LABEL[n] }));
 const serviceOptions = [{ value: "drug", label: "Drug" }, { value: "alcohol", label: "Alcohol" }];
 const siteOptions = computed(() =>
@@ -106,7 +112,7 @@ const input = computed((): MedstopOrderInput | null =>
         medstopId: medstopId.value,
         service: service.value,
         reason: reason.value,
-        ...(props.seed ? { selectionId: props.seed.selectionId } : {}),
+        ...(props.seed?.kind === "selection" ? { selectionId: props.seed.selectionId } : {}),
         locationId: siteId.value,
         requestDate: requestDate.value,
         requestTime: requestTime.value,
@@ -146,7 +152,8 @@ async function confirm(): Promise<void> {
   if (!input.value || !reviewed.value) return;
   try {
     const placed = await place.mutateAsync(input.value);
-    toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${reviewed.value.person.name}. It appears under In progress after the next read.`);
+    const where = applicant.value ? "in this step" : "under In progress";
+    toast.success("Test ordered", `Med-Stop request ${placed.requestId} for ${reviewed.value.person.name}. It appears ${where} after the next read.`);
     emit("close");
   } catch (e) {
     toast.error("The order was not placed", e instanceof Error ? e.message : undefined);
@@ -160,18 +167,18 @@ const reviewFacts = computed((): Fact[] => {
   if (!r) return [];
   const p = r.payload;
   return [
-    { label: "Driver", value: r.person.name },
+    { label: applicant.value ? "Applicant" : "Driver", value: r.person.name },
     { label: "Test", value: `${p.category === "TD" ? "Drug" : "Alcohol"} · ${MEDSTOP_ORDER_REASON_LABEL[p.reason]} · DOT, unobserved` },
     { label: "When", value: `${formatDate(p.requestdate)} at ${p.requesttime}` },
     { label: "Where", value: site.value ? `${site.value.name}${site.value.city ? `, ${site.value.city}` : ""}` : p.locationid },
     { label: "Paid by", value: "Billed to the company's Med-Stop credit" },
-    { label: "Notices", value: `Med-Stop will not text or e-mail the driver. Its notices go to ${p.toemail} and ${p.tosms}.` },
+    { label: "Notices", value: `Med-Stop will not text or e-mail the ${applicant.value ? "applicant" : "driver"}. Its notices go to ${p.toemail} and ${p.tosms}.` },
   ];
 });
 </script>
 
 <template>
-  <SlideOver :open="open" title="Order a test" :description="seed ? `Random selection · ${seed.name}` : 'Drug or alcohol test through Med-Stop'" @close="emit('close')">
+  <SlideOver :open="open" title="Order a test" :description="title" @close="emit('close')">
     <div class="space-y-5 text-sm">
       <AppCallout v-if="off" tone="caution">
         {{ context.data.value?.enabled ? "Add the office's e-mail and phone" : "Ordering is switched off" }} under Settings › Med-Stop integration before ordering. Every order is billed and real.
@@ -181,7 +188,7 @@ const reviewFacts = computed((): Fact[] => {
         <AppCombobox :id="id" v-model="medstopId" :options="people.map((p) => ({ value: p.medstopId, label: p.name }))" placeholder="Search a name" :loading="context.isLoading.value" :disabled="off" />
       </FormField>
 
-      <AppSegmentedControl v-model="service" :options="serviceOptions" label="Test" :disabled="!!seed || off" />
+      <AppSegmentedControl v-model="service" :options="serviceOptions" label="Test" :disabled="seed?.kind === 'selection' || off" />
 
       <FormField v-if="!seed" v-slot="{ id }" label="Reason" hint="Return-to-duty and follow-up tests are observed collections and come once the application asks the driver's gender.">
         <AppSelect :id="id" v-model="reason" :options="reasonOptions" :disabled="off" />
@@ -202,13 +209,13 @@ const reviewFacts = computed((): Fact[] => {
             <BaseInput :id="id" v-model="zip" inputmode="numeric" maxlength="5" placeholder="60601" :disabled="off" />
           </FormField>
           <BaseButton :disabled="off || searching || !/^\d{5}$/.test(zip.trim())" @click="find('zip')">Search</BaseButton>
-          <BaseButton :disabled="off || searching || !person" @click="find('truck')">Near the truck</BaseButton>
+          <BaseButton v-if="!applicant" :disabled="off || searching || !person" @click="find('truck')">Near the truck</BaseButton>
         </div>
         <p v-if="near" class="text-xs text-ink-muted">{{ sites.length }} sites near {{ near }}, Med-Stop's own first.</p>
         <AppRadioGroup v-if="sites.length" v-model="siteId" :options="siteOptions" legend="Collection site" />
       </div>
 
-      <FormField v-slot="{ id }" label="How the driver was told to go">
+      <FormField v-slot="{ id }" :label="applicant ? 'How the applicant was told to go' : 'How the driver was told to go'">
         <AppSelect :id="id" v-model="notifyBy" :options="notifyOptions" :disabled="off" />
       </FormField>
 

@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import InProgressTab from "@/features/drugAlcohol/InProgressTab.vue";
 import MedicalTab from "@/features/drugAlcohol/MedicalTab.vue";
-import OrderTestDrawer, { type OrderSeed } from "@/features/drugAlcohol/OrderTestDrawer.vue";
+import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
 import ProgramPeopleTable from "@/features/drugAlcohol/ProgramPeopleTable.vue";
 import RandomTab from "@/features/drugAlcohol/RandomTab.vue";
 import ResultsTab from "@/features/drugAlcohol/ResultsTab.vue";
@@ -36,7 +36,7 @@ const seed = ref<OrderSeed | null>(null);
 function openOrder(selection?: DueSelection): void {
   seed.value =
     selection && selection.person.medstopId && selection.service !== "other"
-      ? { selectionId: selection.selectionId, medstopId: selection.person.medstopId, name: selection.person.name, service: selection.service }
+      ? { kind: "selection", selectionId: selection.selectionId, medstopId: selection.person.medstopId, name: selection.person.name, service: selection.service }
       : null;
   ordering.value = true;
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  MEDSTOP_ORDER_ROSTER,
   MEDSTOP_ORDER_SERVICE_CODE,
   buildMedstopOrderPayload,
   medstopOrderRefusal,
@@ -8,6 +9,7 @@ import {
   type CalendarDay,
   type MedstopOrderInput,
   type MedstopOrderPreview,
+  type MedstopOrderRoster,
   type MedstopOrderablePerson,
   type MedstopSite,
 } from "@silvicom/shared";
@@ -22,8 +24,9 @@ import { readRosterDrivers } from "./sync.js";
  * make it wrong:
  *
  *   1. Ordering is switched on for this org (0468, D-MSUX2) and the office contact is set (D-MSUX5).
- *   2. The person is on Med-Stop's ACTIVE roster and matched to our driver by licence or name+DOB (R3)
- *      — a name-only match never orders a test on somebody.
+ *   2. The person is on the Med-Stop roster the reason belongs to (`MEDSTOP_ORDER_ROSTER`: ACTIVE for a
+ *      working driver's test, APPLICANT for pre-employment — UX4) and matched by licence or name+DOB to
+ *      our driver of the same standing (R3) — a name-only match never orders a test on somebody.
  *   3. A random test comes from an OPEN selection of that same person and test, not yet ordered.
  *   4. Med-Stop holds no unfinished order for that person and test — asked LIVE, because the mirror is
  *      up to an hour old and a second order is a second bill (§7A.4: "refuses a second open order").
@@ -56,21 +59,25 @@ export async function orderClient(
   };
 }
 
-/** Working drivers the drawer may order for: active in Med-Stop, certain match (R3), by our name. */
-export async function orderablePeople(admin: SupabaseClient, orgId: string): Promise<MedstopOrderablePerson[]> {
+/**
+ * The people the drawer may order for on one roster: certain match (R3), and OUR record agrees — an
+ * active driver for Med-Stop's active roster, an applicant (not archived) for its applicant roster. A
+ * person hired here but still an applicant in Med-Stop is on neither list until the two agree.
+ */
+export async function orderablePeople(admin: SupabaseClient, orgId: string, roster: MedstopOrderRoster = "active"): Promise<MedstopOrderablePerson[]> {
   const { data, error } = await admin
     .from("medstop_employees")
     .select("medstop_id, roster, driver_id, match_rule")
     .eq("org_id", orgId)
-    .eq("roster", "active")
+    .eq("roster", roster)
     .in("match_rule", ["licence", "name_dob"])
     .not("driver_id", "is", null)
     .limit(1000);
   if (error) throw new Error(`medstop_employees read failed: ${error.message}`);
-  const names = new Map((await readRosterDrivers(admin, orgId)).filter((d) => d.status === "active" && !d.archived).map((d) => [d.id, d.fullName]));
+  const names = new Map((await readRosterDrivers(admin, orgId)).filter((d) => d.status === roster && !d.archived).map((d) => [d.id, d.fullName]));
   // The query's filters, held again here: this list decides who can be ordered a billed test on.
   return (data ?? [])
-    .filter((e) => e.roster === "active" && (e.match_rule === "licence" || e.match_rule === "name_dob") && names.has(e.driver_id as string))
+    .filter((e) => e.roster === roster && (e.match_rule === "licence" || e.match_rule === "name_dob") && names.has(e.driver_id as string))
     .map((e) => ({ medstopId: e.medstop_id as string, driverId: e.driver_id as string, name: names.get(e.driver_id as string)! }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -117,9 +124,16 @@ export async function prepareOrder(
   const day = medstopOrderRefusal(input, today);
   if (day) return refuse(400, "medstop_order_day", day);
 
-  const person = (await orderablePeople(admin, orgId)).find((p) => p.medstopId === input.medstopId);
+  const roster = MEDSTOP_ORDER_ROSTER[input.reason];
+  const person = (await orderablePeople(admin, orgId, roster)).find((p) => p.medstopId === input.medstopId);
   if (!person)
-    return refuse(404, "medstop_person_unknown", "This person is not on Med-Stop's active roster with a licence or date-of-birth match, so a test cannot be ordered from here.");
+    return refuse(
+      404,
+      "medstop_person_unknown",
+      roster === "applicant"
+        ? "This applicant is not on Med-Stop's applicant roster with a licence or date-of-birth match, so a pre-employment test cannot be ordered from here. Add them in Med-Stop first."
+        : "This person is not on Med-Stop's active roster with a licence or date-of-birth match, so a test cannot be ordered from here.",
+    );
 
   if (input.selectionId) {
     const { data, error } = await admin
