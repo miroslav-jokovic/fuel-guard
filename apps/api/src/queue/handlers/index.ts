@@ -1,5 +1,6 @@
 import { registerHandler } from "../registry.js";
 import { fleetpalSyncHandler } from "./fleetpal.js";
+import { medstopSyncHandler } from "./medstop.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { idleEngineHandler } from "./idleEngine.js";
@@ -86,4 +87,5 @@ export function registerAllHandlers(): void {
   // The FleetPal sweep (F8). Vendor-calling, so it shares the bounded lane the Samsara and EFS
   // kinds use — and its cap is 1 because FleetPal publishes no rate limit at all (F4).
   registerHandler("fleetpal_sync", fleetpalSyncHandler);
+  registerHandler("medstop_sync", medstopSyncHandler);
 }

@@ -73,7 +73,14 @@ export type JobKind =
    * see. A kind gives it an error column, a `finished_at`, a row `GET /api/org/jobs/failed`
    * returns, and the (org, kind) slot that stops two sweeps overlapping on one carrier.
    */
-  | "fleetpal_sync";
+  | "fleetpal_sync"
+  /**
+   * One Med-Stop sweep for one org (MEDSTOP-PLAN.md §6, MS1): roster, random pools and selections
+   * into the `medstop_*` mirror. A kind for the same reasons as `fleetpal_sync` — a failed sweep
+   * needs a row an operator can read, and the (org, kind) slot keeps a click and a tick from
+   * overlapping against a 100-a-minute limit.
+   */
+  | "medstop_sync";
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring

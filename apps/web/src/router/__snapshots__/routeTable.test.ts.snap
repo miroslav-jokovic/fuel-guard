@@ -187,6 +187,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/idling",
   },
   {
+    "name": "drug-alcohol",
+    "params": {},
+    "url": "/drug-alcohol",
+  },
+  {
     "name": "drivers",
     "params": {},
     "url": "/drivers",
@@ -533,6 +538,11 @@ exports[`the route table survives being split by area > resolution 1`] = `
     "url": "/settings/fleetpal",
   },
   {
+    "name": "medstop-settings",
+    "params": {},
+    "url": "/settings/medstop",
+  },
+  {
     "name": "mcleod-fleets-settings",
     "params": {},
     "url": "/settings/mcleod-fleets",
@@ -756,6 +766,15 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "driver-detail",
     "path": "/drivers/:id",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "requiresAuth": true,
+      "title": "Drug & Alcohol",
+    },
+    "name": "drug-alcohol",
+    "path": "/drug-alcohol",
     "redirect": null,
   },
   {
@@ -1278,6 +1297,17 @@ exports[`the route table survives being split by area > route table 1`] = `
     },
     "name": "mcleod-fleets-settings",
     "path": "/settings/mcleod-fleets",
+    "redirect": null,
+  },
+  {
+    "meta": {
+      "parent": "/settings",
+      "requiresAdmin": true,
+      "requiresAuth": true,
+      "title": "Med-Stop Integration",
+    },
+    "name": "medstop-settings",
+    "path": "/settings/medstop",
     "redirect": null,
   },
   {

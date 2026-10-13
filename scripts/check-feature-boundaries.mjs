@@ -364,6 +364,9 @@ const API_ALLOW = new Set([
   //     carrier, and a scheduler that kept its own idea of "last run" in memory would forget it on
   //     every deploy (F8).
   "fleetpal -> org",
+  //   · medstop -> org — the Med-Stop poller asks the jobs ledger when this org last finished a sweep,
+  //     for `fleetpal -> org`'s reason (MEDSTOP-PLAN §6, MS1).
+  "medstop -> org",
   //   · fleetpal -> mcleod — the coverage bound's DENOMINATOR and its accounts-payable side, both
   //     through McLeod's own exported readers (`readLedgerTotalsRange`, `readVoucherNumbersWindow`)
   //     and never a `.from("mcleod_*")`, which `lint:table-access` would refuse outright. The edge
