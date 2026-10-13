@@ -27,6 +27,10 @@ describe("notificationRoute", () => {
     expect(notificationRoute("card_status_changed", null, null)).toBe("/fuel-cards");
   });
 
+  it("a Med-Stop result opens Safety › Drug & Alcohol, which decides what the reader may see", () => {
+    expect(notificationRoute("drug_alcohol_result", null, null)).toBe("/drug-alcohol");
+  });
+
   it("messages go to the messages page", () => {
     expect(notificationRoute("message_received", null, null)).toBe("/messages");
   });

@@ -53,6 +53,14 @@ export const NOTIFICATION_CATEGORIES = [
    * works in the WEX portal all day may silence it. Mirrored in the notification_events CHECK (0397).
    */
   "card_status_changed",
+  /**
+   * A Med-Stop test closed POSITIVE, as a REFUSAL, NEGATIVE-DILUTE, or in a wording nobody classified
+   * (MEDSTOP-PLAN.md §6 F-5; `isMedstopDerAlert`). Sent to admin + safety_manager only — the roles
+   * that may read testing records (§382.401(a)). Mutable like the other office categories: it is not
+   * the only safeguard, because a violation also stops dispatch until return-to-duty is filed.
+   * Mirrored in the notification_events CHECK (0465).
+   */
+  "drug_alcohol_result",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -82,6 +90,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   dq_mvr_received: "New driving records",
   application_stalled: "Stalled applications",
   card_status_changed: "Fuel card status changes",
+  drug_alcohol_result: "Drug & alcohol results",
 };
 
 /**

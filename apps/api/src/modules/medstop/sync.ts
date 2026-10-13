@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DEFAULT_ORG_TIMEZONE,
+  todayInZone,
   buildDriverMatchIndex,
   matchMedstopPerson,
   type MedstopRoster,
@@ -12,12 +14,13 @@ import {
   medstopSelectionRow,
   type MedstopEmployeeRow,
 } from "./client.js";
+import { sweepMedstopTests, type MedstopTestSweepResult } from "./syncTests.js";
 
 /**
  * One Med-Stop sweep for one org: roster, pools, selections → the mirror (MEDSTOP-PLAN.md §6 F-1/F-2).
  *
- * GET only. Nothing here writes to Med-Stop and nothing here reads a test RESULT — `/Test/*` is MS2's,
- * under the testing-records visibility rule.
+ * GET only. Nothing here writes to Med-Stop and nothing here reads a test RESULT — `/Test/*` is
+ * `syncTests.ts`'s (MS2), under the testing-records visibility rule.
  *
  * ── ⚠ A SNAPSHOT IS STORED WHOLE OR NOT AT ALL ────────────────────────────────────────────────
  * The three lists are fetched FIRST, and only then written, each through `medstop_replace_snapshot`.
@@ -36,6 +39,8 @@ export interface MedstopSweepResult {
   pools: number;
   selections: number;
   requests: number;
+  /** MS2: requests and tests, merged rather than replaced (`syncTests.ts`). */
+  tests: MedstopTestSweepResult;
 }
 
 const ROSTERS: [MedstopRoster, string][] = [
@@ -180,5 +185,8 @@ export async function sweepMedstop(admin: SupabaseClient, client: MedstopClient,
       })),
     );
   }
-  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests };
+  // 4. MS2: requests and tests. After the roster, so a test's person is already matched when the
+  //    next merge's code reads it. A 400-day window needs no org zone to the day.
+  const tests = await sweepMedstopTests(admin, client, orgId, todayInZone(new Date(), DEFAULT_ORG_TIMEZONE));
+  return { employees: employees.length, matched, pools: pools.length, selections: selections.length, requests: client.requests, tests };
 }

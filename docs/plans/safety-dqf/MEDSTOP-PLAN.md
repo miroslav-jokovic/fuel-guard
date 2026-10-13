@@ -317,3 +317,27 @@ allowlist + the one-scheduler rule, `docs/WORKER-DEPLOYMENT.md`).
   (authenticated, no rights), made-up key 401 — from 209.37.91.162 and from the api service
   (152.55.176.240). D-MS3 holds with an IP-bound key. MS0 run the same morning: §5A.
   §6/§7 rewritten around what MS0 measured (F-1..F-6); the old MS1–MS6 list is superseded.
+- 2026-10-13 — **MS1 merged** (#1490, migration 0463). Owner approved MS2 as three merges: MS2a schema
+  + mirror, MS2b actions, MS2c screens — and the rule that a Med-Stop positive or refusal stops
+  dispatch automatically.
+- 2026-10-13 — **MS2a: requests and tests mirrored** (0464 tables, 0465 the `drug_alcohol_result`
+  notification category). Second GET-only probe, counts only: a DRUG result exists only once the
+  test is CLOSED (12 months: 400 NEGATIVE, 10 DILUTE, 5 POSITIVE, 3 CANCELED, 3 NOT REFUSAL, all at
+  CLOSED; 4 COMPLETED + 1 OPEN without one); an ALCOHOL result exists at COMPLETED (23/23); medical
+  exams carry "MEETS STANDARDS…". `/List/RESULTDER` names REFUSAL TO TEST · TEST CANCELED · NOT
+  REFUSAL; no request in 2,152 was closed as REFUSAL. All-time: 1,666 tests, 2,152 requests.
+  - **D-MS4 — merged, not snapshotted.** Tests are never deleted at Med-Stop; the sweep reads a
+    400-day window and merges by id, so our own columns (`first_seen_at`, `baseline`,
+    `outcome_handled*`) survive. The trail (`/Test/{id}/status`, newest first, `{status, created}`)
+    is fetched only for a test whose status moved, capped at 40 per sweep.
+  - **D-MS5 — history is not news.** The org's first test sweep stores tests collected more than 14
+    days earlier as `baseline`: listed for the DER's review, never filed, alerted or blocked on. The
+    12 months hold 5 positives handled outside the product; auto-blocking them would stop drivers
+    who may have completed return-to-duty with nothing on file here.
+  - `medstopTestOutcome` (shared) is the one reader of a result string: TD final only at
+    REVIEWED/CLOSED (§40.129), TA final at collection, unknown wording → `unrecognised` (alerted,
+    never a negative). "Expected by" = collection + p90 93 h, as a wall-clock day.
+- **Found while designing MS2b:** today's dispatch door (`returnToDutyBlocked`) is satisfied by ANY
+  `return_to_duty` record ever filed. Right for §40.25(j)'s one-time admission; wrong for a Med-Stop
+  violation, where a driver with an old record and a NEW positive would pass. MS2b's door asks for a
+  record whose `occurred_on` is on or after the violation's collection day.

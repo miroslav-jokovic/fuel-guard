@@ -36,6 +36,9 @@ function destination(category: string, entityType: string | null, entityId: stri
   if (category === "card_status_changed" && entityType === "efs_card" && entityId) return `/fuel-cards/${entityId}`;
   // The daily summary names many cards and no single one, so it opens the card list (chunk 3b).
   if (category === "card_status_changed" && entityType === null && entityId === null) return "/fuel-cards";
+  // Safety › Drug & Alcohol — the result itself is a testing record, so the page decides what the
+  // reader may see; the notification only says there is something to look at (MEDSTOP-PLAN F-5).
+  if (category === "drug_alcohol_result") return "/drug-alcohol";
   if (category.startsWith("hazmat_") && entityType === "load" && entityId) {
     return `/hazmat/loads/${entityId}`;
   }

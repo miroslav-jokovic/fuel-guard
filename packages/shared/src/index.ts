@@ -221,6 +221,7 @@ export * from "./fleetpalContract.js";
 export * from "./shopSummaryContract.js";
 export * from "./medstopContract.js";
 export * from "./medstopProgram.js";
+export * from "./medstopTests.js";
 export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";
