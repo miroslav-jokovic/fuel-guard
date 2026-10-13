@@ -536,3 +536,13 @@ in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `Flask
   into Part 1. Medical from Samba + Med-Stop into the DQF, cross-checked (Samba not connected — Q-MSUX6).
   No driver texts/e-mails: `sendsms=N`, `sendemail=N`, office contact in `tosms`/`toemail` (D-MSUX5).
   `MEDSTOP_SYNC_ENABLED=true` set on `@fleetguard/api`.
+- 2026-10-13 — **MS-UX1 built** (§7A on PR #1501). Safety › Drug & Alcohol is five tabs (`AppTabs`,
+  `?tab=` in the URL, counts = the list lengths, an empty list shows none): **Random selections**
+  (DER only; pace strip; OPEN draws dated today or earlier, longest-waiting first; reserves apart;
+  nothing dated after today — R4, MS1's seven-days-ahead list removed), **In progress** (open orders +
+  unfinished tests, any reason; RANDOM rows only for testing-record roles, §382.305(l)), **Results**
+  (DER only; one list, "found on the first read" a choice), **Medical cards** (working drivers ≤ 60 d
+  or expired by the card on file OR Med-Stop's certain-match date; the earlier wins; both shown),
+  **Roster check** (the two violation lists only). Removed: licence-we-lack, the medical-disagreement
+  list, the matched footer. Freshness line; caution when the last read is older than 2 h. Sidebar
+  icon: `MicroscopeIcon` (was Fuel's test tube). No writes to Med-Stop.

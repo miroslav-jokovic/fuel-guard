@@ -150,30 +150,35 @@ describe("selectionsAwaitingTest", () => {
   });
   const who = (id: string | null) => ({ driverId: null, medstopId: id, name: id ?? "?" });
 
-  it("splits OPEN draws into due (on or before today, oldest first) and the next week", () => {
+  it("lists OPEN draws on or before today, longest-waiting first — and never a future draw (R4)", () => {
     const out = selectionsAwaitingTest(
-      [sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("c", "2026-10-14"), sel("d", "2026-10-25")],
+      [sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("c", "2026-10-14"), sel("d", "2026-10-25"), sel("t", "2026-10-13")],
       who,
       "2026-10-13",
     );
     expect(out.due.map((d) => [d.selectionId, d.daysSince])).toEqual([
       ["b", 7],
       ["a", 5],
+      ["t", 0],
     ]);
-    expect(out.upcoming.map((d) => d.selectionId)).toEqual(["c"]);
+    expect(JSON.stringify(out)).not.toMatch(/"c"|"d"/);
   });
 
-  it("ignores reserves, closed draws and draws already tested", () => {
+  it("puts reserves apart, drops expired reserves, closed draws and draws already tested", () => {
     const out = selectionsAwaitingTest(
       [
         sel("r", "2026-10-01", { status: "RESERVE" }),
+        sel("rf", "2026-10-20", { status: "RESERVE" }),
+        sel("re", "2026-10-01", { status: "EXPIRED RESERVE" }),
         sel("x", "2026-10-01", { status: "COMPLETED" }),
+        sel("k", "2026-10-01", { status: "CANCELED" }),
         sel("t", "2026-10-01", { testMedstopId: "test" }),
       ],
       who,
       "2026-10-13",
     );
     expect(out.due).toEqual([]);
+    expect(out.reserves.map((r) => r.selectionId)).toEqual(["r"]);
   });
 
   it("marks a draw whose request is placed as ordered", () => {
@@ -198,11 +203,7 @@ describe("reconcileRosters", () => {
     { ...person("9", { firstName: "Nobody" }), driverId: null },
     { ...person("6", { roster: "terminated" }), driverId: "2" },
   ];
-  const medical = new Map<string, string | null>([
-    ["1", null],
-    ["5", "2027-01-01"],
-  ]);
-  const out = reconcileRosters(people, drivers, medical);
+  const out = reconcileRosters(people, drivers);
 
   it("lists an active driver with no ACTIVE Med-Stop record as outside the pool — a terminated record does not count", () => {
     expect(out.notInPool.map((p) => p.driverId)).toEqual(["2"]);
@@ -212,17 +213,7 @@ describe("reconcileRosters", () => {
     expect(out.leftButInPool.map((p) => p.driverId ?? p.medstopId).sort()).toEqual(["3", "4", "m-9"]);
   });
 
-  it("offers Med-Stop's licence where our active driver has none", () => {
-    expect(out.licenceWeLack.map((p) => p.driverId)).toEqual(["5"]);
-  });
-
-  it("shows both medical expiries when they disagree, and stays quiet when both are unknown", () => {
-    expect(out.medicalDisagrees).toEqual([
-      { person: { driverId: "5", medstopId: "m-5", name: "Driver 5" }, ours: "2027-01-01", medstop: "2027-07-22" },
-    ]);
-  });
-
-  it("counts the drivers linked to an active Med-Stop record", () => {
-    expect(out.matched).toBe(4);
+  it("answers only the two violation lists — no licence chore, no medical list", () => {
+    expect(Object.keys(out).sort()).toEqual(["leftButInPool", "notInPool"]);
   });
 });

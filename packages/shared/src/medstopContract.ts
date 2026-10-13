@@ -69,12 +69,6 @@ export interface DueSelection {
   ordered: boolean;
 }
 
-export interface MedicalDisagreement {
-  person: ProgramPerson;
-  ours: string | null;
-  medstop: string | null;
-}
-
 /** One Med-Stop test as a screen shows it (MS2c, F-4). */
 export interface MedstopTestView {
   testId: string;
@@ -122,6 +116,40 @@ export interface MedstopResultRow {
   outcome: MedstopTestOutcome;
 }
 
+/**
+ * In progress (MS-UX §7A.3): an order Med-Stop has not collected yet, or a test whose result is not
+ * final. Any reason. A RANDOM row is only ever built for a reader `canReadTestingRecords` admits —
+ * an order not yet collected names a person who has not been told (§382.305(l)).
+ */
+export interface InProgressRow {
+  key: string;
+  person: ProgramPerson;
+  kind: "drug" | "alcohol" | "medical";
+  reason: string | null;
+  /** "Ordered, not collected" for an order; the test's stage in words otherwise. */
+  stage: string;
+  orderedOn: string | null;
+  collectedOn: string | null;
+  /** A drug test not yet final: the day its result is due (p90). */
+  expectedOn: string | null;
+  /** Days since the order (not collected) or the collection. */
+  daysWaiting: number;
+}
+
+/**
+ * Medical cards (MS-UX §7A.3, R2): a working driver whose card expires within the horizon or has
+ * expired, by EITHER source. `ours` is the card on file (`certifications`, what the DQ file and its
+ * alerts read); `medstop` is Med-Stop's date for a certain match, shown beside it only when it differs.
+ */
+export interface MedicalCardRow {
+  person: ProgramPerson;
+  ours: string | null;
+  medstop: string | null;
+  /** The earlier of the two — the safe side — and the days until it (negative = expired). */
+  expiresOn: string;
+  daysLeft: number;
+}
+
 export interface DrugAlcoholProgram {
   connected: boolean;
   syncedAt: string | null;
@@ -132,7 +160,8 @@ export interface DrugAlcoholProgram {
    * selection names a person before they are told, and §382.305(l) wants that notice immediate
    * and unannounced, so the list is held to the roles that read testing records.
    */
-  selections: { due: DueSelection[]; upcoming: DueSelection[] } | null;
+  selections: { due: DueSelection[]; reserves: DueSelection[] } | null;
+  inProgress: InProgressRow[];
   /**
    * MS2c (F-5): results the DER must see. NULL for roles that may not read testing records.
    * `recent` — positives, refusals, dilutes and unrecognised wordings since the product began
@@ -140,16 +169,11 @@ export interface DrugAlcoholProgram {
    * already old (D-MS5): never acted on automatically, listed so a person decides.
    */
   results: { recent: MedstopResultRow[]; history: MedstopResultRow[] } | null;
+  medical: MedicalCardRow[];
   roster: {
     /** Active here, absent from Med-Stop's active roster: outside the random pool (§382.305). */
     notInPool: ProgramPerson[];
     /** Active in Med-Stop, gone here (terminated / archived): still drawable, should not be. */
     leftButInPool: ProgramPerson[];
-    /** Med-Stop matched by name, our driver row carries no licence number. */
-    licenceWeLack: ProgramPerson[];
-    medicalDisagrees: MedicalDisagreement[];
-    /** Med-Stop's active roster, and how many of them are linked to one of our drivers. */
-    medstopActive: number;
-    matched: number;
   };
 }

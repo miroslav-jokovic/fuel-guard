@@ -1,7 +1,6 @@
-import { shiftDay, type CalendarDay } from "./calendarDay.js";
+import type { CalendarDay } from "./calendarDay.js";
 import type {
   DueSelection,
-  MedicalDisagreement,
   PoolPace,
   ProgramPerson,
 } from "./medstopContract.js";
@@ -192,23 +191,30 @@ const daysBetween = (from: CalendarDay, to: CalendarDay): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
 /**
- * Selected and not tested: `due` is on or before today, `upcoming` is the next `aheadDays`.
- * Only OPEN draws count — a RESERVE is not a selection until Med-Stop activates it, and a closed
- * one is done.
+ * The Random tab's two lists (MS-UX §7A.3, R4). `due`: OPEN draws dated on or before today with no
+ * test yet, longest-waiting first. `reserves`: alternates dated on or before today, for when a primary
+ * cannot be tested.
+ *
+ * ⚠ NOTHING DATED AFTER TODAY, EVER. Med-Stop draws the quarter ahead (30 future-dated selections on
+ * 2026-10-13), and §382.305(l) requires the test to be unannounced. A list that showed next week's
+ * draw — even to the DER — is a list that can be read over a shoulder. MS1 showed seven days ahead;
+ * the owner's review removed it.
  */
 export function selectionsAwaitingTest(
   selections: readonly SelectionRow[],
   personOf: (medstopId: string | null) => ProgramPerson,
   today: CalendarDay,
-  aheadDays = 7,
-): { due: DueSelection[]; upcoming: DueSelection[] } {
-  const horizon = shiftDay(today, aheadDays);
+): { due: DueSelection[]; reserves: DueSelection[] } {
   const due: DueSelection[] = [];
-  const upcoming: DueSelection[] = [];
+  const reserves: DueSelection[] = [];
   for (const s of selections) {
-    if (normaliseStatus(s.status) !== "OPEN" || s.testMedstopId || !s.selectedOn) continue;
+    const status = normaliseStatus(s.status);
+    if (s.testMedstopId || !s.selectedOn) continue;
+    // 'EXPIRED RESERVE' normalises to RESERVE; an expired one is over, not an alternate.
+    if (status === "RESERVE" && (s.status ?? "").toUpperCase().includes("EXPIRED")) continue;
+    if (status !== "OPEN" && status !== "RESERVE") continue;
     const day = s.selectedOn.slice(0, 10);
-    if (day > horizon) continue;
+    if (day > today) continue;
     const row: DueSelection = {
       selectionId: s.medstopId,
       service: serviceOf(s.service),
@@ -217,11 +223,10 @@ export function selectionsAwaitingTest(
       person: personOf(s.employeeMedstopId),
       ordered: s.requestMedstopId !== null,
     };
-    (day <= today ? due : upcoming).push(row);
+    (status === "OPEN" ? due : reserves).push(row);
   }
-  due.sort((a, b) => b.daysSince - a.daysSince);
-  upcoming.sort((a, b) => a.selectedOn.localeCompare(b.selectedOn));
-  return { due, upcoming };
+  const longestFirst = (a: DueSelection, b: DueSelection) => b.daysSince - a.daysSince || a.person.name.localeCompare(b.person.name);
+  return { due: due.sort(longestFirst), reserves: reserves.sort(longestFirst) };
 }
 
 export interface MatchedPerson extends MedstopPersonRow {
@@ -229,24 +234,17 @@ export interface MatchedPerson extends MedstopPersonRow {
 }
 
 /**
- * The four reconciliation lists (F-1). `ourMedical` is the medical card's current expiry per driver
- * from `certifications` — the authoritative source since the roster carve-out, not `drivers`.
+ * The Roster check tab (F-1, MS-UX §7A.2): only the two lists that are violations. The owner's review
+ * dropped "licence we lack" (a roster chore, not a drug-and-alcohol decision) and the medical
+ * disagreement list (the Medical tab answers it, `medicalCardsDue`).
  */
 export function reconcileRosters(
   people: readonly MatchedPerson[],
   drivers: readonly RosterDriverRow[],
-  ourMedical: ReadonlyMap<string, string | null>,
-): {
-  notInPool: ProgramPerson[];
-  leftButInPool: ProgramPerson[];
-  licenceWeLack: ProgramPerson[];
-  medicalDisagrees: MedicalDisagreement[];
-  matched: number;
-} {
+): { notInPool: ProgramPerson[]; leftButInPool: ProgramPerson[] } {
   const byId = new Map(drivers.map((d) => [d.id, d]));
   const activeInMedstop = people.filter((p) => p.roster === "active");
   const pooledDrivers = new Set(activeInMedstop.flatMap((p) => (p.driverId ? [p.driverId] : [])));
-  const isWorking = (d: RosterDriverRow) => d.status === "active" && !d.archived;
   const nameOf = (p: MedstopPersonRow) => [p.firstName, p.lastName].filter(Boolean).join(" ") || p.medstopId;
 
   const notInPool = drivers
@@ -254,32 +252,15 @@ export function reconcileRosters(
     .map((d) => ({ driverId: d.id, medstopId: null, name: d.fullName }));
 
   const leftButInPool: ProgramPerson[] = [];
-  const licenceWeLack: ProgramPerson[] = [];
-  const medicalDisagrees: MedicalDisagreement[] = [];
   for (const p of activeInMedstop) {
     const d = p.driverId ? byId.get(p.driverId) : undefined;
-    if (!d) continue;
-    const person = { driverId: d.id, medstopId: p.medstopId, name: d.fullName };
-    if (!isWorking(d)) {
-      leftButInPool.push(person);
-      continue;
-    }
-    if (!normaliseLicence(d.cdlNumber) && normaliseLicence(p.licenseNumber)) licenceWeLack.push(person);
-    const ours = ourMedical.get(d.id) ?? null;
-    const theirs = p.medicalExpiresOn ? p.medicalExpiresOn.slice(0, 10) : null;
-    if (ours !== theirs && (ours || theirs)) medicalDisagrees.push({ person, ours, medstop: theirs });
-  }
-  // Med-Stop people we could not match to anyone: if they are active there, nobody here can tell
-  // whether they work for us. They are listed as "left" with no driver link, for a human to settle.
-  for (const p of activeInMedstop) {
+    if (d && !isWorking(d)) leftButInPool.push({ driverId: d.id, medstopId: p.medstopId, name: d.fullName });
+    // Med-Stop people we could not match to anyone: if they are active there, nobody here can tell
+    // whether they work for us. They are listed with no driver link, for a human to settle.
     if (!p.driverId) leftButInPool.push({ driverId: null, medstopId: p.medstopId, name: nameOf(p) });
   }
   const byName = (a: ProgramPerson, b: ProgramPerson) => a.name.localeCompare(b.name);
-  return {
-    notInPool: notInPool.sort(byName),
-    leftButInPool: leftButInPool.sort(byName),
-    licenceWeLack: licenceWeLack.sort(byName),
-    medicalDisagrees: medicalDisagrees.sort((a, b) => byName(a.person, b.person)),
-    matched: pooledDrivers.size,
-  };
+  return { notInPool: notInPool.sort(byName), leftButInPool: leftButInPool.sort(byName) };
 }
+
+const isWorking = (d: RosterDriverRow) => d.status === "active" && !d.archived;

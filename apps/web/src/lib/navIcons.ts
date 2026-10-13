@@ -1,5 +1,6 @@
 import {
   BeakerIcon,
+  MicroscopeIcon,
   CurrencyDollarIcon,
   DocumentTextIcon,
   ChartAverageIcon,
@@ -79,9 +80,10 @@ export const SURFACE_ICONS: Record<string, Icon> = {
   "safety.alerts": ExclamationTriangleIcon,
   "safety.driver-performance": TrophyIcon,
   "safety.idling": ClockIcon,
-  // A lab beaker for the DOT testing program. Fuel's section header wears the same glyph, but a section
-  // header and an item never sit side by side in the same group.
-  "safety.drug-alcohol": BeakerIcon,
+  // A microscope for the DOT testing program (MEDSTOP-PLAN §7A.7). It wore the test tube until the
+  // owner's review 2026-10-13: that is Fuel's section glyph, and both are on screen at once in the
+  // sidebar — the argument "they never sit side by side in one group" did not survive being looked at.
+  "safety.drug-alcohol": MicroscopeIcon,
   "safety.roadside-inspections": RoadIcon,
   // ⚠ U5/D-UI6: this wore ClipboardDocumentCheckIcon, which Assignments also wears — one glyph on
   // two unrelated items in two different sections, both on screen at once. A §391.51 file is a
