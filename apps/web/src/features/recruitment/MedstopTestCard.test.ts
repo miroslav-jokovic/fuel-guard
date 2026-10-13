@@ -21,7 +21,7 @@ vi.mock("@/stores/session", () => ({ useSessionStore: () => who }));
 const tests = (outcome: "negative" | null): MedstopPersonTests => ({
   connected: true,
   matched: true,
-  applicantMedstopId: null,
+  applicantMedstopId: null, applicantCreate: null,
   outcomesVisible: outcome !== null,
   orders: [{ requestId: "r3", kind: "drug", reason: "PRE-EMPLOYMENT", requestedOn: "2026-10-12", status: "OPEN" }],
   tests: [
@@ -63,17 +63,27 @@ describe("MedstopTestCard", () => {
   });
 
   it("renders nothing for a carrier that has not connected Med-Stop", async () => {
-    answer.value = { connected: false, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
     const w = await render();
     expect(w.text()).toBe("");
   });
 
   it("says why there is nothing when Med-Stop has no matched record", async () => {
-    answer.value = { connected: true, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
     const w = await render();
     expect(w.text()).toContain("no record matched to this applicant");
     expect(w.text()).toContain("Add this applicant in Med-Stop first");
     expect(w.find("a").attributes("href")).toBe(MEDSTOP_PORTAL_URL);
+  });
+
+  it("says what creating the applicant in Med-Stop from Part 1 came to, until Med-Stop's roster shows them (UX5c)", async () => {
+    const none = { connected: true, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { ...none, applicantCreate: { outcome: "created", message: null, at: "2026-10-13T20:00:00Z" } };
+    expect((await render()).text()).toContain("Added to Med-Stop from Part 1");
+    answer.value = { ...none, applicantCreate: { outcome: "refused", message: "Licence already on file", at: "2026-10-13T20:00:00Z" } };
+    const refused = (await render()).text();
+    expect(refused).toContain("did not accept this applicant from Part 1: Licence already on file");
+    expect(refused).not.toContain("Add this applicant in Med-Stop first");
   });
 
   it("offers the recruiter a pre-employment order for an applicant Med-Stop holds, and emits its Med-Stop id", async () => {
@@ -95,7 +105,7 @@ describe("MedstopTestCard", () => {
     who.role = "dispatcher";
     answer.value = { ...tests(null), applicantMedstopId: "EE-APP" };
     expect((await render()).text()).not.toContain("Order pre-employment test");
-    answer.value = { connected: true, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: false };
+    answer.value = { connected: true, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: false };
     expect((await render()).text()).not.toContain("Add this applicant in Med-Stop first");
   });
 });

@@ -63,7 +63,9 @@ export interface MedstopClientOptions {
 const USER_AGENT = "Silvicom360/1.0 (+https://silvicom360.com)";
 
 /** The ONLY Med-Stop writes this product may make (⚠ 5). Adding one is a decision, not a refactor. */
-export const MEDSTOP_WRITES: ReadonlySet<string> = new Set(["POST /Request/new"]);
+// UX5c adds `POST /Employee/new` — the applicant created when Part 1 is complete (D-MS1), the same
+// once-only rule (`applicantCreate.ts` claims the attempt before sending).
+export const MEDSTOP_WRITES: ReadonlySet<string> = new Set(["POST /Request/new", "POST /Employee/new"]);
 const PAGE_SIZE = 100;
 const RATE_LIMIT_WAIT_MS = 60_000;
 
@@ -137,6 +139,7 @@ export class MedstopClient {
 
   /** An allow-listed write (⚠ 5): sent once, never retried, refused before sending if not listed. */
   async write(method: "POST", path: string, body: unknown): Promise<unknown> {
+    // ⚠ The ids in a path are literal here: `/Employee/{id}/remove` is not `/Employee/new`.
     if (!MEDSTOP_WRITES.has(`${method} ${path}`)) {
       throw new MedstopError(`${method} ${path} is not a Med-Stop write this product makes`, "validation", null);
     }
@@ -206,7 +209,8 @@ function parseJson(text: string): unknown | undefined {
 function medstopMessage(body: unknown): string | null {
   const msg = (body as { msg?: { msg?: unknown; code?: unknown } } | null)?.msg;
   const text = typeof msg?.msg === "string" && msg.msg.trim() ? msg.msg.trim() : typeof msg?.code === "string" ? msg.code : null;
-  return text ? `Med-Stop refused the order: ${text.slice(0, 300)}` : null;
+  // Med-Stop's own sentence, bare: the caller says what was refused (an order, an applicant — UX5c).
+  return text ? text.slice(0, 300) : null;
 }
 
 function errorFor(status: number, body: unknown): MedstopError {

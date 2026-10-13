@@ -170,10 +170,15 @@ describe("placeOrder — the one write", () => {
 });
 
 describe("MedstopClient.write — the allow-list", () => {
-  it("refuses every Med-Stop write but POST /Request/new before anything is sent", async () => {
+  it("refuses every Med-Stop write but POST /Request/new and POST /Employee/new before anything is sent", async () => {
     const { client, calls } = medstop();
-    for (const path of ["/Request/REQ-1/notify", "/Test/T-1/result", "/Employee/E-1/remove", "/Request"])
+    for (const path of ["/Request/REQ-1/notify", "/Test/T-1/result", "/Employee/E-1/remove", "/Employee/E-1/hire", "/Employee/E-1/terminate", "/Request"])
       await expect(client.write("POST", path, {})).rejects.toThrow(/not a Med-Stop write/);
     expect(calls).toHaveLength(0);
+  });
+
+  it("allows exactly two writes — an order (UX3) and an applicant (UX5c)", async () => {
+    const { MEDSTOP_WRITES } = await import("./client.js");
+    expect([...MEDSTOP_WRITES].sort()).toEqual(["POST /Employee/new", "POST /Request/new"]);
   });
 });

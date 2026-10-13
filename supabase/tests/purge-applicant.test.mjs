@@ -175,6 +175,9 @@ async function seedApplicant(org, name) {
     `insert into psp_requests (org_id, driver_id, internal_ref_id, idempotency_key, request_body) values ($1,$2,$3,$3,'{}')`,
     [org, d, randomUUID()]);
   await db.query(`insert into application_intakes (org_id, invitation_id) values ($1,$2)`, [org, inv]);
+  // 0471 (UX5c): the Med-Stop create attempt leaves with the invitation (on delete cascade), so it is
+  // proved by the footprint below rather than counted by the purge function.
+  await db.query(`insert into medstop_applicant_creates (org_id, invitation_id, outcome) values ($1,$2,'created')`, [org, inv]);
   await db.query(
     `insert into application_intake_licences (org_id, invitation_id, position, state_code, licence_number) values ($1,$2,0,'IL','X123')`,
     [org, inv]);

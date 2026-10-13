@@ -1663,6 +1663,17 @@
         "why": "budget derived from production 2026-09-21: 753 rows/day, x3 headroom. RETENTION_FORBIDDEN (books, 2026-10-05) \u2014 retention_days null."
       }
     },
+    "medstop_applicant_creates": {
+      "module": "medstop",
+      "layer": "core",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 2,
+        "why": "one row per application whose Part 1 tried to create the Med-Stop applicant (0471, UX5c); ~1 a day at today's hiring (370 pre-employment people in 12 months, MS0). Leaves with the applicant's purge."
+      }
+    },
     "medstop_credentials": {
       "module": "medstop",
       "layer": "infra",

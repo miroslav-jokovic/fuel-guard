@@ -21,7 +21,11 @@ import { useSessionStore } from "@/stores/session";
  * ordering is not reading), when Med-Stop holds this person on its APPLICANT roster. The card EMITS
  * the Med-Stop id and the page opens the order drawer: this card sits inside the step's SlideOver,
  * and a drawer inside a drawer is a focus trap inside a focus trap. When Med-Stop does not hold them,
- * the step says so and links to Med-Stop — creating the applicant there from ours is UX5 (D-MS1).
+ * the step says so and links to Med-Stop.
+ *
+ * UX5c (D-MS1): once Part 1 is complete, the hourly Med-Stop job creates the applicant there itself.
+ * Until the next read shows them on Med-Stop's roster, the step says what that attempt came to — a
+ * refusal in Med-Stop's own words, or "did not answer" — so the office knows whether to add them by hand.
  */
 const props = defineProps<{ driverId: string }>();
 const emit = defineEmits<{ order: [medstopId: string] }>();
@@ -31,6 +35,13 @@ const q = useMedstopTestsQuery(computed(() => props.driverId));
 const data = computed(() => q.data.value);
 
 const reasonText = (reason: string | null) => (reason ? reason.toLowerCase() : "");
+const createText = computed(() => {
+  const c = data.value?.applicantCreate;
+  if (!c || data.value?.matched) return null;
+  if (c.outcome === "created") return "Added to Med-Stop from Part 1. It shows here after Med-Stop's next read, within the hour.";
+  if (c.outcome === "unknown") return c.message ?? "Med-Stop did not answer when this applicant was sent. Check Med-Stop before adding them.";
+  return `Med-Stop did not accept this applicant from Part 1: ${c.message ?? "no reason given"}. Add them in Med-Stop yourself.`;
+});
 const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "alcohol" ? "Alcohol test" : "Medical exam");
 </script>
 
@@ -47,7 +58,8 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
       @retry="q.refetch()"
     >
       <template v-if="data">
-        <p v-if="!data.matched" class="text-xs text-ink-muted">
+        <p v-if="createText" class="text-xs text-ink-secondary">{{ createText }}</p>
+        <p v-else-if="!data.matched" class="text-xs text-ink-muted">
           Med-Stop has no record matched to this applicant by licence or date of birth yet. It appears here once Med-Stop's roster and this file agree.
           <template v-if="canOrder">
             Add this applicant in Med-Stop first, then order the pre-employment test here.

@@ -530,8 +530,11 @@ STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is re
   and the form defaults it to today. An applicant has not started. If Med-Stop refuses the empty
   value, the create fails loudly and nothing is created. ⚠ First-create runbook: confirm the record
   in the portal looks like a hand-entered applicant (status APPLICANT, no start date).
-- A pure, shared builder fills the form and REFUSES to send while any of the 24 required keys
-  (startdate excepted) is empty. Its test reads the required list from the spec itself.
+- A pure, shared builder (`fillMedstopApplicantForm`) fills the form and REFUSES to send while any of
+  the 24 required keys (startdate excepted) is empty. Its test pins the 24 keys and the measured
+  46-key form. It cannot read the spec in CI, because `docs/Med-Stop/` is local only.
+- STATE / COUNTRY lists could not be read: the workstation's address changed mid-session and Med-Stop's
+  IP filter refuses it. So a licence from outside the US is not sent; the step says so.
 
 **Batches:**
 - **UX5a (0469, merged #1518):** the column, and `record_applicant_intake` accepting the key (same
@@ -543,14 +546,28 @@ STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is re
     correction cannot set it: the office never sees it.
   - An applicant who passed screen 7 before this merge is not asked again; their NULL reads as
     "never asked".
-- **UX5c:** the create.
-  - When Part 1 completes, ask Med-Stop LIVE whether it already holds the person (licence + state,
-    every roster). If not, `POST /Employee/new` the filled form, once, never retried.
-  - `MEDSTOP_WRITES` gains that one write, deliberately.
-  - Skipped, with the reason on the step: gender declined or never asked; Med-Stop already holds
-    them; ordering switched off.
-  - D-MSUX11: the create is gated on the same `orders_enabled` switch. There is no Med-Stop test host,
-    so a staging applicant created there would be a fake person in the carrier's real Med-Stop.
+- **UX5c (built, 0471):** the create, run by the hourly Med-Stop job right after the sweep, so the
+  roster mirror is fresh. In order:
+  - D-MSUX11: ordering must be on (`orders_enabled`). There is no test host, so a staging applicant
+    would be a fake person in the carrier's real Med-Stop.
+  - Recruiting supplies the applicants (`partOneFactsForMedstop`): Part 1 complete, invitation not
+    revoked, still an applicant, not archived, no disposition. Medstop decides and writes; the queue
+    job joins the two, so neither module reads the other's tables.
+  - Skip when the application was already tried (`medstop_applicant_creates`, unique per invitation),
+    when Med-Stop holds the person on ANY roster by ANY match (a name-only match too), when the gender
+    was declined or never asked, or when the licence is not from a US state.
+  - Fetch Med-Stop's blank form, fill it, CLAIM the attempt (a row, `unknown`), POST once, then record
+    `created` / `refused` (Med-Stop's sentence) / `unknown` (no answer). Audit
+    `medstop.applicant.*` carries ids only.
+  - At most 10 a sweep.
+  - `MEDSTOP_WRITES` = `POST /Request/new` + `POST /Employee/new`, and a test pins exactly those two.
+  - The hiring step shows the attempt until Med-Stop's roster shows the person. A refusal says "add
+    them in Med-Stop yourself".
+  - **First-create runbook** (with the first order, owner watching): ordering on → an applicant
+    finishes Part 1 → within the hour, open the new person in Med-Stop's portal. Check status
+    APPLICANT, no start date, CDL id = licence, gender, address, phone `(999) 999-9999`, class and
+    expiry. If Med-Stop refused the empty start date, the step shows its sentence: record it in §9 and
+    decide then.
 - **UX5d:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer, `observed: "Y"`, with `employeegender`
   read from Med-Stop's own employee record at order time (Q-MSUX10).
 
@@ -750,3 +767,8 @@ STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is re
   and the office's own applicants. One difference was found and ruled: the start date is left empty,
   as on every hand-entered applicant. **UX5b built** (branch `claude/medstop-ux5b`): screen 7 asks the
   gender. Next: UX5c (the create).
+- 2026-10-13 — UX5b #1522 merged. **UX5c built** (branch `claude/medstop-ux5c`, 0471
+  `medstop_applicant_creates`): the hourly job creates Part 1-complete applicants in Med-Stop from
+  Med-Stop's own form. Ordering off = nobody created. Claim before the POST, sent once. The step shows
+  the outcome. The client's refusal text is now Med-Stop's bare sentence; each caller says what was
+  refused.

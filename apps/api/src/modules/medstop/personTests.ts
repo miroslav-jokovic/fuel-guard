@@ -10,6 +10,7 @@ import {
   type UserRole,
 } from "@silvicom/shared";
 import { getCredential } from "./credentials.js";
+import { readApplicantCreate } from "./applicantCreate.js";
 
 /**
  * What Med-Stop holds for ONE person — the hiring drawer's drug-test step (MEDSTOP-PLAN.md §6 F-4,
@@ -33,11 +34,14 @@ export async function readMedstopTestsForDriver(
   orgId: string,
   driverId: string,
   role: UserRole | null,
+  /** The applicant's invitations (recruiting's), for the UX5c create attempt. */
+  invitationIds: string[] = [],
 ): Promise<MedstopPersonTests> {
   const outcomesVisible = canReadTestingRecords(role);
   const credential = await getCredential(admin, orgId);
   const connected = credential?.hasKey === true && credential.enabled;
-  const empty: MedstopPersonTests = { connected, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible };
+  const applicantCreate = connected ? await readApplicantCreate(admin, orgId, invitationIds) : null;
+  const empty: MedstopPersonTests = { connected, matched: false, applicantMedstopId: null, applicantCreate, orders: [], tests: [], outcomesVisible };
 
   const { data: people, error: pErr } = await admin
     .from("medstop_employees")
@@ -78,6 +82,7 @@ export async function readMedstopTestsForDriver(
     // What the step's "Order pre-employment test" is placed on (UX4). The order route checks the
     // roster, the match and our applicant again before anything is sent.
     applicantMedstopId: rows.find((p) => p.roster === "applicant")?.medstop_id ?? null,
+    applicantCreate,
     orders: ((ordersRes.data ?? []) as OrderRow[])
       .filter((o) => o.test_medstop_id === null && medstopOrderOpen(o.status))
       .map((o) => ({
