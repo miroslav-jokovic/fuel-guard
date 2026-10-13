@@ -118,6 +118,19 @@ describe("Part 1 answers", () => {
     expectOrgScoped(rec, ORG, TOKEN_LOOKUP);
   });
 
+  // UX5b (0469, D-MSUX10): the drug test's gender reaches the one writer like any Part 1 key, and only
+  // the three answers 0469's CHECK admits are let through.
+  it("passes the drug test's gender to the writer, and refuses any value but male, female or declined", async () => {
+    const rec = seed();
+    holder.client = rec.client;
+    expect((await post("/intake", { prior_positive_2y: false, donor_gender: "declined" })).status).toBe(201);
+    expect((rec.rpcs()[0]!.args as Row).p_intake).toEqual({ prior_positive_2y: false, donor_gender: "declined" });
+    const bad = seed();
+    holder.client = bad.client;
+    expect((await post("/intake", { prior_positive_2y: false, donor_gender: "M" })).status).toBe(400);
+    expect(bad.rpcs()).toHaveLength(0);
+  });
+
   it("refuses a number the SMS provider could never text, before anything is written", async () => {
     const rec = seed();
     holder.client = rec.client;

@@ -103,6 +103,19 @@ const jurisdictionCodeSchema = z
  * changed cannot record the new text as read. The text is CFPB Appendix K pending Q-AW13, held in
  * `apps/api/src/modules/recruiting/fcraSummary.ts` and SERVED like every other instrument.
  */
+/**
+ * The drug-test donor's gender (0469, D-MSUX3/D-MSUX10, MEDSTOP-PLAN §7A.13). Med-Stop will not create
+ * a donor without it (its `/List/GENDER`: MALE, FEMALE) and an observed collection is watched by a
+ * person of the donor's gender (§40.67(g)). `declined` is an answer, never a gate — the office then
+ * adds the applicant in Med-Stop by hand.
+ *
+ * ⚠ Stored on `application_intakes`, which no browser reads, and NEVER on `drivers`: the person
+ * deciding the hire must not see it (the questionnaire's reserved `eeo` key keeps the same rule).
+ * Nothing that renders the application or the applicant's record may select it.
+ */
+export const DONOR_GENDERS = ["male", "female", "declined"] as const;
+export type DonorGender = (typeof DONOR_GENDERS)[number];
+
 export const applicantIntakeSchema = z
   .object({
     date_of_birth: requiredDateOfBirthSchema.optional(),
@@ -126,6 +139,8 @@ export const applicantIntakeSchema = z
     dot_random_12m: z.boolean().optional(),
     /** D-AW4: "I don't have a medical card yet" is an answer, and lets Part 1 finish without one. */
     medical_card_pending: z.boolean().optional(),
+    /** Screen 7, beside the testing questions. See `DONOR_GENDERS`. */
+    donor_gender: z.enum(DONOR_GENDERS).optional(),
     /**
      * The endorsements the applicant DECLARES, in the roster's letters (`ENDORSEMENT_CODES`, which
      * 0376's `application_intakes_endorsements_check` admits). Kept on the intake row only:

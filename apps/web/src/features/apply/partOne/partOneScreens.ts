@@ -10,6 +10,7 @@ import {
   type ApplicantIntake,
   type ApplicantIntakeLicence,
   type AamvaLicence,
+  type DonorGender,
   type ApplicationCaptureView,
   type PartOneScreen,
   type PartOneStatus,
@@ -73,6 +74,8 @@ export interface PartOneAnswers {
   dot_program_30d: boolean | null;
   dot_tested_6m: boolean | null;
   dot_random_12m: boolean | null;
+  /** Screen 7 (UX5b, D-MSUX10): "" until answered; "declined" is an answer. Never held on the device. */
+  donor_gender: DonorGender | "";
   medical_card_pending: boolean;
   /**
    * "I can't take a photo of myself" (AW6, §6.7: a selfie is "never a hard block" — the office checks
@@ -98,6 +101,7 @@ export const emptyPartOneAnswers = (): PartOneAnswers => ({
   dot_program_30d: null,
   dot_tested_6m: null,
   dot_random_12m: null,
+  donor_gender: "",
   medical_card_pending: false,
   selfie_skipped: false,
 });
@@ -194,6 +198,7 @@ export function validateScreening(a: PartOneAnswers): ScreenErrors {
     if (a.dot_tested_6m === null) errors.dot_tested_6m = need;
     if (a.dot_random_12m === null) errors.dot_random_12m = need;
   }
+  if (a.donor_gender === "") errors.donor_gender = copy.screening.genderMissing;
   return errors;
 }
 
@@ -223,6 +228,7 @@ export const cdlPayload = (a: PartOneAnswers): ApplicantIntake => ({
 export const screeningPayload = (a: PartOneAnswers): ApplicantIntake => ({
   prior_positive_2y: a.prior_positive_2y ?? undefined,
   dot_program_30d: a.dot_program_30d ?? undefined,
+  ...(a.donor_gender ? { donor_gender: a.donor_gender } : {}),
   ...(a.dot_program_30d
     ? { dot_tested_6m: a.dot_tested_6m ?? undefined, dot_random_12m: a.dot_random_12m ?? undefined }
     : {}),

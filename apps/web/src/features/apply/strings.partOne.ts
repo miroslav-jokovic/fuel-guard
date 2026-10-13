@@ -110,7 +110,7 @@ export const APPLY_PART_ONE_COPY = {
       entry: (state: string, number: string): string => `${state} · ${number}`,
     },
     screening: {
-      heading: "Two questions about drug and alcohol testing",
+      heading: "Questions about drug and alcohol testing",
       intro: "Every carrier must ask every driver these. Answering yes does not end your application.",
       priorPositive:
         "In the past 2 years, did you test positive, or refuse to test, on a pre-employment drug or alcohol test for a driving job you applied for and did not get?",
@@ -119,6 +119,15 @@ export const APPLY_PART_ONE_COPY = {
       random12m: "For the past 12 months, were you in a DOT random testing program?",
       programHint: "These help decide whether you need a new drug test. The carrier checks them with your last employer.",
       answer: "Answer this question.",
+      /**
+       * UX5b (MEDSTOP-PLAN §7A.13, Q-MSUX9 — the owner approved this wording 2026-10-13). Says what it
+       * is for, who does NOT see it, and that declining costs nothing but a phone call.
+       */
+      gender: "Gender, for your drug test",
+      genderHint:
+        "The drug-testing company needs this to set up your test, and some tests are watched by a person of the same gender. It is not part of your application — the people reviewing it do not see your answer. If you'd rather not say, the office sets up your test with you directly.",
+      genderOptions: { male: "Male", female: "Female", declined: "I'd rather not say" },
+      genderMissing: "Choose one. \"I'd rather not say\" is a fine answer.",
     },
     /**
      * Screens 8–10, the scanner (§6.6.1): what to photograph on the first line, how on the second, one

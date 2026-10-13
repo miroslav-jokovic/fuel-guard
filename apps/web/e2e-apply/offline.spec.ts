@@ -48,11 +48,15 @@ async function typeHeldScreens(page: Page): Promise<void> {
   await continueButton(page).click();
 }
 
-/** Screen 7's two questions. Deliberately never kept on the phone (Q-AW39), so asked again after a reload. */
+/**
+ * Screen 7's questions. Deliberately never kept on the phone (Q-AW39), so asked again after a reload —
+ * the drug test's gender too (UX5b, D-MSUX10).
+ */
 async function answerScreening(page: Page): Promise<void> {
   const noes = page.getByLabel("No", { exact: true });
   await expect(noes).toHaveCount(2);
   for (let i = 0; i < 2; i += 1) await noes.nth(i).check();
+  await page.getByLabel("I'd rather not say", { exact: true }).check();
 }
 
 test("Part 1: a cut connection at screen 7 and a reload lose none of screens 3–6 (C3d1a)", async ({ page }) => {
@@ -83,7 +87,7 @@ test("Part 1: a cut connection at screen 7 and a reload lose none of screens 3�
   const [answers, licences, identity] = stub.state.calls
     .slice(beforeReload)
     .filter((c) => c.method === "POST" && /\/intake(\/licences)?$/.test(c.path));
-  expect(answers!.body).toMatchObject({ phone: "3125550142", address_line1: "12 Depot Rd", city: "Joliet", state: "IL", postal_code: "60432" });
+  expect(answers!.body).toMatchObject({ phone: "3125550142", address_line1: "12 Depot Rd", city: "Joliet", state: "IL", postal_code: "60432", donor_gender: "declined" });
   expect(licences!.body).toMatchObject({ licences: [expect.objectContaining({ licence_number: "D12345678901", state_code: "IL" })] });
   expect(identity!.body).toMatchObject({ date_of_birth: "1985-03-07" });
 });
