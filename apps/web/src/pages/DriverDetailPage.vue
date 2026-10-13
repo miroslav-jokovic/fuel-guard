@@ -32,6 +32,7 @@ import QualificationSection from "@/features/compliance/QualificationSection.vue
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
 import DriverContactSection from "@/features/roster/DriverContactSection.vue";
 import { useDriverQuery } from "@/composables/useDrivers";
+import QueryState from "@/components/ui/QueryState.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -175,15 +176,18 @@ const binderExportScope = computed(() =>
     : "Complete qualification file",
 );
 
-const { data: txns } = useQuery({
+// The fuel panels wait for their reads (F9/F10, US6b): a failed read drew "No fills yet" and "No
+// anomalies", claims about the driver made by a request that never reached them.
+const txnsQuery = useQuery({
   queryKey: ["driver-fills", id],
   enabled: computed(() => Boolean(id.value) && canSeeFuel.value),
   queryFn: () => fetchAllFills(id.value),
 });
+const txns = txnsQuery.data;
 
 // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
 const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
-const { data: anomalies } = useQuery({
+const anomaliesQuery = useQuery({
   queryKey: ["driver-anomalies", id, detectionEpoch],
   enabled: computed(
     () => Boolean(id.value) && canSeeFuel.value && txns.value !== undefined && epochReady.value,
@@ -205,6 +209,13 @@ const { data: anomalies } = useQuery({
     return (data ?? []) as Anomaly[];
   },
 });
+const anomalies = anomaliesQuery.data;
+/** The anomalies are read for the fills' ids, so a failed fills read is their failure too. */
+const anomaliesFailed = computed(() => anomaliesQuery.isError.value || txnsQuery.isError.value);
+function retryAnomalies(): void {
+  if (txnsQuery.isError.value) void txnsQuery.refetch();
+  else void anomaliesQuery.refetch();
+}
 
 // The band is `MPG_PLAUSIBLE_MIN/MAX` from `@silvicom/shared`, not the `>= 1 && <= 40` this line used
 // to hardcode. One definition of "this odometer reading is corrupt", and it lives beside the
@@ -236,10 +247,11 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 }));
 
 const recent = computed(() => [...(txns.value ?? [])].reverse().slice(0, 20));
-const openAnomalies = computed(
-  () =>
-    (anomalies.value ?? []).filter((a) => a.status === "open" || a.status === "investigating")
-      .length,
+// A dash until the list has answered — a count of an unread list is not zero.
+const openAnomalies = computed(() =>
+  anomalies.value
+    ? anomalies.value.filter((a) => a.status === "open" || a.status === "investigating").length
+    : null,
 );
 const totalGallons = computed(() =>
   (txns.value ?? []).reduce((sum, t) => sum + Number(t.gallons || 0), 0),
@@ -269,7 +281,7 @@ const avgMpg = computed(() => driverMpg.value.mpg);
 /** The summary card's fuel facts (D-US6). A blank is `null`, so `FactList` draws its em dash. */
 const fuelFacts = computed<Fact[]>(() => [
   { label: "Fills", value: txns.value?.length ?? null, numeric: true },
-  { label: "Gallons", value: Math.round(totalGallons.value).toLocaleString(), numeric: true },
+  { label: "Gallons", value: txns.value ? Math.round(totalGallons.value).toLocaleString() : null, numeric: true },
   { key: "mpg", label: "MPG on this driver's fills", value: avgMpg.value != null ? avgMpg.value.toFixed(1) : null, numeric: true },
   { label: "Open anomalies", value: openAnomalies.value, numeric: true },
 ]);
@@ -361,24 +373,56 @@ const fillColumns: DataTableColumn[] = [
 
     <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
-      <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
-      <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
+      <QueryState
+        compact
+        :loading="txnsQuery.isLoading.value"
+        :error="txnsQuery.isError.value"
+        :retrying="txnsQuery.isFetching.value"
+        loading-text="Loading the fills…"
+        error-text="Could not load the fills."
+        @retry="txnsQuery.refetch()"
+      >
+        <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
+        <p v-else class="text-sm text-ink-muted">Not enough valid data to chart MPG yet.</p>
+      </QueryState>
     </BaseCard>
 
     <div v-if="canSeeFuel" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
-        <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
+        <DataTable
+          :columns="fillColumns"
+          :rows="recent"
+          row-key="id"
+          :loading="txnsQuery.isLoading.value"
+          :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+          :retrying="txnsQuery.isFetching.value"
+          empty-text="No fills yet."
+          @retry="txnsQuery.refetch()"
+        >
           <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
-          <template #cell-gallons="{ value }">{{ value }} gal</template>
-          <template #cell-computed_mpg="{ value }">{{ value ?? "—" }} mpg</template>
+          <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
+          <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
         </DataTable>
       </div>
       <BaseCard padding="none">
         <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">
           Anomalies
         </h3>
-        <ul class="divide-y divide-edge-subtle text-sm">
+        <!-- `isPending`: the read waits on the fills and the detection epoch, and while it is
+             disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
+        <div v-if="anomaliesQuery.isPending.value || anomaliesFailed" class="px-5 py-3">
+          <QueryState
+            compact
+            :loading="!anomaliesFailed"
+            :error="anomaliesFailed"
+            :retrying="anomaliesQuery.isFetching.value || txnsQuery.isFetching.value"
+            loading-text="Loading the anomalies…"
+            error-text="Could not load the anomalies."
+            @retry="retryAnomalies"
+          />
+        </div>
+        <ul v-else class="divide-y divide-edge-subtle text-sm">
           <li
             v-for="a in anomalies ?? []"
             :key="a.id"

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia, setActivePinia } from "pinia";
 import { ref } from "vue";
 
@@ -38,11 +39,16 @@ vi.mock("@/lib/api", () => ({
   }),
 }));
 
+const nightlyRead = vi.hoisted(() => ({ failed: false, retry: vi.fn() }));
 vi.mock("@/features/jobs/useJob", () => ({
   useJob: () => ({
     lastDone: ref(null),
     failed: ref(false),
     freshnessLabel: ref("never run"),
+    isLoading: ref(false),
+    readFailed: ref(nightlyRead.failed),
+    retrying: ref(false),
+    retry: nightlyRead.retry,
   }),
 }));
 
@@ -83,6 +89,8 @@ const coverage = (o: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  nightlyRead.failed = false;
+  nightlyRead.retry.mockClear();
   session.role = "admin";
   session.sections = null;
   fetched.value = status();
@@ -101,7 +109,11 @@ async function mountPage() {
   const pinia = createPinia();
   setActivePinia(pinia);
   const w = mount(DataSyncPage, {
-    global: { plugins: [router, pinia], stubs: { JobActionCard: true } },
+    global: {
+      // The status reads are queries since F5; no retries, so a refusal is a failure on its first answer.
+      plugins: [router, pinia, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]],
+      stubs: { JobActionCard: true },
+    },
   });
   await flushPromises();
   return w;
@@ -188,10 +200,21 @@ describe("DataSyncPage — the telematics-history card", () => {
   // `group by` in Postgres (Q-SAM8) — there is no page, so there is no page to stop — and a caveat
   // for a condition that cannot arise is a sentence a reader has to rule out for nothing.
 
-  it("reports a failed read instead of rendering 0% coverage", async () => {
+  it("reports a failed read instead of rendering 0% coverage, with a Retry", async () => {
     coverageFetched.ok = false;
-    const t = (await mountPage()).text();
-    expect(t).toContain("Could not read telematics coverage");
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the telematics history.");
+    expect(w.text()).not.toContain("0%");
+    const { apiFetch } = await import("@/lib/api");
+    const reads = () => vi.mocked(apiFetch).mock.calls.filter(([u]) => String(u).includes("telematics-coverage")).length;
+    const before = reads();
+    coverageFetched.ok = true;
+    const retry = w.findAll("button").filter((b) => b.text() === "Retry");
+    expect(retry).toHaveLength(1);
+    await retry[0]!.trigger("click");
+    await flushPromises();
+    expect(reads()).toBe(before + 1);
+    expect(w.text()).toContain("60 of 100 fills checked");
   });
 });
 
@@ -224,5 +247,31 @@ describe("DataSyncPage — the fuel cards ask their endpoint's gate (SP5)", () =
     const w = await mountPage();
     const reconcile = w.findAll("job-action-card-stub").find((c) => c.attributes("title") === "Reconcile fuel with telematics");
     expect(reconcile?.attributes("secondarylabel") ?? reconcile?.attributes("secondary-label")).toBe("Re-check all history");
+  });
+});
+
+/** F5 (US6b): the webhook card and the integrity card draw a failed read, with a Retry. */
+describe("DataSyncPage — failed status reads", () => {
+  it("says the webhook status could not be loaded, and Retry asks again", async () => {
+    fetched.ok = false;
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the webhook status.");
+    const { apiFetch } = await import("@/lib/api");
+    const reads = () => vi.mocked(apiFetch).mock.calls.filter(([u]) => String(u).endsWith("/samsara/webhook")).length;
+    const before = reads();
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    await flushPromises();
+    expect(reads()).toBe(before + 1);
+  });
+
+  it("does not say no nightly check has run when the read of it failed", async () => {
+    nightlyRead.failed = true;
+    const w = await mountPage();
+    nightlyRead.failed = false;
+    expect(w.text()).toContain("Could not load the last nightly check.");
+    expect(w.text()).not.toContain("No nightly check has run yet.");
+    expect(w.text()).not.toContain("never run");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(nightlyRead.retry).toHaveBeenCalledTimes(1);
   });
 });

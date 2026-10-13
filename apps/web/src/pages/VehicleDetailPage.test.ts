@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import VehicleDetailPage from "@/pages/VehicleDetailPage.vue";
 
 /**
@@ -11,11 +11,15 @@ import VehicleDetailPage from "@/pages/VehicleDetailPage.vue";
  */
 const vehicle = vi.hoisted(() => ({
   row: {} as Record<string, unknown>,
+  /** F9: the tables whose read is refused. */
+  failing: new Set<string>(),
 }));
-const chain = (result: unknown) => {
+const chain = (result: unknown, failed = false) => {
   const proxy: unknown = new Proxy(() => undefined, {
     get: (_t, prop) => {
-      if (prop === "then") return (resolve: (v: unknown) => void) => resolve({ data: result, error: null });
+      if (prop === "then")
+        return (resolve: (v: unknown) => void) =>
+          resolve(failed ? { data: null, error: { message: "permission denied" } } : { data: result, error: null });
       return () => proxy;
     },
     apply: () => proxy,
@@ -23,7 +27,7 @@ const chain = (result: unknown) => {
   return proxy;
 };
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: (table: string) => chain(table === "vehicles" ? vehicle.row : []) },
+  supabase: { from: (table: string) => chain(table === "vehicles" ? vehicle.row : [], vehicle.failing.has(table)) },
 }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true }) }));
 
@@ -32,7 +36,9 @@ const mountPage = async () => {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/vehicles/:id", component: VehicleDetailPage }] });
   await router.push("/vehicles/v-1");
   await router.isReady();
-  const w = mount(VehicleDetailPage, { global: { plugins: [router, VueQueryPlugin], stubs: STUBS } });
+  // No retries: a refused read is a failure on its first answer.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const w = mount(VehicleDetailPage, { global: { plugins: [router, [VueQueryPlugin, { queryClient }]], stubs: STUBS } });
   await flushPromises();
   return w;
 };
@@ -50,5 +56,41 @@ describe("VehicleDetailPage — the summary's facts", () => {
     const facts = pairs(await mountPage());
     expect(facts.Tank).toBe("—");
     expect(facts["Baseline MPG"]).toBe("—");
+  });
+});
+
+/**
+ * F9 (US6b): the page's reads used to drop supabase's `error`, so a refused read was an empty answer —
+ * "Not enough data to chart MPG yet", "No fills yet", "No anomalies". Each panel now says its read
+ * failed and offers a Retry.
+ */
+describe("VehicleDetailPage — a failed read is not an empty truck", () => {
+  const ROW = { id: "v-1", unit_number: "654", status: "active", fuel_type: "diesel", tank_capacity_gal: 200, baseline_mpg: 6.8, current_odometer: 1, odometer_offset: 0 };
+  beforeEach(() => {
+    vehicle.row = ROW;
+    vehicle.failing = new Set();
+  });
+
+  it("says the fills could not be loaded, in the chart and the table", async () => {
+    vehicle.failing = new Set(["fuel_transactions"]);
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the fills.");
+    expect(w.text()).not.toContain("Not enough data to chart MPG yet");
+    expect(w.findComponent({ name: "DataTable" }).attributes("error")).toBe("Could not load the fills.");
+  });
+
+  it("says the anomalies could not be loaded, and counts none open as a dash", async () => {
+    vehicle.failing = new Set(["anomalies"]);
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the anomalies.");
+    expect(w.text()).not.toContain("No anomalies.");
+    expect(pairs(w)["Open anomalies"]).toBe("—");
+  });
+
+  it("says the vehicle could not be loaded, with a Retry", async () => {
+    vehicle.failing = new Set(["vehicles"]);
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load this vehicle.");
+    expect(w.findAll("button").some((b) => b.text() === "Retry")).toBe(true);
   });
 });

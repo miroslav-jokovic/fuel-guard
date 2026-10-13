@@ -103,7 +103,9 @@ const pageRows = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, p
  * things and only one of them stops an inspection being started. Computed here rather than read
  * through template unwrapping, so the condition is legible next to the data it reads.
  */
-const registerIsEmpty = computed(() => !isLoading.value && (data.value ?? []).length === 0);
+// …and only an ANSWER can say it is empty: a failed read has no rows either, and drew this warning
+// above the table's own "Could not load" (F6, US6b).
+const registerIsEmpty = computed(() => !isLoading.value && !isError.value && (data.value ?? []).length === 0);
 
 const BASIS_OPTIONS = [
   { value: "", label: "Any" },
@@ -203,7 +205,7 @@ async function remove(i: Inspector) {
       :columns="columns"
       :rows="pageRows"
       :loading="isLoading || isFetching"
-      :error="isError ? 'Could not load the register' : null"
+      :error="isError ? 'Could not load the register.' : null"
       row-key="id"
       @retry="() => refetch()"
     >

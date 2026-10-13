@@ -272,6 +272,16 @@ export function useCountSessionQuery(id: Ref<string>) {
   });
 }
 
+type StockPage = { lines: StockLineDto[]; total: number };
+
+async function fetchStock(locationId?: string): Promise<StockPage> {
+  const r = await apiFetch<StockPage>(
+    `/api/maintenance/inventory/stock${locationId ? `?locationId=${locationId}` : ""}`,
+  );
+  if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelf");
+  return r.data;
+}
+
 /**
  * The shelf lines at one location — what a walk of that bay counts.
  *
@@ -282,14 +292,24 @@ export function useStockQuery(locationId: Ref<string | undefined>) {
   return useQuery({
     queryKey: ["inventory", "stock", locationId] as const,
     enabled: computed(() => Boolean(locationId.value)),
-    queryFn: async (): Promise<{ lines: StockLineDto[]; total: number }> => {
-      const r = await apiFetch<{ lines: StockLineDto[]; total: number }>(
-        `/api/maintenance/inventory/stock?locationId=${locationId.value}`,
-      );
-      if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not load the shelf");
-      return r.data;
-    },
+    queryFn: () => fetchStock(locationId.value),
   });
+}
+
+/**
+ * Every shelf line in the shop, across locations — what the label screen picks from.
+ *
+ * Its own query, not `useStockQuery(ref(undefined))`: that call is what Labels made from 2026-09-10,
+ * and since the shelf walk's `enabled` guard (2026-09-09) an undefined location means "not chosen
+ * yet", so the read was never sent and Shelves always said "Nothing on the shelves yet" (found by
+ * US6b, F3). The route answers every location when none is named.
+ *
+ * ⚠ One response, so at most the route's page cap (200 lines, `PAGE_MAX`): a shop past that would see
+ * its first 200 shelves and no sign of the rest. Recorded as F32 (UI-STANDARDIZATION.md §7); the fix
+ * is server paging WITH a server search, as the asset list has, not a bigger page.
+ */
+export function useAllStockQuery() {
+  return useQuery({ queryKey: ["inventory", "stock", "all"] as const, queryFn: () => fetchStock() });
 }
 
 export function useOpenCountSession() {

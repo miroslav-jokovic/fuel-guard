@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 
@@ -14,6 +14,8 @@ vi.mock("@/composables/useVehicles", async () => {
   const { ref } = await import("vue");
   return { useVehiclesQuery: () => ({ data: ref([{ id: "v1", unit_number: "654" }]) }) };
 });
+/** F7: which of the page's two reads answers 500, and the Retry each must reach. */
+const reads = vi.hoisted(() => ({ sampleFails: false, metricsFail: false, refetchSample: vi.fn(), refetchMetrics: vi.fn() }));
 vi.mock("@/features/anomalies/useRecallAudit", async () => {
   const { ref } = await import("vue");
   const fill = {
@@ -21,8 +23,21 @@ vi.mock("@/features/anomalies/useRecallAudit", async () => {
     odometer: 412000, locationText: null, city: null, state: null, observedCity: "Joliet", observedState: "IL",
   };
   return {
-    useAuditSample: () => ({ data: ref([fill]), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
-    useRecallMetrics: () => ({ data: ref(null) }),
+    useAuditSample: () => ({
+      data: ref(reads.sampleFails ? undefined : [fill]),
+      isLoading: ref(false),
+      isError: ref(reads.sampleFails),
+      error: ref(null),
+      refetch: reads.refetchSample,
+      isFetching: ref(false),
+    }),
+    useRecallMetrics: () => ({
+      data: ref(reads.metricsFail ? undefined : null),
+      isLoading: ref(false),
+      isError: ref(reads.metricsFail),
+      isFetching: ref(false),
+      refetch: reads.refetchMetrics,
+    }),
     useRecordVerdict: () => ({ isPending: ref(false), mutateAsync: vi.fn() }),
   };
 });
@@ -44,5 +59,42 @@ describe("RecallAuditPage — a sampled fill's figures", () => {
       "EFS location": "—",
       "Samsara saw": "Joliet, IL",
     });
+  });
+});
+
+/**
+ * F7 (US6b): a failed read is not an answer. Before, a failed metrics read said "No fills checked yet"
+ * and a failed batch read headed the section "Review batch (0 left)".
+ */
+describe("RecallAuditPage — a failed read", () => {
+  beforeEach(() => {
+    Object.assign(reads, { sampleFails: false, metricsFail: false });
+    reads.refetchSample.mockClear();
+    reads.refetchMetrics.mockClear();
+  });
+  const mountPage = async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/:p(.*)*", component: { template: "<div/>" } }] });
+    const w = mount(Page, { global: { plugins: [router], stubs: { PageHeader: true } } });
+    await flushPromises();
+    return w;
+  };
+
+  it("says the figures could not be loaded, not that no fills were checked, and Retry asks again", async () => {
+    reads.metricsFail = true;
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the figures.");
+    expect(w.text()).not.toContain("No fills checked yet");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(reads.refetchMetrics).toHaveBeenCalledTimes(1);
+    expect(reads.refetchSample).not.toHaveBeenCalled();
+  });
+
+  it("says the batch could not be loaded, and counts nothing left", async () => {
+    reads.sampleFails = true;
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the batch.");
+    expect(w.text()).not.toContain("0 left");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    expect(reads.refetchSample).toHaveBeenCalledTimes(1);
   });
 });

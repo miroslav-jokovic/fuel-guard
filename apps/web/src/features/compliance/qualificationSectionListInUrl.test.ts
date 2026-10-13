@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { ref } from "vue";
@@ -18,7 +18,14 @@ vi.mock("@/composables/useCompliance", () => ({
   useQualificationRecordsQuery: () => query([]),
 }));
 vi.mock("@/composables/useModules", () => ({ useModulesQuery: () => query(null) }));
-vi.mock("@/composables/useDrivers", () => ({ useDriverQuery: () => query({ full_name: "Ann Driver", cdl_number: "X1" }) }));
+/** F10: the driver read refused. */
+const driverRead = vi.hoisted(() => ({ fails: false }));
+vi.mock("@/composables/useDrivers", () => ({
+  useDriverQuery: () =>
+    driverRead.fails
+      ? { ...query(undefined), isError: ref(true) }
+      : query({ full_name: "Ann Driver", cdl_number: "X1" }),
+}));
 vi.mock("@/composables/useDqExports", () => ({ useExportDocument: () => ({ mutateAsync: vi.fn() }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => false, canReadKind: () => true }) }));
 vi.mock("@/stores/toast", () => ({ useToastStore: () => ({ success: vi.fn(), error: vi.fn() }) }));
@@ -82,5 +89,26 @@ describe("the qualification file keeps its requirement list in the URL", () => {
     w.findComponent({ name: "FilterBar" }).vm.$emit("clear-all");
     await flushPromises();
     expect(query()).toEqual({ section: "qualification", "dq.all": "1" });
+  });
+});
+
+/**
+ * F10 (US6b): the group tiles are a verdict on the file, built from five reads. Before, a failed driver
+ * read drew every group "Blocked" above a table that said the file could not be loaded.
+ */
+describe("the group tiles wait for the file's reads", () => {
+  beforeEach(() => {
+    driverRead.fails = false;
+  });
+
+  it("draws the tiles once every read has answered", async () => {
+    const { w } = await mountAt("/drivers/d1");
+    expect(w.text()).toMatch(/blocked/i);
+  });
+
+  it("draws no verdict when a read failed", async () => {
+    driverRead.fails = true;
+    const { w } = await mountAt("/drivers/d1");
+    expect(w.text()).not.toMatch(/blocked/i);
   });
 });

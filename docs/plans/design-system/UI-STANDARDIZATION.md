@@ -310,3 +310,41 @@ the old strip). F23: the Samsara line wraps instead of running off a phone, and 
 "1 hour" (both tests fail on the old code). F24: Fuel cards prints its count once; the export says
 "every card" / "the cards as filtered". Rows F1–F17, F21, F25–F31 are the next batches.
 
+
+**2026-10-13 — US6b batch 2 (claude/ui-batch2-failed-reads): the pages that drew a failed read as an
+answer.** F1–F17 closed; each site's test fails on the old code (proven by restoring the old file with
+`cp`, never stash). What the fixes turned on:
+
+- **F12 first, because it could lose data.** The chain discount rules are a replace-set, and the card
+  sat outside every read state: a failed rules read left `[]` on screen with Add rule and Save live. The
+  card now waits on its own read AND the planner settings' (its brand list comes from that read).
+- **Reads that dropped their error.** Vehicle detail's three reads, `useJob`'s last-run read and the
+  Users page's two lists read `data` and ignored the refusal, so a 500 was an empty answer — "No fills
+  yet", "never run" on a job that runs nightly, "0 members". They throw now, and each panel has a Retry.
+- **Disabled is not loading.** A read gated on another (`useDetectionEpoch`) reports `isLoading: false`
+  while it waits, so Alerts, Vehicle and Driver drew "Nothing here" / "No anomalies" before asking.
+  They use `isPending`. The Fleet report drew nothing while its period was chosen; it says it is loading.
+- **F15 is one fix, not 46.** `DataWorkspace` holds its table's loading/failed state
+  (`components/ui/workspaceTable.ts`) and `FilterBar` prints its count only once the table has answered.
+  Report bars outside a workspace keep passing `null` themselves. The Loads tabs do the same per read.
+- **`StatCard` can fail.** `:error` (the page's sentence) draws a dash, the sentence and a Retry, and
+  drops the tile's link and toggle so the Retry is the only control in it. Shop's six tiles use it.
+  New gate rule: a `StatCard` with `:loading` and no `:error`, or a `:value` falling back to `?? 0`, is
+  refused unless `ui-adoption: stat-guarded — <why>` (five sites: Fleet report's headlines, drawn only
+  inside the overview's state, and the qualification strip, withheld on a failure). Self-test fixture
+  proven by disabling the rule.
+- **A share of nothing is a dash** (F14): Coverage's tiles over a zero denominator show "—" and the
+  reason, and Fleet readiness reads "None yet" for a row with nothing to count instead of "0/0" ✓ (F11).
+- **Labels' Shelves list had never sent its read** (found while re-shooting F3). It called the shelf
+  walk's `useStockQuery(ref(undefined))`, which since 2026-09-09 reads an undefined location as "not
+  chosen yet" and stays disabled; production holds 0 stock lines today, so nobody saw it. Every shelf is
+  `useAllStockQuery()` now.
+
+Re-shot with the failure fixture at 1280 and 390 (16 s settle: Alerts and the Fleet report chain two
+reads' retries, ~14 s) and looked at; Coverage and Settings re-shot with the empty fixture.
+
+| # | Page | Width | What is wrong | Rule / component |
+|---|---|---|---|---|
+| F32 | Labels | both | The shelves are ONE response from `/stock`, capped at 200 lines (`PAGE_MAX`), then searched and paged on the client — a shop past 200 shelf lines would see the first 200 and no sign of the rest. 0 lines in production today | D-US8 · needs server paging with a server search, as the asset list has |
+
+Next: batch 3 (F21, F25–F32).

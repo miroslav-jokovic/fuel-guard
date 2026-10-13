@@ -71,6 +71,7 @@ vi.mock("@/features/jobs/useJob", () => ({
   useJob: () => ({
     lastDone: ref(null), failed: ref(false), freshnessLabel: ref("never run"),
     isRunning: ref(false), progressPct: ref(0), progressLabel: ref(""), refresh: vi.fn(), markRunning: vi.fn(),
+    isLoading: ref(false), readFailed: ref(false), retrying: ref(false), retry: vi.fn(),
   }),
 }));
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(async () => ({ ok: true, data: null })) }));

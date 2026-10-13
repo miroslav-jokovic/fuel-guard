@@ -14,6 +14,7 @@ import {
 } from "@silvicom/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { lastFullMonth } from "@/lib/dateWindow";
@@ -68,7 +69,8 @@ const PREVIEW_ROWS = 8;
 
 const window_ = lastFullMonth();
 const spendFilter = ref({ from: window_.from, to: window_.to, page: 1 });
-const { data: spend, isLoading: spendLoading } = useMaintenanceSpendQuery(spendFilter);
+const spendQ = useMaintenanceSpendQuery(spendFilter);
+const spend = spendQ.data;
 
 const lowStock = useLowStockQuery();
 const lowTotal = computed(() => lowStock.data.value?.total ?? 0);
@@ -92,7 +94,8 @@ const startOfToday = computed(() => {
   return d.toISOString();
 });
 const todayFilter = computed(() => ({ since: startOfToday.value, page: 1 }));
-const { data: today, isLoading: todayLoading } = useMovementsQuery(todayFilter);
+const todayQ = useMovementsQuery(todayFilter);
+const today = todayQ.data;
 
 /**
  * The repair backlog FleetPal holds (FLEET-MANAGER-HOME-PLAN Q-FM6 (a)) — the same counts as the
@@ -118,10 +121,14 @@ const partsOpen = computed(() => opens("/shop/inventory"));
 const unitsOpen = computed(() => opens("/shop/units"));
 
 const catalogueFilter = ref({ page: 1 });
-const { data: catalogue, isLoading: catalogueLoading } = usePartsQuery(catalogueFilter);
+const catalogueQ = usePartsQuery(catalogueFilter);
 
-/** Nothing in the catalogue means nothing anywhere else either — every quantity is a quantity OF a part. */
-const firstRun = computed(() => !catalogueLoading.value && (catalogue.value?.total ?? 0) === 0);
+/**
+ * Nothing in the catalogue means nothing anywhere else either — every quantity is a quantity OF a part.
+ * Only an ANSWER says the catalogue is empty (F1, US6b): a failed read has no parts either, and drew
+ * "No parts on the shelves yet. Add the first part" over a shop whose parts nobody had read.
+ */
+const firstRun = computed(() => catalogueQ.data.value !== undefined && catalogueQ.data.value.total === 0);
 
 /**
  * Four columns, not the low-stock page's six: the preview sits in half the width, and a fifth
@@ -164,28 +171,43 @@ const unitPath = (u: UnitKitDto) =>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <StatCard
         label="Open work orders"
-        :value="summary.data.value?.openWorkOrders ?? 0"
-        :muted="(summary.data.value?.openWorkOrders ?? 0) === 0"
+        :value="summary.data.value?.openWorkOrders ?? '—'"
+        :muted="summary.data.value?.openWorkOrders === 0"
         sub="Repairs FleetPal has in progress"
         :icon="WrenchIcon"
         tone="warning"
         :loading="summary.isLoading.value"
+        :error="summary.isError.value ? 'Could not load the work orders.' : null"
+        :retrying="summary.isFetching.value"
         :to="opens('/shop/work-orders') ? '/shop/work-orders' : undefined"
+        @retry="summary.refetch()"
       />
       <StatCard
         label="Open defects"
-        :value="summary.data.value?.unresolvedDefects ?? 0"
-        :muted="(summary.data.value?.unresolvedDefects ?? 0) === 0"
+        :value="summary.data.value?.unresolvedDefects ?? '—'"
+        :muted="summary.data.value?.unresolvedDefects === 0"
         sub="Found on inspections, not yet resolved"
         :icon="ClipboardDocumentListIcon"
         tone="danger"
         :loading="summary.isLoading.value"
+        :error="summary.isError.value ? 'Could not load the defects.' : null"
+        :retrying="summary.isFetching.value"
         :to="opens('/shop/defects') ? '/shop/defects' : undefined"
+        @retry="summary.refetch()"
       />
     </div>
 
     <!-- A callout, not a hand-rolled card: it is a fact about the page that survives every action
          on it, and the product has a primitive for exactly that. -->
+    <QueryState
+      v-if="catalogueQ.isError.value"
+      compact
+      :loading="false"
+      :error="true"
+      :retrying="catalogueQ.isFetching.value"
+      error-text="Could not load the parts."
+      @retry="catalogueQ.refetch()"
+    />
     <AppCallout v-if="firstRun" tone="brand">
       No parts on the shelves yet. Add the first part and the shop starts keeping count of it.
       <template #actions>
@@ -205,7 +227,10 @@ const unitPath = (u: UnitKitDto) =>
           :icon="ExclamationTriangleIcon"
           tone="warning"
           :loading="lowStock.isLoading.value"
+          :error="lowStock.isError.value ? 'Could not load the reorder list.' : null"
+          :retrying="lowStock.isFetching.value"
           :to="partsOpen ? '/shop/inventory?stock=low' : undefined"
+          @retry="lowStock.refetch()"
         />
         <StatCard
           label="Short of kit"
@@ -215,27 +240,36 @@ const unitPath = (u: UnitKitDto) =>
           :icon="TruckIcon"
           :tone="shortTotal > 0 ? 'danger' : 'neutral'"
           :loading="shortUnits.isLoading.value"
+          :error="shortUnits.isError.value ? 'Could not load the fleet.' : null"
+          :retrying="shortUnits.isFetching.value"
           :to="unitsOpen ? '/shop/units?kit=short' : undefined"
+          @retry="shortUnits.refetch()"
         />
         <StatCard
           label="Moved today"
-          :value="today?.total ?? 0"
-          :muted="(today?.total ?? 0) === 0"
+          :value="today?.total ?? '—'"
+          :muted="today?.total === 0"
           sub="Ledger rows since midnight"
           :icon="ArrowsRightLeftIcon"
           tone="info"
-          :loading="todayLoading"
+          :loading="todayQ.isLoading.value"
+          :error="todayQ.isError.value ? 'Could not load what moved today.' : null"
+          :retrying="todayQ.isFetching.value"
+          @retry="todayQ.refetch()"
         />
         <!-- `pendingSources` is the API's own sentence about why the store is empty; the page it
              links to renders the same one. A zero here without it would be a mysterious zero. -->
         <StatCard
           label="Repair spend"
-          :value="spend?.pendingSources ? '—' : fmtMoney(spend?.totalAmount ?? 0)"
+          :value="!spend || spend.pendingSources ? '—' : fmtMoney(spend.totalAmount)"
           :sub="spend?.pendingSources ?? 'Booked in the last full month'"
           :icon="GaugeIcon"
           tone="success"
-          :loading="spendLoading"
+          :loading="spendQ.isLoading.value"
+          :error="spendQ.isError.value ? 'Could not load the repair spend.' : null"
+          :retrying="spendQ.isFetching.value"
           :to="opens('/shop/repair-spend') ? '/shop/repair-spend' : undefined"
+          @retry="spendQ.refetch()"
         />
       </div>
 
@@ -256,7 +290,7 @@ const unitPath = (u: UnitKitDto) =>
             :rows="lowPreview"
             :row-key="(r: StockLineDto) => `${r.partId}:${r.locationId}`"
             :loading="lowStock.isLoading.value"
-            :error="lowStock.isError.value ? 'Could not load the reorder list' : null"
+            :error="lowStock.isError.value ? 'Could not load the reorder list.' : null"
             :row-class="() => (partsOpen ? 'cursor-pointer' : '')"
             @row-click="(row) => partsOpen && $router.push(`/shop/inventory/${row.partId}`)"
             @retry="() => lowStock.refetch()"
@@ -286,7 +320,7 @@ const unitPath = (u: UnitKitDto) =>
             :rows="shortPreview"
             row-key="unitId"
             :loading="shortUnits.isLoading.value"
-            :error="shortUnits.isError.value ? 'Could not load the fleet' : null"
+            :error="shortUnits.isError.value ? 'Could not load the fleet.' : null"
             :row-class="() => (unitsOpen ? 'cursor-pointer' : '')"
             @row-click="(row) => unitsOpen && $router.push(unitPath(row as unknown as UnitKitDto))"
             @retry="() => shortUnits.refetch()"

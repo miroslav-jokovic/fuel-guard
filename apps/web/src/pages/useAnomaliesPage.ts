@@ -86,7 +86,11 @@ const filters = computed<AnomalyFilters>(() => ({
 const reeferOnly = computed(() => reefer.value === "1");
 const setReeferOnly = (on: boolean) => (reefer.value = on ? "1" : "");
 
-const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+// `isPending`, not `isLoading`, is the table's loading state (F16, US6b). The read waits for the org's
+// detection epoch (`useDetectionEpoch`), and while it is disabled `isLoading` is false — so for the
+// seconds that wait took, the table said "Nothing here — no alerts match these filters" to an office
+// whose alerts had not been asked for yet. `isPending` holds until the read answers or fails.
+const { data: anomalies, isPending: isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
 const { data: txnDriverMap } = useAnomalyTxnDrivers(anomalies);
 const transition = useAnomalyTransition();
 

@@ -4,12 +4,13 @@ import {
   FunnelIcon,
   XMarkIcon,
 } from "@silvicom/ui/icons";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 import { AppSearchField as SearchInput } from "@silvicom/ui";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import { AppButton as BaseButton } from "@silvicom/ui";
 import { countLabelFor } from "@/lib/plural";
+import { useWorkspaceTable } from "@/components/ui/workspaceTable";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM-CONTRACT.md). One card:
@@ -35,7 +36,7 @@ export interface FilterChip {
   value: string;
 }
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     search?: string;
     searchPlaceholder?: string;
@@ -75,6 +76,12 @@ const emit = defineEmits<{
   remove: [key: string];
   "clear-all": [];
 }>();
+
+// Inside a DataWorkspace the count waits for the table's answer: "0 vehicles" while the read is
+// loading, or after it failed, is a confident wrong answer (F15). A report's standalone bar passes
+// null itself until its own reads answer (FuelCostsPage, FuelBuyDisciplinePage).
+const table = useWorkspaceTable();
+const shownCount = computed(() => (table && (table.loading || table.failed) ? null : props.count));
 
 /* "Filters" popover (same floating recipe as KebabMenu) */
 const moreOpen = ref(false);
@@ -146,8 +153,8 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         <BaseButton v-if="activeCount > 0" variant="ghost" size="sm" @click="emit('clear-all')">
           Clear filters
         </BaseButton>
-        <span v-if="count != null" class="whitespace-nowrap text-sm text-ink-muted">
-          {{ count.toLocaleString() }} {{ countLabelFor(count, countLabel) }}
+        <span v-if="shownCount != null" class="whitespace-nowrap text-sm text-ink-muted">
+          {{ shownCount.toLocaleString() }} {{ countLabelFor(shownCount, countLabel) }}
         </span>
         <slot name="actions" />
       </div>

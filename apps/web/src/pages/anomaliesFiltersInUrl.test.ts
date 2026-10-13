@@ -31,11 +31,14 @@ const anomalyRow = {
   fueled_at: "2026-08-15T14:00:00Z", version: 1,
 };
 
+/** F16: the read is disabled, waiting for the detection epoch — pending, but not loading. */
+const waiting = vi.hoisted(() => ({ epoch: false }));
 vi.mock("@/features/anomalies/useAnomalies", () => ({
   useAnomaliesQuery: (f: { value: AnomalyFilters }) => {
     seen.filters = f;
     return {
-      data: ref([anomalyRow]),
+      data: ref(waiting.epoch ? undefined : [anomalyRow]),
+      isPending: ref(waiting.epoch),
       isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false),
     };
   },
@@ -272,5 +275,23 @@ describe("the Alerts page's words and tabs (W4)", () => {
     expect(tabs.map((t) => t.text().trim())).toEqual(["All alerts", "Reefer fueling"]);
     expect(tabs.map((t) => t.attributes("aria-selected"))).toEqual(["false", "true"]);
     expect(w.text()).not.toMatch(/ULSD|ULSR/);
+  });
+});
+
+/**
+ * F16 (US6b): the alerts read waits for the org's detection epoch, and while it is disabled TanStack
+ * reports `isLoading: false` — so the table said "Nothing here — no alerts match these filters" for as
+ * long as that wait took. It is pending, and draws as loading.
+ */
+describe("Alerts while the read waits for the detection epoch", () => {
+  it("draws the table as loading, not as an empty answer", async () => {
+    waiting.epoch = true;
+    try {
+      const { w } = await mountAt("/anomalies");
+      expect(w.text()).not.toContain("Nothing here");
+      expect(w.findComponent({ name: "DataTable" }).props("loading")).toBe(true);
+    } finally {
+      waiting.epoch = false;
+    }
   });
 });

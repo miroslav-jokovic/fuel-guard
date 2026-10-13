@@ -14,6 +14,7 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useOpens } from "@/composables/useOpens";
+import QueryState from "@/components/ui/QueryState.vue";
 
 /**
  * "Fix →" shows only where the page that fixes the gap opens for the reader (SP5, plan §4b). The
@@ -23,9 +24,24 @@ import { useOpens } from "@/composables/useOpens";
  */
 const opens = useOpens();
 
-const { data: vehicles } = useVehiclesQuery();
-const { data: drivers } = useDriversQuery();
-const { data: org } = useOrgSettingsQuery();
+/*
+ * The checklist is a verdict over three reads, so it waits for all three (F11, US6b). Before, a failed
+ * read was an empty fleet, and an empty fleet was "0/0" with a green tick on every row — the same
+ * picture as a fleet with nothing left to set up.
+ */
+const vehiclesQ = useVehiclesQuery();
+const driversQ = useDriversQuery();
+const orgQ = useOrgSettingsQuery();
+const reads = [vehiclesQ, driversQ, orgQ];
+const vehicles = vehiclesQ.data;
+const drivers = driversQ.data;
+const org = orgQ.data;
+const loading = computed(() => reads.some((q) => q.isLoading.value));
+const failed = computed(() => reads.some((q) => q.isError.value));
+const retrying = computed(() => reads.some((q) => q.isFetching.value));
+function retry(): void {
+  for (const q of reads) if (q.isError.value) void q.refetch();
+}
 
 // Active fleet only — retired vehicles shouldn't count as "missing" data.
 const fleet = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
@@ -56,73 +72,85 @@ const rows = computed<Row[]>(() => {
   ];
 });
 
-const gaps = computed(() => rows.value.filter((r) => r.total > 0 && r.ok < r.total).length);
+// A row with nothing to count (no active trucks, no active drivers) is not complete: "0/0" with a
+// green tick said an empty roster had nothing left to set up. It reads "None yet" and counts as a gap.
+const isGap = (r: Row) => r.total === 0 || r.ok < r.total;
+const gaps = computed(() => rows.value.filter(isGap).length);
 const open = ref(true); // the checklist starts expanded; collapse it once you've reviewed the gaps
 const pct = (r: Row) => (r.total === 0 ? 0 : Math.round((r.ok / r.total) * 100));
 const meterTone = (r: Row) =>
-  r.ok >= r.total
+  r.total > 0 && r.ok >= r.total
     ? "bg-gradient-to-r from-success-500 to-success-300"
     : pct(r) >= 70
       ? "bg-gradient-to-r from-warning-500 to-warning-300"
       : "bg-gradient-to-r from-danger-500 to-danger-300";
 const textTone = (r: Row) =>
-  r.ok >= r.total ? "text-success-600" : pct(r) >= 70 ? "text-warning-600" : "text-danger-600";
+  r.total === 0 ? "text-ink-tertiary" : r.ok >= r.total ? "text-success-600" : pct(r) >= 70 ? "text-warning-600" : "text-danger-600";
 </script>
 
 <template>
-  <!-- Fully configured → collapse to a slim confirmation strip; detail returns whenever a gap opens. -->
-  <BaseCard v-if="gaps === 0" padding="none" class="flex items-center gap-2 px-5 py-3">
-    <AppIcon :icon="CheckCircleIcon" class="size-5 text-success-500" aria-hidden="true" />
-    <p class="text-sm text-ink-secondary">
-      <span class="font-semibold text-ink">All set</span> — detection checks have the data they need.
-    </p>
-  </BaseCard>
+  <QueryState
+    :loading="loading"
+    :error="failed"
+    :retrying="retrying"
+    loading-text="Loading the fleet readiness…"
+    error-text="Could not load the fleet readiness."
+    @retry="retry"
+  >
+    <!-- Fully configured → collapse to a slim confirmation strip; detail returns whenever a gap opens. -->
+    <BaseCard v-if="gaps === 0" padding="none" class="flex items-center gap-2 px-5 py-3">
+      <AppIcon :icon="CheckCircleIcon" class="size-5 text-success-500" aria-hidden="true" />
+      <p class="text-sm text-ink-secondary">
+        <span class="font-semibold text-ink">All set</span> — detection checks have the data they need.
+      </p>
+    </BaseCard>
 
-  <BaseCard v-else>
-    <BaseButton
-      type="button"
-      class="flex w-full items-center justify-between gap-2 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-      :class="open ? 'mb-4' : ''"
-      :aria-expanded="open"
-      aria-controls="fleet-readiness-list"
-      @click="open = !open"
-    >
-      <span class="flex items-center gap-2">
-        <AppIcon
-          :icon="ChevronDownIcon"
-          class="size-4 text-ink-tertiary transition-transform duration-200"
-          :class="open ? '' : '-rotate-90'"
-          aria-hidden="true"
-        />
-        <span class="text-sm font-semibold text-ink">Setup gaps</span>
-      </span>
-      <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
-        <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
-      </span>
-    </BaseButton>
-    <ul v-show="open" id="fleet-readiness-list" class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-      <li v-for="r in rows" :key="r.label" :title="r.why">
-        <div class="flex items-center justify-between gap-3">
-          <span class="truncate text-ink-secondary">{{ r.label }}</span>
-          <span class="flex shrink-0 items-center gap-2">
-            <span :class="['text-xs font-semibold tabular-nums', textTone(r)]">{{ r.ok }}/{{ r.total }}</span>
-            <RouterLink
-              v-if="r.ok < r.total && opens(r.to)"
-              :to="r.to"
-              class="rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              Fix →
-            </RouterLink>
-            <AppIcon v-else-if="r.ok >= r.total" :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
-          </span>
-        </div>
-        <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-          <div
-            :class="['h-full rounded-full transition-all duration-300', meterTone(r)]"
-            :style="{ width: `${pct(r)}%` }"
+    <BaseCard v-else>
+      <BaseButton
+        type="button"
+        class="flex w-full items-center justify-between gap-2 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        :class="open ? 'mb-4' : ''"
+        :aria-expanded="open"
+        aria-controls="fleet-readiness-list"
+        @click="open = !open"
+      >
+        <span class="flex items-center gap-2">
+          <AppIcon
+            :icon="ChevronDownIcon"
+            class="size-4 text-ink-tertiary transition-transform duration-200"
+            :class="open ? '' : '-rotate-90'"
+            aria-hidden="true"
           />
-        </div>
-      </li>
-    </ul>
-  </BaseCard>
+          <span class="text-sm font-semibold text-ink">Setup gaps</span>
+        </span>
+        <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
+          <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
+        </span>
+      </BaseButton>
+      <ul v-show="open" id="fleet-readiness-list" class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+        <li v-for="r in rows" :key="r.label" :title="r.why">
+          <div class="flex items-center justify-between gap-3">
+            <span class="truncate text-ink-secondary">{{ r.label }}</span>
+            <span class="flex shrink-0 items-center gap-2">
+              <span :class="['text-xs font-semibold tabular-nums', textTone(r)]">{{ r.total === 0 ? "None yet" : `${r.ok}/${r.total}` }}</span>
+              <RouterLink
+                v-if="isGap(r) && opens(r.to)"
+                :to="r.to"
+                class="rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                Fix →
+              </RouterLink>
+              <AppIcon v-else-if="!isGap(r)" :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
+            </span>
+          </div>
+          <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">
+            <div
+              :class="['h-full rounded-full transition-all duration-300', meterTone(r)]"
+              :style="{ width: `${pct(r)}%` }"
+            />
+          </div>
+        </li>
+      </ul>
+    </BaseCard>
+  </QueryState>
 </template>

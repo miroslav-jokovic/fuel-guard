@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ref } from "vue";
@@ -22,8 +22,10 @@ const overview = ref({
   includesHazmat: true,
   truncated: false,
 });
+const overviewLoading = ref(false);
+const overviewFailed = ref(false);
 vi.mock("@/composables/useCompliance", () => ({
-  useComplianceOverviewQuery: () => ({ data: overview, isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
+  useComplianceOverviewQuery: () => ({ data: overview, isLoading: overviewLoading, isError: overviewFailed, error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
   useCertificationsQuery: () => ({ data: ref([]), isLoading: ref(false), isError: ref(false) }),
 }));
 vi.mock("@/composables/useDqExports", () => ({ useRequestBinder: () => ({ mutateAsync: vi.fn(), isPending: ref(false) }) }));
@@ -68,5 +70,30 @@ describe("the qualification page's tiles write and read the URL", () => {
   it("opens on the view a link names", async () => {
     const { w } = await mountAt("/compliance?tab=exports");
     expect(w.findComponent({ name: "ExportHistory" }).exists()).toBe(true);
+  });
+});
+
+/**
+ * F4 (US6b): the tiles count the overview's drivers. Before, a failed overview read drew five tiles
+ * reading 0 above a table that said "Could not load" — a clean fleet, as far as the tiles knew.
+ */
+describe("the tiles wait for the overview", () => {
+  beforeEach(() => {
+    overviewLoading.value = false;
+    overviewFailed.value = false;
+  });
+
+  it("draws no tiles when the overview failed — the table carries the failure", async () => {
+    overviewFailed.value = true;
+    const { w } = await mountAt("/compliance");
+    expect(w.findAllComponents(StatCard)).toHaveLength(0);
+  });
+
+  it("draws the tiles as loading while the overview loads", async () => {
+    overviewLoading.value = true;
+    const { w } = await mountAt("/compliance");
+    const tiles = w.findAllComponents(StatCard);
+    expect(tiles.length).toBeGreaterThan(0);
+    expect(tiles.every((t) => t.props("loading"))).toBe(true);
   });
 });

@@ -54,36 +54,59 @@ const low = ref<{ lines: StockLineDto[]; total: number }>({ lines: [], total: 0 
 const short = ref<{ units: UnitKitDto[]; total: number }>({ units: [], total: 0 });
 const catalogue = ref<{ parts: unknown[]; total: number }>({ parts: [], total: 1 });
 
+/**
+ * F1 (US6b): the reads that answer 500, and each read's Retry. The page's tiles and its first-run
+ * callout used to fall back to zero on a failed read.
+ */
+const failing = new Set<string>();
+const retried: string[] = [];
+const read = (name: string, data: unknown) => {
+  const fails = failing.has(name);
+  return {
+    data: fails ? ref(undefined) : data,
+    isLoading: ref(false),
+    isError: ref(fails),
+    isFetching: ref(false),
+    refetch: () => retried.push(name),
+  };
+};
+/** The page's reads, rebuilt per test from `failing` — the mocks below hand these out. */
+let queries: Record<"low" | "short" | "today" | "parts" | "spend" | "summary", ReturnType<typeof read>>;
+function buildQueries() {
+  queries = {
+    low: read("low", low),
+    short: read("short", short),
+    today: read("today", ref({ movements: [], total: 7 })),
+    parts: read("parts", catalogue),
+    spend: read("spend", ref({ entries: [], total: 0, totalAmount: 18421, pendingSources: null })),
+    summary: read("summary", summary),
+  };
+}
+
 vi.mock("@/features/inventory/useInventory", async () => {
   const { ref: r } = await import("vue");
   return {
     INVENTORY_PAGE_SIZE: 50,
-    useLowStockQuery: () => ({ data: low, isLoading: r(false), isError: r(false), refetch: vi.fn() }),
-    useMovementsQuery: () => ({ data: r({ movements: [], total: 7 }), isLoading: r(false) }),
-    usePartsQuery: () => ({ data: catalogue, isLoading: r(false) }),
+    useLowStockQuery: () => queries.low,
+    useMovementsQuery: () => queries.today,
+    usePartsQuery: () => queries.parts,
     useLocationsQuery: () => ({ data: r([]) }),
     useOpenCountSession: () => ({ mutateAsync: vi.fn(), isPending: r(false) }),
   };
 });
-vi.mock("@/features/inventory/useUnits", async () => {
-  const { ref: r } = await import("vue");
+vi.mock("@/features/inventory/useUnits", () => {
   return {
-    useUnitsQuery: () => ({ data: short, isLoading: r(false), isError: r(false), refetch: vi.fn() }),
+    useUnitsQuery: () => queries.short,
   };
 });
-vi.mock("@/features/maintenance/useMaintenanceSpend", async () => {
-  const { ref: r } = await import("vue");
+vi.mock("@/features/maintenance/useMaintenanceSpend", () => {
   return {
-    useMaintenanceSpendQuery: () => ({
-      data: r({ entries: [], total: 0, totalAmount: 18421, pendingSources: null }),
-      isLoading: r(false),
-    }),
+    useMaintenanceSpendQuery: () => queries.spend,
   };
 });
 const summary = ref({ openWorkOrders: 24, oldestOpenWorkOrderAt: "2026-06-24T15:12:00+00:00", unresolvedDefects: 52, lowStockLines: 0 });
-vi.mock("@/features/maintenance/useShopBacklog", async () => {
-  const { ref: r } = await import("vue");
-  return { useShopSummaryQuery: () => ({ data: summary, isLoading: r(false) }) };
+vi.mock("@/features/maintenance/useShopBacklog", () => {
+  return { useShopSummaryQuery: () => queries.summary };
 });
 // The real shape (SP5): every door on the page now asks the guard's function, which reads the role
 // and the screen answers. A technician holds `maintenance: manage` as shipped.
@@ -126,6 +149,9 @@ beforeEach(() => {
   low.value = { lines: [], total: 0 };
   short.value = { units: [], total: 0 };
   catalogue.value = { parts: [], total: 1 };
+  failing.clear();
+  retried.length = 0;
+  buildQueries();
 });
 
 describe("the tiles", () => {
@@ -234,5 +260,46 @@ describe("doors that open only where their page does (SP5)", () => {
     expect(page().text()).toContain("Add a part");
     session.surfaces = { "maintenance.parts": false };
     expect(page().text()).not.toContain("Add a part");
+  });
+});
+
+/**
+ * F1 (US6b): a failed read is not an empty shop. Before, a failed summary read said "0" open work
+ * orders and defects, and a failed parts read "No parts on the shelves yet. Add the first part".
+ */
+describe("a failed read", () => {
+  const retry = async (w: ReturnType<typeof page>, n = 0) => {
+    await w.findAll("button").filter((b) => b.text() === "Retry")[n]!.trigger("click");
+  };
+
+  it("draws the repair tiles as failures, not zeros, and Retry asks FleetPal's summary again", async () => {
+    failing.add("summary");
+    buildQueries();
+    const w = page();
+    expect(w.text()).toContain("Could not load the work orders.");
+    expect(w.text()).toContain("Could not load the defects.");
+    expect(w.text()).not.toMatch(/Open work orders\s*0/);
+    await retry(w);
+    expect(retried).toEqual(["summary"]);
+  });
+
+  it("does not call a shop whose parts could not be read empty", async () => {
+    failing.add("parts");
+    buildQueries();
+    const w = page();
+    expect(w.text()).toContain("Could not load the parts.");
+    expect(w.text()).not.toContain("No parts on the shelves yet");
+    await retry(w);
+    expect(retried).toEqual(["parts"]);
+  });
+
+  it("draws today's movements and the repair spend as failures, not zero and $0", async () => {
+    failing.add("today");
+    failing.add("spend");
+    buildQueries();
+    const t = page().text();
+    expect(t).toContain("Could not load what moved today.");
+    expect(t).toContain("Could not load the repair spend.");
+    expect(t).not.toContain("$0");
   });
 });

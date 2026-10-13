@@ -42,12 +42,14 @@ vi.mock("@/composables/useFindingsSummary", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useFindingsSummaryQuery: () => ({ data: computed(() => ({ open: 4, recoveredThisQuarter: null, quarterFrom: "2026-07-01", oldestOpenOn: "2026-08-01" })) }),
 }));
+/** A read that has answered — the readiness checklist waits for its reads' state since F11. */
+const answered = (data: unknown) => ({ data: ref(data), isLoading: ref(false), isError: ref(false), isFetching: ref(false), refetch: vi.fn() });
 vi.mock("@/composables/useVehicles", () => ({
-  useVehiclesQuery: () => ({ data: ref([{ id: "v1", status: "active", tank_capacity_gal: 0, baseline_mpg: null }]) }),
+  useVehiclesQuery: () => answered([{ id: "v1", status: "active", tank_capacity_gal: 0, baseline_mpg: null }]),
 }));
-vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
+vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => answered([]) }));
 vi.mock("@/composables/useOrgSettings", () => ({
-  useOrgSettingsQuery: () => ({ data: ref({ notification_emails: [], notifications_enabled: true }) }),
+  useOrgSettingsQuery: () => answered({ notification_emails: [], notifications_enabled: true }),
 }));
 vi.mock("@/components/BaseChart.vue", () => ({ default: { template: "<div data-test='chart' />" } }));
 

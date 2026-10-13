@@ -16,12 +16,14 @@
  * Its own component rather than a fifth block in `DataSyncPage.vue`: that page was 441 lines against a
  * 500-line budget, and a card is a card.
  */
-import { computed, onMounted, ref } from "vue";
+import { computed } from "vue";
+import { useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 import { AppCard as BaseCard } from "@silvicom/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import type { SamsaraFeedHealth } from "@silvicom/shared";
+import QueryState from "@/components/ui/QueryState.vue";
 
 interface FeedFreshness {
   feeds: SamsaraFeedHealth[];
@@ -29,16 +31,22 @@ interface FeedFreshness {
   error: string | null;
 }
 
-const data = ref<FeedFreshness | null>(null);
-const error = ref<string | null>(null);
-onMounted(async () => {
-  const res = await apiFetch<FeedFreshness>("/api/integrations/samsara/feed-freshness");
-  if (res.ok) data.value = res.data ?? null;
-  else error.value = res.error?.message ?? "Could not read feed freshness";
+/**
+ * The read itself can fail; so can the reads behind it, which arrive as a 200 with an `error` field.
+ * Both are a failure the card says in its own sentence with a Retry (F5, D-US9) — before, each was a
+ * red line holding the server's text and no way to ask again.
+ */
+const query = useQuery({
+  queryKey: ["samsara", "feed-freshness"],
+  queryFn: async (): Promise<FeedFreshness> => {
+    const res = await apiFetch<FeedFreshness>("/api/integrations/samsara/feed-freshness");
+    if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not read feed freshness");
+    if (res.data.error) throw new Error(res.data.error);
+    return res.data;
+  },
 });
-
-/** The read itself can fail; so can the reads behind it. Both are shown, neither is swallowed. */
-const readError = computed(() => error.value ?? data.value?.error ?? null);
+const data = computed(() => query.data.value ?? null);
+const readError = computed(() => query.isError.value);
 const feeds = computed(() => data.value?.feeds ?? []);
 const attention = computed(() => feeds.value.filter((f) => f.needsAttention && f.state !== "disabled"));
 
@@ -95,7 +103,17 @@ const columns: DataTableColumn[] = [
       that is inside the time it is allowed to take.
     </p>
 
-    <p v-if="readError" class="mt-2 text-sm text-danger-600">{{ readError }}</p>
+    <div v-if="query.isLoading.value || readError" class="mt-2">
+      <QueryState
+        compact
+        :loading="query.isLoading.value"
+        :error="readError"
+        :retrying="query.isFetching.value"
+        loading-text="Loading the feed freshness…"
+        error-text="Could not load the feed freshness."
+        @retry="query.refetch()"
+      />
+    </div>
     <template v-else-if="data">
       <p v-if="attention.length === 0" class="mt-2 text-sm text-ink-secondary">
         Every feed that is switched on delivered inside its bound.

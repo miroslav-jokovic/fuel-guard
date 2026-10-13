@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   coverageReason: null as string | null,
   truckCount: 3,
   statementError: null as string | null,
+  /** F17: the trend read that picks the period has not answered yet. */
+  trendPending: false,
 }));
 
 const q = (data: unknown, err: string | null = null) => ({
@@ -139,7 +141,7 @@ vi.mock("@/features/accounting/useMileageCoverage", () => ({
 // the latest reportable month is July whatever the calendar says.
 vi.mock("@/features/accounting/useFleetTrend", () => ({
   useFleetTrendQuery: () =>
-    q({
+    state.trendPending ? { ...q(undefined), isLoading: ref(true) } : q({
       points: [
         { month: "2026-06", revenue: 5_107_789.04, expenses: 3_634_060.11, net: 1_473_728.93, miles: 1_574_109, trucks: 170, revenuePerMile: 3.24, costPerMile: 2.31, netPerMile: 0.94, reason: null },
         { month: "2026-07", revenue: 4_828_189.24, expenses: 4_058_143.38, net: 770_045.86, miles: 1_552_337, trucks: 172, revenuePerMile: 3.11, costPerMile: 2.61, netPerMile: 0.5, reason: null },
@@ -313,5 +315,22 @@ describe("FleetReportPage — the income statement's failure retries the stateme
     expect(w.text()).toContain("Could not");
     await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
     expect(statementRefetch).toHaveBeenCalled();
+  });
+});
+
+/**
+ * F17 (US6b): the period is picked from the trend read, and until it answers there is no period to
+ * ask for. The body was blank for the seconds that took; it says it is loading.
+ */
+describe("FleetReportPage — before the period is known", () => {
+  it("says the report is loading instead of drawing nothing", async () => {
+    state.trendPending = true;
+    try {
+      const w = await mountPage();
+      expect(w.text()).toContain("Loading the report…");
+      w.unmount();
+    } finally {
+      state.trendPending = false;
+    }
   });
 });

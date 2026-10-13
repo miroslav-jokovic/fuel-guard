@@ -275,7 +275,10 @@ function onFiled(payload: { documentId: string; name: string; key: string }): vo
          them (PSP-PLAN.md P0). -->
     <ScreeningIdentityCard :driver="driverQ.data.value ?? null" />
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <!-- The tiles are a verdict on the file, built from five reads; before they answered they read
+         every group "Blocked" (F10, US6b). They wait; the table below draws the loading line and the
+         failure with its Retry, from the same reads. -->
+    <div v-if="!loading && !errorMessage" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <BaseCard v-for="g in groups" :key="g.group" padding="sm">
         <p class="text-sm font-medium text-ink">{{ g.label }}</p>
         <p class="mt-2">

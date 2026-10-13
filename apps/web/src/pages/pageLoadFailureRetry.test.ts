@@ -143,7 +143,7 @@ describe("a page whose read fails says so and retries it in place (D-US5)", () =
     await retryReaches(page, sentence, refetches);
     const Page = (await import(`./${page}.vue`)).default;
     const w = mount(Page, { global: { stubs } });
-    // FuelPlanningSettingsPage's discount-rules card has its own read and stays; it is not a form.
+    // FuelPlanningSettingsPage's discount-rules card sits inside the settings' state too (F12).
     expect(w.find("form").exists(), page).toBe(false);
     w.unmount();
   });
@@ -153,5 +153,23 @@ describe("a page whose read fails says so and retries it in place (D-US5)", () =
     const metricsCalls = () =>
       vi.mocked(apiFetch).mock.calls.filter(([url]) => String(url).includes("detection-metrics")).length;
     await retryReaches("ReportsPage", "Could not load the detection accuracy.", metricsCalls);
+  });
+
+  // F8 (US6b): the odometer table told a failed read to "Run a Backfill". Two reads fail here, so each
+  // Retry is pressed and the odometer read must be asked again exactly once between them.
+  it("ReportsPage — tells a failed odometer-accuracy read from no verifiable data, and reloads it", async () => {
+    const { apiFetch } = await import("@/lib/api");
+    const odometerCalls = () =>
+      vi.mocked(apiFetch).mock.calls.filter(([url]) => String(url).includes("odometer-accuracy")).length;
+    const Page = (await import("./ReportsPage.vue")).default;
+    const w = mount(Page, { global: { stubs } });
+    await flushPromises();
+    expect(w.text()).toContain("Could not load the odometer accuracy.");
+    expect(w.text()).not.toContain("No verifiable odometer data yet");
+    const before = odometerCalls();
+    for (const b of w.findAll("button").filter((x) => x.text() === "Retry")) await b.trigger("click");
+    await flushPromises();
+    expect(odometerCalls() - before).toBe(1);
+    w.unmount();
   });
 });

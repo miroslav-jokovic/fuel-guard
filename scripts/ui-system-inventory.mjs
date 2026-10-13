@@ -534,6 +534,31 @@ function serverMessageViolations(item) {
 }
 const serverMessages = pagesAndFeatures.flatMap(serverMessageViolations).filter((at) => !siteMarked(at, "server-message"));
 
+/**
+ * A figure is an answer, so a stat tile over a read says what it shows when the read fails (US6b F1,
+ * F4, F11, 2026-10-13).
+ *
+ * The browser pass found tiles drawing their read's fallback as the figure: the Shop's "0 open work
+ * orders" when FleetPal had not answered, Driver Qualification's five zeros above a table that could
+ * not load, Fleet readiness's "0/0" with a green tick. Each tile had a `:loading` — somebody had
+ * thought about the read — and no failure. So a `StatCard` that binds `:loading` binds `:error` too
+ * (the tile then draws a dash, the page's sentence and a Retry), and no `StatCard` `:value` falls back
+ * to zero with `?? 0` / `|| 0`: a figure nobody has read yet is a dash. A tile whose parent already
+ * withholds it on a failure says so where it stands: `ui-adoption: stat-guarded — <why>`.
+ *
+ * ⚠ What this cannot see: a zero computed in the script (`const total = computed(() => q.data?.n ?? 0)`)
+ * and handed to a tile with no `:loading`. The rule holds the tiles that declare a read; the sweep
+ * after US6b batch 3 looks for the rest.
+ */
+const STAT_ZERO_FALLBACK = /\s:value="[^"]*(?:\?\?|\|\|)\s*0(?![.\d])/;
+function statTileViolations(item) {
+  return [...item.source.matchAll(COMPONENT_TAG)]
+    .filter(([tag, name]) =>
+      name === "StatCard" && ((/\s:loading=/.test(tag) && !/\s:error=/.test(tag)) || STAT_ZERO_FALLBACK.test(tag)))
+    .map((m) => `${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
+}
+const unguardedStats = pagesAndFeatures.flatMap(statTileViolations).filter((at) => !siteMarked(at, "stat-guarded"));
+
 const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
 
 /**
@@ -797,6 +822,24 @@ function verifyAdoption() {
         clean.some((c) => c.length) || !marks[0] || marks[1])
       failures.push("server-message checker failed its regression fixture");
   }
+  {
+    const at = (source) => statTileViolations({ relativePath: "s.vue", source });
+    const hits = [
+      at(`<StatCard label="Open" :value="n" :loading="q.isLoading.value" />`),
+      at(`<StatCard label="Open" :value="q.data.value?.open ?? 0" />`),
+      at(`<StatCard\n  label="Open"\n  :value="total || 0"\n  :loading="l"\n  :error="e"\n/>`),
+    ];
+    const clean = [
+      at(`<StatCard label="Open" :value="n" :loading="l" :error="failed ? 'Could not load the work orders.' : null" />`),
+      at(`<StatCard label="Spend" :value="spend ?? 0.5" />`),
+      at(`<StatCard label="Open" :value="q.data.value?.open ?? '—'" />`),
+      at(`<StatCard label="Rate" :value="fmtPct(r)" />`),
+    ];
+    if (hits.some((h) => h.length !== 1) || JSON.stringify(hits[2]) !== JSON.stringify(["s.vue:1"]) || clean.some((c) => c.length))
+      failures.push("stat-tile checker failed its regression fixture");
+  }
+  if (unguardedStats.length)
+    failures.push(`stat tile with a :loading but no :error, or a :value falling back to zero (bind :error, show a dash, or mark ui-adoption: stat-guarded — <why>): ${unguardedStats.join(", ")}`);
   if (serverMessages.length)
     failures.push(`read state showing the error's message (say the page's own sentence, or mark ui-adoption: server-message — <why>): ${serverMessages.join(", ")}`);
   if (vagueFailureCopy.length)

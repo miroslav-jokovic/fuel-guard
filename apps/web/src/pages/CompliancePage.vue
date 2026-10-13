@@ -160,12 +160,17 @@ async function buildBinder(driverIds: string[], includeRestricted: boolean): Pro
              ⚠ D-UI5: the badge reading "filter"/"filtering" is GONE. `lib/badges.ts` is the status
              vocabulary, and a badge used as a toggle's label teaches it to mean two things — the
              pressed state was already carried correctly by `aria-pressed` and the ring. -->
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <!-- F4 (US6b): the tiles count the overview's drivers, so they wait for it — loading while it
+             loads, and gone when it failed, because five zeros above a table saying "Could not load"
+             read as a clean fleet. The table below carries the failure and its Retry (same query). -->
+        <div v-if="!overview.isError.value" class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          <!-- ui-adoption: stat-guarded — the strip above is withheld on a failed overview read, and the table carries the failure (F4). -->
           <StatCard
             v-for="t in strip"
             :key="t.key"
             :label="t.label"
             :value="t.n"
+            :loading="overview.isLoading.value"
             :pressed="activeTile === t.key"
             @toggle="toggleTile(t)"
           />

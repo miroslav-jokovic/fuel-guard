@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AppCard as BaseCard, AppDelta, AppIconChip, type ChipTone, type DeltaDirection, type DeltaTone } from "@silvicom/ui";
-import { type Icon } from "@silvicom/ui/icons";
+import { AppButton, AppIcon, AppCard as BaseCard, AppDelta, AppIconChip, type ChipTone, type DeltaDirection, type DeltaTone } from "@silvicom/ui";
+import { ArrowPathIcon, ExclamationTriangleIcon, type Icon } from "@silvicom/ui/icons";
 import { RouterLink } from "vue-router";
 import SparkLine from "@/components/SparkLine.vue";
 
@@ -86,6 +86,20 @@ const props = withDefaults(
      */
     sparkInline?: boolean;
     loading?: boolean;
+    /**
+     * The figure's read failed: the page's own sentence, in the voice's "Could not load …" form
+     * (D-US9). The tile then shows a dash where the figure goes, this sentence where the caption
+     * goes, and a Retry that emits `retry` (F1, US6b).
+     *
+     * ⚠ Before this, every tile over a failed read drew the figure's fallback — `?? 0` — so the Shop
+     * said "0 open work orders" when FleetPal had not answered, the qualification strip five zeros
+     * above a table that could not load, Fleet readiness "0/0" with a green tick. A zero is an
+     * answer; a failure is not one. While failed, the tile is neither a link nor a toggle: a Retry
+     * inside an anchor or a button is a control nobody can press without also pressing the other.
+     */
+    error?: string | null;
+    /** Busy label for the Retry while the read is asked again. */
+    retrying?: boolean;
     /** When set, the whole tile is a link — an interactive drill-down into the detail page. */
     to?: string;
     size?: CardSize;
@@ -163,12 +177,16 @@ const props = withDefaults(
     to: undefined,
     valueTone: undefined,
     unit: undefined,
+    error: null,
+    retrying: false,
   },
 );
 
-const emit = defineEmits<{ toggle: [] }>();
+const emit = defineEmits<{ toggle: []; retry: [] }>();
 
-const isToggle = computed(() => props.pressed !== undefined);
+const failed = computed(() => !props.loading && Boolean(props.error));
+const isToggle = computed(() => props.pressed !== undefined && !failed.value);
+const link = computed(() => (failed.value ? undefined : props.to));
 const hero = computed(() => props.size === "hero");
 
 /** Inline only when there is a spark to put there, and only in the hero anatomy. */
@@ -197,11 +215,11 @@ const valueClass = computed(() =>
 
 <template>
   <component
-    :is="to ? RouterLink : 'div'"
-    v-bind="to ? { to } : {}"
+    :is="link ? RouterLink : 'div'"
+    v-bind="link ? { to: link } : {}"
     :class="[
       'block rounded-dialog focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
-      to ? 'group cursor-pointer' : '',
+      link ? 'group cursor-pointer' : '',
     ]"
   >
     <component
@@ -214,7 +232,7 @@ const valueClass = computed(() =>
         isToggle ? 'w-full text-left transition' : '',
         isToggle && pressed ? 'ring-2 ring-brand-600' : '',
         isToggle && !pressed ? 'hover:bg-surface-subtle' : '',
-        to ? 'transition-colors duration-150 group-hover:bg-surface-subtle group-hover:ring-edge-control' : '',
+        link ? 'transition-colors duration-150 group-hover:bg-surface-subtle group-hover:ring-edge-control' : '',
       ]"
       @click="isToggle ? emit('toggle') : undefined"
     >
@@ -268,7 +286,7 @@ const valueClass = computed(() =>
           <div class="flex items-center justify-between gap-2">
             <p :class="labelClass">{{ label }}</p>
             <AppDelta
-              v-if="delta && !loading"
+              v-if="delta && !loading && !failed"
               :direction="delta.direction"
               :tone="delta.tone"
               :label="delta.label"
@@ -279,6 +297,19 @@ const valueClass = computed(() =>
           <template v-if="loading">
             <div class="mt-2.5 h-8 w-24 animate-pulse rounded-control bg-surface-muted" />
             <div class="mt-2 h-3 w-16 animate-pulse rounded-control bg-surface-muted" />
+          </template>
+          <template v-else-if="failed">
+            <p :class="[valueClass, 'text-ink-tertiary']">—</p>
+            <div role="alert" class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-secondary">
+              <span class="flex items-center gap-1">
+                <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5 shrink-0 text-warning-500" aria-hidden="true" />
+                {{ error }}
+              </span>
+              <AppButton variant="ghost" size="sm" :disabled="retrying" @click.stop.prevent="emit('retry')">
+                <AppIcon :icon="ArrowPathIcon" class="size-3.5" :class="{ 'animate-spin': retrying }" aria-hidden="true" />
+                {{ retrying ? "Retrying…" : "Retry" }}
+              </AppButton>
+            </div>
           </template>
           <template v-else>
             <p :class="[valueClass, valueTone ?? (muted ? 'text-ink-muted' : 'text-ink')]" :title="valueTitle">
@@ -294,7 +325,7 @@ const valueClass = computed(() =>
                  with a composed line and a tile with a plain one still line up. -->
             <p v-if="sub || $slots.sub" :class="['mt-0.5 flex items-center gap-1 text-xs', subTone ?? 'text-ink-tertiary']">
               <slot name="sub">{{ sub }}</slot>
-              <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
+              <span v-if="link" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
             </p>
             <!-- A delta belongs under the value and above the caption: the caption is what the
                  delta is measured AGAINST ("vs previous 30 days"), so reading downward gives the
@@ -313,13 +344,13 @@ const valueClass = computed(() =>
             </div>
             <!-- Vertically centred against the value, not the tile: the caption sits below and a
                  spark centred on the whole tile floats visibly low beside it. -->
-            <div v-if="inlineSpark && !loading" class="w-20 grow">
+            <div v-if="inlineSpark && !loading && !failed" class="w-20 grow">
               <SparkLine :points="spark!" :color="sparkColor ?? 'currentColor'" />
             </div>
           </div>
         </div>
       </div>
-      <div v-if="spark && !loading && !inlineSpark" class="mt-3">
+      <div v-if="spark && !loading && !failed && !inlineSpark" class="mt-3">
         <SparkLine :points="spark" :color="sparkColor ?? 'currentColor'" />
       </div>
     </component>

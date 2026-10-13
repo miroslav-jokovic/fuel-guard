@@ -94,10 +94,14 @@ interface AccRow {
 const by = ref<"driver" | "vehicle">("driver");
 const acc = ref<AccRow[]>([]);
 const accLoading = ref(false);
+/** Kept apart from "no verifiable data yet" for the detection metrics' reason below (F8, US6b): a
+ *  failure told the office to run a Backfill, for a request that had simply failed. */
+const accError = ref(false);
 async function loadAccuracy() {
   accLoading.value = true;
   const res = await apiFetch<{ rows: AccRow[] }>(`/api/reports/odometer-accuracy${query({ by: by.value })}`);
   accLoading.value = false;
+  accError.value = !res.ok;
   acc.value = res.ok && res.data ? res.data.rows : [];
 }
 const accTop = computed(() => acc.value.filter((r) => r.checked > 0).slice(0, 10));
@@ -281,7 +285,10 @@ async function sendDigest() {
         :rows="accTop"
         row-key="key"
         :loading="accLoading"
+        :error="accError ? 'Could not load the odometer accuracy.' : null"
+        :retrying="accLoading"
         empty-text="No verifiable odometer data yet (needs Samsara odometer readings). Run a Backfill to populate."
+        @retry="loadAccuracy"
       >
         <template #cell-accuracyPct="{ value }">
           <span class="font-medium" :class="accTone(value)">{{ value != null ? `${value}%` : "—" }}</span>
