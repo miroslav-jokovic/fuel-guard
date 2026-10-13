@@ -28,6 +28,15 @@ export interface BasicRules {
   placardOnly: boolean;
   /** The +2 out-of-service weight applies (§3: not for Unsafe Driving, not for Controlled Substances/Alcohol). */
   oosWeight: boolean;
+  /**
+   * Left out on a post-crash inspection (§2.2 and its footnote 8: only violations that pre-existed the
+   * crash count, and those FMCSA flags as crash-related do not). The flag is not in the open data, so
+   * the BASIC stands in for it: a moving violation on a post-crash inspection is what the crash was;
+   * a defect, a log or a placard was there before it. Measured on FMCSA's 2026-08-28 snapshot: of our
+   * two in-window post-crash inspections, 4179180099's lane change was not scored and UDLS002954's HM
+   * violation was (`tests/parity.test.ts`).
+   */
+  crashRelated: boolean;
 }
 
 export const BASIC_RULES: Record<SmsBasic, BasicRules> = {
