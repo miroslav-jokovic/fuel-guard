@@ -218,6 +218,7 @@ export * from "./inventoryScanContract.js";
 export * from "./inventoryLabelContract.js";
 export * from "./inventoryRules.js";
 export * from "./fleetpalContract.js";
+export * from "./shopSummaryContract.js";
 export * from "./basemap.js";
 export * from "./livemap.js";
 export * from "./livemapContract.js";

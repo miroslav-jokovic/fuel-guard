@@ -264,6 +264,22 @@ needs a migration.
 - **Q-FM5: PM due/overdue.** FleetPal holds schedules and intervals but no due date. Computing one
   is (interval × last done × odometer) per unit, about a plan of its own. **Recommend:** defer, and
   record it in `docs/plans/maintenance/` as the shop card's next figure.
+- **Q-FM6: the Shop card's work-order and defect figures have no list to open (found building FM3,
+  2026-10-13).** §4 card 5 gives them the door `/shop`, but the shop home lists neither, and no page
+  in the web lists FleetPal work orders or defects at all. FLEETPAL-INTEGRATION-PLAN F11 is titled
+  "PM due, defects and expirations as worklists", but its text builds only PM due. D-FM9 says a
+  figure with no list behind it is not shown. Production 2026-10-13: 24 OPEN work orders (oldest
+  opened 2026-06-24) and 52 unresolved defects. Candidates:
+  (a) build the two lists first: `GET /api/maintenance/work-orders?status=open` and
+      `/defects?resolved=false`, plus two read-only pages under `/shop` (unit, reference, description,
+      opened/detected, age), catalogued as `maintenance.*` surfaces. The card ships after them, with
+      every figure a door. Cost: one more PR of about FM2's size, no migration.
+  (b) ship the card now with those two figures and no door, labelled a workaround of D-FM9 that (a)
+      removes.
+  (c) ship a low-stock-only card. §4 already rejects this: it would claim to answer "what is broken"
+      and could not.
+  **Recommend (a).** The 24 orders and 52 defects become something a fleet manager can act on rather
+  than just a number. The lists are also what F11 owes the shop anyway.
 
 ## 8. Not in scope
 

@@ -1,0 +1,53 @@
+import { Router } from "express";
+import type { ShopSummary } from "@silvicom/shared";
+import { requireAuth, requireOrg, requireSection } from "../../../middleware/auth.js";
+import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
+import { getAppLocals } from "../../../lib/appLocals.js";
+import { readShopBacklog } from "../../fleetpal/index.js";
+import { listLowStock } from "../inventory/stock.js";
+import { isServiceError } from "../inventory/types.js";
+import { statusForServiceError } from "../inventory/httpStatus.js";
+
+/**
+ * `GET /api/maintenance/shop-summary` — the Operations tab's Shop card (FLEET-MANAGER-HOME-PLAN.md
+ * FM3): what is broken or waiting on the shop, as counts.
+ *
+ * ── TWO OWNERS, ONE ANSWER, NO NEW RULE ────────────────────────────────────────────────────────
+ * The work orders and defects are FleetPal's record (D-INV10) and are read by the collector's own
+ * `readShopBacklog`; the parts below their reorder point are the shelf's, and are read by
+ * `listLowStock` — the reader behind `/inventory/low-stock`, which is the list the card's door opens.
+ * Calling it rather than counting `part_stock` here is the point: a second predicate would be a count
+ * that agrees with the Parts page until somebody changes one of them (D-FM7).
+ *
+ * It costs a full read of the stock lines that carry a reorder point to produce one number. That set
+ * is bounded by how many lines someone set a reorder point on (`listLowStock` says why), and a cheaper
+ * count would have to restate `isLowStock` in SQL, which is the copy D-INV13 refuses.
+ */
+export function shopSummaryRouter(): Router {
+  const router = Router();
+  router.use(requireAuth);
+
+  router.get(
+    "/shop-summary",
+    requireOrg,
+    requireSection("maintenance", "view"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const [backlog, low] = await Promise.all([readShopBacklog(admin, orgId), listLowStock(admin, orgId)]);
+      if ("error" in backlog) {
+        dbErrorResponse(res, "maintenance.shop-summary", backlog.error, "Could not load the shop summary");
+        return;
+      }
+      if (isServiceError(low)) {
+        res.status(statusForServiceError(low.code)).json(apiError(low.code, low.error));
+        return;
+      }
+      const data: ShopSummary = { ...backlog, lowStockLines: low.total };
+      res.json({ ok: true, data });
+    }),
+  );
+
+  return router;
+}
