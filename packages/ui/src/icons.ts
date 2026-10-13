@@ -236,6 +236,7 @@ export {
   // corners — the selfie's oval, as the chip and the tips name it. `HatGlassesIcon` is the tip's own
   // two things to take off; `LightIcon` is a lamp to FACE, the opposite advice to `GlareIcon`'s.
   MedicalFileIcon             as MedicalCardIcon,
+  MicroscopeIcon              as MicroscopeIcon, // Safety › Drug & Alcohol (MEDSTOP-PLAN §7A.7): a lab test, a silhouette no other nav item wears
   FaceIdIcon                  as FaceIcon,
   HatGlassesIcon              as HatGlassesIcon,
   BulbIcon                    as LightIcon,
