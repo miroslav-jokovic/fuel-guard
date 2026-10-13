@@ -44,6 +44,16 @@ const paged = computed(() =>
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 
+/**
+ * A share of nothing is not a share (F14, US6b). With no fills in the window the aggregator answers 0
+ * for every percentage — and the capacity tile 100 for a roster with no fuel trucks — so the strip
+ * drew five red "0%" tiles and one green "100%": a verdict on a fleet with nothing to judge. A tile
+ * whose denominator is zero shows a dash, no tone, and says why.
+ */
+const share = (pct: number, of: number) => (of > 0 ? fmtPct(pct) : "—");
+const shareTone = (pct: number, of: number) => (of > 0 ? covTone(pct) : undefined);
+const NO_FILLS = "No fills in the last 90 days to check";
+
 // Higher coverage = greener; blind share inverts the scale.
 const covTone = (p: number) =>
   p >= 85 ? "text-success-700" : p >= 50 ? "text-warning-600" : "text-danger-700";
@@ -80,38 +90,40 @@ const columns: DataTableColumn[] = [
     >
       <StatCard
         label="Checked against Samsara"
-        :value="fmtPct(data.reconciledPct)"
-        :value-tone="covTone(data.reconciledPct)"
-        :sub="`${data.blindFills.toLocaleString()} of ${data.totalFills.toLocaleString()} fills not matched`"
+        :value="share(data.reconciledPct, data.totalFills)"
+        :value-tone="shareTone(data.reconciledPct, data.totalFills)"
+        :sub="data.totalFills ? `${data.blindFills.toLocaleString()} of ${data.totalFills.toLocaleString()} fills not matched` : NO_FILLS"
       />
       <StatCard
         label="Location-confirmed"
-        :value="fmtPct(data.locationConfirmedPct)"
-        :value-tone="covTone(data.locationConfirmedPct)"
-        :sub="`GPS placed the truck at the station · ${fmtPct(data.locationPct)} could be checked (including in the right state)`"
+        :value="share(data.locationConfirmedPct, data.totalFills)"
+        :value-tone="shareTone(data.locationConfirmedPct, data.totalFills)"
+        :sub="data.totalFills ? `GPS placed the truck at the station · ${fmtPct(data.locationPct)} could be checked (including in the right state)` : NO_FILLS"
       />
       <StatCard
         label="Odometer-verifiable"
-        :value="fmtPct(data.odometerPct)"
-        :value-tone="covTone(data.odometerPct)"
-        sub="fueling-time odometer available"
+        :value="share(data.odometerPct, data.totalFills)"
+        :value-tone="shareTone(data.odometerPct, data.totalFills)"
+        :sub="data.totalFills ? 'fueling-time odometer available' : NO_FILLS"
       />
       <StatCard
         label="Attributed"
-        :value="fmtPct(data.attributedPct)"
-        :value-tone="covTone(data.attributedPct)"
-        :sub="`${data.unattributed.toLocaleString()} unmatched to a truck/driver`"
+        :value="share(data.attributedPct, data.totalFills)"
+        :value-tone="shareTone(data.attributedPct, data.totalFills)"
+        :sub="data.totalFills ? `${data.unattributed.toLocaleString()} unmatched to a truck/driver` : NO_FILLS"
       />
       <StatCard
         v-if="capacity"
         label="Tank capacity set"
-        :value="fmtPct(capacity.setPct)"
-        :value-tone="covTone(capacity.setPct)"
+        :value="share(capacity.setPct, capacity.fuelVehicles)"
+        :value-tone="shareTone(capacity.setPct, capacity.fuelVehicles)"
       >
         <template #sub>
           <span :title="capacity.missing.map((m) => m.unit).join(', ')">
             {{
-              capacity.missing.length
+              !capacity.fuelVehicles
+                ? "No active fuel trucks on the roster"
+                : capacity.missing.length
                 ? `${capacity.missing.length} truck${capacity.missing.length > 1 ? "s" : ""} missing (capacity rules dead): ${capacity.missing
                     .slice(0, 4)
                     .map((m) => m.unit)
@@ -147,11 +159,13 @@ const columns: DataTableColumn[] = [
       </StatCard>
       <StatCard
         label="Card identity"
-        :value="fmtPct(data.cardIdentifiablePct)"
-        :value-tone="covTone(data.cardIdentifiablePct)"
+        :value="share(data.cardIdentifiablePct, data.cardFills)"
+        :value-tone="shareTone(data.cardIdentifiablePct, data.cardFills)"
       >
         <template #sub>
+          <span v-if="!data.cardFills">No card fills in the last 90 days to check</span>
           <span
+            v-else
             title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks"
           >
             {{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card
