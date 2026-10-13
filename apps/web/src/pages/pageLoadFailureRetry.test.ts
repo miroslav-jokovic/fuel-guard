@@ -143,7 +143,7 @@ describe("a page whose read fails says so and retries it in place (D-US5)", () =
     await retryReaches(page, sentence, refetches);
     const Page = (await import(`./${page}.vue`)).default;
     const w = mount(Page, { global: { stubs } });
-    // FuelPlanningSettingsPage's discount-rules card has its own read and stays; it is not a form.
+    // FuelPlanningSettingsPage's discount-rules card sits inside the settings' state too (F12).
     expect(w.find("form").exists(), page).toBe(false);
     w.unmount();
   });

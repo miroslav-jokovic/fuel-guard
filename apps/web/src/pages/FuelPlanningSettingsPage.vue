@@ -116,7 +116,16 @@ async function onSave() {
 
 // Per-brand discount rules (independent save; separate table). Offered for the enabled brands only —
 // a rule for a network the planner never considers is a setting with no reader.
-const { data: discountData } = useDiscountRules();
+// The editor waits on its own read (F12, US6b): before, a failed read left `rules` at its initial
+// empty list, so the card said "No discount rules" with Add rule and Save live, and one press of Save
+// would have replaced the company's real rules with nothing.
+const {
+  data: discountData,
+  isLoading: discountsLoading,
+  isError: discountsFailed,
+  isFetching: discountsFetching,
+  refetch: refetchDiscounts,
+} = useDiscountRules();
 const saveDiscounts = useSaveDiscountRules();
 const rules = ref<DiscountRule[]>([]);
 watch(discountData, (d) => { if (d) rules.value = d.map((r) => ({ ...r })); }, { immediate: true });
@@ -324,32 +333,46 @@ const truck: NumField[] = [
           </BaseButton>
         </div>
       </form>
-    </QueryState>
 
-    <BaseCard>
-      <h3 class="text-sm font-semibold text-ink">Chain discount rules</h3>
-      <p class="mt-1 text-sm text-ink-muted">For networks that publish a posted price and give you a contract discount off it. Pilot and Flying J need no rule — the daily report already carries your price.</p>
-      <div class="mt-4 space-y-3">
-        <div v-for="(r, i) in rules" :key="i" class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-          <FormField v-slot="{ id }" label="Brand">
-            <AppSelect :id="id" v-model="r.brand" :options="enabledOptions" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Type">
-            <AppSelect :id="id" v-model="r.type" :options="discountTypeOptions" />
-          </FormField>
-          <FormField v-slot="{ id }" label="Cents off / gal">
-            <BaseInput :id="id" v-model="r.cents_off" type="number" step="0.001" inputmode="decimal" />
-          </FormField>
-          <BaseButton variant="ghost" size="sm" type="button" @click="removeRule(i)"><AppIcon :icon="XMarkIcon" class="size-4" /></BaseButton>
+      <!-- Inside the settings' state, not beside it: the card offers a rule only for the networks
+           turned on above, and on a failed settings read those would be the planner's defaults. -->
+      <BaseCard class="mt-6">
+        <h3 class="text-sm font-semibold text-ink">Chain discount rules</h3>
+        <p class="mt-1 text-sm text-ink-muted">For networks that publish a posted price and give you a contract discount off it. Pilot and Flying J need no rule — the daily report already carries your price.</p>
+        <div class="mt-4">
+          <QueryState
+            compact
+            :loading="discountsLoading"
+            :error="discountsFailed"
+            :retrying="discountsFetching"
+            loading-text="Loading the discount rules…"
+            error-text="Could not load the discount rules."
+            @retry="refetchDiscounts()"
+          >
+            <div class="space-y-3">
+              <div v-for="(r, i) in rules" :key="i" class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                <FormField v-slot="{ id }" label="Brand">
+                  <AppSelect :id="id" v-model="r.brand" :options="enabledOptions" />
+                </FormField>
+                <FormField v-slot="{ id }" label="Type">
+                  <AppSelect :id="id" v-model="r.type" :options="discountTypeOptions" />
+                </FormField>
+                <FormField v-slot="{ id }" label="Cents off / gal">
+                  <BaseInput :id="id" v-model="r.cents_off" type="number" step="0.001" inputmode="decimal" />
+                </FormField>
+                <BaseButton variant="ghost" size="sm" type="button" @click="removeRule(i)"><AppIcon :icon="XMarkIcon" class="size-4" /></BaseButton>
+              </div>
+              <p v-if="!rules.length" class="text-sm text-ink-muted">No discount rules — a posted-only network's price is your price.</p>
+              <div class="flex items-center justify-between">
+                <BaseButton variant="ghost" size="sm" type="button" @click="addRule"><AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" /> Add rule</BaseButton>
+                <BaseButton variant="secondary" size="sm" type="button" :disabled="saveDiscounts.isPending.value" @click="onSaveDiscounts">
+                  {{ saveDiscounts.isPending.value ? "Saving…" : "Save discount rules" }}
+                </BaseButton>
+              </div>
+            </div>
+          </QueryState>
         </div>
-        <p v-if="!rules.length" class="text-sm text-ink-muted">No discount rules — a posted-only network's price is your price.</p>
-        <div class="flex items-center justify-between">
-          <BaseButton variant="ghost" size="sm" type="button" @click="addRule"><AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" /> Add rule</BaseButton>
-          <BaseButton variant="secondary" size="sm" type="button" :disabled="saveDiscounts.isPending.value" @click="onSaveDiscounts">
-            {{ saveDiscounts.isPending.value ? "Saving…" : "Save discount rules" }}
-          </BaseButton>
-        </div>
-      </div>
-    </BaseCard>
+      </BaseCard>
+    </QueryState>
   </div>
 </template>
