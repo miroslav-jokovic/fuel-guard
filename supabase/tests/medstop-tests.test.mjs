@@ -1,4 +1,4 @@
-// Silvicom 360 — Med-Stop requests and tests (migrations 0464 + 0465, MEDSTOP-PLAN.md §6 F-4/F-5, MS2).
+// Silvicom 360 — Med-Stop requests and tests (migrations 0464–0466, MEDSTOP-PLAN.md §6 F-4/F-5, MS2).
 //
 // Unlike MS1's snapshot, this mirror is MERGED by Med-Stop's id and never emptied. What would quietly
 // go wrong, none of it visible at the application layer:
@@ -11,6 +11,7 @@
 //   3. ONE ORG'S MERGE TOUCHES ANOTHER'S ROWS.
 //   4. A RESULT REACHES A BROWSER. `result` is a §382.401(a) testing record: RLS on, no policies.
 //   5. THE NOTIFICATION CATEGORY THE NEXT MERGE EMITS IS REFUSED by the CHECK.
+//   6. A TEST IS FILED TWICE into the qualification file by a sweep that ran twice (0466).
 //
 // Run:  node supabase/tests/medstop-tests.test.mjs
 import { PGlite } from "@electric-sql/pglite";
@@ -121,7 +122,17 @@ const checkDef = (await one(`select pg_get_constraintdef(oid) d from pg_constrai
 ok("drug_alcohol_result is a notification category", checkDef.includes("'drug_alcohol_result'"));
 ok("and card_status_changed survived the rewrite", checkDef.includes("'card_status_changed'"));
 
-// ── 5. clients read and write none of it ───────────────────────────────────────────────────────
+// ── 5. a Med-Stop test is filed once (0466) ────────────────────────────────────────────────────
+const DRIVER = (await one(`insert into drivers (org_id, full_name) values ($1,'Pat Applicant') returning id`, [ORG])).id;
+const file = (org, ref, source = "medstop", kind = "drug_test") => sqlstate(
+  `insert into qualification_records (org_id, driver_id, kind, occurred_on, result, reference, detail) values ($1,$2,$3,'2026-10-12','negative',$4,$5::jsonb)`,
+  [org, DRIVER, kind, ref, JSON.stringify({ source })]);
+ok("the sweep files a Med-Stop test", (await file(ORG, "t1")) === null);
+ok("…and the same test a second time is refused 23505 — a §391.51 review counts records", (await file(ORG, "t1")) === "23505");
+ok("…as an alcohol test too", (await file(ORG, "t2", "medstop", "alcohol_test")) === null && (await file(ORG, "t2", "medstop", "alcohol_test")) === "23505");
+ok("an office filing with the same reference is not the index's business", (await file(ORG, "t1", "hiring_evidence")) === null && (await file(ORG, "t1", "hiring_evidence")) === null);
+
+// ── 6. clients read and write none of it ───────────────────────────────────────────────────────
 async function asClient(org, role, sql, params = []) {
   await db.exec("begin");
   try {
