@@ -96,7 +96,7 @@ async function open(row: Row): Promise<void> {
     :loading="query.isLoading.value"
     :error="
       query.isError.value
-        ? (query.error.value?.message ?? 'Could not load the export history.')
+        ? 'Could not load the export history.'
         : null
     "
     :retrying="query.isFetching.value"

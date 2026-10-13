@@ -36,7 +36,7 @@ import { sortRows } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: trailers, isLoading, isError, error, refetch, isFetching } = useTrailersQuery();
+const { data: trailers, isLoading, isError, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
 const ask = useConfirm();
@@ -236,7 +236,7 @@ async function onRetire(t: Trailer) {
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the trailers.') : null"
+      :error="isError ? 'Could not load the trailers.' : null"
       :retrying="isFetching"
       :sort="sort"
       :selectable="session.can('equipment')"

@@ -63,7 +63,7 @@ import {
  */
 const { zone } = useOrgTimezone();
 const qs = useQueryState();
-const { data: board, isLoading, isError, error, refetch, isFetching } = useDispatchBoardQuery();
+const { data: board, isLoading, isError, refetch, isFetching } = useDispatchBoardQuery();
 
 const HISTORY = "history";
 const tab = computed({
@@ -159,7 +159,7 @@ const emptyText = computed(() =>
     <PageHeader :description="description" />
 
     <!-- Scrollable for the same reason as Loads' strip: eight tabs do not fit a phone. -->
-    <AppTabs v-model="tab" :tabs="tabItems" label="Dispatch board queue" scrollable />
+    <AppTabs v-model="tab" :tabs="tabItems" label="Dispatch board queue" />
 
     <AssignmentHistory v-if="tab === HISTORY" />
 
@@ -216,7 +216,7 @@ const emptyText = computed(() =>
           :rows="pageRows"
           :columns="boardColumns.visible.value"
           :loading="isLoading"
-          :error="isError ? (error instanceof Error ? error.message : 'Could not load the dispatch board') : null"
+          :error="isError ? 'Could not load the dispatch board' : null"
           :retrying="isFetching"
           :empty-text="emptyText"
           :zone="zone"

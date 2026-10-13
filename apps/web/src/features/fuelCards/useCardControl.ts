@@ -90,7 +90,7 @@ async function call<T>(
   const res = await apiFetch<T>(path, { method, ...(body === undefined ? {} : { body }), ...(headers ? { headers } : {}) });
   if (!res.ok) {
     throw new CardControlApiError(
-      res.error?.message ?? "That did not work",
+      res.error?.message ?? "The server answered with an error and gave no reason.",
       res.error?.code ?? "unknown",
       res.status,
       res.detail ?? {},

@@ -76,10 +76,11 @@ describe("a recruiting read that fails says so, with a Retry (D-US5)", () => {
     expect(w.text()).toContain("Still open.");
   });
 
-  it("the settings form keeps the API's sentence and gains a Retry", async () => {
+  it("the settings form says its own sentence, not the API's, and gains a Retry", async () => {
     const w = mount(RecruitingSettingsForm, { global: { plugins: plugins() } });
     await settle(w);
-    expect(w.get("[role=alert]").text()).toContain("The API is down.");
+    expect(w.get("[role=alert]").text()).toContain("Could not load the recruiting settings.");
+    expect(w.text()).not.toContain("The API is down.");
 
     await retry(w);
 
@@ -87,10 +88,11 @@ describe("a recruiting read that fails says so, with a Retry (D-US5)", () => {
     expect(w.text()).toContain("These are the product's defaults.");
   });
 
-  it("the signatory register keeps the API's sentence and gains a Retry", async () => {
+  it("the signatory register says its own sentence, not the API's, and gains a Retry", async () => {
     const w = mount(SignatoryRegister, { props: { kind: "representative" }, global: { plugins: plugins() } });
     await settle(w);
-    expect(w.get("[role=alert]").text()).toContain("The API is down.");
+    expect(w.get("[role=alert]").text()).toContain("Could not load the representatives.");
+    expect(w.get("[role=alert]").text()).not.toContain("The API is down.");
 
     await retry(w);
 

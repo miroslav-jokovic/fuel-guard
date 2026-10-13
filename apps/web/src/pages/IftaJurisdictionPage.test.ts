@@ -286,6 +286,6 @@ describe("IftaJurisdictionPage", () => {
   it("renders the error rather than an empty table", async () => {
     errored.value = true;
     trucks.value = null;
-    expect((await mountPage("/ifta/TX?q=2026-Q3")).text()).toContain("Couldn't load Texas");
+    expect((await mountPage("/ifta/TX?q=2026-Q3")).text()).toContain("Could not load Texas for this quarter.");
   });
 });

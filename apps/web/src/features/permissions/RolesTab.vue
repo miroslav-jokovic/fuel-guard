@@ -231,7 +231,7 @@ const previewSurfaces = computed(() => (role.value ? (surfaces.data.value?.overr
   >
   <div v-if="sections.data.value && surfaces.data.value" class="grid grid-cols-1 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
     <div class="lg:hidden">
-      <AppTabs v-model="rail" :tabs="railTabs" label="Roles" scrollable />
+      <AppTabs v-model="rail" :tabs="railTabs" label="Roles" />
     </div>
     <div class="hidden lg:block">
       <AppTabs v-model="rail" :tabs="railTabs" label="Roles" orientation="vertical" id-prefix="role">

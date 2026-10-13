@@ -107,7 +107,7 @@ function when(iso: string | null | undefined): string | null {
 const busy = ref(false);
 async function call<T>(path: string, method: string, body?: unknown): Promise<T> {
   const res = await apiFetch<T>(path, { method, ...(body === undefined ? {} : { body }) });
-  if (!res.ok) throw new Error(res.error?.message ?? "That did not work");
+  if (!res.ok) throw new Error(res.error?.message ?? "The server answered with an error and gave no reason.");
   return res.data as T;
 }
 async function refresh() {

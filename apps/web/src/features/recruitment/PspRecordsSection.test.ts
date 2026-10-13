@@ -232,7 +232,8 @@ describe("when the read of the file fails (D-US5)", () => {
         },
       });
       await settle(w as never);
-      expect(w.text()).toContain("The API is down.");
+      expect(w.text()).toContain("Could not load the qualification file.");
+      expect(w.text()).not.toContain("The API is down.");
       const before = asked();
       failing = false;
       await w.findAll("button").find((b) => b.text().trim() === "Retry")!.trigger("click");

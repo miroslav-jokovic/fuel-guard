@@ -40,7 +40,7 @@ async function confirm(): Promise<void> {
   if (!ok) {
     // Deliberately not "wrong password": the same message covers a wrong password and an SSO account
     // with none, and neither case should be told anything about the other.
-    error.value = "That did not work. Check your password and try again.";
+    error.value = "Could not confirm your password. Check it and try again.";
     return;
   }
   emit("confirmed");

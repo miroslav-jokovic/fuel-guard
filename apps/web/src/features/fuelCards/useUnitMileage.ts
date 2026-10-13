@@ -70,7 +70,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T>
       res.error?.code ?? "error",
       res.status === 429
         ? "Too many mileage writes just now — this is capped at three a minute. Try again shortly."
-        : res.error?.message ?? "That did not work",
+        : res.error?.message ?? "The server answered with an error and gave no reason.",
     );
   }
   return res.data as T;

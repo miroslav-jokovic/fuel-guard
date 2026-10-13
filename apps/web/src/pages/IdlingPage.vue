@@ -17,8 +17,8 @@ import { useIdlingPage } from "@/features/idle/useIdlingPage";
 import IdleBurnRatesPanel from "@/features/idle/IdleBurnRatesPanel.vue";
 
 const {
-  isLoading, isError, error, isFetching, refetch,
-  fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
+  isLoading, isError, isFetching, refetch,
+  fleet, trkLoading, trkIsError, trkFetching, trkRefetch,
   trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, onTrkSort, trkPage,
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
@@ -29,7 +29,7 @@ const {
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvFilterCount, clearDrv, drvSort, onDrvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
-  capLoading, capIsError, capError, capFetching, capRefetch,
+  capLoading, capIsError, capFetching, capRefetch,
 } = useIdlingPage();
 
 /** The expanded row's facts (D-US6): where the truck's running time went, then its learned capability as a badge. */
@@ -207,7 +207,7 @@ const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
         :rows="trkPaged"
         row-key="vehicleId"
         :loading="trkLoading"
-        :error="trkIsError ? (trkError instanceof Error ? trkError.message : 'Could not load the trucks.') : null"
+        :error="trkIsError ? 'Could not load the trucks.' : null"
         :retrying="trkFetching"
         :sort="trkSort"
         :expanded="trkExpanded"
@@ -280,7 +280,7 @@ const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
         :rows="drvPaged"
         row-key="driverId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the drivers.') : null"
+        :error="isError ? 'Could not load the drivers.' : null"
         :retrying="isFetching"
         :sort="drvSort"
         empty-text="No idle data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
@@ -328,7 +328,7 @@ const truckFacts = (row: Parameters<typeof trkDetail>[0]): Fact[] => [
         :rows="capPaged"
         row-key="unit_number"
         :loading="capLoading"
-        :error="capIsError ? (capError instanceof Error ? capError.message : 'Could not load the idle capability.') : null"
+        :error="capIsError ? 'Could not read the trucks\' idle equipment.' : null"
         :retrying="capFetching"
         :sort="capSort"
         empty-text="No trucks match. Recorded equipment is set on the Vehicles page; the long-park columns fill in as trucks park for four hours or more."

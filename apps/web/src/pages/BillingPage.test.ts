@@ -66,7 +66,8 @@ describe("BillingPage — invoices (R7)", () => {
     state.error = "invoices unavailable";
     try {
       const w = await mountPage();
-      expect(w.text()).toContain("invoices unavailable");
+      expect(w.text()).toContain("Could not load the billing records.");
+      expect(w.text()).not.toContain("invoices unavailable");
       expect(w.text()).not.toContain("No invoices in this date range");
     } finally {
       state.error = null;

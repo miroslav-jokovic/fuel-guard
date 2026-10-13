@@ -55,7 +55,7 @@ function resetFilters() {
 }
 
 const filter = computed(() => ({ from: from.value, to: to.value, page: page.value }));
-const { data, isLoading, isError, error, refetch, isFetching } = useMaintenanceSpendQuery(filter);
+const { data, isLoading, isError, refetch, isFetching } = useMaintenanceSpendQuery(filter);
 
 const entries = computed(() => data.value?.entries ?? []);
 const total = computed(() => data.value?.total ?? 0);
@@ -101,7 +101,7 @@ const columns: DataTableColumn[] = [
         embedded
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the maintenance spend.') : null"
+        :error="isError ? 'Could not load the maintenance spend.' : null"
         :retrying="isFetching"
         @retry="refetch"
       >

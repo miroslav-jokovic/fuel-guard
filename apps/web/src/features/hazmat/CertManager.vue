@@ -20,7 +20,7 @@ const toast = useToastStore();
 
 const subjectTypeRef = toRef(props, "subjectType");
 const subjectIdRef = computed<string | null>(() => props.subjectId);
-const { data: certs, isLoading, isError, error: loadError, isFetching, refetch } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
+const { data: certs, isLoading, isError, isFetching, refetch } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
 const createCert = useCreateCertification();
 const saving = computed(() => createCert.isPending.value);
 
@@ -100,7 +100,7 @@ const columns: DataTableColumn[] = [
           :rows="certs ?? []"
           row-key="id"
           :loading="isLoading"
-          :error="isError ? (loadError?.message ?? 'Could not load certifications.') : null"
+          :error="isError ? 'Could not load certifications.' : null"
           :retrying="isFetching"
           :sticky-header="false"
           empty-text="No records on file yet."

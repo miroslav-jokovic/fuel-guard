@@ -93,6 +93,8 @@ const tone = computed(() => {
       :class="shown.needsAttention ? 'bg-caution-600' : 'bg-success-500'"
       aria-hidden="true"
     />
-    <span class="truncate">{{ shown.lead }}</span>
+    <!-- Only the chip truncates (its title carries the whole sentence). The line wraps: as an inline
+         span, `truncate` could not clip it, and its no-wrap ran the sentence 160 px off a phone (US6b F23). -->
+    <span :class="variant === 'chip' ? 'truncate' : undefined">{{ shown.lead }}</span>
   </p>
 </template>

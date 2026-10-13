@@ -185,7 +185,7 @@ const columns: DataTableColumn[] = [
         embedded
         row-key="driverId"
         :loading="readinessQ.isLoading.value"
-        :error="readinessQ.isError.value ? (readinessQ.error.value?.message ?? 'Could not load screening readiness.') : null"
+        :error="readinessQ.isError.value ? 'Could not load screening readiness.' : null"
         :retrying="readinessQ.isFetching.value"
         empty-text="No active drivers or applicants yet."
       >

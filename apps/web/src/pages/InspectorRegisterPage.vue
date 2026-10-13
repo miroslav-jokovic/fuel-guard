@@ -64,7 +64,7 @@ function resetFilters() {
   qs.set({ search: undefined, basis: undefined, retired: undefined });
 }
 
-const { data, isLoading, isError, error, refetch, isFetching } = useInspectorsQuery(showRetired);
+const { data, isLoading, isError, refetch, isFetching } = useInspectorsQuery(showRetired);
 const setPeriod = useSetInspectorPeriod();
 const removeInspector = useDeleteInspector();
 
@@ -203,7 +203,7 @@ async function remove(i: Inspector) {
       :columns="columns"
       :rows="pageRows"
       :loading="isLoading || isFetching"
-      :error="isError ? (error?.message ?? 'Could not load the register') : null"
+      :error="isError ? 'Could not load the register' : null"
       row-key="id"
       @retry="() => refetch()"
     >

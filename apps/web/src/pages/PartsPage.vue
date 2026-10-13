@@ -200,7 +200,7 @@ const creating = qs.flag("new");
         :rows="rows"
         :row-key="rowKey"
         :loading="loading"
-        :error="failed ? (failed instanceof Error ? failed.message : 'Could not load parts') : null"
+        :error="failed ? 'Could not load parts' : null"
         :sort="lowOnly ? sort : null"
         :row-class="() => 'cursor-pointer'"
         @sort="onSort"

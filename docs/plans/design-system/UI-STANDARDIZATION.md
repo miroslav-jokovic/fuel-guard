@@ -1,6 +1,6 @@
 # UI standardization — every page and component on one set of rules
 
-**Status:** IN EXECUTION — US0–US6 merged 2026-10-12/13; US6b (browser pass) next; US7 (admin) waits on Q-US1.
+**Status:** IN EXECUTION — US0–US6c merged 2026-10-12/13; US6b browser pass done 10/13, its fixes in batches; US7 (admin) waits on Q-US1.
 **Owner ruling:** "proceed as suggested and let's do this properly so we have all pages and components
 100% production ready" (2026-10-12).
 **Canonical rules it feeds:** `docs/DESIGN-SYSTEM-CONTRACT.md` (what a page must look like) and
@@ -70,8 +70,8 @@ merged result: nothing in it is missing from `main`.
 | US5 | One loading / error vocabulary outside tables (`QueryState`), gated (G4) | MERGED 2026-10-12 |
 | US5b | The three roster form drawers put Save in the footer; gate (G6) | MERGED 2026-10-13 |
 | US6 | Detail-page anatomy (G5): one shared `FactList` for label/value facts, gated | MERGED 2026-10-13 |
-| US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | BUILDING (claude/ui-std-paging) |
-| US6b | A browser pass of every routed page at 1280 px and 390 px | planned |
+| US6c | Every list with a toolbar pages; the product's confirm replaces `window.confirm`; "Failed to" copy gone (D-US7, D-US8) | MERGED 2026-10-13 (#1497) |
+| US6b | A browser pass of every routed page at 1280 px and 390 px | PASS DONE 2026-10-13 (§7); fixes in batches |
 | US7 | Admin console onto the same list composites (G7) — after US6, its own decision | planned, Q-US1 |
 
 Each step is one PR (large batches, per the release practice), merged on green CI, released by the
@@ -143,6 +143,15 @@ the button and danger in red. The gate refuses `confirm(`, `alert(` and `prompt(
 `ui-adoption: unpaged — <why>`. Before: ten toolbar lists rendered every row, the Dispatch board among
 them (197 trucks, one table), and Labels' asset list only ever showed the server's first 50.
 
+**D-US9 — A read's failure says the page's own sentence.** The US6b browser pass found ~50 read states
+written `error?.message ?? 'Could not load the vehicles.'`, whose fallback only showed when there was
+no message: readers got PostgREST's text, an api 500 body, or TanStack's `["dispatch","loads"] data is
+undefined`. `QueryState` did the same when a caller left out `error-text`. Now a component's `:error`,
+`:error-text` or `:message` binding may not read a `.message`, and a `QueryState` with an `:error`
+names its `error-text`. Where the server's words ARE the answer (a scanned code nobody knows, a route
+that says why it cannot be drawn) the site says `ui-adoption: server-message — <why>`. An action's
+toast still carries the raw text as its detail — that is for the person who just pressed the button.
+
 ## 6. Open questions
 
 **Q-US1 — Does the admin console adopt the web list composites?** `DataWorkspace`, `FilterBar` and
@@ -157,6 +166,14 @@ would show page 1's rows labelled "page 3", so the page number stays out of the 
 are in it). (a) Give the audit route a backwards cursor or an offset so a page can be opened
 directly; (b) leave it — an audit log is read from the newest end, and the filter is what a pasted
 link needs. Recommendation: (b) until somebody asks to link a page of the log.
+
+**Q-US3 — Staging's org id is not an RFC UUID.** `00000000-0000-0000-0000-0000000000a1` has version
+nibble 0, and Zod 4's `z.uuid()` refuses it, so any staging request carrying the org id as a validated
+UUID answers 400 (found by US6b: Driver Qualification's carrier records). Production's org id is a v4
+UUID, so production is unaffected — but staging is where a release is checked. (a) Re-key the staging
+org to a v4 UUID; (b) validate ids with `z.guid()` (format only, what Postgres itself accepts) across
+the 237 sites. Recommendation: (b) — Postgres is the authority on what an id is, and a contract that
+refuses ids the database issues is the narrower bug; (a) only hides it.
 
 ## 7. Progress log
 
@@ -236,3 +253,60 @@ A second sweep, for what the gate did not yet check, found: ten unpaged toolbar 
 more" beside the Audit log's Previous/Next for the same kind of list); 21 `window.confirm`s; 28
 "Failed to …" strings against the voice's "Could not …"; and the anomaly audit's fill time printed by
 the browser's locale. Each became a gate rule (D-US7, D-US8, the voice) and the sites were converted.
+
+**2026-10-13 — US6b: the browser pass.** Every routed page (92) was built with the dev bypass and
+screenshotted three ways — every read failing (500), every read empty, both at 1280 and 390 — and the
+pages a fleet manager can reach were screenshotted again on staging with real data (220 trucks, 178
+drivers). A script measured page overflow and elements past the viewport; every screenshot was then
+looked at. No page crashed into the error boundary and none overflowed with empty data. What the pass
+found, by the standing question — what does this page show when the read fails, the value is blank,
+or there are 178 rows:
+
+| # | Page | Width | What is wrong | Rule / component |
+|---|---|---|---|---|
+| F1 | Shop | both | A failed read shows "0" open work orders and defects and "No parts on the shelves yet. Add the first part" — identical to an empty shop | D-US5 · `ShopPage` |
+| F2 | Users | both | Failed members/invitations reads show "0 members · No members match" and "No invitations yet"; the failure is only a toast | D-US5 · `SettingsUsersPage` |
+| F3 | Labels | both | A failed read shows "0 labels · Nothing on the shelves yet"; the sheet preview is an empty white card with its hint outside it | D-US5 · `LabelsPage` |
+| F4 | Driver Qualification | both | The five tiles read 0 above a table that says "Could not load" | D-US5 · `StatCard` over a failed query |
+| F5 | Data & Sync | both | Every job card says "never run" when the last-run read fails; three panels print a red line with no Retry | D-US5 · `JobActionCard`, `DataSyncPage` |
+| F6 | Inspectors | both | A failed read shows the red notice "Nobody is on the register yet … no inspection can be started" | D-US5 · `InspectorRegisterPage` |
+| F7 | Recall audit | both | A failed read says "No fills checked yet" and "Review batch (0 left)" | D-US5 |
+| F8 | Reports | both | A failed odometer-accuracy read says "No verifiable odometer data yet … Run a Backfill" | D-US5 |
+| F9 | Vehicle | both | Failed reads say "Not enough data to chart MPG yet", "No fills yet", "No anomalies" | D-US5 |
+| F10 | Driver | both | The four qualification tiles say "Blocked" while the driver itself failed to load | D-US5 |
+| F11 | Settings | both | Fleet readiness shows "0/0" with a green tick on a failed read and on an empty fleet | D-US5 |
+| F12 | Planned Fueling | both | The settings read fails, but "Chain discount rules" still says "No discount rules" with Add rule and Save live — a save would write an empty list | D-US5 |
+| F13 | Loads | both | Tab counts read 0 on a failure; the failure names "the dispatch board" | D-US5, voice |
+| F14 | Detection coverage | both | With no fills every tile is a red "0%" and one a green "100%" — a zero denominator drawn as a verdict | blank value |
+| F15 | Every toolbar list | both | The toolbar count says "0 <things>" while loading and on a failure | D-US5 · toolbar count |
+| F16 | Alerts | both | A failed read leaves the skeleton up for good | D-US5 |
+| F17 | Fleet report | both | A failed read leaves "Loading the overview…" up for good | D-US5 |
+| F18 | ~50 read states | both | The failure text is `error.message` ahead of the page's own sentence: PostgREST's message on Drivers, Vehicles, Trailers, Fuel log, Idling, Reefer coverage, Odometer and Coverage; TanStack's `["…"] data is undefined` on Driver, Loads, Inspectors, Hazmat review, Recall audit and Applicants | D-US5, voice |
+| F19 | Fuel cards, Fuel card, Hazmat review | both | A failure says "That did not work" | voice |
+| F20 | Fuel problems, IFTA jurisdiction, Buy discipline | both | A red "Couldn't load X: Could not load Y" line with no Retry; Buy discipline says "Reload to try again" | D-US5 |
+| F21 | Asset, Part, Unit, Annual inspection, Invoice check, Vehicle, Fuel card, Driver | both | A record that does not exist renders a blank page (five), a vehicle with no data (Vehicle), "Loading the card…" for good (Fuel card), or TanStack's message (Driver) | D-US5 — not found is a state |
+| F22 | Fleet report, Applicants tabs | 390 | `AppTabs` wraps each label onto three lines; on Fleet report six tabs push the page 129 px wide | `AppTabs` |
+| F23 | Odometer, IFTA | 390 | The Samsara freshness line neither wraps nor truncates (inline `truncate`) and runs 162 / 44 px off the page; it says "1 hours" | `SamsaraFeedLine`, `feedHealth.humanSpan` |
+| F24 | Fuel cards | 1280 | The count prints twice ("0 cards  0 cards") — toolbar count and the export button's scope | toolbar |
+| F25 | Driver Qualification | 390 | Each phone card opens with an empty row holding only the expand chevron | `DataTable` card mode |
+| F26 | Drug & Alcohol | both | "Driving here, not in Med-Stop's random pool" lists 178 drivers unpaged (not a toolbar list, so D-US8 never saw it) | D-US8 |
+| F27 | Driver Performance | both | The week reads `2026-10-12 → 2026-10-18` | dates are MM/DD/YYYY |
+| F28 | Settings pages | 1280 | Two widths: Organization, Notifications, Thresholds, EFS, FleetPal, Med-Stop are a narrow centred column; Users, Data & Sync, McLeod fleets, Card control, Recruiting are full width | settings layout |
+| F29 | Driver application | both | A carrier with no name on file reads "This is 's driver application." | blank value |
+| F30 | Messages | both | "New message" is offered when Messages is not in the plan | entitlement |
+| F31 | Driver Qualification (staging) | both | Carrier records answer 400: staging's org id `…0000a1` fails Zod 4's strict `z.uuid()` (version nibble 0). Production's id is a v4 UUID. 237 `z.uuid()` sites | Q-US3 |
+
+Fixed in batches; each batch's PR names the rows it closes.
+
+**2026-10-13 — US6b batch 1 (claude/ui-us6b-browser-pass): the systemic rows.** F18 → D-US9, a gate
+rule with a self-test fixture (proven by disabling the binding pattern: the fixture fails), 45 read
+states moved to their own sentence; two `ui-adoption: server-message` sites (Scan, the dispatch
+drawer's route). Nine tests had pinned the raw message — three of them by name ("keeps the API's
+sentence") — and now pin the sentence and the message's absence. F19: "That did not work" gone from
+ten sites and refused by the gate. F20: Fuel problems, IFTA jurisdiction and Buy discipline's targets
+draw their failure through the table / `QueryState` with a Retry wired to the reads that failed.
+F22: every horizontal `AppTabs` strip scrolls and no tab wraps (`scrollable` removed; test fails on
+the old strip). F23: the Samsara line wraps instead of running off a phone, and a one-hour bound reads
+"1 hour" (both tests fail on the old code). F24: Fuel cards prints its count once; the export says
+"every card" / "the cards as filtered". Rows F1–F17, F21, F25–F31 are the next batches.
+

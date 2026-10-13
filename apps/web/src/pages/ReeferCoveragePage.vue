@@ -16,7 +16,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { formatDate } from "@/lib/format";
 import { useQueryState } from "@/composables/useQueryState";
 
-const { data, isLoading, isError, error, refetch, isFetching } = useReeferCoverage();
+const { data, isLoading, isError, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();
 const { data: trailers } = useTrailersQuery();
 const { data: drivers } = useDriversQuery();
@@ -179,7 +179,7 @@ const columns: DataTableColumn[] = [
         :rows="pageRows"
         row-key="vehicleId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the reefer coverage.') : null"
+        :error="isError ? 'Could not load the reefer coverage.' : null"
         :retrying="isFetching"
         empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
         @retry="refetch"

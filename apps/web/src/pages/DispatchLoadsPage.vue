@@ -92,7 +92,7 @@ const router = useRouter();
 const qs = useQueryState();
 const { zone } = useOrgTimezone();
 
-const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoadsQuery();
+const { data: loads, isLoading, isError, refetch, isFetching } = useLoadsQuery();
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const resolveException = useResolveException();
 const { data: board } = useDispatchBoardQuery();
@@ -336,7 +336,7 @@ function openDetail(load: DispatchLoad) {
 
     <!-- The shared strip, scrollable: five queues do not fit a 390 px phone, and the strip scrolling
          inside itself is what keeps the PAGE from scrolling sideways (the LR-D3 walk measured 683 px). -->
-    <AppTabs v-model="tab" :tabs="tabItems" label="Load queue" scrollable />
+    <AppTabs v-model="tab" :tabs="tabItems" label="Load queue" />
 
     <AppCallout v-if="tab === 'uncovered' && scopeFilter.mine" tone="info">
       Uncovered loads have no dispatcher in McLeod yet, so this queue shows all of them.
@@ -413,7 +413,7 @@ function openDetail(load: DispatchLoad) {
         :rows="pageRows"
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the loads') : null"
+        :error="isError ? 'Could not load the loads' : null"
         :retrying="isFetching"
         :sort="sort"
         :empty-text="emptyText"

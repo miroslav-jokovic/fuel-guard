@@ -92,7 +92,7 @@ const filters = computed<EfsFilters>(() => ({
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
 
-const { data, isLoading, isError, error, refetch, isFetching } = useDeclinedTransactions(filters, page);
+const { data, isLoading, isError, refetch, isFetching } = useDeclinedTransactions(filters, page);
 
 const { data: vehicles } = useVehiclesQuery();
 const unitOptions = useUnitOptions();
@@ -347,7 +347,7 @@ const columns: DataTableColumn[] = [
       :rows="rows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load declines') : null"
+      :error="isError ? 'Could not load declines' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

@@ -93,7 +93,7 @@ async function submit(): Promise<void> {
     <QueryState
       :loading="settingsQ.isLoading.value"
       :error="settingsQ.isError.value ? settingsQ.error.value : null"
-      :error-text="settingsQ.error.value?.message || 'Could not load the recruiting settings.'"
+      :error-text="'Could not load the recruiting settings.'"
       :retrying="settingsQ.isFetching.value"
       loading-text="Loading the recruiting settings…"
       compact

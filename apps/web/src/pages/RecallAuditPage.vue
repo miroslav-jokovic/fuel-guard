@@ -16,7 +16,7 @@ import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
-const { data: sample, isLoading, isError, error, refetch, isFetching } = useAuditSample(20);
+const { data: sample, isLoading, isError, refetch, isFetching } = useAuditSample(20);
 const { data: metrics } = useRecallMetrics();
 const { data: vehicles } = useVehiclesQuery();
 const record = useRecordVerdict();
@@ -111,7 +111,7 @@ function loadNewBatch() {
     </div>
 
     <TableSkeleton v-if="isLoading" :cols="1" />
-    <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Could not load the batch'" :retrying="isFetching" @retry="refetch" />
+    <ErrorState v-else-if="isError" message="Could not load the batch." :retrying="isFetching" @retry="refetch" />
     <BaseCard v-else-if="pending.length === 0" padding="none">
       <div class="px-6 py-10 text-center text-sm text-ink-muted">
         Batch complete. <BaseButton class="font-medium text-link hover:text-link-hover" @click="loadNewBatch">Load another batch</BaseButton> to make the estimate more exact.

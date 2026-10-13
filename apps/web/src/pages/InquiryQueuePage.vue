@@ -159,7 +159,7 @@ const columns: DataTableColumn[] = [
         embedded
         row-key="driverId"
         :loading="queueQ.isLoading.value"
-        :error="queueQ.isError.value ? (queueQ.error.value?.message ?? 'Could not load the queue.') : null"
+        :error="queueQ.isError.value ? 'Could not load the queue.' : null"
         :retrying="queueQ.isFetching.value"
         empty-text="Nothing outstanding. Every DOT-regulated employer has answered or been documented."
       >

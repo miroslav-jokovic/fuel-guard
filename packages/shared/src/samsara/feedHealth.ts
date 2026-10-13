@@ -184,7 +184,8 @@ const humanSpan = (ms: number): string => {
   const m = Math.round(ms / 60_000);
   if (m < 60) return `${m} minutes`;
   const h = m / 60;
-  if (h < 48) return `${Number.isInteger(h) ? h : h.toFixed(1)} hours`;
+  // "1 hour", not "1 hours": the one-hour bound is the commonest there is (US6b, 2026-10-13).
+  if (h < 48) return h === 1 ? "1 hour" : `${Number.isInteger(h) ? h : h.toFixed(1)} hours`;
   return `${Math.round(h / 24)} days`;
 };
 

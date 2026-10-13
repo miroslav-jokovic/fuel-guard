@@ -74,7 +74,7 @@ async function afterStepUp(): Promise<void> {
   stepUp.value = false;
   const action = pending.value;
   pending.value = null;
-  if (action) await guarded(action, "That did not work");
+  if (action) await guarded(action, "Could not finish that change");
   else await run();
 }
 

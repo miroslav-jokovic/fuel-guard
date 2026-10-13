@@ -17,7 +17,7 @@ import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
 import { useQueryState } from "@/composables/useQueryState";
 
-const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
+const { data, isLoading, isError, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
 const { data: vehicles } = useVehiclesQuery();
 const opens = useOpens();
@@ -223,7 +223,7 @@ const columns: DataTableColumn[] = [
         :rows="paged"
         row-key="vehicleId"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the coverage.') : null"
+        :error="isError ? 'Could not load the coverage.' : null"
         :retrying="isFetching"
         empty-text="No fuel activity in the last 90 days."
         @retry="refetch"

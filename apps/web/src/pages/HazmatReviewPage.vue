@@ -17,7 +17,7 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { formatDateTime as fmtDate } from "@/lib/format";
 
-const { data: loads, isLoading, isError, error, isFetching, refetch } = useReviewQueueQuery();
+const { data: loads, isLoading, isError, isFetching, refetch } = useReviewQueueQuery();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 // The queue's filters live in the URL (D-US2), so Back from a load's review returns to the same
@@ -111,7 +111,7 @@ const columns: DataTableColumn[] = [
         :rows="pageRows"
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the review queue.') : null"
+        :error="isError ? 'Could not load the review queue.' : null"
         :retrying="isFetching"
         :empty-text="emptyText"
         @retry="refetch"

@@ -185,8 +185,8 @@ const description = computed(() => {
 
       <section v-if="row.current" aria-labelledby="truck-route-heading" class="space-y-2">
         <h3 id="truck-route-heading" class="text-sm font-semibold text-ink">Route</h3>
-        <!-- No error-text: the route reader's own message says WHY it could not draw (no position, no
-             stop coordinates), which "Could not draw this route." alone would hide. -->
+        <!-- ui-adoption: server-message — the route reader's own message says WHY it could not draw (no
+             position, no stop coordinates), which "Could not draw this route." alone would hide. -->
         <QueryState
           compact
           :loading="route.isLoading.value"

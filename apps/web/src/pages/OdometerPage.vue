@@ -19,7 +19,7 @@ import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import { formatDate as fmtDate, formatDateTime as fmtDateTime } from "@/lib/format";
 
-const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
+const { data, isLoading, isError, refetch, isFetching } = useOdometerMismatches();
 const { data: vehicles } = useVehiclesQuery();
 
 const tolerance = computed(() => data.value?.toleranceMiles ?? 10);
@@ -172,7 +172,7 @@ const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, pa
         :rows="paged"
         row-key="id"
         :loading="isLoading"
-        :error="isError ? (error instanceof Error ? error.message : 'Could not load the odometer readings.') : null"
+        :error="isError ? 'Could not load the odometer readings.' : null"
         :retrying="isFetching"
         :sort="sort"
         @sort="onSort($event)"

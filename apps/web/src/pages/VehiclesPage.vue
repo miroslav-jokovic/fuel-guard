@@ -35,7 +35,7 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
+const { data: vehicles, isLoading, isError, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep
@@ -235,7 +235,7 @@ async function onRetire(v: Vehicle) {
       :selectable="session.can('equipment')"
       :selected="selected"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the vehicles.') : null"
+      :error="isError ? 'Could not load the vehicles.' : null"
       :retrying="isFetching"
       :sort="sort"
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"

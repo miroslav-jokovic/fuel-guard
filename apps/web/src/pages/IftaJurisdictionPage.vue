@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";
-import { AppButton as BaseButton, AppCallout, AppIcon } from "@silvicom/ui";
+import { AppButton as BaseButton, AppIcon } from "@silvicom/ui";
 import { ChevronDownIcon, ChevronRightIcon } from "@silvicom/ui/icons";
 import { STATE_NAMES, type IftaJurisdictionTruck } from "@silvicom/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -16,6 +16,7 @@ import { useOpens } from "@/composables/useOpens";
 import { formatDate } from "@/lib/format";
 import { sortRows } from "@/lib/sort";
 import { useQueryState } from "@/composables/useQueryState";
+import QueryState from "@/components/ui/QueryState.vue";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
   parseQuarterKey, quarterKey, quarterLabel, selectableQuarters, useIftaJurisdictionQuery,
@@ -60,7 +61,7 @@ const selectedKey = computed<string>({
   set: (v) => (qParam.value = v),
 });
 
-const { data, isLoading, isFetching, isError, error, refetch } = useIftaJurisdictionQuery(quarter, code);
+const { data, isLoading, isFetching, isError, refetch } = useIftaJurisdictionQuery(quarter, code);
 
 /** The vehicle page is an `equipment` screen; an accountant who reads IFTA may not hold it. */
 const vehicleOpens = computed(() => opens("/vehicles/any"));
@@ -237,9 +238,14 @@ const boughtSub = computed(() => {
       </template>
     </ReportScopeBar>
 
-    <AppCallout v-if="isError" tone="danger">
-      Couldn't load {{ name }}: {{ error instanceof Error ? error.message : "unknown error" }}
-    </AppCallout>
+    <QueryState
+      v-if="isError"
+      :loading="false"
+      :error="isError"
+      :error-text="`Could not load ${name} for this quarter.`"
+      :retrying="isFetching"
+      @retry="() => refetch()"
+    />
 
     <template v-else>
       <div v-if="data" class="grid grid-cols-2 gap-3 sm:grid-cols-4">

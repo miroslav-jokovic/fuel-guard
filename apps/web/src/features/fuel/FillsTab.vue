@@ -112,7 +112,7 @@ const filters = computed<FuelFilters>(() => ({
 
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
-const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
+const { data, isLoading, isError, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const totalsQuery = useFuelRangeTotals(filters);
 const rangeTotals = totalsQuery.data;
@@ -418,7 +418,7 @@ const columns: DataTableColumn[] = [
       row-key="id"
       dense
       :loading="isLoading || unitPending"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the fuel log.') : null"
+      :error="isError ? 'Could not load the fuel log.' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

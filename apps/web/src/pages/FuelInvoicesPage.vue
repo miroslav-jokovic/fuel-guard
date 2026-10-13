@@ -40,7 +40,7 @@ const PAGE_SIZE = 25;
 // the page of checks it was opened from, not on the newest week. It is the list's only state — there
 // is no filter to keep — and FilterBar here only carries the count.
 const page = useQueryState().page();
-const { data, isLoading, isFetching, isError, error, refetch } = useReconRunsQuery(page, PAGE_SIZE);
+const { data, isLoading, isFetching, isError, refetch } = useReconRunsQuery(page, PAGE_SIZE);
 const checking = ref(false);
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -99,7 +99,7 @@ function onRecorded(runId: string) {
         :rows="rows"
         row-key="id"
         :loading="isLoading || isFetching"
-        :error="isError ? (error?.message ?? 'Could not load your invoice checks') : null"
+        :error="isError ? 'Could not load your invoice checks' : null"
         @retry="() => refetch()"
         @row-click="open"
       >

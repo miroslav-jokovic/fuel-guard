@@ -19,7 +19,7 @@ import { useSetIdleBurnPricing } from "./useIdleSettings";
  * Offered behind `session.can("safety")`, the same section × role matrix `idle_settings_write` (0300)
  * checks, so a role the database would refuse never sees a control.
  */
-const { data, isLoading, isError, error, isFetching, refetch } = useIdleBurnRates();
+const { data, isLoading, isError, isFetching, refetch } = useIdleBurnRates();
 const rows = computed(() => (data.value ? burnRateRows(data.value) : []));
 const gph = (n: number) => n.toFixed(2);
 
@@ -73,7 +73,7 @@ const columns: DataTableColumn[] = [
       :rows="rows"
       row-key="key"
       :loading="isLoading"
-      :error="isError ? (error?.message ?? 'Could not read the idle burn rates') : null"
+      :error="isError ? 'Could not read the idle burn rates' : null"
       :retrying="isFetching"
       empty-text="No parked hours with a fuel reading in the last 60 days yet."
       @retry="refetch"

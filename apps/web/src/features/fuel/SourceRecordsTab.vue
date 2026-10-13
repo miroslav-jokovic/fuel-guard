@@ -78,7 +78,7 @@ const page = ref(1);
 // window while on page 7 must not be left looking at a page that no longer exists.
 watch(filters, () => (page.value = 1), { deep: true });
 
-const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
+const { data, isLoading, isError, refetch, isFetching } = useEfsTransactions(filters, page);
 
 const unitOptions = useUnitOptions();
 
@@ -239,7 +239,7 @@ const columns: DataTableColumn[] = [
       row-key="id"
       dense
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load the transactions.') : null"
+      :error="isError ? 'Could not load the transactions.' : null"
       :retrying="isFetching"
       :sort="sort"
       pin-first-column

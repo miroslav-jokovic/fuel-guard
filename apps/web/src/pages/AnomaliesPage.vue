@@ -25,7 +25,7 @@ const {
   unit, pairedTrailer, driverName,
   columns, sort, onSort,
   total, pageRows, page, PAGE_SIZE,
-  isLoading, isError, error, isFetching, refetch,
+  isLoading, isError, isFetching, refetch,
   selectedIds, setSelected, selectedCount, isActionable, busy, bulkTransition, rowAction,
   selectedRow, fmt,
 } = useAnomaliesPage();
@@ -98,7 +98,7 @@ const VIEW_TABS: TabItem[] = [
       :rows="pageRows"
       row-key="id"
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Could not load alerts') : null"
+      :error="isError ? 'Could not load alerts' : null"
       :retrying="isFetching"
       empty-text="Nothing here — no alerts match these filters."
       :sort="sort"

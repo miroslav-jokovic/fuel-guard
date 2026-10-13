@@ -174,7 +174,9 @@ const exportHrefValue = computed(() =>
     policy: policy.value, override: override.value, linked: linked.value, health: health.value,
   }),
 );
-const exportScope = computed(() => `${rows.value.length} card${rows.value.length === 1 ? "" : "s"}`);
+// What the file holds beyond the count the toolbar already prints beside it: the scope used to be
+// "0 cards" next to the toolbar's own "0 cards" (US6b F24, 2026-10-13).
+const exportScope = computed(() => (activeFilterCount.value > 0 ? "the cards as filtered" : "every card"));
 
 const sorted = computed(() => {
   const { key, dir } = sort.value;
@@ -412,7 +414,7 @@ const mileageOpen = ref(false);
         row-key="id"
         :sort="sort"
         :loading="query.isLoading.value"
-        :error="query.isError.value ? (query.error.value?.message ?? 'Could not load cards') : undefined"
+        :error="query.isError.value ? 'Could not load cards' : undefined"
         empty-text="No cards yet — the next EFS sync will pull this account's card list."
         @sort="onSort"
         @retry="query.refetch()"

@@ -349,7 +349,7 @@ async function setArchived(applicant: PipelineApplicant, archived: boolean) {
         :rows="paged"
         row-key="driver_id"
         :loading="pipelineQ.isLoading.value"
-        :error="pipelineQ.isError.value ? (pipelineQ.error.value?.message ?? 'Could not load the pipeline.') : null"
+        :error="pipelineQ.isError.value ? 'Could not load the pipeline.' : null"
         :retrying="pipelineQ.isFetching.value"
         :row-class="() => 'cursor-pointer'"
         :sort="sort"
