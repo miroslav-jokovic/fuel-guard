@@ -233,6 +233,158 @@ allowlist + the one-scheduler rule, `docs/WORKER-DEPLOYMENT.md`).
 | **MS3** | F-3: site search + order from the hiring page; Part 1 gains gender + CDL expiry (columns in their own merge, `lint:migration-ordering`); auto-create in Med-Stop on Part 1 complete (D-MS1) | yes — each with a payload preview |
 | **MS4** | F-6 + F-2's "order for this selection near the truck" | yes |
 
+## 7A. MS-UX — the page rebuilt around the four jobs (owner review, 2026-10-13)
+
+**The owner's review of the shipped page (v2026.10.13.2):** some of what it shows is confusing and
+gives no benefit. What is needed: (1) the random-selection list, (2) every drug test in progress,
+(3) creating test requests, (4) expiring medicals; tabs like the other pages; data that is precise
+and reliable; a sidebar icon that is not a duplicate; part of the hiring process.
+
+### 7A.1 What was measured before planning (GET only, counts only, 2026-10-13 ~12:30 CDT) [V]
+
+| Fact | Number | Consequence |
+|---|---|---|
+| 2026 random selections | 148: COMPLETED 85 · OPEN 22 · RESERVE 7 · EXPIRED RESERVE 21 · CANCELED 13 | the list is mostly OPEN, plus alternates that only matter if a primary cannot test |
+| OPEN selections with no order yet | 22 (none has a request) | the DER's to-do list is "order a test for each" — the page cannot do that today |
+| Selections dated in the future | 30 (Med-Stop draws the quarter ahead) | a future draw is NOT shown to anyone until its day: §382.305(l) wants it unannounced |
+| COMPLETED with a test but no request | 31 of 85 | a selection can be satisfied by a test ordered for another reason; "ordered" ≠ the only path |
+| Tests in progress now (not final) | 5 (pre-employment 4, random 1), 1–7 days old | small, so one flat list, oldest first |
+| Open orders not yet collected | 1 | lives in the same list as "ordered, not collected" |
+| Med-Stop active roster medical expiry | ≤30 d: 3 · 31–60 d: 11 · 61–90 d: 10 · later: 146 (of 170) | the numbers are Med-Stop's; ours disagree for 37 people (MS1 dry run) |
+| Medical-card alerts that ALREADY exist | `dqAlertScheduler` at 90/60/30/14/0 days from `certifications`, on by default (`DQ_ALERTS_ENABLED`) | a second medical alert would be the restated fact the no-workarounds rule names |
+| Sidebar icon | `TestTube01Icon` — the same glyph as the whole **Fuel** group (`navIcons.ts:84` and `:133`) | replace |
+| Production sweep | `MEDSTOP_SYNC_ENABLED` is **not set** on `@fleetguard/api` | the hourly mirror is not running in production; what the page showed is not "live" |
+| Request form | `GET /Request/new/{eeid}` answers the prefilled form (21 fields); `POST /Request/new` requires `eeid, category, reason, dotstatus, requestdate, requesttime, locationid, tosms, toemail`; every order is billed to the employer; date window today-14 … today+106 | ordering is a real, billed, irreversible act — preview + confirm, never one click |
+| Site search | `GET /Request/location?service&dotstatus&observed&zip` → 30 ranked sites `{id, name, address, city, state, zip, pref, rating, requests}` | a picker sorted by Med-Stop's own ranking, not ours |
+
+### 7A.2 What the page stops showing, and why
+
+- **"Licence Med-Stop has, our file lacks"** — a roster-data chore, not a drug-and-alcohol decision.
+  Moves to the driver file's data check (or is dropped); never on this page.
+- **"Medical card dates disagree"** as a list — replaced by the Medical tab, which shows OUR date
+  (the one the alerts use) and Med-Stop's only beside it when they differ.
+- **Matched-count footer** and the generic intro — noise to a regular user.
+- **Pool rate as two big cards on top** — kept, but as a compact strip inside the Random tab, where
+  the question "are we on pace?" is asked.
+
+### 7A.3 Proposed shape — one page, five tabs (`AppTabs`, counts, tab + filters in the URL)
+
+The house queue-list pattern (DESIGN-SYSTEM-CONTRACT §5.1 #2: `AssignmentsPage` / `DispatchLoadsPage`).
+A primary **"Order a test"** button in the page header opens one SlideOver from every tab.
+
+| Tab | Who sees it | Rows | Row action |
+|---|---|---|---|
+| **Random selections** (default) | admin, safety_manager only (§382.305(l)) | OPEN selections due today or earlier, oldest first: driver, drug/alcohol, selected, days waiting, ordered? · then reserves · pool pace strip on top (rate, tests still needed, draws ahead) | **Order test** (prefilled: random, the selection id as Med-Stop's seed) |
+| **In progress** | safety (stage + expected by); the result column only for testing-record roles | every order not collected + every test not final, any reason (pre-employment, random, post-accident…): person, reason, stage, collected, expected by, days | open the person; "call the site" info |
+| **Results** | admin, safety_manager | last 12 months, filter by outcome; violations and dilutes first; MS2c's "found on first read" as a filter, not a second table | file return-to-duty (existing door) |
+| **Medical cards** | safety | drivers whose card (from `certifications`, the alerting source) expires ≤ 60 d or has expired; Med-Stop's date only where it differs | open the qualification file |
+| **Roster check** | safety | only the two lists that are violations: *driving here, not in the pool* · *in the pool, gone here* | "Add in Med-Stop" / "Terminate in Med-Stop" (MS4 writes) — until then a link to the portal |
+
+Empty states say what is fine ("No one is waiting on a random test."). No KPI cards above tabs.
+
+### 7A.4 Ordering a test (F-3 widened) — one SlideOver, three entry points
+
+Entry: page header (any reason) · a random selection row (reason fixed, seed = selection) · the
+hiring drawer's drug-test step (reason fixed: pre-employment).
+
+Steps: person (must be on Med-Stop's roster — matched by licence or name+DOB) → test (drug / alcohol)
+and reason → collection site (ZIP of the person's address; for a driver on the road, the truck's last
+position, `vehicle_positions` via `vehicles.assigned_driver_id`) → date and time → who is notified
+(the driver's phone and e-mail; Med-Stop requires both fields) → **preview of exactly what will be
+sent, with "This order is billed to Silvicom"** → Confirm. Refuses a second open order for the same
+person and test. The returned request id is stored; the hourly sweep then follows it like any order.
+
+### 7A.5 Hiring
+
+The drug-test step already shows Med-Stop's order, stage and "expected by" (MS2c) and files the
+negative by itself (MS2b). It gains **Order pre-employment test** — the same SlideOver.
+⚠ It works only for an applicant **Med-Stop already holds** (27 applicants there on 2026-10-13, created
+by hand in the portal). Creating the Med-Stop record from our applicant needs gender, home address
+and CDL class/expiry in Part 1 (D-MS1) — its own merge first (`lint:migration-ordering`). Until then
+the step says "Add this applicant in Med-Stop first" with the portal link.
+
+### 7A.6 Precision and reliability — what must be true before anyone relies on it
+
+- **R1 Switch the sweep on in production** (key in Settings + `MEDSTOP_SYNC_ENABLED=true` on `api`),
+  then show "Read from Med-Stop 12 minutes ago" on every tab, and a caution when the last read is
+  older than 2 hours or failed.
+- **R2 One medical source.** `certifications` (what alerts and the DQ file use) is authoritative;
+  Med-Stop's date is evidence beside it. The 37 disagreements must be explained before the tab ships
+  — sample 10 against the cards on file (needs a production read the session could not make).
+- **R3 Only certain matches act or name a person's result** (already true for the stop and the
+  hiring card); name-only matches are shown as "Unconfirmed — check the licence".
+- **R4 A future draw never shows early**; reserves are shown as reserves, never as due.
+- **R5 Every count on a tab is the length of the list under it** — no separately computed numbers.
+
+### 7A.7 Sidebar
+
+Replace `TestTube01Icon` (Fuel's) with **`MicroscopeIcon`** — a lab test, a silhouette nothing else
+in the sidebar uses. Alternatives: `MedicineBottle02Icon` (specimen cup), `FlaskConicalIcon`.
+
+### 7A.8 Batches
+
+| Batch | What | Writes to Med-Stop |
+|---|---|---|
+| UX1 | Five tabs on today's data, remove the noise, icon, freshness line, R3–R5 | no |
+| UX2 | Medical tab on `certifications` + Med-Stop beside it (after R2's sample) | no |
+| UX3 | Order-a-test SlideOver from Random and header (drivers already in Med-Stop) | **yes**, preview + confirm |
+| UX4 | Same SlideOver in the hiring step for applicants Med-Stop holds | **yes** |
+| UX5 | Part 1 fields → auto-create the Med-Stop applicant (D-MS1), then UX4 for everyone | **yes** |
+
+### 7A.9 Questions for the owner (Q-MSUX)
+
+1. **Who may order?** Recommend: admin + safety_manager for every reason; recruiter only for
+   pre-employment from the hiring step.
+2. **Billing.** Every order is charged. There is no Med-Stop test host (Q-MS2) — the first order from
+   the product is real. Recommend: first order made together, on a real applicant who needs one.
+3. **Observed collections** (return-to-duty and follow-up must be observed, §40.67) need the donor's
+   gender, which we do not hold. Recommend: UX3 orders unobserved reasons only; observed waits for UX5.
+4. **Medical authority** (R2): confirm `certifications` wins and Med-Stop's date is only shown.
+5. **Who is notified** of an order: the driver by SMS + e-mail (Med-Stop sends it)? And a copy to the
+   DER?
+
+### 7A.10 Owner answers (2026-10-13) and what they decide
+
+1. **Who orders: safety_manager, admin and recruiter** — for every reason. D-MSUX1: the order action is
+   gated on those three roles (derived from the role list in shared, never typed twice). The recruiter
+   still never sees a RESULT (`canReadTestingRecords` unchanged); ordering is not reading.
+2. **First order: after everything is built, on a real person who needs one** (no test host, Q-MS2).
+   D-MSUX2: the order flow ships behind the per-org switch it already has (the credential's
+   `enabled`) and is exercised for the first time by the owner, watched.
+3. **Gender joins the 360 flow.** D-MSUX3: Part 1 asks it (with home address, CDL class, CDL expiry —
+   D-MS1), as new columns in their own merge first (`lint:migration-ordering`), wording reviewed beside
+   the EEO questions. Unblocks observed collections and auto-creating the Med-Stop applicant.
+4. **Medical-card expiry comes from Samba and Med-Stop, and the DQF pulls it from there, cross-checked.**
+   What exists today [V]: the DQF's medical card (`certifications.medical_card`) is filed by McLeod's
+   nightly roster sweep through `recordSyncedCredentials` and by office uploads; **Samba is not
+   connected to the product at all** (deferred on cost 2026-08-26; 2026-09-17 note: the carrier has a
+   live account, "do not build an integration"). So:
+   - D-MSUX4a: Med-Stop's `medexpiration` becomes a FILER of the medical card through the same
+     `recordSyncedCredentials` door (source `medstop`, write-only-on-change), for certain matches only.
+   - D-MSUX4b: the cross-check compares every source we hold per driver (McLeod, Med-Stop, the card on
+     file; Samba once connected) and lists only the disagreements, with each source's date beside it.
+   - **Q-MSUX6 (new, blocks Samba):** connecting Samba reopens the 2026-08-26 cost decision. What we
+     would need: Samba API credentials and which product carries the medical (the CDLIS MVR carries the
+     self-certification + medical expiry for CDL holders; a monitoring subscription pushes changes).
+     Recommend: Med-Stop now (we already pay for it, 170/170 active employees carry a date), Samba as a
+     second source once its access and per-pull cost are known.
+   - Q-MSUX7: when sources disagree, which date does the DQF keep? Recommend: the LATEST expiry backed by
+     a document on file wins; without a document, the EARLIEST (the safe side), flagged for review.
+5. **Never text or e-mail drivers.** Read from Med-Stop, GET only [V]: the order form carries
+   `sendsms` and `sendemail` (BOOLEAN Y/N, empty by default); the spec says only "requested SMS/email
+   notifications are sent"; the 20 newest orders show no notify fields set and the newest has zero
+   messages (`/Request/{id}/messages`). `tosms` and `toemail` are still REQUIRED fields.
+   D-MSUX5: every order is sent with `sendsms=N`, `sendemail=N`, `tosms`/`toemail` = the ORDERING
+   OFFICE's contact (the org's DER phone/e-mail), never the driver's — so even a Med-Stop default we
+   cannot see lands in the office. `POST /Request/{id}/notify` is never called (allow-list). After the
+   first real order, `/Request/{id}/messages` must read zero driver messages; that check is part of
+   the first-order runbook. The preview shows "Med-Stop will not text or e-mail the driver."
+   `notification` (CATEGORYNOTIFY: DIRECT COMMUNICATION · SIGNED TEST NOTIFICATION FORM · PHONE CALL ·
+   OTHER) is how the EMPLOYER told the donor — the order form asks the office which.
+6. **Sync on.** The Settings switch was on; the second switch, `MEDSTOP_SYNC_ENABLED`, was NOT set on
+   `@fleetguard/api`. Set 2026-10-13 ~13:10 CDT (api only — no other service has it); first sweep ~7
+   min after the restart.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -375,3 +527,12 @@ allowlist + the one-scheduler rule, `docs/WORKER-DEPLOYMENT.md`).
   - MS2 COMPLETE in code. Still open from MS2b: the driver file / compliance overview / DQ binder do
     not show a Med-Stop hold; request-level REFUSAL not acted on. Next: MS3 (writes — order from the
     hiring page; Part 1 gains gender + CDL expiry in their own merge first).
+- 2026-10-13 — **Owner review of the shipped page → §7A (MS-UX plan).** Measured before planning
+  (GET only): 22 OPEN selections and none ordered, 30 pre-dated future draws, 5 tests in progress,
+  1 open order, Med-Stop medical expiry ≤60 d for 14 of 170; the request form and site search read;
+  the sidebar icon is Fuel's; the production sweep is not switched on. Five tabs, an order SlideOver
+  with preview, hiring entry point, precision rules R1–R5, questions Q-MSUX 1–5. Nothing built.
+- 2026-10-13 — Owner answered Q-MSUX 1–5 + sync (§7A.10). Orders: safety, admin, recruiter. Gender
+  into Part 1. Medical from Samba + Med-Stop into the DQF, cross-checked (Samba not connected — Q-MSUX6).
+  No driver texts/e-mails: `sendsms=N`, `sendemail=N`, office contact in `tosms`/`toemail` (D-MSUX5).
+  `MEDSTOP_SYNC_ENABLED=true` set on `@fleetguard/api`.
