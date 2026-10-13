@@ -59,9 +59,15 @@ describe("document_read handler (Step 1.6)", () => {
     expect(h.failUnavailableRead).toHaveBeenCalledWith(ctx.admin, "org-1", "read-1");
   });
 
-  it("never turns a configuration error into a read failure", async () => {
-    h.executeRead.mockRejectedValue(new Error("401 invalid x-api-key"));
-    await expect(documentReadHandler(ctx, job(3), report)).rejects.toThrow(/401/);
-    expect(h.failUnavailableRead).not.toHaveBeenCalled();
+  it("ends the read on a failure no retry mends — on the FIRST attempt — and still rethrows it for the job's error", async () => {
+    // 10/12/2026, production: "credit balance is too low" left both of the owner's reads `reading` for ever.
+    for (const err of [new Error('400 {"message":"Your credit balance is too low"}'), new Error("401 invalid x-api-key")]) {
+      h.failUnavailableRead.mockReset();
+      h.executeRead.mockRejectedValue(err);
+      // The read's ending failing too must not replace the error that killed the job.
+      h.failUnavailableRead.mockRejectedValue(new Error("transition refused"));
+      await expect(documentReadHandler(ctx, job(1), report)).rejects.toBe(err);
+      expect(h.failUnavailableRead).toHaveBeenCalledWith(ctx.admin, "org-1", "read-1");
+    }
   });
 });

@@ -487,9 +487,16 @@ describe("failUnavailableRead — the read the queue gave up on", () => {
     expect(rec.rpcs()).toEqual([{ fn: "document_read_transition", args: { p_org: ORG, p_read: READ, p_to: "failed", p_failure_code: "model_unavailable" } }]);
     expectOrgScoped(rec, ORG);
   });
-  it("leaves a read that already ended alone", async () => {
-    const rec = createSupabaseRecorder({ tables: { document_reads: [{ status: "done" }] } });
-    await failUnavailableRead(rec.client, ORG, READ);
-    expect(rec.rpcs()).toEqual([]);
+  it("ends a read still queued through reading — the only road 0448's state machine has to failed", async () => {
+    const rec = createSupabaseRecorder({ tables: { document_reads: [{ status: "queued" }] } });
+    expect(await failUnavailableRead(rec.client, ORG, READ)).toBe(true);
+    expect(rec.rpcs().map((r) => (r.args as { p_to: string }).p_to)).toEqual(["reading", "failed"]);
+  });
+  it("leaves a read that already ended alone, and says it did nothing", async () => {
+    for (const status of ["done", "failed"]) {
+      const rec = createSupabaseRecorder({ tables: { document_reads: [{ status }] } });
+      expect(await failUnavailableRead(rec.client, ORG, READ)).toBe(false);
+      expect(rec.rpcs()).toEqual([]);
+    }
   });
 });
