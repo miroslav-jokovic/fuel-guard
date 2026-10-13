@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FORMAT_LABELS, FORMAT_MIMES, INTAKE_MIMES, INTAKE_REFUSALS, SNIFF_BYTES, SOURCE_FORMATS, sniffFormat } from "./index.js";
+import { acceptFor, FORMAT_LABELS, FORMAT_MIMES, INTAKE_MIMES, INTAKE_REFUSALS, SNIFF_BYTES, SOURCE_FORMATS, sniffFormat } from "./index.js";
 
 /**
  * The one sniff the browser and the intake share. What it must not do: name a file by anything but its
@@ -55,5 +55,16 @@ describe("the format lists", () => {
   it("names every format in the unsupported-format refusal, JFIF by name", () => {
     for (const f of SOURCE_FORMATS) expect(INTAKE_REFUSALS.unsupported_format).toContain(FORMAT_LABELS[f]);
     expect(INTAKE_REFUSALS.unsupported_format).toContain("JFIF");
+  });
+});
+
+describe("acceptFor", () => {
+  it("lists each mime with every extension its format is saved under — JPEG brings .jfif", () => {
+    expect(acceptFor(["application/pdf", "image/jpeg"]).split(",")).toEqual(
+      ["application/pdf", ".pdf", "image/jpeg", ".jpg", ".jpeg", ".jfif", ".jpe", ".pjpeg", ".pjp"],
+    );
+  });
+  it("passes a mime outside the reader's formats through as given, and adds nothing for formats not asked for", () => {
+    expect(acceptFor(["image/png", "text/csv"])).toBe("image/png,.png,text/csv");
   });
 });

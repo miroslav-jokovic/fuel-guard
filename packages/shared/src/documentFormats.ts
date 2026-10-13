@@ -59,6 +59,18 @@ export const READABLE_FORMATS_TEXT = (() => {
   return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
 })();
 
+/**
+ * The `accept` list for a file input that takes exactly these mimes: each one, plus every extension its
+ * format is saved under — so an upload that takes JPEG takes a Google Voice `.jfif` too, and a list typed
+ * by hand (".jpg,.jpeg") cannot leave one out again. Mimes outside SOURCE_FORMATS pass through as given.
+ */
+export function acceptFor(mimes: readonly string[]): string {
+  return mimes.flatMap((m) => {
+    const format = SOURCE_FORMATS.find((f) => FORMAT_MIMES[f][0] === m);
+    return format ? [m, ...FORMAT_EXTENSIONS[format]] : [m];
+  }).join(",");
+}
+
 /** How many leading bytes `sniffFormat` needs to answer for every format — what the browser reads. */
 export const SNIFF_BYTES = 4096;
 

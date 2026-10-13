@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { ASSEMBLY_MAX_PAGES, INTAKE_LIMITS, INTAKE_REFUSALS } from "@silvicom/shared";
-import { addFiles, BOL_ACCEPT, canPreview, fileProblem, formatOf, includedFiles, moveFile, removeFile, toggleFile } from "./bolFiles";
+import { formatOf } from "@/lib/fileFormat";
+import { addFiles, BOL_ACCEPT, canPreview, fileProblem, includedFiles, moveFile, removeFile, toggleFile } from "./bolFiles";
 
 /**
  * The photos picked for one BOL (N2). The order shown is the order read, so the mistakes that matter are

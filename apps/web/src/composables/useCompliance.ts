@@ -14,9 +14,9 @@ import type {
 import {
   DOCUMENTS_BUCKET,
   DOCUMENT_CONTENT_TYPES,
-  type DocumentContentType,
 } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
+import { uploadContentType } from "@/lib/fileFormat";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -125,8 +125,8 @@ export function useUploadDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UploadDocumentInput): Promise<{ documentId: string }> => {
-      const contentType = input.file.type as DocumentContentType;
-      if (!(DOCUMENT_CONTENT_TYPES as readonly string[]).includes(contentType)) {
+      const contentType = await uploadContentType(input.file, DOCUMENT_CONTENT_TYPES);
+      if (!contentType) {
         throw new Error("Upload a PDF or an image (JPEG, PNG, WebP or HEIC).");
       }
       const bytes = await input.file.arrayBuffer();

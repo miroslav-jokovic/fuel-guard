@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref, watch } from "vue";
 import {
   APPLICATION_RELEASE_ORDER,
@@ -71,6 +72,9 @@ async function save(): Promise<void> {
     toast.error("Could not record it", e instanceof Error ? e.message : undefined);
   }
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 </script>
 
 <template>
@@ -92,7 +96,7 @@ async function save(): Promise<void> {
       </FormField>
     </div>
     <FileDropzone
-      accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+      :accept="uploadAccept"
       :busy="record.isPending.value"
       busy-label="Uploading…"
       :label="scan ? scan.name : 'Drag & drop the signed page'"
