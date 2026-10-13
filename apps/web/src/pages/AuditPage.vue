@@ -54,7 +54,7 @@ const filters = computed<AuditFilters>(() => ({ action: action.value.trim() || u
 const page = ref(1);
 const cursors = ref<(string | null)[]>([null]);
 const cursor = computed(() => cursors.value[page.value - 1] ?? null);
-const { data: auditPage, isLoading, isError, error, isFetching, refetch } = useAuditQuery(filters, cursor);
+const { data: auditPage, isLoading, isError, isFetching, refetch } = useAuditQuery(filters, cursor);
 
 // Watched by VALUE: `filters` reads the URL, so it recomputes on every navigation (a tab click
 // included), and a reset on each of those would throw away the cursor walk for nothing.

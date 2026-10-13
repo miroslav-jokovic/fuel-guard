@@ -16,7 +16,7 @@ import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { formatDate as fmtDate } from "@/lib/format";
 
 const toast = useToastStore();
-const { data: sample, isLoading, isError, error, refetch, isFetching } = useAuditSample(20);
+const { data: sample, isLoading, isError, refetch, isFetching } = useAuditSample(20);
 const { data: metrics } = useRecallMetrics();
 const { data: vehicles } = useVehiclesQuery();
 const record = useRecordVerdict();

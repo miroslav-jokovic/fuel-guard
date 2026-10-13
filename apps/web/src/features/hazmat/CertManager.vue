@@ -20,7 +20,7 @@ const toast = useToastStore();
 
 const subjectTypeRef = toRef(props, "subjectType");
 const subjectIdRef = computed<string | null>(() => props.subjectId);
-const { data: certs, isLoading, isError, error: loadError, isFetching, refetch } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
+const { data: certs, isLoading, isError, isFetching, refetch } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
 const createCert = useCreateCertification();
 const saving = computed(() => createCert.isPending.value);
 

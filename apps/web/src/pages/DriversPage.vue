@@ -50,7 +50,7 @@ import {
 } from "@/features/roster/useRosterFilters";
 
 const session = useSessionStore();
-const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
+const { data: drivers, isLoading, isError, refetch, isFetching } = useDriversQuery();
 const createDriver = useCreateDriver();
 /**
  * The AUDITED edit path (R6a), not the PostgREST one this drawer used until 2026-08-31.

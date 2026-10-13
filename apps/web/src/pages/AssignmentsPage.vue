@@ -63,7 +63,7 @@ import {
  */
 const { zone } = useOrgTimezone();
 const qs = useQueryState();
-const { data: board, isLoading, isError, error, refetch, isFetching } = useDispatchBoardQuery();
+const { data: board, isLoading, isError, refetch, isFetching } = useDispatchBoardQuery();
 
 const HISTORY = "history";
 const tab = computed({

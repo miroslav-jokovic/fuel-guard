@@ -36,7 +36,7 @@ import { sortRows } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: trailers, isLoading, isError, error, refetch, isFetching } = useTrailersQuery();
+const { data: trailers, isLoading, isError, refetch, isFetching } = useTrailersQuery();
 const { data: vehicles } = useVehiclesQuery();
 const toast = useToastStore();
 const ask = useConfirm();

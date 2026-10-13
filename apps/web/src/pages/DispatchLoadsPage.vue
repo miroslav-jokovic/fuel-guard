@@ -92,7 +92,7 @@ const router = useRouter();
 const qs = useQueryState();
 const { zone } = useOrgTimezone();
 
-const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoadsQuery();
+const { data: loads, isLoading, isError, refetch, isFetching } = useLoadsQuery();
 const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
 const resolveException = useResolveException();
 const { data: board } = useDispatchBoardQuery();

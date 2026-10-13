@@ -60,7 +60,7 @@ function resetFilters() {
 }
 
 const filter = computed(() => ({ q: search.value, from: from.value, to: to.value, page: page.value }));
-const { data, isLoading, isError, error, refetch, isFetching } = useInvoicesQuery(filter);
+const { data, isLoading, isError, refetch, isFetching } = useInvoicesQuery(filter);
 const entries = computed(() => data.value?.entries ?? []);
 const total = computed(() => data.value?.total ?? 0);
 

@@ -17,8 +17,8 @@ import { useIdlingPage } from "@/features/idle/useIdlingPage";
 import IdleBurnRatesPanel from "@/features/idle/IdleBurnRatesPanel.vue";
 
 const {
-  isLoading, isError, error, isFetching, refetch,
-  fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
+  isLoading, isError, isFetching, refetch,
+  fleet, trkLoading, trkIsError, trkFetching, trkRefetch,
   trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, onTrkSort, trkPage,
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns, trkExpanded, toggleTrk, trkDetail,
   usd, usd2, PAGE_SIZE,
@@ -29,7 +29,7 @@ const {
   capBadge, behavesBadge, sourceLabel, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvFilterCount, clearDrv, drvSort, onDrvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   capSearch, capFilter, capOptions, capSort, onCapSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
-  capLoading, capIsError, capError, capFetching, capRefetch,
+  capLoading, capIsError, capFetching, capRefetch,
 } = useIdlingPage();
 
 /** The expanded row's facts (D-US6): where the truck's running time went, then its learned capability as a badge. */

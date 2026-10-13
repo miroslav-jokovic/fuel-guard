@@ -120,7 +120,7 @@ const filter = computed(() => ({
   q: search.value.trim() || undefined,
   page: page.value,
 }));
-const { data, isLoading, isError, error, refetch, isFetching } = useInspectionsQuery(filter);
+const { data, isLoading, isError, refetch, isFetching } = useInspectionsQuery(filter);
 
 const rows = computed(() =>
   (data.value?.inspections ?? []).map((i) => ({

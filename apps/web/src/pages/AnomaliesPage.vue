@@ -25,7 +25,7 @@ const {
   unit, pairedTrailer, driverName,
   columns, sort, onSort,
   total, pageRows, page, PAGE_SIZE,
-  isLoading, isError, error, isFetching, refetch,
+  isLoading, isError, isFetching, refetch,
   selectedIds, setSelected, selectedCount, isActionable, busy, bulkTransition, rowAction,
   selectedRow, fmt,
 } = useAnomaliesPage();

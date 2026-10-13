@@ -17,7 +17,7 @@ import GatedLink from "@/components/GatedLink.vue";
 import { useOpens } from "@/composables/useOpens";
 import { useQueryState } from "@/composables/useQueryState";
 
-const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
+const { data, isLoading, isError, refetch, isFetching } = useDetectionCoverage();
 const { data: capacity } = useCapacityHealth();
 const { data: vehicles } = useVehiclesQuery();
 const opens = useOpens();

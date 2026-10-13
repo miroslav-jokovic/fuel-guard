@@ -112,7 +112,7 @@ const filters = computed<FuelFilters>(() => ({
 
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
-const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
+const { data, isLoading, isError, refetch, isFetching } = useFuelTransactions(filters, page);
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const totalsQuery = useFuelRangeTotals(filters);
 const rangeTotals = totalsQuery.data;

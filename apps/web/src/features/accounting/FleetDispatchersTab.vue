@@ -38,7 +38,7 @@ const props = defineProps<{
 
 const from = computed(() => props.from);
 const to = computed(() => props.to);
-const { data, isLoading, isError, error, refetch, isFetching } = useDispatcherEarningsQuery(from, to);
+const { data, isLoading, isError, refetch, isFetching } = useDispatcherEarningsQuery(from, to);
 
 const PAGE_SIZE = 20;
 // Search, sort and page live in the URL (D-US2), scoped `dispatchers.` because every tab of the

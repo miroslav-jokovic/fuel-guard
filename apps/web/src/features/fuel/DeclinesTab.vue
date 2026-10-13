@@ -92,7 +92,7 @@ const filters = computed<EfsFilters>(() => ({
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
 
-const { data, isLoading, isError, error, refetch, isFetching } = useDeclinedTransactions(filters, page);
+const { data, isLoading, isError, refetch, isFetching } = useDeclinedTransactions(filters, page);
 
 const { data: vehicles } = useVehiclesQuery();
 const unitOptions = useUnitOptions();

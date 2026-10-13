@@ -35,7 +35,7 @@ import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
-const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
+const { data: vehicles, isLoading, isError, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
 
 // Filters, sort and page live in the URL (D-US2), so reload, a pasted link and Back from a truck keep

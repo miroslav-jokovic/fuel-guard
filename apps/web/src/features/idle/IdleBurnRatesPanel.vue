@@ -19,7 +19,7 @@ import { useSetIdleBurnPricing } from "./useIdleSettings";
  * Offered behind `session.can("safety")`, the same section × role matrix `idle_settings_write` (0300)
  * checks, so a role the database would refuse never sees a control.
  */
-const { data, isLoading, isError, error, isFetching, refetch } = useIdleBurnRates();
+const { data, isLoading, isError, isFetching, refetch } = useIdleBurnRates();
 const rows = computed(() => (data.value ? burnRateRows(data.value) : []));
 const gph = (n: number) => n.toFixed(2);
 

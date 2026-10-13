@@ -18,7 +18,7 @@ import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 
 const PAGE_SIZE = 25;
-const { data, isLoading, isError, error, isFetching, refetch } = useFuelStations();
+const { data, isLoading, isError, isFetching, refetch } = useFuelStations();
 
 /**
  * FUEL-C4, D-FUI3 — the price and locations uploads moved here from `/import`, which is gone.
