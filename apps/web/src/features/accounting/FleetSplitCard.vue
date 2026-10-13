@@ -65,6 +65,7 @@ const contractorNote = computed(() => {
       <h3 class="text-sm font-semibold text-ink">Our trucks and contractors</h3>
       <p class="text-xs text-ink-tertiary">contractors are paid a share of each load and carry none of the company's costs</p>
     </div>
+    <!-- ui-adoption: not-a-fact-list — a three-column split (our trucks, contractors, everything) under a header row; each label has three values, not one. -->
     <dl class="mt-3 text-sm">
       <div class="grid grid-cols-[1fr_8rem_8rem_8rem] items-baseline gap-x-4 pb-1 text-2xs font-medium uppercase tracking-wide text-ink-tertiary">
         <span />

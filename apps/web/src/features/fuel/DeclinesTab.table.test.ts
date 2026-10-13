@@ -76,3 +76,30 @@ describe("card assignments drawer", () => {
     expect(manual!.findAll("td").map((td) => td.text())).toEqual(["••5678", "—", "manual"]);
   });
 });
+
+// The decline drill-down alone, so its facts can be read without the card drawer beside them.
+const DeclineDrawer = defineComponent({
+  props: { title: String, open: Boolean },
+  setup: (p, { slots }) => () => (p.title === "Declined attempt" && p.open ? h("div", slots.default?.()) : null),
+});
+
+describe("decline drill-down facts", () => {
+  it("pairs each label with its value through FactList, with a dash and the reason when no driver is known (D-US6)", async () => {
+    const w = mount(DeclinesTab, {
+      shallow: true,
+      props: { shared: shared() },
+      global: { plugins: [VueQueryPlugin, createPinia()], stubs: { FactList: false, SlideOver: DeclineDrawer } },
+    });
+    (w.vm as unknown as { selectedRow: Record<string, unknown> }).selectedRow = {
+      unit: "654", declined_at: "2026-10-01T12:00:00Z", state: "TX", error_code: "R3", error_description: null,
+      policy_name: null, suspicion_level: "clear", suspicion_reasons: [], driver_name: null, driver_name_source: null,
+      card_ref: "••1234", invoice: "", location_text: "Pilot 412", city: "Amarillo", import_id: "imp-9",
+    };
+    await w.vm.$nextTick();
+    const list = w.get("[data-testid=decline-facts]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Driver", "Card #", "Invoice", "Location", "City", "State", "Import ID"]);
+    const values = list.findAll("dd").map((d) => d.text());
+    expect(values[0]).toMatch(/^—\s*EFS does not say who used the card/);
+    expect(values.slice(1)).toEqual(["••1234", "—", "Pilot 412", "Amarillo", "TX", "imp-9"]);
+  });
+});

@@ -126,6 +126,7 @@ function templateStructureViolations(item) {
   const offScaleHeadings = [];
   const handBuiltLoading = [];
   const handBuiltNotices = [];
+  const handBuiltFacts = [];
   // The applicant's flow renders in ApplyLayout with its own public typography (H5b).
   const applicantFlow = /\/features\/apply\//.test(item.relativePath);
   let previousEnd = tags[0]?.end ?? 0;
@@ -194,6 +195,10 @@ function templateStructureViolations(item) {
       handBuiltNotices.push(at(tag.start));
     }
 
+    // FactList owns label/value facts (D-US6): 47 `<dl>`s were written by hand on 2026-10-12, labels in
+    // eight styles and grids in a dozen. The applicant's flow keeps its own public typography (H5b).
+    if (tag.name === "dl" && !applicantFlow) handBuiltFacts.push(at(tag.start));
+
     // StatCard owns the KPI tile: a `<dd>` set at display size is a figure under a label, drawn by
     // hand. Thirty-three of them across seven files mixed bold and semibold, three label styles
     // and three ways to tint a verdict before 2026-10-12.
@@ -239,6 +244,7 @@ function templateStructureViolations(item) {
     offScaleHeadings,
     handBuiltLoading,
     handBuiltNotices,
+    handBuiltFacts,
   };
 }
 
@@ -353,6 +359,7 @@ function structureCheckerSelfTest() {
         <h3 class="text-base font-semibold text-ink">Card</h3><h3 class="text-sm font-semibold">Ok</h3><h2 class="text-xs font-semibold uppercase">Eyebrow</h2>
         <p v-if="isLoading" class="text-sm text-ink-muted">Loading the part…</p><BaseButton>Loading…</BaseButton>
         <p class="rounded-surface bg-danger-50 px-4 py-3 ring-1 ring-danger-100">Could not load.</p><tr class="bg-brand-50"></tr>
+        <dl><dt>Tank</dt><dd>150</dd></dl>
       </div>
     </template>`),
   };
@@ -383,6 +390,9 @@ function structureCheckerSelfTest() {
     JSON.stringify(result.offScaleHeadings) === JSON.stringify(["self-test.vue:27"]) &&
     JSON.stringify(result.handBuiltLoading) === JSON.stringify(["self-test.vue:28"]) &&
     JSON.stringify(result.handBuiltNotices) === JSON.stringify(["self-test.vue:29"]) &&
+    JSON.stringify(result.handBuiltFacts) === JSON.stringify(["self-test.vue:24", "self-test.vue:30"]) &&
+    drawerSubmitViolations({ relativePath: "d.vue", source: "<SlideOver><form><BaseButton type=\"submit\" /></form></SlideOver>" }).length === 1 &&
+    drawerSubmitViolations({ relativePath: "d.vue", source: "<SlideOver><form id=\"f\" /><template #footer><BaseButton form=\"f\" type=\"submit\" /></template></SlideOver>" }).length === 0 &&
     actionColumns.length === 1 && actionColumns[0] === "self-test.vue:2" &&
     manualActionColumnViolations(legitimateItem).length === 0;
   if (!passed) {
@@ -444,6 +454,32 @@ const siteMarked = (location, kind, rawOf = (path) => readFileSync(join(root, pa
 };
 const handBuiltLoading = structureViolations.flatMap((item) => item.handBuiltLoading).filter((at) => !siteMarked(at, "not-a-page-state"));
 const handBuiltNotices = structureViolations.flatMap((item) => item.handBuiltNotices).filter((at) => !siteMarked(at, "not-a-notice"));
+const handBuiltFacts = structureViolations.flatMap((item) => item.handBuiltFacts).filter((at) => !siteMarked(at, "not-a-fact-list"));
+
+/**
+ * A drawer's form puts its submit in the drawer's footer (D-US5b), so Save stays on screen however long
+ * the form runs. Per DRAWER, not per file: a first count by file on 2026-10-12 hid a footerless form
+ * drawer behind a footered one in the same file. The form carries an `id`; the footer's button names it
+ * with `form="…"` (`InspectorDrawer.vue` is the reference).
+ */
+function drawerSubmitViolations(item) {
+  const found = [];
+  for (const m of item.source.matchAll(/<SlideOver\b[\s\S]*?<\/SlideOver>/g)) {
+    const body = m[0];
+    if (/#footer|v-slot:footer/.test(body)) continue;
+    const children = [...body.matchAll(/<([A-Z][A-Za-z]+(?:Form|Editor))\b/g)].map((c) => c[1]);
+    const childSubmits = children.some((name) => {
+      const file = filesUnder(webSrc).find((path) => path.endsWith(`/${name}.vue`));
+      return file && /type="submit"/.test(stripComments(readFileSync(file, "utf8"))) &&
+        !/\sform="[^"]+"/.test(stripComments(readFileSync(file, "utf8")).match(/<[^>]*type="submit"[^>]*>/)?.[0] ?? "");
+    });
+    if (/type="submit"/.test(body) || childSubmits) {
+      found.push(`${item.relativePath}:${item.source.slice(0, m.index).split("\n").length}`);
+    }
+  }
+  return found;
+}
+const drawerSubmits = pagesAndFeatures.flatMap(drawerSubmitViolations);
 function siteMarkerSelfTest() {
   const raw = ["<div>", "  <!-- ui-adoption: not-a-notice — a record panel -->", "  <div class=\"bg-danger-50 ring-1\">", "  <!-- ui-adoption: not-a-notice -->", "  <p class=\"bg-info-50 ring-1\">x</p>"].join("\n");
   const rawOf = () => raw;
@@ -697,6 +733,10 @@ function verifyAdoption() {
     failures.push(`hand-written loading line (use QueryState): ${handBuiltLoading.join(", ")}`);
   if (handBuiltNotices.length)
     failures.push(`hand-tinted notice, bg-<tone>-50 with ring-1 (use AppCallout): ${handBuiltNotices.join(", ")}`);
+  if (handBuiltFacts.length)
+    failures.push(`hand-written <dl> (use FactList, or mark ui-adoption: not-a-fact-list — <why>): ${handBuiltFacts.join(", ")}`);
+  if (drawerSubmits.length)
+    failures.push(`drawer form with its submit in the scrolling body (put it in #footer with form="…"): ${drawerSubmits.join(", ")}`);
   if (handBuiltStatTiles.length)
     failures.push(`hand-built KPI tile, a <dd> at text-2xl/3xl (use StatCard): ${handBuiltStatTiles.join(", ")}`);
   if (handBuiltBulkBars.length)

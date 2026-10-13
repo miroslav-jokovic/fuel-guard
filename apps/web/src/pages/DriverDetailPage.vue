@@ -26,6 +26,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import ExportButton from "@/components/ExportButton.vue";
 import QualificationSection from "@/features/compliance/QualificationSection.vue";
 import SevenDayStatementSection from "@/features/roster/SevenDayStatementSection.vue";
@@ -265,6 +266,13 @@ const driverMpg = computed(() =>
   ),
 );
 const avgMpg = computed(() => driverMpg.value.mpg);
+/** The summary card's fuel facts (D-US6). A blank is `null`, so `FactList` draws its em dash. */
+const fuelFacts = computed<Fact[]>(() => [
+  { label: "Fills", value: txns.value?.length ?? null, numeric: true },
+  { label: "Gallons", value: Math.round(totalGallons.value).toLocaleString(), numeric: true },
+  { key: "mpg", label: "MPG on this driver's fills", value: avgMpg.value != null ? avgMpg.value.toFixed(1) : null, numeric: true },
+  { label: "Open anomalies", value: openAnomalies.value, numeric: true },
+]);
 const fmt = (iso: string, state: string | null) => stationDate(iso, state);
 const fillColumns: DataTableColumn[] = [
   { key: "fueled_at", label: "Date", cellClass: "text-ink-muted" },
@@ -339,27 +347,16 @@ const fillColumns: DataTableColumn[] = [
         </div>
         <StatusBadge :status="driver.status" />
       </div>
-      <dl v-if="canSeeFuel" class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div>
-          <dt class="text-ink-muted">Fills</dt>
-          <dd class="font-medium text-ink">{{ txns?.length ?? "—" }}</dd>
-        </div>
-        <div>
-          <dt class="text-ink-muted">Gallons</dt>
-          <dd class="font-medium text-ink">{{ Math.round(totalGallons).toLocaleString() }}</dd>
-        </div>
-        <div>
-          <dt class="text-ink-muted">MPG on this driver's fills</dt>
-          <dd class="font-medium text-ink" :title="driverMpg.reason ?? undefined">
-            {{ avgMpg != null ? avgMpg.toFixed(1) : "—" }}
-          </dd>
-          <dd v-if="driverMpg.reason" class="text-xs text-ink-tertiary">{{ driverMpg.reason }}</dd>
-        </div>
-        <div>
-          <dt class="text-ink-muted">Open anomalies</dt>
-          <dd class="font-medium text-ink">{{ openAnomalies }}</dd>
-        </div>
-      </dl>
+      <FactList v-if="canSeeFuel" class="mt-4" :facts="fuelFacts">
+        <!-- Why there is no MPG, under the dash: the reason belongs to the figure, not to a tooltip only. -->
+        <template #value-mpg="{ fact }">
+          <span :title="driverMpg.reason ?? undefined">
+            <template v-if="fact.value != null">{{ fact.value }}</template>
+            <span v-else class="font-normal text-ink-tertiary">—</span>
+          </span>
+          <span v-if="driverMpg.reason" class="block text-xs font-normal text-ink-tertiary">{{ driverMpg.reason }}</span>
+        </template>
+      </FactList>
     </BaseCard>
 
     <BaseCard v-if="canSeeFuel" id="section-fuel" class="scroll-mt-6">

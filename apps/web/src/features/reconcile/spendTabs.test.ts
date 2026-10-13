@@ -338,6 +338,18 @@ describe("saying what is measured", () => {
     expect(t).toMatch(/over 1 of 2 priced fills/);
   });
 
+  it("pairs each rate with its label through FactList, the captured figure carrying its denominator (D-US6)", () => {
+    const mixed = [
+      { ...fill({ tranDate: "2026-08-17", gallons: 100, netAmount: 520, retailAmount: 560 }), contractAmount: 500, quoteStaleDays: 0 },
+      { ...fill({ tranDate: "2026-08-18", gallons: 100, netAmount: 520, retailAmount: null }), contractAmount: 500, quoteStaleDays: 0 },
+    ];
+    const list = mount(DiscountCaptureTab, { props: { lines: mixed, from: "2026-08-01", to: "2026-08-31" }, ...withRouter })
+      .get("[data-testid=capture-rates]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Quoted / gal", "Billed / gal", "Billed at contract", "Captured vs retail"]);
+    const values = list.findAll("dd").map((d) => d.text().replace(/\s+/g, " "));
+    expect(values).toEqual(["$5.000", "$5.200", "0.0%", "$40 over 1 of 2 priced fills"]);
+  });
+
   it("warns that the exception tabs overlap and must not be added", () => {
     const t = mount(ExceptionsTab, {
       props: { title: "ONE9", blurb: "…", report: analyzePolicyExceptions(eightWeeks()).avoidedBrands, slug: "one9" },

@@ -293,10 +293,16 @@ async function onRetire(v: Vehicle) {
       <VehicleForm
         :vehicle="editing"
         :drivers="drivers ?? []"
-        :submitting="saving"
         @submit="onSubmit"
-        @cancel="drawerOpen = false"
       />
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <BaseButton @click="drawerOpen = false">Cancel</BaseButton>
+          <BaseButton form="vehicle-form" type="submit" variant="primary" :disabled="saving">
+            {{ saving ? "Saving…" : "Save vehicle" }}
+          </BaseButton>
+        </div>
+      </template>
     </SlideOver>
   </div>
 </template>

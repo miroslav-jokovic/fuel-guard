@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, type Router } from "vue-router";
-import { reconcileFuelReport, type PilotReportFill, type SystemFill } from "@silvicom/shared";
+import { RECON_STATUS_LABELS, reconcileFuelReport, type PilotReportFill, type SystemFill } from "@silvicom/shared";
 import ReconResultView from "./ReconResultView.vue";
 import ExportButton from "@/components/ExportButton.vue";
 
@@ -123,6 +123,18 @@ describe("ReconResultView", () => {
     expect(t).toContain("$40"); // billed above what we recorded
     // $300 + $350 + $40 = $690: a total would be this, and must not exist.
     expect(t).not.toContain("$690");
+  });
+
+  it("pairs each kind of money with its figure through FactList, its line count beneath (D-US6)", async () => {
+    const list = (await view()).get("[data-testid=recon-exposure]");
+    expect(list.findAll("dt").map((d) => d.text())).toEqual(["Billed above what we recorded", RECON_STATUS_LABELS.missing_in_system, RECON_STATUS_LABELS.missing_on_report]);
+    expect(list.findAll("dd").map((d) => d.text().replace(/\s+/g, " "))).toEqual([
+      "$40 1 line · recoverable",
+      "$300 1 line · fuel we cannot account for",
+      "$350 1 line · not yet invoiced",
+    ]);
+    // The overbill is the recoverable money, so it keeps its danger tone on the value.
+    expect(list.findAll("dd")[0]!.classes()).toContain("text-danger-700");
   });
 
   it("is a toggle group with one pressed member, not a description list holding buttons", async () => {

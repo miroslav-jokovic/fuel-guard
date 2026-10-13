@@ -9,6 +9,7 @@ import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
 import { computed } from "vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import QueryState from "@/components/ui/QueryState.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
@@ -55,6 +56,45 @@ const siblingRows = computed(() =>
 );
 const thisFillClass = (row: { id: string }) =>
   row.id === txn.value?.id ? "bg-warning-100 ring-1 ring-inset ring-warning-300" : "";
+
+// D-US6: the facts are FactLists, so a blank import id, odometer or MPG shows the shared em dash.
+// Ids keep their monospace through `tone`, which replaces the value's `text-ink`.
+const MONO = "font-mono text-xs text-ink";
+const headerFacts = computed<Fact[]>(() => {
+  const t = txn.value;
+  if (!t) return [];
+  return [
+    { label: "Source", value: t.source },
+    { label: "Imported", value: t.import_id ? "EFS/report batch" : "Direct entry" },
+    { label: "Fuel transaction", value: t.id, tone: MONO },
+    { label: "Import id", value: t.import_id, tone: MONO },
+  ];
+});
+const evidenceValue = (v: unknown): string | number | null =>
+  v == null ? null : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v : String(v);
+const evidenceFacts = computed<Fact[]>(() =>
+  evidenceRows.value.map(([k, v]) => ({ key: k, label: formatKey(k), value: evidenceValue(v) })),
+);
+const transactionFacts = computed<Fact[]>(() => {
+  const t = txn.value;
+  if (!t) return [];
+  const facts: Array<Fact | false> = [
+    { key: "vehicle", label: "Vehicle", value: props.vehicleUnit },
+    // driverName answers "—" for an unattributed fill; a null driver is the FactList's blank instead.
+    { label: "Driver", value: t.driver_id ? driverName(t.driver_id) : null },
+    !!t.card_ref && { label: "Card #", value: t.card_ref, tone: "font-mono text-ink" },
+    { label: "When", value: fmt(t.fueled_at, t.state) },
+    { label: "Odometer", value: t.odometer != null ? fmtOdo(t.odometer) : null, numeric: true },
+    { label: "Gallons", value: t.gallons, numeric: true },
+    t.price_per_gal != null && { label: "$/gal", value: fmtMoney(t.price_per_gal), numeric: true },
+    t.total_cost != null && { label: "Total cost", value: fmtMoney(t.total_cost), numeric: true },
+    { label: "MPG", value: t.computed_mpg, numeric: true },
+    { label: "Location", value: t.location_text || [t.city, t.state].filter(Boolean).join(", ") || null },
+    t.samsara_location_matched != null && { key: "samsara", label: "Samsara location" },
+    { label: "Source", value: t.source, tone: "capitalize text-ink" },
+  ];
+  return facts.filter((f): f is Fact => f !== false);
+});
 </script>
 
 <template>
@@ -69,24 +109,7 @@ const thisFillClass = (row: { id: string }) =>
 
     <p class="text-sm leading-relaxed text-ink">{{ anomaly.message }}</p>
 
-    <dl v-if="txn" class="grid grid-cols-2 gap-x-4 gap-y-2 rounded-surface bg-surface-subtle p-4 text-sm ring-1 ring-edge">
-      <div>
-        <dt class="text-xs text-ink-muted">Source</dt>
-        <dd class="font-medium text-ink">{{ txn.source }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Imported</dt>
-        <dd class="font-medium text-ink">{{ txn.import_id ? "EFS/report batch" : "Direct entry" }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Fuel transaction</dt>
-        <dd class="font-mono text-xs text-ink">{{ txn.id }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs text-ink-muted">Import id</dt>
-        <dd class="font-mono text-xs text-ink">{{ txn.import_id ?? "—" }}</dd>
-      </div>
-    </dl>
+    <FactList v-if="txn" :columns="2" class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge" :facts="headerFacts" />
 
     <!-- Entity-intelligence panel (Phases 1–2): reviewer context + retrospective pattern report -->
     <EntityHistory :anomaly-id="anomaly.id" />
@@ -189,14 +212,7 @@ const thisFillClass = (row: { id: string }) =>
       </ul>
 
       <!-- Single rule: formatted evidence key/value -->
-      <dl v-else class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-        <template v-for="[k, v] in evidenceRows" :key="k">
-          <dt class="text-ink-muted">{{ formatKey(k) }}</dt>
-          <dd class="text-right font-medium text-ink">
-            {{ Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : v }}
-          </dd>
-        </template>
-      </dl>
+      <FactList v-else layout="rows" class="mt-2" :facts="evidenceFacts" />
       </div>
 
     <!-- ④ Same-card fills — appears whenever card_multi_vehicle is in play -->
@@ -257,66 +273,19 @@ const thisFillClass = (row: { id: string }) =>
     <!-- ⑤ Transaction details (full) -->
       <div v-if="txn" class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Transaction</h4>
-      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <!-- Vehicle -->
-        <dt class="text-ink-muted">Vehicle</dt>
-        <dd class="text-right">
+      <!-- Vehicle: the unit, with its year/make/model beside it. Samsara location: the check's verdict. -->
+      <FactList layout="rows" :facts="transactionFacts">
+        <template #value-vehicle>
           <span class="font-semibold text-ink">{{ vehicleUnit }}</span>
           <span v-if="vehicleDesc(txn.vehicle_id)" class="ml-1 text-xs text-ink-tertiary">
             {{ vehicleDesc(txn.vehicle_id) }}
           </span>
-        </dd>
-        <!-- Driver -->
-        <dt class="text-ink-muted">Driver</dt>
-        <dd class="text-right text-ink">{{ driverName(txn.driver_id) }}</dd>
-        <!-- Card -->
-        <template v-if="txn.card_ref">
-          <dt class="text-ink-muted">Card #</dt>
-          <dd class="text-right font-mono text-ink">{{ txn.card_ref }}</dd>
         </template>
-        <!-- When -->
-        <dt class="text-ink-muted">When</dt>
-        <dd class="text-right text-ink">{{ fmt(txn.fueled_at, txn.state) }}</dd>
-        <!-- Odometer -->
-        <dt class="text-ink-muted">Odometer</dt>
-        <dd class="text-right text-ink">{{ fmtOdo(txn.odometer) }}</dd>
-        <!-- Gallons -->
-        <dt class="text-ink-muted">Gallons</dt>
-        <dd class="text-right font-semibold text-ink">{{ txn.gallons }}</dd>
-        <!-- $/gal -->
-        <template v-if="txn.price_per_gal != null">
-          <dt class="text-ink-muted">$/gal</dt>
-          <dd class="text-right text-ink">{{ fmtMoney(txn.price_per_gal) }}</dd>
+        <template #value-samsara>
+          <span v-if="txn.samsara_location_matched" class="text-xs font-medium text-success-700">✓ Confirmed</span>
+          <span v-else class="text-xs font-semibold text-danger-700">✗ Mismatch</span>
         </template>
-        <!-- Total cost -->
-        <template v-if="txn.total_cost != null">
-          <dt class="text-ink-muted">Total cost</dt>
-          <dd class="text-right font-semibold text-ink">{{ fmtMoney(txn.total_cost) }}</dd>
-        </template>
-        <!-- MPG -->
-        <dt class="text-ink-muted">MPG</dt>
-        <dd class="text-right text-ink">{{ txn.computed_mpg ?? "—" }}</dd>
-        <!-- Location -->
-        <dt class="text-ink-muted">Location</dt>
-        <dd class="text-right text-xs text-ink-secondary">
-          {{
-            txn.location_text
-              ? txn.location_text
-              : [txn.city, txn.state].filter(Boolean).join(", ") || "—"
-          }}
-        </dd>
-        <!-- Samsara location check -->
-        <template v-if="txn.samsara_location_matched != null">
-          <dt class="text-ink-muted">Samsara location</dt>
-          <dd class="text-right">
-            <span v-if="txn.samsara_location_matched" class="text-xs font-medium text-success-700">✓ Confirmed</span>
-            <span v-else class="text-xs font-semibold text-danger-700">✗ Mismatch</span>
-          </dd>
-        </template>
-        <!-- Source -->
-        <dt class="text-ink-muted">Source</dt>
-        <dd class="text-right capitalize text-ink-secondary">{{ txn.source }}</dd>
-      </dl>
+      </FactList>
       </div>
 
     </div>

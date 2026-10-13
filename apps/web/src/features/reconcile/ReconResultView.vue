@@ -6,6 +6,7 @@ import { BADGE_BASE, toneClass, reconStatusBadge } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import StatCard from "@/components/ui/StatCard.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import DataWorkspace from "@/components/ui/DataWorkspace.vue";
@@ -62,12 +63,16 @@ const buckets = computed<Bucket[]>(() => {
 const exposure = computed(() => {
   const e = props.summary.exposure;
   return [
-    { label: "Billed above what we recorded", value: e.overbilled, lines: e.overbilledLines, tone: "text-danger-700", hint: "recoverable" },
-    { label: "Billed below what we recorded", value: e.underbilled, lines: e.underbilledLines, tone: "text-ink", hint: "may still be owed" },
-    { label: RECON_STATUS_LABELS.missing_in_system, value: e.unrecorded, lines: e.unrecordedLines, tone: "text-danger-700", hint: "fuel we cannot account for" },
-    { label: RECON_STATUS_LABELS.missing_on_report, value: e.unbilled, lines: e.unbilledLines, tone: "text-ink", hint: "not yet invoiced" },
+    { key: "overbilled", label: "Billed above what we recorded", value: e.overbilled, lines: e.overbilledLines, tone: "text-danger-700", hint: "recoverable" },
+    { key: "underbilled", label: "Billed below what we recorded", value: e.underbilled, lines: e.underbilledLines, tone: undefined, hint: "may still be owed" },
+    { key: "unrecorded", label: RECON_STATUS_LABELS.missing_in_system, value: e.unrecorded, lines: e.unrecordedLines, tone: "text-danger-700", hint: "fuel we cannot account for" },
+    { key: "unbilled", label: RECON_STATUS_LABELS.missing_on_report, value: e.unbilled, lines: e.unbilledLines, tone: undefined, hint: "not yet invoiced" },
   ].filter((x) => x.lines > 0);
 });
+/** The same four as FactList facts (D-US6); each value's line count and hint ride in its slot. */
+const exposureFacts = computed<Fact[]>(() =>
+  exposure.value.map((x) => ({ key: x.key, label: x.label, value: fmtUsd(x.value), tone: x.tone, numeric: true })),
+);
 
 /** How each match was placed. A claim's strength is part of the claim. */
 const matchBasis = computed(() => {
@@ -204,13 +209,12 @@ const columns: DataTableColumn[] = [
 
     <BaseCard v-if="exposure.length" padding="sm">
       <h4 class="text-sm font-semibold text-ink">What does not reconcile</h4>
-      <dl class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div v-for="x in exposure" :key="x.label">
-          <dt class="text-xs text-ink-muted">{{ x.label }}</dt>
-          <dd class="text-lg font-semibold" :class="x.tone">{{ fmtUsd(x.value) }}</dd>
-          <dd class="text-xs text-ink-tertiary">{{ x.lines }} line{{ x.lines === 1 ? "" : "s" }} · {{ x.hint }}</dd>
-        </div>
-      </dl>
+      <FactList :facts="exposureFacts" class="mt-3" data-testid="recon-exposure">
+        <template v-for="x in exposure" :key="x.key" #[`value-${x.key}`]="{ fact }">
+          {{ fact.value }}
+          <span class="block text-xs font-normal text-ink-tertiary">{{ x.lines }} line{{ x.lines === 1 ? "" : "s" }} · {{ x.hint }}</span>
+        </template>
+      </FactList>
       <p class="mt-3 text-xs text-ink-tertiary">
         Reported apart on purpose: money we can recover, money we may owe, and money nobody has
         explained are different findings and are never added together.

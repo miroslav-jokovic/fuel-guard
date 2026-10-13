@@ -177,6 +177,8 @@ describe("IdlingPage — the Trucks table", () => {
     const value = (label: string) => detail.findAll("div").find((d) => d.find("dt").text() === label)!.find("dd").text();
     expect(value("Idling while off duty or sleeping")).toBe("—");
     expect(value("Idling on duty")).toBe("—");
+    // The learned capability is a fact like the hours (D-US6): its badge sits in its own dd.
+    expect(value("Idle capability")).toBe("Continuous idle only");
     expect(detail.text()).toContain("Continuous idle only");
   });
 });

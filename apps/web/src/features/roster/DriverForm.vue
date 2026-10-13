@@ -9,14 +9,12 @@ import {
 } from "@silvicom/shared";
 import { AppCallout, AppSelect } from "@silvicom/ui";
 import { AppInput as BaseInput } from "@silvicom/ui";
-import { AppButton as BaseButton } from "@silvicom/ui";
 import { AppFormField as FormField } from "@silvicom/ui";
 
 const props = defineProps<{
   driver?: Driver | null;
-  submitting?: boolean;
 }>();
-const emit = defineEmits<{ submit: [input: DriverInput]; cancel: [] }>();
+const emit = defineEmits<{ submit: [input: DriverInput] }>();
 
 const form = reactive({
   full_name: props.driver?.full_name ?? "",
@@ -65,7 +63,9 @@ function onSubmit() {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="onSubmit">
+  <!-- D-US5b: the drawer's footer holds Cancel and Save (`form="driver-form"`), so Save stays on screen
+       however long this form runs; this file owns the fields and the submit, not the buttons. -->
+  <form id="driver-form" class="space-y-4" @submit.prevent="onSubmit">
     <!-- Stated where the eye already is, above Save, and only when it is actually true of THIS edit.
          A permanent warning on every synced driver would be wallpaper. -->
     <AppCallout v-if="claimsFromTelematics" tone="warning">
@@ -90,12 +90,5 @@ function onSubmit() {
         :options="DRIVER_STATUSES.map((s) => ({ value: s, label: s }))"
       />
     </FormField>
-
-    <div class="flex justify-end gap-3 pt-2">
-      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
-      <BaseButton type="submit" variant="primary" :disabled="submitting">
-        {{ submitting ? "Saving…" : "Save driver" }}
-      </BaseButton>
-    </div>
   </form>
 </template>

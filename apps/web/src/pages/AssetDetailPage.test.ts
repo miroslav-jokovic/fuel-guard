@@ -194,6 +194,28 @@ describe("what the header says about the thing", () => {
     expect(page().text()).toContain("Lost");
   });
 
+  /**
+   * D-US6: the summary is a `FactList`, so each label sits beside its value and a blank is the list's
+   * em dash. The warranty is null in the fixture — formatting it anyway used to print the formatter's
+   * own dash as if it were a date.
+   */
+  it("pairs each fact with its label, and draws a dash for a warranty nobody recorded", () => {
+    const facts = page().get("dl");
+    const pairs = Object.fromEntries(
+      facts.findAll("dl > div").map((d) => [d.get("dt").text(), d.get("dd").text()]),
+    );
+    expect(pairs).toMatchObject({
+      Kind: "Tablet",
+      Serial: "SN-1",
+      "Make and model": "Samsung Tab A8",
+      Bought: "11/02/2025",
+      "Warranty until": "—",
+    });
+    expect(facts.findAll("dt").map((d) => d.text())).not.toContain("Notes");
+    detail.value = { asset: asset({ notes: "Cracked corner" }), photoUrl: null };
+    expect(page().get("dl").findAll("dt").map((d) => d.text())).toContain("Notes");
+  });
+
   it("says out loud what retiring did, because nothing can be recorded against it afterwards", () => {
     detail.value = { asset: asset({ status: "retired" }), photoUrl: null };
     expect(page().text()).toContain("Off the fleet");

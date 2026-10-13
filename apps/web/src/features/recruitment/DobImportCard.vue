@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/vue-query";
 import { DOB_REJECT_LABELS, type DobImportPlan } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCard as BaseCard } from "@silvicom/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -68,6 +69,17 @@ function reset(): void {
   applied.value = false;
 }
 
+/** The dry run's three counts (D-US6); "Written" appears only once the import has been applied. */
+const counts = computed<Fact[]>(() => {
+  const p = plan.value;
+  if (!p) return [];
+  return [
+    { label: "Matched", value: p.matches.length, numeric: true },
+    { label: "Not imported", value: p.rejects.length, numeric: true },
+    ...(applied.value ? [{ label: "Written", value: p.applied, numeric: true }] : []),
+  ];
+});
+
 /** Rejections grouped by reason — 140 identical lines is a wall, four counts is an instruction. */
 const rejectGroups = computed(() => {
   const groups = new Map<string, { reason: string; count: number; example: string | null }>();
@@ -114,20 +126,7 @@ const rejectGroups = computed(() => {
       </div>
 
       <template v-else>
-        <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div class="rounded-surface bg-surface-muted p-3">
-            <dt class="text-xs font-medium text-ink-secondary">Matched</dt>
-            <dd class="mt-1 text-lg font-bold text-ink">{{ plan.matches.length }}</dd>
-          </div>
-          <div class="rounded-surface bg-surface-muted p-3">
-            <dt class="text-xs font-medium text-ink-secondary">Not imported</dt>
-            <dd class="mt-1 text-lg font-bold text-ink">{{ plan.rejects.length }}</dd>
-          </div>
-          <div v-if="applied" class="rounded-surface bg-surface-muted p-3">
-            <dt class="text-xs font-medium text-ink-secondary">Written</dt>
-            <dd class="mt-1 text-lg font-bold text-ink">{{ plan.applied }}</dd>
-          </div>
-        </dl>
+        <FactList :columns="3" :facts="counts" />
 
         <ul v-if="rejectGroups.length" class="space-y-1 text-sm">
           <li v-for="group in rejectGroups" :key="group.reason" class="text-ink-secondary">

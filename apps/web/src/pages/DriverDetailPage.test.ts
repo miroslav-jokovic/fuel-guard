@@ -140,3 +140,22 @@ describe("DriverDetailPage — the relocated sections still land somewhere (R7)"
     expect(router.currentRoute.value.path).toBe("/drivers/d-1");
   });
 });
+
+describe("DriverDetailPage — the summary's fuel facts (D-US6)", () => {
+  it("pairs each fuel figure with its label, and a dash for an MPG no fill can give", async () => {
+    const FactList = (await import("@/components/ui/FactList.vue")).default;
+    const { w } = await mountAt();
+    const facts = w.findAllComponents(FactList).find((c) => c.text().includes("Fills"))!;
+    expect(facts.findAll("dt").map((d) => d.text())).toEqual([
+      "Fills",
+      "Gallons",
+      "MPG on this driver's fills",
+      "Open anomalies",
+    ]);
+    // The fixture's fills read never answers, so the count is not known — a blank, never a "0" or an
+    // empty cell — and an MPG over no spans is a blank too.
+    const [fills, gallons, mpg, open] = facts.findAll("dd").map((d) => d.text());
+    expect([fills, gallons, open]).toEqual(["—", "0", "0"]);
+    expect(mpg!.startsWith("—")).toBe(true);
+  });
+});

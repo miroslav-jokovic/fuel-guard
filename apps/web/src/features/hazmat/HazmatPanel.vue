@@ -18,6 +18,7 @@ import { TANK_STATE_OPTIONS } from "@/features/hazmat/calcModel";
 import { useDefensePacket } from "@/features/hazmat/useDefensePacket";
 import { formatDateTime } from "@/lib/format";
 import { useOpens } from "@/composables/useOpens";
+import FactList, { type Fact } from "@/components/ui/FactList.vue";
 
 interface HazmatPanelRecord {
   id: string;
@@ -97,8 +98,8 @@ const statusTone = computed(() => {
 const tankStateLabel = (value: string): string =>
   TANK_STATE_OPTIONS.find((o) => o.value === value)?.label ?? value.replace(/_/g, " ");
 
-function when(iso: string | null | undefined): string {
-  if (!iso) return "—";
+function when(iso: string | null | undefined): string | null {
+  if (!iso) return null; // FactList's em dash (D-US6)
   return formatDateTime(iso, iso);
 }
 
@@ -177,6 +178,20 @@ const workspaceTo = computed(() => {
 const hasPacket = computed(() => record.value != null && record.value.latest_run_at != null);
 const packet = useDefensePacket();
 const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "success" : "warning"));
+
+/** The record's meta grid (D-US6). An outcome is a badge through `value-outcome`; none yet reads "Not analyzed". */
+const facts = computed<Fact[]>(() => {
+  const r = record.value;
+  if (!r) return [];
+  return [
+    r.latest_outcome
+      ? { key: "outcome", label: "Last analysis", value: r.latest_outcome === "green" ? "Green" : "Flagged" }
+      : { key: "outcome", label: "Last analysis", value: "Not analyzed", tone: "text-ink-tertiary" },
+    { label: "Analyzed at", value: when(r.latest_run_at) },
+    { label: "Tank state", value: tankStateLabel(r.tank_state) },
+    { label: "Updated", value: when(r.updated_at) },
+  ];
+});
 </script>
 
 <template>
@@ -252,20 +267,11 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
         <span class="pl-2 text-xs text-ink-muted">See the workspace for the record's history and any superseding record.</span>
       </p>
 
-      <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-        <div>
-          <dt class="text-ink-tertiary">Last analysis</dt>
-          <dd class="text-ink">
-            <span v-if="record.latest_outcome" :class="[BADGE_BASE, toneClass(outcomeTone)]">
-              {{ record.latest_outcome === "green" ? "Green" : "Flagged" }}
-            </span>
-            <span v-else class="text-ink-tertiary">Not analyzed</span>
-          </dd>
-        </div>
-        <div><dt class="text-ink-tertiary">Analyzed at</dt><dd class="text-ink">{{ when(record.latest_run_at) }}</dd></div>
-        <div><dt class="text-ink-tertiary">Tank state</dt><dd class="text-ink">{{ tankStateLabel(record.tank_state) }}</dd></div>
-        <div><dt class="text-ink-tertiary">Updated</dt><dd class="text-ink">{{ when(record.updated_at) }}</dd></div>
-      </dl>
+      <FactList class="mt-5" :facts="facts">
+        <template v-if="record.latest_outcome" #value-outcome="{ fact }">
+          <span :class="[BADGE_BASE, toneClass(outcomeTone)]">{{ fact.value }}</span>
+        </template>
+      </FactList>
 
       <div v-if="canManage" class="mt-4 flex flex-wrap items-center gap-2">
         <BaseButton
