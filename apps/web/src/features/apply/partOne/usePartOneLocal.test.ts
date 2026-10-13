@@ -157,7 +157,7 @@ describe("a reload before screen 7", () => {
     const second = page();
     await second.flow.restored;
     expect(second.flow.screen.value).toBe("screening");
-    Object.assign(second.flow.answers, { prior_positive_2y: false, dot_program_30d: false });
+    Object.assign(second.flow.answers, { prior_positive_2y: false, dot_program_30d: false, donor_gender: "male" });
     await second.flow.next();
     const paths = fetchMock.mock.calls.map(([url]) => String(url).replace(`/api/public/application/${TOKEN}`, ""));
     expect(paths).toEqual(["/intake", "/intake/licences", "/intake"]);
@@ -173,7 +173,7 @@ describe("a reload before screen 7", () => {
     await flow.restored;
     typeScreens3to6(flow);
     for (let i = 0; i < 4; i++) await flow.next();
-    Object.assign(flow.answers, { prior_positive_2y: false, dot_program_30d: false });
+    Object.assign(flow.answers, { prior_positive_2y: false, dot_program_30d: false, donor_gender: "male" });
     fetchMock.mockRejectedValueOnce(new Error("offline"));
     await flow.next();
     expect(flow.screen.value).toBe("screening");
@@ -195,7 +195,7 @@ describe("a reload before screen 7", () => {
     const { flow } = page();
     await flow.restored;
     typeScreens3to6(flow);
-    Object.assign(flow.answers, { prior_positive_2y: true, dot_program_30d: true, dot_tested_6m: true });
+    Object.assign(flow.answers, { prior_positive_2y: true, dot_program_30d: true, dot_tested_6m: true, donor_gender: "male" });
     await settle();
     const stored = await readHeld(KEY);
     expect(stored?.answers.phone).toBe("7082365732");

@@ -39,6 +39,7 @@ const filled = (): PartOneAnswers => ({
   dot_program_30d: true,
   dot_tested_6m: true,
   dot_random_12m: false,
+  donor_gender: "female",
 });
 
 const status = (over: Partial<PartOneStatus> = {}): PartOneStatus => ({
@@ -73,7 +74,7 @@ describe("the first write", () => {
 
   /** A "No" to the 30-day program makes the follow-ups moot; a changed mind must not leave stale leads. */
   it("sends the two follow-ups only when they were asked", () => {
-    expect(screeningPayload({ ...filled(), dot_program_30d: false })).toEqual({ prior_positive_2y: false, dot_program_30d: false });
+    expect(screeningPayload({ ...filled(), dot_program_30d: false })).toEqual({ prior_positive_2y: false, dot_program_30d: false, donor_gender: "female" });
   });
 });
 
@@ -126,10 +127,19 @@ describe("each screen's check", () => {
   });
 
   it("asks the follow-ups only after a Yes to the 30-day program", () => {
-    const base = { ...emptyPartOneAnswers(), prior_positive_2y: false };
+    const base = { ...emptyPartOneAnswers(), prior_positive_2y: false, donor_gender: "declined" as const };
     expect(validateScreening({ ...base, dot_program_30d: false })).toEqual({});
     expect(Object.keys(validateScreening({ ...base, dot_program_30d: true })).sort()).toEqual(["dot_random_12m", "dot_tested_6m"]);
     expect(validateScreening(emptyPartOneAnswers())).toHaveProperty("prior_positive_2y");
+  });
+
+  // UX5b (D-MSUX10): one of three must be chosen, and "I'd rather not say" is one of them.
+  it("asks the drug test's gender, and takes \"I'd rather not say\" as an answer", () => {
+    const answered = { ...emptyPartOneAnswers(), prior_positive_2y: false, dot_program_30d: false };
+    expect(validateScreening({ ...answered, donor_gender: "" })).toHaveProperty("donor_gender");
+    expect(validateScreening({ ...answered, donor_gender: "declined" })).toEqual({});
+    expect(screeningPayload({ ...answered, donor_gender: "declined" })).toMatchObject({ donor_gender: "declined" });
+    expect(screeningPayload({ ...answered, donor_gender: "" })).not.toHaveProperty("donor_gender");
   });
 });
 

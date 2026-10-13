@@ -209,6 +209,8 @@ for (const width of [390, 320]) {
       await s.check("part1.screening");
       const noes = page.getByLabel("No", { exact: true });
       for (let i = 0; i < 2; i += 1) await noes.nth(i).check();
+      // UX5b (D-MSUX10): the drug test's gender — one of three, "I'd rather not say" among them.
+      await page.getByLabel("I'd rather not say", { exact: true }).check();
       await press(page, "Continue");
 
       // The medical card and the selfie through the scanner too (owner, 2026-09-30, Q-AW53). The medical

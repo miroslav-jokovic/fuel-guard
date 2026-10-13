@@ -7,7 +7,7 @@ import {
   AppMemorableDate,
   AppRadioGroup,
 } from "@silvicom/ui";
-import { CDL_CLASSES, ENDORSEMENT_CODES, US_JURISDICTION_CODES, jurisdictionOptions } from "@silvicom/shared";
+import { CDL_CLASSES, DONOR_GENDERS, ENDORSEMENT_CODES, US_JURISDICTION_CODES, jurisdictionOptions } from "@silvicom/shared";
 import YesNoField from "@/features/apply/YesNoField.vue";
 import type { PartOneAnswers, PartOneScreen, ScreenErrors } from "./partOneScreens";
 import { APPLY_COPY } from "@/features/apply/strings";
@@ -113,5 +113,16 @@ function toggleEndorsement(code: string, on: boolean): void {
       <YesNoField v-model="answers.dot_tested_6m" :legend="copy.screening.tested6m" :error="errors.dot_tested_6m" />
       <YesNoField v-model="answers.dot_random_12m" :legend="copy.screening.random12m" :error="errors.dot_random_12m" />
     </template>
+    <!-- UX5b (D-MSUX10): for Med-Stop's donor record and an observed collection; never shown to the
+         person deciding the hire. Declining is an answer. -->
+    <div>
+      <AppRadioGroup
+        v-model="answers.donor_gender"
+        :legend="copy.screening.gender"
+        :options="DONOR_GENDERS.map((g) => ({ value: g, label: copy.screening.genderOptions[g] }))"
+      />
+      <p class="mt-1 text-xs text-ink-muted">{{ copy.screening.genderHint }}</p>
+      <p v-if="errors.donor_gender" class="mt-1 text-sm text-danger-700" role="alert">{{ errors.donor_gender }}</p>
+    </div>
   </div>
 </template>

@@ -43,7 +43,8 @@ beforeEach(() => {
 
 describe("what is kept", () => {
   it("keeps screens 3–6's answers and nothing of screen 7 or the medical card", () => {
-    const a = { ...emptyPartOneAnswers(), prior_positive_2y: true, dot_program_30d: true, medical_card_pending: true };
+    // UX5b: the drug test's gender is screen 7's too — never kept on a phone someone else may pick up.
+    const a = { ...emptyPartOneAnswers(), prior_positive_2y: true, dot_program_30d: true, medical_card_pending: true, donor_gender: "female" as const };
     expect(Object.keys(heldPart(a)).sort()).toEqual(
       ["address_line1", "address_line2", "cdl", "city", "date_of_birth", "otherHeld", "others", "phone", "postal_code", "state"],
     );

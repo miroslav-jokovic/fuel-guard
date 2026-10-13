@@ -47,7 +47,7 @@ function fill(flow: ReturnType<typeof walk>["flow"]): void {
   Object.assign(flow.answers, {
     phone: "7082365732", date_of_birth: "1985-03-07",
     address_line1: "1 Main St", city: "Joliet", state: "IL", postal_code: "60432",
-    otherHeld: false, prior_positive_2y: false, dot_program_30d: false,
+    otherHeld: false, prior_positive_2y: false, dot_program_30d: false, donor_gender: "female",
   });
   Object.assign(flow.answers.cdl, { state_code: "IL", licence_number: "D123", cdl_class: "A", expires_on: "2029-01-01" });
 }
@@ -70,7 +70,8 @@ describe("the first visit", () => {
 
     await flow.next();
     expect(paths()).toEqual(["/intake", "/intake/licences", "/intake"]);
-    expect(bodies()[0]).toMatchObject({ prior_positive_2y: false, phone: "7082365732", postal_code: "60432", cdl_class: "A" });
+    // UX5b: the gender goes in screen 7's first write, beside the testing answers.
+    expect(bodies()[0]).toMatchObject({ prior_positive_2y: false, donor_gender: "female", phone: "7082365732", postal_code: "60432", cdl_class: "A" });
     expect(bodies()[1]).toEqual({ licences: [{ state_code: "IL", licence_number: "D123", expires_on: "2029-01-01" }] });
     expect(bodies()[2]).toEqual({ date_of_birth: "1985-03-07" });
     expect(flow.screen.value).toBe("medical_card");
@@ -250,7 +251,7 @@ describe("the licence's barcode (AW5)", () => {
   it("writes the barcode's values through screen 7's one order, like typed ones", async () => {
     const { flow } = walk(atBack, BOTH, async () => LICENCE);
     await flow.licencePhotoStaged(photo);
-    Object.assign(flow.answers, { phone: "7082365732", otherHeld: false, prior_positive_2y: false, dot_program_30d: false });
+    Object.assign(flow.answers, { phone: "7082365732", otherHeld: false, prior_positive_2y: false, dot_program_30d: false, donor_gender: "declined" });
     flow.answers.cdl.cdl_class = "A";
     for (let i = 0; i < 6; i++) await flow.next();
     expect(flow.screen.value).toBe("medical_card");

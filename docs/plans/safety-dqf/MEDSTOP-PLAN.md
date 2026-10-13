@@ -487,31 +487,72 @@ So UX5's "Part 1 fields" merge is ONE column: the donor's gender. Med-Stop's `/L
   - Help text: *"The drug-testing company needs this to set up your test, and some tests are watched by
     a person of the same gender. It is not part of your application — the people reviewing it do not
     see your answer. If you'd rather not say, the office sets up your test with you directly."*
-- **Q-MSUX9 (open, wording):** confirm the help text, or send it to counsel with the package
+- ~~Q-MSUX9~~ (answered 2026-10-13, ships as written): confirm the help text, or send it to counsel with the package
   (COUNSEL-REVIEW-PACKAGE.md). Recommend: ship it with the text above. The value is never shown to the
   person deciding, and declining has no consequence beyond a phone call.
 
+**Owner, 2026-10-13: "proceed as recommended — and double check our form for creating the applicant
+matches Med-Stop's form exactly."** So:
+- Q-MSUX9 is answered: the wording above ships.
+- Q-MSUX10 is answered: an existing driver's gender is read from Med-Stop's own record at order time
+  and never stored here.
+- Driving type NON-EXCEPTED INTERSTATE, ID class CDL, category DRIVER, and Med-Stop's own date
+  defaults. The start date is the one exception — see below.
+
+**Med-Stop's applicant form, checked three ways (GET only, 2026-10-13) [V]:**
+1. **The live form against the spec.** `GET /Employee/new` returns 46 keys, exactly `Dto.WizEmployee`'s
+   46: none missing, none extra. 24 are required: dotagency, branchid, birthdate, lname, fname, gender,
+   status, dotstatus, applicationdate, startdate, annualreview, category, address, city, state, zip,
+   phone1, drivingtype, idclass, license, licensestate, licenseclass, licenseexpiration, idnumber.
+2. **The form's own defaults.** dotagency `FMCSA`; dotstatus `Y`; branchid = the carrier's one branch;
+   country `US`; applicationdate = today, startdate = today, annualreview = today + 1 year, each as
+   `YYYY-MM-DDT00:00:00Z`. The GET creates nothing: the message reads "Please make sure all
+   information is correct" and `recordid` is empty.
+3. **What the office's hand-entered applicants actually hold** (the newest of 28, shapes only, never
+   values):
+   - Employment: status `APPLICANT`, category `DRIVER`, drivingtype `NON-EXCEPTED INTERSTATE`,
+     dotstatus `Y`, dotagency `FMCSA`, branch `N`, annualreview set, **startdate EMPTY on every one**.
+   - ID: type `CDL`, numbered with the licence number, class `A`, status `ACTIVE`.
+   - Person: phone1 `(999) 999-9999`, zip 5 digits, country `US`, state 2 letters, gender in capitals.
+
+The `/List` values used: DRIVINGTYPE (NON-)EXCEPTED INTER/INTRASTATE · IDCLASSWIZ CDL|DL|CLP|… ·
+CATEGORYEMPLOYEE DRIVER|… · LICENSECLASS A|B|C|D|OTHER · GENDER MALE|FEMALE ·
+STATUSDOT Y|N|B. STATUSEMPLOYEE answers "not found" as a list; `APPLICANT` is read off the records.
+
+**So the create (UX5c) does this:**
+- It sends Med-Stop's own form back, as GET returned it, with every key kept and only ours filled in.
+  Med-Stop's names, defaults and branch can therefore not drift from what we send.
+- Ours: names, birthdate, gender (upper-case), address/city/state/zip, phone1 in `(999) 999-9999`,
+  licence number/state/class/expiry, idnumber = the CDL number (O-5, no SSN), idclass `CDL`,
+  drivingtype `NON-EXCEPTED INTERSTATE`, category `DRIVER`, status `APPLICANT`, all dates in the form's
+  own shape.
+- **startdate: cleared, to match every hand-entered applicant** — although the spec marks it required
+  and the form defaults it to today. An applicant has not started. If Med-Stop refuses the empty
+  value, the create fails loudly and nothing is created. ⚠ First-create runbook: confirm the record
+  in the portal looks like a hand-entered applicant (status APPLICANT, no start date).
+- A pure, shared builder fills the form and REFUSES to send while any of the 24 required keys
+  (startdate excepted) is empty. Its test reads the required list from the spec itself.
+
 **Batches:**
-- **UX5a (0469, this merge):** the column, and `record_applicant_intake` accepting the key (same
-  signature, absent key kept). No reader. Matrix: `application-intake-v2.test.mjs` §8.
-- **UX5b:** Part 1 asks it (a screen or the `about` screen), the shared intake contract gains the key,
-  and the office's Part 1 correction can set it. Then the auto-create:
-  - when Part 1 completes, `POST /Employee/new` as an APPLICANT (no SSN; the CDL number as the id,
-    O-5).
-  - `MEDSTOP_WRITES` gains that one write, deliberately and alone, with its own preview test.
-  - Before building it: a GET-only read of `/Employee/new`'s form (as `/Request/new/{eeid}` was read)
-    and of the constant fields (`drivingtype`, `idclass`, `category`, `dotagency`, `branchid`) from
-    `/List`.
-  - Skipped, and said so on the step, when the gender was declined, when Med-Stop already holds the
-    person (match first, §5), or when ordering is off.
-- **UX5c:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer: `observed: "Y"` and `employeegender`
-  from this column, for an active driver whose intake row holds it. A driver hired before UX5 holds
-  none, so these two reasons say "Med-Stop has no gender for this driver — order it in Med-Stop" until
-  a source exists (Q-MSUX10, below).
-- **Q-MSUX10 (open):** where an EXISTING driver's gender comes from for an observed order. Med-Stop's
-  own employee record carries `gender` (`Dto.Employee`). Recommend: read it from Med-Stop's roster at
-  order time (GET), never store it on our side. That keeps the rule above without asking 170 working
-  drivers.
+- **UX5a (0469, merged #1518):** the column, and `record_applicant_intake` accepting the key (same
+  signature, absent key kept). Matrix: `application-intake-v2.test.mjs` §8.
+- **UX5b (this merge):** Part 1's screen 7 ("Questions about drug and alcohol testing") asks it with
+  the approved wording, and posts it in screen 7's write.
+  - One of the three choices is required; "I'd rather not say" is one of them.
+  - It is never kept on the device (screen 7's rule, `partOneLocal.ts`), and the office's Part 1
+    correction cannot set it: the office never sees it.
+  - An applicant who passed screen 7 before this merge is not asked again; their NULL reads as
+    "never asked".
+- **UX5c:** the create.
+  - When Part 1 completes, ask Med-Stop LIVE whether it already holds the person (licence + state,
+    every roster). If not, `POST /Employee/new` the filled form, once, never retried.
+  - `MEDSTOP_WRITES` gains that one write, deliberately.
+  - Skipped, with the reason on the step: gender declined or never asked; Med-Stop already holds
+    them; ordering switched off.
+  - D-MSUX11: the create is gated on the same `orders_enabled` switch. There is no Med-Stop test host,
+    so a staging applicant created there would be a fake person in the carrier's real Med-Stop.
+- **UX5d:** RETURN TO DUTY and FOLLOW-UP from Safety's drawer, `observed: "Y"`, with `employeegender`
+  read from Med-Stop's own employee record at order time (Q-MSUX10).
 
 ## 8. Open questions
 
@@ -703,3 +744,9 @@ So UX5's "Part 1 fields" merge is ONE column: the donor's gender. Med-Stop's `/L
   so the person deciding the hire never sees it (D-MSUX10). `record_applicant_intake` accepts the key
   with the same signature. Med-Stop's GENDER list was read (GET): MALE, FEMALE. Open: Q-MSUX9 (wording),
   Q-MSUX10 (an existing driver's gender for observed orders). Next: UX5b.
+- 2026-10-13 — Owner: proceed as recommended (Q-MSUX9 wording, Q-MSUX10 read from Med-Stop at order
+  time, constants + Med-Stop's own date defaults) and check our create form against Med-Stop's exactly.
+  Checked three ways, GET only (§7A.13): the live form has the spec's 46 keys exactly; its defaults;
+  and the office's own applicants. One difference was found and ruled: the start date is left empty,
+  as on every hand-entered applicant. **UX5b built** (branch `claude/medstop-ux5b`): screen 7 asks the
+  gender. Next: UX5c (the create).
