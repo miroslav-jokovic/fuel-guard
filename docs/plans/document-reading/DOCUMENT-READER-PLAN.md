@@ -743,6 +743,18 @@ Sonnet 5.5 — on 7B.2 it agreed with the paper everywhere we could check, and a
 first is what makes agreement meaningful (P3); Haiku 4.5 failed P2's orientation test outright. Cost: a
 second Sonnet-class read per BOL.
 
+**Q-DR24 — Where does a weight-only line's §172.202(a)(5) quantity come from?** Since profile 1.2.0 a line's
+weight column is read into `grossWeightLb` ONLY, and `quantity` holds a volume or mass printed in the
+description (one printed number, one field — the readers split 6 papers in 10 when told to copy it). Both
+readers already left `quantity` null on weight-only lines before 1.2.0, so nothing moves today, but two
+consumers read `quantity` alone: `paperQuantityPresent` (`hazmat-engine/src/bol`) answered *missing* for a line
+that prints only its weight, and the calculator's prefill (N6). **Settled by N6 (2026-10-12), not as first
+recommended:** §172.202(a)(5) asks for the total quantity "by mass or volume" and never says whether a gross
+weight counts — "gross" appears only in (a)(6), for aircraft (eCFR checked 2026-10-12; this question's first
+draft quoted "net or gross", which the text does not contain). So the audit answers `cannot_tell` /
+`weight_only`, naming the weight, for a person to judge (#1470); and the prefill fills no quantity at all,
+because the calculator does not show that field (#1468). Nothing derives a quantity from the weight.
+
 ## 8. Measurement — the four numbers
 
 Unchanged from the old plan §5 (field accuracy, false-accept rate, yield, cost per page), now computed by
@@ -1319,6 +1331,21 @@ Append dated lines at the end; never edit a row above.
   policy), `ppu-paddle-ocr` + `ppu-ocv` (opencv.js) under 30 MB; `@napi-rs/canvas` and `sharp` were already there.
   Twenty-five mutants killed (rowWitness 10, shippingEvidence 5, ocrModels 3, pageOcr 3, executeRead 4).
   Next: the field-description tightening (count vs quantity, what belongs in marks), then A6 on labels.
+- **2026-10-11 (§7B — field descriptions, profile 1.2.0; final wording measured 2026-10-13, see below)** — The profile's
+  line fields now say what belongs in each, so each printed thing has one field: `psn` (without its trailing
+  separator), `quantity` (a volume or mass in the description, never the weight column, never a count),
+  `grossWeightLb` (the weight column, in pounds), `packageCount` (the number with the package type),
+  `packaging` (type with count), `marks` (regulatory notations only — not product, item, SDS, ERG, ERS,
+  reference or customer numbers). Profile 1.1.0 → 1.2.0 (the wire schema changed; the schema hash is in the
+  cache key already). The hazmat extractor is unaffected: it sends its own hand-written schema (vision.ts).
+  **Measured live, ten office BOLs, Sonnet 4.6 + Sonnet 5.5, same counting both runs** (a field counts when
+  both readers gave evidence and not both null): baseline (1.1.0) engine fields 145 agree / 18 disagree — 13
+  of the 18 `marks` (product codes 5607540…, ERS/ERG numbers, KC-568, "SDS Attached"), one sack count in
+  `quantity`, one trailing comma in `psn`, one count read by one reader only, and the known 3,808 vs 3,806 lb.
+  First wording ("a weight column counts" in `quantity`): marks disagreements 13 → 1, but the readers then
+  split on copying the weight into `quantity` (6 papers) — 161 agree / 20 disagree. The wording was changed
+  to make the weight column `grossWeightLb`'s alone (Q-DR24). **Its re-run could not be made: the API
+  account's credit balance ran out mid-session (400 "credit balance is too low").** Not merged until measured.
 
 
 - **2026-10-12 — N6 part 1: the read becomes calculator lines (`bolPrefill.ts`).** The consumer adapter
@@ -1405,3 +1432,4 @@ Append dated lines at the end; never edit a row above.
 
   The curve is flat from 1200 to 800 and falls off a cliff below it, so `INTAKE_LIMITS.minLongEdgePx` is now 800. Above 800, an unsure value is for the two readers and the OCR witness to flag (§7B), not for intake to refuse. The refusal sentence now names 800 and the fix: text messages shrink photos, so ask the driver for the original. The OCR engine stands in for the readers here: Claude reads a small page at least as well as the OCR does, so the floor is conservative for them. A photo also carries margins the scans do not, so its page text sits a little smaller than these numbers. A6's labelled set should re-check both. The driver app's in-app capture keeps its own 1200 (`hazmatExtraction/image.ts`), since there it owns the camera. Four mutants killed (floor 1200 / 640 / 1081, sentence).
 - **2026-10-13 — §7B A4: a born-digital PDF's own text is a witness on each hazmat line's count, weight and quantity.** The normaliser has stored every PDF page's text layer since Step 1.3 (`document_pages.text_layer`, 0448), but no read looked at it. Now `textLayerWitness.ts` turns the read pages' stored words into the same row-bound form the OCR engine reports, and `shippingEvidence` judges them with the OCR's own rules (`rowOf`/`rowBacks`). It is recorded as a separate `textLayer` source after the `ocr` one. It is row-bound for the same measured reason the OCR is: exact characters do not stop a whole-page check backing 0132900's wrong "9 drums" with the class 9 printed elsewhere; only the row does. Three rules, each pinned by a mutant: (1) **all read pages or none**. A photo among PDF pages silences it, because the anchor count must see every page (the rule `ocrPages` applies to a failed page). (2) **Words are joined into lines** before the row is found. pdf.js boxes each word, and an id printed "UN 2735" with a space would otherwise never anchor. (3) **Boxes turn with P2's verdict**, so a sideways form inside a portrait page is searched in reading order. The paper audit (D-DR22) and the calculator's field note now read one list of row witnesses, `ROW_WITNESS_READERS` in the shared contract. Every row witness that judged a field must back it, so the OCR finding 6 does not outvote a text layer finding nothing. The field `ocrBacked` became `rowBacked`. Acceptance rule 5 (`cacheKey.ts`); statuses unchanged. **Not measured on real paper:** all ten office samples are scans with no text layer (`pdftotext` gives 0 words on each), and the Samsara corpus is photos. The tests run a pdfkit-drawn BOL through intake's own pdf.js normaliser instead. Born-digital BOLs arrive by email (Q-DR10), so A6's labelled set should include any it gets. 13 mutants killed; one equivalent (field-level `every`→`some`: no form field combines two row-judged paths today).
+- **2026-10-13 — the field descriptions' final wording, measured live: engine-field disagreements 18 → 5.** With the Anthropic credit restored, the same comparison was re-run with the same counting, the same ten office BOLs and the same pair (Sonnet 4.6 + Sonnet 5.5), on profile 1.2.0 (the weight column is `grossWeightLb`'s alone). Engine fields: **151 agree / 5 disagree** (baseline 145 / 18; first wording 161 / 20). The five: 0135071's **3,808 vs 3,806 lb**, the known true misread, still caught; two `packaging` on 0134527 where one reader wrote the paper's "5.00 EA" and the other the tote's description; one `packaging` "12" against null on 0133459; and one `marks` "RQ (sodium and potassium hydroxide)" against "RQ" on 0134527. So the copying-the-weight-into-quantity split is gone, `marks` holds notations only, and what remains is one real misread plus how the package column is written. 0132900, re-read alone to check the values and not just agreement: both readers read **6 drums, 11,400 lb** (the paper's), where Sonnet 4.6 read 9 on 10/11. That is one run of a nondeterministic reader, not a fix of that misread; the second reader stays for it. Standard (non-engine) fields: 199 / 68, mostly address formatting (line breaks against commas), which `valuesAgree` deliberately does not normalise. #1456 merged on this.

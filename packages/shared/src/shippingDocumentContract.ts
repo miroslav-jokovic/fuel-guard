@@ -48,24 +48,64 @@ export const printedHazmatLineSchema = z.object({
       "This line's id, shipping name, hazard class and packing group as ONE string exactly as printed, in printed order " +
         "and punctuation, from the first of them to the last — not the quantity or packaging after them.",
     ),
-  psn: str(),
+  /**
+   * The descriptions below give each printed thing on a line exactly ONE field (§7B, 2026-10-11). Measured
+   * live on the ten office BOLs under the bare key names, the two readers filed the same printed text in
+   * different fields — a sack count in `quantity` by one and `packageCount` by the other; product codes,
+   * ERS/ERG and reference numbers in `marks` by one and nowhere by the other — 13 of 18 engine-field
+   * disagreements were filing, not reading. A disagreement must mean the paper was read two ways.
+   */
+  psn: z.string().nullable().default(null).describe("The proper shipping name as printed, without the comma or other separator after it."),
   /** As printed: "3", "3 (6.1)", "Combustible liquid". */
   hazardClass: str(),
   pg: z.enum(["I", "II", "III"]).nullable().default(null),
   /** The G-entry appended technical name (§172.203(k)), if printed separately. */
   technicalName: str(),
-  /** Quantity as printed, with its printed unit string (normalised later). */
-  quantity: z.object({ value: num(), unit: str() }).default({ value: null, unit: null }),
-  grossWeightLb: num(),
-  packageCount: int(),
+  /**
+   * §172.202(a)(5)'s total quantity by mass or volume, with its unit, as printed in the line's description
+   * (normalised later) — NOT the weight column, which is `grossWeightLb` alone: one printed number, one
+   * field (measured 2026-10-11: told "a weight column counts", the two readers split on whether to copy the
+   * weight here on 6 of the 10 office papers). A weight-only line therefore has a null quantity, and a consumer that
+   * needs §172.202(a)(5)'s mass derives it from `grossWeightLb` (N6, §5 — Q-DR24). Never a count of
+   * packages: the engine maps an unrecognised unit to a fail-closed refusal (mapBolLines.ts).
+   */
+  quantity: z
+    .object({ value: num(), unit: str() })
+    .default({ value: null, unit: null })
+    .describe(
+      "A volume or mass printed in this line's description with its unit (5000 GAL, 1,000 KG). Not the line's weight " +
+        "column — that is grossWeightLb only. Never a number of packages: '36 SACKS' is packageCount 36.",
+    ),
+  grossWeightLb: z
+    .number()
+    .nullable()
+    .default(null)
+    .describe("The line's weight as printed in its weight column, when in pounds (LB, LBS, #); null when in another unit only."),
+  packageCount: z
+    .number()
+    .int()
+    .nullable()
+    .default(null)
+    .describe("How many packages the line has: the number printed with the package type (6 in '6 DR', 36 in '36 SACKS', 1 in '1 TOTE')."),
   /** Per-package weight as printed (enables the count × per-package = extended-weight arithmetic check). */
   perPackageWeightLb: num(),
   /** Packaging phrase as printed ("1 cargo tank", "10 drums", "cases"). */
-  packaging: str(),
+  packaging: z.string().nullable().default(null).describe("The package type with its count as printed ('6 DR', '1 cargo tank', '36 SACKS')."),
   /** HM-column mark as printed: "X" (hazmat) or "RQ" (reportable quantity). §172.201(a)(1)(i). */
   hmColumnMark: z.enum(["X", "RQ"]).nullable().default(null),
-  /** Marks printed on the line/package ("MARINE POLLUTANT", "LIMITED QUANTITY", "HOT"). */
-  marks: z.array(z.string()).default([]),
+  /**
+   * Regulatory notations printed with the line ("MARINE POLLUTANT", "LIMITED QUANTITY", "HOT", "RQ (…)") —
+   * what the engine and the paper audit read (LQ and marine pollutant, `lineDeclaresLq`; residue). Not a
+   * home for every other string on the row: identifiers belong to no field of the line.
+   */
+  marks: z
+    .array(z.string())
+    .default([])
+    .describe(
+      "Only regulatory notations printed for this line, each as printed: MARINE POLLUTANT, LIMITED QUANTITY or LTD QTY, " +
+        "RQ with the substance named after it, RESIDUE, HOT, INHALATION HAZARD, POISON, a special permit (DOT-SP) or an " +
+        "exception the shipper cites. NOT product, item, catalog, SDS, ERG, ERS, reference or customer numbers.",
+    ),
 });
 export type PrintedHazmatLine = z.infer<typeof printedHazmatLineSchema>;
 
@@ -220,7 +260,7 @@ export function emptyShippingDocument(): ShippingDocument {
 }
 
 /** Bumped on any change to the schema above; stored on every read and in the cache key (§4.6). */
-export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.1.0";
+export const SHIPPING_DOCUMENT_PROFILE_VERSION = "1.2.0";
 
 // ── read sections (Q-DR11, ruled 2026-10-09) ───────────────────────────────────────────────────────
 /**
