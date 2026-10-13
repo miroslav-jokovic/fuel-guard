@@ -132,6 +132,8 @@ export const DASHBOARD_WIDGETS: readonly DashboardWidget[] = [
   { span: 4 as const, key: "ops.fuel", label: "Fuel", tab: "ops", gate: section("fuel") },
   { span: 4 as const, key: "ops.hazmat", label: "Hazmat to review", tab: "ops", gate: section("hazmat"), module: "hazmatguard" },
   { span: 4 as const, key: "ops.hiring", label: "Hiring", tab: "ops", gate: section("recruitment") },
+  // FM5 (Q-FM7 (a), 2026-10-13): FMCSA's roadside record, last 90 days — the inspections list measured.
+  { span: 4 as const, key: "ops.roadside", label: "Roadside inspections", tab: "ops", gate: section("safety") },
 
   // ── fleet overview (v3, D-FO10: six cards, no per-card period switchers) ──────────────────────
   { span: 5 as const, key: "fleet.fuel", label: "Fuel spend", tab: "fleet", gate: section("fuel") },
