@@ -55,6 +55,12 @@ export interface RosterFilters {
    * IS a URL (D-ROS14) — there is nowhere else for it to live.
    */
   dqRequirement: WritableComputedRef<string>;
+  /**
+   * `none` = active drivers holding no truck (`seatedDriverIds`). Set by the Operations tab's Seats
+   * card rather than by a control, exactly as `req` is set by a view — and counted by the page's
+   * "Clear filters" for the same reason: the reader needs the way back from a filter they did not pick.
+   */
+  seat: WritableComputedRef<string>;
   /** `live` or `archived` — the value the "Show" control binds to. */
   view: WritableComputedRef<string>;
   showArchived: ComputedRef<boolean>;
@@ -101,6 +107,11 @@ export function useRosterFilters(): RosterFilters {
     set: (v) => setFiltering({ req: v || undefined }),
   });
 
+  const seat = computed<string>({
+    get: () => (one("seat") === "none" ? "none" : ""),
+    set: (v) => setFiltering({ seat: v === "none" ? "none" : undefined }),
+  });
+
   const showArchived = computed(() => one("show") === "archived");
   const view = computed<string>({
     get: () => (showArchived.value ? "archived" : "live"),
@@ -128,7 +139,7 @@ export function useRosterFilters(): RosterFilters {
   });
 
   const active = computed(
-    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req")),
+    () => Boolean(one("q") || one("status") || one("show") || one("dq") || one("due") || one("req") || one("seat")),
   );
 
   // Clears what narrows the roster and keeps the sort: the sort orders the list rather than
@@ -136,11 +147,11 @@ export function useRosterFilters(): RosterFilters {
   const reset = (): void =>
     set({
       q: undefined, status: undefined, show: undefined,
-      dq: undefined, due: undefined, req: undefined, page: undefined,
+      dq: undefined, due: undefined, req: undefined, seat: undefined, page: undefined,
     });
 
   return {
-    search, status, dqState, dqDue, dqRequirement,
+    search, status, dqState, dqDue, dqRequirement, seat,
     view, showArchived, sort, onSort, page, active, reset,
   };
 }

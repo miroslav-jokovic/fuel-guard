@@ -32,6 +32,9 @@ vi.mock("@/composables/useVehicles", () => {
   };
 });
 vi.mock("@/composables/useDrivers", () => ({ useDriversQuery: () => ({ data: ref([]) }) }));
+// The `?check=` filter and the expiry cells read the carrier's calendar day (FLEET-MANAGER-HOME-PLAN
+// D-FM9); the zone is a vue-query read, answered here so this file stays about the URL.
+vi.mock("@/composables/useOrgTimezone", () => ({ useOrgTimezone: () => ({ zone: ref("America/Chicago"), isResolved: ref(true) }) }));
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ can: () => true, canView: () => true, canManage: true }) }));
 // DataTable swaps to cards below 768px and jsdom has no matchMedia; the desktop breakpoint is stubbed.
 vi.mock("@vueuse/core", async (orig) => ({ ...((await orig()) as object), useMediaQuery: () => ref(true) }));

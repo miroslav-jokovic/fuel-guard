@@ -132,6 +132,11 @@ export interface Vehicle {
    * Null means none has been recorded, which the roster shows as unknown rather than as overdue.
    */
   dot_annual_inspection_expires_at?: string | null;
+  /**
+   * When the plate lapses — a calendar date (0099), written by the McLeod roster sweep where McLeod
+   * has one. Null is unknown, never "fine": the Operations tab counts it as "not on file".
+   */
+  registration_expires_at?: string | null;
 }
 
 // ── Trailer (reefer) ────────────────────────────────────────────────────────────

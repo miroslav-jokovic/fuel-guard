@@ -6,7 +6,7 @@ import {
 import { ref, computed, watch } from "vue";
 import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
-import { VEHICLE_STATUSES, isStatusFromTms, type Vehicle, type VehicleInput } from "@silvicom/shared";
+import { VEHICLE_CHECKS, VEHICLE_CHECK_LABELS, VEHICLE_STATUSES, isStatusFromTms, matchesVehicleCheck, todayInZone, type Vehicle, type VehicleInput } from "@silvicom/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -30,6 +30,7 @@ import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { sortRows } from "@/lib/sort";
 import { formatDate } from "@/lib/format";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -41,20 +42,32 @@ const { data: drivers } = useDriversQuery();
 const qs = useQueryState();
 const search = qs.param("search");
 const statusFilter = qs.param("status", VEHICLE_STATUSES, "active");
+/**
+ * What a truck is missing — the Operations tab's Seats and Truck paperwork cards link here with it
+ * (FLEET-MANAGER-HOME-PLAN D-FM9), so "11 registrations overdue" opens exactly those eleven. Asked of
+ * `matchesVehicleCheck`, the predicate the cards count with, on the carrier's calendar day.
+ */
+const checkFilter = qs.param("check", VEHICLE_CHECKS);
+const { zone } = useOrgTimezone();
+const today = computed(() => todayInZone(new Date(), zone.value));
+const checkOptions = [{ value: "", label: "Any" }, ...VEHICLE_CHECKS.map((c) => ({ value: c, label: VEHICLE_CHECK_LABELS[c] }))];
 const statusOptions = [
   { value: "", label: "All statuses" },
   ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
 ];
 // "active" is where the list opens, not a narrowing anybody chose: it does not count, and clearing returns to it.
-const activeFilterCount = computed(() => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0));
+const activeFilterCount = computed(
+  () => (search.value.trim() ? 1 : 0) + (statusFilter.value !== "active" ? 1 : 0) + (checkFilter.value ? 1 : 0),
+);
 function resetFilters() {
-  qs.set({ search: undefined, status: undefined });
+  qs.set({ search: undefined, status: undefined, check: undefined });
 }
 
 const filtered = computed(() => {
   const term = search.value.toLowerCase();
   return (vehicles.value ?? []).filter((v) => {
     if (statusFilter.value && v.status !== statusFilter.value) return false;
+    if (checkFilter.value && !matchesVehicleCheck(v, checkFilter.value, today.value)) return false;
     if (!term) return true;
     return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]
       .filter(Boolean)
@@ -80,6 +93,7 @@ const columns: DataTableColumn[] = [
   { key: "has_apu", label: "APU", sortable: true, width: "sm" },
   { key: "has_optimized_idle", label: "Optimized idle", sortable: true, width: "md" },
   { key: "dot_annual_inspection_expires_at", label: "Annual inspection", sortable: true, width: "md" },
+  { key: "registration_expires_at", label: "Registration", sortable: true, width: "md" },
   { key: "status", label: "Status", sortable: true, width: "sm" },
 ];
 const { sort, onSort } = useUrlSort(
@@ -88,7 +102,7 @@ const { sort, onSort } = useUrlSort(
 );
 
 const page = qs.page();
-watch([search, statusFilter], () => (page.value = 1));
+watch([search, statusFilter, checkFilter], () => (page.value = 1));
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
@@ -191,6 +205,7 @@ async function onRetire(v: Vehicle) {
     >
       <template #filters>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+        <FilterSelect v-model="checkFilter" label="Needs" :options="checkOptions" />
       </template>
     </FilterBar>
 
@@ -250,7 +265,10 @@ async function onRetire(v: Vehicle) {
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
       <template #cell-dot_annual_inspection_expires_at="{ row }">
-        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" />
+        <InspectionExpiryCell :expires-on="row.dot_annual_inspection_expires_at" :today="today" />
+      </template>
+      <template #cell-registration_expires_at="{ row }">
+        <InspectionExpiryCell :expires-on="row.registration_expires_at" :today="today" />
       </template>
       <template #cell-has_apu="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>

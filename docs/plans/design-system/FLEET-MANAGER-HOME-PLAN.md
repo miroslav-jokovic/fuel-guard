@@ -273,3 +273,29 @@ landing tab.
 ## 9. Progress log
 
 - 2026-10-12: plan written; production measured (§2).
+- 2026-10-12: owner said "go" — Q-FM1 (a) "Operations", Q-FM2 (b) first tab, Q-FM3 Empty now on
+  Fleet right now only, Q-FM4 keep Fleet overview, Q-FM5 PM-due deferred. FM1 + FM2 built in one PR
+  (`claude/fleet-manager-ops-tab`). Changes from §4 met while building, each recorded here rather
+  than edited into the section:
+  - **"Due" is `inspectionExpiry`'s answer** (annualInspectionContract, 30-day equipment mark) for
+    both papers. `fleetChecks.ts` holds the checks; no second window constant.
+  - **D-FM9 for a composition card:** Fleet right now and Hiring partition one list, so they carry one
+    door to that list (board / Applicants) plus per-row doors only where the list has a filter for
+    the part (Empty now). "No driver" left Fleet right now — it is the Seats card's figure (D-FO1).
+  - **Driver files counts DRIVERS** (`matchesDqState`), not the digest's items, because its doors are
+    `/drivers?dq=…`; only the "Next:" line borrows `buildDqDigestSection`'s ranking.
+  - **Hiring** shows the Applicants board's own waiting-on-us / waiting-on-them split
+    (`countWaitingOn`, now shared with the page), not stage groups — that split is what the board
+    opens on, so the figure equals the rows behind the door.
+  - **New list filters for doors:** Vehicles `?check=` and `?status=` (URL-backed, plus a
+    Registration column), Drivers `?seat=none`.
+  - **Rows of three are 4/4/4, not §4's 5/4/3 and 6/3/3.** Browser pass at 1104 px (dev-bypass build,
+    every source stubbed): a three-column card's header door sat on top of its title, and a header
+    door on a four-column card squeezed the title to one word a line. So no card is narrower than
+    four, and a card's door to its whole list sits under the rows (`CountList`'s `more`), never in the
+    header. Driver files' "Next:" line moved under its rows for the same reason. Seats and
+    paperwork stay at 6 until FM3's Shop card joins the row at 4/4/4. No `$` in the rendered text at
+    1440 or 1104; no page errors.
+  - **Hazmat review's door** starts off for fleet_manager (`safety.hazmat-review` `startsOnFor: []`),
+    so the card shows its count without a link until an admin turns the screen on — SP5's rule.
+  - No new chart colours: the cards are counts, not bars, so no palette joined `check-chart-colors`.

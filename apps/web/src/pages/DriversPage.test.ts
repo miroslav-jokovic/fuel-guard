@@ -440,6 +440,15 @@ describe("DriversPage roster table", () => {
     expect(table).not.toContain("Marcus Reyes");
   });
 
+  it("opens on the drivers holding no truck when the Seats card's door says so", async () => {
+    // FLEET-MANAGER-HOME-PLAN D-FM7: the same `seatedDriverIds` the card counts with. d-1 holds two
+    // trucks; d-2 holds none.
+    const w = await mountPage("/drivers?seat=none");
+    const table = w.find("table").text();
+    expect(table).toContain("Ana Whitfield");
+    expect(table).not.toContain("Marcus Reyes");
+  });
+
   it("opens on the archived roster when the link says so", async () => {
     const w = await mountPage("/drivers?show=archived");
     expect(w.find("table").text()).toContain("Gone Away");
