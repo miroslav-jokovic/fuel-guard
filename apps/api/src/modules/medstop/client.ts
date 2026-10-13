@@ -221,3 +221,46 @@ export const medstopSelectionRow = z.looseObject({
   status: str,
 });
 export type MedstopSelectionRow = z.infer<typeof medstopSelectionRow>;
+
+// ── MS2: requests, tests, and a test's status trail (§5A shapes, measured 2026-10-13) ─────────────
+// Zoneless local stamps are kept to the second and passed through as written; the mirror stores
+// them as `timestamp` without a zone, because nobody has told us Med-Stop's.
+const stamp = z.string().nullish().transform((v) => (v && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v) ? v.slice(0, 19) : null));
+
+export const medstopRequestRow = z.looseObject({
+  id: z.string(),
+  eeid: str,
+  service: str,
+  category: str,
+  reason: str,
+  observed: str,
+  dotstatus: str,
+  requestdate: stamp,
+  payment: str,
+  location: str,
+  testid: str,
+  testdate: stamp,
+  status: str,
+});
+export type MedstopRequestRow = z.infer<typeof medstopRequestRow>;
+
+export const medstopTestRow = z.looseObject({
+  id: z.string(),
+  eeid: str,
+  service: str,
+  category: str,
+  reason: str,
+  dotstatus: str,
+  collectiondate: stamp,
+  result: str,
+  location: str,
+  status: str,
+});
+export type MedstopTestRow = z.infer<typeof medstopTestRow>;
+
+/** One step of `/Test/{id}/status` — Med-Stop answers it newest first. */
+export const medstopTestStageRow = z.looseObject({
+  status: z.string(),
+  created: stamp,
+});
+export type MedstopTestStageRow = z.infer<typeof medstopTestStageRow>;

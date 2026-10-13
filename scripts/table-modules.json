@@ -1685,6 +1685,17 @@
         "why": "snapshot of Med-Stop's random pools (0463): two per year per org, replaced whole by every sweep."
       }
     },
+    "medstop_requests": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "Med-Stop test requests (0464, MEDSTOP-PLAN \u00a76 F-4): merged by id, never deleted; 2,152 per org since 2013, ~640 in the 12 months to 2026-10-13 (~2 a day)."
+      }
+    },
     "medstop_selections": {
       "module": "medstop",
       "layer": "raw",
@@ -1694,6 +1705,17 @@
         "partition": null,
         "budget_rows_per_day": 5,
         "why": "snapshot of Med-Stop's random selections (0463): ~870 rows per org across all years (measured 2026-10-13), replaced whole by every sweep; grows ~150 a year."
+      }
+    },
+    "medstop_tests": {
+      "module": "medstop",
+      "layer": "raw",
+      "lifecycle": {
+        "growth": "time",
+        "retention_days": null,
+        "partition": null,
+        "budget_rows_per_day": 5,
+        "why": "Med-Stop tests with their verified result (0464, MEDSTOP-PLAN \u00a76 F-4/F-5): merged by id, never deleted -- a \u00a7382.401 testing record; 1,666 per org since 2013, 453 in the 12 months to 2026-10-13 (~1.3 a day)."
       }
     },
     "memberships": {
