@@ -218,6 +218,41 @@ export interface RoadsideInspectionDetailDto extends Omit<RoadsideInspectionDto,
   violationList: RoadsideViolationDto[];
 }
 
+/**
+ * How current our copy of FMCSA's record is (INSPECTION-CHALLENGE-PLAN §4.1 "Freshness", IC1c). One
+ * definition, read by the list and the card (the "as of" line) and by the scheduler's alert, so the
+ * page never calls fresh what the alert calls late.
+ *
+ *   ours_late    our last successful fetch is older than 36 h. The scheduler runs a due org hourly
+ *                and a day's run is due after 24 h, so 36 h means at least twelve ticks have failed.
+ *   fmcsa_late   our fetch is current but FMCSA's own `rowsUpdatedAt` for the inspection file is older
+ *                than 72 h: the source stopped publishing, and our copy is only as new as it.
+ *   never        no fetch has ever succeeded for this org.
+ */
+export const FMCSA_OURS_LATE_HOURS = 36;
+export const FMCSA_SOURCE_LATE_HOURS = 72;
+export type RoadsideFeedState = "fresh" | "ours_late" | "fmcsa_late" | "never";
+
+export const roadsideFeedSchema = z.object({
+  /** When our last successful fetch of the inspection file finished. */
+  fetchedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** FMCSA's `rowsUpdatedAt` for the inspection file at that fetch: when the source last published. */
+  sourceUpdatedAt: z.iso.datetime({ offset: true }).nullable(),
+  state: z.enum(["fresh", "ours_late", "fmcsa_late", "never"]),
+});
+export type RoadsideFeed = z.infer<typeof roadsideFeedSchema>;
+
+const HOUR_MS = 3_600_000;
+export function roadsideFeedState(fetchedAt: string | null, sourceUpdatedAt: string | null, nowMs: number): RoadsideFeedState {
+  const fetched = fetchedAt ? Date.parse(fetchedAt) : NaN;
+  if (!Number.isFinite(fetched)) return "never";
+  if (nowMs - fetched > FMCSA_OURS_LATE_HOURS * HOUR_MS) return "ours_late";
+  const source = sourceUpdatedAt ? Date.parse(sourceUpdatedAt) : NaN;
+  // A run that did not report the source's date says nothing about the source, so it is not late.
+  if (Number.isFinite(source) && nowMs - source > FMCSA_SOURCE_LATE_HOURS * HOUR_MS) return "fmcsa_late";
+  return "fresh";
+}
+
 /** Count accessor per kind — the one place a kind names its column, for the list's filter and the card. */
 const OOS_COUNT: Record<RoadsideOosKind, (i: RoadsideInspectionDto) => number | null> = {
   driver: (i) => i.driverOos,
@@ -239,11 +274,13 @@ export const roadsideSummarySchema = z.object({
   driverOos: z.number().int().min(0),
   vehicleOos: z.number().int().min(0),
   hazmatOos: z.number().int().min(0),
+  /** How current the record behind these figures is (IC1c). */
+  feed: roadsideFeedSchema,
 });
 export type RoadsideSummary = z.infer<typeof roadsideSummarySchema>;
 
 /** The summary from the window's list. One definition, so the server's count cannot drift from the filter. */
-export function summarizeRoadside(from: CalendarDay, rows: readonly RoadsideInspectionDto[]): RoadsideSummary {
+export function summarizeRoadside(from: CalendarDay, rows: readonly RoadsideInspectionDto[], feed: RoadsideFeed): RoadsideSummary {
   const count = (kind: RoadsideOosKind) => rows.filter((r) => hasOosOf(r, kind)).length;
-  return { from, inspections: rows.length, driverOos: count("driver"), vehicleOos: count("vehicle"), hazmatOos: count("hazmat") };
+  return { from, inspections: rows.length, driverOos: count("driver"), vehicleOos: count("vehicle"), hazmatOos: count("hazmat"), feed };
 }

@@ -61,6 +61,12 @@ export const NOTIFICATION_CATEGORIES = [
    * Mirrored in the notification_events CHECK (0465).
    */
   "drug_alcohol_result",
+  /**
+   * Our FMCSA roadside record has stopped refreshing (INSPECTION-CHALLENGE-PLAN §4.1, IC1c): the
+   * inspections list and the Roadside card would otherwise go on showing the last good record as
+   * today's. Safety readers, at most once a day per org. Mirrored in the CHECK (0470).
+   */
+  "roadside_feed_stale",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -91,6 +97,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   application_stalled: "Stalled applications",
   card_status_changed: "Fuel card status changes",
   drug_alcohol_result: "Drug & alcohol results",
+  roadside_feed_stale: "FMCSA record freshness",
 };
 
 /**

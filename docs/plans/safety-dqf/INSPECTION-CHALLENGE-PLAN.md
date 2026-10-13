@@ -619,3 +619,11 @@ about three merges.
   and, beside an out-of-service order only, what became of the defect ("Repaired at scene"). All three
   tables live once, in `roadsideInspectionsContract.ts`, copied as printed from the Rev 05 dictionary;
   a code a later edition adds reads as its number, never a guess.
+- **2026-10-13 — IC1c, first merge: the record says how current it is.** `roadsideFeedState` (shared)
+  is the one definition of late: our last successful inspection-file fetch older than 36 h
+  (`ours_late`), or FMCSA's own `rowsUpdatedAt` older than 72 h while ours is current (`fmcsa_late`),
+  or no fetch ever (`never`). `GET /api/roadside-inspections/summary` carries it as `feed`; the
+  Roadside card says "FMCSA's record as of …" under its figures and the list says it under its title,
+  both turning to a caution when late. Migration 0470 adds the notification category
+  `roadside_feed_stale`; its emitter (the scheduler's daily alert to safety readers) is the next merge,
+  so the CHECK is on every database before anything inserts it.

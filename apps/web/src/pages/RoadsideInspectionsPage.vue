@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton as BaseButton } from "@silvicom/ui";
+import { AppButton as BaseButton, AppCallout } from "@silvicom/ui";
 import { useQueryState } from "@/composables/useQueryState";
 import { SORT_DIRECTIONS, useUrlSort } from "@/composables/useUrlSort";
 import {
@@ -22,7 +22,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import { useRoadsideInspectionsQuery } from "@/features/roadside/useRoadsideInspections";
+import { useRoadsideInspectionsQuery, useRoadsideSummaryQuery } from "@/features/roadside/useRoadsideInspections";
+import { roadsideFeedSentence } from "@/features/roadside/feedFreshness";
 import { useOrgTimezone } from "@/composables/useOrgTimezone";
 import { formatDate } from "@/lib/format";
 import { sortRows } from "@/lib/sort";
@@ -64,6 +65,9 @@ const activeFilterCount = computed(() => [search.value.trim(), period.value !== 
 const { zone } = useOrgTimezone();
 const from = computed(() => roadsidePeriodStart(period.value as RoadsidePeriod, todayInZone(new Date(), zone.value)));
 const inspections = useRoadsideInspectionsQuery(from);
+// How current FMCSA's record is (IC1c) — the card's own read, so the two never disagree about it.
+const { data: summary } = useRoadsideSummaryQuery();
+const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
 
 const unitLabel = (u: NonNullable<RoadsideInspectionDto["units"]>[number]) =>
   u.companyNumber ?? (u.plate ? `${u.plate}${u.plateState ? ` (${u.plateState})` : ""}` : "—");
@@ -117,6 +121,8 @@ const openInspection = (row: Row) => void router.push({ name: "roadside-inspecti
 <template>
   <div class="space-y-6">
     <PageHeader description="Every roadside inspection on our FMCSA record, newest first. From FMCSA's public data, refreshed daily." />
+    <AppCallout v-if="freshness?.late" tone="caution" data-test="feed">{{ freshness.text }}</AppCallout>
+    <p v-else-if="freshness" class="-mt-3 text-xs text-ink-tertiary" data-test="feed">{{ freshness.text }}</p>
 
     <DataWorkspace>
       <FilterBar

@@ -39,6 +39,8 @@ function destination(category: string, entityType: string | null, entityId: stri
   // Safety › Drug & Alcohol — the result itself is a testing record, so the page decides what the
   // reader may see; the notification only says there is something to look at (MEDSTOP-PLAN F-5).
   if (category === "drug_alcohol_result") return "/drug-alcohol";
+  // The FMCSA record has stopped refreshing (IC1c): the list says how old it is, above its rows.
+  if (category === "roadside_feed_stale") return "/roadside-inspections";
   if (category.startsWith("hazmat_") && entityType === "load" && entityId) {
     return `/hazmat/loads/${entityId}`;
   }
