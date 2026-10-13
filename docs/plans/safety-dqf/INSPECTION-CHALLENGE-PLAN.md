@@ -475,6 +475,25 @@ about three merges.
   snapshot will add evidence: if the same codes drop out again on new inspections, (a) becomes
   likely. One RDR-free check is to ask the state analyst for one of the 7 inspections.
 
+- **Q-IC10 — How former units become "ours" to the matcher (opened 2026-10-13, owner's call).** Q-IC8's
+  fix said "import McLeod's retired tractors and trailers as `status = 'retired'` rows". On building
+  it, that collides with a standing rule: `rosterRetire.ts` **never creates** a retired row ("a
+  retirement record we never linked is meaningless"), and `vehicles` is not a list of every VIN we
+  ever ran — 33 foreign keys and every Vehicles surface read it. McLeod holds ~470 retired tractor
+  rows (2026-09-22); 41 of them appear on our inspections, all dated 2023-10 to 2025-08.
+  - (a) **Retired rows in `vehicles`/`trailers`.** Smallest change to 0458; reverses the rosterRetire
+    rule, puts ~470 dead trucks behind every `vehicles` reader and its cascades. *Not recommended.*
+  - (b) **A former-equipment register owned by `mcleod`**: VIN, unit number, kind and McLeod's dates
+    for every inactive tractor/trailer, mirrored like the roster. 0458 matches it as a fourth class
+    (`former_unit`, shown "ours, retired — McLeod 597"), with no `vehicle_id`, so nothing that counts
+    the fleet sees it. Cost: one migration, the agent's query on the McLeod VM (a package update Alex
+    installs, as for #1437), and the projection change. *Recommended:* it says what is true — the
+    truck was ours, is not now — and leaves the roster's rules alone.
+  - (c) **Leave them unmatched**, labelled "not in our current roster". Zero cost; attribution (IC5)
+    then has to work from the inspection's VIN alone for those 41 trucks.
+  Either (b) or (c), attribution of a retired truck reads McLeod's dispatch history (`movement`), not
+  Samsara, which deleted them at sale (Q-IC8).
+
 ---
 
 ## 10. Progress log
@@ -634,3 +653,6 @@ about three merges.
   time on the org's clock and says whose side stopped. Deduped per state per UTC day, so a broken fetch
   is a daily reminder, not an hourly one. Recorded as the first sender of a feed-stale category:
   `efs_feed_stale` (0154) still has none.
+- **2026-10-13 — Q-IC8's fix paused for Q-IC10.** Building "retired McLeod units as `vehicles` rows"
+  met `rosterRetire.ts`'s rule that the roster never creates a retired row. Recorded as Q-IC10 with
+  three options; recommendation (b), a former-equipment register matched as `former_unit`.
