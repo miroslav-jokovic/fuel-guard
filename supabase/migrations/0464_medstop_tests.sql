@@ -87,7 +87,7 @@ create table if not exists medstop_tests (
   -- first test arrives after the switch-on must not have it filed as history.
   baseline            boolean not null default false,
   -- The outcome the next merge's code acted on (filed / alerted / blocked), and when. A result that
-  -- CHANGES after it was acted on (an MRO correction) is acted on again, because this differs from it.
+  -- CHANGES after it was acted on (an MRO correction) is acted on again: the merge clears this.
   outcome_handled      text,
   outcome_handled_at   timestamptz,
   synced_at            timestamptz not null default now(),
@@ -101,8 +101,9 @@ alter table medstop_tests enable row level security;
 -- ── 2. The one writer of both mirrors ─────────────────────────────────────────────────────────────
 -- raw-access-waiver: the medstop collector's own writer of its own two staging tables, called only from modules/medstop/syncTests.ts.
 -- Merges `p_rows` by Med-Stop's id. Med-Stop's columns are replaced from the row; ours
--- (`first_seen_at`, `baseline`, `outcome_handled*`) are set on insert and never touched again, and
--- `stages` only when the row carries a fresh trail. A row's `baseline` is read on INSERT only.
+-- (`first_seen_at`, `baseline`, `outcome_handled_at`) are set on insert and never touched again;
+-- `outcome_handled` is cleared only when the RESULT changes; `stages` moves only when the row carries
+-- a fresh trail. A row's `baseline` is read on INSERT only.
 -- Set-based, one statement per kind — never a PostgREST upsert with a partial payload (`lint:upserts`).
 create or replace function public.medstop_merge(p_org uuid, p_kind text, p_rows jsonb)
 returns integer
@@ -140,7 +141,11 @@ begin
       employee_medstop_id = excluded.employee_medstop_id, service = excluded.service,
       category = excluded.category, reason = excluded.reason, dot_regulated = excluded.dot_regulated,
       collected_local = excluded.collected_local, result = excluded.result, location = excluded.location,
-      status = excluded.status, stages = coalesce(excluded.stages, t.stages), synced_at = excluded.synced_at;
+      status = excluded.status, stages = coalesce(excluded.stages, t.stages), synced_at = excluded.synced_at,
+      -- An MRO correction (§40.149) changes a result we may already have acted on; forgetting the
+      -- act is what makes the next sweep act on the corrected one. `outcome_handled_at` stays, as
+      -- the record that something was done before.
+      outcome_handled = case when t.result is distinct from excluded.result then null else t.outcome_handled end;
   else
     raise exception 'unknown Med-Stop merge kind %', p_kind using errcode = 'MS002';
   end if;

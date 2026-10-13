@@ -89,16 +89,21 @@ ok("a first merge stores the test, with the baseline the sweep chose",
   && (await count("medstop_tests", ORG)) === 2 && (await test(ORG, "t0")).baseline === true);
 const before = await test(ORG, "t1");
 ok("the zoneless stamp is stored as written — no zone invented", String(before.collected_local).length > 0 && (await one(`select collected_local::text s from medstop_tests where medstop_id='t1'`)).s === "2026-10-12 13:04:34");
-await db.query(`update medstop_tests set outcome_handled='negative', outcome_handled_at=now() where org_id=$1 and medstop_id='t1'`, [ORG]);
 ok("the next merge moves the status and the result",
   (await merge(ORG, "tests", [{ medstop_id: "t1", employee_medstop_id: "e1", service: "TD", status: "CLOSED", result: "NEGATIVE", baseline: true }])) === null);
+await db.query(`update medstop_tests set outcome_handled='negative', outcome_handled_at=now() where org_id=$1 and medstop_id='t1'`, [ORG]);
 const after = await test(ORG, "t1");
 ok("…and keeps first_seen_at", after.first_seen_at.getTime() === before.first_seen_at.getTime());
 ok("…and keeps baseline as inserted — a later sweep cannot turn news into history", after.baseline === false);
 ok("…and keeps what was acted on", after.outcome_handled === "negative" && after.outcome_handled_at !== null);
 ok("…and keeps the trail when the sweep carried none", Array.isArray(after.stages) && after.stages.length === 1 && after.status === "CLOSED" && after.result === "NEGATIVE");
-await merge(ORG, "tests", [{ medstop_id: "t1", status: "CLOSED", stages: [...trail, { status: "CLOSED", at: "2026-10-14T04:00:01" }] }]);
+await merge(ORG, "tests", [{ medstop_id: "t1", status: "CLOSED", result: "NEGATIVE", stages: [...trail, { status: "CLOSED", at: "2026-10-14T04:00:01" }] }]);
 ok("a fresh trail replaces the old one", (await test(ORG, "t1")).stages.length === 2);
+ok("…and the same result keeps what was acted on", (await test(ORG, "t1")).outcome_handled === "negative");
+await merge(ORG, "tests", [{ medstop_id: "t1", status: "CLOSED", result: "POSITIVE" }]);
+const corrected = await test(ORG, "t1");
+ok("an MRO correction clears what was acted on, so the next sweep acts on the new result",
+  corrected.result === "POSITIVE" && corrected.outcome_handled === null && corrected.outcome_handled_at !== null);
 
 // ── 2. requests merge the same way ─────────────────────────────────────────────────────────────
 ok("requests merge by id",
