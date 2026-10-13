@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readRoadsideInspections } from "../read/inspectionsList.js";
 import { readRoadsideInspection } from "../read/inspectionDetail.js";
+import { readRoadsideFeed } from "../feed/store.js";
 
 /**
  * `GET /api/roadside-inspections` — the Inspections inbox's first slice — `/:id`, the inspection a
@@ -48,7 +49,7 @@ export function roadsideInspectionsRouter(): Router {
         dbErrorResponse(res, "roadside-inspections.summary", rows.error, "Could not load the roadside inspections");
         return;
       }
-      const data: RoadsideSummary = summarizeRoadside(from, rows);
+      const data: RoadsideSummary = summarizeRoadside(from, rows, await readRoadsideFeed(admin, orgId, Date.now()));
       res.json({ ok: true, data });
     }),
   );

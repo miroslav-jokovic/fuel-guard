@@ -8,7 +8,7 @@
  * plain insert here. Both are org-scoped by their `p_org` / `org_id`, and the read filters `org_id`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FmcsaDataset } from "@silvicom/shared";
+import { roadsideFeedState, type FmcsaDataset, type RoadsideFeed } from "@silvicom/shared";
 
 export interface SnapshotRun {
   startedAt: Date;
@@ -89,6 +89,27 @@ export async function recordFailedRun(
     error: message.slice(0, 2000),
   });
   if (error) throw new Error(`fmcsa_fetch_runs failed-run insert ${dataset}: ${error.message}`);
+}
+
+/**
+ * How current the org's FMCSA record is (IC1c): the last successful inspection-file run, FMCSA's own
+ * publication time as that run read it, and the state `roadsideFeedState` gives them now. The
+ * inspection file is the clock, as it is the scheduler's (`scheduler.ts`): the other datasets hang off it.
+ */
+export async function readRoadsideFeed(admin: SupabaseClient, orgId: string, nowMs: number): Promise<RoadsideFeed> {
+  const { data, error } = await admin
+    .from("fmcsa_fetch_runs")
+    .select("finished_at, source_rows_updated_at")
+    .eq("org_id", orgId)
+    .eq("dataset", "fx4q-ay7w")
+    .eq("outcome", "succeeded")
+    .order("finished_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`fmcsa_fetch_runs read: ${error.message}`);
+  const run = data?.[0] as { finished_at: string; source_rows_updated_at: string | null } | undefined;
+  const fetchedAt = run?.finished_at ?? null;
+  const sourceUpdatedAt = run?.source_rows_updated_at ?? null;
+  return { fetchedAt, sourceUpdatedAt, state: roadsideFeedState(fetchedAt, sourceUpdatedAt, nowMs) };
 }
 
 /** When the org's last successful run of a dataset finished, or null when there has been none. */

@@ -3,7 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, type Ref } from "vue";
-import type { RoadsideInspectionDto } from "@silvicom/shared";
+import type { RoadsideFeed, RoadsideInspectionDto } from "@silvicom/shared";
 import { ROUTE_TABLE } from "@/router/table";
 
 /**
@@ -19,6 +19,8 @@ import { ROUTE_TABLE } from "@/router/table";
  */
 
 const inspections = ref<RoadsideInspectionDto[]>([]);
+const FEED = { fetchedAt: "2026-10-13T14:17:00Z", sourceUpdatedAt: "2026-10-13T03:02:00Z", state: "fresh" as RoadsideFeed["state"] };
+const summary = ref<{ feed: typeof FEED } | undefined>({ feed: FEED });
 const askedFrom = ref<string | null | undefined>(undefined);
 vi.mock("@/features/roadside/useRoadsideInspections", async () => {
   const { ref: r, watchEffect } = await import("vue");
@@ -27,6 +29,7 @@ vi.mock("@/features/roadside/useRoadsideInspections", async () => {
       watchEffect(() => (askedFrom.value = from.value));
       return { data: inspections, isLoading: r(false), isError: r(false), refetch: vi.fn() };
     },
+    useRoadsideSummaryQuery: () => ({ data: summary }),
   };
 });
 vi.mock("@/composables/useOrgTimezone", () => ({
@@ -62,6 +65,7 @@ beforeEach(() => {
   inspections.value = [];
   askedFrom.value = undefined;
   wide.value = false;
+  summary.value = { feed: FEED };
 });
 afterEach(() => vi.useRealTimers());
 
@@ -128,5 +132,18 @@ describe("opening a row", () => {
     await w.get("tbody tr td:nth-child(5)").trigger("click");
     // The route's component is a lazy import, so the navigation settles after it loads.
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/roadside-inspections/abc"));
+  });
+});
+
+describe("how current the record is (IC1c)", () => {
+  it("says it quietly when fresh, and as a caution above the list when the fetch has stopped", async () => {
+    const fresh = await page("/roadside-inspections");
+    expect(fresh.get("[data-test='feed']").text()).toMatch(/^FMCSA's record as of/);
+    expect(fresh.get("[data-test='feed']").element.tagName).toBe("P");
+
+    summary.value = { feed: { ...FEED, state: "fmcsa_late" } };
+    const late = await page("/roadside-inspections");
+    expect(late.get("[data-test='feed']").text()).toContain("FMCSA has not published since");
+    expect(late.get("[data-test='feed']").element.tagName).not.toBe("P");
   });
 });

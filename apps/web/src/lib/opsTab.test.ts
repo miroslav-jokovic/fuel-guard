@@ -97,7 +97,8 @@ vi.mock("@/features/maintenance/useShopBacklog", () => ({ useShopSummaryQuery: (
 
 // ── roadside ────────────────────────────────────────────────────────────────────────────────────
 // Production's 90 days on 2026-10-13: 111 inspections; 1 / 18 / 2 carrying a driver / vehicle / hazmat OOS order.
-const ROADSIDE = { from: "2026-07-15", inspections: 111, driverOos: 1, vehicleOos: 18, hazmatOos: 2 };
+const FEED = { fetchedAt: "2026-10-13T14:17:00Z", sourceUpdatedAt: "2026-10-13T03:02:00Z", state: "fresh" as "fresh" | "ours_late" | "fmcsa_late" | "never" };
+const ROADSIDE = { from: "2026-07-15", inspections: 111, driverOos: 1, vehicleOos: 18, hazmatOos: 2, feed: FEED };
 const roadside = ref<typeof ROADSIDE | undefined>(ROADSIDE);
 vi.mock("@/features/roadside/useRoadsideInspections", () => ({ useRoadsideSummaryQuery: () => ({ data: roadside }) }));
 
@@ -226,6 +227,14 @@ describe("every count is the row count behind its door (D-FM7)", () => {
     expect([n(w, "inspections"), n(w, "driver-oos"), n(w, "vehicle-oos"), n(w, "hazmat-oos")]).toEqual(["111", "1", "18", "2"]);
     // The kinds overlap (a hazmat OOS order is also a vehicle one), so nothing on the card totals them.
     expect(w.get("[data-test='widget-ops.roadside']").text()).not.toMatch(/\b21\b/);
+  });
+
+  it("roadside: says how current FMCSA's record is, and says it plainly when the feed has stopped (IC1c)", () => {
+    expect(render().get("[data-test='widget-ops.roadside'] [data-test='feed']").text()).toMatch(/^FMCSA's record as of 10\/13\/2026/);
+    roadside.value = { ...ROADSIDE, feed: { ...FEED, state: "ours_late" } };
+    const late = render().get("[data-test='widget-ops.roadside'] [data-test='feed']");
+    expect(late.text()).toContain("the daily fetch is failing");
+    expect(late.classes()).toContain("text-caution-700");
   });
 
   it("roadside: a dash — never a zero — before the answer arrives", () => {

@@ -115,10 +115,27 @@ function inspectionsFixture(all: Insp[]) {
   };
 }
 
-function recorder(o: { inspections?: Insp[]; error?: boolean } = {}) {
+type Run = { org_id: string; dataset: string; outcome: "succeeded" | "failed"; finished_at: string; source_rows_updated_at: string | null };
+/** Our last good fetch 6 h before NOW, FMCSA's publication 11 h before; a later failure, another dataset and another carrier around it. */
+const RUNS: Run[] = [
+  { org_id: ORG, dataset: "fx4q-ay7w", outcome: "succeeded", finished_at: "2026-10-13T00:30:00Z", source_rows_updated_at: "2026-10-12T19:30:00Z" },
+  { org_id: ORG, dataset: "fx4q-ay7w", outcome: "succeeded", finished_at: "2026-10-12T00:30:00Z", source_rows_updated_at: "2026-10-11T19:30:00Z" },
+  { org_id: ORG, dataset: "fx4q-ay7w", outcome: "failed", finished_at: "2026-10-13T05:30:00Z", source_rows_updated_at: null },
+  { org_id: ORG, dataset: "876r-jsdb", outcome: "succeeded", finished_at: "2026-10-13T06:00:00Z", source_rows_updated_at: "2026-10-13T06:00:00Z" },
+  { org_id: "org-2", dataset: "fx4q-ay7w", outcome: "succeeded", finished_at: "2026-10-13T06:20:00Z", source_rows_updated_at: "2026-10-13T06:00:00Z" },
+];
+/** Applies org, dataset and outcome, then the newest first — what `readRoadsideFeed` asks for. */
+const runsFixture = (runs: Run[]) => (q: RecordedQuery) =>
+  runs
+    .filter((r) => r.org_id === val(q, "eq", "org_id") && r.dataset === val(q, "eq", "dataset") && r.outcome === val(q, "eq", "outcome"))
+    .sort((a, b) => b.finished_at.localeCompare(a.finished_at))
+    .slice(0, 1);
+
+function recorder(o: { inspections?: Insp[]; error?: boolean; runs?: Run[] } = {}) {
   return createSupabaseRecorder({
     tables: {
       organizations: [{ operating_hours: { tz: "America/Los_Angeles" } }],
+      fmcsa_fetch_runs: runsFixture(o.runs ?? RUNS),
       roadside_inspections: o.error
         ? () => ({ data: null, error: { message: "relation roadside_inspections: boom" } })
         : inspectionsFixture(o.inspections ?? INSPECTIONS),
@@ -164,7 +181,10 @@ describe("the Roadside card's summary", () => {
     expect(status).toBe(200);
     // i1 i2 i3 i4 — not i5 (a day early), i6 (removed), i7 (undated) or x1 (another carrier).
     // i1 is in both vehicle and hazmat: the kinds overlap and are never a sum.
-    expect(roadsideSummarySchema.parse(body.data)).toEqual({ from: FROM, inspections: 4, driverOos: 1, vehicleOos: 2, hazmatOos: 1 });
+    expect(roadsideSummarySchema.parse(body.data)).toEqual({
+      from: FROM, inspections: 4, driverOos: 1, vehicleOos: 2, hazmatOos: 1,
+      feed: { fetchedAt: "2026-10-13T00:30:00Z", sourceUpdatedAt: "2026-10-12T19:30:00Z", state: "fresh" },
+    });
   });
 
   it("gives each figure as the length of the list the card's door opens (D-FM7)", async () => {
@@ -186,6 +206,20 @@ describe("the Roadside card's summary", () => {
     expect(status).toBe(500);
     expect(body.data).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain("boom");
+  });
+});
+
+describe("how current the summary's record is (IC1c)", () => {
+  it("reads our last SUCCESSFUL inspection-file fetch — not a later failure, another dataset or another carrier", async () => {
+    const feed = ((await call("/summary")).body.data as { feed: unknown }).feed;
+    expect(feed).toMatchObject({ fetchedAt: "2026-10-13T00:30:00Z", state: "fresh" });
+  });
+
+  it("is late when that fetch is over 36 hours old, and never when there has been none", async () => {
+    rec = recorder({ runs: [{ ...RUNS[0]!, finished_at: "2026-10-11T18:00:00Z" }] });
+    expect(((await call("/summary")).body.data as { feed: { state: string } }).feed.state).toBe("ours_late");
+    rec = recorder({ runs: [] });
+    expect(((await call("/summary")).body.data as { feed: unknown }).feed).toEqual({ fetchedAt: null, sourceUpdatedAt: null, state: "never" });
   });
 });
 

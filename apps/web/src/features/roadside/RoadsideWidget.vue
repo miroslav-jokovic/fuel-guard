@@ -17,8 +17,14 @@ import { RoadIcon } from "@silvicom/ui/icons";
 import ChartCard from "@/components/ui/ChartCard.vue";
 import CountList, { type CountRow } from "@/components/ui/CountList.vue";
 import { useRoadsideSummaryQuery } from "./useRoadsideInspections";
+import { roadsideFeedSentence } from "./feedFreshness";
+import { useOrgTimezone } from "@/composables/useOrgTimezone";
 
 const { data: summary } = useRoadsideSummaryQuery();
+const { zone } = useOrgTimezone();
+// How current the record behind these figures is (IC1c): a figure from a feed that stopped is still
+// shown — it is the last good record — but never without saying so.
+const freshness = computed(() => (summary.value ? roadsideFeedSentence(summary.value.feed, zone.value) : null));
 
 const LIST = "/roadside-inspections?period=90d";
 const rows = computed<CountRow[]>(() => [
@@ -32,5 +38,6 @@ const rows = computed<CountRow[]>(() => [
 <template>
   <ChartCard title="Roadside inspections" subtitle="FMCSA's record, last 90 days" :icon="RoadIcon" tone="warning" class="h-full">
     <CountList :rows="rows" />
+    <p v-if="freshness" class="mt-3 text-xs" :class="freshness.late ? 'text-caution-700' : 'text-ink-tertiary'" data-test="feed">{{ freshness.text }}</p>
   </ChartCard>
 </template>

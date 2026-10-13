@@ -17,7 +17,8 @@ describe("the roadside window", () => {
 describe("the roadside summary", () => {
   it("counts inspections carrying each kind, so an inspection with two kinds counts in both and the kinds never sum", () => {
     const rows = [insp(0, 1, 1), insp(1, 0, 0), insp(0, 0, 0), insp(0, 3, 0)];
-    expect(summarizeRoadside("2026-07-15", rows)).toEqual({ from: "2026-07-15", inspections: 4, driverOos: 1, vehicleOos: 2, hazmatOos: 1 });
+    const feed = { fetchedAt: null, sourceUpdatedAt: null, state: "never" as const };
+    expect(summarizeRoadside("2026-07-15", rows, feed)).toEqual({ from: "2026-07-15", inspections: 4, driverOos: 1, vehicleOos: 2, hazmatOos: 1, feed });
   });
 
   it("does not read a count FMCSA left blank as an order", () => {
