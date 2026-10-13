@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { createMemoryHistory, createRouter, type Router } from "vue-router";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { AppSelect } from "@silvicom/ui";
 import SettingsUsersPage from "@/pages/SettingsUsersPage.vue";
 import { answerConfirm } from "@/testing/confirm";
@@ -26,6 +27,9 @@ const state = vi.hoisted(() => ({
   stepUpRefusals: 0,
   /** Writes let through before those refusals start — a token that lapses part-way through a list. */
   stepUpAfter: 0,
+  /** F2: the members / invitations read answers 500. */
+  membersFail: false,
+  invitesFail: false,
 }));
 /** Toasts are the ONLY place the rotation is told to the admin, so a test has to be able to read them. */
 const toasts = vi.hoisted(() => [] as Array<{ kind: string; title: string; detail?: string }>);
@@ -38,6 +42,8 @@ vi.mock("@/lib/api", () => ({
       state.stepUpRefusals -= 1;
       return { ok: false, status: 403, error: { code: "step_up_required", message: "Confirm your password to continue." } };
     }
+    if (path === "/api/members" && !init?.method && state.membersFail) return { ok: false, status: 500, error: { code: "internal", message: "relation does not exist" } };
+    if (path === "/api/invites" && !init?.method && state.invitesFail) return { ok: false, status: 500, error: { code: "internal", message: "relation does not exist" } };
     if (path === "/api/members" && !init?.method) return { ok: true, data: { members: state.members } };
     if (state.refuseSuspend && path.endsWith("/suspend"))
       return { ok: false, status: 409, error: { code: "last_admin", message: "This is the only admin — promote someone else to admin first." } };
@@ -78,7 +84,12 @@ const mountPage = (url = "/settings/users") => {
   const history = createMemoryHistory();
   history.replace(url);
   router = createRouter({ history, routes: [{ path: "/:any(.*)*", component: { template: "<div />" } }] });
-  return mount(SettingsUsersPage, { global: { plugins: [pinia, router], stubs }, attachTo: document.body });
+  // The lists are queries since F2; no retries, so a failed read is a failure on the first answer.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return mount(SettingsUsersPage, {
+    global: { plugins: [pinia, router, [VueQueryPlugin, { queryClient }]], stubs },
+    attachTo: document.body,
+  });
 };
 
 beforeEach(() => {
@@ -90,6 +101,8 @@ beforeEach(() => {
   state.refuseSuspend = false;
   state.stepUpRefusals = 0;
   state.stepUpAfter = 0;
+  state.membersFail = false;
+  state.invitesFail = false;
   document.body.innerHTML = "";
   state.members = [
     { userId: "u-admin", email: "boss@silvicom.test", fullName: "Miki Boss", role: "admin", joinedAt: "2026-01-01T00:00:00Z" },
@@ -606,5 +619,42 @@ describe("SettingsUsersPage — the members list pages (D-US8)", () => {
     expect(router.currentRoute.value.query).toEqual({ search: "Member" });
     expect(rowOf(w, "m01@silvicom.test")).toBeDefined();
     w.unmount();
+  });
+});
+
+/**
+ * F2 (US6b): a failed read is a failure, not an empty organization. Before, both lists were refs that
+ * started empty, so a 500 drew "0 members · No members match" and "No invitations yet" with only a
+ * toast to say otherwise.
+ */
+describe("SettingsUsersPage — a failed read", () => {
+  const reads = (path: string) => calls.filter((c) => c.path === path && !c.init?.method).length;
+
+  it("says the members could not be loaded, prints no count, and Retry asks again", async () => {
+    state.membersFail = true;
+    const w = mountPage();
+    await flushPromises();
+    expect(w.text()).toContain("Could not load the members.");
+    expect(w.text()).not.toContain("No members match");
+    expect(w.text()).not.toMatch(/\b0 members\b/);
+    expect(w.text()).not.toContain("relation does not exist");
+    const before = reads("/api/members");
+    state.membersFail = false;
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    await flushPromises();
+    expect(reads("/api/members")).toBe(before + 1);
+    expect(w.text()).toContain("boss@silvicom.test");
+  });
+
+  it("says the invitations could not be loaded instead of \"No invitations yet\"", async () => {
+    state.invitesFail = true;
+    const w = mountPage();
+    await flushPromises();
+    expect(w.text()).toContain("Could not load the invitations.");
+    expect(w.text()).not.toContain("No invitations yet");
+    const before = reads("/api/invites");
+    await w.findAll("button").find((b) => b.text() === "Retry")!.trigger("click");
+    await flushPromises();
+    expect(reads("/api/invites")).toBe(before + 1);
   });
 });

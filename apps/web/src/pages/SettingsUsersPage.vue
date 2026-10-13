@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
-import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@silvicom/shared";
+import { ref, computed, watch } from "vue";
+import { OFFICE_ROLES, USER_ROLE_LABELS, type UserRole, type OrgMember } from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { useQueryState } from "@/composables/useQueryState";
+import { useMembersQuery } from "@/features/permissions/usePermissions";
+import { useInvitesQuery } from "@/features/settings/useInvites";
 import { AppSelect } from "@silvicom/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -59,9 +61,13 @@ const { stepUpFor, holdForStepUp, confirmed, cancel } = useStepUpRetry();
 const heldForStepUp = (res: { ok: boolean; error?: { code: string; message: string } }, retry: () => Promise<void>) =>
   !res.ok && holdForStepUp(apiRefusal(res.error, ""), retry);
 
-const invites = ref<Invite[]>([]);
-const members = ref<OrgMember[]>([]);
-const loading = ref(false);
+// Both lists are queries (F2, US6b): before, they were refs that started empty and were filled by
+// hand, so a failed read drew "0 members · No members match" and "No invitations yet", and the only
+// sign of the failure was a toast. The members query is the one the Permissions page reads.
+const membersQuery = useMembersQuery();
+const invitesQuery = useInvitesQuery();
+const members = computed(() => membersQuery.data.value ?? []);
+const invites = computed(() => invitesQuery.data.value ?? []);
 
 const email = ref("");
 const inviteName = ref("");
@@ -78,17 +84,9 @@ const inviteRoleOptions = OFFICE_ROLES.map((r) => ({
   label: USER_ROLE_LABELS[r],
 }));
 
+/** After every write: ask both lists again, so the page shows what the API now holds. */
 async function load() {
-  loading.value = true;
-  const [invRes, memRes] = await Promise.all([
-    apiFetch<{ invites: Invite[] }>("/api/invites"),
-    apiFetch<{ members: OrgMember[] }>("/api/members"),
-  ]);
-  if (invRes.ok && invRes.data) invites.value = invRes.data.invites;
-  else toast.error("Could not load invitations", invRes.error?.message);
-  if (memRes.ok && memRes.data) members.value = memRes.data.members;
-  else toast.error("Could not load members", memRes.error?.message);
-  loading.value = false;
+  await Promise.all([membersQuery.refetch(), invitesQuery.refetch()]);
 }
 
 interface InviteResult { emailSent: boolean; reason?: string | null; link?: string | null; rotated?: boolean }
@@ -318,7 +316,6 @@ const inviteColumns: DataTableColumn[] = [
   { key: "status", label: "Status", width: "md" },
 ];
 
-onMounted(load);
 </script>
 
 <template>
@@ -414,11 +411,14 @@ onMounted(load);
         :columns="memberColumns"
         :rows="pageMembers"
         row-key="userId"
-        :loading="loading"
+        :loading="membersQuery.isLoading.value"
+        :error="membersQuery.isError.value ? 'Could not load the members.' : null"
+        :retrying="membersQuery.isFetching.value"
         empty-text="No members match."
         selectable
         :selected="selectedIds"
         @update:selected="selectedIds = $event"
+        @retry="membersQuery.refetch()"
       >
         <template #cell-fullName="{ row }">
           <span v-if="row.fullName" class="font-medium text-ink">{{ row.fullName }}</span>
@@ -444,7 +444,7 @@ onMounted(load);
           </KebabMenu>
         </template>
         <template #footer>
-          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredMembers.length" :loading="loading" @update:page="page = $event" />
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filteredMembers.length" :loading="membersQuery.isLoading.value" @update:page="page = $event" />
         </template>
       </DataTable>
       </DataWorkspace>
@@ -473,7 +473,16 @@ onMounted(load);
 
     <section class="space-y-3">
       <h3 class="text-lg font-semibold text-ink">Invitations</h3>
-      <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
+      <DataTable
+        :columns="inviteColumns"
+        :rows="invites"
+        row-key="id"
+        :loading="invitesQuery.isLoading.value"
+        :error="invitesQuery.isError.value ? 'Could not load the invitations.' : null"
+        :retrying="invitesQuery.isFetching.value"
+        empty-text="No invitations yet."
+        @retry="invitesQuery.refetch()"
+      >
         <template #cell-full_name="{ row }">
           <span v-if="row.full_name" class="font-medium text-ink">{{ row.full_name }}</span>
           <span v-else class="text-ink-tertiary">Not given</span>
