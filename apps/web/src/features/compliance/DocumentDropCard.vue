@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref } from "vue";
 import { AppIcon } from "@silvicom/ui";
 import { ArrowUpTrayIcon } from "@silvicom/ui/icons";
@@ -49,6 +50,9 @@ async function fileDropped(): Promise<void> {
     toast.error("Could not file the document", e instanceof Error ? e.message : undefined);
   }
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 </script>
 
 <template>
@@ -59,7 +63,7 @@ async function fileDropped(): Promise<void> {
     </p>
     <div class="mt-3 space-y-4">
       <FileDropzone
-        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+        :accept="uploadAccept"
         :busy="upload.isPending.value"
         busy-label="Uploading…"
         :label="dropped ? dropped.name : 'Drag & drop a scan here'"

@@ -1,7 +1,8 @@
 import {
-  ASSEMBLY_MAX_PAGES, FORMAT_EXTENSIONS, FORMAT_MIMES, INTAKE_LIMITS, INTAKE_REFUSALS, SNIFF_BYTES, SOURCE_FORMATS,
-  sniffFormat, type SourceFormat,
+  ASSEMBLY_MAX_PAGES, FORMAT_EXTENSIONS, FORMAT_MIMES, INTAKE_LIMITS, INTAKE_REFUSALS, SOURCE_FORMATS, type SourceFormat,
 } from "@silvicom/shared";
+// The intake's own sniff, so a file is never refused here that the server would read (lib/fileFormat.ts).
+import { formatOf } from "@/lib/fileFormat";
 
 /**
  * The photos a dispatcher has picked for ONE bill of lading, before anything is sent (DOCUMENT-READER-PLAN
@@ -31,15 +32,6 @@ export interface BolFile {
  * a JPEG as `.jfif`. The picker only steers — `formatOf` reads the bytes and decides.
  */
 export const BOL_ACCEPT = ["image/*", "application/pdf", ...SOURCE_FORMATS.flatMap((f) => FORMAT_EXTENSIONS[f])].join(",");
-
-/**
- * What the file IS, from its first bytes — the intake's own sniff, so a file is never refused here that the
- * server would read. The name and the browser's `type` are not asked: desktop Chrome reports an iPhone HEIC as
- * `""`, and a Google Voice photo is a JPEG named `.jfif`.
- */
-export async function formatOf(file: Blob): Promise<SourceFormat | null> {
-  return sniffFormat(new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer()));
-}
 
 /** Why a file cannot be sent at all, in the intake's own sentence — the same one the server would answer. */
 export function fileProblem(file: Pick<File, "size">, format: SourceFormat | null): string | null {

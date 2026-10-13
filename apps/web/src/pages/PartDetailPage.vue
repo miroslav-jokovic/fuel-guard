@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
@@ -169,6 +170,9 @@ function detailOf(m: {
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "—";
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 </script>
 
 <template>
@@ -229,7 +233,7 @@ function detailOf(m: {
           <FileDropzone
             v-if="addingPhoto && canManage"
             class="mt-4"
-            accept=".jpg,.jpeg,.png,.webp,.heic"
+            :accept="uploadAccept"
             label="Add a photo"
             hint="So the next person picks the right one off the shelf."
             :busy="photo.isPending.value"

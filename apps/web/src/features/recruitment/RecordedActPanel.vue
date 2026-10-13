@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, DOCUMENT_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, reactive, ref, watch } from "vue";
 import {
   DQ_KIND_LABELS,
@@ -141,6 +142,9 @@ async function save(): Promise<void> {
 
 /** The row's own words for the kind, so the toast and the history read as the §391.51 file does. */
 const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "record") : "record"));
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(DOCUMENT_CONTENT_TYPES);
 </script>
 
 <template>
@@ -245,7 +249,7 @@ const label = computed(() => (kind.value ? (DQ_KIND_LABELS[kind.value] ?? "recor
         </p>
         <div class="mt-2">
           <FileDropzone
-            accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+            :accept="uploadAccept"
             :busy="record.isPending.value"
             busy-label="Uploading…"
             :label="scan ? scan.name : 'Drag & drop the scan here'"

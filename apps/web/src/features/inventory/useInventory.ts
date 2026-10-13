@@ -1,6 +1,8 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
+import { uploadContentType } from "@/lib/fileFormat";
+import { INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import type {
   CountSessionDto,
   CountSessionInput,
@@ -216,14 +218,16 @@ export function useAttachPartPhoto() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; file: File }): Promise<void> => {
+      const contentType = await uploadContentType(input.file, INVENTORY_PHOTO_CONTENT_TYPES);
+      if (!contentType) throw new Error("A photo must be a JPEG (including JFIF), PNG, WebP or HEIC image.");
       const r = await apiFetch<{ uploadUrl: string; token: string }>(
         `/api/maintenance/inventory/parts/${input.id}/photo`,
-        { method: "POST", body: { photoId: crypto.randomUUID(), contentType: input.file.type } },
+        { method: "POST", body: { photoId: crypto.randomUUID(), contentType } },
       );
       if (!r.ok || !r.data) throw new Error(r.error?.message ?? "Could not start the upload");
       const put = await fetch(r.data.uploadUrl, {
         method: "PUT",
-        headers: { "content-type": input.file.type },
+        headers: { "content-type": contentType },
         body: input.file,
       });
       if (!put.ok) throw new Error("The photo did not upload. Try again.");

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { INVENTORY_PHOTO_CONTENT_TYPES, type InventoryPhotoContentType } from "@silvicom/shared";
 import { traced } from "../inspections/serviceError.js";
 import type { ServiceError } from "./types.js";
 
@@ -31,18 +32,19 @@ export const INVENTORY_PHOTO_BUCKET = "inventory-photos";
 /** Matches `compliance.ts`'s DOCUMENT_URL_TTL_SEC — long enough to render a page, short enough that a leaked URL is stale. */
 export const PHOTO_URL_TTL_SEC = 300;
 
-const EXTENSIONS: Record<string, string> = {
+const EXTENSIONS: Record<InventoryPhotoContentType, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/heic": "heic",
 };
 
-export const isPhotoContentType = (t: string): boolean => t in EXTENSIONS;
+export const isPhotoContentType = (t: string): t is InventoryPhotoContentType =>
+  (INVENTORY_PHOTO_CONTENT_TYPES as readonly string[]).includes(t);
 
 /** `<org>/<part>/<uuid>.<ext>` — the org first, so a signed URL's own path carries the boundary. */
 export function partPhotoPath(orgId: string, partId: string, photoId: string, contentType: string): string {
-  return `${orgId}/${partId}/${photoId}.${EXTENSIONS[contentType] ?? "bin"}`;
+  return `${orgId}/${partId}/${photoId}.${isPhotoContentType(contentType) ? EXTENSIONS[contentType] : "bin"}`;
 }
 
 export async function signPartPhotoUpload(

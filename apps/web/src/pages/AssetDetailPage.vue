@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { acceptFor, INVENTORY_PHOTO_CONTENT_TYPES } from "@silvicom/shared";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { AppButton as BaseButton, AppCard as BaseCard, AppIcon } from "@silvicom/ui";
@@ -146,6 +147,9 @@ async function onPhoto(files: File[]) {
     toast.error("Could not add the photo", e instanceof Error ? e.message : undefined);
   }
 }
+
+/** What this upload takes, by mime and by every extension it is saved under (a Google Voice `.jfif` is a JPEG). */
+const uploadAccept = acceptFor(INVENTORY_PHOTO_CONTENT_TYPES);
 </script>
 
 <template>
@@ -231,7 +235,7 @@ async function onPhoto(files: File[]) {
           <FileDropzone
             v-if="addingPhoto && canManage"
             class="mt-4"
-            accept=".jpg,.jpeg,.png,.webp,.heic"
+            :accept="uploadAccept"
             label="Add a photo"
             hint="So the next person knows what to look for."
             :busy="photo.isPending.value"
