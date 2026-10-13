@@ -17,6 +17,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/lib/chartTheme";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import FactList, { type Fact } from "@/components/ui/FactList.vue";
+import QueryState from "@/components/ui/QueryState.vue";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -29,36 +30,46 @@ const session = useSessionStore();
 // because a chart and a table of blanks would say "this truck has never been fuelled".
 const canSeeFuel = computed(() => session.canView("fuel"));
 
-const { data: vehicle } = useQuery({
+/*
+ * Every read below THROWS on a refusal (F9, US6b). They used to read `data` and drop `error`, so a
+ * failed read was an empty answer: "Not enough data to chart MPG yet", "No fills yet", "No
+ * anomalies" — three claims about the truck, made by a request that never reached it. Each panel now
+ * waits for its own read and offers a Retry.
+ */
+const vehicleQuery = useQuery({
   queryKey: ["vehicle", id],
   queryFn: async (): Promise<Vehicle | null> => {
-    const { data } = await supabase.from("vehicles").select("*").eq("id", id.value).maybeSingle();
+    const { data, error } = await supabase.from("vehicles").select("*").eq("id", id.value).maybeSingle();
+    if (error) throw new Error(error.message);
     return (data as Vehicle | null) ?? null;
   },
 });
+const vehicle = vehicleQuery.data;
 
-const { data: txns } = useQuery({
+const txnsQuery = useQuery({
   queryKey: ["vehicle_txns", id],
   enabled: canSeeFuel,
   queryFn: async (): Promise<FuelTransaction[]> => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("fuel_transactions")
       .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
       .eq("vehicle_id", id.value)
       .eq("is_canonical", true)
       .order("fueled_at", { ascending: true })
       .limit(200);
+    if (error) throw new Error(error.message);
     return (data ?? []) as FuelTransaction[];
   },
 });
+const txns = txnsQuery.data;
 
 // D-CF9 (0439): cases before the org's detection start date are not listed (useDetectionEpoch.ts).
 const { epoch: detectionEpoch, ready: epochReady } = useDetectionEpoch();
-const { data: anomalies } = useQuery({
+const anomaliesQuery = useQuery({
   queryKey: ["vehicle_anomalies", id, detectionEpoch],
   enabled: epochReady,
   queryFn: async (): Promise<Anomaly[]> => {
-    const { data } = await afterReset(
+    const { data, error } = await afterReset(
       supabase
         .from("anomalies")
         .select("id, severity, status, rule_id, message, created_at, transaction_id, org_id, vehicle_id, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, updated_at, fueled_at")
@@ -66,9 +77,11 @@ const { data: anomalies } = useQuery({
         .neq("status", "superseded"),
       detectionEpoch.value,
     ).order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
     return (data ?? []) as Anomaly[];
   },
 });
+const anomalies = anomaliesQuery.data;
 
 /**
  * The summary card's facts (D-US6). A truck with no tank on file printed " gal" here before FactList:
@@ -83,7 +96,8 @@ const facts = computed<Fact[]>(() => {
     { label: "Odometer", value: v.current_odometer, numeric: true },
     {
       label: "Open anomalies",
-      value: (anomalies.value ?? []).filter((a) => a.status !== "resolved" && a.status !== "dismissed").length,
+      // A dash until the anomalies have answered — a count of an unread list is not zero.
+      value: anomalies.value ? anomalies.value.filter((a) => a.status !== "resolved" && a.status !== "dismissed").length : null,
       numeric: true,
     },
   ];
@@ -135,19 +149,28 @@ const fillColumns: DataTableColumn[] = [
       :title="vehicle?.unit_number ?? 'Vehicle'"
       :description="vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') : 'Vehicle performance and fueling history'"
     />
-    <BaseCard v-if="vehicle">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-ink">Vehicle summary · {{ vehicle.fuel_type }}</h2>
+    <QueryState
+      :loading="vehicleQuery.isLoading.value"
+      :error="vehicleQuery.isError.value"
+      :retrying="vehicleQuery.isFetching.value"
+      loading-text="Loading the vehicle…"
+      error-text="Could not load this vehicle."
+      @retry="vehicleQuery.refetch()"
+    >
+      <BaseCard v-if="vehicle">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-ink">Vehicle summary · {{ vehicle.fuel_type }}</h2>
+          </div>
+          <StatusBadge :status="vehicle.status" />
         </div>
-        <StatusBadge :status="vehicle.status" />
-      </div>
-      <FactList class="mt-4" :facts="facts" />
-      <p v-if="Number(vehicle.odometer_offset) !== 0" class="mt-3 text-xs text-ink-muted">
-        Odometer calibration: dash reads <strong>{{ Number(vehicle.odometer_offset) > 0 ? "+" : "" }}{{ vehicle.odometer_offset }} mi</strong>
-        vs Samsara ({{ vehicle.odometer_offset_source === "manual" ? "manual override" : "auto-learned" }}) — applied before mismatch checks.
-      </p>
-    </BaseCard>
+        <FactList class="mt-4" :facts="facts" />
+        <p v-if="Number(vehicle.odometer_offset) !== 0" class="mt-3 text-xs text-ink-muted">
+          Odometer calibration: dash reads <strong>{{ Number(vehicle.odometer_offset) > 0 ? "+" : "" }}{{ vehicle.odometer_offset }} mi</strong>
+          vs Samsara ({{ vehicle.odometer_offset_source === "manual" ? "manual override" : "auto-learned" }}) — applied before mismatch checks.
+        </p>
+      </BaseCard>
+    </QueryState>
 
     <!-- What this truck is carrying (INVENTORY-PLAN.md I9, D-AVI17). Read only and gated
          `maintenance: view`: the equipment section owns the truck's file and the shop owns what is
@@ -158,22 +181,54 @@ const fillColumns: DataTableColumn[] = [
 
     <BaseCard v-if="canSeeFuel">
       <h3 class="mb-3 text-sm font-semibold text-ink">MPG history</h3>
-      <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
-      <p v-else class="text-sm text-ink-muted">Not enough data to chart MPG yet.</p>
+      <QueryState
+        compact
+        :loading="txnsQuery.isLoading.value"
+        :error="txnsQuery.isError.value"
+        :retrying="txnsQuery.isFetching.value"
+        loading-text="Loading the fills…"
+        error-text="Could not load the fills."
+        @retry="txnsQuery.refetch()"
+      >
+        <BaseChart v-if="mpgPoints.length" :config="mpgChart" :height="260" />
+        <p v-else class="text-sm text-ink-muted">Not enough data to chart MPG yet.</p>
+      </QueryState>
     </BaseCard>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div v-if="canSeeFuel" class="space-y-3">
         <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
-        <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
+        <DataTable
+          :columns="fillColumns"
+          :rows="recent"
+          row-key="id"
+          :loading="txnsQuery.isLoading.value"
+          :error="txnsQuery.isError.value ? 'Could not load the fills.' : null"
+          :retrying="txnsQuery.isFetching.value"
+          empty-text="No fills yet."
+          @retry="txnsQuery.refetch()"
+        >
           <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
-          <template #cell-gallons="{ value }">{{ value }} gal</template>
-          <template #cell-computed_mpg="{ value }">{{ value ?? "—" }} mpg</template>
+          <template #cell-gallons="{ value }">{{ value != null ? `${value} gal` : "—" }}</template>
+          <template #cell-computed_mpg="{ value }">{{ value != null ? `${value} mpg` : "—" }}</template>
         </DataTable>
       </div>
       <BaseCard padding="none">
         <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
-        <ul class="divide-y divide-edge-subtle text-sm">
+        <!-- `isPending`, not `isLoading`: the read waits on the detection epoch, and while it is
+             disabled `isLoading` is false — which drew "No anomalies" before anything was asked. -->
+        <div v-if="anomaliesQuery.isPending.value || anomaliesQuery.isError.value" class="px-5 py-3">
+          <QueryState
+            compact
+            :loading="anomaliesQuery.isPending.value && !anomaliesQuery.isError.value"
+            :error="anomaliesQuery.isError.value"
+            :retrying="anomaliesQuery.isFetching.value"
+            loading-text="Loading the anomalies…"
+            error-text="Could not load the anomalies."
+            @retry="anomaliesQuery.refetch()"
+          />
+        </div>
+        <ul v-else class="divide-y divide-edge-subtle text-sm">
           <li v-for="a in anomalies ?? []" :key="a.id" class="flex items-center justify-between px-5 py-2">
             <span class="text-sm text-ink-secondary" :title="a.rule_id">{{ formatRuleId(a.rule_id) }}</span>
             <StatusBadge :status="a.status" />
