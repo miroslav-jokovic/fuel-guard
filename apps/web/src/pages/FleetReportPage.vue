@@ -308,5 +308,8 @@ const fleetErrorText = computed(() => (fleetError.value ? "Could not load the fl
         :to="to"
       />
     </template>
+    <!-- The period is chosen from the trend read (above); until it answers, or fails, there is no
+         period to ask for — and the body was blank for the seconds that took (F17, US6b). -->
+    <QueryState v-else :loading="true" loading-text="Loading the report…" />
   </div>
 </template>
