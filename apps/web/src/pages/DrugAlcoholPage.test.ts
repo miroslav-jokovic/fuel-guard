@@ -15,7 +15,7 @@ import type { DrugAlcoholProgram } from "@silvicom/shared";
 const state = vi.hoisted(() => ({ program: null as unknown, role: null as string | null }));
 // The order button reads the caller's role (UX3); null by default so the tabs' own tests are unchanged.
 vi.mock("@/stores/session", () => ({ useSessionStore: () => ({ get role() { return state.role; } }) }));
-vi.mock("@/features/drugAlcohol/OrderTestDrawer.vue", () => ({
+vi.mock("@/components/medstop/OrderTestDrawer.vue", () => ({
   default: { props: ["open", "seed"], template: `<div v-if="open" data-test="order-drawer">{{ seed ? "seeded:" + seed.selectionId : "unseeded" }}</div>` },
 }));
 vi.mock("@/features/drugAlcohol/useDrugAlcoholProgram", () => ({

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MEDSTOP_OUTCOME_LABELS } from "@silvicom/shared";
+import { MEDSTOP_OUTCOME_LABELS, MEDSTOP_PORTAL_URL, canOrderDrugTests } from "@silvicom/shared";
+import { AppButton as BaseButton } from "@silvicom/ui";
 import QueryState from "@/components/ui/QueryState.vue";
 import { useMedstopTestsQuery } from "@/features/recruitment/useApplicantScreening";
 import { BADGE_BASE, medstopOutcomeTone } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
+import { useSessionStore } from "@/stores/session";
 
 /**
  * The drug-test step, as Med-Stop sees it (MEDSTOP-PLAN.md §6 F-4, MS2c): an order waiting for the
@@ -14,8 +16,17 @@ import { formatDate } from "@/lib/format";
  * ⚠ The result shows only when the API sent one. For a recruiter it never does (§382.401(a),
  * `canReadTestingRecords`): they see "Result reported" and the step itself — a verified negative
  * files the record and the step ticks; anything else is the DER's to act on.
+ *
+ * UX4 (§7A.5): **Order pre-employment test**, for the order roles (D-MSUX1 — the recruiter included;
+ * ordering is not reading), when Med-Stop holds this person on its APPLICANT roster. The card EMITS
+ * the Med-Stop id and the page opens the order drawer: this card sits inside the step's SlideOver,
+ * and a drawer inside a drawer is a focus trap inside a focus trap. When Med-Stop does not hold them,
+ * the step says so and links to Med-Stop — creating the applicant there from ours is UX5 (D-MS1).
  */
 const props = defineProps<{ driverId: string }>();
+const emit = defineEmits<{ order: [medstopId: string] }>();
+const session = useSessionStore();
+const canOrder = computed(() => canOrderDrugTests(session.role));
 const q = useMedstopTestsQuery(computed(() => props.driverId));
 const data = computed(() => q.data.value);
 
@@ -38,6 +49,10 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
       <template v-if="data">
         <p v-if="!data.matched" class="text-xs text-ink-muted">
           Med-Stop has no record matched to this applicant by licence or date of birth yet. It appears here once Med-Stop's roster and this file agree.
+          <template v-if="canOrder">
+            Add this applicant in Med-Stop first, then order the pre-employment test here.
+            <a :href="MEDSTOP_PORTAL_URL" target="_blank" rel="noopener noreferrer" class="text-link hover:text-link-hover">Open Med-Stop</a>
+          </template>
         </p>
         <p v-else-if="data.orders.length === 0 && data.tests.length === 0" class="text-xs text-ink-muted">
           No test ordered in Med-Stop yet.
@@ -57,6 +72,9 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug test" : kind === "al
             <span v-if="t.outcome && t.outcome !== 'pending'" :class="[BADGE_BASE, medstopOutcomeTone(t.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[t.outcome] }}</span>
           </li>
         </ul>
+        <BaseButton v-if="canOrder && data.applicantMedstopId" size="sm" class="mt-1" @click="emit('order', data.applicantMedstopId)">
+          Order pre-employment test
+        </BaseButton>
       </template>
     </QueryState>
   </div>

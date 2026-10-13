@@ -21,10 +21,15 @@ const base: MedstopOrderInput = {
 const drivers = [
   { id: "d-ann", full_name: "Ann Pooled", first_name: "Ann", last_name: "Pooled", date_of_birth: null, cdl_number: "A1", cdl_state: "IL", status: "active", archived_at: null },
   { id: "d-nam", full_name: "Nam Only", first_name: "Nam", last_name: "Only", date_of_birth: null, cdl_number: null, cdl_state: null, status: "active", archived_at: null },
+  { id: "d-app", full_name: "Al Applicant", first_name: "Al", last_name: "Applicant", date_of_birth: null, cdl_number: "B2", cdl_state: "IL", status: "applicant", archived_at: null },
+  // Hired here; Med-Stop still lists him as an applicant.
+  { id: "d-hir", full_name: "Hal Hired", first_name: "Hal", last_name: "Hired", date_of_birth: null, cdl_number: "C3", cdl_state: "IL", status: "active", archived_at: null },
 ];
 const employees = [
   { medstop_id: "EE-ANN", roster: "active", driver_id: "d-ann", match_rule: "licence" },
   { medstop_id: "EE-NAM", roster: "active", driver_id: "d-nam", match_rule: "name" },
+  { medstop_id: "EE-APP", roster: "applicant", driver_id: "d-app", match_rule: "licence" },
+  { medstop_id: "EE-HIR", roster: "applicant", driver_id: "d-hir", match_rule: "licence" },
 ];
 const db = (selections: unknown[] = []) =>
   createSupabaseRecorder({ tables: { drivers, medstop_employees: employees, medstop_selections: selections } });
@@ -86,6 +91,28 @@ describe("prepareOrder — what is refused", () => {
     expect(await run(sel({ request_medstop_id: "REQ-9" }))).toMatchObject({ refusal: { code: "medstop_selection_ordered" } });
     expect(await run(sel({ service: "TA" }))).toMatchObject({ refusal: { code: "medstop_selection_service" } });
     expect(await run(sel({}))).toHaveProperty("payload");
+  });
+
+  it("orders pre-employment only on Med-Stop's applicant roster, for our applicant — and every other reason only on its active roster", async () => {
+    const { client } = medstop();
+    const run = (o: Partial<MedstopOrderInput>) => prepareOrder(db().client as unknown as SupabaseClient, client, office, ORG, { ...base, ...o }, TODAY);
+    expect(await run({ medstopId: "EE-APP", reason: "PRE-EMPLOYMENT" })).toMatchObject({
+      payload: { eeid: "EE-APP", reason: "PRE-EMPLOYMENT", sendsms: "N", sendemail: "N", tosms: office.phone },
+      person: { driverId: "d-app", name: "Al Applicant" },
+    });
+    // A working driver is never ordered a pre-employment test, nor an applicant a post-accident one.
+    expect(await run({ medstopId: "EE-ANN", reason: "PRE-EMPLOYMENT" })).toMatchObject({ refusal: { code: "medstop_person_unknown", message: expect.stringContaining("Add them in Med-Stop first") } });
+    expect(await run({ medstopId: "EE-APP", reason: "POST-ACCIDENT" })).toMatchObject({ refusal: { code: "medstop_person_unknown" } });
+    // Hired here, still an applicant in Med-Stop: the two disagree, so neither reason orders on him.
+    expect(await run({ medstopId: "EE-HIR", reason: "PRE-EMPLOYMENT" })).toMatchObject({ refusal: { code: "medstop_person_unknown" } });
+    expect(await run({ medstopId: "EE-HIR", reason: "POST-ACCIDENT" })).toMatchObject({ refusal: { code: "medstop_person_unknown" } });
+  });
+
+  it("refuses a pre-employment order while Med-Stop holds an unfinished one for the applicant — the hiring step's duplicate", async () => {
+    const { client, calls } = medstop({ open: [{ status: "PROCESSING", category: "DRUG TEST", reason: "PRE-EMPLOYMENT" }] });
+    const r = await prepareOrder(db().client as unknown as SupabaseClient, client, office, ORG, { ...base, medstopId: "EE-APP", reason: "PRE-EMPLOYMENT" }, TODAY);
+    expect(r).toMatchObject({ refusal: { status: 409, code: "medstop_order_open" } });
+    expect(calls.map((c) => c.path)).toEqual(["/Request/for/EE-APP?page=1&pagesize=100"]);
   });
 
   it("refuses a collection day in the past", async () => {

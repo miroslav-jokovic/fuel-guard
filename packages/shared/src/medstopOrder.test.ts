@@ -6,6 +6,8 @@ import {
   medstopRequestIsOpen,
   medstopRequestService,
   canOrderDrugTests,
+  MEDSTOP_HEADER_ORDER_REASONS,
+  MEDSTOP_ORDER_ROSTER,
   type MedstopOrderInput,
 } from "./medstopOrder.js";
 
@@ -46,7 +48,7 @@ describe("medstopOrderInputSchema", () => {
     expect(medstopOrderInputSchema.safeParse({ ...input, selectionId: "S-1" }).success).toBe(false);
   });
   it("refuses the observed reasons until the donor's gender is held (UX5)", () => {
-    for (const reason of ["RETURN TO DUTY", "FOLLOW-UP", "PRE-EMPLOYMENT"])
+    for (const reason of ["RETURN TO DUTY", "FOLLOW-UP"])
       expect(medstopOrderInputSchema.safeParse({ ...input, reason }).success).toBe(false);
   });
   it("refuses a field it does not know — nothing reaches Med-Stop that the preview did not show", () => {
@@ -82,5 +84,18 @@ describe("canOrderDrugTests (owner answer 1)", () => {
   it("admits the safety manager, an admin and the recruiter — nobody else", () => {
     expect(["admin", "safety_manager", "recruiter"].every((r) => canOrderDrugTests(r as never))).toBe(true);
     expect(["fleet_manager", "dispatcher", "driver", null].some((r) => canOrderDrugTests(r as never))).toBe(false);
+  });
+});
+
+describe("which roster a reason orders on (UX4)", () => {
+  it("orders pre-employment on Med-Stop's applicant roster and every other reason on its active one", () => {
+    expect(MEDSTOP_ORDER_ROSTER).toEqual({ "PRE-EMPLOYMENT": "applicant", RANDOM: "active", "POST-ACCIDENT": "active", "REASONABLE SUSPICION": "active" });
+  });
+  it("keeps pre-employment and random off Safety's header — one comes from hiring, the other from its selection", () => {
+    expect(MEDSTOP_HEADER_ORDER_REASONS).toEqual(["POST-ACCIDENT", "REASONABLE SUSPICION"]);
+  });
+  it("accepts a pre-employment order, which carries no selection", () => {
+    expect(medstopOrderInputSchema.safeParse({ ...input, reason: "PRE-EMPLOYMENT" }).success).toBe(true);
+    expect(medstopOrderInputSchema.safeParse({ ...input, reason: "PRE-EMPLOYMENT", selectionId: "SEL-1" }).success).toBe(false);
   });
 });

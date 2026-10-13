@@ -16,7 +16,7 @@ const db = () =>
   createSupabaseRecorder({
     tables: {
       medstop_credentials: [{ base_url: "https://api.med-stop.com", enabled: true, api_key_sealed: "sealed", key_expires_on: null, last_synced_at: null, last_error: null }],
-      medstop_employees: [{ medstop_id: "e1" }],
+      medstop_employees: [{ medstop_id: "e1", roster: "active" }],
       medstop_tests: [
         { medstop_id: "t2", service: "TD", reason: "PRE-EMPLOYMENT", status: "AT LAB", result: null, collected_local: "2026-10-09T14:24:00" },
         { medstop_id: "t1", service: "TD", reason: "PRE-EMPLOYMENT", status: "CLOSED", result: "NEGATIVE", collected_local: "2026-09-01T09:00:00" },
@@ -52,9 +52,15 @@ describe("readMedstopTestsForDriver", () => {
     expectOrgScoped(r, ORG);
   });
 
+  it("names the applicant-roster id a pre-employment order is placed on, and none for a person on the active roster", async () => {
+    expect((await readMedstopTestsForDriver(db().client, ORG, DRIVER, "recruiter")).applicantMedstopId).toBeNull();
+    const r = createSupabaseRecorder({ tables: { medstop_credentials: [], medstop_employees: [{ medstop_id: "e1", roster: "active" }, { medstop_id: "e2", roster: "applicant" }] } });
+    expect((await readMedstopTestsForDriver(r.client, ORG, DRIVER, "recruiter")).applicantMedstopId).toBe("e2");
+  });
+
   it("a person Med-Stop does not hold is 'not matched', not an empty history", async () => {
     const r = createSupabaseRecorder({ tables: { medstop_credentials: [], medstop_employees: [] } });
-    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, orders: [], tests: [], outcomesVisible: true });
+    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: true });
     expect(r.forTable("medstop_tests")).toHaveLength(0);
   });
 });

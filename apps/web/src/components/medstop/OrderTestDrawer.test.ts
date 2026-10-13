@@ -8,13 +8,15 @@ import type { MedstopOrderInput } from "@silvicom/shared";
  * The order drawer (MEDSTOP-PLAN.md §7A.4, UX3). Pinned: it is two steps — nothing is placed until
  * the review has been shown — the review says Med-Stop will not text or e-mail the driver and names the
  * office contact the order carries (owner answer 5), and with ordering switched off it orders nothing.
+ * UX4: seeded with an applicant it orders PRE-EMPLOYMENT on that Med-Stop id, with no selection and no
+ * truck to search near.
  */
 const api = vi.hoisted(() => ({
   context: { enabled: true, contactSet: true, people: [{ medstopId: "EE-ANN", driverId: "d-ann", name: "Ann Pooled" }] } as unknown,
   previewed: [] as MedstopOrderInput[],
   placed: [] as MedstopOrderInput[],
 }));
-vi.mock("./useMedstopOrder", () => ({
+vi.mock("@/composables/useMedstopOrder", () => ({
   useOrderContext: () => ({ data: computed(() => api.context), isLoading: ref(false) }),
   searchSites: async () => ({ sites: [{ id: "LOC-1", name: "Med-Stop Loop", address: "1 Main St", city: "Chicago", state: "IL", zip: "60601", distance: "1.2 mi", booked: 0 }], near: null }),
   useOrderPreview: () => ({
@@ -32,10 +34,10 @@ vi.mock("./useMedstopOrder", () => ({
   usePlaceOrder: () => ({ isPending: ref(false), mutateAsync: async (input: MedstopOrderInput) => (api.placed.push(input), { requestId: "REQ-1" }) }),
 }));
 
-import OrderTestDrawer from "./OrderTestDrawer.vue";
+import OrderTestDrawer, { type OrderSeed } from "./OrderTestDrawer.vue";
 
-const seed = { selectionId: "SEL-1", medstopId: "EE-ANN", name: "Ann Pooled", service: "drug" as const };
-async function render() {
+const selection: OrderSeed = { kind: "selection", selectionId: "SEL-1", medstopId: "EE-ANN", name: "Ann Pooled", service: "drug" };
+async function render(seed: OrderSeed = selection) {
   setActivePinia(createPinia());
   const w = mount(OrderTestDrawer, { props: { open: true, seed }, attachTo: document.body });
   await flushPromises();
@@ -90,6 +92,23 @@ describe("OrderTestDrawer", () => {
     await flushPromises();
     expect(button("Place order")).toBeUndefined();
     expect(button("Review order")).toBeDefined();
+  });
+
+  it("orders a pre-employment test on the applicant's Med-Stop id, from the hiring step", async () => {
+    await render({ kind: "applicant", medstopId: "EE-APP", name: "Al Applicant" });
+    expect(document.body.textContent).toContain("Pre-employment · Al Applicant");
+    // An applicant has no truck, and the reason is fixed — the header's reason list is not shown.
+    expect(button("Near the truck")).toBeUndefined();
+    expect(document.body.textContent).not.toContain("Reasonable suspicion");
+    await pickSite();
+    button("Review order")!.click();
+    await flushPromises();
+    expect(document.body.textContent).toContain("Med-Stop will not text or e-mail the applicant");
+    button("Place order")!.click();
+    await flushPromises();
+    expect(api.placed).toHaveLength(1);
+    expect(api.placed[0]).toMatchObject({ medstopId: "EE-APP", reason: "PRE-EMPLOYMENT", service: "drug" });
+    expect(api.placed[0]).not.toHaveProperty("selectionId");
   });
 
   it("orders nothing while ordering is switched off, and says where to switch it on", async () => {

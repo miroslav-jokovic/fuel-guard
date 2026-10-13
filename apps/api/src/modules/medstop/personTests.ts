@@ -37,16 +37,17 @@ export async function readMedstopTestsForDriver(
   const outcomesVisible = canReadTestingRecords(role);
   const credential = await getCredential(admin, orgId);
   const connected = credential?.hasKey === true && credential.enabled;
-  const empty: MedstopPersonTests = { connected, matched: false, orders: [], tests: [], outcomesVisible };
+  const empty: MedstopPersonTests = { connected, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible };
 
   const { data: people, error: pErr } = await admin
     .from("medstop_employees")
-    .select("medstop_id")
+    .select("medstop_id, roster")
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
     .in("match_rule", CERTAIN_MATCH);
   if (pErr) throw new Error(`medstop_employees read failed: ${pErr.message}`);
-  const ids = ((people ?? []) as { medstop_id: string }[]).map((p) => p.medstop_id);
+  const rows = (people ?? []) as { medstop_id: string; roster: string | null }[];
+  const ids = rows.map((p) => p.medstop_id);
   if (ids.length === 0) return empty;
 
   const [testsRes, ordersRes] = await Promise.all([
@@ -74,6 +75,9 @@ export async function readMedstopTestsForDriver(
   return {
     connected,
     matched: true,
+    // What the step's "Order pre-employment test" is placed on (UX4). The order route checks the
+    // roster, the match and our applicant again before anything is sent.
+    applicantMedstopId: rows.find((p) => p.roster === "applicant")?.medstop_id ?? null,
     orders: ((ordersRes.data ?? []) as OrderRow[])
       .filter((o) => o.test_medstop_id === null && medstopOrderOpen(o.status))
       .map((o) => ({

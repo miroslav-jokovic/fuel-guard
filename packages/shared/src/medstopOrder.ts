@@ -32,19 +32,41 @@ export const MEDSTOP_ORDER_SERVICE_CODE: Record<MedstopOrderService, "TD" | "TA"
  * The reasons this drawer orders. Not every Med-Stop reason:
  * - RETURN TO DUTY and FOLLOW-UP must be OBSERVED collections (§40.67(b)), and an observer is
  *   gender-matched — we do not hold the donor's gender until Part 1 asks it (D-MSUX3, batch UX5).
- * - PRE-EMPLOYMENT is ordered from the hiring step for an applicant (batch UX4); the people this
- *   drawer offers are working drivers.
  * - EXAMINATION / RECERTIFICATION are medical exams (TM), not drug or alcohol tests.
  * - RANDOM is offered only FROM a random selection: a random test with no selection behind it is not
  *   a random test in the §382.305 sense, and the selection is what Med-Stop links the order to.
+ * - PRE-EMPLOYMENT is offered only from the hiring step (UX4, §7A.5), for a person on Med-Stop's
+ *   APPLICANT roster; every other reason is for a person on its ACTIVE roster. `MEDSTOP_ORDER_ROSTER`
+ *   says which, and the api looks the person up on that roster alone — a pre-employment test cannot
+ *   be ordered on a working driver, nor a post-accident test on somebody not yet hired.
  */
-export const MEDSTOP_ORDER_REASONS = ["RANDOM", "POST-ACCIDENT", "REASONABLE SUSPICION"] as const;
+export const MEDSTOP_ORDER_REASONS = ["PRE-EMPLOYMENT", "RANDOM", "POST-ACCIDENT", "REASONABLE SUSPICION"] as const;
 export type MedstopOrderReason = (typeof MEDSTOP_ORDER_REASONS)[number];
 export const MEDSTOP_ORDER_REASON_LABEL: Record<MedstopOrderReason, string> = {
+  "PRE-EMPLOYMENT": "Pre-employment",
   RANDOM: "Random selection",
   "POST-ACCIDENT": "Post-accident",
   "REASONABLE SUSPICION": "Reasonable suspicion",
 };
+
+/** The Med-Stop roster a reason's person must be on — and, matched to it, which of OUR statuses. */
+export type MedstopOrderRoster = "active" | "applicant";
+export const MEDSTOP_ORDER_ROSTER: Record<MedstopOrderReason, MedstopOrderRoster> = {
+  "PRE-EMPLOYMENT": "applicant",
+  RANDOM: "active",
+  "POST-ACCIDENT": "active",
+  "REASONABLE SUSPICION": "active",
+};
+
+/** The reasons Safety's header button offers: a working driver's, less RANDOM (that one comes from its selection). */
+export const MEDSTOP_HEADER_ORDER_REASONS = MEDSTOP_ORDER_REASONS.filter((r) => MEDSTOP_ORDER_ROSTER[r] === "active" && r !== "RANDOM");
+
+/**
+ * Where the office adds a person Med-Stop does not hold yet. Until UX5 creates the Med-Stop applicant
+ * from ours (`/Employee/new`, D-MS1), the hiring step can only send the recruiter there. The vendor's
+ * documents name no employer-portal address beyond the site itself (Q-MSUX8).
+ */
+export const MEDSTOP_PORTAL_URL = "https://med-stop.com";
 
 /** How the EMPLOYER told the driver to go (Med-Stop's `notifyby`). Med-Stop itself tells nobody (D-MSUX5). */
 export const MEDSTOP_NOTIFY_BY = ["DIRECT COMMUNICATION", "PHONE CALL", "SIGNED TEST NOTIFICATION FORM", "OTHER"] as const;
@@ -103,7 +125,8 @@ export interface MedstopOrderPayload {
 
 /**
  * The order, as sent. Fixed parts and why:
- * - `dotstatus: "Y"` — every person this drawer offers is a DOT driver (170/170 on 2026-10-13).
+ * - `dotstatus: "Y"` — every person this drawer offers is a DOT driver (170/170 on 2026-10-13), or an
+ *   applicant for a DOT driving job — the only job the hiring flow hires for.
  * - `observed: "N"` — the observed reasons are not offered (above).
  * - `payment: "EMPLOYER"` — "company Med-Stop credit"; every order in the last 12 months was (MS0).
  * - `sendsms`/`sendemail` "N", and `tosms`/`toemail` the OFFICE's: Med-Stop's form arrives with the
@@ -163,7 +186,7 @@ export interface MedstopSite {
   booked: number | null;
 }
 
-/** A person the drawer may order for: on Med-Stop's active roster, matched by licence or name+DOB (R3). */
+/** A person the drawer may order for: on the reason's Med-Stop roster, matched by licence or name+DOB (R3). */
 export interface MedstopOrderablePerson {
   medstopId: string;
   driverId: string;

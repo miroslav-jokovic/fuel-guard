@@ -10,6 +10,7 @@ import DispositionSection from "@/features/recruitment/DispositionSection.vue";
 import HiringChecklistCard from "@/features/recruitment/HiringChecklistCard.vue";
 import HiringStepDrawer from "@/features/recruitment/HiringStepDrawer.vue";
 import ApplicationReviewDrawer from "@/features/apply/ApplicationReviewDrawer.vue";
+import OrderTestDrawer, { type OrderSeed } from "@/components/medstop/OrderTestDrawer.vue";
 import { useApplicantChecklistQuery } from "@/features/recruitment/useApplicantChecklist";
 import {
   liveApplicationInvitation,
@@ -100,6 +101,13 @@ function openReview(invitation: string): void {
   openStepKey.value = null;
   reviewing.value = invitation;
 }
+
+/** UX4 (MEDSTOP-PLAN §7A.5): the drug-test step's pre-employment order, swapped in the same way. */
+const ordering = ref<OrderSeed | null>(null);
+function openOrder(medstopId: string): void {
+  openStepKey.value = null;
+  ordering.value = { kind: "applicant", medstopId, name: driver.value?.full_name ?? "Applicant" };
+}
 </script>
 
 <template>
@@ -152,6 +160,7 @@ function openReview(invitation: string): void {
       :identity="driver ?? null"
       @close="openStepKey = null"
       @review="openReview"
+      @order-test="openOrder"
     />
 
     <!-- Reading the answers, correcting them, and approving them so the applicant can sign. The
@@ -163,5 +172,7 @@ function openReview(invitation: string): void {
       :invitation-id="reviewing"
       @close="reviewing = null"
     />
+
+    <OrderTestDrawer :open="ordering !== null" :seed="ordering" @close="ordering = null" />
   </div>
 </template>

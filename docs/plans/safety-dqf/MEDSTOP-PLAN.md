@@ -423,6 +423,33 @@ driver was told → **Review order** (the api's own payload) → **Place order**
 6. Within the hour, the order appears under In progress. Record the measured answers to the three [?]
    above in §9; leave ordering on only if all six held.
 
+### 7A.12 UX4 as built — the pre-employment order from the hiring step (2026-10-13)
+
+**Built:** the hiring drawer's drug-test step (`MedstopTestCard`) shows **Order pre-employment test** to
+the three order roles (D-MSUX1, recruiter included) when Med-Stop holds the person on its **APPLICANT**
+roster with a licence or name+DOB match. The card emits the Med-Stop id and `ApplicantRecordPage` swaps
+the step drawer for the order drawer — the same one-drawer-at-a-time rule as the application review
+(a SlideOver inside a SlideOver is a focus trap inside a focus trap). The order drawer moved out of
+`features/drugAlcohol` to `components/medstop/` (and its composable to `composables/`), because two
+features now open it and `lint:boundaries` forbids either reaching into the other.
+- D-MSUX9: **a reason belongs to one Med-Stop roster** — `MEDSTOP_ORDER_ROSTER` in shared:
+  PRE-EMPLOYMENT → applicant, every other reason → active. The api looks the person up on THAT roster
+  only, and requires OUR record to agree (an applicant for the applicant roster, an active driver for
+  the active one). So a working driver cannot be ordered a pre-employment test, an applicant cannot be
+  ordered a post-accident one, and a person hired here but still an applicant in Med-Stop is refused
+  both until the two agree. Safety's header offers only `MEDSTOP_HEADER_ORDER_REASONS` (post-accident,
+  reasonable suspicion), derived from the same map.
+- Unchanged from UX3 and re-proved for the applicant: the live open-order refusal (`/Request/for/{eeid}`),
+  the allow-list (`MEDSTOP_WRITES` = `POST /Request/new` only), `sendsms`/`sendemail` = N with the office
+  contact, the ordering switch. The review says "Med-Stop will not text or e-mail the applicant". The
+  recruiter still receives no result (`readMedstopTestsForDriver` filters it; ordering is not reading).
+- When Med-Stop does not hold the applicant: the step says "Add this applicant in Med-Stop first" with a
+  link to Med-Stop. Creating them from our record is UX5 (D-MS1).
+- **Q-MSUX8 (open):** the employer portal's exact address. The vendor documents name only
+  `https://med-stop.com` (and `apiadmin.med-stop.com`, the API-key console), so the link goes to the
+  site, `MEDSTOP_PORTAL_URL` in shared. Recommend: the owner pastes the address they log in at, and it
+  replaces that one constant.
+
 ## 8. Open questions
 
 - ~~Q-MS1~~ — base URL: `https://api.med-stop.com` (API-Key-access.md).
@@ -602,3 +629,8 @@ driver was told → **Review order** (the api's own payload) → **Place order**
   Settings › Ordering tests, audit rows; §7A.11 has the shape and the first-order runbook. Ordering stays
   OFF in every database until the owner's first watched order. Next: UX4 (the same drawer in the hiring
   step, for applicants Med-Stop holds).
+- 2026-10-13 — **UX3b #1512 merged. UX4 built** (branch `claude/medstop-ux4`): "Order pre-employment
+  test" in the hiring drug-test step for applicants Med-Stop holds; reason → roster rule (D-MSUX9);
+  drawer promoted to `components/medstop/`; "Add this applicant in Med-Stop first" + link (Q-MSUX8
+  open: the portal's address). §7A.12. Ordering still OFF everywhere. Next: UX5 (Part 1 fields as their
+  own migration merge, then `/Employee/new`, then observed reasons).
