@@ -152,7 +152,7 @@ export function useLoadsQuery() {
     queryFn: async (): Promise<DispatchLoad[]> => {
       const res = await apiFetch<{ loads: DispatchLoad[] }>("/api/dispatch/loads");
       if (!res.ok || !res.data) {
-        throw new Error(res.error?.message ?? "Could not load the dispatch board.");
+        throw new Error(res.error?.message ?? "Could not load the loads.");
       }
       return res.data.loads;
     },

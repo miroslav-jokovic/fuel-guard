@@ -207,7 +207,14 @@ const counts = computed(() => {
   result.exceptions = scopedExceptions.value.length;
   return result;
 });
-const tabItems = computed(() => QUEUE_TABS.map((q) => ({ value: q.value, label: q.label, badge: counts.value[q.value] })));
+// A tab's count is printed only once the read it counts has answered (F13, US6b): every tab read 0
+// while the loads were loading and after they failed — an empty board, as far as the tabs knew.
+const tabItems = computed(() =>
+  QUEUE_TABS.map((q) => {
+    const answered = q.value === "exceptions" ? exceptions.value !== undefined : loads.value !== undefined;
+    return { value: q.value, label: q.label, badge: answered ? counts.value[q.value] : undefined };
+  }),
+);
 
 /**
  * Exceptions under the page's scope and type, judged on the exception's LOAD. One with no load we hold
@@ -373,7 +380,7 @@ function openDetail(load: DispatchLoad) {
         :rows="exceptionPageRows"
         row-key="id"
         :loading="exceptionsLoading"
-        :error="exceptionsFailed ? 'Could not load the exceptions' : null"
+        :error="exceptionsFailed ? 'Could not load the exceptions.' : null"
         :retrying="exceptionsFetching"
         :empty-text="(exceptions ?? []).length ? 'No exceptions match these filters.' : 'Nothing needs attention right now.'"
         embedded
@@ -413,7 +420,7 @@ function openDetail(load: DispatchLoad) {
         :rows="pageRows"
         row-key="id"
         :loading="isLoading"
-        :error="isError ? 'Could not load the loads' : null"
+        :error="isError ? 'Could not load the loads.' : null"
         :retrying="isFetching"
         :sort="sort"
         :empty-text="emptyText"

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import { createPinia, setActivePinia } from "pinia";
@@ -38,9 +38,18 @@ const EXCEPTIONS = [
 ];
 // One ref for every mount, so a test can land a refetch of the exceptions, as the poll does.
 const exceptionsData = ref(EXCEPTIONS);
+/** F13: the loads read refused. */
+const loadsRead = vi.hoisted(() => ({ fails: false }));
 vi.mock("@/features/dispatch/useDispatchLoads", async (orig) => ({
   ...(await orig<typeof import("@/features/dispatch/useDispatchLoads")>()),
-  useLoadsQuery: () => ({ data: ref(LOADS), isLoading: ref(false), isError: ref(false), error: ref(null), refetch: () => {}, isFetching: ref(false) }),
+  useLoadsQuery: () => ({
+    data: ref(loadsRead.fails ? undefined : LOADS),
+    isLoading: ref(false),
+    isError: ref(loadsRead.fails),
+    error: ref(null),
+    refetch: () => {},
+    isFetching: ref(false),
+  }),
   useExceptionsQuery: () => ({ data: exceptionsData, isLoading: ref(false), isError: ref(false), refetch: () => {}, isFetching: ref(false) }),
   useResolveException: () => ({ isPending: ref(false), mutateAsync: async () => {} }),
 }));
@@ -234,5 +243,27 @@ describe("the Loads page beside the dispatch board", () => {
         exceptionsData.value = EXCEPTIONS;
       }
     });
+  });
+});
+
+/**
+ * F13 (US6b): a tab's count is the length of a list, and a list that failed to load has none. Before,
+ * every load tab read 0 on a failed read — an empty board, as far as the tabs knew.
+ */
+describe("the queue tabs wait for the loads", () => {
+  afterEach(() => {
+    loadsRead.fails = false;
+  });
+
+  it("prints no count on a load tab when the loads could not be read, and says so", async () => {
+    loadsRead.fails = true;
+    board.value = response(false);
+    const w = await mountPage();
+    expect(w.text()).toContain("Could not load the loads.");
+    const tabs = w.findAll("[role=tab]");
+    const exceptionsTab = tabs.find((t) => t.text().startsWith("Exceptions"))!;
+    for (const t of tabs.filter((x) => x !== exceptionsTab)) expect(t.text(), t.text()).not.toMatch(/\d/);
+    // The exceptions are their own read, and it answered.
+    expect(exceptionsTab.text()).toMatch(/\d/);
   });
 });
