@@ -23,6 +23,7 @@ export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/v
 // The printed-paper audit (document reader D-DR6) and the one LQ-notation definition it shares with the
 // hazmat extractor.
 export { auditPrintedPaper } from "./bol/auditPrintedPaper.js";
+export { parseMarker as parsePageMarker } from "./bol/paperDocumentRules.js";
 export { declaresLimitedQuantity } from "./bol/paperSupport.js";
 export * from "./bol/paperTypes.js";
 // The one derivation of `ResolvedPaper.certificationExempt` (§172.204(b)(1), owner ruling Q-DR16), and the
