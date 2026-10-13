@@ -605,3 +605,12 @@ about three merges.
   - **The inspection page can name** levels, violation categories and defect verification (Q-IC5).
   - **Still the owner's:** buying the OOSC (Q-IC3) and the driver-app ticket policy (Q-IC4); a person
     must download OP 14 and OP 15 by hand.
+- **2026-10-13 — The post-crash rule (Q-IC9's second half); Unsafe Driving verified.** `scoreSms` leaves
+  out an Unsafe Driving violation on an inspection FMCSA marks post-accident (`crash_related`), and
+  keeps every other BASIC's: Methodology §2.2 fn. 8 counts only violations that pre-existed the crash,
+  and the open data has no per-violation crash flag, so the BASIC stands in for it. Measured on the
+  2026-08-28 snapshot: 4179180099's lane change was not scored and UDLS002954's HM violation was. The
+  parity fixture gains `feed-post-accident.json` (the six `post_acc_ind = Y` records, each at the
+  version the set froze). Parity: Unsafe Driving reproduces 99 of 99 with none extra and is now
+  `verified`, so five BASICs may show an impact figure; HM Compliance stays unverified (the 14
+  shipper-attributed codes).

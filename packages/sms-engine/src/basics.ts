@@ -31,12 +31,12 @@ export interface BasicRules {
 }
 
 export const BASIC_RULES: Record<SmsBasic, BasicRules> = {
-  unsafe_driving: { levels: null, placardOnly: false, oosWeight: false },
-  hos_compliance: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: true },
-  driver_fitness: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: true },
-  controlled_substances_alcohol: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: false },
-  vehicle_maintenance: { levels: VEHICLE_LEVELS, placardOnly: false, oosWeight: true },
-  hm_compliance: { levels: VEHICLE_LEVELS, placardOnly: true, oosWeight: true },
+  unsafe_driving: { levels: null, placardOnly: false, oosWeight: false, crashRelated: true },
+  hos_compliance: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: true, crashRelated: false },
+  driver_fitness: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: true, crashRelated: false },
+  controlled_substances_alcohol: { levels: DRIVER_LEVELS, placardOnly: false, oosWeight: false, crashRelated: false },
+  vehicle_maintenance: { levels: VEHICLE_LEVELS, placardOnly: false, oosWeight: true, crashRelated: false },
+  hm_compliance: { levels: VEHICLE_LEVELS, placardOnly: true, oosWeight: true, crashRelated: false },
 };
 
 /** The sum of one inspection's severity weights in one BASIC is capped here, before time weighting. */

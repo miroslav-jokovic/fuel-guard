@@ -4,8 +4,11 @@
  *
  * Measured 2026-10-11 against the 2026-08-28 snapshot (`tests/parity.test.ts`, which fails if this
  * table and the measurement disagree in either direction). Every violation FMCSA scored, we score
- * with identical severity, OOS and time weight. In two BASICs we ALSO score violations FMCSA left
- * out, for a reason its public data does not show; plan Q-IC9 holds the candidates.
+ * with identical severity, OOS and time weight. In HM Compliance we ALSO score 14 violations FMCSA
+ * left out: shipping-paper, marking, label and placard duties the HMR puts on the shipper, which SMS
+ * drops as "assigned exclusively to another entity" by a flag the public data does not carry (plan
+ * Q-IC9). Unsafe Driving joined the verified set on 2026-10-13, when the post-crash rule explained its
+ * one extra.
  */
 import type { SmsBasic } from "./basics.js";
 
@@ -15,8 +18,8 @@ export const SMS_PARITY: Record<SmsBasic, { verified: boolean; note: string }> =
   driver_fitness: { verified: true, note: "6 of 6 reproduced; none extra" },
   controlled_substances_alcohol: { verified: true, note: "2 of 2 reproduced; none extra" },
   unsafe_driving: {
-    verified: false,
-    note: "every scored violation reproduced, plus 1 FMCSA did not score: 392.2LC on 4179180099 (IL, 2024-10-19), ticketed, no court result in the feed (Q-IC9)",
+    verified: true,
+    note: "99 of 99 scored violations reproduced; none extra since the post-crash rule (2026-10-13, Q-IC9: 392.2LC on post-crash inspection 4179180099 is not scored)",
   },
   hm_compliance: {
     verified: false,

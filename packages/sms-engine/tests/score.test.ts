@@ -3,7 +3,7 @@ import { APPENDIX_A_EDITIONS, appendixFor, basicPoints, monthsBefore, scoreSms, 
 
 const M = "2026-08-28";
 const insp = (o: Partial<SmsInspectionInput> = {}): SmsInspectionInput => ({
-  id: "i1", date: "2026-08-01", level: 1, hazmatPlacard: true, addedOn: "2026-08-02", violations: [], ...o,
+  id: "i1", date: "2026-08-01", level: 1, hazmatPlacard: true, postAccident: false, addedOn: "2026-08-02", violations: [], ...o,
 });
 const v = (code: string, o: Partial<SmsInspectionInput["violations"][number]> = {}) => ({ id: code, code, outOfService: false, citationResult: null, ...o });
 
@@ -95,5 +95,20 @@ describe("Appendix A 3.21", () => {
     const e = APPENDIX_A_EDITIONS[0]!;
     expect(e.byKey.size).toBe(2412);
     expect(e.sha256).toBe("962edfb555385906238b23f6b8846c643e605b54dbc9ded97a44d68a788892b7");
+  });
+});
+
+describe("a post-crash inspection (Methodology §2.2 fn. 8, Q-IC9)", () => {
+  it("leaves out the moving violation that was the crash, and keeps what was there before it", () => {
+    const s = scoreSms([insp({ postAccident: true, violations: [v("392.2-SLLS3"), v("393.75A3-TAOL", { outOfService: true })] })], M);
+    expect(s.inspections[0]!.violations.map((x) => x.basic)).toEqual(["vehicle_maintenance"]);
+    expect(s.excluded).toEqual([{ inspectionId: "i1", violationId: "392.2-SLLS3", reason: "crash_related" }]);
+  });
+
+  it("scores the same moving violation when the inspection did not follow a crash, or the flag was not reported", () => {
+    for (const postAccident of [false, null]) {
+      const s = scoreSms([insp({ postAccident, violations: [v("392.2-SLLS3")] })], M);
+      expect(s.inspections[0]!.violations.map((x) => x.basic), String(postAccident)).toEqual(["unsafe_driving"]);
+    }
   });
 });
