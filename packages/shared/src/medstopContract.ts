@@ -1,3 +1,4 @@
+import type { MedstopApplicantCreateView } from "./medstopApplicant.js";
 import { z } from "zod";
 import type { MedstopTestOutcome } from "./medstopTests.js";
 import type { MedicalSourceDate } from "./credentialSources.js";
@@ -128,6 +129,11 @@ export interface MedstopPersonTests {
    * (`matched` false — "add them in Med-Stop first"), or already on its active roster.
    */
   applicantMedstopId: string | null;
+  /**
+   * UX5c: what became of creating this applicant in Med-Stop from Part 1 (0471) — null when never
+   * attempted. A refusal carries Med-Stop's own sentence, so the office knows to add them by hand.
+   */
+  applicantCreate: MedstopApplicantCreateView | null;
   orders: MedstopOrderView[];
   tests: MedstopTestView[];
   outcomesVisible: boolean;

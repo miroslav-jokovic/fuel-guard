@@ -16,6 +16,7 @@ import {
 } from "../applicantDrugTest.js";
 import { sendDrugTestToDriver } from "../applicantDrugTestSend.js";
 import { readMedstopTestsForDriver } from "../../medstop/index.js";
+import { invitationIdsOf } from "../medstopApplicantFacts.js";
 
 /**
  * The drug test's appointment (D-AW6, APPLICATION-FLOW-V2-PLAN §8.4). `applicantDrugTest.ts` carries
@@ -64,7 +65,9 @@ export function recruitmentDrugTestRouter(): Router {
     requireSection("recruitment", "view"),
     asyncHandler(async (req: Request, res: Response) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const data = await readMedstopTestsForDriver(admin, req.auth!.orgId!, String(req.params.driverId ?? ""), req.auth!.role ?? null);
+      const orgId = req.auth!.orgId!;
+      const driverId = String(req.params.driverId ?? "");
+      const data = await readMedstopTestsForDriver(admin, orgId, driverId, req.auth!.role ?? null, await invitationIdsOf(admin, orgId, driverId));
       res.json(data);
     }),
   );

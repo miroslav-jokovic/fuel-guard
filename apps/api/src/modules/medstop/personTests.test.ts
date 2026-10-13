@@ -60,7 +60,7 @@ describe("readMedstopTestsForDriver", () => {
 
   it("a person Med-Stop does not hold is 'not matched', not an empty history", async () => {
     const r = createSupabaseRecorder({ tables: { medstop_credentials: [], medstop_employees: [] } });
-    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, applicantMedstopId: null, orders: [], tests: [], outcomesVisible: true });
+    expect(await readMedstopTestsForDriver(r.client, ORG, DRIVER, "admin")).toEqual({ connected: false, matched: false, applicantMedstopId: null, applicantCreate: null, orders: [], tests: [], outcomesVisible: true });
     expect(r.forTable("medstop_tests")).toHaveLength(0);
   });
 });

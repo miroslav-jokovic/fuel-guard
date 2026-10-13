@@ -191,7 +191,7 @@ export async function placeOrder(
       ambiguous ? "medstop_order_unknown" : "medstop_order_refused",
       ambiguous
         ? "Med-Stop did not answer, so the order may or may not have been placed. Check Med-Stop before ordering again."
-        : e instanceof Error ? e.message : String(e),
+        : `Med-Stop refused the order: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
 }

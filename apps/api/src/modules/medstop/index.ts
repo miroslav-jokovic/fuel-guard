@@ -19,3 +19,4 @@ export { getApiKey, recordSweep } from "./credentials.js";
 export { sweepMedstop, type MedstopSweepResult } from "./sync.js";
 export { medstopViolationOn } from "./violations.js";
 export { readMedstopTestsForDriver } from "./personTests.js";
+export { createMedstopApplicants, type MedstopApplicantCreateResult } from "./applicantCreate.js";

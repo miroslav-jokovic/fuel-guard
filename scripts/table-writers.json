@@ -387,6 +387,9 @@
   "mcleod_settlements": [
     "apps/api/src/modules/mcleod/financialIngest.ts"
   ],
+  "medstop_applicant_creates": [
+    "apps/api/src/modules/medstop/applicantCreate.ts"
+  ],
   "medstop_credentials": [
     "apps/api/src/modules/medstop/credentials.ts"
   ],

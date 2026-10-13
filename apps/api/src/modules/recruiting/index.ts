@@ -23,3 +23,4 @@ export { handleInboundSms } from "./applicationSms.js";
 export { recordDeliveryReceipt, runSmsOutboxOnce } from "./smsOutbox.js";
 export { startSmsOutboxScheduler } from "./smsOutboxScheduler.js";
 export { returnToDutyBlocked } from "./returnToDuty.js";
+export { partOneFactsForMedstop } from "./medstopApplicantFacts.js";
