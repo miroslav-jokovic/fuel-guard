@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import {
   ROADSIDE_CARD_PERIOD,
   isCalendarDay,
@@ -14,11 +15,13 @@ import { apiError, asyncHandler, dbErrorResponse } from "../../../lib/http.js";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../../lib/appLocals.js";
 import { readRoadsideInspections } from "../read/inspectionsList.js";
+import { readRoadsideInspection } from "../read/inspectionDetail.js";
 
 /**
- * `GET /api/roadside-inspections` — the Inspections inbox's first slice — and `/summary`, the
- * Operations tab's Roadside card (INSPECTION-CHALLENGE-PLAN §6, D-IC12: the `safety` section;
- * FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). Read-only: nothing here is a case or a filing yet.
+ * `GET /api/roadside-inspections` — the Inspections inbox's first slice — `/:id`, the inspection a
+ * row opens, and `/summary`, the Operations tab's Roadside card (INSPECTION-CHALLENGE-PLAN §6, D-IC12:
+ * the `safety` section; FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). Read-only: nothing here is a case or a
+ * filing yet.
  *
  * ── THE CARD'S WINDOW IS CUT ON THE CARRIER'S CALENDAR, HERE ───────────────────────────────────
  * "Last 90 days" ends on today in the org zone, not on the server's (UTC on Railway, so a Chicago
@@ -71,6 +74,29 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.json({ ok: true, data: rows });
+    }),
+  );
+
+  /** One inspection, the row the list opens. Declared after `/summary`, which would otherwise read as an id. */
+  router.get(
+    "/:id",
+    canView,
+    asyncHandler(async (req, res) => {
+      const id = z.uuid().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const found = await readRoadsideInspection(getSupabaseAdmin(getAppLocals(req).env), req.auth!.orgId!, id.data);
+      if (found && "error" in found) {
+        dbErrorResponse(res, "roadside-inspections.detail", found.error, "Could not load the roadside inspection");
+        return;
+      }
+      if (!found) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      res.json({ ok: true, data: found });
     }),
   );
 

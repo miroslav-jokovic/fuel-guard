@@ -79,6 +79,56 @@ export interface RoadsideInspectionDto {
   units?: RoadsideInspectionUnitDto[];
 }
 
+/** How the projection tied a unit to ours (0458's `match_method`, the three that are a match). */
+export const ROADSIDE_MATCH_METHODS = ["vin", "plate", "unit_number"] as const;
+export type RoadsideMatchMethod = (typeof ROADSIDE_MATCH_METHODS)[number];
+
+export interface RoadsideUnitDetailDto extends RoadsideInspectionUnitDto {
+  make: string | null;
+  vin: string | null;
+  /** A CVSA decal was issued for this unit. */
+  decal: boolean | null;
+  /** Shown beside a match because unit number is the weakest of the three (0458, D-IC7). Null when unmatched. */
+  matchedBy: RoadsideMatchMethod | null;
+  /** Our truck, when the match was a tractor; no FK, so the page links it only to a reader who can open it. */
+  vehicleId: string | null;
+}
+
+export interface RoadsideViolationDto {
+  id: string;
+  seq: number | null;
+  /** The code exactly as FMCSA wrote it (`393.47D2-BLTBD`); IC3 maps it to SMS Appendix A, not this. */
+  code: string | null;
+  description: string | null;
+  /** Who the officer wrote it against: the driver, or the unit at this position on the report. */
+  against: { driver: true } | { unitSeq: number } | null;
+  outOfService: boolean | null;
+  citationNumber: string | null;
+  /** The court results FMCSA holds for this violation's citation, as FMCSA words them. */
+  courtResults: string[];
+}
+
+/**
+ * `GET /api/roadside-inspections/:id` — one inspection as FMCSA records it (INSPECTION-CHALLENGE-PLAN §6,
+ * the Inspection page's header, units and violations). The driver, the resolved instant, SMS weights
+ * and cases are IC4–IC6's and are not here: FMCSA's public record does not name the driver, and a
+ * guessed one is what D-IC7 forbids.
+ */
+export interface RoadsideInspectionDetailDto extends Omit<RoadsideInspectionDto, "units"> {
+  /** The report's local clock times, HHMM as written, in the inspection's own zone — never shifted. */
+  startTime: string | null;
+  endTime: string | null;
+  /** FMCSA's facility code: F a fixed site (a scale), R the roadside. */
+  facility: "fixed" | "roadside" | null;
+  postAccident: boolean | null;
+  shipperName: string | null;
+  grossWeightLb: number | null;
+  oosTotal: number | null;
+  units: RoadsideUnitDetailDto[];
+  /** The violations themselves, in report order (`violations` above is FMCSA's count of them). */
+  violationList: RoadsideViolationDto[];
+}
+
 /** Count accessor per kind — the one place a kind names its column, for the list's filter and the card. */
 const OOS_COUNT: Record<RoadsideOosKind, (i: RoadsideInspectionDto) => number | null> = {
   driver: (i) => i.driverOos,

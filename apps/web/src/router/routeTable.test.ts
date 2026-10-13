@@ -50,7 +50,7 @@ const PROBES = [
   "/hazmat/review", "/hazmat/settings/equipment",
   "/vehicles", "/vehicles/v_1",
   "/odometer", "/coverage", "/recall-audit", "/trailers", "/reefer-coverage",
-  "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol", "/roadside-inspections",
+  "/fuel-planning", "/truck-stops", "/idling", "/drug-alcohol", "/roadside-inspections", "/roadside-inspections/ri_1",
   "/drivers", "/drivers/dr_1",
   "/compliance", "/compliance/dr_1",
   // R7 added `/recruitment/:id`, which makes these (four since MV2) another specificity pair: the two static

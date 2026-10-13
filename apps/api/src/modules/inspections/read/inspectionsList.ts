@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CalendarDay, RoadsideInspectionDto, RoadsideInspectionUnitDto } from "@silvicom/shared";
+import { ROADSIDE_MATCH_METHODS, type CalendarDay, type RoadsideInspectionDto, type RoadsideInspectionUnitDto } from "@silvicom/shared";
 
 /**
  * Our roadside inspections as FMCSA records them today, newest first — the Inspections inbox's first
@@ -25,11 +25,11 @@ import type { CalendarDay, RoadsideInspectionDto, RoadsideInspectionUnitDto } fr
 const PAGE = 500;
 /** Ids per `.in()`: a long list overflows Node 22's request-header limit and fails as "fetch failed". */
 const IN_CHUNK = 100;
-const MATCHED = new Set(["vin", "plate", "unit_number"]);
+export const MATCHED: ReadonlySet<string> = new Set(ROADSIDE_MATCH_METHODS);
 
-type DbError = { message: string };
+export type DbError = { message: string };
 
-interface InspectionRow {
+export interface InspectionRow {
   id: string;
   report_number: string | null;
   report_state: string | null;
@@ -52,11 +52,11 @@ interface UnitRow {
   match_method: string;
 }
 
-const INSPECTION_COLS =
+export const INSPECTION_COLS =
   "id, report_number, report_state, inspection_date, level, location_desc, hazmat_placard_required, " +
   "violations_total, driver_oos_total, vehicle_oos_total, hazmat_oos_total";
 
-const kindOf = (typeId: string | null): RoadsideInspectionUnitDto["kind"] =>
+export const kindOf = (typeId: string | null): RoadsideInspectionUnitDto["kind"] =>
   typeId === "11" ? "tractor" : typeId === "9" ? "trailer" : "other";
 
 /** The units of these inspections, by inspection, in report order. Vanished units are off, as their inspection would be. */
@@ -121,7 +121,12 @@ export async function readRoadsideInspections(
   const units = opts.withUnits ? await unitsByInspection(admin, orgId, rows.map((r) => r.id)) : null;
   if (units && "error" in units) return units;
 
-  return rows.map((r) => ({
+  return rows.map((r) => ({ ...inspectionDto(r), ...(units ? { units: units.get(r.id) ?? [] } : {}) }));
+}
+
+/** One row as the list shows it; the detail read extends the same shape, so the two cannot drift. */
+export function inspectionDto(r: InspectionRow): Omit<RoadsideInspectionDto, "units"> {
+  return {
     id: r.id,
     reportNumber: r.report_number,
     reportState: r.report_state,
@@ -133,6 +138,5 @@ export async function readRoadsideInspections(
     driverOos: r.driver_oos_total,
     vehicleOos: r.vehicle_oos_total,
     hazmatOos: r.hazmat_oos_total,
-    ...(units ? { units: units.get(r.id) ?? [] } : {}),
-  }));
+  };
 }
