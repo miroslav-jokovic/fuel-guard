@@ -132,6 +132,29 @@ describe("HazmatCalculatorForm with a BOL read", () => {
     expect(lines(w)).toHaveLength(1);
   });
 
+  it("accepts a BOL's decimal weight — 40,972.8 lb, the owner's UN3082 read — so Calculate is not blocked by the browser", async () => {
+    const w = mountForm();
+    await w.setProps({ bolRead: read([{ a: { ...PAINT, grossWeightLb: 40972.8 }, table: ok(PAINT_REF) }]) });
+    await flushPromises();
+    const gross = w.findAll("input[placeholder='44307']").at(-1)!.element as HTMLInputElement;
+    expect(gross.value).toBe("40972.8");
+    // A number input without `step` steps by 1: the browser marks 40972.8 invalid and refuses to submit.
+    expect(gross.validity.stepMismatch).toBe(false);
+    expect(gross.validity.valid).toBe(true);
+  });
+
+  it("lets every decimal field on the calculator take a decimal", async () => {
+    const w = mountForm();
+    await w.setProps({ bolRead: read([{ a: PAINT, table: ok(PAINT_REF) }]) });
+    await flushPromises();
+    const decimals = w.findAll("input[type='number'][inputmode='decimal']");
+    expect(decimals.length).toBeGreaterThan(0);
+    for (const d of decimals) {
+      (d.element as HTMLInputElement).value = "12.5";
+      expect((d.element as HTMLInputElement).validity.stepMismatch, d.attributes("placeholder")).toBe(false);
+    }
+  });
+
   it("counts a line the table did not match, and answers the rest-of-load question from the paper", async () => {
     const w = mountForm();
     await w.setProps({

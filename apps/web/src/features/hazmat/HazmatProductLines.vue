@@ -177,7 +177,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                 hint="Weight or volume of one package, if the BOL lists it."
               >
                 <div class="flex items-stretch gap-2">
-                  <BaseInput :id="id" v-model="line.perPackageCapacityValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="55" />
+                  <BaseInput :id="id" v-model="line.perPackageCapacityValue" class="min-w-0 flex-1" type="number" inputmode="decimal" step="any" min="0" placeholder="55" />
                   <ComboSelect v-model="line.perPackageCapacityUnit" class="w-32 shrink-0" :options="CAPACITY_UNIT_OPTIONS" />
                 </div>
               </FormField>
@@ -208,7 +208,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
               hint="Packages plus contents, from the BOL — the placard thresholds run on this."
             >
               <div class="flex items-stretch gap-2">
-                <BaseInput :id="id" v-model="line.grossWeightValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="44307" />
+                <BaseInput :id="id" v-model="line.grossWeightValue" class="min-w-0 flex-1" type="number" inputmode="decimal" step="any" min="0" placeholder="44307" />
                 <ComboSelect v-model="line.grossWeightUnit" class="w-24 shrink-0" :options="GROSS_WEIGHT_UNIT_OPTIONS" />
               </div>
               <BolFieldNote :note="viewOf(line)?.fields.grossWeight" />
@@ -255,7 +255,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                     v-model="line.marinePollutantConcentrationPct"
                     class="min-w-0 flex-1"
                     type="number"
-                    inputmode="decimal"
+                    inputmode="decimal" step="any"
                     min="0"
                     max="100"
                     :placeholder="String(thresholdPct(line))"
@@ -280,7 +280,7 @@ function applyGrossSuggestion(line: CalcLineForm) {
                     v-model="line.marinePollutantPerPackageValue"
                     class="min-w-0 flex-1"
                     type="number"
-                    inputmode="decimal"
+                    inputmode="decimal" step="any"
                     min="0"
                     placeholder="5"
                   />
