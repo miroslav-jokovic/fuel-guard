@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { canOrderDrugTests, type DueSelection } from "@silvicom/shared";
+import { canOrderDrugTests, type RandomDraw } from "@silvicom/shared";
 import { AppButton as BaseButton, AppCallout, AppTabs } from "@silvicom/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import QueryState from "@/components/ui/QueryState.vue";
@@ -33,7 +33,7 @@ const session = useSessionStore();
 const canOrder = computed(() => canOrderDrugTests(session.role));
 const ordering = ref(false);
 const seed = ref<OrderSeed | null>(null);
-function openOrder(selection?: DueSelection): void {
+function openOrder(selection?: RandomDraw): void {
   seed.value =
     selection && selection.person.medstopId && selection.service !== "other"
       ? { kind: "selection", selectionId: selection.selectionId, medstopId: selection.person.medstopId, name: selection.person.name, service: selection.service }
@@ -45,7 +45,9 @@ const tabs = computed(() => {
   const d = p.value;
   if (!d) return [];
   return [
-    ...(d.selections ? [{ value: "random", label: "Random selections", badge: d.selections.due.length || undefined }] : []),
+    // The badge is the "Due now" list's length (R5): the tab opens on the whole year (D-MSUX18), but
+    // what it asks the DER to do is the due draws, and the tab's Show filter lists exactly those.
+    ...(d.selections ? [{ value: "random", label: "Random selections", badge: d.selections.draws.filter((s) => s.state === "due").length || undefined }] : []),
     { value: "progress", label: "In progress", badge: d.inProgress.length || undefined },
     ...(d.results ? [{ value: "results", label: "Results", badge: d.results.recent.length || undefined }] : []),
     { value: "medical", label: "Medical cards", badge: d.medical.due.length || undefined },
@@ -100,7 +102,7 @@ const stale = computed(() => {
 
         <AppTabs v-model="tab" :tabs="tabs" label="Drug and alcohol" scrollable />
 
-        <RandomTab v-if="tab === 'random' && p.selections" :due="p.selections.due" :reserves="p.selections.reserves" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
+        <RandomTab v-if="tab === 'random' && p.selections" :draws="p.selections.draws" :pools="p.pools" :can-order="canOrder" @order="openOrder" />
         <InProgressTab v-else-if="tab === 'progress'" :rows="p.inProgress" />
         <ResultsTab v-else-if="tab === 'results' && p.results" :recent="p.results.recent" :history="p.results.history" />
         <MedicalTab v-else-if="tab === 'medical'" :medical="p.medical" />

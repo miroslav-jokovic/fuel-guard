@@ -4,7 +4,7 @@ import {
   matchMedstopPerson,
   poolPace,
   reconcileRosters,
-  selectionsAwaitingTest,
+  randomDrawsThisYear,
   type MatchedPerson,
   type MedstopPersonRow,
   type RosterDriverRow,
@@ -137,7 +137,7 @@ describe("poolPace", () => {
   });
 });
 
-describe("selectionsAwaitingTest", () => {
+describe("randomDrawsThisYear", () => {
   const sel = (id: string, day: string, over: Partial<SelectionRow> = {}): SelectionRow => ({
     medstopId: id,
     employeeMedstopId: `e${id}`,
@@ -149,41 +149,52 @@ describe("selectionsAwaitingTest", () => {
     ...over,
   });
   const who = (id: string | null) => ({ driverId: null, medstopId: id, name: id ?? "?" });
+  const states = (draws: { selectionId: string; state: string }[]) => draws.map((d) => [d.selectionId, d.state]);
 
-  it("lists OPEN draws on or before today, longest-waiting first — and never a future draw (R4)", () => {
-    const out = selectionsAwaitingTest(
-      [sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("c", "2026-10-14"), sel("d", "2026-10-25"), sel("t", "2026-10-13")],
-      who,
-      "2026-10-13",
-    );
-    expect(out.due.map((d) => [d.selectionId, d.daysSince])).toEqual([
-      ["b", 7],
-      ["a", 5],
-      ["t", 0],
-    ]);
-    expect(JSON.stringify(out)).not.toMatch(/"c"|"d"/);
-  });
-
-  it("puts reserves apart, drops expired reserves, closed draws and draws already tested", () => {
-    const out = selectionsAwaitingTest(
+  it("lists the whole year, and an earlier draw only while still due — due longest-waiting first, then upcoming soonest first, then the rest newest first (D-MSUX18)", () => {
+    const out = randomDrawsThisYear(
       [
-        sel("r", "2026-10-01", { status: "RESERVE" }),
-        sel("rf", "2026-10-20", { status: "RESERVE" }),
-        sel("re", "2026-10-01", { status: "EXPIRED RESERVE" }),
-        sel("x", "2026-10-01", { status: "COMPLETED" }),
-        sel("k", "2026-10-01", { status: "CANCELED" }),
-        sel("t", "2026-10-01", { testMedstopId: "test" }),
+        sel("a", "2026-10-08"), sel("b", "2026-10-06"), sel("t", "2026-10-13"),
+        sel("u2", "2026-12-21"), sel("u1", "2026-10-25"),
+        sel("x1", "2026-03-01", { status: "COMPLETED", testMedstopId: "t1" }),
+        sel("x2", "2026-09-01", { status: "COMPLETED", testMedstopId: "t2" }),
+        // Newer than every due draw, so plain date order would put it first.
+        sel("x3", "2026-10-12", { status: "COMPLETED", testMedstopId: "t3" }),
+        sel("old", "2025-12-30", { status: "COMPLETED", testMedstopId: "t0" }),
+        sel("late", "2025-12-29"),
       ],
       who,
       "2026-10-13",
     );
-    expect(out.due).toEqual([]);
-    expect(out.reserves.map((r) => r.selectionId)).toEqual(["r"]);
+    expect(out.map((d) => [d.selectionId, d.state, d.daysSince])).toEqual([
+      ["late", "due", 288], ["b", "due", 7], ["a", "due", 5], ["t", "due", 0],
+      ["u1", "upcoming", -12], ["u2", "upcoming", -69],
+      ["x3", "tested", 1], ["x2", "tested", 42], ["x1", "tested", 226],
+    ]);
+  });
+
+  it("names every way a draw ends — and a test settles it whatever Med-Stop's word", () => {
+    const out = randomDrawsThisYear(
+      [
+        sel("r", "2026-12-27", { status: "RESERVE" }),
+        sel("re", "2026-09-29", { status: "EXPIRED RESERVE" }),
+        sel("k", "2026-09-28", { status: "CANCELED" }),
+        sel("e", "2026-09-27", { status: "EXPIRED" }),
+        sel("rf", "2026-09-26", { status: "REFUSAL", testMedstopId: "t" }),
+        sel("q", "2026-09-25", { status: "SOMETHING NEW" }),
+      ],
+      who,
+      "2026-10-13",
+    );
+    expect(states(out)).toEqual([
+      ["r", "alternate"], ["re", "alternate_unused"], ["k", "cancelled"], ["e", "expired"], ["rf", "tested"], ["q", "other"],
+    ]);
+    expect(out.find((d) => d.selectionId === "q")?.medstopStatus).toBe("SOMETHING NEW");
   });
 
   it("marks a draw whose request is placed as ordered", () => {
-    const out = selectionsAwaitingTest([sel("a", "2026-10-10", { requestMedstopId: "req" })], who, "2026-10-13");
-    expect(out.due[0]?.ordered).toBe(true);
+    const out = randomDrawsThisYear([sel("a", "2026-10-10", { requestMedstopId: "req" }), sel("b", "2026-10-10")], who, "2026-10-13");
+    expect(out.map((d) => [d.selectionId, d.ordered])).toEqual([["a", true], ["b", false]]);
   });
 });
 
