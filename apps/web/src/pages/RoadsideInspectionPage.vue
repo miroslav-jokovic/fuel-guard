@@ -20,6 +20,7 @@ import FactList, { type Fact } from "@/components/ui/FactList.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { useRoadsideInspectionQuery } from "@/features/roadside/useRoadsideInspections";
+import InspectionDriverCard from "@/features/roadside/InspectionDriverCard.vue";
 import { useOpens } from "@/composables/useOpens";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -29,8 +30,8 @@ import { formatDate } from "@/lib/format";
  * (INSPECTION-CHALLENGE-PLAN §6, the Inspection page's header, units and violations).
  *
  * ── WHAT IT SHOWS IS THE REPORT, NOT A READING OF IT ───────────────────────────────────────────
- * Times are the report's local clock, as written: resolving them to an instant needs the truck's GPS
- * and is IC5's (D-IC8). The level, the violation category and the defect's outcome are named from
+ * Times are the report's local clock, as written; the instant the truck's GPS resolves them to is the
+ * driver card's (IC5, D-IC8). The level, the violation category and the defect's outcome are named from
  * FMCSA's own data dictionary (plan Q-IC5), never paraphrased. A violation's code and
  * description are FMCSA's words. A unit says how it matched one
  * of ours, because a unit-number match is the weakest of the three (0458), and an unmatched one says
@@ -43,9 +44,10 @@ import { formatDate } from "@/lib/format";
  * category the calculator does not reproduce FMCSA in (Hazardous Materials, plan Q-IC9) shows why its
  * points are withheld, on the row, rather than a number or a blank (D-IC6).
  *
- * ── NO DRIVER ──────────────────────────────────────────────────────────────────────────────────
- * FMCSA's public record does not name the driver. Attribution is IC5's, and a guessed driver is the
- * thing D-IC7 forbids — so the page says the driver is not on the record rather than leaving a gap.
+ * ── THE DRIVER IS A READING, NOT THE REPORT'S ──────────────────────────────────────────────────
+ * FMCSA's public record does not name the driver. The driver card (`InspectionDriverCard`) shows IC5's
+ * reading of Samsara with its confidence and a person's decision over it — never a guessed driver
+ * (D-IC7) — so it sits in its own card, apart from what the report says.
  */
 
 const route = useRoute();
@@ -165,8 +167,9 @@ const VIOLATION_COLUMNS: DataTableColumn[] = [
           <div class="mt-5 border-t border-edge pt-5">
             <FactList :facts="counts" data-test="counts" />
           </div>
-          <p class="mt-4 text-xs text-ink-tertiary">The driver is not on FMCSA's public record, so it is not shown here.</p>
         </BaseCard>
+
+        <InspectionDriverCard :inspection-id="inspection.id" :attribution="inspection.attribution" />
 
         <BaseCard v-if="sms" data-test="sms">
           <h2 class="text-sm font-semibold text-ink">CSA points</h2>

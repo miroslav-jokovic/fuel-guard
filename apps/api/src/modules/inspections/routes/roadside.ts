@@ -4,6 +4,7 @@ import {
   ROADSIDE_CARD_PERIOD,
   isCalendarDay,
   organizationTimezone,
+  roadsideAttributionDecisionSchema,
   roadsidePeriodStart,
   shiftDay,
   summarizeRoadside,
@@ -19,12 +20,14 @@ import { getAppLocals } from "../../../lib/appLocals.js";
 import { readRoadsideInspections } from "../read/inspectionsList.js";
 import { readRoadsideInspection } from "../read/inspectionDetail.js";
 import { readRoadsideFeed } from "../feed/store.js";
+import { decideAttribution } from "../attribution/decide.js";
 
 /**
  * `GET /api/roadside-inspections` — the Inspections inbox's first slice — `/:id`, the inspection a
  * row opens, and `/summary`, the Operations tab's Roadside card (INSPECTION-CHALLENGE-PLAN §6, D-IC12:
- * the `safety` section; FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). Read-only: nothing here is a case or a
- * filing yet.
+ * the `safety` section; FLEET-MANAGER-HOME-PLAN FM5, Q-FM7 (a)). The one write is `POST /:id/attribution`,
+ * a person confirming or correcting who was driving (IC5, `attribution/decide.ts`), which needs the
+ * section's manage level. Nothing here is a case or a filing yet.
  *
  * ── THE CARD'S WINDOW IS CUT ON THE CARRIER'S CALENDAR, HERE ───────────────────────────────────
  * "Last 90 days" ends on today in the org zone, not on the server's (UTC on Railway, so a Chicago
@@ -106,6 +109,34 @@ export function roadsideInspectionsRouter(): Router {
         return;
       }
       res.json({ ok: true, data: found });
+    }),
+  );
+
+  router.post(
+    "/:id/attribution",
+    requireSection("safety"),
+    asyncHandler(async (req, res) => {
+      const id = z.uuid().safeParse(req.params.id);
+      if (!id.success) {
+        res.status(404).json(apiError("not_found", "Roadside inspection not found"));
+        return;
+      }
+      const body = roadsideAttributionDecisionSchema.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json(apiError("bad_request", body.error.issues[0]?.message ?? "Invalid decision"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const out = await decideAttribution(admin, req.auth!.orgId!, id.data, req.auth!.userId, body.data);
+      if ("error" in out) {
+        dbErrorResponse(res, "roadside-inspections.attribution", out.error, "Could not record the decision");
+        return;
+      }
+      if (!out.ok) {
+        res.status(out.status).json(apiError(out.code, out.message));
+        return;
+      }
+      res.status(201).json({ ok: true, data: { id: out.id } });
     }),
   );
 

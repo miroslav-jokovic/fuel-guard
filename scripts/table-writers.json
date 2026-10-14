@@ -311,7 +311,8 @@
     "apps/api/src/modules/efs/services/efsSync.ts"
   ],
   "inspection_attributions": [
-    "apps/api/src/modules/inspections/attribution/attribute.ts"
+    "apps/api/src/modules/inspections/attribution/attribute.ts",
+    "apps/api/src/modules/inspections/attribution/decide.ts"
   ],
   "inspection_evidence_snapshots": [
     "apps/api/src/modules/inspections/attribution/freeze.ts"

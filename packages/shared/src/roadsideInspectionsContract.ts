@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { lastDaysStart, type CalendarDay } from "./calendarDay.js";
 import type { RoadsideInspectionSmsDto } from "./roadsideSmsContract.js";
+import type { RoadsideAttributionDto } from "./roadsideAttributionContract.js";
 
 /**
  * `GET /api/roadside-inspections` and `/summary` — our FMCSA roadside inspections as a list, and the
@@ -219,6 +220,8 @@ export interface RoadsideInspectionDetailDto extends Omit<RoadsideInspectionDto,
   violationList: RoadsideViolationDto[];
   /** CSA points, measured today (`roadsideSmsContract.ts`); null when no Appendix A edition is in force. */
   sms: RoadsideInspectionSmsDto | null;
+  /** Who was driving, as the engine read it from Samsara and as a person decided it (IC5, D-IC7). */
+  attribution: RoadsideAttributionDto;
 }
 
 /**

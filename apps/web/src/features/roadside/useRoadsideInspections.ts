@@ -1,6 +1,12 @@
 import { computed, type Ref } from "vue";
-import { useQuery } from "@tanstack/vue-query";
-import type { CalendarDay, RoadsideInspectionDetailDto, RoadsideInspectionDto, RoadsideSummary } from "@silvicom/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import type {
+  CalendarDay,
+  RoadsideAttributionDecision,
+  RoadsideInspectionDetailDto,
+  RoadsideInspectionDto,
+  RoadsideSummary,
+} from "@silvicom/shared";
 import { apiFetch } from "@/lib/api";
 import { recordOrThrow } from "@/lib/notFound";
 
@@ -43,5 +49,30 @@ export function useRoadsideInspectionQuery(id: Ref<string>) {
     queryKey: computed(() => ["roadside-inspections", "one", id.value] as const),
     staleTime: 10 * 60_000,
     queryFn: () => read<RoadsideInspectionDetailDto>(`/api/roadside-inspections/${encodeURIComponent(id.value)}`, "the roadside inspection"),
+  });
+}
+
+/** The API's refusal, kept whole: `changed` means the page is behind and must reload before deciding again. */
+export class AttributionDecisionError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * A person confirming or correcting who was driving (IC5, plan §6). Settled either way, the inspection
+ * is read again: after a success to show the decision, after `changed` to show what someone else did.
+ */
+export function useDecideAttribution(id: Ref<string>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: RoadsideAttributionDecision): Promise<void> => {
+      const res = await apiFetch(`/api/roadside-inspections/${encodeURIComponent(id.value)}/attribution`, { method: "POST", body: decision });
+      if (!res.ok) throw new AttributionDecisionError(res.error?.message ?? "The decision could not be saved.", res.error?.code ?? null);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: ["roadside-inspections", "one", id.value] }),
   });
 }
