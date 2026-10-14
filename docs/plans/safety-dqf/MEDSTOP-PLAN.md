@@ -693,10 +693,15 @@ None in 2,152 requests (MS2a, 2026-10-13), so this is built for the first one, n
   durable past inbox pruning): dedupe key `medstop-request-refusal:<request id>`.
 - The sweep line counts them ("N refused orders").
 
-**Not built:** Safety › Drug & Alcohol's **Results to review** lists tests only, so a refused request
-reaches the DER by notification and holds the driver, but is not listed on that tab. Recommend adding
-it to the same list (a request row has no test id; the row key would become the request id) when the
-first one is seen, so its shape is measured rather than guessed.
+**Listed under Results to review** (built 2026-10-14, after the hold and the alert). The tab is where
+the DER's notification sends them, so a refusal it does not list is a notice pointing at nothing.
+`readResultReview` reads refused orders beside tests: `MedstopResultRow` now carries `source`
+("test" | "order") and `medstopId`, and the table is keyed by both, because Med-Stop numbers tests and
+orders separately. The split follows the alert: `medstopRefusalDay` non-null (alerted) goes in the
+recent list, null (history) goes in "Found on the first read". The year is counted on the visit's day,
+else the appointment's. An undated refusal is shown, because it stops dispatch. The row reads "Refused
+before a specimen was collected". No real refusal has been seen yet (§7A.16); if the first one carries
+a field this row needs, that is a follow-up, not a reason to hide it until then.
 
 ## 8. Open questions
 
@@ -915,3 +920,6 @@ first one is seen, so its shape is measured rather than guessed.
   migration; §7A.16): a request Med-Stop closes as REFUSAL holds the driver (both violation reads) and
   reaches the DER once (the notification ledger's dedupe). History by its own dates (D-MS5's 14 days,
   now one shared constant). Not yet listed under Results to review.
+- 2026-10-14 — **#1533 merged; refused orders listed under Results to review** (branch
+  `claude/medstop-refused-results`, no migration; §7A.16): `MedstopResultRow` gains `source` and
+  `medstopId` (was `testId`); refused orders are split recent/history the way the alert splits them.

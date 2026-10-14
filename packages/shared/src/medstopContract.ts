@@ -139,9 +139,15 @@ export interface MedstopPersonTests {
   outcomesVisible: boolean;
 }
 
-/** A result on Safety › Drug & Alcohol's review list (F-5). Only built for roles that read testing records. */
+/**
+ * A result on Safety › Drug & Alcohol's review list (F-5). Only built for roles that read testing records.
+ * Usually a TEST; an ORDER when Med-Stop closed it as a refusal before any specimen existed, so no test
+ * row will ever carry it (MEDSTOP-PLAN §7A.16) — `medstopId` is then the order's id, `collectedOn` the
+ * visit's day (else the appointment's), and `outcome` always "refusal".
+ */
 export interface MedstopResultRow {
-  testId: string;
+  source: "test" | "order";
+  medstopId: string;
   person: ProgramPerson;
   kind: "drug" | "alcohol" | "medical";
   reason: string | null;

@@ -80,9 +80,38 @@ describe("readResultReview", () => {
     });
     const personOf = (id: string | null) => ({ driverId: null, medstopId: id, name: `P ${id}` });
     const review = await readResultReview(r.client, ORG, "2025-10-12", personOf);
-    expect(review.recent.map((x) => [x.testId, x.outcome])).toEqual([["a", "positive"], ["b", "negative_dilute"]]);
-    expect(review.history.map((x) => [x.testId, x.outcome])).toEqual([["d", "positive"]]);
+    expect(review.recent.map((x) => [x.medstopId, x.outcome])).toEqual([["a", "positive"], ["b", "negative_dilute"]]);
+    expect(review.history.map((x) => [x.medstopId, x.outcome])).toEqual([["d", "positive"]]);
     expect(r.forTable("medstop_tests")[0]!.ops).toContainEqual({ method: "gte", args: ["collected_local", "2025-10-12"] });
+    expectOrgScoped(r, ORG);
+  });
+
+  it("an order Med-Stop closed as a refusal is a row: alerted is recent, older than our first sight is history (§7A.16)", async () => {
+    const req = (medstop_id: string, status: string, requested_local: string | null, tested_local: string | null, first_seen_at: string) =>
+      ({ medstop_id, employee_medstop_id: "e3", service: "TD", reason: "RANDOM", status, requested_local, tested_local, first_seen_at });
+    const r = createSupabaseRecorder({
+      tables: {
+        medstop_tests: [
+          { medstop_id: "a", employee_medstop_id: "e1", service: "TD", reason: "RANDOM", status: "CLOSED", result: "POSITIVE", collected_local: "2026-10-09T09:00:00", baseline: false },
+        ],
+        medstop_requests: [
+          req("r1", "REFUSAL", "2026-10-10T08:00:00", "2026-10-10T09:30:00", "2026-10-10T10:00:00Z"),
+          req("r2", "REFUSAL", "2026-05-01T08:00:00", null, "2026-10-13T00:00:00Z"),
+          req("r3", "REFUSAL", "2025-01-01T08:00:00", null, "2025-01-01T09:00:00Z"),
+          // The recorder does not filter: the wording narrowing is the query's, the verdict ours.
+          req("r4", "COMPLETED", "2026-10-11T08:00:00", null, "2026-10-11T09:00:00Z"),
+          req("a", "REFUSAL", null, null, "2026-10-12T00:00:00Z"),
+        ],
+      },
+    });
+    const personOf = (id: string | null) => ({ driverId: null, medstopId: id, name: `P ${id}` });
+    const review = await readResultReview(r.client, ORG, "2025-10-12", personOf);
+    expect(review.recent.map((x) => [x.source, x.medstopId, x.collectedOn])).toEqual([
+      ["order", "r1", "2026-10-10"], ["test", "a", "2026-10-09"], ["order", "a", null],
+    ]);
+    expect(review.recent[0]).toMatchObject({ kind: "drug", reason: "RANDOM", outcome: "refusal", person: { medstopId: "e3" } });
+    expect(review.history.map((x) => [x.source, x.medstopId])).toEqual([["order", "r2"]]);
+    expect(r.forTable("medstop_requests")[0]!.ops).toContainEqual({ method: "ilike", args: ["status", "%refus%"] });
     expectOrgScoped(r, ORG);
   });
 });

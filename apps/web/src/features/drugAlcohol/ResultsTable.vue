@@ -22,7 +22,8 @@ const columns: DataTableColumn[] = [
   { key: "outcome", label: "Result" },
 ];
 // Paged (F26): a year of results is one response, and the first read's history has no bound at all.
-const tableRows = computed(() => props.rows.map((r) => ({ ...r, name: r.person.name, driverId: r.person.driverId })));
+// Keyed by source too: a test and an order are numbered by Med-Stop separately and may share an id.
+const tableRows = computed(() => props.rows.map((r) => ({ ...r, key: `${r.source}:${r.medstopId}`, name: r.person.name, driverId: r.person.driverId })));
 const { page, pageRows, total, paged, pageSize } = useClientPage(tableRows);
 const kindText = (kind: string) => (kind === "drug" ? "Drug" : kind === "alcohol" ? "Alcohol" : "Medical");
 </script>
@@ -41,14 +42,18 @@ const kindText = (kind: string) => (kind === "drug" ? "Drug" : kind === "alcohol
       :sticky-header="false"
       :columns="columns"
       :rows="pageRows"
-      row-key="testId"
+      row-key="key"
       :empty-text="emptyText"
     >
       <template #cell-name="{ row }">
         <RouterLink v-if="row.driverId" :to="{ name: 'driver-detail', params: { id: row.driverId } }" class="text-brand-700 hover:underline">{{ row.name }}</RouterLink>
         <span v-else>{{ row.name }}</span>
       </template>
-      <template #cell-test="{ row }">{{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}</template>
+      <template #cell-test="{ row }">
+        {{ kindText(row.kind) }}{{ row.reason ? ` · ${row.reason.toLowerCase()}` : "" }}
+        <!-- §7A.16: no specimen, so no test — the day in "Collected" is the visit's. -->
+        <span v-if="row.source === 'order'" class="block text-xs text-ink-muted">Refused before a specimen was collected</span>
+      </template>
       <template #cell-collectedOn="{ row }">{{ row.collectedOn ? formatDate(row.collectedOn) : "—" }}</template>
       <template #cell-outcome="{ row }">
         <span :class="[BADGE_BASE, medstopOutcomeTone(row.outcome)]">{{ MEDSTOP_OUTCOME_LABELS[row.outcome as MedstopResultRow["outcome"]] }}</span>
