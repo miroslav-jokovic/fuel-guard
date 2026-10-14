@@ -12,7 +12,11 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const positive = (employee: string, day: string) => ({ employee_medstop_id: employee, service: "TD", status: "CLOSED", result: "POSITIVE", collected_local: `${day}T09:00:00` });
 const negative = (employee: string, day: string) => ({ ...positive(employee, day), result: "NEGATIVE" });
 
-const db = (employees: unknown[], tests: unknown[]) => createSupabaseRecorder({ tables: { medstop_employees: employees, medstop_tests: tests } });
+const db = (employees: unknown[], tests: unknown[], requests: unknown[] = []) =>
+  createSupabaseRecorder({ tables: { medstop_employees: employees, medstop_tests: tests, medstop_requests: requests } });
+const refusedRequest = (employee: string, day: string, extra: Record<string, unknown> = {}) => ({
+  employee_medstop_id: employee, status: "REFUSAL", requested_local: `${day}T09:00:00`, tested_local: null, first_seen_at: `${day}T15:00:00Z`, ...extra,
+});
 
 describe("medstopViolationsByDriver", () => {
   it("maps each certainly-matched driver to the day of their newest positive or refusal", async () => {
@@ -47,3 +51,36 @@ describe("medstopViolationsByDriver", () => {
     expect(all.get("d1")).toBe(await medstopViolationOn(db(employees, tests).client, ORG, "d1"));
   });
 });
+
+/** MEDSTOP-PLAN §7A.16: a request Med-Stop closed as REFUSAL holds the driver as a refused test would. */
+describe("a refused request holds the driver", () => {
+  const employees = [{ medstop_id: "e1", driver_id: "d1", match_rule: "licence" }];
+
+  it("from the visit's day, both for one driver and org-wide", async () => {
+    const requests = [refusedRequest("e1", "2026-10-02", { tested_local: "2026-10-03T08:00:00" })];
+    expect(await medstopViolationOn(db(employees, [], requests).client, ORG, "d1")).toBe("2026-10-03");
+    expect(Object.fromEntries(await medstopViolationsByDriver(db(employees, [], requests).client, ORG))).toEqual({ d1: "2026-10-03" });
+  });
+
+  it("is newer than an older positive, and older than a newer one", async () => {
+    expect(await medstopViolationOn(db(employees, [positive("e1", "2026-05-01")], [refusedRequest("e1", "2026-09-01")]).client, ORG, "d1")).toBe("2026-09-01");
+    expect(await medstopViolationOn(db(employees, [positive("e1", "2026-10-01")], [refusedRequest("e1", "2026-09-01")]).client, ORG, "d1")).toBe("2026-10-01");
+  });
+
+  it("holds nobody for a request that is not refused, or that is history (D-MS5)", async () => {
+    const requests = [
+      refusedRequest("e1", "2026-09-01", { status: "NO SHOW" }),
+      refusedRequest("e1", "2026-07-01", { first_seen_at: "2026-10-01T15:00:00Z" }),
+    ];
+    expect(await medstopViolationOn(db(employees, [], requests).client, ORG, "d1")).toBeNull();
+    expect((await medstopViolationsByDriver(db(employees, [], requests).client, ORG)).size).toBe(0);
+  });
+
+  it("asks only for refused requests, org-scoped", async () => {
+    const rec = db(employees, [], []);
+    await medstopViolationsByDriver(rec.client, ORG);
+    expect(rec.forTable("medstop_requests")[0]!.ops).toContainEqual({ method: "ilike", args: ["status", "%refus%"] });
+    expectOrgScoped(rec, ORG);
+  });
+});
+

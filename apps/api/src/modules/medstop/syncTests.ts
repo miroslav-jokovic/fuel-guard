@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { shiftDay, type CalendarDay } from "@silvicom/shared";
+import { MEDSTOP_HISTORY_DAYS, shiftDay, type CalendarDay } from "@silvicom/shared";
 import {
   MedstopClient,
   medstopRequestRow,
@@ -32,7 +32,8 @@ import {
  */
 
 export const MEDSTOP_TEST_WINDOW_DAYS = 400;
-const BASELINE_AGE_DAYS = 14;
+// Shared with a request's history rule (`medstopRefusalDay`), so a test and a request age alike.
+const BASELINE_AGE_DAYS = MEDSTOP_HISTORY_DAYS;
 const TRAIL_CAP = 40;
 
 export interface MedstopTestSweepResult {

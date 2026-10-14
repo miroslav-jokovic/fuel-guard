@@ -1,3 +1,5 @@
+import { shiftDay } from "./calendarDay.js";
+
 /**
  * What a Med-Stop test's result MEANS — classified once, here (MEDSTOP-PLAN.md §6 F-4/F-5).
  *
@@ -62,6 +64,35 @@ export function medstopTestOutcome(test: MedstopTestFacts): MedstopTestOutcome {
  * (2026-10-13); handled because §40.191 makes it the same violation as a refused specimen.
  */
 export const medstopRequestRefused = (status: string | null): boolean => status?.trim().toUpperCase() === "REFUSAL";
+
+/** D-MS5's age, shared by the test sweep's baseline and a request's (below): older than this is history. */
+export const MEDSTOP_HISTORY_DAYS = 14;
+
+export interface MedstopRequestFacts {
+  status: string | null;
+  requested_local: string | null;
+  tested_local: string | null;
+  /** When OUR sweep first saw the request (timestamptz). */
+  first_seen_at: string | null;
+}
+
+/**
+ * The violation a REFUSAL request stands for (MEDSTOP-PLAN §7A.16): its day, or null when the request
+ * is not refused or is history.
+ *
+ * - The day is the visit's (`tested_local`), else the appointment's (`requested_local`); with neither,
+ *   the earliest day there is — as for a test, so only a return-to-duty record can discharge it.
+ * - D-MS5 without a column: a request has no `baseline`, but it does carry when it was made and when
+ *   we first saw it. One made more than `MEDSTOP_HISTORY_DAYS` before our first sight of it was
+ *   decided before the product watched, and is history — the test sweep's rule, read off the row.
+ */
+export function medstopRefusalDay(r: MedstopRequestFacts): string | null {
+  if (!medstopRequestRefused(r.status)) return null;
+  const requested = r.requested_local?.slice(0, 10) ?? null;
+  const seen = r.first_seen_at?.slice(0, 10) ?? null;
+  if (requested && seen && requested < shiftDay(seen, -MEDSTOP_HISTORY_DAYS)) return null;
+  return r.tested_local?.slice(0, 10) ?? requested ?? "0001-01-01";
+}
 
 /** Outcomes that are a DOT drug-and-alcohol programme violation (§382.211/§382.215, §40.191). */
 export const isMedstopViolation = (outcome: MedstopTestOutcome): boolean => outcome === "positive" || outcome === "refusal";
