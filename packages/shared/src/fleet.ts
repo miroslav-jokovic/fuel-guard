@@ -107,6 +107,10 @@ export interface Vehicle {
    *  decides whether the office may edit `status` at all — `isStatusFromTms` (Q-7). Optional on the
    *  wire for the same reason as the driver's: the column is NOT NULL, not every read selects it. */
   identity_source?: string;
+  /** The TMS reports the truck is being wound down — sold and awaiting pickup, or retiring (McLeod
+   *  `tractor_status = 'I'`, 0462, D-DB11). A fact, never membership: `status` stays `active` until
+   *  McLeod deactivates it. Null = not reported yet. Optional for the same reason as `identity_source`. */
+  winding_down?: boolean | null;
   /** Manual source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   has_apu?: boolean | null;
   /** Idle-reduction equipment detail (refines has_apu). null = unknown/unset. */

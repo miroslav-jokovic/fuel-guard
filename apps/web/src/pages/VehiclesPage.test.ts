@@ -18,6 +18,8 @@ const vehicles = ref([
   { id: "t1", unit_number: "T-101", status: "active", assigned_driver_id: "a", dot_annual_inspection_expires_at: "2026-10-01", registration_expires_at: "2027-01-01" },
   { id: "t2", unit_number: "T-202", status: "active", assigned_driver_id: null, dot_annual_inspection_expires_at: "2027-03-01", registration_expires_at: "2026-09-30" },
   { id: "t3", unit_number: "T-303", status: "ordered", assigned_driver_id: null, dot_annual_inspection_expires_at: null, registration_expires_at: null },
+  // Sold, awaiting pickup: `active` until McLeod deactivates it (D-FC0), wound down meanwhile (D-DB11).
+  { id: "t4", unit_number: "T-404", status: "active", winding_down: true, assigned_driver_id: null, dot_annual_inspection_expires_at: "2027-03-01", registration_expires_at: "2027-03-01" },
 ]);
 vi.mock("@/composables/useVehicles", () => ({
   useVehiclesQuery: () => ({ data: vehicles, isLoading: ref(false), isError: ref(false), error: ref(null), refetch: vi.fn(), isFetching: ref(false) }),
@@ -45,7 +47,7 @@ async function mountAt(at: string) {
   return { w, router };
 }
 const units = (w: Awaited<ReturnType<typeof mountAt>>["w"]) =>
-  ["T-101", "T-202", "T-303"].filter((u) => w.text().includes(u));
+  ["T-101", "T-202", "T-303", "T-404"].filter((u) => w.text().includes(u));
 
 beforeEach(() => {
   // The product's confirm (D-US7) is a Pinia store, so the page needs one to ask through.
@@ -58,7 +60,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("the Vehicles page behind the Operations tab's doors", () => {
   it("opens on active trucks, as it always has", async () => {
-    expect(units((await mountAt("/vehicles")).w)).toEqual(["T-101", "T-202"]);
+    expect(units((await mountAt("/vehicles")).w)).toEqual(["T-101", "T-202", "T-404"]);
   });
 
   it("narrows to the trucks a check names", async () => {
@@ -67,13 +69,18 @@ describe("the Vehicles page behind the Operations tab's doors", () => {
     expect(units((await mountAt("/vehicles?check=registration_overdue")).w)).toEqual(["T-202"]);
   });
 
+  it("keeps a truck being wound down out of 'no driver' and lists it behind its own door", async () => {
+    expect(units((await mountAt("/vehicles?check=no_driver")).w)).not.toContain("T-404");
+    expect(units((await mountAt("/vehicles?check=winding_down")).w)).toEqual(["T-404"]);
+  });
+
   it("opens on a status the link names, and reads `any` as every status", async () => {
     expect(units((await mountAt("/vehicles?status=ordered")).w)).toEqual(["T-303"]);
-    expect(units((await mountAt("/vehicles?status=any")).w)).toEqual(["T-101", "T-202", "T-303"]);
+    expect(units((await mountAt("/vehicles?status=any")).w)).toEqual(["T-101", "T-202", "T-303", "T-404"]);
   });
 
   it("ignores a check it does not know, rather than emptying the fleet", async () => {
-    expect(units((await mountAt("/vehicles?check=banana")).w)).toEqual(["T-101", "T-202"]);
+    expect(units((await mountAt("/vehicles?check=banana")).w)).toEqual(["T-101", "T-202", "T-404"]);
   });
 
   it("clears both back to where it opens", async () => {
