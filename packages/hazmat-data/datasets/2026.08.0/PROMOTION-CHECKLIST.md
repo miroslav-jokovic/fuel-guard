@@ -1,5 +1,16 @@
 # HazmatGuard dataset 2026.08.0 — promotion checklist (Q-DR14, prepared 2026-10-09)
 
+> **Superseded 2026-10-14 — Q-DR14a was ruled (b).** The gate now accepts a difference explained by a
+> cited Federal Register rule (`import/reconciliations.ts`; 91 FR 51098's four field differences on
+> UN0431/UN0335/UN0101 are the first entries), and Title 49 was recaptured at eCFR 2026-10-09
+> (`fixtures/ecfr-provenance.json`). The §3 command below therefore REFUSES: `buildDataset.ts` will not
+> cut with `sourceEcfrDate 2026-07-28` from a 2026-10-09 capture, so 2026.08.0 is never attested and
+> stays provisional as a record. A cut from the current text triangulates ALL CLEAN (HMT 2397/2400 keys
+> plus 4 cited differences, placards 23/23, segregation 173/173, and for a 302.4 cut Table 302.4
+> 1340/1340), so the attestable datasets are the next cuts: one effective now (Appendix A, column 8A, the
+> `namesChemicalGroup` flag) and one effective 2026-12-02 (Table 302.4). §2 and §4 still describe what
+> promotion changes; §1 is the record of why.
+
 Owner ruling Q-DR14 (2026-10-09): release the dataset that carries HMT column 8A, through
 `RELEASING.md`, in this order — (1) step-0 currency check, (2) pin the pre-8A golden guard, (3) a
 NAMED PERSON attests. Steps 1 and 2 are done on branch `claude/hazmat-dataset-release-prep`. Step 3

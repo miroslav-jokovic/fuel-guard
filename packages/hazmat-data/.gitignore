@@ -9,6 +9,8 @@ import/fixtures/*
 !import/fixtures/handVerifiedRows.ts
 !import/fixtures/section-172-504.xml
 !import/fixtures/section-177-848.xml
+# the date the eCFR sections were pinned to — reconciliations.ts decides which cited rules may apply from it
+!import/fixtures/ecfr-provenance.json
 !import/fixtures/appendix-a-slice.xml
 !import/fixtures/appendix-b-slice.xml
 # 40 CFR 302.4 (captureCercla.ts) — the hazSubstances source from 2026-12-02 (91 FR 49305), both sources

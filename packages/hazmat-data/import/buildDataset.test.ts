@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_VERSION_WITH_GROUP_FLAG, assembleDataset, compareDatasetVersions, datasetChecksum, entriesForVersion, verifyChecksum } from "./buildDataset.js";
+import { FIRST_VERSION_WITH_GROUP_FLAG, assembleDataset, compareDatasetVersions, cutDataset, datasetChecksum, entriesForVersion, verifyChecksum } from "./buildDataset.js";
+import { capturedEcfrDate } from "./govinfoCrossCheck.js";
 import { parseDataset, type HmtEntry } from "../src/schema.js";
 
 function fuelEntry(over: Partial<HmtEntry> = {}): HmtEntry {
@@ -99,5 +100,16 @@ describe("the namesChemicalGroup version gate (Q-DR17)", () => {
     const nos = fuelEntry({ symbols: ["G"], psnPrinted: "Flammable liquids, n.o.s.", idNumber: "1993" });
     expect(entriesForVersion("2026.08.0", [nos])[0]).not.toHaveProperty("namesChemicalGroup");
     expect(entriesForVersion("2026.09.0", [nos])[0]).toHaveProperty("namesChemicalGroup", false);
+  });
+});
+
+describe("a cut names the eCFR text it was cut from", () => {
+  // 2026.08.0 was cut from the 2026-07-28 capture; the fixtures now hold 2026-10-09. Re-running its cut
+  // (the old PROMOTION-CHECKLIST §3 command) must refuse instead of attesting text nobody reviewed.
+  it.skipIf(!capturedEcfrDate())("refuses a sourceEcfrDate that is not the captured eCFR date, before writing anything", () => {
+    expect(capturedEcfrDate()).toBe("2026-10-09");
+    expect(() => cutDataset({ version: "2099.01.0", sourceEcfrDate: "2026-07-28", effectiveDate: "2026-08-15" })).toThrow(
+      /sourceEcfrDate 2026-07-28 is not the captured eCFR date 2026-10-09/,
+    );
   });
 });

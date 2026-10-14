@@ -27,6 +27,7 @@ import { compareEntry, rowKey, IN_SCOPE_ENTRIES, transcribedRowSchema, type Fiel
 import type { HmtEntry, PlacardSpec, SegregationCell } from "../src/schema.js";
 import { groupFlagDiffs } from "./namesChemicalGroup.js";
 import { crossCheckCerclaDefault, formatCerclaCrossCheck, type CerclaCrossCheck } from "./cerclaCrossCheck.js";
+import { HMT_RECONCILIATIONS, reconcile, type CitedReconciliation, type Reconciliation } from "./reconciliations.js";
 
 /** Map a parsed GovInfo `HmtEntry` into the Source-B transcription shape so `compareEntry` can consume it. */
 export function govInfoEntryToSourceB(e: HmtEntry, sourceRef: string): TranscribedRow {
@@ -220,6 +221,8 @@ export function crossCheckSegregation(ecfrXml: string, govinfoXml: string): SetD
 
 export interface TriangulationResult {
   hmt: CrossCheckReport;
+  /** The HMT disagreements a cited Federal Register rule explains, and the ones none does (reconciliations.ts). */
+  hmtReconciliation: Reconciliation;
   placards: SetDiff;
   segregation: SetDiff;
   /** 40 CFR 302.4 eCFR↔GovInfo — present only on a cut whose `hazSubstances` come from Table 302.4. */
@@ -256,7 +259,7 @@ export function formatCrossCheckReport(r: CrossCheckReport): string {
   }
   L.push("");
   if (r.disagreements.length) {
-    L.push(`## All disagreements (${r.disagreements.length}) — reconcile each vs Federal Register / eCFR corrections`);
+    L.push(`## All disagreements (${r.disagreements.length}) — each must be explained by a cited rule (reconciliations.ts)`);
     for (const row of r.disagreements.slice(0, 60)) {
       L.push(`### ${row.idPrefix}${row.idNumber} — ${row.psnPrinted}`);
       for (const d of row.fieldDiffs) L.push(`- \`${d.field}\`: eCFR=${fmt(d.sourceA)}  GovInfo=${fmt(d.sourceB)}`);
@@ -288,6 +291,22 @@ function readFixture(name: string): string | null {
   }
 }
 
+/** The GovInfo Title 49 edition's issue date, and the date the eCFR sections were pinned to (captureFixtures.ts). */
+function readSourceDates(): { editionDate: string | null; ecfrDate: string | null } {
+  const json = (name: string): Record<string, unknown> | null => {
+    const raw = readFixture(name);
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+  };
+  const hmt = (json("govinfo/provenance.json")?.hmt ?? null) as { dateIssued?: string } | null;
+  const ecfr = json("ecfr-provenance.json") as { date?: string } | null;
+  return { editionDate: hmt?.dateIssued ?? null, ecfrDate: ecfr?.date ?? null };
+}
+
+/** The pinned eCFR date of the captured Title 49 sections, or null for a capture that predates the record. */
+export function capturedEcfrDate(): string | null {
+  return readSourceDates().ecfrDate;
+}
+
 function readProvenanceRef(): string {
   try {
     const raw = readFileSync(fileURLToPath(new URL("./fixtures/govinfo/provenance.json", import.meta.url)), "utf8");
@@ -311,8 +330,9 @@ export function crossCheckDefault(): CrossCheckReport {
  * Run the triangulation over the verified tables (HMT, §172.504 placards, §177.848 segregation) and, with
  * `{ cercla: true }` — a cut that reads `hazSubstances` from 40 CFR 302.4 — Table 302.4 as a fourth.
  */
-export function crossCheckAll(opts: { cercla?: boolean } = {}): TriangulationResult {
+export function crossCheckAll(opts: { cercla?: boolean; reconciliations?: readonly CitedReconciliation[] } = {}): TriangulationResult {
   const hmt = crossCheckDefault();
+  const hmtReconciliation = reconcile(hmt.disagreements, opts.reconciliations ?? HMT_RECONCILIATIONS, readSourceDates());
   const pA = readFixture("section-172-504.xml"), pB = readFixture("govinfo/placardTables-172-504.xml");
   const sA = readFixture("section-177-848.xml"), sB = readFixture("govinfo/segregation-177-848.xml");
   if (!pA || !pB) throw new Error("crossCheck: missing §172.504 placard fixture(s).");
@@ -320,17 +340,35 @@ export function crossCheckAll(opts: { cercla?: boolean } = {}): TriangulationRes
   const placards = crossCheckPlacards(pA, pB);
   const segregation = crossCheckSegregation(sA, sB);
   const cercla = opts.cercla ? crossCheckCerclaDefault() : undefined;
-  const parts = { hmt, placards, segregation, ...(cercla ? { cercla } : {}) };
+  const parts = { hmt, hmtReconciliation, placards, segregation, ...(cercla ? { cercla } : {}) };
   return { ...parts, allClean: triangulationVerdict(parts) };
 }
 
-/** ALL CLEAN = the fuel gate, zero full-table HMT disagreements, both set tables, and 302.4 when it ran. */
+/**
+ * ALL CLEAN = the fuel gate, every full-table HMT disagreement explained by a cited rule (none, when the
+ * edition is current) with no stale or out-of-window entry, both set tables, and 302.4 when it ran.
+ */
 export function triangulationVerdict(t: Omit<TriangulationResult, "allClean">): boolean {
-  return t.hmt.inScope.clean && t.hmt.full.disagree === 0 && t.placards.clean && t.segregation.clean && (t.cercla?.clean ?? true);
+  return t.hmt.inScope.clean && t.hmtReconciliation.clean && t.placards.clean && t.segregation.clean && (t.cercla?.clean ?? true);
+}
+
+function formatReconciliation(r: Reconciliation): string[] {
+  if (!r.explained.length && !r.unexplained.length && !r.unused.length && !r.outOfWindow.length) return [];
+  const L: string[] = [
+    `## HMT differences explained by a cited rule: ${r.clean ? "CLEAN ✓" : "NOT CLEAN ✗"} — ` +
+      `explained ${r.explained.length} · unexplained ${r.unexplained.length} · stale ${r.unused.length} · out of window ${r.outOfWindow.length} ` +
+      `(GovInfo edition ${r.editionDate ?? "?"}, eCFR ${r.ecfrDate ?? "?"})`,
+  ];
+  for (const e of r.explained) L.push(`- ✓ ${e.key} \`${e.diff.field}\`: eCFR=${fmt(e.diff.sourceA)} GovInfo=${fmt(e.diff.sourceB)} — ${e.citation} (FR doc ${e.frDoc})`);
+  for (const u of r.unexplained) L.push(`- ✗ UNEXPLAINED ${u.key} \`${u.diff.field}\`: eCFR=${fmt(u.diff.sourceA)} GovInfo=${fmt(u.diff.sourceB)}`);
+  for (const u of r.unused) L.push(`- ✗ STALE (no such difference) ${u.frDoc} ${u.row.key} \`${u.row.field}\` — delete it from reconciliations.ts`);
+  for (const o of r.outOfWindow) L.push(`- ✗ OUT OF WINDOW ${o.frDoc} effective ${o.effectiveOn}: ${o.why}`);
+  L.push("");
+  return L;
 }
 
 export function formatTriangulation(t: TriangulationResult): string {
-  const L: string[] = [formatCrossCheckReport(t.hmt)];
+  const L: string[] = [formatCrossCheckReport(t.hmt), ...formatReconciliation(t.hmtReconciliation)];
   const setLine = (name: string, d: SetDiff): string =>
     `## ${name}: ${d.clean ? "CLEAN ✓" : "NOT CLEAN ✗"} — matched ${d.matched}/${d.aCount} · ` +
     `value-diffs ${d.valueDiffs.length} · eCFR-only ${d.onlyA.length} · GovInfo-only ${d.onlyB.length}`;
@@ -342,7 +380,11 @@ export function formatTriangulation(t: TriangulationResult): string {
   for (const d of t.segregation.valueDiffs.slice(0, 20)) L.push(`- ${d.key} \`${d.field}\`: eCFR=${fmt(d.sourceA)} GovInfo=${fmt(d.sourceB)}`);
   L.push("");
   if (t.cercla) L.push(formatCerclaCrossCheck(t.cercla), "");
-  L.push(`# TRIANGULATION VERDICT: ${t.allClean ? "ALL CLEAN ✓ — eCFR and the official GovInfo edition agree" : "NOT CLEAN ✗ — reconcile before release"}`);
+  const explained = t.hmtReconciliation.explained.length;
+  const agree = explained
+    ? `ALL CLEAN ✓ — eCFR and the official GovInfo edition agree except ${explained} field difference(s), each explained by a cited Federal Register rule`
+    : "ALL CLEAN ✓ — eCFR and the official GovInfo edition agree";
+  L.push(`# TRIANGULATION VERDICT: ${t.allClean ? agree : "NOT CLEAN ✗ — reconcile before release"}`);
   return L.join("\n");
 }
 

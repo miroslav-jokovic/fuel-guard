@@ -19,6 +19,10 @@
  *   fixtures/section-172-101.xml         — the HMT (parser input — the important one)
  *   fixtures/section-172-504.xml         — placarding tables
  *   fixtures/section-177-848.xml         — segregation grid
+ *   fixtures/ecfr-provenance.json        — the date the three sections were pinned to. The cross-check
+ *                                          reads it to decide which cited rules may explain a difference
+ *                                          from the GovInfo edition (reconciliations.ts), and a cut refuses
+ *                                          a `sourceEcfrDate` that disagrees with it.
  *
  * These files are the SOURCE for the parser step. Do not edit them by hand — re-run this to refresh.
  */
@@ -51,6 +55,12 @@ async function main(): Promise<void> {
   await write("section-172-101.xml", await client.getFullXml(ctx.date, HMT_TITLE, { section: HMT_SECTION }));
   await write("section-172-504.xml", await client.getFullXml(ctx.date, HMT_TITLE, { section: PLACARD_TABLES_SECTION }));
   await write("section-177-848.xml", await client.getFullXml(ctx.date, HMT_TITLE, { section: SEGREGATION_SECTION }));
+  await write("ecfr-provenance.json", JSON.stringify({
+    title: HMT_TITLE,
+    date: ctx.date,
+    upToDateAsOf: ctx.summary.up_to_date_as_of ?? null,
+    latestAmendedOn: ctx.summary.latest_amended_on ?? null,
+  }, null, 2) + "\n");
 
   console.log(`\nDate pinned: ${ctx.date} (Title ${HMT_TITLE} up_to_date_as_of=${ctx.summary.up_to_date_as_of}, ` +
     `latest_amended_on=${ctx.summary.latest_amended_on}).`);

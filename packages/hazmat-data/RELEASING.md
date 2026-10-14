@@ -34,7 +34,8 @@ Run everything from `packages/hazmat-data/`.
 **1. Capture the primary source (Source A input).**
    - `npx tsx import/captureFixtures.ts` — saves the real §172.101 / §172.504 / §177.848 XML plus the
      structure/versions/corrections JSON into `import/fixtures/` (gitignored; regenerable). Note the
-     pinned eCFR date it prints — it becomes `sourceEcfrDate`.
+     pinned eCFR date it prints — it becomes `sourceEcfrDate`, and is recorded in
+     `fixtures/ecfr-provenance.json`; step 5 refuses a `sourceEcfrDate` that differs from it.
 
 **2. Parse + prove the parser (Source A).**
    - `pnpm --filter @hazmat/data test import/parseHmt.test.ts` — the frozen fuel-slice fixture with
@@ -62,6 +63,16 @@ Run everything from `packages/hazmat-data/`.
    - Save the printed report to `datasets/<version>/diff-report.md`. A real disagreement is either a
      parser bug (fix `parseHmt.ts`, re-run step 2) or a transcription error (fix Source B); an
      *explained* difference (e.g. a known eCFR typo with a citation) is recorded there and allowed. (Under D5 v7 triangulation the diff's second source is the GovInfo edition; an explained difference is reconciled to a cited Federal Register amendment / eCFR correction and a human attests the reconciled report rather than transcribing rows.)
+   - **Cited reconciliations (Q-DR14a (b), 2026-10-14).** A PHMSA rule effective between GovInfo's
+     October-1 edition and the eCFR capture makes rows disagree for up to a year. Each such difference is
+     listed in `import/reconciliations.ts` under its rule — FR document number, citation, published and
+     effective dates (check them against `federalregister.gov/api/v1/documents/<doc>.json`) — row by row
+     with the exact eCFR and GovInfo values; read the rule's amendatory text before adding a row. The gate
+     accepts a difference only on an exact match from a rule in force after the edition's `dateIssued` and
+     by the capture's date (`fixtures/ecfr-provenance.json`), prints each one beside its citation for the
+     attester, and fails on a listed row that matches nothing. When the next edition carries the rule,
+     delete its entry. The in-scope fuel gate is never reconciled: a fuel row that moved is reviewed by a
+     person first.
 
 **5. Cut the versioned dataset.**
    - `npx tsx import/buildDataset.ts <version> <sourceEcfrDate> [effectiveDate] --attested-by "Name" --attested-on YYYY-MM-DD`

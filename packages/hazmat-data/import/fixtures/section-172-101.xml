@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?> 
 <DIV8 N="172.101" TYPE="SECTION" hierarchy_metadata="{&quot;path&quot;:&quot;/on/_SUBSTITUTE_DATE_/title-49/section-172.101&quot;,&quot;citation&quot;:&quot;49 CFR 172.101&quot;}">
 <HEAD>§ 172.101 Purpose and use of the hazardous materials table.</HEAD>
+<XREF ID="20260804" REFID="18" AMDINSN="4">Link to an amendment published at 91 FR 49310, Aug. 4, 2026.</XREF>
 <P>(a) The Hazardous Materials Table (Table) in this section designates the materials listed therein as hazardous materials for the purpose of transportation of those materials. For each listed material, the Table identifies the hazard class or specifies that the material is forbidden in transportation, and gives the proper shipping name or directs the user to the preferred proper shipping name. In addition, the Table specifies or references requirements in this subchapter pertaining to labeling, packaging, quantity limits aboard aircraft and stowage of hazardous materials aboard vessels.</P>
 <P>(b) <I>Column 1: Symbols.</I> Column 1 of the Table contains six symbols (“ + ”, “A”, “D”, “G”, “I” and “W”) as follows:</P>
 <P>(1) The plus (+) sign fixes the proper shipping name, hazard class and packing group for that entry without regard to whether the material meets the definition of that class, packing group or any other hazard class definition. When the plus sign is assigned to a proper shipping name in Column (1) of the § 172.101 Table, it means that the material is known to pose a risk to humans. When a plus sign is assigned to mixtures or solutions containing a material where the hazard to humans is significantly different from that of the pure material or where no hazard to humans is posed, the material may be described using an alternative shipping name that represents the hazards posed by the material. An appropriate alternate proper shipping name and hazard class may be authorized by the Associate Administrator.</P>
@@ -7294,12 +7295,10 @@
 </TD>
 <TD class="left border-right-single">03
 </TD>
-<TD class="right">25
-</TD>
+<TD class="right">25</TD>
 </TR>
 <TR>
-<TD class="center border-right-single">
-</TD>
+<TD class="center border-right-single"> </TD>
 <TD class="left border-right-single">Articles, pyrotechnic <E T="03">for technical purposes</E>
 </TD>
 <TD class="right border-right-single">1.4G
@@ -7309,7 +7308,7 @@
 <TD class="center border-right-single"></TD>
 <TD class="left border-right-single">1.4G
 </TD>
-<TD class="right border-right-single">381
+<TD class="right border-right-single">200,381
 </TD>
 <TD class="left border-right-single">None
 </TD>
@@ -7319,7 +7318,7 @@
 </TD>
 <TD class="right border-right-single">Forbidden
 </TD>
-<TD class="right border-right-single">75 kg
+<TD class="right border-right-single">75kg
 </TD>
 <TD class="left border-right-single">02
 </TD>
@@ -27757,9 +27756,8 @@
 <TD class="left border-right-single">UN0335
 </TD>
 <TD class="center border-right-single"></TD>
-<TD class="left border-right-single">1.3G
-</TD>
-<TD class="right border-right-single">108
+<TD class="left border-right-single">1.3G</TD>
+<TD class="right border-right-single">108, 200
 </TD>
 <TD class="left border-right-single">None
 </TD>
@@ -27773,8 +27771,7 @@
 </TD>
 <TD class="left border-right-single">03
 </TD>
-<TD class="right">25
-</TD>
+<TD class="right">25</TD>
 </TR>
 <TR>
 <TD class="center border-right-single">
@@ -29522,12 +29519,10 @@
 </TD>
 <TD class="left border-right-single">02
 </TD>
-<TD class="right">25
-</TD>
+<TD class="right">25</TD>
 </TR>
 <TR>
-<TD class="center border-right-single">
-</TD>
+<TD class="center border-right-single"> </TD>
 <TD class="left border-right-single">Fuse, non-detonating <E T="03">instantaneous or quickmatch</E>
 </TD>
 <TD class="right border-right-single">1.3G
@@ -29537,7 +29532,8 @@
 <TD class="center border-right-single"></TD>
 <TD class="left border-right-single">1.3G
 </TD>
-<TD class="right border-right-single"></TD>
+<TD class="right border-right-single">200
+</TD>
 <TD class="left border-right-single">None
 </TD>
 <TD class="left border-right-single">62

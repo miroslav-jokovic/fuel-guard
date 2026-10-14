@@ -5,7 +5,7 @@
   "label_description": "Transportation",
   "reserved": false,
   "type": "title",
-  "size": 32965175,
+  "size": 32975944,
   "children": [
     {
       "identifier": "A",
@@ -14,7 +14,7 @@
       "label_description": "Office of the Secretary of Transportation",
       "reserved": false,
       "type": "subtitle",
-      "size": 3335982,
+      "size": 3331637,
       "children": [
         {
           "identifier": "1",
@@ -5200,7 +5200,7 @@
           "volumes": [
             "1"
           ],
-          "size": 91421,
+          "size": 94075,
           "children": [
             {
               "identifier": "A",
@@ -5212,7 +5212,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 25474,
+              "size": 25539,
               "children": [
                 {
                   "identifier": "23.1",
@@ -5237,8 +5237,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2025-11-19T17:20:07-0500",
-                  "size": 16156
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 16221
                 },
                 {
                   "identifier": "23.5",
@@ -5411,7 +5411,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 9248,
+              "size": 9179,
               "children": [
                 {
                   "identifier": "23.31",
@@ -5441,16 +5441,16 @@
                 },
                 {
                   "identifier": "23.35",
-                  "label": "§ 23.35 What role do business development and mentor-protégé programs have in the DBE program?",
+                  "label": "§ 23.35 Personal net worth.",
                   "label_level": "§ 23.35",
-                  "label_description": "What role do business development and mentor-protégé programs have in the DBE program?",
+                  "label_description": "Personal net worth.",
                   "reserved": false,
                   "type": "section",
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2024-07-05T18:50:11-0400",
-                  "size": 1600
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 1531
                 },
                 {
                   "identifier": "23.37",
@@ -5649,7 +5649,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 9406,
+              "size": 12064,
               "children": [
                 {
                   "identifier": "23.71",
@@ -5726,8 +5726,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2025-11-19T17:20:07-0500",
-                  "size": 1316
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 3974
                 }
               ],
               "descendant_range": "23.71 – 23.81"
@@ -7153,7 +7153,7 @@
           "volumes": [
             "1"
           ],
-          "size": 222046,
+          "size": 226750,
           "children": [
             {
               "identifier": "A",
@@ -7165,7 +7165,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 29002,
+              "size": 28913,
               "children": [
                 {
                   "identifier": "26.1",
@@ -7203,8 +7203,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2025-11-19T17:20:07-0500",
-                  "size": 12567
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 12478
                 },
                 {
                   "identifier": "26.7",
@@ -7548,7 +7548,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 35685,
+              "size": 37765,
               "children": [
                 {
                   "identifier": "26.61",
@@ -7573,8 +7573,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2024-05-10T20:10:11-0400",
-                  "size": 5254
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 5520
                 },
                 {
                   "identifier": "26.65",
@@ -7599,8 +7599,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2025-11-19T17:20:07-0500",
-                  "size": 1551
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 3365
                 },
                 {
                   "identifier": "26.68",
@@ -7799,7 +7799,7 @@
               "volumes": [
                 "1"
               ],
-              "size": 12590,
+              "size": 15303,
               "children": [
                 {
                   "identifier": "26.101",
@@ -7876,8 +7876,8 @@
                   "volumes": [
                     "1"
                   ],
-                  "received_on": "2025-11-19T17:20:07-0500",
-                  "size": 1254
+                  "received_on": "2026-09-28T18:20:05-0400",
+                  "size": 3967
                 }
               ],
               "descendant_range": "26.101 – 26.111"
@@ -19938,7 +19938,7 @@
           "volumes": [
             "1"
           ],
-          "size": 37908,
+          "size": 38033,
           "children": [
             {
               "identifier": "92.1",
@@ -19976,8 +19976,8 @@
               "volumes": [
                 "1"
               ],
-              "received_on": "2023-04-12T10:30:27-0400",
-              "size": 4844
+              "received_on": "2026-09-14T16:50:04-0400",
+              "size": 4969
             },
             {
               "identifier": "92.7",
@@ -20266,232 +20266,14 @@
         },
         {
           "identifier": "98",
-          "label": "Part 98—Enforcement of Restrictions on Post-Employment Activities",
+          "label": "Part 98 [Reserved]",
           "label_level": "Part 98",
-          "label_description": "Enforcement of Restrictions on Post-Employment Activities",
-          "reserved": false,
+          "label_description": "Part 98 [Reserved]",
+          "reserved": true,
           "type": "part",
-          "volumes": [
-            "1"
-          ],
-          "size": 11828,
-          "children": [
-            {
-              "identifier": "A",
-              "label": "Subpart A—Administration of Enforcement Proceedings",
-              "label_level": "Subpart A",
-              "label_description": "Administration of Enforcement Proceedings",
-              "reserved": false,
-              "type": "subpart",
-              "volumes": [
-                "1"
-              ],
-              "size": 10270,
-              "children": [
-                {
-                  "identifier": "98.1",
-                  "label": "§ 98.1 Purpose.",
-                  "label_level": "§ 98.1",
-                  "label_description": "Purpose.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 447
-                },
-                {
-                  "identifier": "98.2",
-                  "label": "§ 98.2 Definitions.",
-                  "label_level": "§ 98.2",
-                  "label_description": "Definitions.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 1067
-                },
-                {
-                  "identifier": "98.3",
-                  "label": "§ 98.3 Reports of apparent violations.",
-                  "label_level": "§ 98.3",
-                  "label_description": "Reports of apparent violations.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 424
-                },
-                {
-                  "identifier": "98.4",
-                  "label": "§ 98.4 Initiation of administrative disciplinary proceeding.",
-                  "label_level": "§ 98.4",
-                  "label_description": "Initiation of administrative disciplinary proceeding.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 2200
-                },
-                {
-                  "identifier": "98.5",
-                  "label": "§ 98.5 Former employee response to notice.",
-                  "label_level": "§ 98.5",
-                  "label_description": "Former employee response to notice.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 1015
-                },
-                {
-                  "identifier": "98.6",
-                  "label": "§ 98.6 Examiner.",
-                  "label_level": "§ 98.6",
-                  "label_description": "Examiner.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 796
-                },
-                {
-                  "identifier": "98.7",
-                  "label": "§ 98.7 Hearing.",
-                  "label_level": "§ 98.7",
-                  "label_description": "Hearing.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 1606
-                },
-                {
-                  "identifier": "98.8",
-                  "label": "§ 98.8 Decision by examiner.",
-                  "label_level": "§ 98.8",
-                  "label_description": "Decision by examiner.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 682
-                },
-                {
-                  "identifier": "98.9",
-                  "label": "§ 98.9 Decision if hearing waived.",
-                  "label_level": "§ 98.9",
-                  "label_description": "Decision if hearing waived.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 625
-                },
-                {
-                  "identifier": "98.10",
-                  "label": "§ 98.10 Appeal.",
-                  "label_level": "§ 98.10",
-                  "label_description": "Appeal.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 786
-                },
-                {
-                  "identifier": "98.11",
-                  "label": "§ 98.11 Final administrative decision.",
-                  "label_level": "§ 98.11",
-                  "label_description": "Final administrative decision.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 622
-                }
-              ],
-              "descendant_range": "98.1 – 98.11"
-            },
-            {
-              "identifier": "B",
-              "label": "Subpart B—Administrative Sanctions",
-              "label_level": "Subpart B",
-              "label_description": "Administrative Sanctions",
-              "reserved": false,
-              "type": "subpart",
-              "volumes": [
-                "1"
-              ],
-              "size": 1148,
-              "children": [
-                {
-                  "identifier": "98.12",
-                  "label": "§ 98.12 Administrative sanctions.",
-                  "label_level": "§ 98.12",
-                  "label_description": "Administrative sanctions.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 1148
-                }
-              ],
-              "descendant_range": "98.12"
-            },
-            {
-              "identifier": "C",
-              "label": "Subpart C—Judicial Review",
-              "label_level": "Subpart C",
-              "label_description": "Judicial Review",
-              "reserved": false,
-              "type": "subpart",
-              "volumes": [
-                "1"
-              ],
-              "size": 410,
-              "children": [
-                {
-                  "identifier": "98.13",
-                  "label": "§ 98.13 Judicial review.",
-                  "label_level": "§ 98.13",
-                  "label_description": "Judicial review.",
-                  "reserved": false,
-                  "type": "section",
-                  "volumes": [
-                    "1"
-                  ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 410
-                }
-              ],
-              "descendant_range": "98.13"
-            }
-          ],
-          "descendant_range": "98.1 – 98.13"
+          "volumes": [],
+          "size": 0,
+          "children": []
         },
         {
           "identifier": "99",
@@ -20650,7 +20432,7 @@
       "label_description": "Other Regulations Relating to Transportation",
       "reserved": false,
       "type": "subtitle",
-      "size": 29629193,
+      "size": 29644307,
       "children": [
         {
           "identifier": "I",
@@ -20659,7 +20441,7 @@
           "label_description": "Pipeline and Hazardous Materials Safety Administration, Department of Transportation",
           "reserved": false,
           "type": "chapter",
-          "size": 10354751,
+          "size": 10366849,
           "children": [
             {
               "identifier": "A",
@@ -20668,7 +20450,7 @@
               "label_description": "Hazardous Materials and Oil Transportation",
               "reserved": false,
               "type": "subchapter",
-              "size": 429164,
+              "size": 429788,
               "children": [
                 {
                   "identifier": "100-104",
@@ -21353,7 +21135,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 327432,
+                  "size": 328056,
                   "children": [
                     {
                       "identifier": "A",
@@ -21393,7 +21175,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 35757,
+                      "size": 36022,
                       "children": [
                         {
                           "identifier": "107.101",
@@ -21444,8 +21226,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 5418
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 5683
                         },
                         {
                           "identifier": "107.111",
@@ -21774,7 +21556,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 160995,
+                      "size": 161107,
                       "children": [
                         {
                           "identifier": "107.301",
@@ -21823,7 +21605,7 @@
                           "label_description": "Compliance Orders and Civil Penalties",
                           "reserved": false,
                           "type": "subject_group",
-                          "size": 27035,
+                          "size": 27147,
                           "children": [
                             {
                               "identifier": "107.307",
@@ -21835,8 +21617,8 @@
                               "volumes": [
                                 "2"
                               ],
-                              "received_on": "2023-04-12T10:30:27-0400",
-                              "size": 1791
+                              "received_on": "2026-09-29T18:10:05-0400",
+                              "size": 1903
                             },
                             {
                               "identifier": "107.309",
@@ -22140,7 +21922,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 12760,
+                      "size": 13358,
                       "children": [
                         {
                           "identifier": "107.401",
@@ -22165,8 +21947,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 8312
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 8910
                         },
                         {
                           "identifier": "107.403",
@@ -22220,7 +22002,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 10431,
+                      "size": 10544,
                       "children": [
                         {
                           "identifier": "107.501",
@@ -22258,8 +22040,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 3844
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 3957
                         },
                         {
                           "identifier": "107.504",
@@ -22287,7 +22069,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 14659,
+                      "size": 14171,
                       "children": [
                         {
                           "identifier": "107.601",
@@ -22351,8 +22133,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 1926
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 1269
                         },
                         {
                           "identifier": "107.620",
@@ -22364,8 +22146,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 2093
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 2262
                         }
                       ],
                       "descendant_range": "107.601 – 107.620"
@@ -22380,7 +22162,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 15427,
+                      "size": 15451,
                       "children": [
                         {
                           "identifier": "107.701",
@@ -22405,8 +22187,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2026-07-06T17:40:05-0400",
-                          "size": 4912
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 4936
                         },
                         {
                           "identifier": "107.709",
@@ -23422,7 +23204,7 @@
               "label_description": "Hazardous Materials Regulations",
               "reserved": false,
               "type": "subchapter",
-              "size": 8286678,
+              "size": 8299415,
               "children": [
                 {
                   "identifier": "171",
@@ -23434,7 +23216,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 234589,
+                  "size": 233981,
                   "children": [
                     {
                       "identifier": "A",
@@ -23446,7 +23228,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 187830,
+                      "size": 187312,
                       "children": [
                         {
                           "identifier": "171.1",
@@ -23523,8 +23305,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2026-02-17T17:30:05-0500",
-                          "size": 59338
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 58671
                         },
                         {
                           "identifier": "171.8",
@@ -23536,8 +23318,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2026-07-06T17:40:05-0400",
-                          "size": 71274
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 71423
                         },
                         {
                           "identifier": "171.9",
@@ -23723,7 +23505,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 34243,
+                      "size": 34153,
                       "children": [
                         {
                           "identifier": "171.22",
@@ -23748,8 +23530,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2024-05-13T19:30:11-0400",
-                          "size": 16311
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 16221
                         },
                         {
                           "identifier": "171.24",
@@ -23806,7 +23588,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 3437521,
+                  "size": 3439157,
                   "children": [
                     {
                       "identifier": "A",
@@ -23859,7 +23641,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 3103539,
+                      "size": 3103666,
                       "children": [
                         {
                           "identifier": "172.101",
@@ -23871,8 +23653,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2026-04-07T17:10:04-0400",
-                          "size": 2919817
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 2919936
                         },
                         {
                           "identifier": "172.102",
@@ -23884,8 +23666,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2025-06-24T20:40:23-0400",
-                          "size": 183722
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 183730
                         }
                       ],
                       "descendant_range": "172.101 – 172.102"
@@ -23993,7 +23775,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 71943,
+                      "size": 73005,
                       "children": [
                         {
                           "identifier": "172.300",
@@ -24135,8 +23917,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 6828
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 7633
                         },
                         {
                           "identifier": "172.316",
@@ -24174,8 +23956,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 2865
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 2900
                         },
                         {
                           "identifier": "172.322",
@@ -24291,8 +24073,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 1795
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 2017
                         },
                         {
                           "identifier": "172.332",
@@ -24803,7 +24585,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 57056,
+                      "size": 57370,
                       "children": [
                         {
                           "identifier": "172.500",
@@ -24854,8 +24636,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2024-06-04T18:50:11-0400",
-                          "size": 12622
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 12837
                         },
                         {
                           "identifier": "172.505",
@@ -24945,8 +24727,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2024-04-04T20:00:16-0400",
-                          "size": 3233
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 3332
                         },
                         {
                           "identifier": "172.516",
@@ -25312,7 +25094,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 13956,
+                      "size": 14046,
                       "children": [
                         {
                           "identifier": "172.600",
@@ -25337,8 +25119,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 3901
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 3991
                         },
                         {
                           "identifier": "172.604",
@@ -25446,7 +25228,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 19795,
+                      "size": 19838,
                       "children": [
                         {
                           "identifier": "172.800",
@@ -25458,8 +25240,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2021-01-26T01:20:07-0500",
-                          "size": 3728
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 3771
                         },
                         {
                           "identifier": "172.802",
@@ -25581,7 +25363,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 2070043,
+                  "size": 2075431,
                   "children": [
                     {
                       "identifier": "A",
@@ -25593,7 +25375,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 131870,
+                      "size": 133014,
                       "children": [
                         {
                           "identifier": "173.1",
@@ -25735,8 +25517,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 7761
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 8905
                         },
                         {
                           "identifier": "173.7",
@@ -25748,7 +25530,7 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2022-05-24T22:10:21-0400",
+                          "received_on": "2026-08-20T17:40:05-0400",
                           "size": 5461
                         },
                         {
@@ -25855,7 +25637,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 174008,
+                      "size": 176096,
                       "children": [
                         {
                           "identifier": "173.21",
@@ -25906,8 +25688,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2019-02-26T15:01:35-0500",
-                          "size": 3442
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 4036
                         },
                         {
                           "identifier": "173.24",
@@ -25958,8 +25740,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 3908
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 3918
                         },
                         {
                           "identifier": "173.26",
@@ -26010,8 +25792,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 5299
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 6783
                         },
                         {
                           "identifier": "173.30",
@@ -26156,7 +25938,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 149534,
+                      "size": 150005,
                       "children": [
                         {
                           "identifier": "173.50",
@@ -26350,21 +26132,21 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2026-07-06T17:40:05-0400",
-                          "size": 21083
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 21101
                         },
                         {
                           "identifier": "173.65",
-                          "label": "§ 173.65 Exceptions for Division 1.4G consumer fireworks.",
+                          "label": "§ 173.65 Exceptions for Division 1.3G or 1.4G fireworks, pyrotechnic devices, or fuses certification by a Fireworks Certification Agency.",
                           "label_level": "§ 173.65",
-                          "label_description": "Exceptions for Division 1.4G consumer fireworks.",
+                          "label_description": "Exceptions for Division 1.3G or 1.4G fireworks, pyrotechnic devices, or fuses certification by a Fireworks Certification Agency.",
                           "reserved": false,
                           "type": "section",
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2020-12-29T21:20:09-0500",
-                          "size": 3505
+                          "received_on": "2026-09-09T18:10:05-0400",
+                          "size": 3958
                         },
                         {
                           "identifier": "173.66",
@@ -27592,7 +27374,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 54265,
+                      "size": 54595,
                       "children": [
                         {
                           "identifier": "173.240",
@@ -27710,9 +27492,22 @@
                           ],
                           "received_on": "2024-04-04T20:00:16-0400",
                           "size": 1379
+                        },
+                        {
+                          "identifier": "173.252",
+                          "label": "§ 173.252 xxx",
+                          "label_level": "§ 173.252",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "2"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 330
                         }
                       ],
-                      "descendant_range": "173.240 – 173.251"
+                      "descendant_range": "173.240 – 173.252"
                     },
                     {
                       "identifier": "G",
@@ -27724,7 +27519,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 426308,
+                      "size": 427663,
                       "children": [
                         {
                           "identifier": "173.300",
@@ -27905,8 +27700,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2024-06-04T18:50:11-0400",
-                          "size": 44750
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 45693
                         },
                         {
                           "identifier": "173.307",
@@ -27918,8 +27713,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2021-01-26T01:20:07-0500",
-                          "size": 1983
+                          "received_on": "2026-08-20T17:40:05-0400",
+                          "size": 2395
                         },
                         {
                           "identifier": "173.308",
@@ -28949,7 +28744,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 156361,
+                  "size": 154329,
                   "children": [
                     {
                       "identifier": "A",
@@ -28961,7 +28756,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 10665,
+                      "size": 10136,
                       "children": [
                         {
                           "identifier": "174.1",
@@ -29056,16 +28851,16 @@
                         },
                         {
                           "identifier": "174.20",
-                          "label": "§ 174.20 Local or carrier restrictions.",
+                          "label": "§ 174.20 [Reserved]",
                           "label_level": "§ 174.20",
-                          "label_description": "Local or carrier restrictions.",
-                          "reserved": false,
+                          "label_description": "§ 174.20 [Reserved]",
+                          "reserved": true,
                           "type": "section",
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 749
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 220
                         }
                       ],
                       "descendant_range": "174.1 – 174.20"
@@ -29147,7 +28942,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 55563,
+                      "size": 55055,
                       "children": [
                         {
                           "identifier": "174.55",
@@ -29159,8 +28954,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 1822
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 1640
                         },
                         {
                           "identifier": "174.57",
@@ -29224,8 +29019,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-12-29T20:10:10-0500",
-                          "size": 11401
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 11075
                         },
                         {
                           "identifier": "174.81",
@@ -29333,7 +29128,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 31008,
+                      "size": 30026,
                       "children": [
                         {
                           "identifier": "174.101",
@@ -29345,8 +29140,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 8282
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 7957
                         },
                         {
                           "identifier": "174.102",
@@ -29436,8 +29231,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 2732
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 2396
                         },
                         {
                           "identifier": "174.114",
@@ -29462,8 +29257,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 1929
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 1608
                         }
                       ],
                       "descendant_range": "174.101 – 174.115"
@@ -29478,7 +29273,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 10060,
+                      "size": 10047,
                       "children": [
                         {
                           "identifier": "174.200",
@@ -29529,8 +29324,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-01-27T20:50:08-0500",
-                          "size": 4645
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 4632
                         }
                       ],
                       "descendant_range": "174.200 – 174.290"
@@ -31980,7 +31775,7 @@
                   "volumes": [
                     "2"
                   ],
-                  "size": 129845,
+                  "size": 135114,
                   "children": [
                     {
                       "identifier": "A",
@@ -32111,7 +31906,7 @@
                       "volumes": [
                         "2"
                       ],
-                      "size": 69092,
+                      "size": 74361,
                       "children": [
                         {
                           "identifier": "177.834",
@@ -32123,8 +31918,8 @@
                           "volumes": [
                             "2"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 14657
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 19926
                         },
                         {
                           "identifier": "177.835",
@@ -32330,7 +32125,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 1159574,
+                  "size": 1160240,
                   "children": [
                     {
                       "identifier": "178.1",
@@ -33278,7 +33073,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 114652,
+                      "size": 114987,
                       "children": [
                         {
                           "identifier": "178.251-178.253-5",
@@ -33498,8 +33293,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2022-05-31T22:10:17-0400",
-                          "size": 1634
+                          "received_on": "2026-08-03T17:50:06-0400",
+                          "size": 1639
                         },
                         {
                           "identifier": "178.273",
@@ -33565,9 +33360,22 @@
                           ],
                           "received_on": "2017-01-07T00:00:00-0500",
                           "size": 12436
+                        },
+                        {
+                          "identifier": "178.278",
+                          "label": "§ 178.278 xxx",
+                          "label_level": "§ 178.278",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "3"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 330
                         }
                       ],
-                      "descendant_range": "178.251 – 178.277"
+                      "descendant_range": "178.251 – 178.278"
                     },
                     {
                       "identifier": "I",
@@ -33590,8 +33398,21 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 271705,
+                      "size": 272036,
                       "children": [
+                        {
+                          "identifier": "178.301",
+                          "label": "§ 178.301 xxx",
+                          "label_level": "§ 178.301",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "3"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 331
+                        },
                         {
                           "identifier": "178.318",
                           "label": "§ 178.318 Specification MC 201; container for detonators and percussion caps.",
@@ -34620,7 +34441,7 @@
                           "size": 765
                         }
                       ],
-                      "descendant_range": "178.318 – 178.348-5"
+                      "descendant_range": "178.301 – 178.348-5"
                     },
                     {
                       "identifier": "K",
@@ -35992,7 +35813,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 340161,
+                  "size": 340268,
                   "children": [
                     {
                       "identifier": "A",
@@ -37611,7 +37432,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 25756,
+                      "size": 25863,
                       "children": [
                         {
                           "identifier": "179.300",
@@ -37862,16 +37683,16 @@
                         },
                         {
                           "identifier": "179.302",
-                          "label": "§ 179.302 [Reserved]",
+                          "label": "§ 179.302 xxx",
                           "label_level": "§ 179.302",
-                          "label_description": "§ 179.302 [Reserved]",
-                          "reserved": true,
+                          "label_description": "xxx",
+                          "reserved": false,
                           "type": "section",
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 224
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 331
                         }
                       ],
                       "descendant_range": "179.300 – 179.302"
@@ -38502,7 +38323,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 297628,
+                  "size": 299939,
                   "children": [
                     {
                       "identifier": "A",
@@ -38579,7 +38400,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 87795,
+                      "size": 89113,
                       "children": [
                         {
                           "identifier": "180.201",
@@ -38643,8 +38464,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-02-19T17:20:04-0500",
-                          "size": 25752
+                          "received_on": "2026-09-04T16:50:05-0400",
+                          "size": 27070
                         },
                         {
                           "identifier": "180.211",
@@ -38778,7 +38599,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 109752,
+                      "size": 110083,
                       "children": [
                         {
                           "identifier": "180.401",
@@ -38792,6 +38613,19 @@
                           ],
                           "received_on": "2017-01-07T00:00:00-0500",
                           "size": 587
+                        },
+                        {
+                          "identifier": "180.402",
+                          "label": "§ 180.402 xxx",
+                          "label_level": "§ 180.402",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "3"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 331
                         },
                         {
                           "identifier": "180.403",
@@ -38923,7 +38757,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 53803,
+                      "size": 54134,
                       "children": [
                         {
                           "identifier": "180.501",
@@ -38937,6 +38771,19 @@
                           ],
                           "received_on": "2017-01-07T00:00:00-0500",
                           "size": 2001
+                        },
+                        {
+                          "identifier": "180.502",
+                          "label": "§ 180.502 xxx",
+                          "label_level": "§ 180.502",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "3"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 331
                         },
                         {
                           "identifier": "180.503",
@@ -39068,7 +38915,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 18510,
+                      "size": 18841,
                       "children": [
                         {
                           "identifier": "180.601",
@@ -39082,6 +38929,19 @@
                           ],
                           "received_on": "2017-01-07T00:00:00-0500",
                           "size": 486
+                        },
+                        {
+                          "identifier": "180.602",
+                          "label": "§ 180.602 xxx",
+                          "label_level": "§ 180.602",
+                          "label_description": "xxx",
+                          "reserved": false,
+                          "type": "section",
+                          "volumes": [
+                            "3"
+                          ],
+                          "received_on": "2026-09-29T18:10:05-0400",
+                          "size": 331
                         },
                         {
                           "identifier": "180.603",
@@ -39188,7 +39048,7 @@
               "label_description": "Pipeline Safety",
               "reserved": false,
               "type": "subchapter",
-              "size": 1599860,
+              "size": 1598597,
               "children": [
                 {
                   "identifier": "186-189",
@@ -39211,7 +39071,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 139389,
+                  "size": 139430,
                   "children": [
                     {
                       "identifier": "A",
@@ -39223,7 +39083,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 18479,
+                      "size": 18460,
                       "children": [
                         {
                           "identifier": "190.1",
@@ -39300,8 +39160,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 2198
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 2179
                         },
                         {
                           "identifier": "190.13",
@@ -39762,7 +39622,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 40028,
+                      "size": 40088,
                       "children": [
                         {
                           "identifier": "190.301",
@@ -40047,8 +39907,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 15625
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 15685
                         },
                         {
                           "identifier": "190.343",
@@ -40172,7 +40032,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 36717,
+                  "size": 36498,
                   "children": [
                     {
                       "identifier": "191.1",
@@ -40210,8 +40070,8 @@
                       "volumes": [
                         "3"
                       ],
-                      "received_on": "2026-04-27T17:30:05-0400",
-                      "size": 2044
+                      "received_on": "2026-08-04T17:50:05-0400",
+                      "size": 1915
                     },
                     {
                       "identifier": "191.7",
@@ -40353,8 +40213,8 @@
                       "volumes": [
                         "3"
                       ],
-                      "received_on": "2026-04-27T17:30:05-0400",
-                      "size": 2918
+                      "received_on": "2026-08-04T17:50:05-0400",
+                      "size": 2828
                     },
                     {
                       "identifier": "191.29",
@@ -40395,7 +40255,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 775782,
+                  "size": 775525,
                   "children": [
                     {
                       "identifier": "A",
@@ -40407,7 +40267,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 86867,
+                      "size": 86795,
                       "children": [
                         {
                           "identifier": "192.1",
@@ -40458,8 +40318,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 17380
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 17308
                         },
                         {
                           "identifier": "192.8",
@@ -42756,7 +42616,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 150610,
+                      "size": 150542,
                       "children": [
                         {
                           "identifier": "192.601",
@@ -42989,8 +42849,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 13128
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 13060
                         },
                         {
                           "identifier": "192.625",
@@ -43109,7 +42969,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 80492,
+                      "size": 80397,
                       "children": [
                         {
                           "identifier": "192.701",
@@ -43355,8 +43215,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 4375
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 4280
                         },
                         {
                           "identifier": "192.731",
@@ -44183,8 +44043,8 @@
                       "volumes": [
                         "3"
                       ],
-                      "received_on": "2026-04-27T17:30:05-0400",
-                      "size": 13850
+                      "received_on": "2026-08-04T17:50:05-0400",
+                      "size": 13828
                     },
                     {
                       "identifier": "Appendix G to Part 192",
@@ -44212,7 +44072,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 93522,
+                  "size": 93450,
                   "children": [
                     {
                       "identifier": "A",
@@ -44224,7 +44084,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 19331,
+                      "size": 19259,
                       "children": [
                         {
                           "identifier": "193.2001",
@@ -44314,8 +44174,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 4939
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 4867
                         },
                         {
                           "identifier": "193.2015",
@@ -45690,7 +45550,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 54730,
+                  "size": 54749,
                   "children": [
                     {
                       "identifier": "A",
@@ -45769,7 +45629,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 26354,
+                      "size": 26373,
                       "children": [
                         {
                           "identifier": "194.101",
@@ -45846,8 +45706,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 814
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 833
                         },
                         {
                           "identifier": "194.113",
@@ -45956,7 +45816,7 @@
                   "volumes": [
                     "3"
                   ],
-                  "size": 403962,
+                  "size": 403187,
                   "children": [
                     {
                       "identifier": "A",
@@ -45968,7 +45828,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 71183,
+                      "size": 70841,
                       "children": [
                         {
                           "identifier": "195.0",
@@ -46019,8 +45879,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 12630
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 12452
                         },
                         {
                           "identifier": "195.4",
@@ -46084,8 +45944,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 1452
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 1360
                         },
                         {
                           "identifier": "195.10",
@@ -46123,8 +45983,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 9341
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 9269
                         },
                         {
                           "identifier": "195.13",
@@ -46178,7 +46038,7 @@
                       "volumes": [
                         "3"
                       ],
-                      "size": 24394,
+                      "size": 24073,
                       "children": [
                         {
                           "identifier": "195.48",
@@ -46229,8 +46089,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 3280
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 3159
                         },
                         {
                           "identifier": "195.54",
@@ -46268,8 +46128,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 2431
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 2328
                         },
                         {
                           "identifier": "195.58",
@@ -46294,8 +46154,8 @@
                           "volumes": [
                             "3"
                           ],
-                          "received_on": "2026-04-27T17:30:05-0400",
-                          "size": 2581
+                          "received_on": "2026-08-04T17:50:05-0400",
+                          "size": 2484
                         },
                         {
                           "identifier": "195.60",
@@ -48064,8 +47924,8 @@
                       "volumes": [
                         "3"
                       ],
-                      "received_on": "2026-04-27T17:30:05-0400",
-                      "size": 25814
+                      "received_on": "2026-08-03T17:50:06-0400",
+                      "size": 25702
                     }
                   ],
                   "descendant_range": "195.0 – 195.591"
@@ -49199,7 +49059,7 @@
           "label_description": "Federal Railroad Administration, Department of Transportation",
           "reserved": false,
           "type": "chapter",
-          "size": 5971229,
+          "size": 5970471,
           "children": [
             {
               "identifier": "200",
@@ -52965,7 +52825,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 161881,
+              "size": 162049,
               "children": [
                 {
                   "identifier": "A",
@@ -53044,7 +52904,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 24204,
+                  "size": 28036,
                   "children": [
                     {
                       "identifier": "214.101",
@@ -53162,9 +53022,22 @@
                       ],
                       "received_on": "2022-05-10T22:10:10-0400",
                       "size": 1572
+                    },
+                    {
+                      "identifier": "214.119",
+                      "label": "§ 214.119 Special approval procedure.",
+                      "label_level": "§ 214.119",
+                      "label_description": "Special approval procedure.",
+                      "reserved": false,
+                      "type": "section",
+                      "volumes": [
+                        "4"
+                      ],
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 3832
                     }
                   ],
-                  "descendant_range": "214.101 – 214.117"
+                  "descendant_range": "214.101 – 214.119"
                 },
                 {
                   "identifier": "C",
@@ -53176,7 +53049,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 91187,
+                  "size": 87415,
                   "children": [
                     {
                       "identifier": "214.301",
@@ -53427,29 +53300,29 @@
                     },
                     {
                       "identifier": "214.331",
-                      "label": "§ 214.331 Definite train location.",
+                      "label": "§ 214.331 [Reserved]",
                       "label_level": "§ 214.331",
-                      "label_description": "Definite train location.",
-                      "reserved": false,
+                      "label_description": "§ 214.331 [Reserved]",
+                      "reserved": true,
                       "type": "section",
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-04-05T01:00:00-0400",
-                      "size": 3380
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 224
                     },
                     {
                       "identifier": "214.333",
-                      "label": "§ 214.333 Informational line-ups of trains.",
+                      "label": "§ 214.333 [Reserved]",
                       "label_level": "§ 214.333",
-                      "label_description": "Informational line-ups of trains.",
-                      "reserved": false,
+                      "label_description": "§ 214.333 [Reserved]",
+                      "reserved": true,
                       "type": "section",
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-04-05T01:00:00-0400",
-                      "size": 949
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 224
                     },
                     {
                       "identifier": "214.335",
@@ -53461,8 +53334,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-04-05T01:00:00-0400",
-                      "size": 953
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 957
                     },
                     {
                       "identifier": "214.336",
@@ -53552,8 +53425,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-04-05T01:00:00-0400",
-                      "size": 1617
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 1619
                     },
                     {
                       "identifier": "214.349",
@@ -53617,8 +53490,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 2523
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 2626
                     }
                   ],
                   "descendant_range": "214.301 – 214.357"
@@ -53633,7 +53506,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 28075,
+                  "size": 28183,
                   "children": [
                     {
                       "identifier": "214.501",
@@ -53715,16 +53588,16 @@
                     },
                     {
                       "identifier": "214.513",
-                      "label": "§ 214.513 Retrofitting of existing on-track roadway maintenance machines; general.",
+                      "label": "§ 214.513 Existing on-track roadway maintenance machines; general.",
                       "label_level": "§ 214.513",
-                      "label_description": "Retrofitting of existing on-track roadway maintenance machines; general.",
+                      "label_description": "Existing on-track roadway maintenance machines; general.",
                       "reserved": false,
                       "type": "section",
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 1597
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 1571
                     },
                     {
                       "identifier": "214.515",
@@ -53736,21 +53609,21 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 1385
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 1402
                     },
                     {
                       "identifier": "214.517",
-                      "label": "§ 214.517 Retrofitting of existing on-track roadway maintenance machines manufactured on or after January 1, 1991.",
+                      "label": "§ 214.517 Existing on-track roadway maintenance machines manufactured on or after January 1, 1991.",
                       "label_level": "§ 214.517",
-                      "label_description": "Retrofitting of existing on-track roadway maintenance machines manufactured on or after January 1, 1991.",
+                      "label_description": "Existing on-track roadway maintenance machines manufactured on or after January 1, 1991.",
                       "reserved": false,
                       "type": "section",
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 1959
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 1950
                     },
                     {
                       "identifier": "214.518",
@@ -53866,8 +53739,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 2164
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 2290
                     }
                   ],
                   "descendant_range": "214.501 – 214.533"
@@ -53885,7 +53758,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 76111,
+              "size": 76768,
               "children": [
                 {
                   "identifier": "A",
@@ -54016,7 +53889,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 15063,
+                  "size": 15302,
                   "children": [
                     {
                       "identifier": "215.101",
@@ -54195,7 +54068,7 @@
                       "label_description": "Draft System",
                       "reserved": false,
                       "type": "subject_group",
-                      "size": 3179,
+                      "size": 3418,
                       "children": [
                         {
                           "identifier": "215.123",
@@ -54233,8 +54106,8 @@
                           "volumes": [
                             "4"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 834
+                          "received_on": "2026-10-01T18:30:05-0400",
+                          "size": 810
                         },
                         {
                           "identifier": "215.129",
@@ -54246,8 +54119,8 @@
                           "volumes": [
                             "4"
                           ],
-                          "received_on": "2023-04-12T10:30:27-0400",
-                          "size": 494
+                          "received_on": "2026-10-01T18:30:05-0400",
+                          "size": 757
                         }
                       ],
                       "descendant_range": "215.123 – 215.129"
@@ -54265,7 +54138,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 2394,
+                  "size": 2747,
                   "children": [
                     {
                       "identifier": "215.201",
@@ -54290,8 +54163,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2023-04-12T10:30:27-0400",
-                      "size": 2078
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 2431
                     }
                   ],
                   "descendant_range": "215.201 – 215.203"
@@ -54544,8 +54417,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2023-04-12T10:30:27-0400",
-                  "size": 11353
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 11418
                 },
                 {
                   "identifier": "Appendix D to Part 215",
@@ -57551,7 +57424,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 278619,
+              "size": 279749,
               "children": [
                 {
                   "identifier": "A",
@@ -57563,7 +57436,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 25404,
+                  "size": 25587,
                   "children": [
                     {
                       "identifier": "222.1",
@@ -57627,8 +57500,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2026-05-29T17:20:05-0400",
-                      "size": 16136
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 16319
                     },
                     {
                       "identifier": "222.11",
@@ -57695,7 +57568,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 10782,
+                  "size": 11729,
                   "children": [
                     {
                       "identifier": "222.21",
@@ -57707,8 +57580,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 3587
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 3856
                     },
                     {
                       "identifier": "222.23",
@@ -57720,8 +57593,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 2184
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 2862
                     },
                     {
                       "identifier": "222.25",
@@ -58637,7 +58510,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 114373,
+              "size": 107073,
               "children": [
                 {
                   "identifier": "225.1",
@@ -58662,8 +58535,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2023-04-12T10:30:27-0400",
-                  "size": 2734
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 2760
                 },
                 {
                   "identifier": "225.5",
@@ -58675,8 +58548,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2025-08-01T17:50:07-0400",
-                  "size": 23809
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 23772
                 },
                 {
                   "identifier": "225.6",
@@ -58688,21 +58561,21 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 2056
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 3635
                 },
                 {
                   "identifier": "225.7",
-                  "label": "§ 225.7 Public examination and use of reports.",
+                  "label": "§ 225.7 Use of reports.",
                   "label_level": "§ 225.7",
-                  "label_description": "Public examination and use of reports.",
+                  "label_description": "Use of reports.",
                   "reserved": false,
                   "type": "section",
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2025-07-02T18:30:12-0400",
-                  "size": 2146
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 1104
                 },
                 {
                   "identifier": "225.9",
@@ -58740,8 +58613,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2025-07-02T18:30:12-0400",
-                  "size": 7595
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 7662
                 },
                 {
                   "identifier": "225.13",
@@ -58753,8 +58626,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 1829
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 1898
                 },
                 {
                   "identifier": "225.15",
@@ -58818,8 +58691,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2023-04-12T10:30:27-0400",
-                  "size": 6944
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 5318
                 },
                 {
                   "identifier": "225.23",
@@ -58844,8 +58717,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2026-05-29T17:20:05-0400",
-                  "size": 20479
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 15085
                 },
                 {
                   "identifier": "225.27",
@@ -58857,8 +58730,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 5532
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 5172
                 },
                 {
                   "identifier": "225.29",
@@ -58896,8 +58769,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 5264
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 5005
                 },
                 {
                   "identifier": "225.35",
@@ -58909,8 +58782,8 @@
                   "volumes": [
                     "4"
                   ],
-                  "received_on": "2017-01-07T00:00:00-0500",
-                  "size": 2801
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 2478
                 },
                 {
                   "identifier": "225.37",
@@ -60247,7 +60120,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 289604,
+              "size": 290921,
               "children": [
                 {
                   "identifier": "A",
@@ -60259,7 +60132,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 44843,
+                  "size": 44877,
                   "children": [
                     {
                       "identifier": "229.1",
@@ -60297,8 +60170,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2024-12-03T18:50:37-0500",
-                      "size": 22216
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 22250
                     },
                     {
                       "identifier": "229.7",
@@ -60430,7 +60303,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 25011,
+                  "size": 25956,
                   "children": [
                     {
                       "identifier": "229.21",
@@ -60507,8 +60380,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 5021
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 5966
                     },
                     {
                       "identifier": "229.31",
@@ -60549,7 +60422,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 119107,
+                  "size": 119445,
                   "children": [
                     {
                       "generated_id": true,
@@ -60754,7 +60627,7 @@
                       "label_description": "Suspension System",
                       "reserved": false,
                       "type": "subject_group",
-                      "size": 7843,
+                      "size": 8181,
                       "children": [
                         {
                           "identifier": "229.63",
@@ -60844,8 +60717,8 @@
                           "volumes": [
                             "4"
                           ],
-                          "received_on": "2017-01-07T00:00:00-0500",
-                          "size": 1382
+                          "received_on": "2026-10-01T18:30:05-0400",
+                          "size": 1720
                         },
                         {
                           "identifier": "229.75",
@@ -64182,7 +64055,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 233502,
+              "size": 234050,
               "children": [
                 {
                   "identifier": "A",
@@ -64194,7 +64067,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 46112,
+                  "size": 46314,
                   "children": [
                     {
                       "identifier": "232.1",
@@ -64232,8 +64105,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2026-07-22T17:40:05-0400",
-                      "size": 16943
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 17145
                     },
                     {
                       "identifier": "232.7",
@@ -64432,7 +64305,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 47711,
+                  "size": 48057,
                   "children": [
                     {
                       "identifier": "232.201",
@@ -64457,8 +64330,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2020-12-14T21:20:12-0500",
-                      "size": 9046
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 9166
                     },
                     {
                       "identifier": "232.205",
@@ -64470,8 +64343,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2020-12-14T21:20:12-0500",
-                      "size": 13001
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 13227
                     },
                     {
                       "identifier": "232.207",
@@ -71846,7 +71719,7 @@
               "volumes": [
                 "4"
               ],
-              "size": 468246,
+              "size": 470968,
               "children": [
                 {
                   "identifier": "A",
@@ -71858,7 +71731,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 80532,
+                  "size": 80734,
                   "children": [
                     {
                       "identifier": "238.1",
@@ -71896,8 +71769,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2025-08-01T17:50:07-0400",
-                      "size": 40283
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 40485
                     },
                     {
                       "identifier": "238.7",
@@ -72683,7 +72556,7 @@
                   "volumes": [
                     "4"
                   ],
-                  "size": 60025,
+                  "size": 62545,
                   "children": [
                     {
                       "identifier": "238.301",
@@ -72734,8 +72607,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 8984
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 9223
                     },
                     {
                       "identifier": "238.309",
@@ -72747,8 +72620,8 @@
                       "volumes": [
                         "4"
                       ],
-                      "received_on": "2017-01-07T00:00:00-0500",
-                      "size": 4546
+                      "received_on": "2026-10-01T18:30:05-0400",
+                      "size": 6827
                     },
                     {
                       "identifier": "238.311",
@@ -81434,7 +81307,7 @@
           "label_description": "Federal Motor Carrier Safety Administration, Department of Transportation",
           "reserved": false,
           "type": "chapter",
-          "size": 3222012,
+          "size": 3222214,
           "children": [
             {
               "identifier": "A",
@@ -81991,7 +81864,7 @@
               "label_description": "Federal Motor Carrier Safety Regulations",
               "reserved": false,
               "type": "subchapter",
-              "size": 3171515,
+              "size": 3171717,
               "children": [
                 {
                   "identifier": "350",
@@ -83626,7 +83499,7 @@
                   "volumes": [
                     "5"
                   ],
-                  "size": 7885,
+                  "size": 8046,
                   "children": [
                     {
                       "identifier": "367.20",
@@ -83643,42 +83516,42 @@
                     },
                     {
                       "identifier": "367.30",
-                      "label": "§ 367.30 Fees under the Unified Carrier Registration Plan and Agreement for Registration Year 2023.",
+                      "label": "§ 367.30 Fees under the Unified Carrier Registration Plan and Agreement for registration year 2024.",
                       "label_level": "§ 367.30",
-                      "label_description": "Fees under the Unified Carrier Registration Plan and Agreement for Registration Year 2023.",
+                      "label_description": "Fees under the Unified Carrier Registration Plan and Agreement for registration year 2024.",
                       "reserved": false,
                       "type": "section",
                       "volumes": [
                         "5"
                       ],
-                      "received_on": "2024-06-04T18:50:11-0400",
-                      "size": 2499
+                      "received_on": "2026-10-02T18:40:05-0400",
+                      "size": 2564
                     },
                     {
                       "identifier": "367.40",
-                      "label": "§ 367.40 Fees under the Unified Carrier Registration Plan and Agreement for Registration Year 2024.",
+                      "label": "§ 367.40 Fees under the Unified Carrier Registration Plan and Agreement for registration years beginning in 2025 and ending in 2026.",
                       "label_level": "§ 367.40",
-                      "label_description": "Fees under the Unified Carrier Registration Plan and Agreement for Registration Year 2024.",
+                      "label_description": "Fees under the Unified Carrier Registration Plan and Agreement for registration years beginning in 2025 and ending in 2026.",
                       "reserved": false,
                       "type": "section",
                       "volumes": [
                         "5"
                       ],
-                      "received_on": "2024-07-18T19:00:13-0400",
-                      "size": 2520
+                      "received_on": "2026-10-02T18:40:05-0400",
+                      "size": 2642
                     },
                     {
                       "identifier": "367.50",
-                      "label": "§ 367.50 Fees Under the Unified Carrier Registration Plan and Agreement for Registration Years Beginning in 2025 and Each Subsequent Registration Year Thereafter.",
+                      "label": "§ 367.50 Fees under the Unified Carrier Registration Plan and Agreement for registration year 2027 and subsequent years.",
                       "label_level": "§ 367.50",
-                      "label_description": "Fees Under the Unified Carrier Registration Plan and Agreement for Registration Years Beginning in 2025 and Each Subsequent Registration Year Thereafter.",
+                      "label_description": "Fees under the Unified Carrier Registration Plan and Agreement for registration year 2027 and subsequent years.",
                       "reserved": false,
                       "type": "section",
                       "volumes": [
                         "5"
                       ],
-                      "received_on": "2024-07-18T19:00:13-0400",
-                      "size": 2646
+                      "received_on": "2026-10-02T18:40:05-0400",
+                      "size": 2620
                     }
                   ],
                   "descendant_range": "367.20 – 367.50"
@@ -93827,7 +93700,7 @@
                   "volumes": [
                     "5"
                   ],
-                  "size": 314507,
+                  "size": 314548,
                   "children": [
                     {
                       "identifier": "A",
@@ -93971,7 +93844,7 @@
                       "volumes": [
                         "5"
                       ],
-                      "size": 55616,
+                      "size": 55657,
                       "children": [
                         {
                           "identifier": "390.9",
@@ -94113,8 +93986,8 @@
                           "volumes": [
                             "5"
                           ],
-                          "received_on": "2023-12-13T19:10:16-0500",
-                          "size": 4628
+                          "received_on": "2026-10-06T18:20:04-0400",
+                          "size": 4669
                         },
                         {
                           "identifier": "390.25",
@@ -99255,7 +99128,7 @@
           "label_description": "National Highway Traffic Safety Administration, Department of Transportation",
           "reserved": false,
           "type": "chapter",
-          "size": 6070204,
+          "size": 6070500,
           "children": [
             {
               "identifier": "500",
@@ -104304,7 +104177,7 @@
               "volumes": [
                 "6"
               ],
-              "size": 30561,
+              "size": 30730,
               "children": [
                 {
                   "identifier": "A",
@@ -104316,7 +104189,7 @@
                   "volumes": [
                     "6"
                   ],
-                  "size": 21478,
+                  "size": 21647,
                   "children": [
                     {
                       "identifier": "555.1",
@@ -104380,8 +104253,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2023-04-12T10:30:27-0400",
-                      "size": 2686
+                      "received_on": "2026-08-03T17:50:06-0400",
+                      "size": 2743
                     },
                     {
                       "identifier": "555.6",
@@ -104406,8 +104279,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2019-02-20T14:10:06-0500",
-                      "size": 1691
+                      "received_on": "2026-08-03T17:50:06-0400",
+                      "size": 1803
                     },
                     {
                       "identifier": "555.8",
@@ -106385,7 +106258,7 @@
               "volumes": [
                 "6"
               ],
-              "size": 3337164,
+              "size": 3337177,
               "children": [
                 {
                   "identifier": "A",
@@ -106397,7 +106270,7 @@
                   "volumes": [
                     "6"
                   ],
-                  "size": 54304,
+                  "size": 54262,
                   "children": [
                     {
                       "identifier": "571.1",
@@ -106448,8 +106321,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2026-07-07T17:10:05-0400",
-                      "size": 22289
+                      "received_on": "2026-10-13T17:00:05-0400",
+                      "size": 22247
                     },
                     {
                       "identifier": "571.7",
@@ -106516,7 +106389,7 @@
                   "volumes": [
                     "6"
                   ],
-                  "size": 3282860,
+                  "size": 3282915,
                   "children": [
                     {
                       "identifier": "571.101",
@@ -107165,8 +107038,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2026-06-11T17:10:05-0400",
-                      "size": 138277
+                      "received_on": "2026-10-13T17:00:05-0400",
+                      "size": 138671
                     },
                     {
                       "identifier": "571.213a",
@@ -107178,8 +107051,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2024-12-06T18:50:15-0500",
-                      "size": 28164
+                      "received_on": "2026-10-13T17:00:05-0400",
+                      "size": 27371
                     },
                     {
                       "identifier": "571.213b",
@@ -107191,8 +107064,8 @@
                       "volumes": [
                         "6"
                       ],
-                      "received_on": "2026-06-11T17:10:05-0400",
-                      "size": 125448
+                      "received_on": "2026-10-13T17:00:05-0400",
+                      "size": 125902
                     },
                     {
                       "identifier": "571.214",
@@ -110793,7 +110666,7 @@
               "volumes": [
                 "7"
               ],
-              "size": 24710,
+              "size": 24824,
               "children": [
                 {
                   "identifier": "578.1",
@@ -110870,8 +110743,8 @@
                   "volumes": [
                     "7"
                   ],
-                  "received_on": "2024-12-31T19:50:20-0500",
-                  "size": 8709
+                  "received_on": "2026-10-01T18:30:05-0400",
+                  "size": 8823
                 },
                 {
                   "identifier": "578.7",
@@ -114101,7 +113974,7 @@
           "label_description": "Federal Transit Administration, Department of Transportation",
           "reserved": false,
           "type": "chapter",
-          "size": 588977,
+          "size": 588913,
           "children": [
             {
               "identifier": "600",
@@ -116303,7 +116176,7 @@
               "volumes": [
                 "7"
               ],
-              "size": 3213,
+              "size": 3149,
               "children": [
                 {
                   "identifier": "A",
@@ -116315,7 +116188,7 @@
                   "volumes": [
                     "7"
                   ],
-                  "size": 1054,
+                  "size": 990,
                   "children": [
                     {
                       "identifier": "622.101",
@@ -116327,8 +116200,8 @@
                       "volumes": [
                         "7"
                       ],
-                      "received_on": "2025-07-07T18:00:08-0400",
-                      "size": 1054
+                      "received_on": "2026-09-02T17:00:05-0400",
+                      "size": 990
                     }
                   ],
                   "descendant_range": "622.101"
@@ -124950,7 +124823,7 @@
           "label_description": "Surface Transportation Board",
           "reserved": false,
           "type": "chapter",
-          "size": 1939006,
+          "size": 1942346,
           "children": [
             {
               "identifier": "A",
@@ -124959,7 +124832,7 @@
               "label_description": "General Rules and Regulations",
               "reserved": false,
               "type": "subchapter",
-              "size": 397513,
+              "size": 401030,
               "children": [
                 {
                   "label": "Parts 1000-1019—General Provisions",
@@ -125457,7 +125330,7 @@
                   "volumes": [
                     "8"
                   ],
-                  "size": 25314,
+                  "size": 28831,
                   "children": [
                     {
                       "identifier": "1011.1",
@@ -125482,8 +125355,8 @@
                       "volumes": [
                         "8"
                       ],
-                      "received_on": "2026-02-06T17:10:05-0500",
-                      "size": 2133
+                      "received_on": "2026-09-18T19:40:04-0400",
+                      "size": 2242
                     },
                     {
                       "identifier": "1011.3",
@@ -125534,8 +125407,8 @@
                       "volumes": [
                         "8"
                       ],
-                      "received_on": "2026-02-06T17:10:05-0500",
-                      "size": 4850
+                      "received_on": "2026-09-18T19:40:04-0400",
+                      "size": 5812
                     },
                     {
                       "identifier": "1011.7",
@@ -125547,11 +125420,24 @@
                       "volumes": [
                         "8"
                       ],
-                      "received_on": "2026-02-06T17:10:05-0500",
-                      "size": 7951
+                      "received_on": "2026-09-18T19:40:04-0400",
+                      "size": 9149
+                    },
+                    {
+                      "identifier": "1011.8",
+                      "label": "§ 1011.8 Grant stamp procedures.",
+                      "label_level": "§ 1011.8",
+                      "label_description": "Grant stamp procedures.",
+                      "reserved": false,
+                      "type": "section",
+                      "volumes": [
+                        "8"
+                      ],
+                      "received_on": "2026-09-18T19:40:04-0400",
+                      "size": 1248
                     }
                   ],
-                  "descendant_range": "1011.1 – 1011.7"
+                  "descendant_range": "1011.1 – 1011.8"
                 },
                 {
                   "identifier": "1012",
@@ -127845,7 +127731,7 @@
               "label_description": "Rules of Practice",
               "reserved": false,
               "type": "subchapter",
-              "size": 1085790,
+              "size": 1085618,
               "children": [
                 {
                   "label": "Parts 1100-1129—Rules of General Applicability",
@@ -128724,7 +128610,7 @@
                   "volumes": [
                     "8"
                   ],
-                  "size": 47646,
+                  "size": 47670,
                   "children": [
                     {
                       "identifier": "1105.1",
@@ -128892,8 +128778,8 @@
                       "volumes": [
                         "8"
                       ],
-                      "received_on": "2026-02-06T17:10:05-0500",
-                      "size": 5223
+                      "received_on": "2026-08-19T16:40:07-0400",
+                      "size": 5247
                     }
                   ],
                   "descendant_range": "1105.1 – 1105.12"
@@ -132080,7 +131966,7 @@
                   "volumes": [
                     "8"
                   ],
-                  "size": 343414,
+                  "size": 343218,
                   "children": [
                     {
                       "identifier": "A",
@@ -132226,7 +132112,7 @@
                       "volumes": [
                         "8"
                       ],
-                      "size": 103069,
+                      "size": 102938,
                       "children": [
                         {
                           "identifier": "1152.20",
@@ -132238,8 +132124,8 @@
                           "volumes": [
                             "8"
                           ],
-                          "received_on": "2018-05-04T01:00:00-0400",
-                          "size": 3392
+                          "received_on": "2026-09-18T19:40:04-0400",
+                          "size": 3261
                         },
                         {
                           "identifier": "1152.21",
@@ -132501,7 +132387,7 @@
                       "volumes": [
                         "8"
                       ],
-                      "size": 6693,
+                      "size": 6628,
                       "children": [
                         {
                           "identifier": "1152.50",
@@ -132513,8 +132399,8 @@
                           "volumes": [
                             "8"
                           ],
-                          "received_on": "2026-02-06T17:10:05-0500",
-                          "size": 6693
+                          "received_on": "2026-09-18T19:40:04-0400",
+                          "size": 6628
                         }
                       ],
                       "descendant_range": "1152.50"
@@ -133461,7 +133347,7 @@
               "label_description": "Accounts, Records, and Reports",
               "reserved": false,
               "type": "subchapter",
-              "size": 351145,
+              "size": 351140,
               "children": [
                 {
                   "label": "Parts 1200-1219—Uniform Systems of Accounts",
@@ -133536,267 +133422,17 @@
                       "children": [
                         {
                           "generated_id": true,
-                          "identifier": "ECFR88590d9301a8b5c",
-                          "label": "List of Instructions and Accounts\n<HED1>REGULATIONS PRESCRIBED</HED1>",
-                          "label_level": "List of Instructions and Accounts\n<HED1>REGULATIONS PRESCRIBED</HED1>",
-                          "label_description": "List of Instructions and Accounts\n<HED1>REGULATIONS PRESCRIBED</HED1>",
+                          "identifier": "ECFR20ec81c2b62f70c",
+                          "label": "List of Instructions and Accounts",
+                          "label_level": "List of Instructions and Accounts",
+                          "label_description": "List of Instructions and Accounts",
                           "reserved": false,
                           "type": "subject_group",
                           "size": 0,
-                          "children": [
-                            {
-                              "label": "Regulations Prescribed",
-                              "label_level": "Regulations Prescribed",
-                              "label_description": "Regulations Prescribed",
-                              "reserved": false,
-                              "type": "hed1",
-                              "size": 0
-                            }
-                          ],
-                          "descendant_range": ""
+                          "children": []
                         }
                       ],
                       "descendant_range": ""
-                    },
-                    {
-                      "label": "General Instructions",
-                      "label_level": "General Instructions",
-                      "label_description": "General Instructions",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Instructions for Property Accounts",
-                      "label_level": "Instructions for Property Accounts",
-                      "label_description": "Instructions for Property Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Instructions for Maintenance Expenses",
-                      "label_level": "Instructions for Maintenance Expenses",
-                      "label_description": "Instructions for Maintenance Expenses",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Instructions for Depreciation Accounts",
-                      "label_level": "Instructions for Depreciation Accounts",
-                      "label_description": "Instructions for Depreciation Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Instructions for Income and Balance Sheet Accounts",
-                      "label_level": "Instructions for Income and Balance Sheet Accounts",
-                      "label_description": "Instructions for Income and Balance Sheet Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Instructions for Clearing Accounts",
-                      "label_level": "Instructions for Clearing Accounts",
-                      "label_description": "Instructions for Clearing Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Property Accounts",
-                      "label_level": "Property Accounts",
-                      "label_description": "Property Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Road\n0 Road.",
-                      "label_level": "Road\n0 Road.",
-                      "label_description": "Road\n0 Road.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Equipment\n50 Equipment.",
-                      "label_level": "Equipment\n50 Equipment.",
-                      "label_description": "Equipment\n50 Equipment.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "General Expenditures\n70 General Expenditures.",
-                      "label_level": "General Expenditures\n70 General Expenditures.",
-                      "label_description": "General Expenditures\n70 General Expenditures.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Other Property Accounts\n80 Other Elements of Investment.",
-                      "label_level": "Other Property Accounts\n80 Other Elements of Investment.",
-                      "label_description": "Other Property Accounts\n80 Other Elements of Investment.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Railway Operating Revenue Accounts",
-                      "label_level": "Railway Operating Revenue Accounts",
-                      "label_description": "Railway Operating Revenue Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Transportation Revenue Accounts\n100 Transportation; Rail Line.",
-                      "label_level": "Transportation Revenue Accounts\n100 Transportation; Rail Line.",
-                      "label_description": "Transportation Revenue Accounts\n100 Transportation; Rail Line.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Joint Facility Revenue Accounts\n120 Joint Facility.",
-                      "label_level": "Joint Facility Revenue Accounts\n120 Joint Facility.",
-                      "label_description": "Joint Facility Revenue Accounts\n120 Joint Facility.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Operating Expense Accounts",
-                      "label_level": "Operating Expense Accounts",
-                      "label_description": "Operating Expense Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Operating Expense Accounts\nSection 1—Natural Expense Explanations*",
-                      "label_level": "Operating Expense Accounts\nSection 1—Natural Expense Explanations*",
-                      "label_description": "Operating Expense Accounts\nSection 1—Natural Expense Explanations*",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Personnel\nControl—10-00-00",
-                      "label_level": "Personnel\nControl—10-00-00",
-                      "label_description": "Personnel\nControl—10-00-00",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Claims and Insurance\nControl—50-00-00",
-                      "label_level": "Claims and Insurance\nControl—50-00-00",
-                      "label_description": "Claims and Insurance\nControl—50-00-00",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "General\nControl—60-00-00",
-                      "label_level": "General\nControl—60-00-00",
-                      "label_description": "General\nControl—60-00-00",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Operating Expense Accounts\nSection 2—Activity/Subactivity Explanations\nWay and Structures Activity—(XX-10-XX)",
-                      "label_level": "Operating Expense Accounts\nSection 2—Activity/Subactivity Explanations\nWay and Structures Activity—(XX-10-XX)",
-                      "label_description": "Operating Expense Accounts\nSection 2—Activity/Subactivity Explanations\nWay and Structures Activity—(XX-10-XX)",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Operating Expense Accounts\nSection 3—Function Explanations",
-                      "label_level": "Operating Expense Accounts\nSection 3—Function Explanations",
-                      "label_description": "Operating Expense Accounts\nSection 3—Function Explanations",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Income Accounts",
-                      "label_level": "Income Accounts",
-                      "label_description": "Income Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Ordinary Items\n501 Railway Operating Revenues.",
-                      "label_level": "Ordinary Items\n501 Railway Operating Revenues.",
-                      "label_description": "Ordinary Items\n501 Railway Operating Revenues.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Retained Earnings Accounts",
-                      "label_level": "Retained Earnings Accounts",
-                      "label_description": "Retained Earnings Accounts",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Credit\n601 Credit Balance (at Beginning of Calendar Year).",
-                      "label_level": "Credit\n601 Credit Balance (at Beginning of Calendar Year).",
-                      "label_description": "Credit\n601 Credit Balance (at Beginning of Calendar Year).",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Debit\n611 Debit Balance (at Beginning of Calendar Year).",
-                      "label_level": "Debit\n611 Debit Balance (at Beginning of Calendar Year).",
-                      "label_description": "Debit\n611 Debit Balance (at Beginning of Calendar Year).",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "General Balance Sheet Accounts Explanations",
-                      "label_level": "General Balance Sheet Accounts Explanations",
-                      "label_description": "General Balance Sheet Accounts Explanations",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Assets\nCurrent Assets\n701 Cash.",
-                      "label_level": "Assets\nCurrent Assets\n701 Cash.",
-                      "label_description": "Assets\nCurrent Assets\n701 Cash.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Liabilities and Shareholders' Equity\nCurrent Liabilities\n751 Loans and Notes Payable.",
-                      "label_level": "Liabilities and Shareholders' Equity\nCurrent Liabilities\n751 Loans and Notes Payable.",
-                      "label_description": "Liabilities and Shareholders' Equity\nCurrent Liabilities\n751 Loans and Notes Payable.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    },
-                    {
-                      "label": "Conversion Tables\nOperating Expense Accounts.\n\nTransportation Operating Revenue Accounts.\n\nIncome Accounts.\n\nRetained Income Accounts.\n\nGeneral Balance Sheet Accounts.",
-                      "label_level": "Conversion Tables\nOperating Expense Accounts.\n\nTransportation Operating Revenue Accounts.\n\nIncome Accounts.\n\nRetained Income Accounts.\n\nGeneral Balance Sheet Accounts.",
-                      "label_description": "Conversion Tables\nOperating Expense Accounts.\n\nTransportation Operating Revenue Accounts.\n\nIncome Accounts.\n\nRetained Income Accounts.\n\nGeneral Balance Sheet Accounts.",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
                     },
                     {
                       "identifier": "B",
@@ -133826,25 +133462,23 @@
                   "descendant_range": ""
                 },
                 {
-                  "identifier": "1202-1219 [RESERVED] 1220-1239",
-                  "label": "Parts 1202-1219 [Reserved]\n<HED1>Parts 1220-1239—Preservation of Records</HED1>",
-                  "label_level": "Parts 1202-1219 [Reserved]\n<HED1>Parts 1220-1239",
-                  "label_description": "Preservation of Records</HED1>",
-                  "reserved": false,
+                  "identifier": "1202-1219",
+                  "label": "Parts 1202-1219 [Reserved]",
+                  "label_level": "Parts 1202-1219",
+                  "label_description": "Parts 1202-1219 [Reserved]",
+                  "reserved": true,
                   "type": "part",
                   "volumes": [],
                   "size": 0,
-                  "children": [
-                    {
-                      "label": "Parts 1220-1239—Preservation of Records",
-                      "label_level": "Parts 1220-1239—Preservation of Records",
-                      "label_description": "Parts 1220-1239—Preservation of Records",
-                      "reserved": false,
-                      "type": "hed1",
-                      "size": 0
-                    }
-                  ],
-                  "descendant_range": ""
+                  "children": []
+                },
+                {
+                  "label": "Parts 1220-1239—Preservation of Records",
+                  "label_level": "Parts 1220-1239—Preservation of Records",
+                  "label_description": "Parts 1220-1239—Preservation of Records",
+                  "reserved": false,
+                  "type": "hed1",
+                  "size": 0
                 },
                 {
                   "identifier": "1220",
@@ -135289,7 +134923,7 @@
                   "volumes": [
                     "9"
                   ],
-                  "size": 26636,
+                  "size": 26631,
                   "children": [
                     {
                       "identifier": "1244.1",
@@ -135405,8 +135039,8 @@
                       "volumes": [
                         "9"
                       ],
-                      "received_on": "2023-04-12T10:30:27-0400",
-                      "size": 15021
+                      "received_on": "2026-09-18T19:40:04-0400",
+                      "size": 15016
                     }
                   ],
                   "descendant_range": "1244.1 – 1244.9"

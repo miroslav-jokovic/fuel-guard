@@ -18,14 +18,25 @@ describe.skipIf(!PRESENT)("govinfoCrossCheck — automated eCFR↔GovInfo triang
     expect(r.inScope.rows.every((row) => row.status === "match")).toBe(true);
   });
 
-  it("the full table triangulates with zero disagreements and identical key sets", () => {
+  // The eCFR capture (2026-10-09) postdates 91 FR 51098 (effective 2026-09-08); GovInfo CFR-2025 does not.
+  // So the three fireworks rows it amended are the ONLY disagreements, and each is explained by that rule.
+  it("the full table triangulates with identical key sets and only the three rows 91 FR 51098 amended disagreeing", () => {
     const r = crossCheckDefault();
     expect(r.totals.aEntries).toBe(2479);
     expect(r.totals.bEntries).toBe(2479);
-    expect(r.full.disagree).toBe(0);
     expect(r.full.aOnly).toBe(0);
     expect(r.full.bOnly).toBe(0);
-    expect(r.full.matched).toBe(r.totals.aKeys); // every distinct key matched
+    expect(r.disagreements.map((d) => `${d.idPrefix}${d.idNumber}`).sort()).toEqual(["UN0101", "UN0335", "UN0431"]);
+    expect(r.full.matched).toBe(r.totals.aKeys - 3);
+    const rec = crossCheckAll().hmtReconciliation;
+    expect(rec).toMatchObject({ editionDate: "2025-10-01", ecfrDate: "2026-10-09", unexplained: [], unused: [], outOfWindow: [], clean: true });
+    expect(rec.explained.map((e) => e.citation)).toEqual(["91 FR 51098", "91 FR 51098", "91 FR 51098", "91 FR 51098"]);
+  });
+
+  it("without the cited reconciliation the same capture is NOT CLEAN", () => {
+    const t = crossCheckAll({ reconciliations: [] });
+    expect(t.hmtReconciliation.unexplained).toHaveLength(4);
+    expect(t.allClean).toBe(false);
   });
 
   // NEGATIVE CONTROL: prove the comparison is not vacuously passing — a single injected field change
